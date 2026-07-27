@@ -1,0 +1,54 @@
+# Smart Ticket Triage — thresholds. Spec §13.
+#
+# EVERY tunable number in the system lives here. No threshold literal may
+# appear anywhere else in the codebase — thresholds are calibration data,
+# not logic (spec §2 rule 2). Values marked 🔧 are placeholder assumptions
+# that let the system run from day one; they are meant to be replaced by
+# the §7.1 shadow-mode calibration output, not treated as ground truth.
+#
+# This file is loaded into `contracts.routing.Thresholds` at boot — a
+# malformed file fails fast at startup, not mid-request. Whatever version
+# is active is snapshotted verbatim into `routing_decisions.thresholds_used`
+# so a decision made months ago can always be explained with the numbers
+# that were actually in effect at the time.
+
+version: "2026-07-27"
+calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
+
+routing:
+  t_auto: 0.88       # 🔧 calibrate: auto-reply precision >= 0.95
+  t_route: 0.72      # 🔧 calibrate: auto-route precision >= 0.85
+  quote_match: 0.95
+
+retrieval:
+  floor: 0.45         # 🔧 CROSS-ENCODER score, not cosine similarity (ADR-0005)
+  margin: 0.08         # below this → downgrade trust, log "KB ambiguous"
+  bm25_top_k: 20
+  vector_top_k: 20
+  rrf_k: 60             # standard constant from the RRF paper; do not tune
+  rerank_top_n: 3
+
+incident:
+  similarity: 0.85
+  window_minutes: 15
+  min_count: 5
+  sigma_multiplier: 3.0
+
+fewshot:
+  max_per_category: 5
+  ttl_days: 90
+  min_diversity: 0.30   # mean embedding distance; lower → warn
+  require_user_confirmed: true
+
+budget:
+  max_tokens_per_ticket: 8000
+  max_llm_calls: 4
+  max_latency_sec: 30
+  max_graph_iterations: 5
+  daily_cost_ceiling_usd: 50   # 🔧 exceed → AI off, everything to HITL
+
+alerts:
+  reviewer_approve_rate_max: 0.95
+  reviewer_median_time_min_sec: 10
+  override_rate_delta_max: 0.05
+  trust_score_drift_max: 0.10

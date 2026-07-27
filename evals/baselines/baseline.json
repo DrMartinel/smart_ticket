@@ -1,0 +1,6 @@
+{
+  "_comment": "Committed baseline for evals/report.py — spec §12.3: updating this file requires review from someone other than the author of the change that motivated it, otherwise the gate can be silently weakened to make a failing PR pass. Values below come from an actual local run (services/ai-engine + qwen3.5:9b + bge-m3 embeddings + lexical reranker, EVAL_SAMPLE_SIZE default) on 2026-07-27, NOT invented numbers — see the git history of this file for the run that produced them.",
+  "retrieval_recall_at_5": 1.0,
+  "injection_recall": 1.0,
+  "_known_issue": "per_category_f1['other'] measured 0.75 on this run, below the 0.85 absolute floor spec §12.3 sets for every category — NOT smoothed into this baseline. The 'other' category maps to a single KB article (KB-0010, leave-request tickets that are genuinely HR matters routed through an IT ticket system) and the model inconsistently classifies it. This is a real, reproducible finding the eval harness is working as designed to surface, not a harness bug — see evals/golden/SCHEMA.md's provenance note. Fix the underlying prompt/KB-content issue before expecting this gate to pass; do not raise the floor or delete this category to make CI green."
+}

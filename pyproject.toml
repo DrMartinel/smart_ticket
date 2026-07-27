@@ -1,0 +1,24 @@
+[project]
+name = "smart-triage"
+version = "0.1.0"
+description = "Smart Ticket Triage — workspace root"
+requires-python = ">=3.13"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "packages/contracts",
+    "services/core-api",
+    "services/ai-engine",
+    "evals",
+]
+
+[tool.uv.sources]
+contracts = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.pytest.ini_options]
+testpaths = ["services/core-api/tests", "services/ai-engine/tests", "evals/suites"]

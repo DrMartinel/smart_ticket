@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# uv
+uv.lock.bak
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Eval run artifacts (generated, not authored)
+evals/.results.json
+evals/report.md
+
+# Env files with real secrets
+infra/.env
+.env
+.env.local
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Docker volumes are named, not bind-mounted, so nothing to ignore there.

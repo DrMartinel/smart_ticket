@@ -1,0 +1,125 @@
+# Eval CI gate — spec §12.3. "Sửa prompt phải qua CI như sửa code."
+#
+# Two tiers, because the offline and live-pipeline suites have genuinely
+# different infrastructure requirements:
+#
+#   1. ALWAYS runs, on every PR: contracts, masking, router (100% branch
+#      coverage, no external deps) + the eval suites that are pure
+#      functions (injection regex, quote validator, graph routing edges).
+#      No GPU, no LLM, no network — this tier alone catches most
+#      regressions and never flakes on infra.
+#
+#   2. Runs when a real Ollama-compatible endpoint is available (self-hosted
+#      GPU runner, or a hosted endpoint via secrets) — the live-pipeline
+#      suites (retrieval, classification, refusal, end-to-end) against the
+#      FULL golden set (EVAL_FULL_RUN=1), gated by report.py's regression
+#      rules against the committed baseline.
+#
+# A bare `ubuntu-latest` GitHub-hosted runner cannot run a 9B local model
+# at usable speed — tier 2 needs a self-hosted/GPU runner or a cloud LLM
+# endpoint configured via repo secrets. This file documents that
+# requirement rather than pretending a hosted runner can do it silently.
+
+name: eval-gate
+
+on:
+  pull_request:
+    paths:
+      - "packages/contracts/**"
+      - "services/core-api/**"
+      - "services/ai-engine/**"
+      - "evals/**"
+      - "infra/migrations/**"
+
+jobs:
+  offline-suites:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: smart_triage
+          POSTGRES_USER: app_user
+          POSTGRES_PASSWORD: app_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app_user -d smart_triage"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://app_user:app_password@localhost:5432/smart_triage
+      SECRET_KEY: ci-only-key
+      EMBEDDING_PROVIDER: stub
+      RERANKER_PROVIDER: lexical
+      POSTGRES_AI_RO_PASSWORD: ai_engine_ro_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --all-packages
+
+      - name: Migrate (applies infra/migrations/sql/* via Django RunSQL)
+        working-directory: services/core-api
+        run: uv run python manage.py migrate
+
+      - name: Router + masking unit tests (100% branch coverage gate)
+        run: |
+          uv run pytest services/core-api/tests -q --cov=apps.tickets.services.router \
+            --cov=apps.tickets.services.masking --cov-report=term-missing --cov-fail-under=100
+
+      - name: ai-engine unit tests
+        run: uv run pytest services/ai-engine/tests -q
+
+      - name: Offline eval suites (injection recall, quote validation, graph structure)
+        run: |
+          uv run --package evals pytest \
+            evals/suites/test_injection.py \
+            evals/suites/test_quote_validation.py \
+            evals/suites/test_build.py \
+            -q
+
+      - name: Report (offline metrics only)
+        run: uv run --package evals python evals/report.py --compare evals/baselines/baseline.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-offline
+          path: evals/report.md
+
+  live-pipeline-suites:
+    # Requires a self-hosted runner with Ollama (or OLLAMA_BASE_URL
+    # pointed at a hosted endpoint via secrets) + bge-m3 pulled. Skipped
+    # automatically if that label isn't available in this repo — remove
+    # the `if:` guard once a real runner is provisioned.
+    if: ${{ vars.HAS_GPU_RUNNER == 'true' }}
+    runs-on: [self-hosted, gpu]
+    needs: offline-suites
+    env:
+      DATABASE_URL: postgresql://app_user:app_password@localhost:5432/smart_triage
+      AI_ENGINE_URL: http://localhost:8001
+      EMBEDDING_PROVIDER: ollama
+      RERANKER_PROVIDER: lexical
+      EVAL_FULL_RUN: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --all-packages
+      - run: docker compose -f infra/docker-compose.yml up -d db redis
+      - working-directory: services/core-api
+        run: uv run python manage.py migrate && uv run python manage.py seed_demo
+      - name: Start ai-engine
+        run: |
+          uv run --package ai-engine uvicorn ai_engine.main:app --port 8001 --app-dir services/ai-engine/src &
+          sleep 5
+      - name: Full-golden-set eval suites
+        run: uv run --package evals pytest evals/suites -q
+      - name: Report + regression gate
+        run: uv run --package evals python evals/report.py --compare evals/baselines/baseline.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eval-report-live
+          path: evals/report.md
+      - name: Comment report on PR
+        if: always()
+        run: gh pr comment "$PR_NUMBER" --body-file evals/report.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}

@@ -1,0 +1,15 @@
+{
+  "model_version": "logreg-v0-uncalibrated-2026-07-27",
+  "note": "Hand-set coefficients, NOT fit on shadow data. This is a placeholder that lets the system produce a plausible, monotonic trust score from day one. It MUST be replaced by evals/calibration/fit_trust_score.py's output (spec §7.1) after 500+ shadow-mode (signals, correct/incorrect) pairs have been collected — see spec §14 P2 exit condition. Weights are deliberately NOT dominated by quote_source_in_topk/negation_consistent/quote_match_ratio alone: those are already separately hard-gated as booleans in router.py before trust is ever computed, so letting them alone push trust above t_auto would make the trust threshold check practically dead code for the auto-reply branch. Retrieval quality (rerank_top1/margin) carries the largest weight on purpose.",
+  "intercept": -4.0,
+  "weights": {
+    "rerank_top1": 3.0,
+    "rerank_margin": 1.5,
+    "bm25_keyword_hit": 0.5,
+    "docs_above_floor_capped": 0.8,
+    "quote_match_ratio": 1.0,
+    "quote_source_in_topk": 0.8,
+    "negation_consistent": 0.8,
+    "category_consistent": 0.6
+  }
+}
