@@ -51,6 +51,81 @@ self-limiting behavior, not a bug.
 2. Confirm the HNSW indexes still exist and are being used
    (`EXPLAIN ANALYZE` a known vector query).
 
+## Embedding provider unavailable (`degraded_reason="embedding_unavailable"`)
+
+**What this means:** core-api could not embed the ticket, so incident and
+duplicate detection could not run. The ticket routes to HITL with
+`ReasonCode.EMBEDDING_UNAVAILABLE` (spec §10.3 — degrade toward a human).
+
+**Why this one deserves its own entry:** the embedding call happens in
+`process_ticket` *before* the ai-engine call, and it is the only remote
+call in that early stretch. Before this path had a handler, an embedding
+outage raised straight out of the Celery task and left tickets frozen at
+`status="new"` with no `RoutingDecision` and no `ReviewItem` — invisible
+to every queue and dashboard. If you ever see tickets stuck at `new` with
+no routing row, look here first.
+
+**Actions:**
+1. Check Ollama on the host: `curl -s localhost:11434/api/tags`.
+2. Confirm `bge-m3` is present (`ollama list`) — a missing model returns an
+   error, not a timeout.
+3. If Ollama is healthy from the host but the worker still fails, this is
+   almost certainly container→host networking, not Ollama (see below).
+4. `EMBEDDING_PROVIDER=stub` is a legitimate emergency lever: it keeps the
+   pipeline flowing with deterministic hash embeddings. Retrieval quality
+   collapses, so *everything* lands in HITL — acceptable for a short
+   outage, not as a standing configuration.
+
+## Containers cannot reach Ollama on the host
+
+**Symptom:** `httpx.ConnectTimeout` from `worker`/`ai-engine`, while
+`curl localhost:11434` from the host succeeds. Every ticket degrades to
+HITL via `embedding_unavailable` or `ai_engine_unavailable`.
+
+**What this means:** Ollama runs on the host, not in Docker. Containers
+reach it via `host.docker.internal`, which compose maps to the bridge
+gateway. A host firewall that blocks the Docker subnet silently breaks
+this — the containers are healthy, Ollama is healthy, and only the path
+between them is dead.
+
+**Diagnosis:**
+```sh
+docker compose exec worker sh -c \
+  'curl -s -m 5 -o /dev/null -w "%{http_code}\n" http://host.docker.internal:11434/api/tags'
+```
+`000` with a ~5 s hang means blocked/dropped, not refused.
+
+**Actions:**
+1. Confirm Ollama binds beyond loopback: `OLLAMA_HOST=0.0.0.0` (a
+   `127.0.0.1`-only bind is unreachable from any container).
+2. Allow the Docker bridge range to the Ollama port, e.g. with ufw:
+   ```sh
+   sudo ufw allow from 172.16.0.0/12 to any port 11434 proto tcp
+   ```
+3. Re-run the diagnosis above; expect `200`.
+
+## `MASK_FAILED` flood — every ticket lands in the mask_failed queue
+
+**What this means:** tier-2 NER (Ollama) is failing for every ticket, and
+masking is correctly refusing to treat "I couldn't check" as "it's clean"
+(spec §5.2). The system is behaving as designed; the queue is the symptom,
+not the bug.
+
+**Known causes, in order of likelihood:**
+1. **Ollama returning HTTP 500 under load.** Several models sharing one
+   GPU will OOM-thrash. Check `ollama ps` for co-resident models and the
+   Ollama logs for 500s. Mitigation is capacity, not code.
+2. **Model unavailable.** `qwen3:8b` (`OLLAMA_NER_MODEL`) not pulled.
+3. **Response-shape drift.** `format="json"` guarantees valid JSON, *not* a
+   top-level array — models routinely wrap it (`{"found": [...]}`). The
+   parser unwraps the first list value it finds; a model that returns some
+   genuinely different shape will fail closed to `MASK_FAILED`. Check the
+   `masking: Ollama NER failed (...)` warning — it logs the offending
+   payload verbatim.
+
+**Do not** "fix" this by treating NER failure as no-PII-found. That inverts
+the one safety property this stage exists to guarantee.
+
 ## `ai-engine` unreachable entirely
 
 **What this means:** tickets are still accepted normally (**fail open
@@ -62,6 +137,27 @@ toward humans**, per spec §10.3) and all go to HITL with
    checks.
 2. This is the safest failure mode in the system; it is not an emergency
    for ticket handling, only for the backlog it creates.
+
+## Mass incident declared (`ReasonCode.MASS_INCIDENT`)
+
+**What this means:** the detector saw similar tickets exceeding
+`baseline + 3σ` for that category *and* at least `incident.min_count` (5)
+within the window. Affected tickets are linked to a parent `Incident`,
+escalated, and **skip the AI engine entirely** — no auto-reply is possible
+during an outage (spec §9).
+
+**Actions:**
+1. Treat it as an outage first, tickets second. `incidents.baseline_rate`
+   records what "normal" was at detection time, so the call is auditable
+   after the fact.
+2. Use the parent incident to notify every linked reporter once, with an
+   ETA. That single broadcast — rather than 40 individually-generated,
+   possibly-wrong answers — is the entire point of this branch.
+3. **If you see two `Incident` rows for one real outage:** the dedup lookup
+   is serialized by a Postgres advisory lock keyed on category, so
+   concurrent Celery workers should converge on one row. Duplicates mean
+   either the lock path regressed or the two batches genuinely differ in
+   category — check `incidents.category` before merging by hand.
 
 ## DB read-only
 

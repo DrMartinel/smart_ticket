@@ -5,16 +5,47 @@ covered: critical short-circuit, Ollama success, Ollama timeout/error
 (MASK_FAILED, never silently "clean"), and placeholder numbering.
 """
 
+import json
+
+import httpx
+import pytest
 from asgiref.sync import async_to_sync
 
 from contracts.enums import PIILevel
 from contracts.ticket import TicketIn
 
-from apps.tickets.services.masking import OllamaError, mask, regex_scan, regex_scan_ticket
+from apps.tickets.services.masking import (
+    OllamaError,
+    _spans_to_hits,
+    mask,
+    ollama_ner,
+    regex_scan,
+    regex_scan_ticket,
+)
 
 
 def run_mask(raw: TicketIn):
     return async_to_sync(mask)(raw)
+
+
+def run_ner(text: str):
+    return async_to_sync(ollama_ner)(text)
+
+
+def _mock_ollama_client(monkeypatch, generate_response: str):
+    """Ollama's format="json" guarantees valid JSON, not any particular
+    top-level shape — this stubs the /api/generate call to return a given
+    `response` string, exactly as Ollama's HTTP API wraps it."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"response": generate_response})
+
+    class MockAsyncClient(httpx.AsyncClient):
+        def __init__(self, *a, **kw):
+            kw["transport"] = httpx.MockTransport(handler)
+            super().__init__(*a, **kw)
+
+    monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
 
 
 class TestRegexTier:
@@ -114,6 +145,83 @@ class TestMaskOllamaTier:
 
         assert result.pii_level is PIILevel.ROUTINE
         assert result.placeholder_map == {}
+
+    def test_cccd_hit_escalates_full_mask_to_sensitive(self, monkeypatch):
+        async def fake_ner(*a, **kw):
+            return []
+
+        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
+        raw = TicketIn(subject="Xac minh danh tinh", body="So CCCD cua toi la 012345678901, can xac minh gap")
+        result = run_mask(raw)
+
+        assert result.pii_level is PIILevel.SENSITIVE
+        assert "012345678901" not in result.body_masked
+
+
+class TestOllamaNerResponseParsing:
+    """Regression coverage for a real failure mode hit against a live
+    Ollama qwen3:8b: despite the prompt asking for a bare JSON array,
+    format="json" only guarantees valid JSON — the model routinely wraps
+    the array in an object, e.g. {"found": []} instead of []. Before the
+    fix, that shape was treated as an unrecoverable parse error, which
+    flagged every single ticket as MASK_FAILED regardless of content."""
+
+    def test_bare_array_response(self, monkeypatch):
+        _mock_ollama_client(monkeypatch, json.dumps(["anh Tuan phong ke toan"]))
+        assert run_ner("...") == ["anh Tuan phong ke toan"]
+
+    def test_object_wrapped_array_response(self, monkeypatch):
+        _mock_ollama_client(monkeypatch, json.dumps({"found": ["anh Tuan phong ke toan"]}))
+        assert run_ner("...") == ["anh Tuan phong ke toan"]
+
+    def test_object_wrapped_empty_array_response(self, monkeypatch):
+        _mock_ollama_client(monkeypatch, json.dumps({"result": []}))
+        assert run_ner("...") == []
+
+    def test_object_with_no_list_value_raises(self, monkeypatch):
+        _mock_ollama_client(monkeypatch, json.dumps({"found": "not a list"}))
+        with pytest.raises(OllamaError):
+            run_ner("...")
+
+    def test_non_json_response_raises(self, monkeypatch):
+        _mock_ollama_client(monkeypatch, "not json at all")
+        with pytest.raises(OllamaError):
+            run_ner("...")
+
+    def test_transport_timeout_becomes_timeout_error(self, monkeypatch):
+        # Exercises ollama_ner's own httpx.TimeoutException -> TimeoutError
+        # conversion — the other timeout test in TestMaskOllamaTier mocks
+        # ollama_ner() wholesale, so it never runs this branch.
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.TimeoutException("simulated network timeout")
+
+        class MockAsyncClient(httpx.AsyncClient):
+            def __init__(self, *a, **kw):
+                kw["transport"] = httpx.MockTransport(handler)
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+        with pytest.raises(TimeoutError):
+            run_ner("...")
+
+
+class TestSpansToHits:
+    def test_hallucinated_span_not_in_text_is_skipped(self):
+        # The LLM is asked to return exact substrings, but nothing enforces
+        # that at the model level — a span it "found" that doesn't actually
+        # occur in the source text must be dropped, not turned into a
+        # placeholder that masks non-existent content.
+        hits = _spans_to_hits("May in tren tang 3 bi ket giay", ["anh Tuan phong ke toan"])
+        assert hits == []
+
+    def test_blank_span_is_skipped(self):
+        hits = _spans_to_hits("May in tren tang 3 bi ket giay", ["   "])
+        assert hits == []
+
+    def test_real_span_is_kept(self):
+        hits = _spans_to_hits("Lien he anh Tuan phong ke toan nhe", ["anh Tuan phong ke toan"])
+        assert len(hits) == 1
+        assert hits[0].value == "anh Tuan phong ke toan"
 
 
 class TestPlaceholderNumbering:

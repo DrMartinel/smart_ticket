@@ -102,6 +102,14 @@ async def ollama_ner(text: str, timeout: float = OLLAMA_NER_TIMEOUT_SEC) -> list
             data = resp.json()
             raw_out = data.get("response", "[]")
             parsed = json.loads(raw_out)
+            # Ollama's format="json" guarantees valid JSON, not a top-level
+            # array — models routinely wrap the array in an object (e.g.
+            # {"found": [...]}) despite the prompt asking for a bare array.
+            # Unwrap the first list value found rather than treating that
+            # shape as an error, which would otherwise flag every ticket as
+            # MASK_FAILED regardless of whether any PII was actually found.
+            if isinstance(parsed, dict):
+                parsed = next((v for v in parsed.values() if isinstance(v, list)), None)
             if not isinstance(parsed, list):
                 raise OllamaError(f"unexpected NER response shape: {raw_out!r}")
             return [str(x) for x in parsed]

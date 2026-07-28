@@ -51,6 +51,7 @@ class ReasonCode(StrEnum):
     CATEGORY_INCONSISTENT = "category_inconsistent"
     # degraded
     AI_ENGINE_UNAVAILABLE = "ai_engine_unavailable"
+    EMBEDDING_UNAVAILABLE = "embedding_unavailable"
     BUDGET_EXCEEDED = "budget_exceeded"
     CIRCUIT_OPEN = "circuit_open"
     # ok

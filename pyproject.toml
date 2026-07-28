@@ -22,3 +22,12 @@ target-version = "py313"
 
 [tool.pytest.ini_options]
 testpaths = ["services/core-api/tests", "services/ai-engine/tests", "evals/suites"]
+# core-api and ai-engine both have a test package literally named `tests`.
+# Under the default "prepend" import mode the first one collected wins and
+# the second's modules resolve to `tests.<name>` in the wrong package —
+# so a whole-workspace `pytest` run died with ModuleNotFoundError even
+# though each suite passed when run on its own. importlib mode imports by
+# file location instead of by assembled module name, which makes the
+# duplicate package name (and the two different test_injection.py files in
+# ai-engine/tests and evals/suites) a non-issue.
+addopts = "--import-mode=importlib"

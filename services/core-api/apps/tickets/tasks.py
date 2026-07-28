@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 
+import httpx
 from celery import shared_task
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -74,10 +75,22 @@ def process_ticket(self, ticket_id: int) -> dict:
 
     # ── Embedding + incident detection (core-api owns this, spec §1 map) ──
     combined_text = f"{ticket.subject_masked}\n{ticket.body_masked}"
-    embedding = embed_text(combined_text)
-    store_embedding(ticket, embedding, settings.OLLAMA_EMBED_MODEL)
+    try:
+        embedding = embed_text(combined_text)
+        store_embedding(ticket, embedding, settings.OLLAMA_EMBED_MODEL)
+        verdict = classify_similarity(ticket, embedding)
+    except (httpx.HTTPError, ValueError) as e:
+        # Same fail-open-to-human principle as the AIEngineUnavailable
+        # branch below (spec §10.3: "khi degrade, luôn đẩy về con người").
+        # Without this, an Ollama/embedding outage left the ticket stuck
+        # at status="new" forever — no RoutingDecision, no ReviewItem,
+        # invisible to every queue and dashboard.
+        logger.warning("embedding unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e)
+        signals = _degraded_signals()
+        decision = _degraded_decision(ReasonCode.EMBEDDING_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2)
+        ai_run = _persist_ai_run(ticket, idempotency_key, signals, None, degraded_reason="embedding_unavailable")
+        return _finalize(ticket, ai_run, decision, trace_id)
 
-    verdict = classify_similarity(ticket, embedding)
     if verdict.kind == "duplicate" and verdict.of:
         original = Ticket.objects.filter(id=verdict.of).first()
         if original:

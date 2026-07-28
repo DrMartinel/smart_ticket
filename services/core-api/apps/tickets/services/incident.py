@@ -13,6 +13,7 @@ from datetime import timedelta
 from typing import Literal
 
 from django.conf import settings
+from django.db import connection, transaction
 from django.utils import timezone
 from pgvector.django import CosineDistance
 
@@ -87,29 +88,54 @@ def classify_similarity(ticket: Ticket, embedding: list[float]) -> IncidentVerdi
 
 
 def _get_or_create_incident(ticket: Ticket, similar: list[Ticket], baseline_rate: float) -> Incident:
-    existing = Incident.objects.filter(
-        category=ticket.category, status="open", created_at__gte=timezone.now() - timedelta(hours=6)
-    ).first()
-    if existing:
-        existing.ticket_count = len(similar) + 1
-        existing.save(update_fields=["ticket_count"])
-        return existing
+    # `ticket.category` is normally still unset at this point — incident
+    # detection runs before the router assigns a category (spec §1 map:
+    # core-api's incident detector runs ahead of ai-engine/routing) — so
+    # every ticket in a batch resolves to the same "other" fallback here.
+    # That resolved value MUST be the one used both to look up an existing
+    # incident and to store a new one; using the raw (frequently blank)
+    # ticket.category for the lookup while storing the resolved value
+    # would make the lookup never match, silently defeating reuse.
+    category = ticket.category or "other"
 
-    incident = Incident.objects.create(
-        public_id=next_incident_public_id(),
-        title=f"Mass incident: {ticket.category or 'uncategorized'} — {ticket.subject_masked[:80]}",
-        category=ticket.category or "other",
-        severity="high",
-        detected_by="density_detector",
-        ticket_count=len(similar) + 1,
-        detection_window_min=settings.THRESHOLDS.incident.window_minutes,
-        baseline_rate=baseline_rate,
-        status="open",
-    )
-    # Link every ticket that contributed to the detection, so the parent
-    # incident view can notify every affected reporter at once — the
-    # actual value described in spec §9 ("40 người nhận 1 thông báo có ETA").
-    Ticket.objects.filter(id__in=[t.id for t in similar]).update(incident=incident)
+    # Celery runs with concurrency > 1 (spec §10.3), so two tickets in the
+    # same mass incident can independently reach this function at nearly
+    # the same instant. A plain filter-then-create has a check-then-act
+    # race that produces two separate Incident rows for one real event —
+    # exactly the outcome spec §9 says the detector must prevent (one
+    # notification with an ETA, not a fragmented picture). A Postgres
+    # advisory lock keyed by category serializes that window cheaply
+    # without needing a dedicated "current incident" row to lock first.
+    with transaction.atomic():
+        with connection.cursor() as cur:
+            cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [f"mass_incident:{category}"])
+
+        existing = Incident.objects.filter(
+            category=category, status="open", created_at__gte=timezone.now() - timedelta(hours=6)
+        ).first()
+        if existing:
+            existing.ticket_count = len(similar) + 1
+            existing.save(update_fields=["ticket_count"])
+            incident = existing
+        else:
+            incident = Incident.objects.create(
+                public_id=next_incident_public_id(),
+                title=f"Mass incident: {category} — {ticket.subject_masked[:80]}",
+                category=category,
+                severity="high",
+                detected_by="density_detector",
+                ticket_count=len(similar) + 1,
+                detection_window_min=settings.THRESHOLDS.incident.window_minutes,
+                baseline_rate=baseline_rate,
+                status="open",
+            )
+
+        # Link every ticket that contributed to the detection, so the
+        # parent incident view can notify every affected reporter at once
+        # — the actual value described in spec §9 ("40 người nhận 1 thông
+        # báo có ETA").
+        Ticket.objects.filter(id__in=[t.id for t in similar]).update(incident=incident)
+
     return incident
 
 
