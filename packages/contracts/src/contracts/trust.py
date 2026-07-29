@@ -20,6 +20,16 @@ class GenerationSignals(BaseModel):
     negation_consistent: bool
     category_consistent: bool  # LLM category vs KB article category
 
+    # Whether the quote checks above were applicable at all. Only an
+    # AutoReplyProposal carries a verbatim quote; a route or runbook
+    # proposal has nothing to quote-check, so the validator reports
+    # ratio=0.0 / in_topk=False for them. Without this flag those zeros
+    # are indistinguishable from a genuine validation failure — which
+    # both mis-scores the ticket (see trust_scorer.extract_features) and
+    # shows a reviewer two red ✗ marks for checks that never ran.
+    # Defaults True so older persisted signals deserialize unchanged.
+    quote_applicable: bool = True
+
 
 class PolicySignals(BaseModel):
     """Hard gates. Boolean logic — deliberately NOT part of the trust score."""

@@ -41,6 +41,14 @@ class LLMResult:
     degraded_reason: str | None = None
 
 
+def _budget(read_timeout: float) -> httpx.Timeout:
+    """Long read budget, short connect budget. An unreachable provider is
+    knowable in seconds and should fall through to the next link in the
+    fallback chain immediately rather than consuming the whole per-ticket
+    latency budget on a connection that will never open."""
+    return httpx.Timeout(read_timeout, connect=settings.model_connect_timeout_sec)
+
+
 def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> LLMResult:
     url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
     payload = {
@@ -56,7 +64,7 @@ def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> LLMRes
         # Ignored harmlessly by models that don't support the flag.
         "think": False,
     }
-    resp = httpx.post(url, json=payload, timeout=timeout)
+    resp = httpx.post(url, json=payload, timeout=_budget(timeout))
     resp.raise_for_status()
     data = resp.json()
     tokens_in = data.get("prompt_eval_count", 0)
@@ -85,7 +93,7 @@ def _call_cloud(system_prompt: str, user_prompt: str, timeout: float) -> LLMResu
             ],
             "response_format": {"type": "json_object"},
         },
-        timeout=timeout,
+        timeout=_budget(timeout),
     )
     resp.raise_for_status()
     data = resp.json()
@@ -106,9 +114,14 @@ def _has_cloud() -> bool:
     return bool(settings.cloud_api_key and settings.cloud_base_url)
 
 
-def chat_complete(system_prompt: str, user_prompt: str, *, timeout: float = 20.0) -> LLMResult:
+def chat_complete(
+    system_prompt: str, user_prompt: str, *, timeout: float | None = None
+) -> LLMResult:
     """Retry backoff ×2 on the primary provider → fall back to Ollama →
     raise AllLLMDownError (spec §10.3 failure table, row 1-2)."""
+
+    if timeout is None:
+        timeout = settings.model_timeout_sec
 
     if not CIRCUIT.allow_request():
         raise CircuitOpenError("circuit is open — failing fast, not calling any LLM")

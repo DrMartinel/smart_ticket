@@ -21,6 +21,7 @@ from contracts.llm_draft import LLMProposalEnvelope
 
 from ai_engine.graph.budget import check_budget
 from ai_engine.graph.state import TriageState
+from ai_engine.config import settings
 from ai_engine.llm.circuit_breaker import CircuitOpenError
 from ai_engine.llm.client import AllLLMDownError, chat_complete
 
@@ -65,9 +66,12 @@ def llm_infer(state: TriageState) -> dict:
     )
 
     # Leave headroom for the fallback attempt within the same per-ticket
-    # latency budget rather than using the full budget on a single try.
+    # latency budget rather than using the full budget on a single try,
+    # then clamp to the per-call model ceiling — whichever binds first
+    # wins. The budget protects the ticket's end-to-end latency; the
+    # ceiling protects against a single call hanging indefinitely.
     remaining = max(5.0, state["started_at"] + state["max_latency_sec"] - time.time())
-    per_attempt_timeout = max(5.0, remaining / 2)
+    per_attempt_timeout = min(settings.model_timeout_sec, max(5.0, remaining / 2))
 
     try:
         result = chat_complete(_SYSTEM_PROMPT, user_prompt, timeout=per_attempt_timeout)

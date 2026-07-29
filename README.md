@@ -8,6 +8,22 @@ Implements [`requirement.md`](requirement.md) (Architecture Specification v2). S
 
 ---
 
+## New here?
+
+Go to **[`docs/`](docs/README.md)** — it gives an ordered reading path that takes about an hour and ends with you able to make a change confidently.
+
+| Start with | For |
+|---|---|
+| [Onboarding](docs/onboarding.md) | Get it running and watch a ticket get triaged. Do this first. |
+| [Glossary](docs/glossary.md) | The vocabulary. The spec is Vietnamese and the domain terms are everywhere. |
+| [Architecture](docs/architecture.md) | How the pieces fit and the exact path a ticket takes. |
+| [Development](docs/development.md) | Conventions, common tasks, and the setup gotchas. |
+| [Testing](docs/testing.md) | Test layers and what the CI gate really enforces. |
+
+The rest of this README is the reference: what it is, how to run it, and where the knobs are.
+
+---
+
 ## Current status
 
 The system runs end to end. **`SHADOW_MODE=true` by default**: the router evaluates every ticket and records what it *would* have done, but every ticket still lands in the human queue. This is deliberate — it is spec §14's P1 phase, and it is how calibration data is collected at zero risk.
@@ -115,10 +131,16 @@ smart_ticket/
 │   ├── migrations/sql/          #   extensions, HNSW indexes, CHECK constraints, RO role
 │   └── ci/eval-gate.yml
 └── docs/
-    ├── adr/                     # 6 Architecture Decision Records
-    ├── runbooks/on-call.md
+    ├── README.md                # documentation index + reading order — start here
+    ├── onboarding.md            # day one: run it, submit a ticket, orient
+    ├── glossary.md              # domain vocabulary (the spec is Vietnamese)
+    ├── architecture.md          # deep dive + end-to-end ticket flow
+    ├── development.md           # conventions, common tasks, gotchas
+    ├── testing.md               # test layers + eval harness
     ├── status.md                # implementation status vs spec + known gaps
-    └── TODO.md                  # prioritized open work
+    ├── TODO.md                  # prioritized open work
+    ├── adr/                     # 6 Architecture Decision Records
+    └── runbooks/on-call.md      # when it breaks in production
 ```
 
 ---
@@ -165,6 +187,19 @@ python -c "import os,base64;print('PII_ENCRYPTION_KEY='+base64.b64encode(os.uran
 cd infra && docker compose up -d --build
 ```
 
+If your host firewall blocks the Docker bridge subnet, containers cannot reach a
+host-run Ollama — they hang on connect even though `curl localhost:11434` works
+fine on the host. Rather than opening the firewall (which needs `sudo`), run
+Ollama as a compose service; it bind-mounts your existing model store read-only,
+so nothing re-downloads:
+
+```bash
+docker compose --profile local-llm up -d
+```
+
+then set `OLLAMA_BASE_URL=http://ollama:11434` in `infra/.env` (and
+`OLLAMA_MODELS_DIR` if your models aren't in `/usr/share/ollama/.ollama/models`).
+
 | Service | Port | |
 |---|---|---|
 | `web` | [3000](http://localhost:3000) | Next.js frontend |
@@ -198,7 +233,7 @@ Password for all: `demo12345`. Set `DJANGO_AUTO_SEED_DEMO=true` to seed on conta
 ### 4. Local development (without Docker)
 
 ```bash
-uv sync                                    # install the whole workspace
+uv sync --all-packages                     # install every workspace member
 
 uv run --project services/core-api python services/core-api/manage.py migrate
 uv run --project services/core-api python services/core-api/manage.py runserver
@@ -229,6 +264,7 @@ services/core-api/config/thresholds.yaml
 | `routing.quote_match` | 0.95 | Minimum verbatim-quote match ratio |
 | `retrieval.floor` | 0.45 | **Cross-encoder** score below which the LLM is never called (ADR-0005) |
 | `incident.min_count` | 5 | Similar tickets needed before mass-incident escalation |
+| `budget.max_latency_sec` | 300 | End-to-end graph budget; must exceed the per-call model ceiling |
 | `budget.daily_cost_ceiling_usd` | 50 | Daily spend cap — exceeding it routes everything to HITL |
 
 Values marked 🔧 are **assumptions awaiting calibration**, not tuned values. The full snapshot is written into `routing_decisions.thresholds_used` on every decision, so a post-hoc investigation can always recover what the thresholds were *at the time*.
@@ -244,6 +280,8 @@ Full list in [`infra/.env.example`](infra/.env.example). The ones that change be
 | `RERANKER_PROVIDER` | `lexical` | `cross_encoder` enables bge-reranker-v2-m3 (needs the extra dep) |
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |
+| `OLLAMA_TIMEOUT_SEC` | `120` | Ceiling for one core-api model call (NER, embeddings) |
+| `MODEL_TIMEOUT_SEC` | `120` | Same ceiling for ai-engine (inference, embeddings) |
 | `DJANGO_AUTO_SEED_DEMO` | `false` | Seed demo data on container start |
 
 ---
@@ -316,11 +354,16 @@ curl -s -X POST http://localhost:8000/api/tickets/submit \
 ## Testing
 
 ```bash
-uv run pytest                              # everything (98 tests)
-uv run pytest services/core-api/tests -q   # 58
-uv run pytest services/ai-engine/tests -q  # 32
+uv sync --all-packages                     # once — installs every workspace member
+uv run pytest                              # everything (119 tests)
+uv run pytest services/core-api/tests -q   # 73
+uv run pytest services/ai-engine/tests -q  # 38
 uv run pytest evals/suites -q              # 8 eval suites
 ```
+
+> Use `uv sync --all-packages`, not a bare `uv sync`. The root project has no
+> dependencies of its own, so a plain sync installs neither the workspace
+> members nor Django — `pytest` then fails to start.
 
 The eval suites that exercise the live pipeline **skip automatically** when `ai-engine` isn't reachable, so the unit suites stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies.
 

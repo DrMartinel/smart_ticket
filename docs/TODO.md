@@ -63,6 +63,24 @@ uv run python evals/calibration/choose_thresholds.py
 
 Pick thresholds by **precision on a holdout set**, not accuracy: `t_auto` = smallest threshold where auto-reply precision ≥ 0.95; `t_route` = smallest where route precision ≥ 0.85. Commit the refitted model and the new `thresholds.yaml` with `calibration_source` updated to name the run.
 
+### Decide during calibration: should route proposals share auto-reply's curve?
+
+`FEATURES` includes `quote_match_ratio` and `quote_source_in_topk`, which only
+mean anything for an `AutoReplyProposal`. A route or runbook proposal has no
+verbatim quote, so those features are always 0 for it and it can never earn
+their weight — meaning route proposals are scored on a curve whose upper range
+is effectively unreachable for them.
+
+This is currently handled by `scored_features()` skipping the two features when
+`quote_applicable=False`. That is an **explainability** fix only: both are linear
+terms, so a 0.0 value contributes 0.0 either way and no score or routing decision
+changes. It just keeps them out of `contributions` so the UI can show "not
+applicable" instead of a red ✗.
+
+The real question is whether route proposals want their own feature set and their
+own fitted curve. Decide it here, with data, rather than by intuition — and note
+that `t_route < t_auto` already compensates for some of the gap by design.
+
 ### Done when
 
 Auto-reply precision ≥ 0.95 on holdout, and `thresholds.yaml` no longer carries 🔧 markers on `t_auto` / `t_route`.

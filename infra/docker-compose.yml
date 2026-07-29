@@ -16,6 +16,11 @@ x-core-api-env: &core-api-env
   CELERY_RESULT_BACKEND: redis://redis:6379/1
   AI_ENGINE_URL: http://ai-engine:8001
   OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  OLLAMA_NER_MODEL: ${OLLAMA_NER_MODEL:-qwen3:8b}
+  # Ceiling for a single model call (NER, embeddings). Must stay below the
+  # gunicorn --timeout in docker-entrypoint.sh, since masking runs inline.
+  OLLAMA_TIMEOUT_SEC: ${OLLAMA_TIMEOUT_SEC:-120}
+  OLLAMA_CONNECT_TIMEOUT_SEC: ${OLLAMA_CONNECT_TIMEOUT_SEC:-3}
   PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-Zm9yLWRldi1vbmx5LTMyLWJ5dGUta2V5LWhlcmUhISE=}
   THRESHOLDS_PATH: /workspace/services/core-api/config/thresholds.yaml
   ALLOWED_HOSTS: "*"
@@ -123,6 +128,11 @@ services:
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
       RERANKER_PROVIDER: ${RERANKER_PROVIDER:-lexical}
+      # Ceiling for a single model call. Kept in step with core-api's
+      # OLLAMA_TIMEOUT_SEC; infer.py clamps to whichever of this and the
+      # per-ticket latency budget is smaller.
+      MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:-120}
+      MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:-3}
       GRAPH_VERSION: v2.1
     ports:
       - "8001:8001"
@@ -131,6 +141,44 @@ services:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks: [smart-triage]
+
+  # Optional: run Ollama INSIDE the compose network instead of on the host.
+  #
+  #   docker compose --profile local-llm up -d
+  #   (and set OLLAMA_BASE_URL=http://ollama:11434 in infra/.env)
+  #
+  # Why this exists: reaching a host-run Ollama from a container depends on
+  # host.docker.internal resolving AND the host firewall permitting the
+  # Docker bridge subnet. A ufw rule blocking that subnet drops the packets
+  # silently — containers hang on connect while `curl localhost:11434` works
+  # fine on the host, which is a genuinely confusing failure to diagnose.
+  # Running Ollama as a compose service removes the host network path (and
+  # the sudo needed to open it) from the picture entirely.
+  #
+  # The host's existing model store is bind-mounted read-only, so this
+  # re-uses whatever is already pulled — no re-download of ~39GB. Adjust
+  # OLLAMA_MODELS_DIR if your install keeps models elsewhere (a systemd
+  # install uses /usr/share/ollama/.ollama/models; a user install uses
+  # ~/.ollama/models).
+  #
+  # Note: a host Ollama and this one share the same GPU. Both unload models
+  # after their idle keep-alive, but if you run heavy models on both at once
+  # on a 12GB card you can exhaust VRAM — stop the host service if so.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["local-llm"]
+    environment:
+      OLLAMA_HOST: 0.0.0.0
+    volumes:
+      - ${OLLAMA_MODELS_DIR:-/usr/share/ollama/.ollama/models}:/root/.ollama/models:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     networks: [smart-triage]
 
   web:

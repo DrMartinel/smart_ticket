@@ -16,6 +16,20 @@ members = [
 [tool.uv.sources]
 contracts = { workspace = true }
 
+# Test tooling for whole-workspace runs. `uv sync` installs only the ROOT
+# project's dev group, not each member's, so without this a plain
+# `uv run pytest` from the repo root fails with "Failed to spawn: pytest"
+# even though every member declares pytest in its own dev group. This is
+# the union of those groups, so the documented one-command test run works
+# from a clean checkout.
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-django>=4.9",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"

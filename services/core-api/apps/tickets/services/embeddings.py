@@ -36,8 +36,16 @@ def _stub_embed(text: str) -> list[float]:
 
 def _ollama_embed(text: str) -> list[float]:
     url = f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/embeddings"
+    # Short connect budget, long read budget — an unreachable Ollama is
+    # knowable in seconds, while a cold model legitimately needs the full
+    # read window. See OLLAMA_CONNECT_TIMEOUT_SEC in settings.
     resp = httpx.post(
-        url, json={"model": settings.OLLAMA_EMBED_MODEL, "prompt": text}, timeout=30.0
+        url,
+        json={"model": settings.OLLAMA_EMBED_MODEL, "prompt": text},
+        timeout=httpx.Timeout(
+            float(getattr(settings, "OLLAMA_TIMEOUT_SEC", 120.0)),
+            connect=float(getattr(settings, "OLLAMA_CONNECT_TIMEOUT_SEC", 3.0)),
+        ),
     )
     resp.raise_for_status()
     embedding = resp.json()["embedding"]

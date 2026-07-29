@@ -278,3 +278,26 @@ def test_route_is_deterministic_pure_function():
     d2 = route(s, p, k, TH)
     assert d1.branch == d2.branch
     assert d1.reason_code == d2.reason_code
+
+
+def test_refuse_before_llm_reports_retrieval_floor_not_schema_invalid():
+    """When the graph refuses before calling the LLM (spec §6.2), there is
+    no proposal to validate. The schema gate used to fire first and label
+    that SCHEMA_INVALID — blaming malformed model output for what was
+    really "the KB had nothing close enough". Same queue either way, so
+    only the reason_code changed; but reason_code is what spec §4.1's
+    "which reason sent the most tickets to review" is built on, and a
+    gate that misreports its cause makes that dashboard quietly wrong."""
+    signals = good_signals(**{"retrieval.rerank_top1": 0.10})
+    d = route(signals, None, None, TH)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
+
+
+def test_genuine_schema_failure_above_floor_still_reports_schema_invalid():
+    """The reordering must not swallow real schema failures: retrieval
+    cleared the floor, so an absent/invalid proposal is genuinely a
+    generation problem."""
+    signals = good_signals(**{"retrieval.rerank_top1": 0.90})
+    d = route(signals, None, None, TH)
+    assert d.reason_code is ReasonCode.SCHEMA_INVALID

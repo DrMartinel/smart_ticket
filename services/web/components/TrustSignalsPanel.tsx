@@ -23,6 +23,8 @@ interface TrustSignals {
     quote_source_in_topk: boolean;
     negation_consistent: boolean;
     category_consistent: boolean;
+    /** False for proposals with no verbatim quote (route / runbook). */
+    quote_applicable?: boolean;
   };
   policy: {
     kb_auto_reply_allowed: boolean;
@@ -49,7 +51,21 @@ function Bar({ value, max = 1 }: { value: number; max?: number }) {
   );
 }
 
-function BoolChip({ ok, label }: { ok: boolean; label: string }) {
+/**
+ * `applicable={false}` renders a neutral "–" instead of a red ✗. Some
+ * checks legitimately never run: a route proposal has no verbatim quote
+ * to validate, and nothing at all is validated when the AI never ran.
+ * Showing those as failures trains reviewers to discount the panel —
+ * which defeats the one thing it exists to do.
+ */
+function BoolChip({ ok, label, applicable = true }: { ok: boolean; label: string; applicable?: boolean }) {
+  if (!applicable) {
+    return (
+      <span className="badge bg-black/5 text-[var(--text-muted)] dark:bg-white/10" title="not applicable to this proposal">
+        – {label}
+      </span>
+    );
+  }
   return (
     <span
       className={`badge ${ok ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"}`}
@@ -82,6 +98,24 @@ export default function TrustSignalsPanel({
   }
 
   const { retrieval, generation, policy } = trustSignals;
+
+  // Reason codes that mean the graph stopped before producing any model
+  // output. In those runs every generation flag is false because nothing
+  // was generated — not because validation rejected something.
+  const NO_MODEL_OUTPUT = new Set([
+    "embedding_unavailable",
+    "ai_engine_unavailable",
+    "budget_exceeded",
+    "circuit_open",
+    "mass_incident",
+    "injection_detected",
+    "pii_critical",
+    "pii_mask_failed",
+  ]);
+  const aiDidNotRun = NO_MODEL_OUTPUT.has(routingDecision.reason_code);
+
+  // Older rows predate the flag; treat a present quote as the signal.
+  const quoteApplicable = generation.quote_applicable ?? generation.quote_match_ratio > 0;
 
   return (
     <div className="card flex flex-col gap-4 p-4">
@@ -157,15 +191,36 @@ export default function TrustSignalsPanel({
 
       <div>
         <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Generation</div>
-        <div className="flex flex-wrap gap-1.5">
-          <BoolChip ok={generation.schema_valid} label="schema valid" />
-          <BoolChip ok={generation.quote_source_in_topk} label="quote in top-k" />
-          <BoolChip ok={generation.negation_consistent} label="negation consistent" />
-          <BoolChip ok={generation.category_consistent} label="category consistent" />
-          <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-            quote match {(generation.quote_match_ratio * 100).toFixed(0)}%
-          </span>
-        </div>
+        {aiDidNotRun ? (
+          // Every generation check reads false when no model output was
+          // ever produced. Rendering four red ✗ implies the model failed
+          // validation; it never got that far. Say so instead.
+          <div className="text-xs text-[var(--text-muted)]">
+            The AI pipeline did not produce a proposal for this ticket
+            {routingDecision.reason_code ? ` (${routingDecision.reason_code})` : ""}, so none of the
+            generation checks ran. Review the ticket on its own merits.
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            <BoolChip ok={generation.schema_valid} label="schema valid" />
+            <BoolChip
+              ok={generation.quote_source_in_topk}
+              label="quote in top-k"
+              applicable={quoteApplicable}
+            />
+            <BoolChip ok={generation.negation_consistent} label="negation consistent" />
+            <BoolChip ok={generation.category_consistent} label="category consistent" />
+            {quoteApplicable ? (
+              <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                quote match {(generation.quote_match_ratio * 100).toFixed(0)}%
+              </span>
+            ) : (
+              <span className="badge bg-black/5 text-[var(--text-muted)] dark:bg-white/10">
+                no quote to verify
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div>

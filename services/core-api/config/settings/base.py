@@ -126,6 +126,25 @@ AI_ENGINE_URL = os.environ.get("AI_ENGINE_URL", "http://localhost:8001")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_NER_MODEL = os.environ.get("OLLAMA_NER_MODEL", "qwen3:8b")
 OLLAMA_EMBED_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "bge-m3")
+# Timeout for any single model call (NER, embeddings). Generous by design:
+# a cold Ollama model load alone can take 15-20s, and the old 3s NER budget
+# meant essentially every ticket timed out into PIILevel.MASK_FAILED before
+# the model had even finished loading. Failing to MASK_FAILED is the
+# correct behavior when we genuinely can't verify (spec §5.2) — but it
+# should signal "the model is down", not "the model was still warming up".
+OLLAMA_TIMEOUT_SEC = float(os.environ.get("OLLAMA_TIMEOUT_SEC", "120"))
+# Connect timeout is deliberately SHORT and separate from the read budget
+# above. The two describe different failures:
+#   - can't open a TCP connection  -> provider unreachable (down, wrong
+#     host, firewall dropping the Docker subnet). Waiting longer cannot
+#     help; a dropped packet just burns the full budget in silence.
+#   - connected but slow to respond -> model is loading or generating.
+#     That legitimately needs the full 120s.
+# Collapsing both into one number means an unreachable Ollama makes the
+# user stare at a spinner for two minutes before an error that was
+# knowable in three seconds — masking runs inline in the submit request,
+# so this delay is felt directly by whoever filed the ticket.
+OLLAMA_CONNECT_TIMEOUT_SEC = float(os.environ.get("OLLAMA_CONNECT_TIMEOUT_SEC", "3"))
 EMBEDDING_PROVIDER = os.environ.get("EMBEDDING_PROVIDER", "ollama")  # "ollama" | "stub"
 PII_ENCRYPTION_KEY = os.environ.get(
     "PII_ENCRYPTION_KEY", "Zm9yLWRldi1vbmx5LTMyLWJ5dGUta2V5LWhlcmUhISE="
