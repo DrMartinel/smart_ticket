@@ -16,4 +16,9 @@ if [ "${DJANGO_AUTO_SEED_DEMO:-false}" = "true" ]; then
 fi
 
 echo "core-api: starting gunicorn..."
-exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60
+# --timeout must exceed OLLAMA_TIMEOUT_SEC (120s default): PII masking runs
+# INLINE inside the submit request (spec §5 — masking may never be async,
+# or raw PII would briefly exist in the DB/broker). If gunicorn reaps the
+# worker first, the caller gets a 502 instead of a clean MASK_FAILED, and
+# the ticket is lost rather than routed to a human.
+exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 180

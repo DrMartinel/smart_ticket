@@ -125,7 +125,7 @@ class TestMaskOllamaTier:
         assert result.pii_level is PIILevel.MASK_FAILED
 
     def test_ollama_success_merges_freeform_hits(self, monkeypatch):
-        async def fake_ner(text, timeout=3.0):
+        async def fake_ner(text, timeout=None):
             return ["anh Tuan phong ke toan"] if "Tuan" in text else []
 
         monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
@@ -174,6 +174,50 @@ class TestOllamaNerResponseParsing:
         _mock_ollama_client(monkeypatch, json.dumps({"found": ["anh Tuan phong ke toan"]}))
         assert run_ner("...") == ["anh Tuan phong ke toan"]
 
+    def test_schema_constrained_spans_key(self, monkeypatch):
+        """The request pins a JSON Schema requiring `spans`, so this is the
+        shape the provider is grammar-constrained to return."""
+        _mock_ollama_client(monkeypatch, json.dumps({"spans": ["anh Tuan phong ke toan"]}))
+        assert run_ner("...") == ["anh Tuan phong ke toan"]
+
+    def test_request_pins_a_json_schema_not_bare_json_mode(self, monkeypatch):
+        """Regression guard. With `format: "json"` the model only had to
+        emit *some* valid JSON and picked a different shape almost every
+        call — {"found": []}, {"result": []}, {}, even
+        {"error": "please provide the text"} — each of which became a
+        spurious MASK_FAILED. Pinning the schema is what makes the shape a
+        guarantee; if someone reverts it to "json", this fails loudly."""
+        seen = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["payload"] = json.loads(request.content)
+            return httpx.Response(200, json={"response": json.dumps({"spans": []})})
+
+        class MockAsyncClient(httpx.AsyncClient):
+            def __init__(self, *a, **kw):
+                kw["transport"] = httpx.MockTransport(handler)
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+        run_ner("some ticket text")
+
+        fmt = seen["payload"]["format"]
+        assert isinstance(fmt, dict), f"expected a JSON Schema, got {fmt!r}"
+        assert fmt["required"] == ["spans"]
+        # Instructions must travel in `system`, data in `prompt` — merging
+        # them let the model reply to the instructions instead of obeying.
+        assert seen["payload"]["prompt"] == "some ticket text"
+        assert "system" in seen["payload"]
+
+    def test_object_with_no_list_still_fails_closed(self, monkeypatch):
+        """A bare {} is ambiguous — it could mean "nothing found" or a
+        confused model. Masking must never resolve ambiguity toward
+        "clean" (spec §5.2), so this stays an error and the ticket goes
+        to a human."""
+        _mock_ollama_client(monkeypatch, "{}")
+        with pytest.raises(OllamaError):
+            run_ner("...")
+
     def test_object_wrapped_empty_array_response(self, monkeypatch):
         _mock_ollama_client(monkeypatch, json.dumps({"result": []}))
         assert run_ner("...") == []
@@ -203,6 +247,90 @@ class TestOllamaNerResponseParsing:
         monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
         with pytest.raises(TimeoutError):
             run_ner("...")
+
+
+class TestNerTimeoutIsConfigurable:
+    """The NER budget used to be a hardcoded 3.0s module constant, which is
+    shorter than a cold Ollama model load (15-20s) — so in practice every
+    ticket timed out into MASK_FAILED before the model finished warming up.
+    It now reads settings.OLLAMA_TIMEOUT_SEC at call time."""
+
+    def test_default_timeout_is_two_minutes(self, settings):
+        assert settings.OLLAMA_TIMEOUT_SEC == 120.0
+
+    def test_connect_budget_is_short_and_separate_from_read(self, settings, monkeypatch):
+        """The two describe different failures. A blocked/dropped route
+        never completes the TCP handshake, so a single combined budget
+        makes the caller wait the FULL read window for an error that was
+        knowable in seconds — and masking is inline in the submit request,
+        so that wait is a user staring at a spinner."""
+        seen = {}
+
+        class RecordingAsyncClient(httpx.AsyncClient):
+            def __init__(self, *a, **kw):
+                seen["timeout"] = kw.get("timeout")
+                kw["transport"] = httpx.MockTransport(
+                    lambda request: httpx.Response(200, json={"response": "[]"})
+                )
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", RecordingAsyncClient)
+        run_ner("...")
+
+        t = seen["timeout"]
+        assert isinstance(t, httpx.Timeout)
+        assert t.connect == settings.OLLAMA_CONNECT_TIMEOUT_SEC == 3.0
+        assert t.read == settings.OLLAMA_TIMEOUT_SEC == 120.0
+        assert t.connect < t.read, "connect must fail fast; only reads get the long budget"
+
+    def test_connect_timeout_still_becomes_mask_failed(self, monkeypatch):
+        """Failing fast must not change the safety property: an
+        unreachable NER provider is still 'we could not verify', never
+        'there was no PII'."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectTimeout("simulated: route blocked, handshake never completes")
+
+        class MockAsyncClient(httpx.AsyncClient):
+            def __init__(self, *a, **kw):
+                kw["transport"] = httpx.MockTransport(handler)
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+        raw = TicketIn(subject="May in bi ket giay", body="May in tang 3 bi ket giay tu sang nay")
+        assert run_mask(raw).pii_level is PIILevel.MASK_FAILED
+
+    def test_timeout_is_read_at_call_time_not_import_time(self, settings, monkeypatch):
+        seen = {}
+
+        class RecordingAsyncClient(httpx.AsyncClient):
+            def __init__(self, *a, **kw):
+                seen["timeout"] = kw.get("timeout")
+                kw["transport"] = httpx.MockTransport(
+                    lambda request: httpx.Response(200, json={"response": "[]"})
+                )
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", RecordingAsyncClient)
+
+        settings.OLLAMA_TIMEOUT_SEC = 45.0
+        run_ner("...")
+        assert seen["timeout"].read == 45.0
+
+    def test_explicit_timeout_argument_still_wins(self, monkeypatch):
+        seen = {}
+
+        class RecordingAsyncClient(httpx.AsyncClient):
+            def __init__(self, *a, **kw):
+                seen["timeout"] = kw.get("timeout")
+                kw["transport"] = httpx.MockTransport(
+                    lambda request: httpx.Response(200, json={"response": "[]"})
+                )
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", RecordingAsyncClient)
+        async_to_sync(ollama_ner)("...", 7.5)
+        assert seen["timeout"] == 7.5
 
 
 class TestSpansToHits:

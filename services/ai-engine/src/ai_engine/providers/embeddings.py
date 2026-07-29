@@ -28,7 +28,13 @@ def _stub_embed(text: str) -> list[float]:
 
 def _ollama_embed(text: str) -> list[float]:
     url = f"{settings.ollama_base_url.rstrip('/')}/api/embeddings"
-    resp = httpx.post(url, json={"model": settings.ollama_embed_model, "prompt": text}, timeout=30.0)
+    resp = httpx.post(
+        url,
+        json={"model": settings.ollama_embed_model, "prompt": text},
+        timeout=httpx.Timeout(
+            settings.model_timeout_sec, connect=settings.model_connect_timeout_sec
+        ),
+    )
     resp.raise_for_status()
     embedding = resp.json()["embedding"]
     if len(embedding) != EMBED_DIM:

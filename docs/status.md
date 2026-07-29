@@ -101,9 +101,11 @@ This is a genuine, reproducible model finding, recorded in `evals/baselines/base
 
 ## Environment caveat: Ollama reachability from containers
 
-Ollama runs on the host, not in Docker. On a host firewall that blocks the Docker bridge subnet, containers cannot reach `host.docker.internal:11434` even though Ollama is healthy locally — every ticket then degrades to HITL with `embedding_unavailable` or `ai_engine_unavailable`.
+By default Ollama runs on the host, not in Docker. On a host firewall that blocks the Docker bridge subnet, containers cannot reach `host.docker.internal:11434` even though Ollama is healthy locally — every ticket then degrades to HITL with `embedding_unavailable` or `ai_engine_unavailable`.
 
-This is environmental, not a code defect, and the system's response to it is correct. Diagnosis and the ufw fix are in [`runbooks/on-call.md`](runbooks/on-call.md#containers-cannot-reach-ollama-on-the-host).
+This is environmental, not a code defect, and the system's response to it is correct. Two fixes, in [`runbooks/on-call.md`](runbooks/on-call.md#containers-cannot-reach-ollama-on-the-host): run Ollama as a compose service (`--profile local-llm`, no sudo, re-uses the existing model store), or open the Docker subnet with a ufw rule.
+
+Because it can't be assumed away, the connect timeout is budgeted separately from the read timeout (`OLLAMA_CONNECT_TIMEOUT_SEC=3` vs `OLLAMA_TIMEOUT_SEC=120`). An unreachable provider fails in ~3s instead of burning the full read budget — which matters because masking is inline in the submit request, so that delay is a user watching a spinner.
 
 ---
 

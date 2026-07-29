@@ -92,13 +92,23 @@ def route(
     if p.pii_level is PIILevel.MASK_FAILED:
         return _hitl(ReasonCode.PII_MASK_FAILED, queue=ReviewQueue.MASK_FAILED.value, priority=1)
 
+    # Retrieval floor is checked BEFORE the schema gate, because when the
+    # graph refuses before ever calling the LLM (spec §6.2's
+    # refuse-before-LLM edge) there is no proposal to validate — so the
+    # schema gate would fire first and label the ticket SCHEMA_INVALID for
+    # what was really "the KB had nothing close enough". Both land in the
+    # same HITL queue, so this changes no behavior; what it fixes is the
+    # reason_code, and reason_code is the entire basis for "which reason
+    # sent the most tickets to review this week" (spec §4.1). A gate that
+    # reports the wrong cause is worse than no gate, because the dashboard
+    # built on it quietly lies.
+    if signals.retrieval.rerank_top1 < th.retrieval_floor:
+        return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
+
     if proposal is None or not signals.generation.schema_valid:
         return _hitl(ReasonCode.SCHEMA_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value)
 
     if isinstance(proposal.root, InsufficientContext):
-        return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
-
-    if signals.retrieval.rerank_top1 < th.retrieval_floor:
         return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
 
     # ═══════════════ TRUST-BASED ROUTING ═══════════════

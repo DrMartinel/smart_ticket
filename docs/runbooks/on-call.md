@@ -95,7 +95,19 @@ docker compose exec worker sh -c \
 ```
 `000` with a ~5 s hang means blocked/dropped, not refused.
 
-**Actions:**
+**Actions — pick one:**
+
+*A. Sidestep the host network entirely (no sudo).* Run Ollama as a compose
+service on the same network, re-using the host's already-downloaded models:
+```sh
+docker compose --profile local-llm up -d
+# then in infra/.env:  OLLAMA_BASE_URL=http://ollama:11434
+```
+The model store is bind-mounted read-only (`OLLAMA_MODELS_DIR`, default
+`/usr/share/ollama/.ollama/models`), so nothing re-downloads. Note both
+Ollamas share one GPU — if VRAM runs short, stop the host service.
+
+*B. Open the firewall (needs sudo).*
 1. Confirm Ollama binds beyond loopback: `OLLAMA_HOST=0.0.0.0` (a
    `127.0.0.1`-only bind is unreachable from any container).
 2. Allow the Docker bridge range to the Ollama port, e.g. with ufw:
@@ -116,7 +128,16 @@ not the bug.
    GPU will OOM-thrash. Check `ollama ps` for co-resident models and the
    Ollama logs for 500s. Mitigation is capacity, not code.
 2. **Model unavailable.** `qwen3:8b` (`OLLAMA_NER_MODEL`) not pulled.
-3. **Response-shape drift.** `format="json"` guarantees valid JSON, *not* a
+3. **Timeout too short for a cold start.** The per-call ceiling is
+   `OLLAMA_TIMEOUT_SEC` (120s default). A cold Ollama model load alone can
+   take 15–20s, so a low value here reports "provider down" for what is
+   really "provider still warming up" — this was the original cause of a
+   flood, back when the NER budget was a hardcoded 3s. If you raise it
+   past 120, raise `budget.max_latency_sec` in `thresholds.yaml` **and**
+   the gunicorn `--timeout` in `docker-entrypoint.sh` too: masking runs
+   inline in the submit request, so gunicorn reaping the worker first
+   turns a clean MASK_FAILED into a 502 and loses the ticket.
+4. **Response-shape drift.** `format="json"` guarantees valid JSON, *not* a
    top-level array — models routinely wrap it (`{"found": [...]}`). The
    parser unwraps the first list value it finds; a model that returns some
    genuinely different shape will fail closed to `MASK_FAILED`. Check the

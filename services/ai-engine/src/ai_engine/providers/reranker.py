@@ -13,6 +13,7 @@ shape without a GPU or a model download.
 from __future__ import annotations
 
 import re
+import unicodedata
 from functools import lru_cache
 
 from ai_engine.config import settings
@@ -20,8 +21,28 @@ from ai_engine.config import settings
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
 
+def _strip_diacritics(text: str) -> str:
+    """Fold Vietnamese tone/vowel marks: "đăng nhập" -> "dang nhap".
+
+    Vietnamese speakers very often type support tickets without
+    diacritics ("khong dang nhap duoc may tinh") while KB articles are
+    written with them ("không đăng nhập được máy tính"). To exact token
+    matching those are disjoint vocabularies, so a ticket that is nearly
+    a verbatim restatement of a KB title scored ~0.04 instead of ~0.75 —
+    far below `retrieval.floor`, which triggered refuse-before-LLM and
+    sent every such ticket to a human as "nothing in the KB matches".
+
+    NFD splits a base letter from its combining marks so the marks can be
+    dropped; đ/Đ are handled separately because they are distinct letters
+    rather than a decomposable base + mark.
+    """
+    text = text.replace("đ", "d").replace("Đ", "D")
+    decomposed = unicodedata.normalize("NFD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
 def _tokenize(text: str) -> set[str]:
-    return {t.lower() for t in _TOKEN_RE.findall(text)}
+    return {_strip_diacritics(t).lower() for t in _TOKEN_RE.findall(text)}
 
 
 def _lexical_score(query: str, passage: str) -> float:

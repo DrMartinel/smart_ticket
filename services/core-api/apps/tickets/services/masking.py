@@ -16,6 +16,7 @@ Two-tier pipeline:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
@@ -30,7 +31,18 @@ from .patterns import ALL_GROUPS, LEVEL_BY_GROUP
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_NER_TIMEOUT_SEC = 3.0
+def _ner_timeout() -> httpx.Timeout:
+    """Read at call time, not import time, so tests and `override_settings`
+    can adjust it without reloading the module.
+
+    Connect and read are budgeted separately on purpose — see
+    OLLAMA_CONNECT_TIMEOUT_SEC in settings. An unreachable provider is
+    knowable in seconds; only a *reachable but busy* one deserves the
+    full read budget.
+    """
+    read = float(getattr(settings, "OLLAMA_TIMEOUT_SEC", 120.0))
+    connect = float(getattr(settings, "OLLAMA_CONNECT_TIMEOUT_SEC", 3.0))
+    return httpx.Timeout(read, connect=connect)
 
 _NER_SYSTEM_PROMPT = """\
 You detect personally-identifiable free-form mentions in IT support tickets
@@ -41,8 +53,23 @@ IPs, or account numbers — those are already handled separately).
 
 Return ONLY a JSON array of exact substrings found in the text, e.g.:
 ["anh Tuấn phòng kế toán tầng 3", "chị Lan bàn cạnh cửa sổ"]
-If nothing is found, return [].
+
+Rules:
+- Return [] if you find nothing. An empty array is a valid, expected answer.
+- Return [] for short, terse, or seemingly incomplete input too. Never ask
+  for more input and never return an error object — the user message is
+  always the text to analyze, exactly as given.
+- Output the array and nothing else.
 """
+
+# Grammar-constrains the response so the parser never has to guess. The
+# wrapper object exists because Ollama's structured-output support is
+# reliable for objects; `spans` is the array we actually want.
+_NER_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {"spans": {"type": "array", "items": {"type": "string"}}},
+    "required": ["spans"],
+}
 
 
 @dataclass(frozen=True)
@@ -84,16 +111,34 @@ def regex_scan_ticket(raw: TicketIn) -> ScanResult:
     return ScanResult(hits=regex_scan(raw.subject) + regex_scan(raw.body))
 
 
-async def ollama_ner(text: str, timeout: float = OLLAMA_NER_TIMEOUT_SEC) -> list[str]:
+async def ollama_ner(text: str, timeout: float | httpx.Timeout | None = None) -> list[str]:
     """Tier 2. Raises OllamaError/TimeoutError on any failure — callers
     MUST treat that as MASK_FAILED, never as "no PII found"."""
 
+    if timeout is None:
+        timeout = _ner_timeout()
     url = f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/generate"
     payload = {
         "model": settings.OLLAMA_NER_MODEL,
-        "prompt": f"{_NER_SYSTEM_PROMPT}\n\nText:\n{text}",
+        # Instructions go in `system`, data in `prompt`. Concatenating both
+        # into one string let the model read the instructions as part of
+        # the conversation and *reply* to them — on short subjects it would
+        # answer {"error": "please provide the text to analyze"}, which the
+        # parser then rightly rejected, producing a spurious MASK_FAILED
+        # for a ticket that simply had no free-form PII.
+        "system": _NER_SYSTEM_PROMPT,
+        "prompt": text,
         "stream": False,
-        "format": "json",
+        # A JSON *Schema*, not the bare "json" mode. "json" only guarantees
+        # syntactically valid JSON and lets the model invent the shape — in
+        # practice it returned {"found": [...]}, {"result": [...]}, a bare
+        # {}, an {"error": ...} object, and occasionally truncated output.
+        # Every one of those became a spurious MASK_FAILED. Constraining
+        # the grammar makes the shape a guarantee instead of a hope.
+        "format": _NER_RESPONSE_SCHEMA,
+        # qwen3 is a hybrid-thinking model; the reasoning trace is wasted
+        # latency here and can crowd out the JSON we asked for.
+        "think": False,
     }
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -108,6 +153,10 @@ async def ollama_ner(text: str, timeout: float = OLLAMA_NER_TIMEOUT_SEC) -> list
             # Unwrap the first list value found rather than treating that
             # shape as an error, which would otherwise flag every ticket as
             # MASK_FAILED regardless of whether any PII was actually found.
+            # With the schema above this is `spans`; the generic fallback
+            # stays so a provider that ignores the schema (or a different
+            # backend entirely) still degrades gracefully rather than
+            # sending every ticket to a human.
             if isinstance(parsed, dict):
                 parsed = next((v for v in parsed.values() if isinstance(v, list)), None)
             if not isinstance(parsed, list):
@@ -187,8 +236,15 @@ async def mask(raw: TicketIn) -> MaskResult:
         return MaskResult(subject_masked, body_masked, PIILevel.CRITICAL, placeholder_map)
 
     try:
-        llm_subject_spans = await ollama_ner(raw.subject)
-        llm_body_spans = await ollama_ner(raw.body)
+        # Run the two NER calls concurrently. They are independent (each
+        # field's spans only ever mask that same field), and masking is
+        # INLINE in the submit request — sequential calls would make the
+        # worst case two full timeouts deep, which at a 120s per-call
+        # budget would outlast the gunicorn request timeout and turn a
+        # clean MASK_FAILED into a 502.
+        llm_subject_spans, llm_body_spans = await asyncio.gather(
+            ollama_ner(raw.subject), ollama_ner(raw.body)
+        )
     except (TimeoutError, OllamaError) as e:
         logger.warning("masking: Ollama NER failed (%s) — flagging MASK_FAILED, not treating as clean", e)
         subject_masked, body_masked, placeholder_map, _ = _apply(raw, subject_hits, body_hits)

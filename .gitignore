@@ -20,10 +20,18 @@ out/
 evals/.results.json
 evals/report.md
 
-# Env files with real secrets
+# Env files with real secrets. The glob covers .env.bak / .env.save and
+# any other local copy — those carry the same keys as the original.
 infra/.env
+infra/.env.*
+!infra/.env.example
 .env
+.env.*
+!.env.example
 .env.local
+
+# Claude Code session artifact — churns every run, not project state.
+.claude/scheduled_tasks.lock
 
 # Editors / OS
 .vscode/

@@ -39,6 +39,11 @@ def _load_model() -> dict:
         return json.load(f)
 
 
+# Features that only mean anything for a proposal carrying a verbatim
+# quote (i.e. an AutoReplyProposal). See QUOTE_FEATURES usage below.
+QUOTE_FEATURES = ("quote_match_ratio", "quote_source_in_topk")
+
+
 def extract_features(signals: TrustSignals) -> dict[str, float]:
     r, g = signals.retrieval, signals.generation
     return {
@@ -51,6 +56,30 @@ def extract_features(signals: TrustSignals) -> dict[str, float]:
         "negation_consistent": 1.0 if g.negation_consistent else 0.0,
         "category_consistent": 1.0 if g.category_consistent else 0.0,
     }
+
+
+def scored_features(signals: TrustSignals) -> list[str]:
+    """Which FEATURES actually apply to this proposal.
+
+    A route or runbook proposal has no verbatim quote, so the validator
+    reports quote_match_ratio=0.0 and quote_source_in_topk=False for it.
+
+    Note what this does and does not do. Both features are linear terms
+    (`w * value`), so a 0.0 value contributes 0.0 whether summed or
+    skipped — excluding them cannot change the score, and no routing
+    decision moves as a result. What changes is `contributions`, which
+    no longer lists them at all, letting the UI say "not applicable"
+    instead of showing a red ✗ for a check that never ran. That is an
+    explainability fix, and the panel's whole job is explainability.
+
+    The deeper question — whether route proposals deserve their own
+    feature set and their own calibrated curve instead of sharing
+    auto-reply's, given they can never earn the quote features' weight —
+    is a P2 calibration decision, deliberately not made here.
+    """
+    if signals.generation.quote_applicable:
+        return list(FEATURES)
+    return [f for f in FEATURES if f not in QUOTE_FEATURES]
 
 
 def _sigmoid(z: float) -> float:
@@ -67,7 +96,7 @@ def score(signals: TrustSignals) -> TrustScore:
 
     z = model["intercept"]
     contributions: dict[str, float] = {}
-    for feat in FEATURES:
+    for feat in scored_features(signals):
         w = model["weights"][feat]
         contribution = w * x[feat]
         z += contribution

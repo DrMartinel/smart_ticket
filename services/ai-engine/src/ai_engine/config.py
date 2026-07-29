@@ -23,6 +23,20 @@ class Settings(BaseSettings):
     embedding_provider: str = "ollama"  # "ollama" | "stub"
     reranker_provider: str = "lexical"  # "cross_encoder" | "lexical"
 
+    # Ceiling for any single model call (inference, embeddings). A cold
+    # Ollama load can take 15-20s on its own, so a short ceiling reports
+    # "provider down" for what is really "provider still warming up".
+    # Note this is a CEILING, not a reservation: the per-ticket latency
+    # budget in AIRunRequest still bounds the graph as a whole, and
+    # infer.py takes whichever of the two is smaller.
+    model_timeout_sec: float = 120.0
+
+    # Budgeted separately from the read timeout above: failing to open a
+    # TCP connection means the provider is unreachable, which no amount of
+    # waiting fixes. Only a reachable-but-busy provider deserves the full
+    # read window.
+    model_connect_timeout_sec: float = 3.0
+
     # Cloud provider is optional — if unset, the fallback chain (spec
     # §10.3) goes straight to Ollama, which is this environment's default.
     cloud_api_key: str | None = None

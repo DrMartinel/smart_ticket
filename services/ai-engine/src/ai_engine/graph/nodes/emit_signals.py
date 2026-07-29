@@ -73,6 +73,9 @@ def build_trust_signals(state: TriageState) -> dict:
             quote_source_in_topk=validation.get("quote_source_in_topk", False),
             negation_consistent=validation.get("negation_consistent", False),
             category_consistent=validation.get("category_consistent", False),
+            # Computed by validate_output; forwarded so core-api can tell
+            # "no quote to check" apart from "the quote failed the check".
+            quote_applicable=validation.get("quote_applicable", False),
         ),
         policy=PolicySignals(
             kb_auto_reply_allowed=kb_auto_reply_allowed,
