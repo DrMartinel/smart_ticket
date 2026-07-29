@@ -2,7 +2,7 @@
 
 Component-by-component state against [`requirement.md`](../requirement.md) (Architecture Specification v2), including known gaps. Written to be honest rather than flattering — a "✅" here means *verified working*, not *code exists*.
 
-**Last verified:** 2026-07-28, against the full `docker compose up` stack with Ollama (`qwen3.5:9b`, `qwen3:8b`, `bge-m3`) on the host.
+**Last verified:** 2026-07-29, against the full `docker compose --profile local-llm up` stack with Ollama (`qwen3.5:9b`, `qwen3:8b`, `bge-m3`) running as a compose service. A ticket submitted through the UI reached the LLM, produced an auto-reply proposal, and was correctly held back by the negation check.
 
 ---
 
@@ -12,7 +12,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 |---|---|
 | Spec phases complete | **P0, P1** |
 | Phase in progress | **P2** — calibration scripts ready, awaiting ≥500 shadow pairs |
-| Unit tests | **90 passing** (58 core-api, 32 ai-engine) |
+| Unit tests | **111 passing** (73 core-api, 38 ai-engine) |
 | Eval suites | 8 collected; **7 pass, 1 known failure** (`other` category F1) |
 | Masking branch coverage | **100%** — the spec §14 P0 exit condition |
 | Router branch coverage | 98% — the one uncovered line is unreachable by construction |
@@ -36,7 +36,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §5 | Masking engine (inline, two-tier) | ✅ | 100% branch coverage; regex tier-1 short-circuits before any LLM call |
 | §6 | LangGraph pipeline | ✅ | Refuse-before-LLM and the `iteration < 2` cap both verified |
 | §6.3 | Hybrid retrieval BM25 + vector + RRF | ✅ | RRF k=60; no threshold on fused rank (ADR-0005) |
-| §6.3 | Cross-encoder reranker | ⚠️ Optional | `lexical` is the default; see [Gap 3](#gap-3-reranker-defaults-to-lexical) |
+| §6.3 | Cross-encoder reranker | ⚠️ Optional | `lexical` is the default, and now folds Vietnamese diacritics — without that, unaccented tickets never matched the accented KB; see [Gap 3](#gap-3-reranker-defaults-to-lexical) |
 | §6.4 | Validator (quote → fuzzy → in-top-k → negation) | ✅ | Negation check verified catching a real `negation_mismatch` live |
 | §7 | Trust scorer, outside ai-engine | ⚠️ Uncalibrated | Works, but coefficients are a hand-set prior — see [Gap 2](#gap-2-trust-score-is-an-uncalibrated-prior) |
 | §8 | Switch router — pure function, hard gates ordered | ✅ | Every branch unit-tested with no DB/LLM/network |

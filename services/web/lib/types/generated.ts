@@ -76,6 +76,7 @@ export interface GenerationSignals {
   quote_source_in_topk: boolean;
   negation_consistent: boolean;
   category_consistent: boolean;
+  quote_applicable?: boolean;
 }
 
 export interface PolicySignals {

@@ -8,6 +8,22 @@ Implements [`requirement.md`](requirement.md) (Architecture Specification v2). S
 
 ---
 
+## New here?
+
+Go to **[`docs/`](docs/README.md)** — it gives an ordered reading path that takes about an hour and ends with you able to make a change confidently.
+
+| Start with | For |
+|---|---|
+| [Onboarding](docs/onboarding.md) | Get it running and watch a ticket get triaged. Do this first. |
+| [Glossary](docs/glossary.md) | The vocabulary. The spec is Vietnamese and the domain terms are everywhere. |
+| [Architecture](docs/architecture.md) | How the pieces fit and the exact path a ticket takes. |
+| [Development](docs/development.md) | Conventions, common tasks, and the setup gotchas. |
+| [Testing](docs/testing.md) | Test layers and what the CI gate really enforces. |
+
+The rest of this README is the reference: what it is, how to run it, and where the knobs are.
+
+---
+
 ## Current status
 
 The system runs end to end. **`SHADOW_MODE=true` by default**: the router evaluates every ticket and records what it *would* have done, but every ticket still lands in the human queue. This is deliberate — it is spec §14's P1 phase, and it is how calibration data is collected at zero risk.
@@ -115,10 +131,16 @@ smart_ticket/
 │   ├── migrations/sql/          #   extensions, HNSW indexes, CHECK constraints, RO role
 │   └── ci/eval-gate.yml
 └── docs/
-    ├── adr/                     # 6 Architecture Decision Records
-    ├── runbooks/on-call.md
+    ├── README.md                # documentation index + reading order — start here
+    ├── onboarding.md            # day one: run it, submit a ticket, orient
+    ├── glossary.md              # domain vocabulary (the spec is Vietnamese)
+    ├── architecture.md          # deep dive + end-to-end ticket flow
+    ├── development.md           # conventions, common tasks, gotchas
+    ├── testing.md               # test layers + eval harness
     ├── status.md                # implementation status vs spec + known gaps
-    └── TODO.md                  # prioritized open work
+    ├── TODO.md                  # prioritized open work
+    ├── adr/                     # 6 Architecture Decision Records
+    └── runbooks/on-call.md      # when it breaks in production
 ```
 
 ---
@@ -333,9 +355,9 @@ curl -s -X POST http://localhost:8000/api/tickets/submit \
 
 ```bash
 uv sync --all-packages                     # once — installs every workspace member
-uv run pytest                              # everything (101 tests)
-uv run pytest services/core-api/tests -q   # 61
-uv run pytest services/ai-engine/tests -q  # 32
+uv run pytest                              # everything (119 tests)
+uv run pytest services/core-api/tests -q   # 73
+uv run pytest services/ai-engine/tests -q  # 38
 uv run pytest evals/suites -q              # 8 eval suites
 ```
 
