@@ -140,58 +140,39 @@ class DefaultLLMClient:
         degraded_reason codes, and the HITL dashboard is built on that enum.
         """
 
-        return _chat_complete(
-            system_prompt, user_prompt, timeout=timeout, circuit=self._circuit
-        )
+        circuit = self._circuit
 
+        if timeout is None:
+            timeout = settings.model_timeout_sec
 
-def chat_complete(
-    system_prompt: str, user_prompt: str, *, timeout: float | None = None
-) -> LLMResult:
-    """Migration facade over DefaultLLMClient — removed once the infer node
-    takes an `LLMClient` through its constructor."""
+        if not circuit.allow_request():
+            raise CircuitOpenError("circuit is open — failing fast, not calling any LLM")
 
-    return _chat_complete(system_prompt, user_prompt, timeout=timeout, circuit=CIRCUIT)
+        primary_is_cloud = _has_cloud()
+        primary_call = _call_cloud if primary_is_cloud else _call_ollama
 
+        last_error: Exception | None = None
+        for attempt in range(2):  # "retry backoff x2"
+            try:
+                result = primary_call(system_prompt, user_prompt, timeout)
+                circuit.record(success=True)
+                return result
+            except (httpx.HTTPError, RuntimeError) as e:
+                last_error = e
+                logger.warning("primary LLM call failed (attempt %d/2): %s", attempt + 1, e)
+                if attempt == 0:
+                    time.sleep(0.5 * (attempt + 1))
 
-def _chat_complete(
-    system_prompt: str,
-    user_prompt: str,
-    *,
-    timeout: float | None,
-    circuit: CircuitBreaker,
-) -> LLMResult:
-    if timeout is None:
-        timeout = settings.model_timeout_sec
+        circuit.record(success=False)
 
-    if not circuit.allow_request():
-        raise CircuitOpenError("circuit is open — failing fast, not calling any LLM")
+        if primary_is_cloud:
+            # Fall back to Ollama — a quality degradation, not a failure.
+            try:
+                result = _call_ollama(system_prompt, user_prompt, timeout)
+                result.degraded_reason = "cloud_fallback_to_ollama"
+                return result
+            except httpx.HTTPError as e:
+                last_error = e
+                logger.error("Ollama fallback also failed: %s", e)
 
-    primary_is_cloud = _has_cloud()
-    primary_call = _call_cloud if primary_is_cloud else _call_ollama
-
-    last_error: Exception | None = None
-    for attempt in range(2):  # "retry backoff x2"
-        try:
-            result = primary_call(system_prompt, user_prompt, timeout)
-            circuit.record(success=True)
-            return result
-        except (httpx.HTTPError, RuntimeError) as e:
-            last_error = e
-            logger.warning("primary LLM call failed (attempt %d/2): %s", attempt + 1, e)
-            if attempt == 0:
-                time.sleep(0.5 * (attempt + 1))
-
-    circuit.record(success=False)
-
-    if primary_is_cloud:
-        # Fall back to Ollama — a quality degradation, not a failure.
-        try:
-            result = _call_ollama(system_prompt, user_prompt, timeout)
-            result.degraded_reason = "cloud_fallback_to_ollama"
-            return result
-        except httpx.HTTPError as e:
-            last_error = e
-            logger.error("Ollama fallback also failed: %s", e)
-
-    raise AllLLMDownError(str(last_error))
+        raise AllLLMDownError(str(last_error))

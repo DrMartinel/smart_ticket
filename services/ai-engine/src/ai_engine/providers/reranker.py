@@ -16,10 +16,8 @@ import re
 import threading
 import unicodedata
 from collections.abc import Callable
-from functools import lru_cache
 from typing import Any
 
-from ai_engine.config import settings
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
@@ -126,24 +124,3 @@ def _import_and_build_cross_encoder(model_name: str):
     from sentence_transformers import CrossEncoder  # deferred: optional extra
 
     return CrossEncoder(model_name)
-
-
-def rerank(query: str, passages: list[str]) -> list[float]:
-    """Migration facade over the classes above — removed once every caller
-    takes a `Reranker` through its constructor.
-
-    ADR-0005 applies to the return value either way: this is the ONLY score
-    a retrieval threshold is ever compared against, never the RRF score.
-    """
-
-    if settings.reranker_provider == "cross_encoder":
-        return _default_cross_encoder().score(query, passages)
-    return LexicalReranker().score(query, passages)
-
-
-@lru_cache(maxsize=1)
-def _default_cross_encoder() -> CrossEncoderReranker:
-    """One process-wide instance, so the facade keeps the old behaviour of
-    loading the model at most once."""
-
-    return CrossEncoderReranker(model_name=settings.reranker_model)

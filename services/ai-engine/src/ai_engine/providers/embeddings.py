@@ -13,8 +13,6 @@ import hashlib
 import httpx
 import numpy as np
 
-from ai_engine.config import settings
-
 # A property of bge-m3 AND of the pgvector column width — changing it needs
 # a migration, so it is not node configuration.
 EMBED_DIM = 1024
@@ -70,25 +68,3 @@ class OllamaEmbedder:
                 f"{len(embedding)}, expected {EMBED_DIM}"
             )
         return embedding
-
-
-def _stub_embed(text: str) -> list[float]:
-    return StubEmbedder().embed(text)
-
-
-def _ollama_embed(text: str) -> list[float]:
-    return OllamaEmbedder(
-        base_url=settings.ollama_base_url,
-        model=settings.ollama_embed_model,
-        timeout_sec=settings.model_timeout_sec,
-        connect_timeout_sec=settings.model_connect_timeout_sec,
-    ).embed(text)
-
-
-def embed_text(text: str) -> list[float]:
-    """Migration facade over the classes above — removed once every caller
-    takes an `Embedder` through its constructor."""
-
-    if settings.embedding_provider == "stub":
-        return _stub_embed(text)
-    return _ollama_embed(text)

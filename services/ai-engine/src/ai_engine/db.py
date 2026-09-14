@@ -13,7 +13,6 @@ from contextlib import contextmanager
 
 import psycopg
 
-from ai_engine.config import settings
 
 
 class PsycopgConnectionSource:
@@ -36,12 +35,3 @@ class PsycopgConnectionSource:
             yield conn
         finally:
             conn.close()
-
-
-@contextmanager
-def get_connection():
-    """Migration facade over PsycopgConnectionSource — removed once every
-    caller takes a `ConnectionSource` through its constructor."""
-
-    with PsycopgConnectionSource(database_url=settings.database_url).connect() as conn:
-        yield conn
