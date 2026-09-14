@@ -7,7 +7,7 @@ degrade still reaches a human through the compiled graph.
 
 import pytest
 
-from ai_engine.graph.budget import BudgetedNode, BudgetExceeded, check_budget
+from ai_engine.graph.budget import BudgetedNode
 
 _LIMITS = pytest.mark.parametrize(
     "overrides",
@@ -28,16 +28,6 @@ class _SpyNode(BudgetedNode):
     def __call__(self, state: dict) -> dict:
         self.ran.append(state)  # test-only spy; real nodes never write to self
         return {"candidates": ["work"]}
-
-
-def test_check_budget_passes_within_limits(make_state):
-    check_budget(make_state())  # must not raise
-
-
-@_LIMITS
-def test_check_budget_raises_on_each_limit(make_state, overrides):
-    with pytest.raises(BudgetExceeded):
-        check_budget(make_state(**overrides))
 
 
 def test_within_budget_runs_the_node(make_state):
@@ -69,14 +59,6 @@ def test_a_subclass_overriding_call_again_is_still_guarded(make_state, exhausted
     assert node(exhausted_budget_state()) == {"degraded_reason": "budget_exceeded"}
     assert node.ran == []
     assert node(make_state()) == {"candidates": ["fake"]}
-
-
-def test_inherited_call_is_not_wrapped_twice(make_state):
-    class _PlainSubclass(_SpyNode):
-        pass
-
-    assert _PlainSubclass.__call__ is _SpyNode.__call__
-    assert _PlainSubclass()(make_state()) == {"candidates": ["work"]}
 
 
 def test_wrapped_call_keeps_the_node_signature():

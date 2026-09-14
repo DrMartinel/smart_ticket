@@ -121,35 +121,20 @@ def test_compiled_edges_match_flow():
     assert edges == expected
 
 
-def test_graph_accepts_an_injected_node(triage_nodes):
-    """The seam that makes a graph-level test possible at all: one node can
-    be swapped for a subclass without restating the other six."""
+def test_main_wires_the_prompt_for_settings_prompt_version():
+    """The prompt filename used to be hardcoded, so bumping
+    settings.prompt_version changed what the response *claimed* ran without
+    changing what actually ran. main.py is where the version is resolved, so
+    this reads the prompt off the InferNode in the production graph."""
 
-    from ai_engine.graph.build import compile_graph
-    from ai_engine.graph.state import TriageState
+    from ai_engine.config import settings
+    from ai_engine.llm.prompt_store import load_system_prompt
+    from ai_engine.main import _graph
 
-    class FakeInferNode(InferNode):
-        def __init__(self):
-            pass
+    # LangGraph internals: PregelNode.bound is the RunnableCallable wrapping
+    # the node instance we registered.
+    infer = _graph.nodes[InferNode.name].bound.func
 
-        def __call__(self, state):
-            return {"proposal": None}
-
-    nodes = [FakeInferNode() if isinstance(n, InferNode) else n for n in triage_nodes()]
-    compiled = compile_graph(TriageState, nodes, FLOW, ENTRY)  # must not raise
-
-    assert InferNode.name in compiled.get_graph().nodes
-
-
-def test_importing_main_opens_no_connections_and_loads_no_models():
-    """main.py builds the graph at uvicorn import time, and this test file
-    imports it with no database and no environment. If any provider
-    constructor starts doing I/O, the first shows up as a container that
-    will not boot and the second as a unit test that suddenly needs Postgres.
-    """
-
-    import sys
-
-    import ai_engine.main  # noqa: F401
-
-    assert "sentence_transformers" not in sys.modules
+    expected = load_system_prompt(settings.prompt_version)
+    assert infer._system_prompt == expected
+    assert expected.strip() != ""

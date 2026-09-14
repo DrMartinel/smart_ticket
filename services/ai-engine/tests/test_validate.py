@@ -66,7 +66,7 @@ def test_quote_not_found_anywhere_fails_source_check():
     assert out["quote_source_in_topk"] is False
 
 
-def test_quote_from_wrong_chunk_not_in_topk_even_if_verbatim_elsewhere():
+def test_quote_found_verbatim_in_a_later_chunk_is_in_topk():
     # Quote is verbatim-correct text, but only chunk 2 has it — if the
     # LLM claims a different source, quote_source_in_topk still needs to
     # find SOME chunk containing it. This confirms the search covers all

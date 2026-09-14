@@ -17,7 +17,6 @@ import time
 
 import pytest
 
-from ai_engine.config import settings
 from ai_engine.graph.nodes.infer import InferNode
 from ai_engine.llm.circuit_breaker import CircuitOpenError
 from ai_engine.llm.client import AllLLMDownError, LLMResult
@@ -65,20 +64,13 @@ def test_circuit_open_maps_to_degraded_reason_circuit_open(fake_llm, make_state)
 
 
 def test_all_llm_down_maps_to_degraded_reason_all_llm_down(fake_llm, make_state):
+    """Must not be confusable with "the model replied with bad JSON": both
+    reach HITL, but only this one means the infrastructure is down."""
+
     out = _node(fake_llm(error=AllLLMDownError("nothing answered")))(make_state())
 
     assert out["proposal"] is None
     assert out["degraded_reason"] == "all_llm_down"
-
-
-def test_provider_exhaustion_is_never_reported_as_a_schema_failure(fake_llm, make_state):
-    """The two exception paths must not be confusable with "the model
-    replied with bad JSON". Both reach HITL, but only one of them means
-    anything is wrong with the infrastructure."""
-
-    out = _node(fake_llm(error=AllLLMDownError("x")))(make_state())
-
-    assert out["degraded_reason"] != "schema_invalid"
     assert "llm_calls" not in out  # no call was ever made, so nothing is charged
 
 
@@ -191,21 +183,6 @@ def test_token_and_cost_counters_accumulate_across_the_retry(fake_llm, make_stat
     assert out["tokens_used"] == 115
     assert out["llm_calls"] == 2
     assert out["cost_usd"] == 1.0
-
-
-def test_system_prompt_matches_settings_prompt_version(fake_llm, make_state):
-    """The prompt filename used to be hardcoded, so bumping
-    settings.prompt_version changed what the response *claimed* ran without
-    changing what actually ran. This pins the two together."""
-
-    llm = fake_llm(result=_result())
-    expected = load_system_prompt(settings.prompt_version)
-
-    _node(llm, system_prompt=expected)(make_state())
-
-    system_prompt, _ = llm.prompts[0]
-    assert system_prompt == expected
-    assert system_prompt.strip() != ""
 
 
 def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate):

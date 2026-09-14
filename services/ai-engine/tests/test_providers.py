@@ -1,28 +1,14 @@
 """
-Provider-class tests. The two that matter here are structural rather than
-behavioural: they pin the properties that make main.py's graph
-construction safe to run at uvicorn import time on a default install.
+Provider-class tests. That constructing the cross-encoder imports nothing
+is pinned in test_providers_factory.py, through build_providers.
 """
 
 from __future__ import annotations
 
-import sys
 import threading
 
 from ai_engine.providers.embeddings import EMBED_DIM, StubEmbedder
 from ai_engine.providers.reranker import CrossEncoderReranker, LexicalReranker
-
-
-def test_constructing_cross_encoder_reranker_does_not_import_sentence_transformers():
-    """`sentence-transformers` is an optional extra (`--extra cross-encoder`).
-    main.py constructs providers at uvicorn import time, so if this
-    constructor ever imports the package eagerly, `import ai_engine.main`
-    breaks on every default (lexical) install — a failure that shows up as a
-    container that won't boot, not as a test failure.
-    """
-
-    CrossEncoderReranker(model_name="BAAI/bge-reranker-v2-m3")
-    assert "sentence_transformers" not in sys.modules
 
 
 def test_cross_encoder_model_is_built_once_under_concurrent_first_calls():

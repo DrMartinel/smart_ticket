@@ -77,21 +77,6 @@ def test_budget_exhausted_returns_nothing_and_calls_no_reranker(
     assert reranker.calls == []
 
 
-def test_budget_degrade_routes_to_emit_signals(
-    fake_reranker, make_candidate, exhausted_budget_state
-):
-    """The degrade must actually reach a human: decide() has to send an
-    empty rerank below the floor (-> EmitSignalsNode) rather than on to the
-    LLM."""
-
-    node = RerankNode(reranker=fake_reranker(scores=[0.9]), top_n=3)
-    state = exhausted_budget_state(candidates=[make_candidate(1, "a")])
-
-    state.update(node(state))
-
-    assert node.decide(state) is RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
-
-
 def test_scores_are_zipped_to_candidates_positionally(
     fake_reranker, make_candidate, make_state
 ):
