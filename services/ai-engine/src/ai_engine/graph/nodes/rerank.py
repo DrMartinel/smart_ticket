@@ -16,8 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from ai_engine.graph.base import BaseNode
-from ai_engine.graph.budget import check_budget
+from ai_engine.graph.budget import BudgetedNode
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.protocols import Reranker
 from ai_engine.retrieval.fusion import Candidate
@@ -32,7 +31,7 @@ class RankedChunk:
     score: float  # cross-encoder score — the ONLY score thresholds compare against
 
 
-class RerankNode(BaseNode):
+class RerankNode(BudgetedNode):
     class Outcome(StrEnum):
         EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
         EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
@@ -42,10 +41,6 @@ class RerankNode(BaseNode):
         self._top_n = top_n
 
     def __call__(self, state: TriageState) -> dict:
-        degraded = check_budget(state)
-        if degraded:
-            return {"reranked": [], "degraded_reason": degraded}
-
         candidates: list[Candidate] = state.get("candidates", [])
         if not candidates:
             # No degraded_reason here on purpose: "the KB had nothing to

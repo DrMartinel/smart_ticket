@@ -194,7 +194,7 @@ def _make_state(**overrides) -> dict:
 
 
 def _exhausted_budget_state(**overrides) -> dict:
-    """A state that check_budget() rejects — the shared precondition for
+    """A state that BudgetedNode rejects — the shared precondition for
     every "degrade before spending anything" test."""
 
     return _make_state(llm_calls=99, max_llm_calls=1, **overrides)

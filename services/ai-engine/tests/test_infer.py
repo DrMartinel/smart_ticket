@@ -87,7 +87,7 @@ def test_budget_exhausted_makes_no_llm_call(fake_llm, exhausted_budget_state):
 
     out = _node(llm)(exhausted_budget_state())
 
-    assert out["proposal"] is None
+    assert "proposal" not in out
     assert out["degraded_reason"] == "budget_exceeded"
     assert llm.prompts == []
 

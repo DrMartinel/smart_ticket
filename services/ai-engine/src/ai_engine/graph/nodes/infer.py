@@ -18,8 +18,7 @@ from pydantic import ValidationError
 
 from contracts.llm_draft import LLMProposalEnvelope
 
-from ai_engine.graph.base import BaseNode
-from ai_engine.graph.budget import check_budget
+from ai_engine.graph.budget import BudgetedNode
 from ai_engine.graph.state import TriageState
 from ai_engine.llm.circuit_breaker import CircuitOpenError
 from ai_engine.llm.client import AllLLMDownError
@@ -47,7 +46,7 @@ def _format_fewshots(fewshots: list[dict]) -> str:
     )
 
 
-class InferNode(BaseNode):
+class InferNode(BudgetedNode):
     def __init__(
         self,
         *,
@@ -74,10 +73,6 @@ class InferNode(BaseNode):
         self._attempt_headroom_divisor = attempt_headroom_divisor
 
     def __call__(self, state: TriageState) -> dict:
-        degraded = check_budget(state)
-        if degraded:
-            return {"proposal": None, "degraded_reason": degraded}
-
         ticket = state["ticket"]
         reranked = state.get("reranked", [])
         fewshots = state.get("fewshots", [])

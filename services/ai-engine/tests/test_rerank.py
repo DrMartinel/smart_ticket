@@ -61,7 +61,7 @@ def test_empty_candidates_returns_empty_without_a_degraded_reason(
     assert reranker.calls == []
 
 
-def test_budget_exhausted_returns_empty_and_calls_no_reranker(
+def test_budget_exhausted_returns_nothing_and_calls_no_reranker(
     fake_reranker, make_candidate, exhausted_budget_state
 ):
     """A ticket that has blown its budget must not pay for a cross-encoder
@@ -72,7 +72,7 @@ def test_budget_exhausted_returns_empty_and_calls_no_reranker(
 
     out = node(exhausted_budget_state(candidates=[make_candidate(1, "a")]))
 
-    assert out["reranked"] == []
+    assert "reranked" not in out
     assert out["degraded_reason"] == "budget_exceeded"
     assert reranker.calls == []
 
