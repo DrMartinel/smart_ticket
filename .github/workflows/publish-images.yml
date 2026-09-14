@@ -1,0 +1,131 @@
+# Build and publish container images to GHCR on merge to main.
+#
+# There is no deploy step, deliberately: this repo has no deployment target
+# (no k8s, Terraform, Helm, or registry config beyond these Dockerfiles).
+# This produces tagged, pullable artifacts; rolling them out stays manual
+# until there is somewhere to roll them out to.
+#
+# THREE images, not five: infra/docker-compose.yml builds core-api, worker
+# and beat from the same core-api Dockerfile and differentiates them by
+# `command`, so publishing core-api covers all three.
+#
+# Note the two build-context shapes. core-api and ai-engine build from the
+# REPO ROOT because they depend on the sibling packages/contracts workspace
+# member; web builds from services/web. This mirrors docker-compose.yml —
+# if you change one, change the other.
+
+name: publish-images
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  # A newer commit on main supersedes an in-flight build; there is no value
+  # in publishing an image for a commit that is already behind.
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Deliberately NOT `needs: eval-gate`. The eval gate is knowingly red on
+  # main — the `other` category F1 is 0.75 against a 0.85 floor (docs/TODO.md
+  # §3) — so chaining publish behind it would mean never publishing. This
+  # job is the narrower question "is the tree healthy enough to ship an
+  # image", which the F1 gap does not speak to. It duplicates the unit-test
+  # run in eval-gate.yml; that is the cost of keeping the two independent.
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: smart_triage
+          POSTGRES_USER: app_user
+          POSTGRES_PASSWORD: app_password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app_user -d smart_triage"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://app_user:app_password@localhost:5432/smart_triage
+      SECRET_KEY: ci-only-key
+      EMBEDDING_PROVIDER: stub
+      RERANKER_PROVIDER: lexical
+      POSTGRES_AI_RO_PASSWORD: ai_engine_ro_password
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv sync --all-packages
+
+      # Pinned to match .github/workflows/lint.yml — ruff's default rule set
+      # is not stable across releases. Bump both together.
+      - name: ruff check
+        run: uvx ruff@0.16.7 check . --exclude .venv --output-format=github
+
+      - name: Migrate
+        working-directory: services/core-api
+        run: uv run python manage.py migrate
+
+      - name: core-api unit tests
+        run: uv run pytest services/core-api/tests -q
+
+      - name: ai-engine unit tests
+        run: uv run pytest services/ai-engine/tests -q
+
+      - name: Offline eval suites
+        run: |
+          uv run --package evals pytest \
+            evals/suites/test_injection.py \
+            evals/suites/test_quote_validation.py \
+            -q
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: core-api
+            context: .
+            dockerfile: services/core-api/Dockerfile
+          - name: ai-engine
+            context: .
+            dockerfile: services/ai-engine/Dockerfile
+          - name: web
+            context: services/web
+            dockerfile: services/web/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      # GHCR paths must be lowercase; github.repository preserves the
+      # owner's casing ("DrMartinel/smart_ticket"), so interpolating it raw
+      # produces a path the registry rejects.
+      - name: Compute image name
+        id: img
+        run: echo "ref=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.img.outputs.ref }}:${{ github.sha }}
+            ${{ steps.img.outputs.ref }}:latest
+          # GitHub Actions layer cache — these images install a full Python
+          # toolchain, so a cold build is slow enough to matter.
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

@@ -1,3 +1,8 @@
+# NOTE: this file lived at infra/ci/eval-gate.yml until it was moved here.
+# GitHub only reads workflows from .github/workflows/, so for its whole
+# existence it was documentation rather than a gate — which is how the
+# reference to the non-existent evals/suites/test_build.py survived in it.
+#
 # Eval CI gate — spec §12.3. "Sửa prompt phải qua CI như sửa code."
 #
 # Two tiers, because the offline and live-pipeline suites have genuinely
@@ -24,12 +29,18 @@ name: eval-gate
 
 on:
   pull_request:
-    paths:
+    paths: &code_paths
       - "packages/contracts/**"
       - "services/core-api/**"
       - "services/ai-engine/**"
       - "evals/**"
       - "infra/migrations/**"
+      - ".github/workflows/eval-gate.yml"
+  # Also on direct pushes to main. This repo currently merges straight to
+  # main, so a PR-only trigger would mean the gate never actually ran.
+  push:
+    branches: [main]
+    paths: *code_paths
 
 jobs:
   offline-suites:

@@ -207,7 +207,7 @@ behavior. A green unit suite says nothing about whether the model got worse.
 - **When a test surprises you, check the test.** It has been the wrong side of
   the argument here before.
 - Prompt changes go through the eval gate exactly like code changes
-  (`infra/ci/eval-gate.yml`). That is why `evals/` lives in this repo.
+  (`.github/workflows/eval-gate.yml`). That is why `evals/` lives in this repo.
 
 ## Before opening a PR
 
