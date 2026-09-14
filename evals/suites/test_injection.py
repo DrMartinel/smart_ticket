@@ -6,7 +6,9 @@ text, no DB/LLM/network involved, so this suite always runs, unlike the
 live-pipeline suites.
 """
 
-from ai_engine.graph.nodes.injection import detect_injection
+from ai_engine.graph.nodes.injection import InjectionNode
+
+_NODE = InjectionNode()
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
@@ -22,7 +24,7 @@ def _detect(subject: str, body: str) -> bool:
             pii_level=PIILevel.ROUTINE, placeholder_keys=[],
         )
     }
-    return detect_injection(state)["injection"]["detected"]
+    return _NODE(state)["injection"]["detected"]
 
 
 def test_injection_recall_meets_threshold():

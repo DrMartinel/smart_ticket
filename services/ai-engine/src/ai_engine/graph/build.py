@@ -17,16 +17,22 @@ file:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from langgraph.graph import END, StateGraph
 
-from ai_engine.graph.nodes.emit_signals import build_trust_signals
-from ai_engine.graph.nodes.fewshot import select_fewshots
-from ai_engine.graph.nodes.infer import llm_infer
-from ai_engine.graph.nodes.injection import detect_injection
-from ai_engine.graph.nodes.rerank import cross_encoder_rerank
-from ai_engine.graph.nodes.retrieve import hybrid_retrieve
-from ai_engine.graph.nodes.validate import validate_output
+from ai_engine.config import Settings, settings
+from ai_engine.graph.base import GraphNode
+from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
+from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
+from ai_engine.graph.nodes.infer import InferNode
+from ai_engine.graph.nodes.injection import InjectionNode
+from ai_engine.graph.nodes.rerank import RerankNode
+from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
+from ai_engine.graph.nodes.validate import ValidateNode
 from ai_engine.graph.state import TriageState
+from ai_engine.llm.prompt_store import load_system_prompt
+from ai_engine.providers.factory import Providers, build_providers
 
 
 def _after_injection(state: TriageState) -> str:
@@ -47,16 +53,66 @@ def _after_validate(state: TriageState) -> str:
     return "emit_signals"
 
 
-def build_graph():
+@dataclass(frozen=True)
+class GraphDeps:
+    """The seven nodes, already configured.
+
+    Separate from `Providers` so a test can swap ONE node without restating
+    the other six, and so `build_graph` stays pure wiring. Fields are typed
+    `GraphNode`, which a plain function satisfies as readily as a callable
+    instance — that is what lets the function-to-class migration land one
+    node at a time instead of all seven at once.
+    """
+
+    detect_inject: GraphNode
+    retrieve: GraphNode
+    rerank: GraphNode
+    select_shots: GraphNode
+    infer: GraphNode
+    validate: GraphNode
+    emit_signals: GraphNode
+
+    @classmethod
+    def from_settings(
+        cls, s: Settings = settings, providers: Providers | None = None
+    ) -> "GraphDeps":
+        p = providers if providers is not None else build_providers(s)
+        return cls(
+            detect_inject=InjectionNode(),
+            retrieve=HybridRetrieveNode(
+                db=p.db,
+                embedder=p.embedder,
+                bm25_top_k=s.bm25_top_k,
+                vector_top_k=s.vector_top_k,
+                rrf_k=s.rrf_k,
+                candidate_limit=s.fusion_candidate_limit,
+            ),
+            rerank=RerankNode(reranker=p.reranker, top_n=s.rerank_top_n),
+            select_shots=SelectFewshotsNode(
+                db=p.db, embedder=p.embedder, fewshot_k=s.fewshot_k
+            ),
+            infer=InferNode(
+                llm=p.llm,
+                system_prompt=load_system_prompt(s.prompt_version),
+                model_timeout_sec=s.model_timeout_sec,
+            ),
+            validate=ValidateNode(fuzzy_threshold=s.quote_fuzzy_threshold),
+            emit_signals=EmitSignalsNode(db=p.db),
+        )
+
+
+def build_graph(deps: GraphDeps | None = None):
+    deps = deps if deps is not None else GraphDeps.from_settings()
+
     g = StateGraph(TriageState)
 
-    g.add_node("detect_inject", detect_injection)
-    g.add_node("retrieve", hybrid_retrieve)
-    g.add_node("rerank", cross_encoder_rerank)
-    g.add_node("select_shots", select_fewshots)
-    g.add_node("infer", llm_infer)
-    g.add_node("validate", validate_output)
-    g.add_node("emit_signals", build_trust_signals)
+    g.add_node("detect_inject", deps.detect_inject)
+    g.add_node("retrieve", deps.retrieve)
+    g.add_node("rerank", deps.rerank)
+    g.add_node("select_shots", deps.select_shots)
+    g.add_node("infer", deps.infer)
+    g.add_node("validate", deps.validate)
+    g.add_node("emit_signals", deps.emit_signals)
 
     g.set_entry_point("detect_inject")
 

@@ -152,6 +152,25 @@ Three properties are structural, not conventional:
 2. **Refuse-before-LLM.** Weak retrieval means the model is never invoked — cheaper *and* safer.
 3. **No unbounded loop.** Exactly one edge can cycle (`validate → infer`), hard-capped at `iteration < 2`. Non-termination is impossible by construction, not by convention.
 
+Each node is a class taking its collaborators and configuration through
+`__init__`; `graph/build.py` is the only place they are constructed and wired.
+Nodes depend on the four Protocols in `providers/protocols.py` — `Embedder`,
+`Reranker`, `LLMClient`, `ConnectionSource` — never on a concrete provider
+module, which is what makes every node testable with no DB, no Ollama and no
+model download.
+
+`providers/factory.py` is the single place `EMBEDDING_PROVIDER` and
+`RERANKER_PROVIDER` are read. Selection happens once at startup and an
+unrecognized value is fatal — a typo used to fall through to the lexical
+reranker, whose scores are a different calibration from the cross-encoder
+distribution `retrieval.floor` is fitted against (ADR-0005).
+
+Two constraints on anything added here: `build_graph()` runs at uvicorn import
+time, so no constructor may open a socket or load a model (the cross-encoder
+loads lazily, behind a lock, on first use); and `analyze` is a sync `def`, so
+node instances are shared across FastAPI's threadpool and must be read-only
+after construction.
+
 ### Stage 4 — Scoring and routing (core-api)
 
 ```

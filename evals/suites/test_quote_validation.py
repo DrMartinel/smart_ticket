@@ -9,7 +9,12 @@ including the negation-flip case that's the whole reason §6.4 exists.
 from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
 
 from ai_engine.graph.nodes.rerank import RankedChunk
-from ai_engine.graph.nodes.validate import validate_output
+from ai_engine.config import settings
+from ai_engine.graph.nodes.validate import ValidateNode
+
+# The production-configured validator — zero I/O at construction, so the
+# eval measures exactly what the graph runs.
+_NODE = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)
 
 PRECISION_THRESHOLD = 0.95
 
@@ -79,7 +84,7 @@ def _is_flagged(quote: str, sources: list[str]) -> bool:
             answer_draft="x", self_confidence=90,
         )
     )
-    result = validate_output({"proposal": proposal, "reranked": reranked, "iteration": 0})["validation"]
+    result = _NODE({"proposal": proposal, "reranked": reranked, "iteration": 0})["validation"]
     return not result["quote_source_in_topk"] or not result["negation_consistent"]
 
 

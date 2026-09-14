@@ -152,10 +152,66 @@ A trace ID from `audit_log` resolves to a complete LLM trace in the chosen backe
 
 ---
 
-## 6. Housekeeping
+## 6. Follow-ups surfaced by the node-class refactor
 
-- **`.claude/scheduled_tasks.lock` is tracked in git** and churns on every session. Untrack it:
-  ```bash
-  git rm --cached .claude/scheduled_tasks.lock && echo '.claude/scheduled_tasks.lock' >> .gitignore
-  ```
+Three defects found while converting the graph nodes to classes, each
+deliberately left out of that refactor so it stays behaviour-preserving.
+
+### 6a. `AIRunRequest.prompt_version` is echoed but never honored
+
+**Priority:** Medium · **Spec:** §12.3
+
+`main.py` returns the caller's `prompt_version` in `AIRunResponse` while the
+graph runs whatever `settings.prompt_version` resolves to. The response
+therefore asserts a version that did not run, which corrupts both the audit
+trail and eval attribution — a metric movement gets blamed on the wrong
+prompt.
+
+Actually honoring the field is worse than the bug: it needs per-request node
+construction (the graph is built once at import), and it lets a caller pick a
+prompt that never passed the eval gate spec §12.3 requires. 
+
+**Done when** `main.py` either returns `settings.prompt_version`, or rejects a
+request whose `prompt_version` does not match with a 400.
+
+### 6b. `select_shots` never checks the budget
+
+**Priority:** Low
+
+It is the only node that spends an embedding round-trip without first calling
+`check_budget` — `retrieve`, `rerank` and `infer` all do. Possibly deliberate
+(few-shot selection is cheap relative to inference), possibly an oversight.
+
+**Done when** either a `check_budget` call is added, or a comment in
+`SelectFewshotsNode` states why it is exempt.
+
+### 6c. The same query is embedded twice per ticket
+
+**Priority:** Low
+
+`HybridRetrieveNode` and `SelectFewshotsNode` both embed the identical
+`subject_masked\nbody_masked` string — two HTTP round-trips where one would
+do, on the latency-critical path.
+
+The fix is a `query_embedding` key in `TriageState`, which is a state-shape
+change. A caching decorator on the embedder is the **wrong** answer: the graph
+is built once at import and has no request scope, so such a cache would be
+process-lifetime and grow unboundedly across tickets.
+
+**Done when** one embedding call per ticket is visible in a trace.
+
+### 6d. `embed()` is called while holding a DB connection
+
+**Priority:** Low
+
+In `HybridRetrieveNode`, the embedding round-trip happens inside
+`with self._db.connect()`, pinning an `ai_engine_ro` connection for the
+15–20s a cold Ollama model load can take. Hoisting it out is a small change
+but it reorders two I/O operations and their failure sequence, so it wants
+its own commit and its own test.
+
+---
+
+## 7. Housekeeping
+
 - **Golden set is synthetic.** Per spec §12.4, promote real cases into `evals/golden/tickets.jsonl` over time from the three free label sources already being captured: human overrides, technician reroutes, and reopens after auto-reply. `eval_candidates` rows are accumulating for exactly this — they just need a periodic review-and-promote pass.

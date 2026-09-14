@@ -52,5 +52,17 @@ class Settings(BaseSettings):
     rerank_top_n: int = 3
     fewshot_k: int = 3
 
+    # How many post-fusion candidates the reranker actually scores. This is
+    # the cross-encoder's batch size, so it is directly a cost/latency knob.
+    # It is a SLICE of an RRF-ordered list, never a threshold on the RRF
+    # score — ADR-0005.
+    fusion_candidate_limit: int = 10
+
+    # The validator's narrow allowance for whitespace/punctuation drift in a
+    # verbatim quote — NOT a general "close enough" check (spec §6.4).
+    quote_fuzzy_threshold: float = 0.95
+
+    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+
 
 settings = Settings()

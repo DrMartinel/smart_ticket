@@ -9,7 +9,8 @@ from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope, RoutePro
 from contracts.enums import TicketCategory
 
 from ai_engine.graph.nodes.rerank import RankedChunk
-from ai_engine.graph.nodes.validate import validate_output
+from ai_engine.config import settings
+from ai_engine.graph.nodes.validate import ValidateNode
 
 
 def chunk(chunk_id: int, content: str) -> RankedChunk:
@@ -27,7 +28,7 @@ def auto_reply(quote: str, kb_slug="KB-0001") -> LLMProposalEnvelope:
 
 def test_no_proposal_is_schema_invalid_and_bumps_iteration():
     state = {"proposal": None, "reranked": [], "iteration": 0}
-    out = validate_output(state)
+    out = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)(state)
     assert out["validation"]["schema_valid"] is False
     assert out["iteration"] == 1
 
@@ -40,7 +41,7 @@ def test_route_proposal_skips_quote_check():
         )
     )
     state = {"proposal": proposal, "reranked": [chunk(1, "some content")], "iteration": 0}
-    out = validate_output(state)
+    out = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)(state)
     assert out["validation"]["schema_valid"] is True
     assert out["validation"]["quote_applicable"] is False
 
@@ -49,7 +50,7 @@ def test_exact_substring_match():
     source = "Kiểm tra phím Caps Lock có đang bật không. Sau đó khởi động lại máy."
     quote = "Kiểm tra phím Caps Lock có đang bật không."
     state = {"proposal": auto_reply(quote), "reranked": [chunk(1, source)], "iteration": 0}
-    out = validate_output(state)["validation"]
+    out = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)(state)["validation"]
     assert out["quote_match_ratio"] == 1.0
     assert out["quote_source_in_topk"] is True
     assert out["source_chunk_id"] == 1
@@ -61,7 +62,7 @@ def test_quote_not_found_anywhere_fails_source_check():
         "reranked": [chunk(1, "Nội dung hoàn toàn khác không liên quan.")],
         "iteration": 0,
     }
-    out = validate_output(state)["validation"]
+    out = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)(state)["validation"]
     assert out["quote_source_in_topk"] is False
 
 
@@ -78,7 +79,7 @@ def test_quote_from_wrong_chunk_not_in_topk_even_if_verbatim_elsewhere():
         ],
         "iteration": 0,
     }
-    out = validate_output(state)["validation"]
+    out = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)(state)["validation"]
     assert out["quote_source_in_topk"] is True
     assert out["source_chunk_id"] == 2
 
@@ -90,7 +91,7 @@ def test_negation_mismatch_detected():
     source = "Nhân viên không được cấp quyền truy cập hệ thống kế toán."
     quote = "được cấp quyền truy cập hệ thống kế toán."
     state = {"proposal": auto_reply(quote), "reranked": [chunk(1, source)], "iteration": 0}
-    out = validate_output(state)["validation"]
+    out = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)(state)["validation"]
     # quote is a substring of source? "được cấp quyền..." IS a substring
     # of "...không được cấp quyền..." so quote_source_in_topk is True,
     # but the negation sets differ (source has "không", quote doesn't).
@@ -102,7 +103,7 @@ def test_negation_consistent_when_sets_match():
     source = "Bạn không được cấp quyền truy cập nếu chưa hoàn thành đào tạo."
     quote = "Bạn không được cấp quyền truy cập nếu chưa hoàn thành đào tạo."
     state = {"proposal": auto_reply(quote), "reranked": [chunk(1, source)], "iteration": 0}
-    out = validate_output(state)["validation"]
+    out = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)(state)["validation"]
     assert out["negation_consistent"] is True
 
 
@@ -110,6 +111,6 @@ def test_fuzzy_match_catches_whitespace_drift():
     source = "Khởi động lại   máy   tính  của bạn."
     quote = "Khởi động lại máy tính của bạn."  # normalized whitespace differs
     state = {"proposal": auto_reply(quote), "reranked": [chunk(1, source)], "iteration": 0}
-    out = validate_output(state)["validation"]
+    out = ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold)(state)["validation"]
     assert out["quote_source_in_topk"] is True
     assert out["quote_match_ratio"] >= 0.95

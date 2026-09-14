@@ -64,6 +64,29 @@ Vietnamese tickets are typed without tone marks; the KB is written with them. Un
 
 ---
 
+### ai-engine node tests — fakes, not mocks
+
+`services/ai-engine/tests/conftest.py` provides a fake for each of the four
+provider Protocols (`fake_embedder`, `fake_reranker`, `fake_llm`, `fake_db`)
+plus a `make_state` builder. They are plain classes rather than
+`unittest.mock` objects: a fake whose behaviour you can read in one place
+beats a Mock configured three lines from the assertion.
+
+Each fake records what it was asked for, which is what makes the "degrade
+before spending anything" tests possible — `assert embedder.calls == []`
+proves a budget-exhausted node bought no round-trip. `fake_db(error=...)`
+raises on connect, which is how the DB-outage paths get exercised.
+
+They are exposed as fixtures rather than imported directly because the root
+`pyproject.toml` runs pytest with `--import-mode=importlib` (core-api and
+ai-engine both ship a package named `tests`), under which a test module
+cannot `from conftest import ...`.
+
+The highest-value tests here are the ones checked with a deliberate mutation
+— reverse the sort in `rerank`, hoist `connect()` out of the `try` in
+`emit_signals`, swap a `degraded_reason` string — to confirm they actually
+fail when the invariant they describe is broken.
+
 ## The eval harness
 
 ### Golden set

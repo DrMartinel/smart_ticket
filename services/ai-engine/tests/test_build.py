@@ -60,3 +60,57 @@ def test_graph_compiles():
     from ai_engine.graph.build import build_graph
 
     build_graph()  # must not raise
+
+
+def test_graph_has_exactly_the_seven_expected_nodes():
+    """GraphDeps is a frozen dataclass, so adding a field without a matching
+    add_node line compiles fine and the node simply never runs — a silent
+    hole in the pipeline. This is the only thing that would notice.
+    """
+
+    from ai_engine.graph.build import build_graph
+
+    compiled = build_graph()
+    nodes = {n for n in compiled.get_graph().nodes if not n.startswith("__")}
+
+    assert nodes == {
+        "detect_inject",
+        "retrieve",
+        "rerank",
+        "select_shots",
+        "infer",
+        "validate",
+        "emit_signals",
+    }
+
+
+def test_build_graph_accepts_injected_deps():
+    """The seam that makes a graph-level test possible at all: one node can
+    be swapped without restating the other six."""
+
+    from ai_engine.graph.build import GraphDeps, build_graph
+
+    sentinel_calls = []
+
+    def fake_infer(state):
+        sentinel_calls.append(state)
+        return {"proposal": None}
+
+    deps = GraphDeps.from_settings()
+    build_graph(deps=GraphDeps(**{**deps.__dict__, "infer": fake_infer}))  # must not raise
+
+
+def test_build_graph_opens_no_connections_and_loads_no_models():
+    """build_graph() runs at uvicorn import time (main.py) and in this test
+    file with no database and no environment. If any provider constructor
+    starts doing I/O, the first shows up as a container that will not boot
+    and the second as a unit test that suddenly needs Postgres.
+    """
+
+    import sys
+
+    from ai_engine.graph.build import build_graph
+
+    build_graph()
+
+    assert "sentence_transformers" not in sys.modules

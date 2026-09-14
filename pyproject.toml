@@ -44,4 +44,12 @@ testpaths = ["services/core-api/tests", "services/ai-engine/tests", "evals/suite
 # file location instead of by assembled module name, which makes the
 # duplicate package name (and the two different test_injection.py files in
 # ai-engine/tests and evals/suites) a non-issue.
+#
+# That fix covers test MODULES but not conftest.py, which pytest registers as
+# a plugin keyed by module name: with a `tests/__init__.py` present in both
+# services, both conftests resolve to `tests.conftest` and the second one
+# collected raises "Plugin already registered under a different name".
+# services/ai-engine/tests therefore deliberately has NO __init__.py, so its
+# conftest gets a path-derived name. Do not add one back — a whole-workspace
+# run dies at collection, while each suite still passes on its own.
 addopts = "--import-mode=importlib"
