@@ -1,0 +1,189 @@
+"""
+Fakes for the four provider seams, plus a TriageState builder.
+
+ai-engine's tests deliberately used no fixtures and no mocks while every
+node was a pure function. Nodes now take their collaborators through
+__init__, which is what makes the failure paths reachable in a unit test at
+all — DB outage, embedder down, circuit open, budget exhausted. These are
+plain classes rather than unittest.mock objects on purpose: a fake whose
+behaviour you can read in one place beats a Mock configured three lines
+away from the assertion.
+"""
+
+from __future__ import annotations
+
+import time
+from contextlib import contextmanager
+
+import pytest
+
+from contracts.enums import PIILevel
+from contracts.ticket import TicketMasked
+
+from ai_engine.config import settings
+from ai_engine.retrieval.fusion import Candidate
+
+
+class FakeEmbedder:
+    """Records every string it was asked to embed, so a test can assert a
+    budget-exhausted node bought no round-trip at all."""
+
+    def __init__(self, vector: list[float] | None = None, error: Exception | None = None):
+        self.calls: list[str] = []
+        self._vector = vector if vector is not None else [0.1] * 8
+        self._error = error
+
+    def embed(self, text: str) -> list[float]:
+        self.calls.append(text)
+        if self._error is not None:
+            raise self._error
+        return self._vector
+
+
+class FakeReranker:
+    """`scores` is consumed positionally against `passages`, so a test can
+    hand back an order that INVERTS the input and prove the node's output
+    order follows the reranker rather than the RRF order it was given
+    (ADR-0005)."""
+
+    def __init__(self, scores: list[float] | None = None, error: Exception | None = None):
+        self.calls: list[tuple[str, list[str]]] = []
+        self._scores = scores if scores is not None else []
+        self._error = error
+
+    def score(self, query: str, passages: list[str]) -> list[float]:
+        self.calls.append((query, list(passages)))
+        if self._error is not None:
+            raise self._error
+        return list(self._scores[: len(passages)])
+
+
+class FakeLLM:
+    """Records the timeout it was handed, which is the only way to assert
+    the infer node leaves headroom for the fallback attempt."""
+
+    def __init__(self, result=None, error: Exception | None = None):
+        self.timeouts: list[float | None] = []
+        self.prompts: list[tuple[str, str]] = []
+        self._result = result
+        self._error = error
+
+    def complete(self, system_prompt: str, user_prompt: str, *, timeout: float | None = None):
+        self.timeouts.append(timeout)
+        self.prompts.append((system_prompt, user_prompt))
+        if self._error is not None:
+            raise self._error
+        return self._result
+
+
+class _FakeCursor:
+    def __init__(self, rows):
+        self._rows = rows
+        self.executed: list[tuple] = []
+
+    def execute(self, sql, params=None):
+        self.executed.append((sql, params))
+
+    def fetchall(self):
+        return list(self._rows)
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+class _FakeConnection:
+    def __init__(self, rows):
+        self._rows = rows
+        self.cursors: list[_FakeCursor] = []
+
+    def cursor(self):
+        cur = _FakeCursor(self._rows)
+        self.cursors.append(cur)
+        return cur
+
+
+class FakeConnectionSource:
+    """`error` makes connect() raise, which is how the DB-outage failure
+    paths get exercised. `events` records open/close ordering so a test can
+    prove a connection is not held across an HTTP round-trip."""
+
+    def __init__(self, rows=(), error: Exception | None = None):
+        self._rows = list(rows)
+        self._error = error
+        self.events: list[str] = []
+        self.connections: list[_FakeConnection] = []
+
+    @contextmanager
+    def connect(self):
+        if self._error is not None:
+            raise self._error
+        conn = _FakeConnection(self._rows)
+        self.connections.append(conn)
+        self.events.append("open")
+        try:
+            yield conn
+        finally:
+            self.events.append("close")
+
+
+def make_ticket(subject: str = "không đăng nhập được", body: str = "máy tính báo lỗi") -> TicketMasked:
+    return TicketMasked(
+        ticket_public_id="TKT-1",
+        subject_masked=subject,
+        body_masked=body,
+        pii_level=PIILevel.ROUTINE,
+        placeholder_keys=[],
+    )
+
+
+def make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = "kb-a") -> Candidate:
+    return Candidate(
+        chunk_id=chunk_id,
+        article_id=chunk_id * 10,
+        article_slug=slug,
+        content=content,
+        rrf_score=1.0 / chunk_id,
+    )
+
+
+def make_state(**overrides) -> dict:
+    """A valid TriageState with generous budgets. Tests that care about one
+    budget override exactly that key, which makes the intent obvious —
+    previously every test rewrote the whole literal dict."""
+
+    state = {
+        "ticket": make_ticket(),
+        "request_id": "req-1",
+        "retrieval_floor": 0.5,
+        "max_tokens": 100_000,
+        "max_llm_calls": 5,
+        "max_latency_sec": 600,
+        "max_graph_iterations": 5,
+        "tokens_used": 0,
+        "llm_calls": 0,
+        "started_at": time.time(),
+        "iteration": 0,
+    }
+    state.update(overrides)
+    return state
+
+
+def exhausted_budget_state(**overrides) -> dict:
+    """A state that check_budget() rejects — the shared precondition for
+    every "degrade before spending anything" test."""
+
+    return make_state(llm_calls=99, max_llm_calls=1, **overrides)
+
+
+@pytest.fixture
+def fuzzy_threshold() -> float:
+    """From settings, so validator tests exercise the production
+    configuration rather than re-pinning 0.95 in a second place."""
+
+    return settings.quote_fuzzy_threshold
