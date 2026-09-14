@@ -34,6 +34,18 @@ dev = [
 line-length = 100
 target-version = "py313"
 
+[tool.ruff.lint]
+# Pinned EXPLICITLY rather than relying on ruff's implicit default, which
+# is not stable across releases: this repo is clean under the historical
+# default (E4/E7/E9/F) but ruff 0.16 widened its own default and reports
+# 104 findings on the same unchanged code. Without this block, a ruff
+# upgrade turns CI red overnight for reasons unrelated to any commit.
+#
+# Widening this set is a deliberate, separate piece of work — most of those
+# 104 are import ordering (I001) and mutable class defaults (RUF012), and
+# fixing them touches core-api broadly. See docs/TODO.md.
+select = ["E4", "E7", "E9", "F"]
+
 [tool.pytest.ini_options]
 testpaths = ["services/core-api/tests", "services/ai-engine/tests", "evals/suites"]
 # core-api and ai-engine both have a test package literally named `tests`.

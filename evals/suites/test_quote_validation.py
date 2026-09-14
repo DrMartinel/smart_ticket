@@ -8,8 +8,8 @@ including the negation-flip case that's the whole reason §6.4 exists.
 
 from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
 
-from ai_engine.graph.nodes.rerank import RankedChunk
 from ai_engine.config import settings
+from ai_engine.graph.nodes.rerank import RankedChunk
 from ai_engine.graph.nodes.validate import ValidateNode
 
 # The production-configured validator — zero I/O at construction, so the

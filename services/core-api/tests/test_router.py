@@ -4,7 +4,6 @@ this function is testable end to end without DB/LLM/network. These tests
 hold that promise: no django_db marker needed anywhere in this file.
 """
 
-import pytest
 
 from contracts.enums import Branch, PIILevel, ReasonCode, TicketCategory
 from contracts.llm_draft import (
