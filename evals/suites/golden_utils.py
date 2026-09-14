@@ -17,7 +17,9 @@ from pathlib import Path
 import httpx
 
 GOLDEN_PATH = Path(__file__).parent.parent / "golden" / "tickets.jsonl"
-RESULTS_PATH = Path(__file__).parent.parent / ".results.json"  # gitignored — one run's output, read by report.py
+RESULTS_PATH = (
+    Path(__file__).parent.parent / ".results.json"
+)  # gitignored — one run's output, read by report.py
 AI_ENGINE_URL = os.environ.get("AI_ENGINE_URL", "http://localhost:8001")
 
 # Live-pipeline suites call a real LLM per case (~3-5s each on local
@@ -59,7 +61,9 @@ def record_metric(name: str, value: float, **extra) -> None:
     RESULTS_PATH.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n")
 
 
-def analyze(client: httpx.Client, subject: str, body: str, *, retrieval_floor: float = 0.45) -> dict:
+def analyze(
+    client: httpx.Client, subject: str, body: str, *, retrieval_floor: float = 0.45
+) -> dict:
     from contracts.enums import PIILevel
 
     req = {

@@ -31,6 +31,7 @@ from .patterns import ALL_GROUPS, LEVEL_BY_GROUP
 
 logger = logging.getLogger(__name__)
 
+
 def _ner_timeout() -> httpx.Timeout:
     """Read at call time, not import time, so tests and `override_settings`
     can adjust it without reloading the module.
@@ -43,6 +44,7 @@ def _ner_timeout() -> httpx.Timeout:
     read = float(getattr(settings, "OLLAMA_TIMEOUT_SEC", 120.0))
     connect = float(getattr(settings, "OLLAMA_CONNECT_TIMEOUT_SEC", 3.0))
     return httpx.Timeout(read, connect=connect)
+
 
 _NER_SYSTEM_PROMPT = """\
 You detect personally-identifiable free-form mentions in IT support tickets
@@ -100,7 +102,9 @@ def regex_scan(text: str) -> list[PIIHit]:
         level = LEVEL_BY_GROUP[group]
         for label, pattern in patterns.items():
             for m in pattern.finditer(text):
-                hits.append(PIIHit(label=label, level=level, start=m.start(), end=m.end(), value=m.group()))
+                hits.append(
+                    PIIHit(label=label, level=level, start=m.start(), end=m.end(), value=m.group())
+                )
     return hits
 
 
@@ -168,7 +172,9 @@ async def ollama_ner(text: str, timeout: float | httpx.Timeout | None = None) ->
         raise OllamaError(str(e)) from e
 
 
-def _mask_field(text: str, hits: list[PIIHit], counters: dict[str, int], placeholder_map: dict[str, str]) -> str:
+def _mask_field(
+    text: str, hits: list[PIIHit], counters: dict[str, int], placeholder_map: dict[str, str]
+) -> str:
     """Replace hits with numbered placeholders, right-to-left so earlier
     offsets stay valid. Placeholders are numbered per-label so repeated
     mentions of the same email keep their "same entity" relationship
@@ -178,7 +184,11 @@ def _mask_field(text: str, hits: list[PIIHit], counters: dict[str, int], placeho
     ordered = sorted(hits, key=lambda h: h.start, reverse=True)
     for h in ordered:
         existing = next(
-            (ph for ph, val in placeholder_map.items() if val == h.value and ph.startswith(f"[{h.label}_")),
+            (
+                ph
+                for ph, val in placeholder_map.items()
+                if val == h.value and ph.startswith(f"[{h.label}_")
+            ),
             None,
         )
         if existing:
@@ -191,7 +201,9 @@ def _mask_field(text: str, hits: list[PIIHit], counters: dict[str, int], placeho
     return text
 
 
-def _apply(raw: TicketIn, subject_hits: list[PIIHit], body_hits: list[PIIHit]) -> tuple[str, str, dict[str, str], PIILevel]:
+def _apply(
+    raw: TicketIn, subject_hits: list[PIIHit], body_hits: list[PIIHit]
+) -> tuple[str, str, dict[str, str], PIILevel]:
     counters: dict[str, int] = {}
     placeholder_map: dict[str, str] = {}
 
@@ -246,7 +258,9 @@ async def mask(raw: TicketIn) -> MaskResult:
             ollama_ner(raw.subject), ollama_ner(raw.body)
         )
     except (TimeoutError, OllamaError) as e:
-        logger.warning("masking: Ollama NER failed (%s) — flagging MASK_FAILED, not treating as clean", e)
+        logger.warning(
+            "masking: Ollama NER failed (%s) — flagging MASK_FAILED, not treating as clean", e
+        )
         subject_masked, body_masked, placeholder_map, _ = _apply(raw, subject_hits, body_hits)
         return MaskResult(subject_masked, body_masked, PIILevel.MASK_FAILED, placeholder_map)
 
@@ -265,5 +279,9 @@ def _spans_to_hits(text: str, spans: list[str]) -> list[PIIHit]:
         idx = text.find(span)
         if idx == -1 or not span.strip():
             continue
-        hits.append(PIIHit(label="FREEFORM", level=PIILevel.ROUTINE, start=idx, end=idx + len(span), value=span))
+        hits.append(
+            PIIHit(
+                label="FREEFORM", level=PIILevel.ROUTINE, start=idx, end=idx + len(span), value=span
+            )
+        )
     return hits

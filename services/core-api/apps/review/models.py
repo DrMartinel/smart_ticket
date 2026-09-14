@@ -10,7 +10,9 @@ from apps.tickets.models import AiRun, Ticket
 
 class ReviewItem(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="review_items")
-    ai_run = models.ForeignKey(AiRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    ai_run = models.ForeignKey(
+        AiRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
     queue = models.CharField(max_length=30, choices=[(q.value, q.value) for q in ReviewQueue])
     priority = models.SmallIntegerField(default=3)
     state = models.CharField(max_length=20, default="pending")
@@ -40,7 +42,9 @@ class ReviewDecision(models.Model):
     corrected_kb = models.ForeignKey(
         KbArticle, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
-    action_taken = models.CharField(max_length=20, choices=[(a.value, a.value) for a in ReviewAction])
+    action_taken = models.CharField(
+        max_length=20, choices=[(a.value, a.value) for a in ReviewAction]
+    )
     override_reason = models.TextField(null=True, blank=True)  # REQUIRED when action != approve
 
     time_spent_sec = models.IntegerField()  # detects approval fatigue

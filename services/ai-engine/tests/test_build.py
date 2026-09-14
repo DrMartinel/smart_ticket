@@ -27,7 +27,9 @@ def test_empty_reranked_refuses_before_llm():
 
 def test_below_floor_refuses_before_llm():
     state = {
-        "reranked": [RankedChunk(chunk_id=1, article_id=1, article_slug="KB-1", content="x", score=0.1)],
+        "reranked": [
+            RankedChunk(chunk_id=1, article_id=1, article_slug="KB-1", content="x", score=0.1)
+        ],
         "retrieval_floor": 0.45,
     }
     assert _after_rerank(state) == "emit_signals"
@@ -35,7 +37,9 @@ def test_below_floor_refuses_before_llm():
 
 def test_above_floor_proceeds_to_select_shots():
     state = {
-        "reranked": [RankedChunk(chunk_id=1, article_id=1, article_slug="KB-1", content="x", score=0.9)],
+        "reranked": [
+            RankedChunk(chunk_id=1, article_id=1, article_slug="KB-1", content="x", score=0.9)
+        ],
         "retrieval_floor": 0.45,
     }
     assert _after_rerank(state) == "select_shots"

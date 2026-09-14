@@ -11,7 +11,6 @@ This is the only legitimate way `generated.ts` changes. Nothing in
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 

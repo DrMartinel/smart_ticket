@@ -80,9 +80,7 @@ class CrossEncoderReranker:
     layer; everything else is read-only after __init__.
     """
 
-    def __init__(
-        self, *, model_name: str, loader: Callable[[str], Any] | None = None
-    ) -> None:
+    def __init__(self, *, model_name: str, loader: Callable[[str], Any] | None = None) -> None:
         self._model_name = model_name
         # The `loader` seam exists so laziness and the load lock can be
         # tested WITHOUT sentence-transformers installed. That is its only

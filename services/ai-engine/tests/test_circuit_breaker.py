@@ -4,7 +4,9 @@ from ai_engine.llm.circuit_breaker import CircuitBreaker, CircuitState
 
 
 def make_breaker(**overrides) -> CircuitBreaker:
-    defaults = dict(failure_threshold=0.20, window_seconds=300, open_duration_seconds=600, half_open_ratio=0.10)
+    defaults = dict(
+        failure_threshold=0.20, window_seconds=300, open_duration_seconds=600, half_open_ratio=0.10
+    )
     defaults.update(overrides)
     return CircuitBreaker(**defaults)
 

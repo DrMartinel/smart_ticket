@@ -10,7 +10,9 @@ from apps.tickets.models import Ticket
 
 
 class FewshotExample(models.Model):
-    source_ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="fewshot_examples")
+    source_ticket = models.ForeignKey(
+        Ticket, on_delete=models.CASCADE, related_name="fewshot_examples"
+    )
     category = models.CharField(max_length=20, choices=[(c.value, c.value) for c in TicketCategory])
     input_text = models.TextField()  # already masked
     output_json = models.JSONField()

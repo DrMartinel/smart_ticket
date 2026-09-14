@@ -16,7 +16,13 @@ class FewshotError(Exception):
 
 @transaction.atomic
 def add_example(
-    *, ticket: Ticket, category: str, input_text: str, output_json: dict, approver, user_confirmed: bool
+    *,
+    ticket: Ticket,
+    category: str,
+    input_text: str,
+    output_json: dict,
+    approver,
+    user_confirmed: bool,
 ) -> FewshotExample:
     if not user_confirmed:
         raise FewshotError("cannot add a few-shot example without user_confirmed=True")

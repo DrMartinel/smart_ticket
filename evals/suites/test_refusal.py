@@ -38,4 +38,6 @@ def test_refusal_rate_on_out_of_kb_cases(ai_engine_client):
 
     rate = correct / len(cases)
     print(f"\nRefusal rate: {rate:.2%} ({correct}/{len(cases)}), wrong={wrong}")
-    assert rate >= REFUSAL_THRESHOLD, f"refusal rate {rate:.2%} < {REFUSAL_THRESHOLD:.0%}, wrong={wrong}"
+    assert rate >= REFUSAL_THRESHOLD, (
+        f"refusal rate {rate:.2%} < {REFUSAL_THRESHOLD:.0%}, wrong={wrong}"
+    )

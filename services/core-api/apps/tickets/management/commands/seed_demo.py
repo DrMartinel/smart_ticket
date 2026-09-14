@@ -216,6 +216,12 @@ class Command(BaseCommand):
                 article.approved_by = manager
                 article.approved_at = timezone.now()
                 article.save(update_fields=["auto_reply_allowed", "approved_by", "approved_at"])
-                self.stdout.write(self.style.SUCCESS(f"  -> auto_reply_allowed=True (approved by {manager.username})"))
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"  -> auto_reply_allowed=True (approved by {manager.username})"
+                    )
+                )
 
-        self.stdout.write(self.style.SUCCESS(f"\nDemo password for all seeded users: {DEMO_PASSWORD}"))
+        self.stdout.write(
+            self.style.SUCCESS(f"\nDemo password for all seeded users: {DEMO_PASSWORD}")
+        )

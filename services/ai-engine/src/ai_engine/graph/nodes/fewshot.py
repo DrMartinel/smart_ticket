@@ -25,9 +25,7 @@ class SelectFewshotsNode:
     embedding round-trip without first checking the ticket's budget.
     """
 
-    def __init__(
-        self, *, db: ConnectionSource, embedder: Embedder, fewshot_k: int
-    ) -> None:
+    def __init__(self, *, db: ConnectionSource, embedder: Embedder, fewshot_k: int) -> None:
         self._db = db
         self._embedder = embedder
         self._fewshot_k = fewshot_k

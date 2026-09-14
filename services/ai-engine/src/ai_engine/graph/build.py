@@ -88,9 +88,7 @@ class GraphDeps:
                 candidate_limit=s.fusion_candidate_limit,
             ),
             rerank=RerankNode(reranker=p.reranker, top_n=s.rerank_top_n),
-            select_shots=SelectFewshotsNode(
-                db=p.db, embedder=p.embedder, fewshot_k=s.fewshot_k
-            ),
+            select_shots=SelectFewshotsNode(db=p.db, embedder=p.embedder, fewshot_k=s.fewshot_k),
             infer=InferNode(
                 llm=p.llm,
                 system_prompt=load_system_prompt(s.prompt_version),

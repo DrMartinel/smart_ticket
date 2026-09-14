@@ -59,9 +59,7 @@ class ValidateNode:
     """Read-only after __init__; one instance is shared across FastAPI's
     threadpool."""
 
-    def __init__(
-        self, *, fuzzy_threshold: float, negations: set[str] | None = None
-    ) -> None:
+    def __init__(self, *, fuzzy_threshold: float, negations: set[str] | None = None) -> None:
         # No default: the value lives in Settings, and a constructor default
         # duplicating it would be a second source of truth for one tunable.
         self._fuzzy_threshold = fuzzy_threshold

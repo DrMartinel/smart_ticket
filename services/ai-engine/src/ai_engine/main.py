@@ -61,7 +61,8 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
         proposal=final_state.get("proposal"),
         signals=final_state["signals"],
         retrieved_chunks=[
-            {"chunk_id": r.chunk_id, "kb_slug": r.article_slug, "rerank_score": r.score} for r in reranked
+            {"chunk_id": r.chunk_id, "kb_slug": r.article_slug, "rerank_score": r.score}
+            for r in reranked
         ],
         tokens_in=final_state.get("tokens_in", 0),
         tokens_out=final_state.get("tokens_out", 0),

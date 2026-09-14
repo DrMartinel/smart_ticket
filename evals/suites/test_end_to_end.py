@@ -43,7 +43,11 @@ def _kb_meta_for(proposal: dict | None) -> KBArticleMeta | None:
     if kb is None:
         return None
     return KBArticleMeta(
-        id=kb.id, slug=kb.slug, category=kb.category, auto_reply_allowed=kb.auto_reply_allowed, risk_tier=kb.risk_tier
+        id=kb.id,
+        slug=kb.slug,
+        category=kb.category,
+        auto_reply_allowed=kb.auto_reply_allowed,
+        risk_tier=kb.risk_tier,
     )
 
 
@@ -64,7 +68,12 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
     mismatches = []
 
     for case in cases:
-        result = analyze(ai_engine_client, case["subject"], case["body"], retrieval_floor=settings.THRESHOLDS.retrieval_floor)
+        result = analyze(
+            ai_engine_client,
+            case["subject"],
+            case["body"],
+            retrieval_floor=settings.THRESHOLDS.retrieval_floor,
+        )
         signals = TrustSignals(**result["signals"])
         proposal_dict = result.get("proposal")
 
@@ -83,7 +92,9 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
             if decision.branch.value == expected_branch:
                 correct += 1
             else:
-                mismatches.append((case["id"], expected_branch, decision.branch.value, decision.reason_code.value))
+                mismatches.append(
+                    (case["id"], expected_branch, decision.branch.value, decision.reason_code.value)
+                )
 
         if decision.branch is Branch.AUTO_REPLY:
             auto_reply_predicted += 1
@@ -96,7 +107,10 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
 
     # Reported, not gated — see module docstring for why a fixed
     # pre-calibration branch-accuracy threshold would be the wrong check.
-    print(f"\nEnd-to-end: branch_accuracy={accuracy} auto_reply_precision={precision} " f"n={len(cases)} mismatches={mismatches}")
+    print(
+        f"\nEnd-to-end: branch_accuracy={accuracy} auto_reply_precision={precision} "
+        f"n={len(cases)} mismatches={mismatches}"
+    )
 
     if accuracy is not None:
         record_metric("branch_accuracy", accuracy, n=len(labeled))

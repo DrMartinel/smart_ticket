@@ -74,7 +74,9 @@ def quality_metrics(window_days: int = 30) -> dict:
         "override_rate_by_category": override_by_category,
         "reroute_rate": reroute_rate,
         "refusal_rate": refusal_rate,
-        "hallucination_catch_rate": (quote_caught / autoreply_attempts) if autoreply_attempts else None,
+        "hallucination_catch_rate": (quote_caught / autoreply_attempts)
+        if autoreply_attempts
+        else None,
     }
 
 
@@ -85,7 +87,9 @@ def hitl_health_metrics(window_days: int = 30) -> dict:
         ReviewItem.objects.filter(state="pending").values("queue").annotate(n=Count("id"))
     )
 
-    resolved = ReviewItem.objects.filter(state="resolved", created_at__gte=since, decisions__isnull=False)
+    resolved = ReviewItem.objects.filter(
+        state="resolved", created_at__gte=since, decisions__isnull=False
+    )
     wait_times = [
         (d.decided_at - ri.created_at).total_seconds()
         for ri in resolved.prefetch_related("decisions")
@@ -110,7 +114,9 @@ def hitl_health_metrics(window_days: int = 30) -> dict:
     per_reviewer = []
     for row in per_reviewer_counts:
         row["approve_rate"] = row["approved"] / row["total"] if row["total"] else None
-        row["median_time_spent_sec"] = _percentile(times_by_reviewer.get(row["reviewer_id"], []), 0.5)
+        row["median_time_spent_sec"] = _percentile(
+            times_by_reviewer.get(row["reviewer_id"], []), 0.5
+        )
         per_reviewer.append(row)
 
     return {

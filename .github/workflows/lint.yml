@@ -1,0 +1,37 @@
+# Lint gate. Deliberately separate from eval-gate.yml: this one has no
+# services, no database and no model, so it returns in well under a minute
+# and gives a fast answer on the most common class of breakage.
+#
+# Ruff is PINNED. Its default rule set is not stable across releases — this
+# repo is clean under the historical default but ruff 0.16 widened its own
+# and reports 104 findings on unchanged code. pyproject.toml pins the rule
+# selection; this pins the binary. Bump both together, deliberately.
+
+name: lint
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  RUFF_VERSION: "0.16.7"
+
+jobs:
+  ruff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+
+      # `uvx ruff@<pinned>` rather than a workspace dependency: ruff is a
+      # developer tool, not something the services import, so it does not
+      # belong in the runtime dependency tree.
+      - name: ruff check
+        run: uvx ruff@${{ env.RUFF_VERSION }} check . --exclude .venv --output-format=github
+
+      - name: ruff format --check
+        run: uvx ruff@${{ env.RUFF_VERSION }} format --check . --exclude .venv

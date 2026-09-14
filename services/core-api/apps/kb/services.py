@@ -92,7 +92,9 @@ def set_auto_reply_allowed(
         article.approved_by = actor
         article.approved_at = timezone.now()
     article.version += 1
-    article.save(update_fields=["auto_reply_allowed", "approved_by", "approved_at", "version", "updated_at"])
+    article.save(
+        update_fields=["auto_reply_allowed", "approved_by", "approved_at", "version", "updated_at"]
+    )
 
     KbAuthorityLog.objects.create(
         article=article,
@@ -117,6 +119,11 @@ def set_risk_tier(*, article: KbArticle, risk_tier: str, actor: User, reason: st
     article.save(update_fields=["risk_tier", "updated_at"])
 
     KbAuthorityLog.objects.create(
-        article=article, field="risk_tier", old_value=old_value, new_value=risk_tier, actor=actor, reason=reason
+        article=article,
+        field="risk_tier",
+        old_value=old_value,
+        new_value=risk_tier,
+        actor=actor,
+        reason=reason,
     )
     return article

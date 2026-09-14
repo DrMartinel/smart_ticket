@@ -147,4 +147,8 @@ This is recorded in `evals/baselines/baseline.json` as a known issue rather than
 
 ## CI
 
-`infra/ci/eval-gate.yml` runs the eval suites on every PR, compares against the committed baseline, and posts a report. Prompt changes go through it exactly like code changes — that is the whole reason `evals/` lives in this repository rather than in a notebook somewhere.
+`.github/workflows/eval-gate.yml` runs the eval suites on every PR and on pushes to `main`, compares against the committed baseline, and posts a report. Prompt changes go through it exactly like code changes — that is the whole reason `evals/` lives in this repository rather than in a notebook somewhere.
+
+Two more workflows sit alongside it. `lint.yml` runs `ruff check` and `ruff format --check` with no services attached, so it answers fast. `publish-images.yml` builds the three container images and pushes them to GHCR on merge to `main`; it runs its own unit-test job rather than chaining behind the eval gate, because that gate is knowingly red on the `other` category F1 and publishing should not be hostage to it.
+
+Note that the ruff binary is pinned in the workflows and the rule selection is pinned in `pyproject.toml`. Ruff's implicit default is not stable across releases — this repo is clean under the historical default but ruff 0.16 reports 104 findings on unchanged code. Bump the two pins together.

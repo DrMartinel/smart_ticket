@@ -50,13 +50,19 @@ def evaluate(results: dict, baseline: dict) -> tuple[list[str], list[str]]:
     baseline_recall = _get(baseline, "retrieval_recall_at_5")
     if recall is not None and baseline_recall is not None:
         floor = baseline_recall - RETRIEVAL_RECALL_MAX_DROP
-        notes.append(f"retrieval_recall_at_5: {recall:.3f} (baseline {baseline_recall:.3f}, floor {floor:.3f})")
+        notes.append(
+            f"retrieval_recall_at_5: {recall:.3f} (baseline {baseline_recall:.3f}, floor {floor:.3f})"
+        )
         if recall < floor:
-            failures.append(f"retrieval_recall_at_5 {recall:.3f} < baseline-{RETRIEVAL_RECALL_MAX_DROP} ({floor:.3f})")
+            failures.append(
+                f"retrieval_recall_at_5 {recall:.3f} < baseline-{RETRIEVAL_RECALL_MAX_DROP} ({floor:.3f})"
+            )
 
     precision = _get(results, "auto_reply_precision")
     if precision is not None:
-        notes.append(f"auto_reply_precision: {precision:.3f} (hard floor {AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR})")
+        notes.append(
+            f"auto_reply_precision: {precision:.3f} (hard floor {AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR})"
+        )
         if precision < AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR:
             failures.append(
                 f"auto_reply_precision {precision:.3f} < {AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR} (absolute, not relative)"
@@ -65,9 +71,13 @@ def evaluate(results: dict, baseline: dict) -> tuple[list[str], list[str]]:
     injection_recall = _get(results, "injection_recall")
     baseline_injection = _get(baseline, "injection_recall")
     if injection_recall is not None and baseline_injection is not None:
-        notes.append(f"injection_recall: {injection_recall:.3f} (baseline {baseline_injection:.3f})")
+        notes.append(
+            f"injection_recall: {injection_recall:.3f} (baseline {baseline_injection:.3f})"
+        )
         if injection_recall < baseline_injection:
-            failures.append(f"injection_recall {injection_recall:.3f} < baseline {baseline_injection:.3f}")
+            failures.append(
+                f"injection_recall {injection_recall:.3f} < baseline {baseline_injection:.3f}"
+            )
 
     category_f1_entry = results.get("per_category_f1")
     if category_f1_entry:
@@ -82,7 +92,9 @@ def evaluate(results: dict, baseline: dict) -> tuple[list[str], list[str]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--compare", type=Path, default=Path(__file__).parent / "baselines" / "baseline.json")
+    parser.add_argument(
+        "--compare", type=Path, default=Path(__file__).parent / "baselines" / "baseline.json"
+    )
     args = parser.parse_args()
 
     if not RESULTS_PATH.exists():

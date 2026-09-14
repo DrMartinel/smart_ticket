@@ -13,7 +13,36 @@ that moves a failure path is more significant here than a new feature.
 
 ## [Unreleased]
 
+### Added
+
+- **CI/CD actually runs now.** There was no `.github/` directory, so
+  `infra/ci/eval-gate.yml` — a complete, well-designed workflow — had sat in
+  a path GitHub never reads for the project's entire history. Moved to
+  `.github/workflows/eval-gate.yml` and given a `push: branches: [main]`
+  trigger alongside the existing `pull_request` one, since this repo
+  currently merges straight to main.
+- `.github/workflows/lint.yml` — `ruff check` and `ruff format --check`,
+  with no services attached so it returns in under a minute.
+- `.github/workflows/publish-images.yml` — builds the three container
+  images and pushes them to GHCR on merge to main, tagged with the commit
+  SHA and `latest`. Three images rather than five: `core-api`, `worker` and
+  `beat` share one image and differ only by `command`. No deploy step —
+  there is no deployment target in the repo, so this produces artifacts and
+  leaves rollout manual. It runs its own unit-test job instead of chaining
+  behind the eval gate, which is knowingly red on the `other` F1 and would
+  otherwise block publishing forever.
+
 ### Changed
+
+- Ruff's rule selection is now pinned explicitly in `pyproject.toml`
+  (`select = ["E4","E7","E9","F"]`) and the binary pinned in the workflows.
+  Ruff's implicit default is not stable across releases: this repo is clean
+  under the historical one, but ruff 0.16 reports 104 findings on unchanged
+  code. Without the pin a ruff upgrade turns CI red overnight. Bump the two
+  pins together.
+- `ruff format` applied across the workspace (66 files, mechanical only).
+  Comments are not rewrapped, so the prose explaining spec/ADR reasoning is
+  untouched.
 
 - **Graph nodes are now classes.** All seven nodes in
   `services/ai-engine/src/ai_engine/graph/nodes/` take their collaborators

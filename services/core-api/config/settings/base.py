@@ -116,9 +116,7 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # ── CORS (web talks to core-api from a different origin in dev) ────────────
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    "CORS_ALLOWED_ORIGINS", "http://localhost:3000"
-).split(",")
+CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = os.environ.get("SHADOW_MODE", "true").lower() == "true"
@@ -153,9 +151,7 @@ PII_QUARANTINE_TTL_HOURS = int(os.environ.get("PII_QUARANTINE_TTL_HOURS", "72"))
 AI_ENGINE_RO_PASSWORD = os.environ.get("POSTGRES_AI_RO_PASSWORD", "ai_engine_ro_password")
 DB_APP_ROLE = DATABASES["default"]["USER"]
 
-THRESHOLDS_PATH = os.environ.get(
-    "THRESHOLDS_PATH", str(BASE_DIR / "config" / "thresholds.yaml")
-)
+THRESHOLDS_PATH = os.environ.get("THRESHOLDS_PATH", str(BASE_DIR / "config" / "thresholds.yaml"))
 
 
 def load_thresholds() -> Thresholds:

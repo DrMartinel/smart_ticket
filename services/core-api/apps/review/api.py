@@ -47,7 +47,9 @@ def _serialize_item(item: ReviewItem) -> dict:
         "created_at": item.created_at.isoformat(),
         "ai_run_id": item.ai_run_id,
         "trust_signals": item.ai_run.trust_signals if item.ai_run_id else None,
-        "trust_score": float(item.ai_run.trust_score) if item.ai_run_id and item.ai_run.trust_score is not None else None,
+        "trust_score": float(item.ai_run.trust_score)
+        if item.ai_run_id and item.ai_run.trust_score is not None
+        else None,
         "trust_contributions": contributions,
         "proposed_draft": item.ai_run.proposed_draft if item.ai_run_id else None,
         "routing_decisions": [

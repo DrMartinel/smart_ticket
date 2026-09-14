@@ -29,7 +29,9 @@ import django
 import numpy as np
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
-os.environ.setdefault("DATABASE_URL", "postgresql://app_user:app_password@localhost:5434/smart_triage")
+os.environ.setdefault(
+    "DATABASE_URL", "postgresql://app_user:app_password@localhost:5434/smart_triage"
+)
 os.environ.setdefault("SECRET_KEY", "calibration-script-key")
 django.setup()
 
@@ -66,7 +68,10 @@ def _collect(intent: str, verdict_field: str, model: dict) -> tuple[list[float],
     for decision in decisions.iterator():
         ai_run = decision.review_item.ai_run
         draft = ai_run.proposed_draft or {}
-        if draft.get("root", {}).get("proposed_intent") != intent and draft.get("proposed_intent") != intent:
+        if (
+            draft.get("root", {}).get("proposed_intent") != intent
+            and draft.get("proposed_intent") != intent
+        ):
             continue
         verdict = getattr(decision, verdict_field, None)
         if verdict is None:
@@ -80,7 +85,9 @@ def _collect(intent: str, verdict_field: str, model: dict) -> tuple[list[float],
     return scores, labels
 
 
-def _smallest_threshold_for_precision(scores: list[float], labels: list[int], floor: float) -> float | None:
+def _smallest_threshold_for_precision(
+    scores: list[float], labels: list[int], floor: float
+) -> float | None:
     if not scores or len(set(labels)) < 2:
         return None
     from sklearn.metrics import precision_recall_curve
@@ -98,7 +105,8 @@ def main() -> None:
     parser.add_argument(
         "--model",
         type=Path,
-        default=Path(__file__).resolve().parents[2] / "services/core-api/config/trust_model_v0.json",
+        default=Path(__file__).resolve().parents[2]
+        / "services/core-api/config/trust_model_v0.json",
     )
     args = parser.parse_args()
 
@@ -117,7 +125,9 @@ def main() -> None:
 
     print()
     if t_auto is not None:
-        print(f"t_auto  = {t_auto:.4f}   (smallest threshold with auto-reply precision >= {T_AUTO_PRECISION_FLOOR})")
+        print(
+            f"t_auto  = {t_auto:.4f}   (smallest threshold with auto-reply precision >= {T_AUTO_PRECISION_FLOOR})"
+        )
     else:
         print(
             f"t_auto  = UNDETERMINED — not enough labeled auto_reply decisions yet, "
@@ -125,7 +135,9 @@ def main() -> None:
             f"thresholds.yaml value until more shadow data accumulates."
         )
     if t_route is not None:
-        print(f"t_route = {t_route:.4f}   (smallest threshold with auto-route precision >= {T_ROUTE_PRECISION_FLOOR})")
+        print(
+            f"t_route = {t_route:.4f}   (smallest threshold with auto-route precision >= {T_ROUTE_PRECISION_FLOOR})"
+        )
     else:
         print(
             f"t_route = UNDETERMINED — not enough labeled route_to_team decisions yet, "

@@ -47,7 +47,9 @@ def _today_ai_cost_usd() -> float:
 
 def _degraded_signals() -> TrustSignals:
     return TrustSignals(
-        retrieval=RetrievalSignals(rerank_top1=0.0, rerank_margin=0.0, bm25_keyword_hit=False, docs_above_floor=0),
+        retrieval=RetrievalSignals(
+            rerank_top1=0.0, rerank_margin=0.0, bm25_keyword_hit=False, docs_above_floor=0
+        ),
         generation=GenerationSignals(
             schema_valid=False,
             quote_match_ratio=0.0,
@@ -85,10 +87,16 @@ def process_ticket(self, ticket_id: int) -> dict:
         # Without this, an Ollama/embedding outage left the ticket stuck
         # at status="new" forever — no RoutingDecision, no ReviewItem,
         # invisible to every queue and dashboard.
-        logger.warning("embedding unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e)
+        logger.warning(
+            "embedding unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
+        )
         signals = _degraded_signals()
-        decision = _degraded_decision(ReasonCode.EMBEDDING_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2)
-        ai_run = _persist_ai_run(ticket, idempotency_key, signals, None, degraded_reason="embedding_unavailable")
+        decision = _degraded_decision(
+            ReasonCode.EMBEDDING_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
+        ai_run = _persist_ai_run(
+            ticket, idempotency_key, signals, None, degraded_reason="embedding_unavailable"
+        )
         return _finalize(ticket, ai_run, decision, trace_id)
 
     if verdict.kind == "duplicate" and verdict.of:
@@ -117,8 +125,12 @@ def process_ticket(self, ticket_id: int) -> dict:
     ceiling = settings.THRESHOLDS.budget.daily_cost_ceiling_usd
     if _today_ai_cost_usd() >= ceiling:
         signals = _degraded_signals()
-        decision = _degraded_decision(ReasonCode.BUDGET_EXCEEDED, ReviewQueue.LOW_CONFIDENCE, priority=2)
-        ai_run = _persist_ai_run(ticket, idempotency_key, signals, None, degraded_reason="budget_exceeded")
+        decision = _degraded_decision(
+            ReasonCode.BUDGET_EXCEEDED, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
+        ai_run = _persist_ai_run(
+            ticket, idempotency_key, signals, None, degraded_reason="budget_exceeded"
+        )
         return _finalize(ticket, ai_run, decision, trace_id)
 
     # ── Call ai-engine ──
@@ -133,16 +145,29 @@ def process_ticket(self, ticket_id: int) -> dict:
     try:
         resp = analyze(masked, request_id=idempotency_key)
     except AIEngineUnavailable as e:
-        logger.warning("ai-engine unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e)
+        logger.warning(
+            "ai-engine unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
+        )
         signals = _degraded_signals()
-        decision = _degraded_decision(ReasonCode.AI_ENGINE_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2)
-        ai_run = _persist_ai_run(ticket, idempotency_key, signals, None, degraded_reason="ai_engine_unavailable")
+        decision = _degraded_decision(
+            ReasonCode.AI_ENGINE_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
+        ai_run = _persist_ai_run(
+            ticket, idempotency_key, signals, None, degraded_reason="ai_engine_unavailable"
+        )
         return _finalize(ticket, ai_run, decision, trace_id)
 
     if resp.degraded_reason == "circuit_open":
-        decision = _degraded_decision(ReasonCode.CIRCUIT_OPEN, ReviewQueue.LOW_CONFIDENCE, priority=2)
+        decision = _degraded_decision(
+            ReasonCode.CIRCUIT_OPEN, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
         ai_run = _persist_ai_run(
-            ticket, idempotency_key, resp.signals, resp.proposal, resp=resp, degraded_reason=resp.degraded_reason
+            ticket,
+            idempotency_key,
+            resp.signals,
+            resp.proposal,
+            resp=resp,
+            degraded_reason=resp.degraded_reason,
         )
         return _finalize(ticket, ai_run, decision, trace_id)
 
@@ -151,13 +176,21 @@ def process_ticket(self, ticket_id: int) -> dict:
         kb = KbArticle.objects.filter(slug=resp.proposal.root.kb_slug, is_active=True).first()
         if kb:
             kb_meta = KBArticleMeta(
-                id=kb.id, slug=kb.slug, category=kb.category, auto_reply_allowed=kb.auto_reply_allowed,
+                id=kb.id,
+                slug=kb.slug,
+                category=kb.category,
+                auto_reply_allowed=kb.auto_reply_allowed,
                 risk_tier=kb.risk_tier,
             )
 
     decision = router_service.route(resp.signals, resp.proposal, kb_meta, settings.THRESHOLDS)
     ai_run = _persist_ai_run(
-        ticket, idempotency_key, resp.signals, resp.proposal, resp=resp, degraded_reason=resp.degraded_reason
+        ticket,
+        idempotency_key,
+        resp.signals,
+        resp.proposal,
+        resp=resp,
+        degraded_reason=resp.degraded_reason,
     )
     return _finalize(ticket, ai_run, decision, trace_id, kb=kb_meta)
 
@@ -175,7 +208,9 @@ def _degraded_decision(reason_code: ReasonCode, queue: ReviewQueue, *, priority:
     )
 
 
-def _persist_ai_run(ticket, idempotency_key, signals, proposal, *, resp=None, degraded_reason=None) -> AiRun:
+def _persist_ai_run(
+    ticket, idempotency_key, signals, proposal, *, resp=None, degraded_reason=None
+) -> AiRun:
     trust = compute_trust(signals) if signals.generation.schema_valid or proposal else None
     try:
         with transaction.atomic():
@@ -244,7 +279,11 @@ def _finalize(ticket: Ticket, ai_run: AiRun, decision, trace_id: str, *, kb=None
 
         _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
 
-    return {"ticket_public_id": ticket.public_id, "branch": decision.branch.value, "shadow_mode": shadow}
+    return {
+        "ticket_public_id": ticket.public_id,
+        "branch": decision.branch.value,
+        "shadow_mode": shadow,
+    }
 
 
 def _execute_or_enqueue(ticket: Ticket, ai_run: AiRun, decision, shadow: bool, kb) -> None:
@@ -253,14 +292,20 @@ def _execute_or_enqueue(ticket: Ticket, ai_run: AiRun, decision, shadow: bool, k
     if branch is Branch.BLOCK:
         ticket.status = "blocked"
         ticket.save(update_fields=["status"])
-        queue = ReviewQueue.INJECTION if decision.reason_code is ReasonCode.INJECTION_DETECTED else ReviewQueue.PII_VERIFY
+        queue = (
+            ReviewQueue.INJECTION
+            if decision.reason_code is ReasonCode.INJECTION_DETECTED
+            else ReviewQueue.PII_VERIFY
+        )
         ReviewItem.objects.create(ticket=ticket, ai_run=ai_run, queue=queue.value, priority=1)
         return
 
     if branch is Branch.ESCALATE:
         ticket.status = "escalated"
         ticket.save(update_fields=["status"])
-        ReviewItem.objects.create(ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=1)
+        ReviewItem.objects.create(
+            ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=1
+        )
         return
 
     if branch is Branch.HITL:
@@ -281,7 +326,9 @@ def _execute_or_enqueue(ticket: Ticket, ai_run: AiRun, decision, shadow: bool, k
         # exactly what would have happened live.
         ticket.status = "pending_review"
         ticket.save(update_fields=["status"])
-        ReviewItem.objects.create(ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=3)
+        ReviewItem.objects.create(
+            ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=3
+        )
         return
 
     if branch is Branch.AUTO_REPLY:
@@ -306,7 +353,12 @@ def reopen_ticket(ticket_id: int) -> None:
     ticket.status = "reopened"
     ticket.save(update_fields=["reopened_count", "status"])
     retract_for_reopened_ticket(ticket)
-    audit("ticket_reopened", actor_type="human", ticket_id=ticket.id, payload={"reopened_count": ticket.reopened_count})
+    audit(
+        "ticket_reopened",
+        actor_type="human",
+        ticket_id=ticket.id,
+        payload={"reopened_count": ticket.reopened_count},
+    )
 
 
 @shared_task

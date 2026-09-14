@@ -106,7 +106,9 @@ class TestMaskOllamaTier:
             raise TimeoutError("simulated timeout")
 
         monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", raise_timeout)
-        raw = TicketIn(subject="Van de ky thuat", body="Toi can ho tro voi thiet bi cua minh, xin cam on")
+        raw = TicketIn(
+            subject="Van de ky thuat", body="Toi can ho tro voi thiet bi cua minh, xin cam on"
+        )
         result = run_mask(raw)
 
         assert result.pii_level is PIILevel.MASK_FAILED
@@ -119,7 +121,9 @@ class TestMaskOllamaTier:
             raise OllamaError("simulated 500")
 
         monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", raise_error)
-        raw = TicketIn(subject="Van de ky thuat", body="May tinh cua toi bi loi man hinh xanh sang nay")
+        raw = TicketIn(
+            subject="Van de ky thuat", body="May tinh cua toi bi loi man hinh xanh sang nay"
+        )
         result = run_mask(raw)
 
         assert result.pii_level is PIILevel.MASK_FAILED
@@ -129,7 +133,9 @@ class TestMaskOllamaTier:
             return ["anh Tuan phong ke toan"] if "Tuan" in text else []
 
         monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
-        raw = TicketIn(subject="Ho tro", body="Lien he anh Tuan phong ke toan de biet them chi tiet nhe")
+        raw = TicketIn(
+            subject="Ho tro", body="Lien he anh Tuan phong ke toan de biet them chi tiet nhe"
+        )
         result = run_mask(raw)
 
         assert "anh Tuan phong ke toan" not in result.body_masked
@@ -140,7 +146,9 @@ class TestMaskOllamaTier:
             return []
 
         monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
-        raw = TicketIn(subject="May in bi ket giay", body="May in tren tang 3 bi ket giay tu sang nay")
+        raw = TicketIn(
+            subject="May in bi ket giay", body="May in tren tang 3 bi ket giay tu sang nay"
+        )
         result = run_mask(raw)
 
         assert result.pii_level is PIILevel.ROUTINE
@@ -151,7 +159,9 @@ class TestMaskOllamaTier:
             return []
 
         monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
-        raw = TicketIn(subject="Xac minh danh tinh", body="So CCCD cua toi la 012345678901, can xac minh gap")
+        raw = TicketIn(
+            subject="Xac minh danh tinh", body="So CCCD cua toi la 012345678901, can xac minh gap"
+        )
         result = run_mask(raw)
 
         assert result.pii_level is PIILevel.SENSITIVE

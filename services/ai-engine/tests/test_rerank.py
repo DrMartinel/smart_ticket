@@ -43,10 +43,8 @@ def test_truncation_uses_the_configured_top_n(fake_reranker, make_candidate, mak
     assert [r.chunk_id for r in reranked] == [2, 4]
 
 
-def test_empty_candidates_returns_empty_without_a_degraded_reason(
-    fake_reranker, make_state
-):
-    """"The KB had nothing to rerank" is an ordinary refuse-before-LLM, and
+def test_empty_candidates_returns_empty_without_a_degraded_reason(fake_reranker, make_state):
+    """ "The KB had nothing to rerank" is an ordinary refuse-before-LLM, and
     core-api gives it a different reason code from an infrastructure
     degrade. Emitting degraded_reason here would relabel every
     nothing-in-the-KB ticket as a system failure on the HITL dashboard.
@@ -93,9 +91,7 @@ def test_budget_degrade_routes_to_emit_signals(
     assert _after_rerank(state) == "emit_signals"
 
 
-def test_scores_are_zipped_to_candidates_positionally(
-    fake_reranker, make_candidate, make_state
-):
+def test_scores_are_zipped_to_candidates_positionally(fake_reranker, make_candidate, make_state):
     """The provider contract is one score per passage in input order. This
     pins that the node pairs them positionally — a mismatch would attach the
     wrong score to the wrong chunk while everything still looks sorted."""

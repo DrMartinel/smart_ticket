@@ -39,4 +39,6 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
 
     print(f"\nRetrieval: recall={recall:.2%} mrr={mrr:.3f} n={len(cases)} misses={misses}")
     record_metric("retrieval_recall_at_5", recall, mrr=mrr, n=len(cases))
-    assert recall >= RECALL_THRESHOLD, f"recall {recall:.2%} < {RECALL_THRESHOLD:.0%}, misses={misses}"
+    assert recall >= RECALL_THRESHOLD, (
+        f"recall {recall:.2%} < {RECALL_THRESHOLD:.0%}, misses={misses}"
+    )

@@ -70,10 +70,16 @@ class TestGetOrCreateIncident:
 
     def test_different_categories_get_separate_incidents(self, employee_user):
         network_tickets = [make_ticket(employee_user, n, category="network") for n in range(30, 33)]
-        hardware_tickets = [make_ticket(employee_user, n, category="hardware") for n in range(40, 43)]
+        hardware_tickets = [
+            make_ticket(employee_user, n, category="hardware") for n in range(40, 43)
+        ]
 
-        network_incident = _get_or_create_incident(network_tickets[0], similar=network_tickets, baseline_rate=0.1)
-        hardware_incident = _get_or_create_incident(hardware_tickets[0], similar=hardware_tickets, baseline_rate=0.1)
+        network_incident = _get_or_create_incident(
+            network_tickets[0], similar=network_tickets, baseline_rate=0.1
+        )
+        hardware_incident = _get_or_create_incident(
+            hardware_tickets[0], similar=hardware_tickets, baseline_rate=0.1
+        )
 
         assert network_incident.id != hardware_incident.id
         assert network_incident.category == "network"

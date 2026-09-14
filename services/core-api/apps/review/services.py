@@ -22,7 +22,9 @@ class ReviewError(Exception):
 @transaction.atomic
 def claim(review_item: ReviewItem, actor: User) -> ReviewItem:
     if review_item.state != "pending":
-        raise ReviewError(f"review item {review_item.id} is not pending (state={review_item.state})")
+        raise ReviewError(
+            f"review item {review_item.id} is not pending (state={review_item.state})"
+        )
     review_item.state = "claimed"
     review_item.claimed_by = actor
     review_item.claimed_at = timezone.now()

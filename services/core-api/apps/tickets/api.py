@@ -87,7 +87,11 @@ def submit_ticket(request, payload: TicketSubmitIn):
 
     process_ticket.delay(ticket.id)
 
-    return {"ticket_public_id": ticket.public_id, "status": ticket.status, "pii_level": ticket.pii_level}
+    return {
+        "ticket_public_id": ticket.public_id,
+        "status": ticket.status,
+        "pii_level": ticket.pii_level,
+    }
 
 
 @router.get("/{public_id}", auth=JWTAuth())

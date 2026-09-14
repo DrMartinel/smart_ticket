@@ -92,9 +92,7 @@ def test_budget_exhausted_makes_no_llm_call(fake_llm, exhausted_budget_state):
     assert llm.prompts == []
 
 
-def test_per_attempt_timeout_leaves_headroom_for_the_fallback_attempt(
-    fake_llm, make_state
-):
+def test_per_attempt_timeout_leaves_headroom_for_the_fallback_attempt(fake_llm, make_state):
     """llm/client.py retries the primary twice and may then fall back to
     Ollama, all inside the ticket's latency budget. Spending the whole
     remaining budget on the first attempt would leave the fallback no room,
@@ -133,9 +131,7 @@ def test_per_attempt_timeout_never_drops_below_the_floor(fake_llm, make_state):
     assert llm.timeouts[0] >= 5.0
 
 
-def test_unparseable_output_yields_no_proposal_but_still_charges_tokens(
-    fake_llm, make_state
-):
+def test_unparseable_output_yields_no_proposal_but_still_charges_tokens(fake_llm, make_state):
     """A chatty broken model must not loop for free. The retry edge is
     capped at one extra attempt, but the tokens it burned still count
     against the ticket's budget and against cost_per_ticket.
@@ -186,7 +182,9 @@ def test_token_and_cost_counters_accumulate_across_the_retry(fake_llm, make_stat
 
     llm = fake_llm(result=_result(tokens_in=10, tokens_out=5, cost_usd=0.5))
 
-    out = _node(llm)(make_state(tokens_used=100, llm_calls=1, tokens_in=10, tokens_out=5, cost_usd=0.5))
+    out = _node(llm)(
+        make_state(tokens_used=100, llm_calls=1, tokens_in=10, tokens_out=5, cost_usd=0.5)
+    )
 
     assert out["tokens_used"] == 115
     assert out["llm_calls"] == 2
