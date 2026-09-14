@@ -13,8 +13,11 @@ shape without a GPU or a model download.
 from __future__ import annotations
 
 import re
+import threading
 import unicodedata
+from collections.abc import Callable
 from functools import lru_cache
+from typing import Any
 
 from ai_engine.config import settings
 
@@ -53,29 +56,94 @@ def _lexical_score(query: str, passage: str) -> float:
     return overlap / len(q)  # in [0, 1] — fraction of query tokens covered
 
 
-@lru_cache(maxsize=1)
-def _cross_encoder_model():
-    from sentence_transformers import CrossEncoder
+class LexicalReranker:
+    """Deterministic, dependency-free token-overlap scoring — the CI/eval
+    fallback. NOT a stand-in for retrieval quality, only for exercising the
+    pipeline shape without a GPU or a model download. Stateless."""
 
-    return CrossEncoder("BAAI/bge-reranker-v2-m3")
+    def score(self, query: str, passages: list[str]) -> list[float]:
+        if not passages:
+            return []
+        return [_lexical_score(query, p) for p in passages]
+
+
+class CrossEncoderReranker:
+    """bge-reranker-v2-m3 via sentence-transformers — spec §6.3.
+
+    `sentence-transformers` is an OPTIONAL extra (`--extra cross-encoder`).
+    Constructing this class must never import it and never touch the model
+    cache: `build_graph()` runs at uvicorn import time, and a default
+    (RERANKER_PROVIDER=lexical) install does not have the package at all.
+    Hence the function-local import in `_import_and_build_cross_encoder`
+    below — do not hoist it; there is a test whose only job is to fail if
+    someone does.
+
+    `_model` is the ONE intentionally-mutable attribute in the node/provider
+    layer; everything else is read-only after __init__.
+    """
+
+    def __init__(
+        self, *, model_name: str, loader: Callable[[str], Any] | None = None
+    ) -> None:
+        self._model_name = model_name
+        # The `loader` seam exists so laziness and the load lock can be
+        # tested WITHOUT sentence-transformers installed. That is its only
+        # purpose — it is not a plugin point.
+        self._loader = loader or _import_and_build_cross_encoder
+        self._model: Any | None = None
+        self._load_lock = threading.Lock()
+
+    def _model_or_load(self) -> Any:
+        # Double-checked locking. `analyze` in main.py is a sync def, so
+        # FastAPI runs it in a threadpool — without the lock, two concurrent
+        # first requests each build a CrossEncoder, doubling peak RAM for a
+        # multi-GB model while one copy is immediately discarded. The warm
+        # path below reads self._model with no lock at all.
+        model = self._model
+        if model is not None:
+            return model
+        with self._load_lock:
+            if self._model is None:
+                self._model = self._loader(self._model_name)
+            return self._model
+
+    def score(self, query: str, passages: list[str]) -> list[float]:
+        if not passages:
+            return []
+        # The lock is NOT held below this line: holding it across predict()
+        # would serialize every rerank in the process, a far worse
+        # regression than the duplicate-load it prevents.
+        model = self._model_or_load()
+        raw_scores = model.predict([(query, p) for p in passages])
+        # bge-reranker-v2-m3 outputs an unbounded logit; squash to [0,1] so
+        # it composes with the same floor/margin semantics as the lexical
+        # fallback. Kept as a literal rather than math.exp: this feeds the
+        # exact number `retrieval_floor` is compared against (ADR-0005).
+        return [1 / (1 + pow(2.718281828, -float(s))) for s in raw_scores]
+
+
+def _import_and_build_cross_encoder(model_name: str):
+    from sentence_transformers import CrossEncoder  # deferred: optional extra
+
+    return CrossEncoder(model_name)
 
 
 def rerank(query: str, passages: list[str]) -> list[float]:
-    """Returns one score per passage, same order as input. Scores are
-    calibrated relevance judgments (cross-encoder) or a rough proxy
-    (lexical) — either way, ADR-0005 applies: this is the ONLY score a
-    retrieval threshold is ever compared against, never the RRF score."""
+    """Migration facade over the classes above — removed once every caller
+    takes a `Reranker` through its constructor.
 
-    if not passages:
-        return []
+    ADR-0005 applies to the return value either way: this is the ONLY score
+    a retrieval threshold is ever compared against, never the RRF score.
+    """
 
     if settings.reranker_provider == "cross_encoder":
-        model = _cross_encoder_model()
-        pairs = [(query, p) for p in passages]
-        raw_scores = model.predict(pairs)
-        # bge-reranker-v2-m3 outputs an unbounded logit; squash to [0,1]
-        # so it composes with the same floor/margin semantics as the
-        # lexical fallback.
-        return [1 / (1 + pow(2.718281828, -float(s))) for s in raw_scores]
+        return _default_cross_encoder().score(query, passages)
+    return LexicalReranker().score(query, passages)
 
-    return [_lexical_score(query, p) for p in passages]
+
+@lru_cache(maxsize=1)
+def _default_cross_encoder() -> CrossEncoderReranker:
+    """One process-wide instance, so the facade keeps the old behaviour of
+    loading the model at most once."""
+
+    return CrossEncoderReranker(model_name=settings.reranker_model)

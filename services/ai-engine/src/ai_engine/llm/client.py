@@ -14,7 +14,7 @@ from dataclasses import dataclass
 import httpx
 
 from ai_engine.config import settings
-from ai_engine.llm.circuit_breaker import CIRCUIT, CircuitOpenError
+from ai_engine.llm.circuit_breaker import CIRCUIT, CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -114,16 +114,57 @@ def _has_cloud() -> bool:
     return bool(settings.cloud_api_key and settings.cloud_base_url)
 
 
+class DefaultLLMClient:
+    """The `LLMClient` implementation backing the infer node.
+
+    `circuit` defaults to the module singleton on purpose: spec §10.1 says
+    one breaker per PROCESS, shared across every request and every client
+    instance. The parameter exists so a test can supply an isolated
+    breaker — not so production can run several.
+
+    Stateless apart from the breaker it delegates to, so one instance is
+    safe to share across FastAPI's threadpool.
+    """
+
+    def __init__(self, *, circuit: CircuitBreaker = CIRCUIT) -> None:
+        self._circuit = circuit
+
+    def complete(
+        self, system_prompt: str, user_prompt: str, *, timeout: float | None = None
+    ) -> LLMResult:
+        """Retry backoff ×2 on the primary provider → fall back to Ollama →
+        raise AllLLMDownError (spec §10.3 failure table, row 1-2).
+
+        Exhaustion is signalled by RAISING, never by returning empty text:
+        the infer node maps these two exception types to specific
+        degraded_reason codes, and the HITL dashboard is built on that enum.
+        """
+
+        return _chat_complete(
+            system_prompt, user_prompt, timeout=timeout, circuit=self._circuit
+        )
+
+
 def chat_complete(
     system_prompt: str, user_prompt: str, *, timeout: float | None = None
 ) -> LLMResult:
-    """Retry backoff ×2 on the primary provider → fall back to Ollama →
-    raise AllLLMDownError (spec §10.3 failure table, row 1-2)."""
+    """Migration facade over DefaultLLMClient — removed once the infer node
+    takes an `LLMClient` through its constructor."""
 
+    return _chat_complete(system_prompt, user_prompt, timeout=timeout, circuit=CIRCUIT)
+
+
+def _chat_complete(
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    timeout: float | None,
+    circuit: CircuitBreaker,
+) -> LLMResult:
     if timeout is None:
         timeout = settings.model_timeout_sec
 
-    if not CIRCUIT.allow_request():
+    if not circuit.allow_request():
         raise CircuitOpenError("circuit is open — failing fast, not calling any LLM")
 
     primary_is_cloud = _has_cloud()
@@ -133,7 +174,7 @@ def chat_complete(
     for attempt in range(2):  # "retry backoff x2"
         try:
             result = primary_call(system_prompt, user_prompt, timeout)
-            CIRCUIT.record(success=True)
+            circuit.record(success=True)
             return result
         except (httpx.HTTPError, RuntimeError) as e:
             last_error = e
@@ -141,7 +182,7 @@ def chat_complete(
             if attempt == 0:
                 time.sleep(0.5 * (attempt + 1))
 
-    CIRCUIT.record(success=False)
+    circuit.record(success=False)
 
     if primary_is_cloud:
         # Fall back to Ollama — a quality degradation, not a failure.
