@@ -25,12 +25,13 @@ from ai_engine.config import Settings, settings
 from ai_engine.graph.base import GraphNode
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
-from ai_engine.graph.nodes.infer import llm_infer
+from ai_engine.graph.nodes.infer import InferNode
 from ai_engine.graph.nodes.injection import InjectionNode
 from ai_engine.graph.nodes.rerank import RerankNode
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode
 from ai_engine.graph.state import TriageState
+from ai_engine.llm.prompt_store import load_system_prompt
 from ai_engine.providers.factory import Providers, build_providers
 
 
@@ -90,7 +91,11 @@ class GraphDeps:
             select_shots=SelectFewshotsNode(
                 db=p.db, embedder=p.embedder, fewshot_k=s.fewshot_k
             ),
-            infer=llm_infer,
+            infer=InferNode(
+                llm=p.llm,
+                system_prompt=load_system_prompt(s.prompt_version),
+                model_timeout_sec=s.model_timeout_sec,
+            ),
             validate=ValidateNode(fuzzy_threshold=s.quote_fuzzy_threshold),
             emit_signals=EmitSignalsNode(db=p.db),
         )
