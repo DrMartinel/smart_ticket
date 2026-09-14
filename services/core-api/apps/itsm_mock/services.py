@@ -37,7 +37,9 @@ def execute_runbook(*, review_item: ReviewItem, executed_by) -> RunbookExecution
     router: this refuses to run unless an actual approving decision exists
     on this review item, regardless of how the caller got here."""
 
-    approving_decision = review_item.decisions.filter(action_taken="approve").order_by("-decided_at").first()
+    approving_decision = (
+        review_item.decisions.filter(action_taken="approve").order_by("-decided_at").first()
+    )
     if approving_decision is None:
         raise RunbookError(
             "no approving review_decisions row for this review item — "

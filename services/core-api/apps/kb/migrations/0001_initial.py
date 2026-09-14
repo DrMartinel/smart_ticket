@@ -8,7 +8,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
@@ -20,58 +19,134 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='KbArticle',
+            name="KbArticle",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('slug', models.CharField(max_length=32, unique=True)),
-                ('title', models.CharField(max_length=255)),
-                ('body', models.TextField()),
-                ('category', models.CharField(choices=[('hardware', 'hardware'), ('software', 'software'), ('network', 'network'), ('access', 'access'), ('security', 'security'), ('other', 'other')], max_length=20)),
-                ('auto_reply_allowed', models.BooleanField(default=False)),
-                ('risk_tier', models.CharField(choices=[('low', 'low'), ('medium', 'medium'), ('high', 'high')], default='high', max_length=10)),
-                ('requires_approval_from', models.CharField(blank=True, max_length=30, null=True)),
-                ('runbook_id', models.CharField(blank=True, max_length=64, null=True)),
-                ('approved_at', models.DateTimeField(blank=True, null=True)),
-                ('version', models.IntegerField(default=1)),
-                ('is_active', models.BooleanField(default=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('approved_by', models.ForeignKey(blank=True, db_column='approved_by', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("slug", models.CharField(max_length=32, unique=True)),
+                ("title", models.CharField(max_length=255)),
+                ("body", models.TextField()),
+                (
+                    "category",
+                    models.CharField(
+                        choices=[
+                            ("hardware", "hardware"),
+                            ("software", "software"),
+                            ("network", "network"),
+                            ("access", "access"),
+                            ("security", "security"),
+                            ("other", "other"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("auto_reply_allowed", models.BooleanField(default=False)),
+                (
+                    "risk_tier",
+                    models.CharField(
+                        choices=[("low", "low"), ("medium", "medium"), ("high", "high")],
+                        default="high",
+                        max_length=10,
+                    ),
+                ),
+                ("requires_approval_from", models.CharField(blank=True, max_length=30, null=True)),
+                ("runbook_id", models.CharField(blank=True, max_length=64, null=True)),
+                ("approved_at", models.DateTimeField(blank=True, null=True)),
+                ("version", models.IntegerField(default=1)),
+                ("is_active", models.BooleanField(default=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "approved_by",
+                    models.ForeignKey(
+                        blank=True,
+                        db_column="approved_by",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'db_table': 'kb_articles',
+                "db_table": "kb_articles",
             },
         ),
         migrations.CreateModel(
-            name='KbAuthorityLog',
+            name="KbAuthorityLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('field', models.CharField(max_length=40)),
-                ('old_value', models.CharField(blank=True, max_length=100, null=True)),
-                ('new_value', models.CharField(blank=True, max_length=100, null=True)),
-                ('reason', models.TextField()),
-                ('changed_at', models.DateTimeField(auto_now_add=True)),
-                ('actor', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to=settings.AUTH_USER_MODEL)),
-                ('article', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='authority_log', to='kb.kbarticle')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("field", models.CharField(max_length=40)),
+                ("old_value", models.CharField(blank=True, max_length=100, null=True)),
+                ("new_value", models.CharField(blank=True, max_length=100, null=True)),
+                ("reason", models.TextField()),
+                ("changed_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "actor",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT, to=settings.AUTH_USER_MODEL
+                    ),
+                ),
+                (
+                    "article",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="authority_log",
+                        to="kb.kbarticle",
+                    ),
+                ),
             ],
             options={
-                'db_table': 'kb_authority_log',
+                "db_table": "kb_authority_log",
             },
         ),
         migrations.CreateModel(
-            name='KbChunk',
+            name="KbChunk",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('chunk_index', models.IntegerField()),
-                ('content', models.TextField()),
-                ('section_title', models.CharField(blank=True, max_length=255, null=True)),
-                ('token_count', models.IntegerField()),
-                ('embedding', pgvector.django.vector.VectorField(blank=True, dimensions=1024, null=True)),
-                ('tsv', django.contrib.postgres.search.SearchVectorField(blank=True, editable=False, null=True)),
-                ('article', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='chunks', to='kb.kbarticle')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("chunk_index", models.IntegerField()),
+                ("content", models.TextField()),
+                ("section_title", models.CharField(blank=True, max_length=255, null=True)),
+                ("token_count", models.IntegerField()),
+                (
+                    "embedding",
+                    pgvector.django.vector.VectorField(blank=True, dimensions=1024, null=True),
+                ),
+                (
+                    "tsv",
+                    django.contrib.postgres.search.SearchVectorField(
+                        blank=True, editable=False, null=True
+                    ),
+                ),
+                (
+                    "article",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="chunks",
+                        to="kb.kbarticle",
+                    ),
+                ),
             ],
             options={
-                'db_table': 'kb_chunks',
-                'constraints': [models.UniqueConstraint(fields=('article', 'chunk_index'), name='uq_kb_chunk_article_index')],
+                "db_table": "kb_chunks",
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=("article", "chunk_index"), name="uq_kb_chunk_article_index"
+                    )
+                ],
             },
         ),
     ]

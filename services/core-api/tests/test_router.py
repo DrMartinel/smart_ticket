@@ -4,7 +4,6 @@ this function is testable end to end without DB/LLM/network. These tests
 hold that promise: no django_db marker needed anywhere in this file.
 """
 
-
 from contracts.enums import Branch, PIILevel, ReasonCode, TicketCategory
 from contracts.llm_draft import (
     AutoReplyProposal,
@@ -33,16 +32,27 @@ def make_thresholds(**overrides) -> Thresholds:
         version="test",
         calibration_source="test",
         routing=RoutingThresholds(t_auto=0.88, t_route=0.72, quote_match=0.95),
-        retrieval=RetrievalThresholds(floor=0.45, margin=0.08, bm25_top_k=20, vector_top_k=20, rrf_k=60, rerank_top_n=3),
-        incident=IncidentThresholds(similarity=0.85, window_minutes=15, min_count=5, sigma_multiplier=3.0),
-        fewshot=FewshotThresholds(max_per_category=5, ttl_days=90, min_diversity=0.3, require_user_confirmed=True),
+        retrieval=RetrievalThresholds(
+            floor=0.45, margin=0.08, bm25_top_k=20, vector_top_k=20, rrf_k=60, rerank_top_n=3
+        ),
+        incident=IncidentThresholds(
+            similarity=0.85, window_minutes=15, min_count=5, sigma_multiplier=3.0
+        ),
+        fewshot=FewshotThresholds(
+            max_per_category=5, ttl_days=90, min_diversity=0.3, require_user_confirmed=True
+        ),
         budget=BudgetThresholds(
-            max_tokens_per_ticket=8000, max_llm_calls=4, max_latency_sec=30, max_graph_iterations=5,
+            max_tokens_per_ticket=8000,
+            max_llm_calls=4,
+            max_latency_sec=30,
+            max_graph_iterations=5,
             daily_cost_ceiling_usd=50,
         ),
         alerts=AlertThresholds(
-            reviewer_approve_rate_max=0.95, reviewer_median_time_min_sec=10,
-            override_rate_delta_max=0.05, trust_score_drift_max=0.10,
+            reviewer_approve_rate_max=0.95,
+            reviewer_median_time_min_sec=10,
+            override_rate_delta_max=0.05,
+            trust_score_drift_max=0.10,
         ),
     )
     base.update(overrides)
@@ -54,14 +64,22 @@ TH = make_thresholds()
 
 def good_signals(**overrides) -> TrustSignals:
     s = TrustSignals(
-        retrieval=RetrievalSignals(rerank_top1=0.9, rerank_margin=0.3, bm25_keyword_hit=True, docs_above_floor=3),
+        retrieval=RetrievalSignals(
+            rerank_top1=0.9, rerank_margin=0.3, bm25_keyword_hit=True, docs_above_floor=3
+        ),
         generation=GenerationSignals(
-            schema_valid=True, quote_match_ratio=1.0, quote_source_in_topk=True,
-            negation_consistent=True, category_consistent=True,
+            schema_valid=True,
+            quote_match_ratio=1.0,
+            quote_source_in_topk=True,
+            negation_consistent=True,
+            category_consistent=True,
         ),
         policy=PolicySignals(
-            kb_auto_reply_allowed=True, kb_risk_tier="low", pii_level=PIILevel.ROUTINE,
-            injection_detected=False, mass_incident=False,
+            kb_auto_reply_allowed=True,
+            kb_risk_tier="low",
+            pii_level=PIILevel.ROUTINE,
+            injection_detected=False,
+            mass_incident=False,
         ),
     )
     for path, value in overrides.items():
@@ -71,36 +89,54 @@ def good_signals(**overrides) -> TrustSignals:
 
 
 def kb(**overrides) -> KBArticleMeta:
-    base = dict(id=1, slug="KB-0001", category=TicketCategory.ACCESS, auto_reply_allowed=True, risk_tier="low")
+    base = dict(
+        id=1,
+        slug="KB-0001",
+        category=TicketCategory.ACCESS,
+        auto_reply_allowed=True,
+        risk_tier="low",
+    )
     base.update(overrides)
     return KBArticleMeta(**base)
 
 
 def auto_reply_proposal(**overrides) -> LLMProposalEnvelope:
     base = dict(
-        proposed_intent="auto_reply", kb_slug="KB-0001",
-        verbatim_quote="0123456789 verbatim quote text", answer_draft="draft", self_confidence=90,
+        proposed_intent="auto_reply",
+        kb_slug="KB-0001",
+        verbatim_quote="0123456789 verbatim quote text",
+        answer_draft="draft",
+        self_confidence=90,
     )
     base.update(overrides)
     return LLMProposalEnvelope(root=AutoReplyProposal(**base))
 
 
 def route_proposal(**overrides) -> LLMProposalEnvelope:
-    base = dict(proposed_intent="route_to_team", proposed_category=TicketCategory.NETWORK, rationale="r", self_confidence=90)
+    base = dict(
+        proposed_intent="route_to_team",
+        proposed_category=TicketCategory.NETWORK,
+        rationale="r",
+        self_confidence=90,
+    )
     base.update(overrides)
     return LLMProposalEnvelope(root=RouteProposal(**base))
 
 
 def runbook_proposal(**overrides) -> LLMProposalEnvelope:
     base = dict(
-        proposed_intent="runbook", runbook_id="RB-1", draft_payload={"a": 1},
-        proposed_category=TicketCategory.SOFTWARE, self_confidence=99,
+        proposed_intent="runbook",
+        runbook_id="RB-1",
+        draft_payload={"a": 1},
+        proposed_category=TicketCategory.SOFTWARE,
+        self_confidence=99,
     )
     base.update(overrides)
     return LLMProposalEnvelope(root=RunbookProposal(**base))
 
 
 # ── Hard gates ──────────────────────────────────────────────────────────
+
 
 def test_injection_blocks_and_alerts_security():
     signals = good_signals(**{"policy.injection_detected": True})
@@ -121,7 +157,9 @@ def test_pii_critical_blocks_and_alerts_security():
 def test_mass_incident_escalates_before_mask_failed_check():
     # Both mass_incident AND mask_failed are true — mass_incident must win,
     # because it's checked first (spec §8, ordering is load-bearing).
-    signals = good_signals(**{"policy.mass_incident": True, "policy.pii_level": PIILevel.MASK_FAILED})
+    signals = good_signals(
+        **{"policy.mass_incident": True, "policy.pii_level": PIILevel.MASK_FAILED}
+    )
     d = route(signals, auto_reply_proposal(), kb(), TH)
     assert d.branch is Branch.ESCALATE
     assert d.reason_code is ReasonCode.MASS_INCIDENT
@@ -149,7 +187,9 @@ def test_schema_invalid_generation_flag():
 
 
 def test_insufficient_context_is_retrieval_floor():
-    proposal = LLMProposalEnvelope(root=InsufficientContext(proposed_intent="insufficient_context", missing_information="x"))
+    proposal = LLMProposalEnvelope(
+        root=InsufficientContext(proposed_intent="insufficient_context", missing_information="x")
+    )
     d = route(good_signals(), proposal, kb(), TH)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
@@ -163,6 +203,7 @@ def test_below_retrieval_floor():
 
 
 # ── Auto-reply branch ────────────────────────────────────────────────────
+
 
 def test_auto_reply_requires_kb_present():
     d = route(good_signals(), auto_reply_proposal(), None, TH)
@@ -220,6 +261,7 @@ def test_auto_reply_all_checks_pass():
 
 # ── Runbook: ALWAYS HITL, no threshold escape hatch (ADR-0006) ─────────
 
+
 def test_runbook_always_hitl_even_with_perfect_signals():
     d = route(good_signals(), runbook_proposal(), kb(), TH)
     assert d.branch is Branch.HITL
@@ -236,6 +278,7 @@ def test_runbook_hitl_even_with_no_kb_at_all():
 
 
 # ── Auto-route branch ────────────────────────────────────────────────────
+
 
 def test_auto_route_category_inconsistent():
     signals = good_signals(**{"generation.category_consistent": False})
@@ -270,6 +313,7 @@ def test_auto_route_all_checks_pass():
 
 
 # ── Router purity ─────────────────────────────────────────────────────
+
 
 def test_route_is_deterministic_pure_function():
     s, p, k = good_signals(), auto_reply_proposal(), kb()

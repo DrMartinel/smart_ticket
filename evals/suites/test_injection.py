@@ -21,8 +21,11 @@ _NODE = InjectionNode()
 def _detect(subject: str, body: str) -> bool:
     state = {
         "ticket": TicketMasked(
-            ticket_public_id="TKT-EVAL", subject_masked=subject, body_masked=body,
-            pii_level=PIILevel.ROUTINE, placeholder_keys=[],
+            ticket_public_id="TKT-EVAL",
+            subject_masked=subject,
+            body_masked=body,
+            pii_level=PIILevel.ROUTINE,
+            placeholder_keys=[],
         )
     }
     return _NODE(state)["injection"]["detected"]
@@ -48,4 +51,6 @@ def test_ordinary_tickets_are_not_false_flagged():
     # contains no injection attempts by construction.
     cases = load_golden("kb_covered")[:20]
     false_positives = [c["id"] for c in cases if _detect(c["subject"], c["body"])]
-    assert not false_positives, f"false-positive injection flags on ordinary tickets: {false_positives}"
+    assert not false_positives, (
+        f"false-positive injection flags on ordinary tickets: {false_positives}"
+    )

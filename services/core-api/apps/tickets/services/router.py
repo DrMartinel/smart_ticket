@@ -27,7 +27,9 @@ from contracts.trust import TrustSignals
 from apps.tickets.services.trust_scorer import score as compute_trust
 
 
-def _block(reason_code: ReasonCode, *, detail: str = "", alert_security: bool = False) -> RoutingDecision:
+def _block(
+    reason_code: ReasonCode, *, detail: str = "", alert_security: bool = False
+) -> RoutingDecision:
     return RoutingDecision(
         branch=Branch.BLOCK,
         reason_code=reason_code,

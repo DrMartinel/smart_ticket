@@ -6,65 +6,169 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('kb', '0001_initial'),
-        ('tickets', '0001_initial'),
+        ("kb", "0001_initial"),
+        ("tickets", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='EvalCandidate',
+            name="EvalCandidate",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('source', models.CharField(max_length=30)),
-                ('ai_prediction', models.JSONField()),
-                ('human_truth', models.JSONField()),
-                ('promoted', models.BooleanField(default=False)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('ticket', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='eval_candidates', to='tickets.ticket')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("source", models.CharField(max_length=30)),
+                ("ai_prediction", models.JSONField()),
+                ("human_truth", models.JSONField()),
+                ("promoted", models.BooleanField(default=False)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "ticket",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="eval_candidates",
+                        to="tickets.ticket",
+                    ),
+                ),
             ],
             options={
-                'db_table': 'eval_candidates',
+                "db_table": "eval_candidates",
             },
         ),
         migrations.CreateModel(
-            name='ReviewItem',
+            name="ReviewItem",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('queue', models.CharField(choices=[('pii_verify', 'pii_verify'), ('low_confidence', 'low_confidence'), ('injection', 'injection'), ('mask_failed', 'mask_failed'), ('runbook_approval', 'runbook_approval')], max_length=30)),
-                ('priority', models.SmallIntegerField(default=3)),
-                ('state', models.CharField(default='pending', max_length=20)),
-                ('claimed_at', models.DateTimeField(blank=True, null=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('ai_run', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='tickets.airun')),
-                ('claimed_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to=settings.AUTH_USER_MODEL)),
-                ('ticket', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='review_items', to='tickets.ticket')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "queue",
+                    models.CharField(
+                        choices=[
+                            ("pii_verify", "pii_verify"),
+                            ("low_confidence", "low_confidence"),
+                            ("injection", "injection"),
+                            ("mask_failed", "mask_failed"),
+                            ("runbook_approval", "runbook_approval"),
+                        ],
+                        max_length=30,
+                    ),
+                ),
+                ("priority", models.SmallIntegerField(default=3)),
+                ("state", models.CharField(default="pending", max_length=20)),
+                ("claimed_at", models.DateTimeField(blank=True, null=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "ai_run",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to="tickets.airun",
+                    ),
+                ),
+                (
+                    "claimed_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "ticket",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="review_items",
+                        to="tickets.ticket",
+                    ),
+                ),
             ],
             options={
-                'db_table': 'review_items',
+                "db_table": "review_items",
             },
         ),
         migrations.CreateModel(
-            name='ReviewDecision',
+            name="ReviewDecision",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('kb_verdict', models.CharField(blank=True, choices=[('correct', 'correct'), ('wrong', 'wrong'), ('partial', 'partial'), ('not_applicable', 'not_applicable')], max_length=20, null=True)),
-                ('category_verdict', models.CharField(blank=True, max_length=20, null=True)),
-                ('corrected_category', models.CharField(blank=True, max_length=20, null=True)),
-                ('action_taken', models.CharField(choices=[('approve', 'approve'), ('edit_and_send', 'edit_and_send'), ('reject', 'reject'), ('reroute', 'reroute'), ('escalate', 'escalate')], max_length=20)),
-                ('override_reason', models.TextField(blank=True, null=True)),
-                ('time_spent_sec', models.IntegerField()),
-                ('decided_at', models.DateTimeField(auto_now_add=True)),
-                ('corrected_kb', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='+', to='kb.kbarticle')),
-                ('reviewer', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to=settings.AUTH_USER_MODEL)),
-                ('review_item', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='decisions', to='review.reviewitem')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                (
+                    "kb_verdict",
+                    models.CharField(
+                        blank=True,
+                        choices=[
+                            ("correct", "correct"),
+                            ("wrong", "wrong"),
+                            ("partial", "partial"),
+                            ("not_applicable", "not_applicable"),
+                        ],
+                        max_length=20,
+                        null=True,
+                    ),
+                ),
+                ("category_verdict", models.CharField(blank=True, max_length=20, null=True)),
+                ("corrected_category", models.CharField(blank=True, max_length=20, null=True)),
+                (
+                    "action_taken",
+                    models.CharField(
+                        choices=[
+                            ("approve", "approve"),
+                            ("edit_and_send", "edit_and_send"),
+                            ("reject", "reject"),
+                            ("reroute", "reroute"),
+                            ("escalate", "escalate"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("override_reason", models.TextField(blank=True, null=True)),
+                ("time_spent_sec", models.IntegerField()),
+                ("decided_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "corrected_kb",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="+",
+                        to="kb.kbarticle",
+                    ),
+                ),
+                (
+                    "reviewer",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT, to=settings.AUTH_USER_MODEL
+                    ),
+                ),
+                (
+                    "review_item",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="decisions",
+                        to="review.reviewitem",
+                    ),
+                ),
             ],
             options={
-                'db_table': 'review_decisions',
+                "db_table": "review_decisions",
             },
         ),
     ]

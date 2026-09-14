@@ -46,9 +46,7 @@ def build_providers(s: Settings) -> Providers:
                 connect_timeout_sec=s.model_connect_timeout_sec,
             )
         case other:
-            raise ValueError(
-                f"unknown embedding_provider: {other!r} (expected 'ollama' or 'stub')"
-            )
+            raise ValueError(f"unknown embedding_provider: {other!r} (expected 'ollama' or 'stub')")
 
     match s.reranker_provider:
         case "lexical":
@@ -57,8 +55,7 @@ def build_providers(s: Settings) -> Providers:
             reranker = CrossEncoderReranker(model_name=s.reranker_model)
         case other:
             raise ValueError(
-                f"unknown reranker_provider: {other!r} "
-                "(expected 'lexical' or 'cross_encoder')"
+                f"unknown reranker_provider: {other!r} (expected 'lexical' or 'cross_encoder')"
             )
 
     return Providers(

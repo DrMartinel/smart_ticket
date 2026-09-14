@@ -14,21 +14,19 @@ from contracts.enums import PIILevel
 
 # label -> (compiled pattern, PIILevel)
 CRITICAL_PATTERNS: dict[str, re.Pattern] = {
-    "PASSWORD": re.compile(
-        r"(?i)\b(password|mật\s*khẩu|mat\s*khau|pass)\s*[:=]\s*\S+"
-    ),
+    "PASSWORD": re.compile(r"(?i)\b(password|mật\s*khẩu|mat\s*khau|pass)\s*[:=]\s*\S+"),
     "TOKEN": re.compile(
         r"(?i)\b(api[_ -]?key|api[_ -]?token|access[_ -]?token|bearer|secret[_ -]?key|token)\s*[:=]\s*\S+"
     ),
     "AWS_KEY": re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
-    "GENERIC_SECRET_ASSIGN": re.compile(
-        r"(?i)\b(secret|otp|mã\s*otp|ma\s*otp)\s*[:=]\s*\S+"
-    ),
+    "GENERIC_SECRET_ASSIGN": re.compile(r"(?i)\b(secret|otp|mã\s*otp|ma\s*otp)\s*[:=]\s*\S+"),
 }
 
 SENSITIVE_PATTERNS: dict[str, re.Pattern] = {
     "CCCD": re.compile(r"\b\d{12}\b"),  # Vietnamese national ID, 12 digits
-    "BANK_ACCOUNT": re.compile(r"\b(?:STK|so\s*tai\s*khoan|số\s*tài\s*khoản)\s*[:.]?\s*\d{8,16}\b", re.I),
+    "BANK_ACCOUNT": re.compile(
+        r"\b(?:STK|so\s*tai\s*khoan|số\s*tài\s*khoản)\s*[:.]?\s*\d{8,16}\b", re.I
+    ),
 }
 
 ROUTINE_PATTERNS: dict[str, re.Pattern] = {

@@ -144,7 +144,9 @@ class FakeConnectionSource:
             self.events.append("close")
 
 
-def _make_ticket(subject: str = "không đăng nhập được", body: str = "máy tính báo lỗi") -> TicketMasked:
+def _make_ticket(
+    subject: str = "không đăng nhập được", body: str = "máy tính báo lỗi"
+) -> TicketMasked:
     return TicketMasked(
         ticket_public_id="TKT-1",
         subject_masked=subject,

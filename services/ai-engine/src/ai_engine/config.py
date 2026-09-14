@@ -14,7 +14,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
-    database_url: str = "postgresql://ai_engine_ro:ai_engine_ro_password@localhost:5434/smart_triage"
+    database_url: str = (
+        "postgresql://ai_engine_ro:ai_engine_ro_password@localhost:5434/smart_triage"
+    )
 
     ollama_base_url: str = "http://localhost:11434"
     ollama_infer_model: str = "qwen3.5:9b"

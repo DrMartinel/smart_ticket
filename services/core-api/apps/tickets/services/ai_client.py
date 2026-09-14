@@ -32,7 +32,9 @@ def analyze(ticket: TicketMasked, request_id: str) -> AIRunResponse:
     )
     url = f"{settings.AI_ENGINE_URL.rstrip('/')}/v1/analyze"
     try:
-        resp = httpx.post(url, json=req.model_dump(mode="json"), timeout=th.budget.max_latency_sec + 5)
+        resp = httpx.post(
+            url, json=req.model_dump(mode="json"), timeout=th.budget.max_latency_sec + 5
+        )
         resp.raise_for_status()
         return AIRunResponse(**resp.json())
     except (httpx.HTTPError, ValueError) as e:

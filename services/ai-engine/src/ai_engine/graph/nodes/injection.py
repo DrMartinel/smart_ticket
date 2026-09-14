@@ -21,7 +21,9 @@ DEFAULT_PATTERNS: dict[str, re.Pattern] = {
     "ignore_instructions_vi": re.compile(
         r"(?i)\b(bỏ qua|quên)\b.{0,20}\b(hướng dẫn|chỉ dẫn|quy tắc|lệnh)\b.{0,20}\b(trên|phía trên|trước đó)\b"
     ),
-    "role_override_en": re.compile(r"(?i)\byou are now\b|\bact as\b|\bnew system prompt\b|\bDAN mode\b"),
+    "role_override_en": re.compile(
+        r"(?i)\byou are now\b|\bact as\b|\bnew system prompt\b|\bDAN mode\b"
+    ),
     # NOTE: "bạn" is required adjacent to "bây giờ là" in either word
     # order — "bây giờ là" alone is an ordinary Vietnamese phrase for
     # telling the time ("bây giờ là 3 giờ chiều") and would false-positive
@@ -32,8 +34,12 @@ DEFAULT_PATTERNS: dict[str, re.Pattern] = {
     "priority_manipulation": re.compile(
         r"(?i)\b(set|đặt)\b.{0,15}\bpriority\b.{0,10}\b(p0|p1|critical|urgent|khẩn cấp)\b"
     ),
-    "system_prompt_probe": re.compile(r"(?i)\b(print|show|reveal|repeat)\b.{0,15}\b(system prompt|instructions)\b"),
-    "auto_approve_request": re.compile(r"(?i)\bauto[- ]?(approve|reply|execute)\b.{0,20}\bwithout\b.{0,20}\breview\b"),
+    "system_prompt_probe": re.compile(
+        r"(?i)\b(print|show|reveal|repeat)\b.{0,15}\b(system prompt|instructions)\b"
+    ),
+    "auto_approve_request": re.compile(
+        r"(?i)\bauto[- ]?(approve|reply|execute)\b.{0,20}\bwithout\b.{0,20}\breview\b"
+    ),
 }
 
 

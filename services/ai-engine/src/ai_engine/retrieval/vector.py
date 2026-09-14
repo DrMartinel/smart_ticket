@@ -35,6 +35,12 @@ def vector_search(conn, query_embedding: list[float], top_k: int) -> list[Vector
         )
         rows = cur.fetchall()
     return [
-        VectorHit(chunk_id=chunk_id, article_id=article_id, article_slug=article_slug, content=content, score=float(score))
+        VectorHit(
+            chunk_id=chunk_id,
+            article_id=article_id,
+            article_slug=article_slug,
+            content=content,
+            score=float(score),
+        )
         for chunk_id, article_id, article_slug, content, score in rows
     ]

@@ -41,9 +41,7 @@ def test_embedder_failure_propagates_rather_than_returning_empty_candidates(
         node(make_state())
 
 
-def test_budget_exhausted_makes_no_embedding_call(
-    fake_db, fake_embedder, exhausted_budget_state
-):
+def test_budget_exhausted_makes_no_embedding_call(fake_db, fake_embedder, exhausted_budget_state):
     """A ticket over budget must not buy one more HTTP round-trip on its way
     to being degraded."""
 
@@ -78,17 +76,13 @@ def test_bm25_keyword_hit_is_false_when_lexical_finds_nothing(
     assert len(out["candidates"]) == 1
 
 
-def test_bm25_keyword_hit_is_true_when_lexical_matches(
-    fake_db, fake_embedder, kb_row, make_state
-):
+def test_bm25_keyword_hit_is_true_when_lexical_matches(fake_db, fake_embedder, kb_row, make_state):
     node = _node(fake_db(rows=[kb_row(1, "a", 0.8)]), fake_embedder())
 
     assert node(make_state())["bm25_keyword_hit"] is True
 
 
-def test_candidates_capped_at_the_configured_limit(
-    fake_db, fake_embedder, kb_row, make_state
-):
+def test_candidates_capped_at_the_configured_limit(fake_db, fake_embedder, kb_row, make_state):
     """The cap is the cross-encoder's batch size, so an uncapped list is
     a direct cost and latency regression."""
 
@@ -98,9 +92,7 @@ def test_candidates_capped_at_the_configured_limit(
     assert len(node(make_state())["candidates"]) == 3
 
 
-def test_embedding_query_is_the_masked_ticket(
-    fake_db, fake_embedder, make_state, make_ticket
-):
+def test_embedding_query_is_the_masked_ticket(fake_db, fake_embedder, make_state, make_ticket):
     """Only masked text may cross into ai-engine's providers."""
 
     embedder = fake_embedder()

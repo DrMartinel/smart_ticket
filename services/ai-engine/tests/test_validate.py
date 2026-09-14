@@ -14,14 +14,19 @@ from ai_engine.graph.nodes.validate import ValidateNode
 
 
 def chunk(chunk_id: int, content: str) -> RankedChunk:
-    return RankedChunk(chunk_id=chunk_id, article_id=1, article_slug="KB-0001", content=content, score=0.9)
+    return RankedChunk(
+        chunk_id=chunk_id, article_id=1, article_slug="KB-0001", content=content, score=0.9
+    )
 
 
 def auto_reply(quote: str, kb_slug="KB-0001") -> LLMProposalEnvelope:
     return LLMProposalEnvelope(
         root=AutoReplyProposal(
-            proposed_intent="auto_reply", kb_slug=kb_slug, verbatim_quote=quote,
-            answer_draft="x", self_confidence=90,
+            proposed_intent="auto_reply",
+            kb_slug=kb_slug,
+            verbatim_quote=quote,
+            answer_draft="x",
+            self_confidence=90,
         )
     )
 
@@ -36,8 +41,10 @@ def test_no_proposal_is_schema_invalid_and_bumps_iteration():
 def test_route_proposal_skips_quote_check():
     proposal = LLMProposalEnvelope(
         root=RouteProposal(
-            proposed_intent="route_to_team", proposed_category=TicketCategory.NETWORK,
-            rationale="r", self_confidence=90,
+            proposed_intent="route_to_team",
+            proposed_category=TicketCategory.NETWORK,
+            rationale="r",
+            self_confidence=90,
         )
     )
     state = {"proposal": proposal, "reranked": [chunk(1, "some content")], "iteration": 0}

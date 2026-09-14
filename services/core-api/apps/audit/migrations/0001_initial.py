@@ -4,27 +4,30 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='AuditLog',
+            name="AuditLog",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('ticket_id', models.BigIntegerField(blank=True, null=True)),
-                ('actor_type', models.CharField(max_length=20)),
-                ('actor_id', models.BigIntegerField(blank=True, null=True)),
-                ('event', models.CharField(max_length=100)),
-                ('payload', models.JSONField(default=dict)),
-                ('trace_id', models.CharField(blank=True, db_index=True, max_length=64, null=True)),
-                ('occurred_at', models.DateTimeField(auto_now_add=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
+                ("ticket_id", models.BigIntegerField(blank=True, null=True)),
+                ("actor_type", models.CharField(max_length=20)),
+                ("actor_id", models.BigIntegerField(blank=True, null=True)),
+                ("event", models.CharField(max_length=100)),
+                ("payload", models.JSONField(default=dict)),
+                ("trace_id", models.CharField(blank=True, db_index=True, max_length=64, null=True)),
+                ("occurred_at", models.DateTimeField(auto_now_add=True)),
             ],
             options={
-                'db_table': 'audit_log',
+                "db_table": "audit_log",
             },
         ),
     ]

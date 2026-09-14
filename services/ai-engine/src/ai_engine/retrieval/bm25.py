@@ -58,7 +58,11 @@ def bm25_search(conn, query_text: str, top_k: int) -> list[LexicalHit]:
             boosted += ERROR_CODE_BOOST
         hits.append(
             LexicalHit(
-                chunk_id=chunk_id, article_id=article_id, article_slug=article_slug, content=content, score=boosted
+                chunk_id=chunk_id,
+                article_id=article_id,
+                article_slug=article_slug,
+                content=content,
+                score=boosted,
             )
         )
     hits.sort(key=lambda h: h.score, reverse=True)

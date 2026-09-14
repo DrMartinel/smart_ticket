@@ -14,7 +14,6 @@ from contextlib import contextmanager
 import psycopg
 
 
-
 class PsycopgConnectionSource:
     """Opens a fresh read-only connection per use. No pool — see the module
     docstring on the `ai_engine_ro` grant model.

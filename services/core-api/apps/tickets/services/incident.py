@@ -29,7 +29,9 @@ class IncidentVerdict:
     baseline_rate: float | None = None
 
 
-def find_similar(embedding: list[float], category: str | None, threshold: float, window: timedelta) -> list[Ticket]:
+def find_similar(
+    embedding: list[float], category: str | None, threshold: float, window: timedelta
+) -> list[Ticket]:
     since = timezone.now() - window
     qs = (
         Ticket.objects.filter(created_at__gte=since)
@@ -43,7 +45,9 @@ def find_similar(embedding: list[float], category: str | None, threshold: float,
     return list(qs)
 
 
-def rolling_baseline(category: str | None, days: int = 30, window_minutes: int = 15) -> tuple[float, float]:
+def rolling_baseline(
+    category: str | None, days: int = 30, window_minutes: int = 15
+) -> tuple[float, float]:
     """Mean and stddev of ticket count per `window_minutes` bucket, over
     the trailing `days` window, for the given category. Returns (mean,
     std). With too little history, falls back to a conservative (0, 0) so
@@ -87,7 +91,9 @@ def classify_similarity(ticket: Ticket, embedding: list[float]) -> IncidentVerdi
     return IncidentVerdict(kind="duplicate", of=similar[0].id)
 
 
-def _get_or_create_incident(ticket: Ticket, similar: list[Ticket], baseline_rate: float) -> Incident:
+def _get_or_create_incident(
+    ticket: Ticket, similar: list[Ticket], baseline_rate: float
+) -> Incident:
     # `ticket.category` is normally still unset at this point — incident
     # detection runs before the router assigns a category (spec §1 map:
     # core-api's incident detector runs ahead of ai-engine/routing) — so

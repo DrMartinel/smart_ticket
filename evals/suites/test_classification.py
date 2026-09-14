@@ -28,9 +28,18 @@ MIN_SAMPLES_TO_GATE = 5
 # slug -> category, mirrors seed_demo.py — used only to resolve category
 # for auto_reply proposals in this suite, not by the system under test.
 _SLUG_CATEGORY = {
-    "KB-0001": "access", "KB-0002": "hardware", "KB-0003": "network", "KB-0004": "access",
-    "KB-0005": "software", "KB-0006": "access", "KB-0007": "hardware", "KB-0008": "software",
-    "KB-0009": "security", "KB-0010": "other", "KB-0011": "hardware", "KB-0012": "software",
+    "KB-0001": "access",
+    "KB-0002": "hardware",
+    "KB-0003": "network",
+    "KB-0004": "access",
+    "KB-0005": "software",
+    "KB-0006": "access",
+    "KB-0007": "hardware",
+    "KB-0008": "software",
+    "KB-0009": "security",
+    "KB-0010": "other",
+    "KB-0011": "hardware",
+    "KB-0012": "software",
 }
 
 
@@ -86,15 +95,27 @@ def test_per_category_f1_meets_threshold(ai_engine_client):
     per_category_f1 = {}
     for category in sorted(set(tp) | set(fp) | set(fn)):
         evaluated = tp[category] + fn[category]  # cases whose TRUTH is this category
-        precision = tp[category] / (tp[category] + fp[category]) if (tp[category] + fp[category]) else 0.0
-        recall = tp[category] / (tp[category] + fn[category]) if (tp[category] + fn[category]) else 0.0
+        precision = (
+            tp[category] / (tp[category] + fp[category]) if (tp[category] + fp[category]) else 0.0
+        )
+        recall = (
+            tp[category] / (tp[category] + fn[category]) if (tp[category] + fn[category]) else 0.0
+        )
         f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
         gated = evaluated >= MIN_SAMPLES_TO_GATE
-        note = "" if gated else f"  (n={evaluated} < {MIN_SAMPLES_TO_GATE}, reported only, not gated)"
-        print(f"  category={category:10s} precision={precision:.2f} recall={recall:.2f} f1={f1:.2f}{note}")
+        note = (
+            "" if gated else f"  (n={evaluated} < {MIN_SAMPLES_TO_GATE}, reported only, not gated)"
+        )
+        print(
+            f"  category={category:10s} precision={precision:.2f} recall={recall:.2f} f1={f1:.2f}{note}"
+        )
         per_category_f1[category] = f1
         if gated and f1 < F1_THRESHOLD:
             failing[category] = f1
 
-    record_metric("per_category_f1", min(per_category_f1.values()) if per_category_f1 else 0.0, by_category=per_category_f1)
+    record_metric(
+        "per_category_f1",
+        min(per_category_f1.values()) if per_category_f1 else 0.0,
+        by_category=per_category_f1,
+    )
     assert not failing, f"categories below F1 {F1_THRESHOLD}: {failing}"

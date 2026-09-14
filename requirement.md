@@ -480,49 +480,53 @@ REVOKE UPDATE, DELETE ON audit_log FROM app_user;
 # contracts/enums.py
 from enum import StrEnum
 
+
 class TicketCategory(StrEnum):
     HARDWARE = "hardware"
     SOFTWARE = "software"
-    NETWORK  = "network"
-    ACCESS   = "access"
+    NETWORK = "network"
+    ACCESS = "access"
     SECURITY = "security"
-    OTHER    = "other"
+    OTHER = "other"
+
 
 class PIILevel(StrEnum):
-    ROUTINE     = "routine"       # tên, email nội bộ, mã NV  → đi tiếp
-    SENSITIVE   = "sensitive"     # CCCD, tài khoản, sức khỏe → đi tiếp, gắn cờ
-    CRITICAL    = "critical"      # password/token/API key    → BLOCK
-    MASK_FAILED = "mask_failed"   # masker lỗi/không chắc     → HITL
+    ROUTINE = "routine"  # tên, email nội bộ, mã NV  → đi tiếp
+    SENSITIVE = "sensitive"  # CCCD, tài khoản, sức khỏe → đi tiếp, gắn cờ
+    CRITICAL = "critical"  # password/token/API key    → BLOCK
+    MASK_FAILED = "mask_failed"  # masker lỗi/không chắc     → HITL
+
 
 class Branch(StrEnum):
     AUTO_REPLY = "auto_reply"
     AUTO_ROUTE = "auto_route"
-    HITL       = "hitl"
-    BLOCK      = "block"
-    ESCALATE   = "escalate"
+    HITL = "hitl"
+    BLOCK = "block"
+    ESCALATE = "escalate"
+
 
 class ReasonCode(StrEnum):
     # hard gates
-    INJECTION_DETECTED    = "injection_detected"
-    PII_CRITICAL          = "pii_critical"
-    PII_MASK_FAILED       = "pii_mask_failed"
-    SCHEMA_INVALID        = "schema_invalid"
-    MASS_INCIDENT         = "mass_incident"
-    RETRIEVAL_FLOOR       = "retrieval_below_floor"
+    INJECTION_DETECTED = "injection_detected"
+    PII_CRITICAL = "pii_critical"
+    PII_MASK_FAILED = "pii_mask_failed"
+    SCHEMA_INVALID = "schema_invalid"
+    MASS_INCIDENT = "mass_incident"
+    RETRIEVAL_FLOOR = "retrieval_below_floor"
     # trust-based
-    KB_NOT_AUTHORIZED     = "kb_not_authorized"
-    QUOTE_INVALID         = "quote_invalid"
+    KB_NOT_AUTHORIZED = "kb_not_authorized"
+    QUOTE_INVALID = "quote_invalid"
     QUOTE_SOURCE_MISMATCH = "quote_source_not_in_topk"
-    NEGATION_MISMATCH     = "negation_mismatch"
-    TRUST_BELOW_AUTO      = "trust_below_auto_threshold"
-    TRUST_BELOW_ROUTE     = "trust_below_route_threshold"
+    NEGATION_MISMATCH = "negation_mismatch"
+    TRUST_BELOW_AUTO = "trust_below_auto_threshold"
+    TRUST_BELOW_ROUTE = "trust_below_route_threshold"
     CATEGORY_INCONSISTENT = "category_inconsistent"
     # degraded
     AI_ENGINE_UNAVAILABLE = "ai_engine_unavailable"
-    BUDGET_EXCEEDED       = "budget_exceeded"
-    CIRCUIT_OPEN          = "circuit_open"
+    BUDGET_EXCEEDED = "budget_exceeded"
+    CIRCUIT_OPEN = "circuit_open"
     # ok
-    ALL_CHECKS_PASSED     = "all_checks_passed"
+    ALL_CHECKS_PASSED = "all_checks_passed"
 ```
 
 `ReasonCode` là enum chứ không phải string tự do. Đây là điều kiện tiên quyết để dashboard trả lời được câu hỏi "tuần này lý do nào đẩy nhiều ticket vào HITL nhất" — thứ không thể làm với text tự do.
@@ -533,22 +537,25 @@ class ReasonCode(StrEnum):
 # contracts/ticket.py
 from pydantic import BaseModel, ConfigDict, Field
 
+
 class TicketIn(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     subject: str = Field(min_length=3, max_length=200)
-    body:    str = Field(min_length=10, max_length=10_000)
+    body: str = Field(min_length=10, max_length=10_000)
     attachments: list[str] = Field(default_factory=list, max_length=5)
+
 
 class TicketMasked(BaseModel):
     """Thứ duy nhất được phép đi vào AI engine."""
+
     model_config = ConfigDict(frozen=True)
 
     ticket_public_id: str
     subject_masked: str
     body_masked: str
     pii_level: PIILevel
-    placeholder_keys: list[str]   # ["[EMAIL_1]", "[PHONE_1]"] — không kèm giá trị thật
+    placeholder_keys: list[str]  # ["[EMAIL_1]", "[PHONE_1]"] — không kèm giá trị thật
 ```
 
 `TicketMasked` là `frozen=True` có chủ đích: một khi đã mask, không code nào phía sau được sửa nội dung. `placeholder_keys` chỉ mang **khóa**, không mang giá trị — muốn tra giá trị thật phải qua quarantine endpoint và bị ghi log.
@@ -560,12 +567,14 @@ class TicketMasked(BaseModel):
 from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, RootModel
 
+
 class AutoReplyProposal(BaseModel):
     proposed_intent: Literal["auto_reply"]
-    kb_slug: str                       # bài KB mà model dựa vào
+    kb_slug: str  # bài KB mà model dựa vào
     verbatim_quote: str = Field(min_length=10, max_length=500)
     answer_draft: str
-    self_confidence: float = Field(ge=0, le=100)   # CHỈ để log
+    self_confidence: float = Field(ge=0, le=100)  # CHỈ để log
+
 
 class RouteProposal(BaseModel):
     proposed_intent: Literal["route_to_team"]
@@ -574,21 +583,25 @@ class RouteProposal(BaseModel):
     rationale: str
     self_confidence: float = Field(ge=0, le=100)
 
+
 class RunbookProposal(BaseModel):
     proposed_intent: Literal["runbook"]
     runbook_id: str
-    draft_payload: dict[str, Any]      # KHÔNG BAO GIỜ thực thi trực tiếp
+    draft_payload: dict[str, Any]  # KHÔNG BAO GIỜ thực thi trực tiếp
     proposed_category: TicketCategory
     self_confidence: float = Field(ge=0, le=100)
+
 
 class InsufficientContext(BaseModel):
     proposed_intent: Literal["insufficient_context"]
     missing_information: str
 
+
 LLMProposal = Annotated[
     AutoReplyProposal | RouteProposal | RunbookProposal | InsufficientContext,
     Field(discriminator="proposed_intent"),
 ]
+
 
 class LLMProposalEnvelope(RootModel[LLMProposal]):
     """
@@ -597,6 +610,7 @@ class LLMProposalEnvelope(RootModel[LLMProposal]):
     Discriminator giúp Pydantic route theo lookup table thay vì thử lần lượt
     từng member — nhanh hơn và cho error message chỉ vào đúng variant.
     """
+
     root: LLMProposal
 ```
 
@@ -611,38 +625,44 @@ Hai điểm thiết kế:
 # contracts/trust.py
 from pydantic import BaseModel, Field
 
+
 class RetrievalSignals(BaseModel):
     rerank_top1: float = Field(ge=0, le=1)
-    rerank_margin: float = Field(ge=0, le=1)   # top1 - top2
+    rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
     bm25_keyword_hit: bool
     docs_above_floor: int = Field(ge=0)
     topk_chunk_ids: list[int]
+
 
 class GenerationSignals(BaseModel):
     schema_valid: bool
     quote_match_ratio: float = Field(ge=0, le=1)
     quote_source_in_topk: bool
     negation_consistent: bool
-    category_consistent: bool          # LLM category vs KB article category
+    category_consistent: bool  # LLM category vs KB article category
+
 
 class PolicySignals(BaseModel):
     """Hard gates. Boolean logic, KHÔNG tham gia vào trust score."""
+
     kb_auto_reply_allowed: bool
     kb_risk_tier: str
     pii_level: PIILevel
     injection_detected: bool
     mass_incident: bool
 
+
 class TrustSignals(BaseModel):
-    retrieval:  RetrievalSignals
+    retrieval: RetrievalSignals
     generation: GenerationSignals
-    policy:     PolicySignals
-    llm_self_confidence: float | None = None   # log-only, không dùng route
+    policy: PolicySignals
+    llm_self_confidence: float | None = None  # log-only, không dùng route
+
 
 class TrustScore(BaseModel):
     value: float = Field(ge=0, le=1)
-    model_version: str                 # "logreg-v2-2026-07"
-    contributions: dict[str, float]    # để giải thích trên UI
+    model_version: str  # "logreg-v2-2026-07"
+    contributions: dict[str, float]  # để giải thích trên UI
 ```
 
 `contributions` là điều kiện để UI trả lời được câu hỏi *"vì sao ticket này chỉ đạt 0.62"*. Không có nó, người duyệt chỉ thấy một con số và không học được gì.
@@ -660,6 +680,7 @@ Lý do chạy inline: nếu masking là async, tồn tại một khoảnh khắc
 ```python
 # apps/tickets/services/masking.py
 
+
 async def mask(raw: TicketIn) -> tuple[TicketMasked, dict[str, str]]:
     """
     Returns: (bản đã mask, map placeholder → giá trị thật để đưa vào quarantine)
@@ -671,7 +692,7 @@ async def mask(raw: TicketIn) -> tuple[TicketMasked, dict[str, str]]:
     hits = regex_scan(raw)
 
     if hits.has_critical:
-        return _block(raw, PIILevel.CRITICAL)   # không đi tiếp, cảnh báo Security
+        return _block(raw, PIILevel.CRITICAL)  # không đi tiếp, cảnh báo Security
 
     # Tầng 2 — Local LLM (Ollama): bắt PII dạng tự do mà regex bỏ sót
     #   "anh Tuấn phòng kế toán tầng 3", "máy của chị ở bàn cạnh cửa sổ"
@@ -704,6 +725,7 @@ async def mask(raw: TicketIn) -> tuple[TicketMasked, dict[str, str]]:
 # ai_engine/graph/state.py
 from typing import TypedDict, NotRequired
 
+
 class TriageState(TypedDict):
     # Input (immutable)
     ticket: TicketMasked
@@ -717,8 +739,8 @@ class TriageState(TypedDict):
 
     # Progressive output
     injection: NotRequired[InjectionVerdict]
-    candidates: NotRequired[list[Candidate]]      # sau RRF
-    reranked: NotRequired[list[RankedChunk]]      # sau cross-encoder
+    candidates: NotRequired[list[Candidate]]  # sau RRF
+    reranked: NotRequired[list[RankedChunk]]  # sau cross-encoder
     fewshots: NotRequired[list[FewShotExample]]
     proposal: NotRequired[LLMProposalEnvelope]
     validation: NotRequired[ValidationResult]
@@ -733,41 +755,47 @@ class TriageState(TypedDict):
 ```python
 # ai_engine/graph/build.py
 
+
 def build_graph():
     g = StateGraph(TriageState)
 
-    g.add_node("guard_budget",  guard_budget)      # gọi lại trước mỗi node tốn kém
+    g.add_node("guard_budget", guard_budget)  # gọi lại trước mỗi node tốn kém
     g.add_node("detect_inject", detect_injection)
-    g.add_node("retrieve",      hybrid_retrieve)   # BM25 + vector + RRF
-    g.add_node("rerank",        cross_encoder_rerank)
-    g.add_node("select_shots",  select_fewshots)
-    g.add_node("infer",         llm_infer)
-    g.add_node("validate",      validate_output)
-    g.add_node("emit_signals",  build_trust_signals)
+    g.add_node("retrieve", hybrid_retrieve)  # BM25 + vector + RRF
+    g.add_node("rerank", cross_encoder_rerank)
+    g.add_node("select_shots", select_fewshots)
+    g.add_node("infer", llm_infer)
+    g.add_node("validate", validate_output)
+    g.add_node("emit_signals", build_trust_signals)
 
     g.set_entry_point("detect_inject")
 
     # Injection → dừng ngay, không tốn thêm token
-    g.add_conditional_edges("detect_inject", lambda s:
-        "emit_signals" if s["injection"].detected else "retrieve")
+    g.add_conditional_edges(
+        "detect_inject", lambda s: "emit_signals" if s["injection"].detected else "retrieve"
+    )
 
     # Retrieval sàn → refuse, KHÔNG gọi LLM
     #   Đây là chỗ tiết kiệm chi phí lớn nhất: ticket không có trong KB
     #   thì gọi LLM chỉ tạo cơ hội cho nó bịa.
     g.add_edge("retrieve", "rerank")
-    g.add_conditional_edges("rerank", lambda s:
-        "emit_signals" if s["reranked"][0].score < T_FLOOR else "select_shots")
+    g.add_conditional_edges(
+        "rerank", lambda s: "emit_signals" if s["reranked"][0].score < T_FLOOR else "select_shots"
+    )
 
     g.add_edge("select_shots", "infer")
     g.add_edge("infer", "validate")
 
     # Schema sai → retry TỐI ĐA 1 LẦN, rồi dừng
-    g.add_conditional_edges("validate", lambda s:
-        "infer" if (not s["validation"].schema_valid and s["iteration"] < 2)
-        else "emit_signals")
+    g.add_conditional_edges(
+        "validate",
+        lambda s: (
+            "infer" if (not s["validation"].schema_valid and s["iteration"] < 2) else "emit_signals"
+        ),
+    )
 
     g.add_edge("emit_signals", END)
-    return g.compile(checkpointer=None)   # stateless, idempotency ở tầng Celery
+    return g.compile(checkpointer=None)  # stateless, idempotency ở tầng Celery
 ```
 
 **Ba đặc điểm quan trọng của graph này:**
@@ -808,12 +836,12 @@ def validate(proposal, reranked) -> ValidationResult:
     if not isinstance(proposal.root, AutoReplyProposal):
         return ValidationResult(schema_valid=True, quote_applicable=False)
 
-    quote  = normalize_ws(proposal.root.verbatim_quote)
-    topk   = {c.chunk_id: normalize_ws(c.content) for c in reranked}
+    quote = normalize_ws(proposal.root.verbatim_quote)
+    topk = {c.chunk_id: normalize_ws(c.content) for c in reranked}
 
     # 1. Exact substring trước
     source = next((cid for cid, txt in topk.items() if quote in txt), None)
-    ratio  = 1.0 if source else 0.0
+    ratio = 1.0 if source else 0.0
 
     # 2. Fuzzy CHỈ để bắt sai lệch nhỏ (whitespace, dấu câu). Ngưỡng 0.95.
     if source is None:
@@ -828,8 +856,10 @@ def validate(proposal, reranked) -> ValidationResult:
     #    "được cấp quyền" vs "không được cấp quyền": fuzzy ~0.96, nghĩa ngược nhau.
     NEG = {"không", "chưa", "ngoại trừ", "trừ khi", "không được", "cấm"}
     neg_ok = (
-        _negations_in(quote, NEG) == _negations_in(topk.get(source, ""), NEG)
-    ) if in_topk else False
+        (_negations_in(quote, NEG) == _negations_in(topk.get(source, ""), NEG))
+        if in_topk
+        else False
+    )
 
     return ValidationResult(
         schema_valid=True,
@@ -853,7 +883,7 @@ FEATURES = [
     "rerank_top1",
     "rerank_margin",
     "bm25_keyword_hit",
-    "docs_above_floor_capped",   # min(n, 3) / 3
+    "docs_above_floor_capped",  # min(n, 3) / 3
     "quote_match_ratio",
     "quote_source_in_topk",
     "negation_consistent",
@@ -861,13 +891,14 @@ FEATURES = [
 ]
 # CHÚ Ý: llm_self_confidence KHÔNG có trong danh sách này. Có chủ đích.
 
+
 def score(signals: TrustSignals) -> TrustScore:
-    x = extract_features(signals)          # → vector
-    p = LOGREG.predict_proba(x)            # calibrated trên golden set
+    x = extract_features(signals)  # → vector
+    p = LOGREG.predict_proba(x)  # calibrated trên golden set
     return TrustScore(
         value=p,
         model_version=LOGREG.version,
-        contributions=shap_like_breakdown(x),   # cho UI giải thích
+        contributions=shap_like_breakdown(x),  # cho UI giải thích
     )
 ```
 
@@ -1015,7 +1046,7 @@ decision = route(signals, proposal, kb, thresholds)
 persist_decision(decision, shadow_mode=settings.SHADOW_MODE)
 
 if settings.SHADOW_MODE:
-    enqueue_hitl(ticket, reason="shadow_mode")   # người vẫn xử lý tất cả
+    enqueue_hitl(ticket, reason="shadow_mode")  # người vẫn xử lý tất cả
 else:
     execute(decision)
 ```
@@ -1029,6 +1060,7 @@ Cùng một hàm `route()` chạy ở cả hai mode. Điều này quan trọng: 
 ```python
 # apps/tickets/services/incident.py
 
+
 def classify_similarity(ticket, embedding) -> IncidentVerdict:
     similar = find_similar(embedding, threshold=0.85, window=timedelta(minutes=15))
 
@@ -1038,14 +1070,14 @@ def classify_similarity(ticket, embedding) -> IncidentVerdict:
     # Ngưỡng THÍCH ỨNG theo baseline, không phải hằng số.
     # 5 ticket mạng/15 phút là bình thường ở công ty 5000 người,
     # là bất thường ở công ty 100 người.
-    baseline = rolling_baseline(ticket.category, days=30)   # ticket/15min
-    sigma    = rolling_std(ticket.category, days=30)
+    baseline = rolling_baseline(ticket.category, days=30)  # ticket/15min
+    sigma = rolling_std(ticket.category, days=30)
 
     if len(similar) > baseline + 3 * sigma and len(similar) >= 5:
         return IncidentVerdict(
             kind="mass_incident",
             parent=get_or_create_incident(ticket, similar, baseline),
-            baseline_rate=baseline,       # ghi lại để giải thích được
+            baseline_rate=baseline,  # ghi lại để giải thích được
         )
 
     return IncidentVerdict(kind="duplicate", of=similar[0].id)
@@ -1069,10 +1101,10 @@ def classify_similarity(ticket, embedding) -> IncidentVerdict:
 
 ```python
 CIRCUIT = CircuitBreaker(
-    failure_threshold=0.20,        # >20% lỗi
+    failure_threshold=0.20,  # >20% lỗi
     window=timedelta(minutes=5),
     open_duration=timedelta(minutes=10),
-    half_open_ratio=0.10,          # thử lại 10% traffic
+    half_open_ratio=0.10,  # thử lại 10% traffic
 )
 ```
 
@@ -1147,11 +1179,11 @@ M��i ticket có một `trace_id` xuyên suốt: Next.js → Django → Celer
 ```python
 # Mọi span đều gắn:
 {
-  "ticket_public_id": "TKT-2026-000123",
-  "prompt_version": "classify.v3",
-  "graph_version": "v2.1",
-  "thresholds_version": "2026-07-15",
-  "shadow_mode": true,
+    "ticket_public_id": "TKT-2026-000123",
+    "prompt_version": "classify.v3",
+    "graph_version": "v2.1",
+    "thresholds_version": "2026-07-15",
+    "shadow_mode": true,
 }
 ```
 

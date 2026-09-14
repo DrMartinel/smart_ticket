@@ -18,14 +18,22 @@ from apps.tickets.services.trust_scorer import (
 
 def make_signals(**overrides) -> TrustSignals:
     s = TrustSignals(
-        retrieval=RetrievalSignals(rerank_top1=0.9, rerank_margin=0.3, bm25_keyword_hit=True, docs_above_floor=3),
+        retrieval=RetrievalSignals(
+            rerank_top1=0.9, rerank_margin=0.3, bm25_keyword_hit=True, docs_above_floor=3
+        ),
         generation=GenerationSignals(
-            schema_valid=True, quote_match_ratio=1.0, quote_source_in_topk=True,
-            negation_consistent=True, category_consistent=True,
+            schema_valid=True,
+            quote_match_ratio=1.0,
+            quote_source_in_topk=True,
+            negation_consistent=True,
+            category_consistent=True,
         ),
         policy=PolicySignals(
-            kb_auto_reply_allowed=True, kb_risk_tier="low", pii_level=PIILevel.ROUTINE,
-            injection_detected=False, mass_incident=False,
+            kb_auto_reply_allowed=True,
+            kb_risk_tier="low",
+            pii_level=PIILevel.ROUTINE,
+            injection_detected=False,
+            mass_incident=False,
         ),
         llm_self_confidence=99.0,
     )

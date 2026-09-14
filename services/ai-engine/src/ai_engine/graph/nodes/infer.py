@@ -42,7 +42,8 @@ def _format_fewshots(fewshots: list[dict]) -> str:
     if not fewshots:
         return "(none available)"
     return "\n\n".join(
-        f"Input: {f['input_text']}\nOutput: {json.dumps(f['output_json'], ensure_ascii=False)}" for f in fewshots
+        f"Input: {f['input_text']}\nOutput: {json.dumps(f['output_json'], ensure_ascii=False)}"
+        for f in fewshots
     )
 
 
@@ -102,7 +103,9 @@ class InferNode:
         )
 
         try:
-            result = self._llm.complete(self._system_prompt, user_prompt, timeout=per_attempt_timeout)
+            result = self._llm.complete(
+                self._system_prompt, user_prompt, timeout=per_attempt_timeout
+            )
         except CircuitOpenError:
             return {"proposal": None, "degraded_reason": "circuit_open"}
         except AllLLMDownError:

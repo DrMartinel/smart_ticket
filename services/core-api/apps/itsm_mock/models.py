@@ -14,7 +14,9 @@ from apps.tickets.models import Ticket
 
 class RunbookExecution(models.Model):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="runbook_executions")
-    review_item = models.ForeignKey(ReviewItem, on_delete=models.PROTECT, related_name="runbook_executions")
+    review_item = models.ForeignKey(
+        ReviewItem, on_delete=models.PROTECT, related_name="runbook_executions"
+    )
     runbook_id = models.CharField(max_length=64)
     payload = models.JSONField()
     executed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)

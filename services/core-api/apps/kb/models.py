@@ -65,7 +65,9 @@ class KbChunk(models.Model):
     class Meta:
         db_table = "kb_chunks"
         constraints = [
-            models.UniqueConstraint(fields=["article", "chunk_index"], name="uq_kb_chunk_article_index"),
+            models.UniqueConstraint(
+                fields=["article", "chunk_index"], name="uq_kb_chunk_article_index"
+            ),
         ]
 
 

@@ -5,7 +5,12 @@ from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
 from apps.kb.models import KbArticle
-from apps.kb.services import KBGovernanceError, ingest_article, set_auto_reply_allowed, set_risk_tier
+from apps.kb.services import (
+    KBGovernanceError,
+    ingest_article,
+    set_auto_reply_allowed,
+    set_risk_tier,
+)
 
 router = Router(tags=["kb"])
 
@@ -65,7 +70,9 @@ def reingest(request, slug: str):
 def toggle_auto_reply(request, slug: str, payload: AutoReplyFlagIn):
     article = _get_or_404(slug)
     try:
-        set_auto_reply_allowed(article=article, allowed=payload.allowed, actor=request.auth, reason=payload.reason)
+        set_auto_reply_allowed(
+            article=article, allowed=payload.allowed, actor=request.auth, reason=payload.reason
+        )
     except KBGovernanceError as e:
         raise HttpError(403, str(e)) from e
     return _serialize(article)
@@ -75,7 +82,9 @@ def toggle_auto_reply(request, slug: str, payload: AutoReplyFlagIn):
 def change_risk_tier(request, slug: str, payload: RiskTierIn):
     article = _get_or_404(slug)
     try:
-        set_risk_tier(article=article, risk_tier=payload.risk_tier, actor=request.auth, reason=payload.reason)
+        set_risk_tier(
+            article=article, risk_tier=payload.risk_tier, actor=request.auth, reason=payload.reason
+        )
     except KBGovernanceError as e:
         raise HttpError(403, str(e)) from e
     return _serialize(article)

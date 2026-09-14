@@ -22,9 +22,13 @@ from apps.tickets.models import AiRun
 @shared_task
 def weekly_drift_check() -> dict:
     now = timezone.now()
-    this_week = AiRun.objects.filter(created_at__gte=now - timedelta(days=7), trust_score__isnull=False)
+    this_week = AiRun.objects.filter(
+        created_at__gte=now - timedelta(days=7), trust_score__isnull=False
+    )
     last_week = AiRun.objects.filter(
-        created_at__gte=now - timedelta(days=14), created_at__lt=now - timedelta(days=7), trust_score__isnull=False
+        created_at__gte=now - timedelta(days=14),
+        created_at__lt=now - timedelta(days=7),
+        trust_score__isnull=False,
     )
 
     this_scores = list(this_week.values_list("trust_score", flat=True))
@@ -34,9 +38,17 @@ def weekly_drift_check() -> dict:
     th = settings.THRESHOLDS.alerts
 
     if this_scores and last_scores:
-        drift = abs(statistics.mean(map(float, this_scores)) - statistics.mean(map(float, last_scores)))
+        drift = abs(
+            statistics.mean(map(float, this_scores)) - statistics.mean(map(float, last_scores))
+        )
         if drift > th.trust_score_drift_max:
-            alerts.append({"alert": "trust_score_drift", "value": drift, "threshold": th.trust_score_drift_max})
+            alerts.append(
+                {
+                    "alert": "trust_score_drift",
+                    "value": drift,
+                    "threshold": th.trust_score_drift_max,
+                }
+            )
 
     if len(this_scores) >= 2:
         std = statistics.stdev(map(float, this_scores))

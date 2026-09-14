@@ -80,8 +80,11 @@ def _is_flagged(quote: str, sources: list[str]) -> bool:
     ]
     proposal = LLMProposalEnvelope(
         root=AutoReplyProposal(
-            proposed_intent="auto_reply", kb_slug="KB-TEST", verbatim_quote=quote,
-            answer_draft="x", self_confidence=90,
+            proposed_intent="auto_reply",
+            kb_slug="KB-TEST",
+            verbatim_quote=quote,
+            answer_draft="x",
+            self_confidence=90,
         )
     )
     result = _NODE({"proposal": proposal, "reranked": reranked, "iteration": 0})["validation"]
@@ -90,7 +93,9 @@ def _is_flagged(quote: str, sources: list[str]) -> bool:
 
 def test_quote_validation_precision_meets_threshold():
     hallucination_cases = [c for c in CASES if c[2]]
-    correct_catches = sum(1 for quote, sources, _ in hallucination_cases if _is_flagged(quote, sources))
+    correct_catches = sum(
+        1 for quote, sources, _ in hallucination_cases if _is_flagged(quote, sources)
+    )
     precision = correct_catches / len(hallucination_cases)
 
     assert precision >= PRECISION_THRESHOLD, (

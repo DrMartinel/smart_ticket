@@ -45,8 +45,12 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunSQL(sql=_read("0002_indexes.sql"), reverse_sql=migrations.RunSQL.noop),
-        migrations.RunSQL(sql=_read("0003_constraints_and_triggers.sql"), reverse_sql=migrations.RunSQL.noop),
-        migrations.RunSQL(sql=_read("0004_grants_and_audit_lockdown.sql"), reverse_sql=migrations.RunSQL.noop),
+        migrations.RunSQL(
+            sql=_read("0003_constraints_and_triggers.sql"), reverse_sql=migrations.RunSQL.noop
+        ),
+        migrations.RunSQL(
+            sql=_read("0004_grants_and_audit_lockdown.sql"), reverse_sql=migrations.RunSQL.noop
+        ),
         # Revoking UPDATE/DELETE from the specific app role core-api itself
         # connects as (spec: audit_log is append-only, no exceptions) — see
         # infra/migrations/sql/0004_grants_and_audit_lockdown.sql's header
