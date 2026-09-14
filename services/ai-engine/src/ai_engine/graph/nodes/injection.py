@@ -12,8 +12,6 @@ import re
 
 from ai_engine.graph.state import InjectionVerdict, TriageState
 
-# Compiled once at import, not per instance. Shared read-only by every
-# InjectionNode; `re.Pattern` objects are themselves thread-safe.
 DEFAULT_PATTERNS: dict[str, re.Pattern] = {
     "ignore_instructions_en": re.compile(
         r"(?i)\b(ignore|disregard|forget)\b.{0,30}\b(previous|prior|above|all)\b.{0,30}\b(instructions?|rules?|prompt)\b"
@@ -21,7 +19,9 @@ DEFAULT_PATTERNS: dict[str, re.Pattern] = {
     "ignore_instructions_vi": re.compile(
         r"(?i)\b(bỏ qua|quên)\b.{0,20}\b(hướng dẫn|chỉ dẫn|quy tắc|lệnh)\b.{0,20}\b(trên|phía trên|trước đó)\b"
     ),
-    "role_override_en": re.compile(r"(?i)\byou are now\b|\bact as\b|\bnew system prompt\b|\bDAN mode\b"),
+    "role_override_en": re.compile(
+        r"(?i)\byou are now\b|\bact as\b|\bnew system prompt\b|\bDAN mode\b"
+    ),
     # NOTE: "bạn" is required adjacent to "bây giờ là" in either word
     # order — "bây giờ là" alone is an ordinary Vietnamese phrase for
     # telling the time ("bây giờ là 3 giờ chiều") and would false-positive
@@ -32,8 +32,12 @@ DEFAULT_PATTERNS: dict[str, re.Pattern] = {
     "priority_manipulation": re.compile(
         r"(?i)\b(set|đặt)\b.{0,15}\bpriority\b.{0,10}\b(p0|p1|critical|urgent|khẩn cấp)\b"
     ),
-    "system_prompt_probe": re.compile(r"(?i)\b(print|show|reveal|repeat)\b.{0,15}\b(system prompt|instructions)\b"),
-    "auto_approve_request": re.compile(r"(?i)\bauto[- ]?(approve|reply|execute)\b.{0,20}\bwithout\b.{0,20}\breview\b"),
+    "system_prompt_probe": re.compile(
+        r"(?i)\b(print|show|reveal|repeat)\b.{0,15}\b(system prompt|instructions)\b"
+    ),
+    "auto_approve_request": re.compile(
+        r"(?i)\bauto[- ]?(approve|reply|execute)\b.{0,20}\bwithout\b.{0,20}\breview\b"
+    ),
 }
 
 
@@ -48,9 +52,6 @@ class InjectionNode:
     """
 
     def __init__(self, *, patterns: dict[str, re.Pattern] | None = None) -> None:
-        # A pattern set, not a number — it belongs in code like patterns.py's
-        # PII regexes, not in an env var. The parameter exists so a test can
-        # narrow it, not so deployments can diverge.
         self._patterns = patterns if patterns is not None else DEFAULT_PATTERNS
 
     def __call__(self, state: TriageState) -> dict:
