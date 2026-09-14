@@ -79,16 +79,28 @@ class FakeLLM:
 class _FakeCursor:
     def __init__(self, rows):
         self._rows = rows
+        self._last: tuple | None = None
         self.executed: list[tuple] = []
 
     def execute(self, sql, params=None):
+        self._last = (sql, params)
         self.executed.append((sql, params))
 
-    def fetchall(self):
+    def _resolve(self):
+        # `rows` may be a callable so one connection can answer the BM25 and
+        # vector queries differently — the only way to test, for example,
+        # "lexical found nothing but vector did".
+        if callable(self._rows):
+            sql, params = self._last if self._last else ("", None)
+            return list(self._rows(sql, params))
         return list(self._rows)
 
+    def fetchall(self):
+        return self._resolve()
+
     def fetchone(self):
-        return self._rows[0] if self._rows else None
+        rows = self._resolve()
+        return rows[0] if rows else None
 
     def __enter__(self):
         return self
@@ -114,7 +126,7 @@ class FakeConnectionSource:
     prove a connection is not held across an HTTP round-trip."""
 
     def __init__(self, rows=(), error: Exception | None = None):
-        self._rows = list(rows)
+        self._rows = rows if callable(rows) else list(rows)
         self._error = error
         self.events: list[str] = []
         self.connections: list[_FakeConnection] = []
@@ -235,3 +247,15 @@ def make_ticket():
 @pytest.fixture
 def make_candidate():
     return _make_candidate
+
+
+def _kb_row(chunk_id: int, content: str, score: float, slug: str = "kb-a") -> tuple:
+    """A row shaped like the SELECT in bm25_search / vector_search:
+    (chunk_id, article_id, slug, content, score)."""
+
+    return (chunk_id, chunk_id * 10, slug, content, score)
+
+
+@pytest.fixture
+def kb_row():
+    return _kb_row

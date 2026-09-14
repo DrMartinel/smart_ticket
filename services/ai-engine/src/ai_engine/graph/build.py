@@ -27,8 +27,8 @@ from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import llm_infer
 from ai_engine.graph.nodes.injection import InjectionNode
-from ai_engine.graph.nodes.rerank import cross_encoder_rerank
-from ai_engine.graph.nodes.retrieve import hybrid_retrieve
+from ai_engine.graph.nodes.rerank import RerankNode
+from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.factory import Providers, build_providers
@@ -78,8 +78,15 @@ class GraphDeps:
         p = providers if providers is not None else build_providers(s)
         return cls(
             detect_inject=InjectionNode(),
-            retrieve=hybrid_retrieve,
-            rerank=cross_encoder_rerank,
+            retrieve=HybridRetrieveNode(
+                db=p.db,
+                embedder=p.embedder,
+                bm25_top_k=s.bm25_top_k,
+                vector_top_k=s.vector_top_k,
+                rrf_k=s.rrf_k,
+                candidate_limit=s.fusion_candidate_limit,
+            ),
+            rerank=RerankNode(reranker=p.reranker, top_n=s.rerank_top_n),
             select_shots=SelectFewshotsNode(
                 db=p.db, embedder=p.embedder, fewshot_k=s.fewshot_k
             ),

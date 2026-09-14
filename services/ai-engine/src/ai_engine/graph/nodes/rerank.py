@@ -15,10 +15,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ai_engine.config import settings
 from ai_engine.graph.budget import check_budget
 from ai_engine.graph.state import TriageState
-from ai_engine.providers.reranker import rerank as rerank_provider
+from ai_engine.providers.protocols import Reranker
 from ai_engine.retrieval.fusion import Candidate
 
 
@@ -31,23 +30,41 @@ class RankedChunk:
     score: float  # cross-encoder score — the ONLY score thresholds compare against
 
 
-def cross_encoder_rerank(state: TriageState) -> dict:
-    degraded = check_budget(state)
-    if degraded:
-        return {"reranked": [], "degraded_reason": degraded}
+class RerankNode:
+    """Read-only after __init__; one instance is shared across FastAPI's
+    threadpool."""
 
-    candidates: list[Candidate] = state.get("candidates", [])
-    if not candidates:
-        return {"reranked": []}
+    def __init__(self, *, reranker: Reranker, top_n: int) -> None:
+        self._reranker = reranker
+        self._top_n = top_n
 
-    query = f"{state['ticket'].subject_masked}\n{state['ticket'].body_masked}"
-    scores = rerank_provider(query, [c.content for c in candidates])
+    def __call__(self, state: TriageState) -> dict:
+        degraded = check_budget(state)
+        if degraded:
+            return {"reranked": [], "degraded_reason": degraded}
 
-    ranked = [
-        RankedChunk(
-            chunk_id=c.chunk_id, article_id=c.article_id, article_slug=c.article_slug, content=c.content, score=s
-        )
-        for c, s in zip(candidates, scores)
-    ]
-    ranked.sort(key=lambda r: r.score, reverse=True)
-    return {"reranked": ranked[: settings.rerank_top_n]}
+        candidates: list[Candidate] = state.get("candidates", [])
+        if not candidates:
+            # No degraded_reason here on purpose: "the KB had nothing to
+            # rerank" is an ordinary refuse-before-LLM, and core-api gives it
+            # a different reason code from an infrastructure degrade.
+            return {"reranked": []}
+
+        query = f"{state['ticket'].subject_masked}\n{state['ticket'].body_masked}"
+        scores = self._reranker.score(query, [c.content for c in candidates])
+
+        ranked = [
+            RankedChunk(
+                chunk_id=c.chunk_id,
+                article_id=c.article_id,
+                article_slug=c.article_slug,
+                content=c.content,
+                score=s,
+            )
+            for c, s in zip(candidates, scores)
+        ]
+        # Sorted by the CROSS-ENCODER score, discarding the RRF order the
+        # candidates arrived in — ADR-0005. `reranked[0].score` is what
+        # build.py compares against `retrieval_floor`.
+        ranked.sort(key=lambda r: r.score, reverse=True)
+        return {"reranked": ranked[: self._top_n]}
