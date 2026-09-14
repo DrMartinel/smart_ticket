@@ -125,23 +125,24 @@ The baseline is rolling and per-category, so "unusual" means unusual *for this o
 ### Stage 3 — ai-engine (LangGraph)
 
 ```
-detect_injection ──► detected? ──► emit_signals   (zero tokens spent)
-       │ no
+injection ──► InjectionDetected ──► emit_signals   (zero tokens spent)
+       │ InjectionClear
        ▼
-   retrieve          BM25 top-20 ∥ vector top-20 ──► RRF (k=60) ──► top-10
+   hybrid_retrieve   BM25 top-20 ∥ vector top-20 ──► RRF (k=60) ──► top-10
        ▼
    rerank            cross-encoder ──► top-3
        │
-       ├─ top1 < retrieval_floor ──► emit_signals   ← REFUSE BEFORE LLM
-       │ no
+       ├─ EvidenceBelowFloor (top1 < retrieval_floor) ──► emit_signals   ← REFUSE BEFORE LLM
+       │ EvidenceAboveFloor
        ▼
-   select_shots      few-shot examples for this category
+   select_fewshots   few-shot examples for this category
        ▼
    infer             LLM ──► JSON, schema-constrained
        ▼
    validate          quote → fuzzy ≥0.95 → in-top-k → negation
        │
-       ├─ schema invalid AND iteration < 2 ──► infer   (exactly one retry)
+       ├─ RetryInference (schema invalid AND iteration < 2) ──► infer   (exactly one retry)
+       │ SchemaValid / RetriesExhausted
        ▼
    emit_signals ──► END
 ```
@@ -152,8 +153,16 @@ Three properties are structural, not conventional:
 2. **Refuse-before-LLM.** Weak retrieval means the model is never invoked — cheaper *and* safer.
 3. **No unbounded loop.** Exactly one edge can cycle (`validate → infer`), hard-capped at `iteration < 2`. Non-termination is impossible by construction, not by convention.
 
-Each node is a class taking its collaborators and configuration through
-`__init__`; `graph/build.py` is the only place they are constructed and wired.
+Each node is a `BaseNode` subclass (`graph/base.py`) taking its collaborators
+and configuration through `__init__`. Its node name is derived from the class
+name (`HybridRetrieveNode` → `hybrid_retrieve`), and a branching node reports
+where it ended up as a domain `Outcome` from `decide()` — it never names its
+successor. The whole topology is the `FLOW` table in `graph/flow.py`.
+`compile_graph` in `graph/build.py` validates it at startup (every outcome
+routed, no dangling target, nothing unreachable) and is the only place a class
+becomes a LangGraph string. `main.py` constructs the instances and compiles
+them once, at import time. See
+[graph-node-architecture.md](graph-node-architecture.md).
 Nodes depend on the four Protocols in `providers/protocols.py` — `Embedder`,
 `Reranker`, `LLMClient`, `ConnectionSource` — never on a concrete provider
 module, which is what makes every node testable with no DB, no Ollama and no
@@ -165,8 +174,8 @@ unrecognized value is fatal — a typo used to fall through to the lexical
 reranker, whose scores are a different calibration from the cross-encoder
 distribution `retrieval.floor` is fitted against (ADR-0005).
 
-Two constraints on anything added here: `build_graph()` runs at uvicorn import
-time, so no constructor may open a socket or load a model (the cross-encoder
+Two constraints on anything added here: `main.py` builds the graph at uvicorn
+import time, so no constructor may open a socket or load a model (the cross-encoder
 loads lazily, behind a lock, on first use); and `analyze` is a sync `def`, so
 node instances are shared across FastAPI's threadpool and must be read-only
 after construction.

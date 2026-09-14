@@ -174,15 +174,15 @@ prompt that never passed the eval gate spec §12.3 requires.
 **Done when** `main.py` either returns `settings.prompt_version`, or rejects a
 request whose `prompt_version` does not match with a 400.
 
-### 6b. `select_shots` never checks the budget
+### 6b. `select_fewshots` never checks the budget
 
 **Priority:** Low
 
-It is the only node that spends an embedding round-trip without first calling
-`check_budget` — `retrieve`, `rerank` and `infer` all do. Possibly deliberate
+It is the only node that spends an embedding round-trip without first checking
+the budget — `retrieve`, `rerank` and `infer` all inherit `BudgetedNode`. Possibly deliberate
 (few-shot selection is cheap relative to inference), possibly an oversight.
 
-**Done when** either a `check_budget` call is added, or a comment in
+**Done when** either it inherits `BudgetedNode`, or a comment in
 `SelectFewshotsNode` states why it is exempt.
 
 ### 6c. The same query is embedded twice per ticket

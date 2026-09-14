@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ai_engine.graph.budget import check_budget
+from ai_engine.graph.budget import BudgetedNode
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.protocols import ConnectionSource, Embedder
 from ai_engine.retrieval.bm25 import bm25_search
@@ -10,10 +10,7 @@ from ai_engine.retrieval.fusion import reciprocal_rank_fusion
 from ai_engine.retrieval.vector import vector_search
 
 
-class HybridRetrieveNode:
-    """Read-only after __init__; one instance is shared across FastAPI's
-    threadpool."""
-
+class HybridRetrieveNode(BudgetedNode):
     def __init__(
         self,
         *,
@@ -34,12 +31,6 @@ class HybridRetrieveNode:
         self._candidate_limit = candidate_limit
 
     def __call__(self, state: TriageState) -> dict:
-        degraded = check_budget(state)
-        if degraded:
-            # Return BEFORE the embedding round-trip: a ticket that has
-            # already blown its budget must not buy one more.
-            return {"candidates": [], "degraded_reason": degraded}
-
         ticket = state["ticket"]
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
 

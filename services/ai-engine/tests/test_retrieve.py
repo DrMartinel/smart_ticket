@@ -51,7 +51,7 @@ def test_budget_exhausted_makes_no_embedding_call(fake_db, fake_embedder, exhaus
 
     out = node(exhausted_budget_state())
 
-    assert out["candidates"] == []
+    assert "candidates" not in out
     assert out["degraded_reason"] == "budget_exceeded"
     assert embedder.calls == []
     assert db.events == []

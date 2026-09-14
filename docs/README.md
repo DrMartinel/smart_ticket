@@ -35,7 +35,7 @@ If you remember nothing else, remember that split. Nearly every design decision 
 | The routing decision | [`router.py`](../services/core-api/apps/tickets/services/router.py) | Pure function. The only place a `Branch` is chosen. |
 | PII masking | [`masking.py`](../services/core-api/apps/tickets/services/masking.py) | Runs inline before any DB write. 100% branch coverage is a release gate. |
 | Shared schemas | [`packages/contracts/`](../packages/contracts/) | Single source of truth. Both Python services import it; the frontend's types are generated from it. |
-| The AI pipeline | [`graph/build.py`](../services/ai-engine/src/ai_engine/graph/build.py) | LangGraph. Refuses before calling the LLM when retrieval is weak. |
+| The AI pipeline | [`graph/flow.py`](../services/ai-engine/src/ai_engine/graph/flow.py) | LangGraph topology in one table. Refuses before calling the LLM when retrieval is weak. |
 | Every tunable number | [`thresholds.yaml`](../services/core-api/config/thresholds.yaml) | No magic numbers anywhere else. |
 | Why a ticket is in the queue | [`TrustSignalsPanel.tsx`](../services/web/components/TrustSignalsPanel.tsx) | The reviewer-facing explanation. |
 

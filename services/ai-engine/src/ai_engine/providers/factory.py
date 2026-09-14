@@ -10,7 +10,7 @@ nothing would look broken. Selection now happens once, at startup, and an
 unknown value is fatal.
 
 Every constructor called here is pure: no socket, no file read, no model
-download. That is what keeps `build_graph()` callable at uvicorn import time
+download. That is what lets main.py build the graph at uvicorn import time
 and in a test with no database and no environment.
 """
 

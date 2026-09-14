@@ -11,6 +11,7 @@ from __future__ import annotations
 from contracts.enums import PIILevel
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
+from ai_engine.graph.base import BaseNode
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.protocols import ConnectionSource
 
@@ -22,10 +23,7 @@ from ai_engine.providers.protocols import ConnectionSource
 _POLICY_FALLBACK_DENY: tuple[bool, str] = (False, "high")
 
 
-class EmitSignalsNode:
-    """Read-only after __init__; one instance is shared across FastAPI's
-    threadpool."""
-
+class EmitSignalsNode(BaseNode):
     def __init__(self, *, db: ConnectionSource) -> None:
         self._db = db
 

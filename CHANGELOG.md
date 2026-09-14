@@ -34,6 +34,40 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **Graph wiring moved to a validated flow table.** Every node subclasses
+  `BaseNode` (`graph/base.py`), reports a domain `Outcome` from `decide()`,
+  and never names its successor. The topology lives in one `FLOW` dict in
+  `graph/flow.py`; `compile_graph` in `graph/build.py` raises at startup
+  on an unrouted outcome, a dangling target or an unreachable node, and is
+  the only place a class becomes a LangGraph node name. `main.py` builds
+  the providers and node instances inline and calls `compile_graph` once at
+  import time. See `docs/graph-node-architecture.md`.
+  - **Node names changed** — they are now derived from class names:
+    `detect_inject` → `injection`, `retrieve` → `hybrid_retrieve`,
+    `select_shots` → `select_fewshots` (`rerank`, `infer`, `validate`,
+    `emit_signals` unchanged). The graph has no checkpointer, so nothing
+    persisted references the old names; anything reading LangGraph step
+    names (traces, streaming) sees the new ones.
+  - Removed: `GraphDeps` and `build_graph()` (tests build the node list
+    with the `triage_nodes` fixture and swap one instance for a subclass of
+    the real node), the `GraphNode` Protocol, and the
+    `_after_injection` / `_after_rerank` / `_after_validate` routers (now
+    `decide()` on `InjectionNode`, `RerankNode`, `ValidateNode`).
+  - The budget guard is now a base class: `BudgetedNode` (`graph/budget.py`)
+    wraps each subclass's own `__call__` at class definition so the budget
+    is checked before it runs; nodes keep the ordinary
+    `__call__(self, state) -> dict` signature. `HybridRetrieveNode`,
+    `RerankNode` and `InferNode` inherit it. `check_budget()` now raises
+    `BudgetExceeded`, which the wrapper catches.
+  - **Behaviour change (output shape only):** an over-budget node now
+    returns just `{"degraded_reason": "budget_exceeded"}` instead of also
+    `candidates: []` / `reranked: []` / `proposal: None`. Every reader
+    defaults those keys to empty, so routing and the final response are
+    unchanged — pinned by an end-to-end graph test in `test_budget.py`.
+  - No routing behaviour changed: refuse-before-LLM and the `iteration < 2`
+    retry cap are identical. `ValidateNode` splits the old "otherwise"
+    branch into `SchemaValid` and `RetriesExhausted`, both routed to
+    `emit_signals`.
 - Ruff's rule selection is now pinned explicitly in `pyproject.toml`
   (`select = ["E4","E7","E9","F"]`) and the binary pinned in the workflows.
   Ruff's implicit default is not stable across releases: this repo is clean
@@ -49,7 +83,7 @@ that moves a failure path is more significant here than a new feature.
   and configuration through `__init__` instead of reaching for module
   globals and re-reading `settings.*` on every call. `graph/build.py` is
   now the only place nodes are constructed and wired, via a `GraphDeps`
-  dataclass. `build_graph()` remains callable with no arguments, so
+  dataclass (since replaced by the flow table, above). `build_graph()` remains callable with no arguments, so
   `main.py` is unchanged.
 - **Providers sit behind Protocols.** `providers/protocols.py` defines the
   four seams between a node and the outside world — `Embedder`,

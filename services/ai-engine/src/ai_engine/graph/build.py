@@ -1,136 +1,102 @@
 """
-Graph definition — spec §6.2, reproduced structurally as given. Three
-properties are load-bearing and must survive any future edit to this
-file:
+Graph compiler — the only place a node class becomes a LangGraph string
+(add_node names, edge targets, START/END).
 
-1. No node writes to any business database. Every node either reads
-   (KB/few-shot, via the read-only `ai_engine_ro` role — ADR-0004) or
-   computes. The graph's only output is `signals` + `proposal`; core-api
-   makes every decision downstream of that.
-2. Refuse-before-LLM: if `rerank`'s top score is below `retrieval_floor`,
-   the graph routes straight to `emit_signals` and `infer` is never
-   reached — the single biggest cost/safety lever in the pipeline.
-3. Exactly one loopable edge (`validate -> infer`), hard-capped at
-   `iteration < 2`. There is no path through this graph that can loop
-   more than once, structurally — not by convention.
+`compile_graph` validates a flow table before registering anything, so
+wiring mistakes raise at startup, never mid-run when the first ticket takes
+an unusual branch. It is generic: the triage topology lives in `flow.py`,
+and `main.py` constructs the nodes and compiles them.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from langgraph.graph import END, START, StateGraph
 
-from langgraph.graph import END, StateGraph
-
-from ai_engine.config import Settings, settings
-from ai_engine.graph.base import GraphNode
-from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
-from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
-from ai_engine.graph.nodes.infer import InferNode
-from ai_engine.graph.nodes.injection import InjectionNode
-from ai_engine.graph.nodes.rerank import RerankNode
-from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
-from ai_engine.graph.nodes.validate import ValidateNode
-from ai_engine.graph.state import TriageState
-from ai_engine.llm.prompt_store import load_system_prompt
-from ai_engine.providers.factory import Providers, build_providers
+from ai_engine.graph.base import BaseNode, Flow, Terminal
 
 
-def _after_injection(state: TriageState) -> str:
-    return "emit_signals" if state["injection"]["detected"] else "retrieve"
+def _match_instances(nodes: list[BaseNode], flow: Flow) -> dict[type[BaseNode], BaseNode]:
+    """Key each instance by the FLOW class it is an instance of.
 
-
-def _after_rerank(state: TriageState) -> str:
-    reranked = state.get("reranked") or []
-    if not reranked or reranked[0].score < state["retrieval_floor"]:
-        return "emit_signals"
-    return "select_shots"
-
-
-def _after_validate(state: TriageState) -> str:
-    validation = state.get("validation") or {}
-    if not validation.get("schema_valid", False) and state["iteration"] < 2:
-        return "infer"
-    return "emit_signals"
-
-
-@dataclass(frozen=True)
-class GraphDeps:
-    """The seven nodes, already configured.
-
-    Separate from `Providers` so a test can swap ONE node without restating
-    the other six, and so `build_graph` stays pure wiring. Fields are typed
-    `GraphNode`, which a plain function satisfies as readily as a callable
-    instance — that is what lets the function-to-class migration land one
-    node at a time instead of all seven at once.
+    `isinstance` rather than `type(n)`, so a test can pass a subclass of a
+    real node (`class FakeInfer(InferNode)`) and have it wired in that
+    node's place, under that node's name.
     """
 
-    detect_inject: GraphNode
-    retrieve: GraphNode
-    rerank: GraphNode
-    select_shots: GraphNode
-    infer: GraphNode
-    validate: GraphNode
-    emit_signals: GraphNode
-
-    @classmethod
-    def from_settings(
-        cls, s: Settings = settings, providers: Providers | None = None
-    ) -> "GraphDeps":
-        p = providers if providers is not None else build_providers(s)
-        return cls(
-            detect_inject=InjectionNode(),
-            retrieve=HybridRetrieveNode(
-                db=p.db,
-                embedder=p.embedder,
-                bm25_top_k=s.bm25_top_k,
-                vector_top_k=s.vector_top_k,
-                rrf_k=s.rrf_k,
-                candidate_limit=s.fusion_candidate_limit,
-            ),
-            rerank=RerankNode(reranker=p.reranker, top_n=s.rerank_top_n),
-            select_shots=SelectFewshotsNode(db=p.db, embedder=p.embedder, fewshot_k=s.fewshot_k),
-            infer=InferNode(
-                llm=p.llm,
-                system_prompt=load_system_prompt(s.prompt_version),
-                model_timeout_sec=s.model_timeout_sec,
-            ),
-            validate=ValidateNode(fuzzy_threshold=s.quote_fuzzy_threshold),
-            emit_signals=EmitSignalsNode(db=p.db),
-        )
+    instances: dict[type[BaseNode], BaseNode] = {}
+    for node in nodes:
+        matches = [cls for cls in flow if isinstance(node, cls)]
+        if not matches:
+            raise ValueError(f"{type(node).__name__} has no flow entry")
+        if len(matches) > 1:
+            raise ValueError(
+                f"{type(node).__name__} matches several flow entries: {[c.__name__ for c in matches]}"
+            )
+        cls = matches[0]
+        if cls in instances:
+            raise ValueError(f"{cls.__name__} was given more than one instance")
+        instances[cls] = node
+    return instances
 
 
-def build_graph(deps: GraphDeps | None = None):
-    deps = deps if deps is not None else GraphDeps.from_settings()
+def _validate(instances: dict[type[BaseNode], BaseNode], flow: Flow, entry: type[BaseNode]) -> None:
+    if entry not in instances:
+        raise ValueError(f"entry {entry.__name__} has no instance")
 
-    g = StateGraph(TriageState)
+    # Its own pass first, so a missing instance is reported as that — not as
+    # a dangling edge from whichever row happens to point at it.
+    if absent := [cls.__name__ for cls in flow if cls not in instances]:
+        raise ValueError(f"flow lists {absent} but no instance was given")
 
-    g.add_node("detect_inject", deps.detect_inject)
-    g.add_node("retrieve", deps.retrieve)
-    g.add_node("rerank", deps.rerank)
-    g.add_node("select_shots", deps.select_shots)
-    g.add_node("infer", deps.infer)
-    g.add_node("validate", deps.validate)
-    g.add_node("emit_signals", deps.emit_signals)
+    for cls, routes in flow.items():
+        if "DONE" not in cls.Outcome.__members__ and cls.decide is BaseNode.decide:
+            raise ValueError(
+                f"{cls.__name__} defines its own Outcome but does not override decide()"
+            )
+        foreign = [o for o in routes if o not in set(cls.Outcome)]
+        if foreign:
+            raise ValueError(f"{cls.__name__}: routes outcomes it cannot produce {foreign}")
+        missing = set(cls.Outcome) - set(routes)
+        if missing:
+            raise ValueError(f"{cls.__name__}: unrouted {sorted(m.value for m in missing)}")
+        for outcome, target in routes.items():
+            if target is not Terminal and target not in instances:
+                raise ValueError(
+                    f"{cls.__name__}.{outcome.value} -> {target.__name__}: no instance"
+                )
 
-    g.set_entry_point("detect_inject")
+    seen: set[type[BaseNode]] = set()
+    stack: list[type[BaseNode]] = [entry]
+    while stack:
+        cls = stack.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        stack += [t for t in flow[cls].values() if t is not Terminal]
+    if orphans := set(instances) - seen:
+        raise ValueError(f"unreachable: {sorted(c.__name__ for c in orphans)}")
 
-    # Injection -> stop immediately, no further token spend.
-    g.add_conditional_edges("detect_inject", _after_injection, ["emit_signals", "retrieve"])
 
-    g.add_edge("retrieve", "rerank")
+def compile_graph(
+    state_schema: type,
+    nodes: list[BaseNode],
+    flow: Flow,
+    entry: type[BaseNode],
+    checkpointer=None,
+):
+    instances = _match_instances(nodes, flow)
+    _validate(instances, flow, entry)
 
-    # Retrieval floor -> refuse, LLM is NEVER called. Biggest cost saver:
-    # a ticket with nothing relevant in the KB gives the model nothing to
-    # do but fabricate an answer.
-    g.add_conditional_edges("rerank", _after_rerank, ["emit_signals", "select_shots"])
+    graph = StateGraph(state_schema)
+    for cls, node in instances.items():
+        graph.add_node(cls.name, node)
 
-    g.add_edge("select_shots", "infer")
-    g.add_edge("infer", "validate")
+    for cls, routes in flow.items():
+        targets = {o: (END if t is Terminal else t.name) for o, t in routes.items()}
+        if len(targets) == 1:  # single exit -> plain edge
+            graph.add_edge(cls.name, next(iter(targets.values())))
+        else:
+            graph.add_conditional_edges(cls.name, instances[cls].decide, targets)
 
-    # Schema failure -> retry AT MOST once, then stop. Structurally
-    # bounded by `iteration < 2` — cannot loop forever.
-    g.add_conditional_edges("validate", _after_validate, ["infer", "emit_signals"])
-
-    g.add_edge("emit_signals", END)
-
-    return g.compile(checkpointer=None)  # stateless; idempotency lives at the Celery layer
+    graph.add_edge(START, entry.name)
+    return graph.compile(checkpointer=checkpointer)

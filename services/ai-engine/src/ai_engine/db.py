@@ -18,7 +18,7 @@ class PsycopgConnectionSource:
     """Opens a fresh read-only connection per use. No pool — see the module
     docstring on the `ai_engine_ro` grant model.
 
-    Construction opens NO socket, which is what lets `build_graph()` run at
+    Construction opens NO socket, which is what lets main.py build the graph at
     uvicorn import time and in a test with no database at all. The URL is
     read-only after __init__, so one instance is safe to share across
     FastAPI's threadpool.

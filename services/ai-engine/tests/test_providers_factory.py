@@ -34,8 +34,8 @@ def test_unknown_embedding_provider_raises():
 
 
 def test_build_providers_opens_no_connections_and_loads_no_models():
-    """build_graph() calls this at uvicorn import time, and test_build.py
-    calls build_graph() with no database and no environment. If any
+    """main.py calls this at uvicorn import time, and test_build.py imports
+    main.py with no database and no environment. If any
     constructor here starts doing I/O, both break — the first as a container
     that won't boot, the second as a test that needs Postgres.
     """

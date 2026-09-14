@@ -40,7 +40,9 @@ class TriageState(TypedDict):
     started_at: float
     iteration: int
 
-    # Progressive output
+    # Progressive output. List fields deliberately have NO reducer: each is
+    # owned by exactly one node, and a validate -> infer retry must overwrite
+    # the previous attempt's output, not append to it.
     injection: NotRequired[InjectionVerdict]
     candidates: NotRequired[list[Any]]  # ai_engine.retrieval.fusion.Candidate, post-RRF
     bm25_keyword_hit: NotRequired[bool]  # did lexical search find ANY tsvector match at all

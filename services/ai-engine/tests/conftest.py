@@ -21,6 +21,13 @@ from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
 from ai_engine.config import settings
+from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
+from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
+from ai_engine.graph.nodes.infer import InferNode
+from ai_engine.graph.nodes.injection import InjectionNode
+from ai_engine.graph.nodes.rerank import RerankNode
+from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
+from ai_engine.graph.nodes.validate import ValidateNode
 from ai_engine.retrieval.fusion import Candidate
 
 
@@ -189,10 +196,42 @@ def _make_state(**overrides) -> dict:
 
 
 def _exhausted_budget_state(**overrides) -> dict:
-    """A state that check_budget() rejects — the shared precondition for
+    """A state that BudgetedNode rejects — the shared precondition for
     every "degrade before spending anything" test."""
 
     return _make_state(llm_calls=99, max_llm_calls=1, **overrides)
+
+
+def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> list:
+    """The seven production nodes wired to fakes — the test-side counterpart
+    of the list main.py builds. It cannot silently drift from FLOW:
+    compile_graph rejects a node list that is missing any FLOW class."""
+
+    db = db if db is not None else FakeConnectionSource()
+    embedder = embedder if embedder is not None else FakeEmbedder()
+    return [
+        InjectionNode(),
+        HybridRetrieveNode(
+            db=db,
+            embedder=embedder,
+            bm25_top_k=settings.bm25_top_k,
+            vector_top_k=settings.vector_top_k,
+            rrf_k=settings.rrf_k,
+            candidate_limit=settings.fusion_candidate_limit,
+        ),
+        RerankNode(
+            reranker=reranker if reranker is not None else FakeReranker(),
+            top_n=settings.rerank_top_n,
+        ),
+        SelectFewshotsNode(db=db, embedder=embedder, fewshot_k=settings.fewshot_k),
+        InferNode(
+            llm=llm if llm is not None else FakeLLM(),
+            system_prompt="SYSTEM",
+            model_timeout_sec=settings.model_timeout_sec,
+        ),
+        ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold),
+        EmitSignalsNode(db=db),
+    ]
 
 
 @pytest.fixture
@@ -229,6 +268,13 @@ def fake_llm():
 @pytest.fixture
 def fake_db():
     return FakeConnectionSource
+
+
+@pytest.fixture
+def triage_nodes():
+    """_triage_nodes — call it with (db=..., embedder=..., reranker=..., llm=...)
+    to replace any fake."""
+    return _triage_nodes
 
 
 @pytest.fixture

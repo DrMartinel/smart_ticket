@@ -1,13 +1,12 @@
 """
 Rerank-node tests. This node owns the refuse-before-LLM decision's input:
-`reranked[0].score` is the number build.py compares against
+`reranked[0].score` is the number RerankNode.decide compares against
 `retrieval_floor`, so anything that corrupts the ordering or the score
 silently changes how often the LLM is called at all.
 """
 
 from __future__ import annotations
 
-from ai_engine.graph.build import _after_rerank
 from ai_engine.graph.nodes.rerank import RerankNode
 
 
@@ -60,7 +59,7 @@ def test_empty_candidates_returns_empty_without_a_degraded_reason(fake_reranker,
     assert reranker.calls == []
 
 
-def test_budget_exhausted_returns_empty_and_calls_no_reranker(
+def test_budget_exhausted_returns_nothing_and_calls_no_reranker(
     fake_reranker, make_candidate, exhausted_budget_state
 ):
     """A ticket that has blown its budget must not pay for a cross-encoder
@@ -71,24 +70,9 @@ def test_budget_exhausted_returns_empty_and_calls_no_reranker(
 
     out = node(exhausted_budget_state(candidates=[make_candidate(1, "a")]))
 
-    assert out["reranked"] == []
+    assert "reranked" not in out
     assert out["degraded_reason"] == "budget_exceeded"
     assert reranker.calls == []
-
-
-def test_budget_degrade_routes_to_emit_signals(
-    fake_reranker, make_candidate, exhausted_budget_state
-):
-    """The degrade must actually reach a human: the companion routing
-    function has to send an empty rerank straight to emit_signals rather
-    than on to the LLM."""
-
-    node = RerankNode(reranker=fake_reranker(scores=[0.9]), top_n=3)
-    state = exhausted_budget_state(candidates=[make_candidate(1, "a")])
-
-    state.update(node(state))
-
-    assert _after_rerank(state) == "emit_signals"
 
 
 def test_scores_are_zipped_to_candidates_positionally(fake_reranker, make_candidate, make_state):
