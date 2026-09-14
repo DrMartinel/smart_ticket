@@ -344,3 +344,31 @@ def test_genuine_schema_failure_above_floor_still_reports_schema_invalid():
     signals = good_signals(**{"retrieval.rerank_top1": 0.90})
     d = route(signals, None, None, TH)
     assert d.reason_code is ReasonCode.SCHEMA_INVALID
+
+
+def test_unhandled_proposal_type_degrades_to_hitl_rather_than_falling_through():
+    """The final fallthrough in route(): a proposal whose root matches none
+    of the four known variants.
+
+    Unreachable today — LLMProposal's discriminated union has exactly four
+    members and each has its own branch above. It exists for the moment a
+    fifth is added to packages/contracts and someone forgets to extend this
+    function. Without the fallthrough, route() would return None and
+    core-api would crash on `.branch`; with it, the ticket degrades to a
+    human with SCHEMA_INVALID.
+
+    This is the "degrade toward humans" invariant applied to the router's
+    own extensibility, and it is the one line keeping the 100% coverage
+    gate in eval-gate.yml honest.
+    """
+
+    class _FutureProposal:
+        """Stands in for a fifth union member that does not exist yet."""
+
+    class _Envelope:
+        root = _FutureProposal()
+
+    d = route(good_signals(), _Envelope(), kb(), TH)
+
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.SCHEMA_INVALID
