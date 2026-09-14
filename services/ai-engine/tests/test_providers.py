@@ -1,7 +1,7 @@
 """
 Provider-class tests. The two that matter here are structural rather than
-behavioural: they pin the properties that make `build_graph()` safe to run
-at uvicorn import time on a default install.
+behavioural: they pin the properties that make main.py's graph
+construction safe to run at uvicorn import time on a default install.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from ai_engine.providers.reranker import CrossEncoderReranker, LexicalReranker
 
 def test_constructing_cross_encoder_reranker_does_not_import_sentence_transformers():
     """`sentence-transformers` is an optional extra (`--extra cross-encoder`).
-    build_graph() constructs providers at uvicorn import time, so if this
+    main.py constructs providers at uvicorn import time, so if this
     constructor ever imports the package eagerly, `import ai_engine.main`
     breaks on every default (lexical) install — a failure that shows up as a
     container that won't boot, not as a test failure.

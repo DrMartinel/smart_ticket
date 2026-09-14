@@ -14,7 +14,9 @@ never to the RRF score from fusion.py — see ADR-0005.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 
+from ai_engine.graph.base import BaseNode
 from ai_engine.graph.budget import check_budget
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.protocols import Reranker
@@ -30,9 +32,10 @@ class RankedChunk:
     score: float  # cross-encoder score — the ONLY score thresholds compare against
 
 
-class RerankNode:
-    """Read-only after __init__; one instance is shared across FastAPI's
-    threadpool."""
+class RerankNode(BaseNode):
+    class Outcome(StrEnum):
+        EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
+        EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
     def __init__(self, *, reranker: Reranker, top_n: int) -> None:
         self._reranker = reranker
@@ -65,6 +68,14 @@ class RerankNode:
         ]
         # Sorted by the CROSS-ENCODER score, discarding the RRF order the
         # candidates arrived in — ADR-0005. `reranked[0].score` is what
-        # build.py compares against `retrieval_floor`.
+        # decide() compares against `retrieval_floor`.
         ranked.sort(key=lambda r: r.score, reverse=True)
         return {"reranked": ranked[: self._top_n]}
+
+    def decide(self, state: TriageState) -> RerankNode.Outcome:
+        # Empty covers both "KB had nothing" and a budget degrade — either
+        # way the LLM must not be reached.
+        reranked = state.get("reranked") or []
+        if not reranked or reranked[0].score < state["retrieval_floor"]:
+            return self.Outcome.EVIDENCE_BELOW_FLOOR
+        return self.Outcome.EVIDENCE_ABOVE_FLOOR

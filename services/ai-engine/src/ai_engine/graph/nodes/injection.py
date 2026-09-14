@@ -1,15 +1,18 @@
 """
-Injection Detector — spec §6.2 node `detect_inject`, runs FIRST, before
-any retrieval or LLM cost is spent. Attachments are treated as fully
-untrusted (spec §5.2) — this build doesn't fetch/parse attachment
-content at all, which is the simplest way to honor "coi như untrusted
-hoàn toàn": nothing from an attachment ever reaches the prompt.
+Injection Detector — spec §6.2 node `detect_inject` (graph node
+`injection`), runs FIRST, before any retrieval or LLM cost is spent.
+Attachments are treated as fully untrusted (spec §5.2) — this build
+doesn't fetch/parse attachment content at all, which is the simplest way
+to honor "coi như untrusted hoàn toàn": nothing from an attachment ever
+reaches the prompt.
 """
 
 from __future__ import annotations
 
 import re
+from enum import StrEnum
 
+from ai_engine.graph.base import BaseNode
 from ai_engine.graph.state import InjectionVerdict, TriageState
 
 DEFAULT_PATTERNS: dict[str, re.Pattern] = {
@@ -41,15 +44,17 @@ DEFAULT_PATTERNS: dict[str, re.Pattern] = {
 }
 
 
-class InjectionNode:
+class InjectionNode(BaseNode):
     """Prompt-injection screen — spec §6.2 node `detect_inject`.
 
-    A hit routes straight to `emit_signals`, so no further token is spent on
-    a ticket that is trying to talk to the model rather than to support.
-
-    Read-only after __init__; one instance is shared across FastAPI's
-    threadpool.
+    A hit routes straight to `EmitSignalsNode` (see graph/flow.py), so no
+    further token is spent on a ticket that is trying to talk to the model
+    rather than to support.
     """
+
+    class Outcome(StrEnum):
+        INJECTION_DETECTED = "InjectionDetected"
+        INJECTION_CLEAR = "InjectionClear"
 
     def __init__(self, *, patterns: dict[str, re.Pattern] | None = None) -> None:
         self._patterns = patterns if patterns is not None else DEFAULT_PATTERNS
@@ -59,3 +64,8 @@ class InjectionNode:
         matched = [name for name, pattern in self._patterns.items() if pattern.search(text)]
         verdict: InjectionVerdict = {"detected": bool(matched), "matched_patterns": matched}
         return {"injection": verdict}
+
+    def decide(self, state: TriageState) -> InjectionNode.Outcome:
+        if state["injection"]["detected"]:
+            return self.Outcome.INJECTION_DETECTED
+        return self.Outcome.INJECTION_CLEAR

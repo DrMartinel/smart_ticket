@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ai_engine.graph.base import BaseNode
 from ai_engine.graph.budget import check_budget
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.protocols import ConnectionSource, Embedder
@@ -10,10 +11,7 @@ from ai_engine.retrieval.fusion import reciprocal_rank_fusion
 from ai_engine.retrieval.vector import vector_search
 
 
-class HybridRetrieveNode:
-    """Read-only after __init__; one instance is shared across FastAPI's
-    threadpool."""
-
+class HybridRetrieveNode(BaseNode):
     def __init__(
         self,
         *,

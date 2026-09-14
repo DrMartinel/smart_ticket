@@ -70,7 +70,7 @@ class CrossEncoderReranker:
 
     `sentence-transformers` is an OPTIONAL extra (`--extra cross-encoder`).
     Constructing this class must never import it and never touch the model
-    cache: `build_graph()` runs at uvicorn import time, and a default
+    cache: main.py builds the graph at uvicorn import time, and a default
     (RERANKER_PROVIDER=lexical) install does not have the package at all.
     Hence the function-local import in `_import_and_build_cross_encoder`
     below — do not hoist it; there is a test whose only job is to fail if

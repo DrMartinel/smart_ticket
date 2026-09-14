@@ -1,13 +1,12 @@
 """
 Rerank-node tests. This node owns the refuse-before-LLM decision's input:
-`reranked[0].score` is the number build.py compares against
+`reranked[0].score` is the number RerankNode.decide compares against
 `retrieval_floor`, so anything that corrupts the ordering or the score
 silently changes how often the LLM is called at all.
 """
 
 from __future__ import annotations
 
-from ai_engine.graph.build import _after_rerank
 from ai_engine.graph.nodes.rerank import RerankNode
 
 
@@ -81,16 +80,16 @@ def test_budget_exhausted_returns_empty_and_calls_no_reranker(
 def test_budget_degrade_routes_to_emit_signals(
     fake_reranker, make_candidate, exhausted_budget_state
 ):
-    """The degrade must actually reach a human: the companion routing
-    function has to send an empty rerank straight to emit_signals rather
-    than on to the LLM."""
+    """The degrade must actually reach a human: decide() has to send an
+    empty rerank below the floor (-> EmitSignalsNode) rather than on to the
+    LLM."""
 
     node = RerankNode(reranker=fake_reranker(scores=[0.9]), top_n=3)
     state = exhausted_budget_state(candidates=[make_candidate(1, "a")])
 
     state.update(node(state))
 
-    assert _after_rerank(state) == "emit_signals"
+    assert node.decide(state) is RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_scores_are_zipped_to_candidates_positionally(

@@ -18,11 +18,13 @@ spec gives, because the order encodes why each one exists:
 from __future__ import annotations
 
 import re
+from enum import StrEnum
 
 from rapidfuzz import fuzz
 
 from contracts.llm_draft import AutoReplyProposal
 
+from ai_engine.graph.base import BaseNode
 from ai_engine.graph.state import TriageState, ValidationResult
 
 # A Vietnamese linguistic lexicon, not a tunable number — it belongs in code
@@ -55,9 +57,11 @@ def _best_fuzzy(quote: str, topk: dict[int, str]) -> tuple[int | None, float]:
     return best_id, best_ratio
 
 
-class ValidateNode:
-    """Read-only after __init__; one instance is shared across FastAPI's
-    threadpool."""
+class ValidateNode(BaseNode):
+    class Outcome(StrEnum):
+        SCHEMA_VALID = "SchemaValid"
+        RETRY_INFERENCE = "RetryInference"
+        RETRIES_EXHAUSTED = "RetriesExhausted"
 
     def __init__(
         self, *, fuzzy_threshold: float, negations: set[str] | None = None
@@ -83,7 +87,7 @@ class ValidateNode:
             # `iteration` is bumped ONLY here. TriageState has no reducer on
             # it, so hoisting this to the top of the method would make every
             # successful pass increment too and silently shift the
-            # `iteration < 2` retry cap in build.py.
+            # `iteration < 2` retry cap in decide().
             return {"validation": result, "iteration": state["iteration"] + 1}
 
         if not isinstance(proposal.root, AutoReplyProposal):
@@ -134,3 +138,13 @@ class ValidateNode:
             result["source_chunk_id"] = source
 
         return {"validation": result}
+
+    def decide(self, state: TriageState) -> ValidateNode.Outcome:
+        validation = state.get("validation") or {}
+        if validation.get("schema_valid", False):
+            return self.Outcome.SCHEMA_VALID
+        # Schema failure -> retry AT MOST once. Structurally bounded by
+        # `iteration < 2` — the only cycle in the graph cannot loop forever.
+        if state["iteration"] < 2:
+            return self.Outcome.RETRY_INFERENCE
+        return self.Outcome.RETRIES_EXHAUSTED

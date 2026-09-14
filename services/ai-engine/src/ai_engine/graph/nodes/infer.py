@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from contracts.llm_draft import LLMProposalEnvelope
 
+from ai_engine.graph.base import BaseNode
 from ai_engine.graph.budget import check_budget
 from ai_engine.graph.state import TriageState
 from ai_engine.llm.circuit_breaker import CircuitOpenError
@@ -46,10 +47,7 @@ def _format_fewshots(fewshots: list[dict]) -> str:
     )
 
 
-class InferNode:
-    """Read-only after __init__; one instance is shared across FastAPI's
-    threadpool."""
-
+class InferNode(BaseNode):
     def __init__(
         self,
         *,
