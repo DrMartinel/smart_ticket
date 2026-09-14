@@ -10,31 +10,49 @@ exact category filter.
 
 from __future__ import annotations
 
-from ai_engine.config import settings
-from ai_engine.db import get_connection
 from ai_engine.graph.state import TriageState
-from ai_engine.providers.embeddings import embed_text
+from ai_engine.providers.protocols import ConnectionSource, Embedder
 from ai_engine.retrieval.vector import to_vector_literal
 
 
-def select_fewshots(state: TriageState) -> dict:
-    ticket = state["ticket"]
-    query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
-    embedding = embed_text(query)
-    literal = to_vector_literal(embedding)
+class SelectFewshotsNode:
+    """Read-only after __init__; one instance is shared across FastAPI's
+    threadpool.
 
-    with get_connection() as conn, conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT category, input_text, output_json
-            FROM fewshot_examples
-            WHERE retracted_at IS NULL AND expires_at > now() AND embedding IS NOT NULL
-            ORDER BY embedding <=> %(v)s::vector
-            LIMIT %(k)s
-            """,
-            {"v": literal, "k": settings.fewshot_k},
-        )
-        rows = cur.fetchall()
+    Note this node does NOT call check_budget, unlike retrieve/rerank/infer
+    — carried over from the original as-is rather than changed inside a
+    refactor, but see docs/TODO.md: it is the only node that spends an
+    embedding round-trip without first checking the ticket's budget.
+    """
 
-    fewshots = [{"category": category, "input_text": input_text, "output_json": output_json} for category, input_text, output_json in rows]
-    return {"fewshots": fewshots}
+    def __init__(
+        self, *, db: ConnectionSource, embedder: Embedder, fewshot_k: int
+    ) -> None:
+        self._db = db
+        self._embedder = embedder
+        self._fewshot_k = fewshot_k
+
+    def __call__(self, state: TriageState) -> dict:
+        ticket = state["ticket"]
+        query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
+        embedding = self._embedder.embed(query)
+        literal = to_vector_literal(embedding)
+
+        with self._db.connect() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT category, input_text, output_json
+                FROM fewshot_examples
+                WHERE retracted_at IS NULL AND expires_at > now() AND embedding IS NOT NULL
+                ORDER BY embedding <=> %(v)s::vector
+                LIMIT %(k)s
+                """,
+                {"v": literal, "k": self._fewshot_k},
+            )
+            rows = cur.fetchall()
+
+        fewshots = [
+            {"category": category, "input_text": input_text, "output_json": output_json}
+            for category, input_text, output_json in rows
+        ]
+        return {"fewshots": fewshots}

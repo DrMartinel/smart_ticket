@@ -12,7 +12,9 @@ import re
 
 from ai_engine.graph.state import InjectionVerdict, TriageState
 
-_PATTERNS: dict[str, re.Pattern] = {
+# Compiled once at import, not per instance. Shared read-only by every
+# InjectionNode; `re.Pattern` objects are themselves thread-safe.
+DEFAULT_PATTERNS: dict[str, re.Pattern] = {
     "ignore_instructions_en": re.compile(
         r"(?i)\b(ignore|disregard|forget)\b.{0,30}\b(previous|prior|above|all)\b.{0,30}\b(instructions?|rules?|prompt)\b"
     ),
@@ -35,8 +37,24 @@ _PATTERNS: dict[str, re.Pattern] = {
 }
 
 
-def detect_injection(state: TriageState) -> dict:
-    text = f"{state['ticket'].subject_masked}\n{state['ticket'].body_masked}"
-    matched = [name for name, pattern in _PATTERNS.items() if pattern.search(text)]
-    verdict: InjectionVerdict = {"detected": bool(matched), "matched_patterns": matched}
-    return {"injection": verdict}
+class InjectionNode:
+    """Prompt-injection screen — spec §6.2 node `detect_inject`.
+
+    A hit routes straight to `emit_signals`, so no further token is spent on
+    a ticket that is trying to talk to the model rather than to support.
+
+    Read-only after __init__; one instance is shared across FastAPI's
+    threadpool.
+    """
+
+    def __init__(self, *, patterns: dict[str, re.Pattern] | None = None) -> None:
+        # A pattern set, not a number — it belongs in code like patterns.py's
+        # PII regexes, not in an env var. The parameter exists so a test can
+        # narrow it, not so deployments can diverge.
+        self._patterns = patterns if patterns is not None else DEFAULT_PATTERNS
+
+    def __call__(self, state: TriageState) -> dict:
+        text = f"{state['ticket'].subject_masked}\n{state['ticket'].body_masked}"
+        matched = [name for name, pattern in self._patterns.items() if pattern.search(text)]
+        verdict: InjectionVerdict = {"detected": bool(matched), "matched_patterns": matched}
+        return {"injection": verdict}

@@ -132,7 +132,7 @@ class FakeConnectionSource:
             self.events.append("close")
 
 
-def make_ticket(subject: str = "không đăng nhập được", body: str = "máy tính báo lỗi") -> TicketMasked:
+def _make_ticket(subject: str = "không đăng nhập được", body: str = "máy tính báo lỗi") -> TicketMasked:
     return TicketMasked(
         ticket_public_id="TKT-1",
         subject_masked=subject,
@@ -142,7 +142,7 @@ def make_ticket(subject: str = "không đăng nhập được", body: str = "má
     )
 
 
-def make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = "kb-a") -> Candidate:
+def _make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = "kb-a") -> Candidate:
     return Candidate(
         chunk_id=chunk_id,
         article_id=chunk_id * 10,
@@ -152,13 +152,13 @@ def make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = "
     )
 
 
-def make_state(**overrides) -> dict:
+def _make_state(**overrides) -> dict:
     """A valid TriageState with generous budgets. Tests that care about one
     budget override exactly that key, which makes the intent obvious —
     previously every test rewrote the whole literal dict."""
 
     state = {
-        "ticket": make_ticket(),
+        "ticket": _make_ticket(),
         "request_id": "req-1",
         "retrieval_floor": 0.5,
         "max_tokens": 100_000,
@@ -174,11 +174,11 @@ def make_state(**overrides) -> dict:
     return state
 
 
-def exhausted_budget_state(**overrides) -> dict:
+def _exhausted_budget_state(**overrides) -> dict:
     """A state that check_budget() rejects — the shared precondition for
     every "degrade before spending anything" test."""
 
-    return make_state(llm_calls=99, max_llm_calls=1, **overrides)
+    return _make_state(llm_calls=99, max_llm_calls=1, **overrides)
 
 
 @pytest.fixture
@@ -187,3 +187,51 @@ def fuzzy_threshold() -> float:
     configuration rather than re-pinning 0.95 in a second place."""
 
     return settings.quote_fuzzy_threshold
+
+
+# --- fixtures -------------------------------------------------------------
+# The fakes and builders are exposed as fixtures rather than imported
+# directly: the root pyproject runs pytest with --import-mode=importlib
+# (core-api and ai-engine both ship a package named `tests`), under which a
+# test module cannot `from conftest import ...`.
+
+
+@pytest.fixture
+def fake_embedder():
+    """The FakeEmbedder class — call it with (vector=..., error=...)."""
+    return FakeEmbedder
+
+
+@pytest.fixture
+def fake_reranker():
+    return FakeReranker
+
+
+@pytest.fixture
+def fake_llm():
+    return FakeLLM
+
+
+@pytest.fixture
+def fake_db():
+    return FakeConnectionSource
+
+
+@pytest.fixture
+def make_state():
+    return _make_state
+
+
+@pytest.fixture
+def exhausted_budget_state():
+    return _exhausted_budget_state
+
+
+@pytest.fixture
+def make_ticket():
+    return _make_ticket
+
+
+@pytest.fixture
+def make_candidate():
+    return _make_candidate
