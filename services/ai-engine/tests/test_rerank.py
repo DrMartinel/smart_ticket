@@ -7,6 +7,7 @@ silently changes how often the LLM is called at all.
 
 from __future__ import annotations
 
+from ai_engine.config import settings
 from ai_engine.graph.nodes.rerank import RerankNode
 
 
@@ -25,7 +26,7 @@ def test_output_order_follows_the_reranker_not_the_rrf_order(
 
     candidates = [make_candidate(1, "a"), make_candidate(2, "b"), make_candidate(3, "c")]
     # Scores INVERT the incoming RRF order.
-    node = RerankNode(reranker=fake_reranker(scores=[0.1, 0.5, 0.9]), top_n=3)
+    node = RerankNode(reranker=fake_reranker(scores=[0.1, 0.5, 0.9]))
 
     reranked = node(make_state(candidates=candidates))["reranked"]
 
@@ -33,9 +34,12 @@ def test_output_order_follows_the_reranker_not_the_rrf_order(
     assert reranked[0].score == 0.9
 
 
-def test_truncation_uses_the_configured_top_n(fake_reranker, make_candidate, make_state):
+def test_truncation_uses_the_configured_top_n(
+    fake_reranker, make_candidate, make_state, monkeypatch
+):
+    monkeypatch.setattr(settings, "rerank_top_n", 2)
     candidates = [make_candidate(i, f"c{i}") for i in (1, 2, 3, 4)]
-    node = RerankNode(reranker=fake_reranker(scores=[0.1, 0.9, 0.5, 0.7]), top_n=2)
+    node = RerankNode(reranker=fake_reranker(scores=[0.1, 0.9, 0.5, 0.7]))
 
     reranked = node(make_state(candidates=candidates))["reranked"]
 
@@ -50,7 +54,7 @@ def test_empty_candidates_returns_empty_without_a_degraded_reason(fake_reranker,
     """
 
     reranker = fake_reranker(scores=[0.9])
-    node = RerankNode(reranker=reranker, top_n=3)
+    node = RerankNode(reranker=reranker)
 
     out = node(make_state(candidates=[]))
 
@@ -66,7 +70,7 @@ def test_budget_exhausted_returns_nothing_and_calls_no_reranker(
     batch on the way out."""
 
     reranker = fake_reranker(scores=[0.9])
-    node = RerankNode(reranker=reranker, top_n=3)
+    node = RerankNode(reranker=reranker)
 
     out = node(exhausted_budget_state(candidates=[make_candidate(1, "a")]))
 
@@ -81,7 +85,7 @@ def test_scores_are_zipped_to_candidates_positionally(fake_reranker, make_candid
     wrong score to the wrong chunk while everything still looks sorted."""
 
     candidates = [make_candidate(7, "seven"), make_candidate(8, "eight")]
-    node = RerankNode(reranker=fake_reranker(scores=[0.2, 0.8]), top_n=2)
+    node = RerankNode(reranker=fake_reranker(scores=[0.2, 0.8]))
 
     reranked = node(make_state(candidates=candidates))["reranked"]
 
@@ -96,7 +100,7 @@ def test_query_sent_to_the_reranker_is_the_masked_ticket(
     never be handed raw PII."""
 
     reranker = fake_reranker(scores=[0.5])
-    node = RerankNode(reranker=reranker, top_n=1)
+    node = RerankNode(reranker=reranker)
 
     node(make_state(candidates=[make_candidate(1, "a")], ticket=make_ticket("subj", "body")))
 

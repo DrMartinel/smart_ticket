@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ai_engine.config import Settings
+from ai_engine.config import settings
 from ai_engine.db import PsycopgConnectionSource
 from ai_engine.llm.client import DefaultLLMClient
 from ai_engine.providers.embeddings import OllamaEmbedder, StubEmbedder
@@ -34,25 +34,20 @@ class Providers:
     db: ConnectionSource
 
 
-def build_providers(s: Settings) -> Providers:
-    match s.embedding_provider:
+def build_providers() -> Providers:
+    match settings.embedding_provider:
         case "stub":
             embedder: Embedder = StubEmbedder()
         case "ollama":
-            embedder = OllamaEmbedder(
-                base_url=s.ollama_base_url,
-                model=s.ollama_embed_model,
-                timeout_sec=s.model_timeout_sec,
-                connect_timeout_sec=s.model_connect_timeout_sec,
-            )
+            embedder = OllamaEmbedder()
         case other:
             raise ValueError(f"unknown embedding_provider: {other!r} (expected 'ollama' or 'stub')")
 
-    match s.reranker_provider:
+    match settings.reranker_provider:
         case "lexical":
             reranker: Reranker = LexicalReranker()
         case "cross_encoder":
-            reranker = CrossEncoderReranker(model_name=s.reranker_model)
+            reranker = CrossEncoderReranker()
         case other:
             raise ValueError(
                 f"unknown reranker_provider: {other!r} (expected 'lexical' or 'cross_encoder')"
@@ -62,5 +57,5 @@ def build_providers(s: Settings) -> Providers:
         embedder=embedder,
         reranker=reranker,
         llm=DefaultLLMClient(),
-        db=PsycopgConnectionSource(database_url=s.database_url),
+        db=PsycopgConnectionSource(),
     )

@@ -34,6 +34,16 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **Settings are read where they are used, not passed down from `main.py`.**
+  Retrieval functions (`bm25_search`, `vector_search`,
+  `reciprocal_rank_fusion`), nodes, providers and `PsycopgConnectionSource`
+  read `ai_engine.config.settings` themselves; their constructors and
+  signatures now take collaborators only, and `build_providers()` takes no
+  argument. `InferNode` resolves its prompt from `settings.prompt_version`
+  at construction. `reciprocal_rank_fusion` lost its `k=60` default — a
+  second copy of `settings.rrf_k`, and `InferNode`'s
+  `min_attempt_timeout_sec=5.0` default moved to `Settings`. Tests override values with
+  `monkeypatch.setattr(settings, ...)`. No behaviour changed.
 - **Graph wiring moved from the `FLOW` table to `GraphBuilder`.** Routes
   now map an outcome of a node *instance* to the next instance —
   `g.route(rerank, RerankNode.Outcome.EVIDENCE_BELOW_FLOOR, emit)` — and live

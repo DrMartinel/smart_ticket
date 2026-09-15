@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from ai_engine.config import settings
 from ai_engine.graph.budget import BudgetedNode
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.protocols import Reranker
@@ -28,7 +29,7 @@ class RankedChunk:
     article_id: int
     article_slug: str
     content: str
-    score: float  # cross-encoder score — the ONLY score thresholds compare against
+    score: float
 
 
 class RerankNode(BudgetedNode):
@@ -36,16 +37,12 @@ class RerankNode(BudgetedNode):
         EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
         EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
-    def __init__(self, *, reranker: Reranker, top_n: int) -> None:
+    def __init__(self, *, reranker: Reranker) -> None:
         self._reranker = reranker
-        self._top_n = top_n
 
     def __call__(self, state: TriageState) -> dict:
         candidates: list[Candidate] = state.get("candidates", [])
         if not candidates:
-            # No degraded_reason here on purpose: "the KB had nothing to
-            # rerank" is an ordinary refuse-before-LLM, and core-api gives it
-            # a different reason code from an infrastructure degrade.
             return {"reranked": []}
 
         query = f"{state['ticket'].subject_masked}\n{state['ticket'].body_masked}"
@@ -61,15 +58,10 @@ class RerankNode(BudgetedNode):
             )
             for c, s in zip(candidates, scores)
         ]
-        # Sorted by the CROSS-ENCODER score, discarding the RRF order the
-        # candidates arrived in — ADR-0005. `reranked[0].score` is what
-        # decide() compares against `retrieval_floor`.
         ranked.sort(key=lambda r: r.score, reverse=True)
-        return {"reranked": ranked[: self._top_n]}
+        return {"reranked": ranked[: settings.rerank_top_n]}
 
     def decide(self, state: TriageState) -> RerankNode.Outcome:
-        # Empty covers both "KB had nothing" and a budget degrade — either
-        # way the LLM must not be reached.
         reranked = state.get("reranked") or []
         if not reranked or reranked[0].score < state["retrieval_floor"]:
             return self.Outcome.EVIDENCE_BELOW_FLOOR

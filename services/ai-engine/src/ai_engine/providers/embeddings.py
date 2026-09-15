@@ -13,6 +13,8 @@ import hashlib
 import httpx
 import numpy as np
 
+from ai_engine.config import settings
+
 # A property of bge-m3 AND of the pgvector column width — changing it needs
 # a migration, so it is not node configuration.
 EMBED_DIM = 1024
@@ -35,27 +37,21 @@ class StubEmbedder:
 
 
 class OllamaEmbedder:
-    """bge-m3 via Ollama. Every attribute is read-only after __init__, so one
-    instance is safe to share across FastAPI's threadpool."""
+    """bge-m3 via Ollama. Stateless, so one instance is safe to share across
+    FastAPI's threadpool."""
 
-    def __init__(
-        self,
-        *,
-        base_url: str,
-        model: str,
-        timeout_sec: float,
-        connect_timeout_sec: float,
-    ) -> None:
-        self._url = f"{base_url.rstrip('/')}/api/embeddings"
-        self._model = model
+    def embed(self, text: str) -> list[float]:
+        model = settings.ollama_embed_model
         # Long read budget, short connect budget: an unreachable provider is
         # knowable in seconds, while a cold model load legitimately takes
         # 15-20s.
-        self._timeout = httpx.Timeout(timeout_sec, connect=connect_timeout_sec)
-
-    def embed(self, text: str) -> list[float]:
+        timeout = httpx.Timeout(
+            settings.model_timeout_sec, connect=settings.model_connect_timeout_sec
+        )
         resp = httpx.post(
-            self._url, json={"model": self._model, "prompt": text}, timeout=self._timeout
+            f"{settings.ollama_base_url.rstrip('/')}/api/embeddings",
+            json={"model": model, "prompt": text},
+            timeout=timeout,
         )
         resp.raise_for_status()
         embedding = resp.json()["embedding"]
@@ -64,7 +60,6 @@ class OllamaEmbedder:
             # would otherwise surface as a pgvector error deep inside
             # retrieval, or worse, as silently poor recall.
             raise ValueError(
-                f"embedding model {self._model!r} returned dim "
-                f"{len(embedding)}, expected {EMBED_DIM}"
+                f"embedding model {model!r} returned dim {len(embedding)}, expected {EMBED_DIM}"
             )
         return embedding

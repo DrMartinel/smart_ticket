@@ -214,14 +214,23 @@ individual routes without compiling.
 time, and compiles them once:
 
 ```python
-_providers = build_providers(settings)
+_providers = build_providers()
 _graph = wire_triage(
     injection=InjectionNode(),
-    retrieve=HybridRetrieveNode(db=_providers.db, ...),
-    rerank=RerankNode(...), fewshots=SelectFewshotsNode(...), infer=InferNode(...),
-    validate=ValidateNode(...), emit=EmitSignalsNode(db=_providers.db),
+    retrieve=HybridRetrieveNode(db=_providers.db, embedder=_providers.embedder),
+    rerank=RerankNode(reranker=_providers.reranker),
+    fewshots=SelectFewshotsNode(db=_providers.db, embedder=_providers.embedder),
+    infer=InferNode(llm=_providers.llm),
+    validate=ValidateNode(),
+    emit=EmitSignalsNode(db=_providers.db),
 ).compile(TriageState, checkpointer=None)
 ```
+
+Constructors take collaborators only. Every `Settings` value is read by the
+code that consumes it — `bm25_search` reads `settings.bm25_top_k`,
+`RerankNode` reads `settings.rerank_top_n` — so no tunable is threaded
+through `main.py` or a node that merely passes it on. Tests that need a
+non-default value `monkeypatch.setattr(settings, ...)`.
 
 Tests build the same instances wired to fakes with the `triage_nodes` fixture
 (`tests/conftest.py`), which returns a dict keyed by `wire_triage`'s
@@ -239,13 +248,12 @@ class RerankNode(BudgetedNode):
         EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
         EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
-    def __init__(self, *, reranker: Reranker, top_n: int) -> None:
+    def __init__(self, *, reranker: Reranker) -> None:
         self._reranker = reranker  # read-only after construction
-        self._top_n = top_n
 
     def __call__(self, state: TriageState) -> dict:  # budget checked first
         ...
-        return {"reranked": ranked[: self._top_n]}
+        return {"reranked": ranked[: settings.rerank_top_n]}
 
     def decide(self, state: TriageState) -> RerankNode.Outcome:
         reranked = state.get("reranked") or []

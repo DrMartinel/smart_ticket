@@ -33,37 +33,37 @@ def test_no_injection_decides_clear():
 
 def test_empty_reranked_is_below_floor(fake_reranker):
     state = {"reranked": [], "retrieval_floor": 0.45}
-    node = RerankNode(reranker=fake_reranker(), top_n=3)
+    node = RerankNode(reranker=fake_reranker())
     assert node.decide(state) is RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_below_floor_is_below_floor(fake_reranker):
     state = {"reranked": [_chunk(0.1)], "retrieval_floor": 0.45}
-    node = RerankNode(reranker=fake_reranker(), top_n=3)
+    node = RerankNode(reranker=fake_reranker())
     assert node.decide(state) is RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_above_floor_is_above_floor(fake_reranker):
     state = {"reranked": [_chunk(0.9)], "retrieval_floor": 0.45}
-    node = RerankNode(reranker=fake_reranker(), top_n=3)
+    node = RerankNode(reranker=fake_reranker())
     assert node.decide(state) is RerankNode.Outcome.EVIDENCE_ABOVE_FLOOR
 
 
-def test_schema_invalid_retries_once(fuzzy_threshold):
+def test_schema_invalid_retries_once():
     state = {"validation": {"schema_valid": False}, "iteration": 0}
-    node = ValidateNode(fuzzy_threshold=fuzzy_threshold)
+    node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.RETRY_INFERENCE
 
 
-def test_schema_invalid_stops_retrying_after_iteration_cap(fuzzy_threshold):
+def test_schema_invalid_stops_retrying_after_iteration_cap():
     state = {"validation": {"schema_valid": False}, "iteration": 2}
-    node = ValidateNode(fuzzy_threshold=fuzzy_threshold)
+    node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.RETRIES_EXHAUSTED
 
 
-def test_schema_valid_decides_valid(fuzzy_threshold):
+def test_schema_valid_decides_valid():
     state = {"validation": {"schema_valid": True}, "iteration": 0}
-    node = ValidateNode(fuzzy_threshold=fuzzy_threshold)
+    node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.SCHEMA_VALID
 
 
@@ -131,8 +131,8 @@ def test_compiled_edges_match_wiring(triage_nodes):
 def test_main_wires_the_prompt_for_settings_prompt_version():
     """The prompt filename used to be hardcoded, so bumping
     settings.prompt_version changed what the response *claimed* ran without
-    changing what actually ran. main.py is where the version is resolved, so
-    this reads the prompt off the InferNode in the production graph."""
+    changing what actually ran. This reads the prompt off the InferNode in
+    the production graph."""
 
     from ai_engine.config import settings
     from ai_engine.llm.prompt_store import load_system_prompt

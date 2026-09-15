@@ -20,7 +20,6 @@ import pytest
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
-from ai_engine.config import settings
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
@@ -213,35 +212,13 @@ def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
     embedder = embedder if embedder is not None else FakeEmbedder()
     return {
         "injection": InjectionNode(),
-        "retrieve": HybridRetrieveNode(
-            db=db,
-            embedder=embedder,
-            bm25_top_k=settings.bm25_top_k,
-            vector_top_k=settings.vector_top_k,
-            rrf_k=settings.rrf_k,
-            candidate_limit=settings.fusion_candidate_limit,
-        ),
-        "rerank": RerankNode(
-            reranker=reranker if reranker is not None else FakeReranker(),
-            top_n=settings.rerank_top_n,
-        ),
-        "fewshots": SelectFewshotsNode(db=db, embedder=embedder, fewshot_k=settings.fewshot_k),
-        "infer": InferNode(
-            llm=llm if llm is not None else FakeLLM(),
-            system_prompt="SYSTEM",
-            model_timeout_sec=settings.model_timeout_sec,
-        ),
-        "validate": ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold),
+        "retrieve": HybridRetrieveNode(db=db, embedder=embedder),
+        "rerank": RerankNode(reranker=reranker if reranker is not None else FakeReranker()),
+        "fewshots": SelectFewshotsNode(db=db, embedder=embedder),
+        "infer": InferNode(llm=llm if llm is not None else FakeLLM()),
+        "validate": ValidateNode(),
         "emit": EmitSignalsNode(db=db),
     }
-
-
-@pytest.fixture
-def fuzzy_threshold() -> float:
-    """From settings, so validator tests exercise the production
-    configuration rather than re-pinning 0.95 in a second place."""
-
-    return settings.quote_fuzzy_threshold
 
 
 # --- fixtures -------------------------------------------------------------

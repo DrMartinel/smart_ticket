@@ -9,18 +9,12 @@ from __future__ import annotations
 
 import pytest
 
+from ai_engine.config import settings
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 
 
-def _node(db, embedder, *, candidate_limit=10, bm25_top_k=20, vector_top_k=20, rrf_k=60):
-    return HybridRetrieveNode(
-        db=db,
-        embedder=embedder,
-        bm25_top_k=bm25_top_k,
-        vector_top_k=vector_top_k,
-        rrf_k=rrf_k,
-        candidate_limit=candidate_limit,
-    )
+def _node(db, embedder):
+    return HybridRetrieveNode(db=db, embedder=embedder)
 
 
 def test_embedder_failure_propagates_rather_than_returning_empty_candidates(
@@ -82,12 +76,15 @@ def test_bm25_keyword_hit_is_true_when_lexical_matches(fake_db, fake_embedder, k
     assert node(make_state())["bm25_keyword_hit"] is True
 
 
-def test_candidates_capped_at_the_configured_limit(fake_db, fake_embedder, kb_row, make_state):
+def test_candidates_capped_at_the_configured_limit(
+    fake_db, fake_embedder, kb_row, make_state, monkeypatch
+):
     """The cap is the cross-encoder's batch size, so an uncapped list is
     a direct cost and latency regression."""
 
+    monkeypatch.setattr(settings, "fusion_candidate_limit", 3)
     rows = [kb_row(i, f"c{i}", 1.0 / i) for i in range(1, 12)]
-    node = _node(fake_db(rows=rows), fake_embedder(), candidate_limit=3)
+    node = _node(fake_db(rows=rows), fake_embedder())
 
     assert len(node(make_state())["candidates"]) == 3
 

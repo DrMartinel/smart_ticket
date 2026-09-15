@@ -18,10 +18,12 @@ from pydantic import ValidationError
 
 from contracts.llm_draft import LLMProposalEnvelope
 
+from ai_engine.config import settings
 from ai_engine.graph.budget import BudgetedNode
 from ai_engine.graph.state import TriageState
 from ai_engine.llm.circuit_breaker import CircuitOpenError
 from ai_engine.llm.client import AllLLMDownError
+from ai_engine.llm.prompt_store import load_system_prompt
 from ai_engine.providers.protocols import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -52,20 +54,15 @@ class InferNode(BudgetedNode):
         self,
         *,
         llm: LLMClient,
-        system_prompt: str,
-        model_timeout_sec: float,
-        min_attempt_timeout_sec: float = 5.0,
         attempt_headroom_divisor: int = 2,
     ) -> None:
         self._llm = llm
-        # Injected as a STRING, resolved once at startup from
-        # settings.prompt_version. Reading the file here (as the old
-        # module-level _SYSTEM_PROMPT did) meant importing this module
-        # touched the filesystem, and the hardcoded "classify.v3.md" made
+        # Resolved once, at construction, from settings.prompt_version —
+        # main.py builds this node at import time, so a missing prompt fails
+        # the boot. The old module-level _SYSTEM_PROMPT touched the filesystem
+        # on import, and its hardcoded "classify.v3.md" made
         # settings.prompt_version silently inert.
-        self._system_prompt = system_prompt
-        self._model_timeout_sec = model_timeout_sec
-        self._min_attempt_timeout_sec = min_attempt_timeout_sec
+        self._system_prompt = load_system_prompt(settings.prompt_version)
         # Not a tunable: this is the arithmetic form of "the fallback chain
         # in llm/client.py gets exactly one more attempt inside the same
         # per-ticket latency budget". If that retry count changes, this
@@ -89,10 +86,10 @@ class InferNode(BudgetedNode):
         # then clamp to the per-call model ceiling — whichever binds first
         # wins. The budget protects the ticket's end-to-end latency; the
         # ceiling protects against a single call hanging indefinitely.
-        floor = self._min_attempt_timeout_sec
+        floor = settings.min_attempt_timeout_sec
         remaining = max(floor, state["started_at"] + state["max_latency_sec"] - time.time())
         per_attempt_timeout = min(
-            self._model_timeout_sec, max(floor, remaining / self._attempt_headroom_divisor)
+            settings.model_timeout_sec, max(floor, remaining / self._attempt_headroom_divisor)
         )
 
         try:

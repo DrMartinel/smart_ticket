@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ai_engine.config import settings
+
 
 @dataclass(frozen=True)
 class VectorHit:
@@ -18,7 +20,7 @@ def to_vector_literal(embedding: list[float]) -> str:
     return "[" + ",".join(repr(x) for x in embedding) + "]"
 
 
-def vector_search(conn, query_embedding: list[float], top_k: int) -> list[VectorHit]:
+def vector_search(conn, query_embedding: list[float]) -> list[VectorHit]:
     literal = to_vector_literal(query_embedding)
     with conn.cursor() as cur:
         cur.execute(
@@ -31,7 +33,7 @@ def vector_search(conn, query_embedding: list[float], top_k: int) -> list[Vector
             ORDER BY c.embedding <=> %(v)s::vector
             LIMIT %(k)s
             """,
-            {"v": literal, "k": top_k},
+            {"v": literal, "k": settings.vector_top_k},
         )
         rows = cur.fetchall()
     return [

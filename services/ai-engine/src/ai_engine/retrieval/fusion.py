@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ai_engine.config import settings
 from ai_engine.retrieval.bm25 import LexicalHit
 from ai_engine.retrieval.vector import VectorHit
 
@@ -29,8 +30,9 @@ class Candidate:
 
 
 def reciprocal_rank_fusion(
-    bm25_hits: list[LexicalHit], vector_hits: list[VectorHit], k: int = 60
+    bm25_hits: list[LexicalHit], vector_hits: list[VectorHit]
 ) -> list[Candidate]:
+    k = settings.rrf_k
     scores: dict[int, float] = {}
     meta: dict[int, tuple[int, str, str]] = {}
 

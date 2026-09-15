@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ai_engine.config import settings
 from ai_engine.graph.budget import BudgetedNode
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.protocols import ConnectionSource, Embedder
@@ -11,34 +12,21 @@ from ai_engine.retrieval.vector import vector_search
 
 
 class HybridRetrieveNode(BudgetedNode):
-    def __init__(
-        self,
-        *,
-        db: ConnectionSource,
-        embedder: Embedder,
-        bm25_top_k: int,
-        vector_top_k: int,
-        rrf_k: int,
-        candidate_limit: int,
-    ) -> None:
+    def __init__(self, *, db: ConnectionSource, embedder: Embedder) -> None:
         self._db = db
         self._embedder = embedder
-        self._bm25_top_k = bm25_top_k
-        self._vector_top_k = vector_top_k
-        self._rrf_k = rrf_k
-        self._candidate_limit = candidate_limit
 
     def __call__(self, state: TriageState) -> dict:
         ticket = state["ticket"]
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
 
         with self._db.connect() as conn:
-            bm25_hits = bm25_search(conn, query, self._bm25_top_k)
+            bm25_hits = bm25_search(conn, query)
             query_embedding = self._embedder.embed(query)
-            vector_hits = vector_search(conn, query_embedding, self._vector_top_k)
+            vector_hits = vector_search(conn, query_embedding)
 
-        candidates = reciprocal_rank_fusion(bm25_hits, vector_hits, k=self._rrf_k)
+        candidates = reciprocal_rank_fusion(bm25_hits, vector_hits)
         return {
-            "candidates": candidates[: self._candidate_limit],
+            "candidates": candidates[: settings.fusion_candidate_limit],
             "bm25_keyword_hit": len(bm25_hits) > 0,
         }

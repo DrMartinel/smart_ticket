@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import threading
 
+from ai_engine.config import settings
 from ai_engine.providers.embeddings import EMBED_DIM, StubEmbedder
 from ai_engine.providers.reranker import CrossEncoderReranker, LexicalReranker
 
@@ -29,7 +30,7 @@ def test_cross_encoder_model_is_built_once_under_concurrent_first_calls():
 
         return _Model()
 
-    reranker = CrossEncoderReranker(model_name="m", loader=slow_loader)
+    reranker = CrossEncoderReranker(loader=slow_loader)
     barrier = threading.Barrier(8)
 
     def race():
@@ -42,7 +43,7 @@ def test_cross_encoder_model_is_built_once_under_concurrent_first_calls():
     for t in threads:
         t.join()
 
-    assert loads == ["m"]
+    assert loads == [settings.reranker_model]
 
 
 def test_cross_encoder_empty_passages_loads_no_model():
@@ -52,7 +53,7 @@ def test_cross_encoder_empty_passages_loads_no_model():
     def exploding_loader(model_name: str):
         raise AssertionError("model must not be loaded for an empty passage list")
 
-    reranker = CrossEncoderReranker(model_name="m", loader=exploding_loader)
+    reranker = CrossEncoderReranker(loader=exploding_loader)
     assert reranker.score("q", []) == []
 
 

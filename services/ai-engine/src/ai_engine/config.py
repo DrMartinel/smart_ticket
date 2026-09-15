@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     # read window.
     model_connect_timeout_sec: float = 3.0
 
+    # Lower bound on a single inference attempt's timeout when the ticket's
+    # latency budget is nearly spent: a sub-second window guarantees a
+    # failure that looks like a provider outage.
+    min_attempt_timeout_sec: float = 5.0
+
     # Cloud provider is optional — if unset, the fallback chain (spec
     # §10.3) goes straight to Ollama, which is this environment's default.
     cloud_api_key: str | None = None

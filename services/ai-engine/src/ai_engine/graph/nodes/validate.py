@@ -24,6 +24,7 @@ from rapidfuzz import fuzz
 
 from contracts.llm_draft import AutoReplyProposal
 
+from ai_engine.config import settings
 from ai_engine.graph.base import BaseNode
 from ai_engine.graph.state import TriageState, ValidationResult
 
@@ -63,10 +64,7 @@ class ValidateNode(BaseNode):
         RETRY_INFERENCE = "RetryInference"
         RETRIES_EXHAUSTED = "RetriesExhausted"
 
-    def __init__(self, *, fuzzy_threshold: float, negations: set[str] | None = None) -> None:
-        # No default: the value lives in Settings, and a constructor default
-        # duplicating it would be a second source of truth for one tunable.
-        self._fuzzy_threshold = fuzzy_threshold
+    def __init__(self, *, negations: set[str] | None = None) -> None:
         self._negations = negations if negations is not None else DEFAULT_NEGATIONS
 
     def __call__(self, state: TriageState) -> dict:
@@ -109,7 +107,7 @@ class ValidateNode(BaseNode):
         # 2. Fuzzy ONLY to catch whitespace/punctuation drift, at >= threshold.
         if source is None:
             cid, ratio = _best_fuzzy(quote, topk)
-            source = cid if ratio >= self._fuzzy_threshold else None
+            source = cid if ratio >= settings.quote_fuzzy_threshold else None
             if source is None:
                 ratio = 0.0 if cid is None else ratio
 

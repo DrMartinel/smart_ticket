@@ -10,6 +10,7 @@ active examples, not by an exact category filter.
 
 from __future__ import annotations
 
+from ai_engine.config import settings
 from ai_engine.graph.base import BaseNode
 from ai_engine.graph.state import TriageState
 from ai_engine.providers.protocols import ConnectionSource, Embedder
@@ -23,10 +24,9 @@ class SelectFewshotsNode(BaseNode):
     spends an embedding round-trip without first checking the ticket's budget.
     """
 
-    def __init__(self, *, db: ConnectionSource, embedder: Embedder, fewshot_k: int) -> None:
+    def __init__(self, *, db: ConnectionSource, embedder: Embedder) -> None:
         self._db = db
         self._embedder = embedder
-        self._fewshot_k = fewshot_k
 
     def __call__(self, state: TriageState) -> dict:
         ticket = state["ticket"]
@@ -43,7 +43,7 @@ class SelectFewshotsNode(BaseNode):
                 ORDER BY embedding <=> %(v)s::vector
                 LIMIT %(k)s
                 """,
-                {"v": literal, "k": self._fewshot_k},
+                {"v": literal, "k": settings.fewshot_k},
             )
             rows = cur.fetchall()
 

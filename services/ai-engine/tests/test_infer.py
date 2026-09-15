@@ -17,6 +17,7 @@ import time
 
 import pytest
 
+from ai_engine.config import settings
 from ai_engine.graph.nodes.infer import InferNode
 from ai_engine.llm.circuit_breaker import CircuitOpenError
 from ai_engine.llm.client import AllLLMDownError, LLMResult
@@ -44,12 +45,7 @@ def _result(text: str = _VALID_OUTPUT, **kw) -> LLMResult:
 
 
 def _node(llm, **kw):
-    return InferNode(
-        llm=llm,
-        system_prompt=kw.pop("system_prompt", "SYSTEM"),
-        model_timeout_sec=kw.pop("model_timeout_sec", 120.0),
-        **kw,
-    )
+    return InferNode(llm=llm, **kw)
 
 
 def test_circuit_open_maps_to_degraded_reason_circuit_open(fake_llm, make_state):
@@ -98,16 +94,17 @@ def test_per_attempt_timeout_leaves_headroom_for_the_fallback_attempt(fake_llm, 
 
     (timeout,) = llm.timeouts
     assert timeout <= 60 / 2 + 0.1
-    assert timeout >= 5.0
+    assert timeout >= settings.min_attempt_timeout_sec
 
 
-def test_per_attempt_timeout_is_clamped_by_the_model_ceiling(fake_llm, make_state):
+def test_per_attempt_timeout_is_clamped_by_the_model_ceiling(fake_llm, make_state, monkeypatch):
     """Whichever of the two budgets binds first wins: a generous per-ticket
     budget must not let a single call hang past the model ceiling."""
 
+    monkeypatch.setattr(settings, "model_timeout_sec", 10.0)
     llm = fake_llm(result=_result())
 
-    _node(llm, model_timeout_sec=10.0)(make_state(max_latency_sec=3600))
+    _node(llm)(make_state(max_latency_sec=3600))
 
     assert llm.timeouts == [10.0]
 
@@ -120,7 +117,7 @@ def test_per_attempt_timeout_never_drops_below_the_floor(fake_llm, make_state):
 
     _node(llm)(make_state(started_at=time.time() - 590, max_latency_sec=600))
 
-    assert llm.timeouts[0] >= 5.0
+    assert llm.timeouts[0] >= settings.min_attempt_timeout_sec
 
 
 def test_unparseable_output_yields_no_proposal_but_still_charges_tokens(fake_llm, make_state):

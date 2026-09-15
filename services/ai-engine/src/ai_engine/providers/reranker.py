@@ -18,6 +18,7 @@ import unicodedata
 from collections.abc import Callable
 from typing import Any
 
+from ai_engine.config import settings
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
@@ -80,8 +81,7 @@ class CrossEncoderReranker:
     layer; everything else is read-only after __init__.
     """
 
-    def __init__(self, *, model_name: str, loader: Callable[[str], Any] | None = None) -> None:
-        self._model_name = model_name
+    def __init__(self, *, loader: Callable[[str], Any] | None = None) -> None:
         # The `loader` seam exists so laziness and the load lock can be
         # tested WITHOUT sentence-transformers installed. That is its only
         # purpose — it is not a plugin point.
@@ -100,7 +100,7 @@ class CrossEncoderReranker:
             return model
         with self._load_lock:
             if self._model is None:
-                self._model = self._loader(self._model_name)
+                self._model = self._loader(settings.reranker_model)
             return self._model
 
     def score(self, query: str, passages: list[str]) -> list[float]:

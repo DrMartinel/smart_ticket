@@ -13,23 +13,21 @@ from contextlib import contextmanager
 
 import psycopg
 
+from ai_engine.config import settings
+
 
 class PsycopgConnectionSource:
     """Opens a fresh read-only connection per use. No pool — see the module
     docstring on the `ai_engine_ro` grant model.
 
     Construction opens NO socket, which is what lets main.py build the graph at
-    uvicorn import time and in a test with no database at all. The URL is
-    read-only after __init__, so one instance is safe to share across
-    FastAPI's threadpool.
+    uvicorn import time and in a test with no database at all. Stateless, so
+    one instance is safe to share across FastAPI's threadpool.
     """
-
-    def __init__(self, *, database_url: str) -> None:
-        self._database_url = database_url
 
     @contextmanager
     def connect(self):
-        conn = psycopg.connect(self._database_url)
+        conn = psycopg.connect(settings.database_url)
         try:
             yield conn
         finally:

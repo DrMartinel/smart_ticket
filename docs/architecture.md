@@ -154,7 +154,7 @@ Three properties are structural, not conventional:
 3. **No unbounded loop.** Exactly one edge can cycle (`validate → infer`), hard-capped at `iteration < 2`. Non-termination is impossible by construction, not by convention.
 
 Each node is a `BaseNode` subclass (`graph/base.py`) taking its collaborators
-and configuration through `__init__`. Its node name is derived from the class
+through `__init__` and reading tunables from `config.py`. Its node name is derived from the class
 name (`HybridRetrieveNode` → `hybrid_retrieve`), and a branching node reports
 where it ended up as a domain `Outcome` from `decide()` — it never names its
 successor. The whole topology is `wire_triage` in `graph/flow.py`, which

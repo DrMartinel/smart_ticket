@@ -23,7 +23,6 @@ from ai_engine.graph.nodes.rerank import RerankNode
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode
 from ai_engine.graph.state import TriageState
-from ai_engine.llm.prompt_store import load_system_prompt
 from ai_engine.providers.factory import build_providers
 
 logging.basicConfig(level=logging.INFO)
@@ -33,27 +32,15 @@ app = FastAPI(title="Smart Ticket Triage — ai-engine", version="1.0.0")
 
 # Built once, at import time: no constructor below may open a socket or load
 # a model, and a wiring mistake fails the boot rather than a request.
-_providers = build_providers(settings)
+# Tunables are read by the code that uses them, never threaded through here.
+_providers = build_providers()
 _graph = wire_triage(
     injection=InjectionNode(),
-    retrieve=HybridRetrieveNode(
-        db=_providers.db,
-        embedder=_providers.embedder,
-        bm25_top_k=settings.bm25_top_k,
-        vector_top_k=settings.vector_top_k,
-        rrf_k=settings.rrf_k,
-        candidate_limit=settings.fusion_candidate_limit,
-    ),
-    rerank=RerankNode(reranker=_providers.reranker, top_n=settings.rerank_top_n),
-    fewshots=SelectFewshotsNode(
-        db=_providers.db, embedder=_providers.embedder, fewshot_k=settings.fewshot_k
-    ),
-    infer=InferNode(
-        llm=_providers.llm,
-        system_prompt=load_system_prompt(settings.prompt_version),
-        model_timeout_sec=settings.model_timeout_sec,
-    ),
-    validate=ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold),
+    retrieve=HybridRetrieveNode(db=_providers.db, embedder=_providers.embedder),
+    rerank=RerankNode(reranker=_providers.reranker),
+    fewshots=SelectFewshotsNode(db=_providers.db, embedder=_providers.embedder),
+    infer=InferNode(llm=_providers.llm),
+    validate=ValidateNode(),
     emit=EmitSignalsNode(db=_providers.db),
 ).compile(
     TriageState,

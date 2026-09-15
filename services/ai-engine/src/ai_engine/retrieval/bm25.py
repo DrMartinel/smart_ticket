@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from ai_engine.config import settings
+
 _ERROR_CODE_RE = re.compile(r"0x[0-9A-Fa-f]{8}|ERR-\d+")
 ERROR_CODE_BOOST = 0.5
 
@@ -33,7 +35,7 @@ def extract_error_codes(text: str) -> list[str]:
     return _ERROR_CODE_RE.findall(text)
 
 
-def bm25_search(conn, query_text: str, top_k: int) -> list[LexicalHit]:
+def bm25_search(conn, query_text: str) -> list[LexicalHit]:
     error_codes = extract_error_codes(query_text)
 
     with conn.cursor() as cur:
@@ -47,7 +49,7 @@ def bm25_search(conn, query_text: str, top_k: int) -> list[LexicalHit]:
             ORDER BY score DESC
             LIMIT %(k)s
             """,
-            {"q": query_text, "k": top_k},
+            {"q": query_text, "k": settings.bm25_top_k},
         )
         rows = cur.fetchall()
 
