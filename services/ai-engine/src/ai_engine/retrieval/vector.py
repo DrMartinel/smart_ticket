@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict
 
 from ai_engine.core.config import settings
 
 
-@dataclass(frozen=True)
-class VectorHit:
+class VectorHit(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     chunk_id: int
     article_id: int
     article_slug: str

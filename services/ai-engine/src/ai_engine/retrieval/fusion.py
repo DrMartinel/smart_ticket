@@ -13,15 +13,16 @@ this module should read it as a relevance signal.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from pydantic import BaseModel, ConfigDict
 
 from ai_engine.core.config import settings
 from ai_engine.retrieval.bm25 import LexicalHit
 from ai_engine.retrieval.vector import VectorHit
 
 
-@dataclass(frozen=True)
-class Candidate:
+class Candidate(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     chunk_id: int
     article_id: int
     article_slug: str

@@ -14,7 +14,8 @@ similar.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+
+from pydantic import BaseModel, ConfigDict
 
 from ai_engine.core.config import settings
 
@@ -22,8 +23,9 @@ _ERROR_CODE_RE = re.compile(r"0x[0-9A-Fa-f]{8}|ERR-\d+")
 ERROR_CODE_BOOST = 0.5
 
 
-@dataclass(frozen=True)
-class LexicalHit:
+class LexicalHit(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     chunk_id: int
     article_id: int
     article_slug: str

@@ -44,6 +44,29 @@ that moves a failure path is more significant here than a new feature.
   `ai_engine.providers.protocols` → `ai_engine.core.providers`.
   Nodes, providers, retrieval, the LLM client, graph wiring and data models
   (`Candidate`, `RankedChunk`, `LLMResult`, …) are unchanged. No behaviour changed.
+- **ai-engine value objects are pydantic models.** `LexicalHit`,
+  `VectorHit`, `Candidate`, `RankedChunk` and `LLMResult` are frozen
+  `BaseModel`s instead of dataclasses; `TriageState`, `Providers` and
+  `CircuitBreaker` are unchanged. They stay internal to ai-engine — not
+  `packages/contracts`, which is only for the core-api ↔ ai-engine wire.
+  - **Behaviour change — malformed LLM responses.** A provider answering 200
+    with a null `response` (Ollama) or `content` (cloud) used to reach the
+    infer node as `text=None`, fail JSON parsing and go to HITL as a *schema*
+    failure, blamed on the model. `LLMResult` now rejects it inside the
+    client, which retries, falls back cloud → Ollama, and raises
+    `AllLLMDownError` → `degraded_reason="all_llm_down"`, and counts it
+    against the circuit breaker. Still HITL, under the reason code that
+    matches what happened. The client catches `ValidationError` on both the
+    primary and fallback calls; without that it would have escaped as a 500.
+  - Provider bodies are now parsed with pydantic models
+    (`model_validate_json`) instead of indexing `resp.json()` by hand, so the
+    same path covers every malformed reply. **Previously a 500:** a non-JSON
+    body, a cloud reply with missing or empty `choices` or a null `usage`, and
+    a null token count from either provider. **Previously a schema failure:**
+    an Ollama reply with no `response` key, which defaulted to `""`. A token
+    count that is *absent* still defaults to 0 (Ollama omits
+    `prompt_eval_count` for a cached prompt); a *null* one is rejected rather
+    than counted as 0, so the token budget is never silently undercounted.
 - **Provider seams are ABCs, not Protocols.** `Embedder`, `Reranker`,
   `LLMClient` and `ConnectionSource` (`core/providers.py`) are abstract base
   classes; every implementation and test fake subclasses its seam. Nothing

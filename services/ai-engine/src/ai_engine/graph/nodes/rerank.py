@@ -13,8 +13,9 @@ never to the RRF score from fusion.py — see ADR-0005.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from enum import StrEnum
+
+from pydantic import BaseModel, ConfigDict
 
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
@@ -23,8 +24,9 @@ from ai_engine.core.state import TriageState
 from ai_engine.retrieval.fusion import Candidate
 
 
-@dataclass(frozen=True)
-class RankedChunk:
+class RankedChunk(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
     chunk_id: int
     article_id: int
     article_slug: str

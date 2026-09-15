@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ai_engine.core.config import settings
 from ai_engine.core.providers import LLMClient
@@ -32,14 +32,54 @@ class AllLLMDownError(Exception):
     treated like a valid (if boring) proposal."""
 
 
-@dataclass
-class LLMResult:
+class LLMResult(BaseModel):
+    """Validated on construction, so a malformed provider response (say a
+    null `response`/`content`) fails inside the client, where it is retried
+    and falls back, instead of reaching the infer node as `text=None` and
+    being blamed on the model as a schema failure."""
+
+    model_config = ConfigDict(frozen=True)
+
     text: str
     tokens_in: int
     tokens_out: int
     model: str
     cost_usd: float
     degraded_reason: str | None = None
+
+
+# Provider response bodies, parsed with `model_validate_json` so that EVERY
+# malformed reply — not JSON, a missing or null field, an empty `choices` —
+# raises ValidationError, which `complete()` retries and falls back on like a
+# transport failure. Indexing into `resp.json()` by hand let KeyError,
+# IndexError, TypeError and JSONDecodeError escape the client as a 500.
+# Token counts default to 0 only when ABSENT (Ollama omits
+# `prompt_eval_count` for a cached prompt); a null count is malformed, not
+# zero — silently undercounting would loosen the per-ticket token budget.
+
+
+class _OllamaGenerateResponse(BaseModel):
+    response: str
+    prompt_eval_count: int = 0
+    eval_count: int = 0
+
+
+class _ChatMessage(BaseModel):
+    content: str
+
+
+class _ChatChoice(BaseModel):
+    message: _ChatMessage
+
+
+class _ChatUsage(BaseModel):
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+
+class _ChatCompletionResponse(BaseModel):
+    choices: list[_ChatChoice] = Field(min_length=1)
+    usage: _ChatUsage = _ChatUsage()
 
 
 def _budget(read_timeout: float) -> httpx.Timeout:
@@ -67,11 +107,10 @@ def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> LLMRes
     }
     resp = httpx.post(url, json=payload, timeout=_budget(timeout))
     resp.raise_for_status()
-    data = resp.json()
-    tokens_in = data.get("prompt_eval_count", 0)
-    tokens_out = data.get("eval_count", 0)
+    body = _OllamaGenerateResponse.model_validate_json(resp.content)
+    tokens_in, tokens_out = body.prompt_eval_count, body.eval_count
     return LLMResult(
-        text=data.get("response", ""),
+        text=body.response,
         tokens_in=tokens_in,
         tokens_out=tokens_out,
         model=f"ollama/{settings.ollama_infer_model}",
@@ -97,13 +136,10 @@ def _call_cloud(system_prompt: str, user_prompt: str, timeout: float) -> LLMResu
         timeout=_budget(timeout),
     )
     resp.raise_for_status()
-    data = resp.json()
-    usage = data.get("usage", {})
-    tokens_in = usage.get("prompt_tokens", 0)
-    tokens_out = usage.get("completion_tokens", 0)
-    text = data["choices"][0]["message"]["content"]
+    body = _ChatCompletionResponse.model_validate_json(resp.content)
+    tokens_in, tokens_out = body.usage.prompt_tokens, body.usage.completion_tokens
     return LLMResult(
-        text=text,
+        text=body.choices[0].message.content,
         tokens_in=tokens_in,
         tokens_out=tokens_out,
         model=settings.cloud_model,
@@ -158,7 +194,10 @@ class DefaultLLMClient(LLMClient):
                 result = primary_call(system_prompt, user_prompt, timeout)
                 circuit.record(success=True)
                 return result
-            except (httpx.HTTPError, RuntimeError) as e:
+            # ValidationError: the provider answered, but not with a usable
+            # result. Same treatment as a transport failure — it must reach
+            # AllLLMDownError -> HITL, never escape as a 500.
+            except (httpx.HTTPError, RuntimeError, ValidationError) as e:
                 last_error = e
                 logger.warning("primary LLM call failed (attempt %d/2): %s", attempt + 1, e)
                 if attempt == 0:
@@ -170,9 +209,8 @@ class DefaultLLMClient(LLMClient):
             # Fall back to Ollama — a quality degradation, not a failure.
             try:
                 result = _call_ollama(system_prompt, user_prompt, timeout)
-                result.degraded_reason = "cloud_fallback_to_ollama"
-                return result
-            except httpx.HTTPError as e:
+                return result.model_copy(update={"degraded_reason": "cloud_fallback_to_ollama"})
+            except (httpx.HTTPError, ValidationError) as e:
                 last_error = e
                 logger.error("Ollama fallback also failed: %s", e)
 
