@@ -164,14 +164,14 @@ at startup (every outcome routed, nothing unreachable) and is the only place a
 node becomes a LangGraph string. `main.py` constructs the instances, wires and
 compiles them once, at import time. See
 [graph-node-architecture.md](graph-node-architecture.md).
-Nodes depend on the four abstract base classes in `core/providers.py` —
+Nodes depend on the four abstract base classes in `core/providers/base.py` —
 `Embedder`, `Reranker`, `LLMClient`, `ConnectionSource` — never on a concrete
 provider module, which is what makes every node testable with no DB, no Ollama
 and no model download. Every implementation (and every test fake) subclasses
 its seam, so a provider missing its method fails at construction, which
 happens at startup.
 
-`providers/factory.py` is the single place `EMBEDDING_PROVIDER` and
+`core/providers/factory.py` is the single place `EMBEDDING_PROVIDER` and
 `RERANKER_PROVIDER` are read. Selection happens once at startup and an
 unrecognized value is fatal — a typo used to fall through to the lexical
 reranker, whose scores are a different calibration from the cross-encoder
@@ -293,9 +293,9 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 |---|---|
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
-| What the model is asked | `ai-engine/llm/prompts/*.md` — versioned, and eval-gated like code |
+| What the model is asked | `ai-engine/core/llm/prompts/*.md` — versioned, and eval-gated like code |
 | What counts as PII | `tickets/services/patterns.py` (regex) or the NER prompt in `masking.py` |
-| How relevance is judged | `ai-engine/providers/reranker.py`, `retrieval/` |
+| How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | What a reviewer sees | `TrustSignalsPanel.tsx`, `ReviewForm.tsx` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 

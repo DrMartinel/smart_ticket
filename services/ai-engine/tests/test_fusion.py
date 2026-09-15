@@ -1,7 +1,7 @@
 from ai_engine.core.config import settings
-from ai_engine.retrieval.bm25 import LexicalHit
-from ai_engine.retrieval.fusion import reciprocal_rank_fusion
-from ai_engine.retrieval.vector import VectorHit
+from ai_engine.core.retrieval.bm25 import LexicalHit
+from ai_engine.core.retrieval.fusion import reciprocal_rank_fusion
+from ai_engine.core.retrieval.vector import VectorHit
 
 
 def test_rrf_favors_document_ranked_high_in_both_lists():

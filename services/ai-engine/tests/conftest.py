@@ -20,7 +20,8 @@ import pytest
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
-from ai_engine.core.providers import ConnectionSource, Embedder, LLMClient, Reranker
+from ai_engine.core.providers.base import ConnectionSource, Embedder, LLMClient, Reranker
+from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
@@ -29,7 +30,6 @@ from ai_engine.graph.nodes.injection import InjectionNode
 from ai_engine.graph.nodes.rerank import RerankNode
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode
-from ai_engine.retrieval.fusion import Candidate
 
 
 class FakeEmbedder(Embedder):

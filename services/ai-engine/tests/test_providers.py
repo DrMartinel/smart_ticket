@@ -10,9 +10,9 @@ import threading
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers import ConnectionSource, Embedder, LLMClient, Reranker
-from ai_engine.providers.embeddings import EMBED_DIM, StubEmbedder
-from ai_engine.providers.reranker import CrossEncoderReranker, LexicalReranker
+from ai_engine.core.providers.base import ConnectionSource, Embedder, LLMClient, Reranker
+from ai_engine.core.providers.embeddings import EMBED_DIM, StubEmbedder
+from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
 
 
 def test_cross_encoder_model_is_built_once_under_concurrent_first_calls():
@@ -118,7 +118,7 @@ def test_every_built_provider_subclasses_its_seam(
     """Only a subclass gets the construction-time check above; a provider
     added without inheriting from its seam would silently opt out of it."""
 
-    from ai_engine.providers.factory import build_providers
+    from ai_engine.core.providers.factory import build_providers
 
     monkeypatch.setattr(settings, "embedding_provider", embedding_provider)
     monkeypatch.setattr(settings, "reranker_provider", reranker_provider)

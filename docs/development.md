@@ -91,7 +91,7 @@ Routers live in `apps/<app>/api.py` (Django Ninja). Follow the RBAC decorator pa
 
 ### Change a prompt
 
-Prompts are versioned files in `services/ai-engine/src/ai_engine/llm/prompts/`. Bump the version in the filename and in `core/config.py`, and note what changed. **Prompt changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI.
+Prompts are versioned files in `services/ai-engine/src/ai_engine/core/llm/prompts/`. Bump the version in the filename and in `core/config.py`, and note what changed. **Prompt changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI.
 
 ### Add a KB article
 

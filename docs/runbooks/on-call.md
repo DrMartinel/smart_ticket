@@ -1,6 +1,6 @@
 # On-call runbook
 
-## Circuit breaker opened (`ai-engine/llm/client.py`)
+## Circuit breaker opened (`ai-engine/core/llm/client.py`)
 
 **Alert fires when:** LLM failure rate > 20% over a trailing 5-minute
 window (`CIRCUIT.failure_threshold`).

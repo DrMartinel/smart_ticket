@@ -14,8 +14,8 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers import LLMClient
-from ai_engine.llm.circuit_breaker import CIRCUIT, CircuitBreaker, CircuitOpenError
+from ai_engine.core.llm.circuit_breaker import CIRCUIT, CircuitBreaker, CircuitOpenError
+from ai_engine.core.providers.base import LLMClient
 
 logger = logging.getLogger(__name__)
 

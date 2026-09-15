@@ -129,7 +129,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Shared schemas (single source of truth) | [packages/contracts/](packages/contracts/src/contracts/) |
 | The AI pipeline (LangGraph) | [graph/build.py](services/ai-engine/src/ai_engine/graph/build.py) |
-| Prompts (versioned, eval-gated like code) | [llm/prompts/](services/ai-engine/src/ai_engine/llm/prompts/) |
+| Prompts (versioned, eval-gated like code) | [core/llm/prompts/](services/ai-engine/src/ai_engine/core/llm/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
@@ -146,9 +146,9 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 |---|---|
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
-| What the model is asked | `ai-engine/llm/prompts/*.md` — bump the version in filename and `core/config.py` |
+| What the model is asked | `ai-engine/core/llm/prompts/*.md` — bump the version in filename and `core/config.py` |
 | What counts as PII | `patterns.py` (regex) or the NER prompt in `masking.py` |
-| How relevance is judged | `ai-engine/providers/reranker.py`, `retrieval/` |
+| How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
 DB fields: edit the model, then `makemigrations` / `migrate` via

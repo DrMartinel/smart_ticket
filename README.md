@@ -115,8 +115,10 @@ smart_ticket/
 │   ├── ai-engine/               # FastAPI + LangGraph
 │   │   └── src/ai_engine/
 │   │       ├── graph/nodes/     #   injection · retrieve · rerank · fewshot · infer · validate
-│   │       ├── llm/             #   client (circuit breaker, budget), versioned prompts
-│   │       └── retrieval/       #   bm25 · vector · rrf fusion
+│   │       └── core/            #   settings · state · node base classes, and:
+│   │           ├── providers/   #     seams (ABCs) · embedders · rerankers · db · factory
+│   │           ├── llm/         #     client (circuit breaker, budget), versioned prompts
+│   │           └── retrieval/   #     bm25 · vector · rrf fusion
 │   └── web/                     # Next.js App Router
 │       ├── app/                 #   submit · queue · review/[id] · dashboard · kb · login
 │       ├── components/          #   TrustSignalsPanel · ReviewForm · NavBar

@@ -23,8 +23,8 @@ from abc import ABC, abstractmethod
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:  # keeps `core` free of a runtime import of `llm`
-    from ai_engine.llm.client import LLMResult
+if TYPE_CHECKING:  # llm.client subclasses LLMClient; a runtime import would cycle
+    from ai_engine.core.llm.client import LLMResult
 
 
 class Embedder(ABC):

@@ -1,7 +1,9 @@
 """
-Definitions only: settings, graph state, node base classes and provider
-base classes. Nothing in `core` does I/O or holds business logic —
-implementations (nodes, providers, retrieval, the LLM client, graph wiring)
-and the data models they produce live outside it and import from here,
-never the other way round.
+Everything the graph's nodes are built on: settings, graph state, node base
+classes, and the providers, retrieval and LLM client the nodes call — both
+their definitions (`providers/base.py`) and their implementations.
+
+Outside `core` is only the graph itself (`graph/`: nodes, builder, wiring)
+and the FastAPI app (`main.py`). They import from `core`; nothing in `core`
+imports from them.
 """

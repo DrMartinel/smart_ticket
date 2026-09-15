@@ -18,7 +18,7 @@ would still route somewhere.
 `retrieval.floor` and `retrieval.margin` are checked **only** in
 `ai_engine/graph/nodes/rerank.py`, against `reranked[0].score` (the
 cross-encoder's output), never against the RRF score computed in
-`retrieval/fusion.py`.
+`core/retrieval/fusion.py`.
 
 ## Rationale
 
@@ -34,7 +34,7 @@ exactly the property a floor/refuse decision needs.
 
 ## Consequences
 
-- `ai_engine/retrieval/fusion.py` should never expose its output as
+- `ai_engine/core/retrieval/fusion.py` should never expose its output as
   something a threshold gets compared against; keep it typed as a ranking
   input only (e.g. return ordered candidates, not a "score" field consumers
   might reach for).

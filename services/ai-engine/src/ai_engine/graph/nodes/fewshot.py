@@ -12,9 +12,9 @@ from __future__ import annotations
 
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode
-from ai_engine.core.providers import ConnectionSource, Embedder
+from ai_engine.core.providers.base import ConnectionSource, Embedder
+from ai_engine.core.retrieval.vector import to_vector_literal
 from ai_engine.core.state import TriageState
-from ai_engine.retrieval.vector import to_vector_literal
 
 
 class SelectFewshotsNode(BaseNode):

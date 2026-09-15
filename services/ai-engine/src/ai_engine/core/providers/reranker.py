@@ -19,7 +19,7 @@ from collections.abc import Callable
 from typing import Any
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers import Reranker
+from ai_engine.core.providers.base import Reranker
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 

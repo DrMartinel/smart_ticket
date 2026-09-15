@@ -44,6 +44,16 @@ that moves a failure path is more significant here than a new feature.
   `ai_engine.providers.protocols` → `ai_engine.core.providers`.
   Nodes, providers, retrieval, the LLM client, graph wiring and data models
   (`Candidate`, `RankedChunk`, `LLMResult`, …) are unchanged. No behaviour changed.
+- **Providers, retrieval and the LLM client moved into `core`.** `core` is now
+  everything the nodes are built on, definitions and implementations alike;
+  only `graph/` and `main.py` sit outside it, and `core` never imports from
+  them. Import paths changed, with no shims:
+  `ai_engine.providers` → `ai_engine.core.providers`,
+  `ai_engine.retrieval` → `ai_engine.core.retrieval`,
+  `ai_engine.llm` → `ai_engine.core.llm` (prompts now under
+  `core/llm/prompts/`), `ai_engine.db` → `ai_engine.core.providers.db`, and
+  the seam ABCs `ai_engine.core.providers` → `ai_engine.core.providers.base`.
+  `TriageState.candidates` is now typed `list[Candidate]`. No behaviour changed.
 - **`TriageState` is a pydantic model.** `TriageState`, `InjectionVerdict`
   and `ValidationResult` (`core/state.py`) are frozen `BaseModel`s instead of
   `TypedDict`s. Nodes read `state.field` and still return partial update

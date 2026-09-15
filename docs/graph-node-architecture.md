@@ -89,13 +89,13 @@ threadpool. All per-call data belongs in state.
 
 ## 4. The architecture
 
-ai-engine splits definitions from implementations. `ai_engine/core/` holds
-only the former — `config.py` (settings), `state.py`, `node.py` (`BaseNode`,
-`Terminal`), `budget.py` (`BudgetedNode`) and `providers.py` (the provider
-seams, as ABCs) — and does no I/O. Everything that does work stays outside it:
-`graph/` (builder, wiring, nodes), `providers/`, `retrieval/`, `llm/`, `db.py`,
-`main.py`. Implementations import from `core`, never the reverse; data models
-such as `Candidate` or `LLMResult` stay next to the code that produces them.
+`ai_engine/core/` is everything the nodes are built on: `config.py`
+(settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `budget.py`
+(`BudgetedNode`), `providers/` (the seams as ABCs in `base.py`, plus the
+embedders, rerankers, `db.py` and `factory.py`), `retrieval/` (BM25, vector,
+RRF) and `llm/` (client, circuit breaker, prompts). Outside it are only
+`graph/` (builder, wiring, nodes) and `main.py`. The graph imports from
+`core`; `core` never imports from the graph.
 
 ### 4.1 State — `core/state.py`
 
@@ -119,9 +119,9 @@ What LangGraph (1.2.9) does with a pydantic schema, pinned in
   unless told otherwise. `GraphBuilder.compile` passes
   `input_schema=state_schema` so the graph's schema always wins.
 
-`candidates` and `reranked` are typed `list[Any]`: `Candidate` and
-`RankedChunk` live outside `core`, and importing them would invert the
-dependency.
+`reranked` is typed `list[Any]`: `RankedChunk` is defined by the rerank node
+in `graph/`, and `core` never imports from the graph. `candidates` is
+`list[Candidate]`.
 
 List-valued fields (`candidates`, `reranked`, `fewshots`) deliberately have
 **no reducer**. Each is owned by exactly one node, and the `validate → infer`

@@ -13,9 +13,9 @@ import httpx
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.llm import client as client_module
-from ai_engine.llm.circuit_breaker import CircuitBreaker
-from ai_engine.llm.client import AllLLMDownError, DefaultLLMClient, LLMResult
+from ai_engine.core.llm import client as client_module
+from ai_engine.core.llm.circuit_breaker import CircuitBreaker
+from ai_engine.core.llm.client import AllLLMDownError, DefaultLLMClient, LLMResult
 
 _OLLAMA_OK = {"response": '{"ok": true}', "prompt_eval_count": 7, "eval_count": 3}
 _CLOUD_OK = {

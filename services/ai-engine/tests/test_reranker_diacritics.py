@@ -10,7 +10,7 @@ tripped refuse-before-LLM and pushed every such ticket to a human with
 "nothing in the KB matches". The retrieval was fine; the tokenizer wasn't.
 """
 
-from ai_engine.providers.reranker import _lexical_score, _strip_diacritics, _tokenize
+from ai_engine.core.providers.reranker import _lexical_score, _strip_diacritics, _tokenize
 
 KB_TEXT = (
     "Không đăng nhập được máy tính công ty. Vui lòng đặt lại mật khẩu "

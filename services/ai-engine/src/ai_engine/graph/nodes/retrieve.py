@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
-from ai_engine.core.providers import ConnectionSource, Embedder
+from ai_engine.core.providers.base import ConnectionSource, Embedder
+from ai_engine.core.retrieval.bm25 import bm25_search
+from ai_engine.core.retrieval.fusion import reciprocal_rank_fusion
+from ai_engine.core.retrieval.vector import vector_search
 from ai_engine.core.state import TriageState
-from ai_engine.retrieval.bm25 import bm25_search
-from ai_engine.retrieval.fusion import reciprocal_rank_fusion
-from ai_engine.retrieval.vector import vector_search
 
 
 class HybridRetrieveNode(BudgetedNode):

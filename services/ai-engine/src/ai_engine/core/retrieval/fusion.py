@@ -16,8 +16,8 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 from ai_engine.core.config import settings
-from ai_engine.retrieval.bm25 import LexicalHit
-from ai_engine.retrieval.vector import VectorHit
+from ai_engine.core.retrieval.bm25 import LexicalHit
+from ai_engine.core.retrieval.vector import VectorHit
 
 
 class Candidate(BaseModel):

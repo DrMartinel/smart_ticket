@@ -103,7 +103,7 @@ This is recorded in `evals/baselines/baseline.json` as a known issue rather than
 
 ### Work
 
-Investigate whether the fix belongs in the KB content (KB-0010 is thin and semantically distant from the tickets that should match it) or in the classification prompt (`services/ai-engine/src/ai_engine/llm/prompts/classify.v3.md`). Prompt changes go through the eval gate like code changes.
+Investigate whether the fix belongs in the KB content (KB-0010 is thin and semantically distant from the tickets that should match it) or in the classification prompt (`services/ai-engine/src/ai_engine/core/llm/prompts/classify.v3.md`). Prompt changes go through the eval gate like code changes.
 
 ### Done when
 

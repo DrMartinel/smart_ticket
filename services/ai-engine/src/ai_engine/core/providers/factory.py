@@ -19,11 +19,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers import ConnectionSource, Embedder, LLMClient, Reranker
-from ai_engine.db import PsycopgConnectionSource
-from ai_engine.llm.client import DefaultLLMClient
-from ai_engine.providers.embeddings import OllamaEmbedder, StubEmbedder
-from ai_engine.providers.reranker import CrossEncoderReranker, LexicalReranker
+from ai_engine.core.llm.client import DefaultLLMClient
+from ai_engine.core.providers.base import ConnectionSource, Embedder, LLMClient, Reranker
+from ai_engine.core.providers.db import PsycopgConnectionSource
+from ai_engine.core.providers.embeddings import OllamaEmbedder, StubEmbedder
+from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
 
 
 @dataclass(frozen=True)

@@ -8,9 +8,9 @@ from __future__ import annotations
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.providers.embeddings import OllamaEmbedder, StubEmbedder
-from ai_engine.providers.factory import build_providers
-from ai_engine.providers.reranker import CrossEncoderReranker, LexicalReranker
+from ai_engine.core.providers.embeddings import OllamaEmbedder, StubEmbedder
+from ai_engine.core.providers.factory import build_providers
+from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
 
 
 def test_unknown_reranker_provider_raises_rather_than_falling_back_to_lexical(monkeypatch):

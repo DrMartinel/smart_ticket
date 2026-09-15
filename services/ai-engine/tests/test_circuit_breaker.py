@@ -1,6 +1,6 @@
 """Circuit breaker — spec §10.1."""
 
-from ai_engine.llm.circuit_breaker import CircuitBreaker, CircuitState
+from ai_engine.core.llm.circuit_breaker import CircuitBreaker, CircuitState
 
 
 def make_breaker(**overrides) -> CircuitBreaker:

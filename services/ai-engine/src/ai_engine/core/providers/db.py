@@ -14,7 +14,7 @@ from contextlib import contextmanager
 import psycopg
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers import ConnectionSource
+from ai_engine.core.providers.base import ConnectionSource
 
 
 class PsycopgConnectionSource(ConnectionSource):

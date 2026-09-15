@@ -18,10 +18,10 @@ import time
 import pytest
 
 from ai_engine.core.config import settings
+from ai_engine.core.llm.circuit_breaker import CircuitOpenError
+from ai_engine.core.llm.client import AllLLMDownError, LLMResult
+from ai_engine.core.llm.prompt_store import load_system_prompt
 from ai_engine.graph.nodes.infer import InferNode
-from ai_engine.llm.circuit_breaker import CircuitOpenError
-from ai_engine.llm.client import AllLLMDownError, LLMResult
-from ai_engine.llm.prompt_store import load_system_prompt
 
 _VALID_OUTPUT = json.dumps(
     {

@@ -30,6 +30,8 @@ from contracts.llm_draft import LLMProposalEnvelope
 from contracts.ticket import TicketMasked
 from contracts.trust import TrustSignals
 
+from ai_engine.core.retrieval.fusion import Candidate
+
 
 class InjectionVerdict(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -90,12 +92,11 @@ class TriageState(BaseModel):
     # one node, and a validate -> infer retry must overwrite the previous
     # attempt's output, not append to it.
     #
-    # `candidates` / `reranked` are `list[Any]`, not `list[Candidate]` /
-    # `list[RankedChunk]`: those models live next to the code that produces
-    # them, and importing them here would make `core` depend on retrieval and
-    # the rerank node.
+    # `reranked` is `list[Any]`, not `list[RankedChunk]`: RankedChunk is
+    # defined by the rerank node in `graph/`, and `core` never imports from
+    # the graph.
     injection: InjectionVerdict | None = None
-    candidates: list[Any] = []  # ai_engine.retrieval.fusion.Candidate, post-RRF
+    candidates: list[Candidate] = []  # post-RRF
     bm25_keyword_hit: bool = False  # did lexical search find ANY tsvector match at all
     reranked: list[Any] = []  # ai_engine.graph.nodes.rerank.RankedChunk, post cross-encoder
     fewshots: list[dict] = []
