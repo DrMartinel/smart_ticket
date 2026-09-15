@@ -24,9 +24,9 @@ from rapidfuzz import fuzz
 
 from contracts.llm_draft import AutoReplyProposal
 
-from ai_engine.config import settings
-from ai_engine.graph.base import BaseNode
-from ai_engine.graph.state import TriageState, ValidationResult
+from ai_engine.core.config import settings
+from ai_engine.core.node import BaseNode
+from ai_engine.core.state import TriageState, ValidationResult
 
 # A Vietnamese linguistic lexicon, not a tunable number — it belongs in code
 # for the same reason patterns.py holds the PII regexes. Constructor-visible

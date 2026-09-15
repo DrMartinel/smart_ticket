@@ -153,8 +153,8 @@ Three properties are structural, not conventional:
 2. **Refuse-before-LLM.** Weak retrieval means the model is never invoked — cheaper *and* safer.
 3. **No unbounded loop.** Exactly one edge can cycle (`validate → infer`), hard-capped at `iteration < 2`. Non-termination is impossible by construction, not by convention.
 
-Each node is a `BaseNode` subclass (`graph/base.py`) taking its collaborators
-through `__init__` and reading tunables from `config.py`. Its node name is derived from the class
+Each node is a `BaseNode` subclass (`core/node.py`) taking its collaborators
+through `__init__` and reading tunables from `core/config.py`. Its node name is derived from the class
 name (`HybridRetrieveNode` → `hybrid_retrieve`), and a branching node reports
 where it ended up as a domain `Outcome` from `decide()` — it never names its
 successor. The whole topology is `wire_triage` in `graph/flow.py`, which
@@ -164,7 +164,7 @@ at startup (every outcome routed, nothing unreachable) and is the only place a
 node becomes a LangGraph string. `main.py` constructs the instances, wires and
 compiles them once, at import time. See
 [graph-node-architecture.md](graph-node-architecture.md).
-Nodes depend on the four Protocols in `providers/protocols.py` — `Embedder`,
+Nodes depend on the four Protocols in `core/protocols.py` — `Embedder`,
 `Reranker`, `LLMClient`, `ConnectionSource` — never on a concrete provider
 module, which is what makes every node testable with no DB, no Ollama and no
 model download.

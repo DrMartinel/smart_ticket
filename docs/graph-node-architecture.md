@@ -39,7 +39,7 @@ keep application code referencing node instances and typed enums.
 ## 2. Core concepts (LangGraph vocabulary)
 
 **State** — the shared schema that flows through the whole graph:
-`TriageState` in `graph/state.py`. Nodes receive the full state and return only
+`TriageState` in `core/state.py`. Nodes receive the full state and return only
 the keys they changed; LangGraph merges the update.
 
 **Node** — a callable taking the state and returning a dict of updates. We use
@@ -88,7 +88,15 @@ threadpool. All per-call data belongs in state.
 
 ## 4. The architecture
 
-### 4.1 State — `graph/state.py`
+ai-engine splits definitions from implementations. `ai_engine/core/` holds
+only the former — `config.py` (settings), `state.py`, `node.py` (`BaseNode`,
+`Terminal`), `budget.py` (`BudgetedNode`) and `protocols.py` (the provider
+seams) — and does no I/O. Everything that does work stays outside it:
+`graph/` (builder, wiring, nodes), `providers/`, `retrieval/`, `llm/`, `db.py`,
+`main.py`. Implementations import from `core`, never the reverse; data models
+such as `Candidate` or `LLMResult` stay next to the code that produces them.
+
+### 4.1 State — `core/state.py`
 
 One `TypedDict`, `TriageState`. Nodes return partial updates.
 
@@ -98,7 +106,7 @@ retry must overwrite the previous attempt, not append to it. Add a reducer
 (`Annotated[list, operator.add]`) only for a field several nodes genuinely
 accumulate into.
 
-### 4.2 BaseNode — `graph/base.py`
+### 4.2 BaseNode — `core/node.py`
 
 ```python
 class BaseNode(ABC):
@@ -127,7 +135,7 @@ values, so LangGraph's path-map lookup works either way, and `str(member)` is
 the value — edge labels in `draw_mermaid()` read `EvidenceBelowFloor`, not
 `Outcome.EVIDENCE_BELOW_FLOOR`.
 
-`base.py` also defines `Terminal`, the node every path ends on:
+`node.py` also defines `Terminal`, the node every path ends on:
 
 ```python
 class Terminal(BaseNode):
@@ -266,7 +274,7 @@ A single-exit node needs neither an `Outcome` override nor a `decide()` — it
 inherits `DONE` and gets a plain edge (`HybridRetrieveNode`, `InferNode`, …).
 
 A node that spends tokens, latency or a network round-trip inherits
-`BudgetedNode` (`graph/budget.py`) instead of `BaseNode`. The node still
+`BudgetedNode` (`core/budget.py`) instead of `BaseNode`. The node still
 writes an ordinary `__call__(self, state) -> dict`; when the class is defined,
 `BudgetedNode.__init_subclass__` wraps that `__call__` so the per-request
 budget is checked before it runs. `check_budget(state)` raises
@@ -390,7 +398,7 @@ declares a reducer — which is what we want today (§4.1).
 
 **Never fold `budget.py` into `build.py`** (or a shared `utils.py`). Nodes
 import `BudgetedNode`, and `build.py` imports the nodes — a circular import.
-`budget.py` imports only `base.py` and `state.py`, which keeps it safe.
+`budget.py` imports only `node.py` and `state.py`, which keeps it safe.
 
 **Fan-out.** A router may return a list of node names to run several nodes in
 parallel. Not used; if added, the compiler's target conversion must handle

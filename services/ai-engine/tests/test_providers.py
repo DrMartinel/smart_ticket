@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import threading
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 from ai_engine.providers.embeddings import EMBED_DIM, StubEmbedder
 from ai_engine.providers.reranker import CrossEncoderReranker, LexicalReranker
 

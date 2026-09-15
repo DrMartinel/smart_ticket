@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 
 

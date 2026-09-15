@@ -12,8 +12,8 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 
-from ai_engine.graph.base import BaseNode
-from ai_engine.graph.state import InjectionVerdict, TriageState
+from ai_engine.core.node import BaseNode
+from ai_engine.core.state import InjectionVerdict, TriageState
 
 DEFAULT_PATTERNS: dict[str, re.Pattern] = {
     "ignore_instructions_en": re.compile(

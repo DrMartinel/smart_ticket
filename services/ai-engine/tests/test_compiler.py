@@ -12,7 +12,7 @@ from typing import TypedDict
 
 import pytest
 
-from ai_engine.graph.base import BaseNode, Terminal
+from ai_engine.core.node import BaseNode, Terminal
 from ai_engine.graph.build import GraphBuilder
 
 

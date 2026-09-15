@@ -1,4 +1,4 @@
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 from ai_engine.retrieval.bm25 import LexicalHit
 from ai_engine.retrieval.fusion import reciprocal_rank_fusion
 from ai_engine.retrieval.vector import VectorHit

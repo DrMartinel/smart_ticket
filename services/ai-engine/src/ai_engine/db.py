@@ -13,7 +13,7 @@ from contextlib import contextmanager
 
 import psycopg
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 
 
 class PsycopgConnectionSource:

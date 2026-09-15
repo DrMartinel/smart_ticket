@@ -7,7 +7,7 @@ degrade still reaches a human through the compiled graph.
 
 import pytest
 
-from ai_engine.graph.budget import BudgetedNode
+from ai_engine.core.budget import BudgetedNode
 
 _LIMITS = pytest.mark.parametrize(
     "overrides",
@@ -80,8 +80,8 @@ def test_over_budget_ticket_still_reaches_emit_signals_through_the_graph(
     TrustSignals, and never touches the embedder, reranker or LLM — rather
     than a BudgetExceeded escaping and aborting the run."""
 
+    from ai_engine.core.state import TriageState
     from ai_engine.graph.flow import wire_triage
-    from ai_engine.graph.state import TriageState
 
     embedder, reranker, llm = fake_embedder(), fake_reranker(), fake_llm()
     nodes = triage_nodes(embedder=embedder, reranker=reranker, llm=llm)

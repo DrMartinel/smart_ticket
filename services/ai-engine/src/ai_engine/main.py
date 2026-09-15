@@ -13,7 +13,8 @@ from fastapi import FastAPI
 
 from contracts.ai_request import AIRunRequest, AIRunResponse
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
+from ai_engine.core.state import TriageState
 from ai_engine.graph.flow import wire_triage
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
@@ -22,7 +23,6 @@ from ai_engine.graph.nodes.injection import InjectionNode
 from ai_engine.graph.nodes.rerank import RerankNode
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode
-from ai_engine.graph.state import TriageState
 from ai_engine.providers.factory import build_providers
 
 logging.basicConfig(level=logging.INFO)

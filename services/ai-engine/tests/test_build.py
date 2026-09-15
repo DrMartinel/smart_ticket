@@ -6,7 +6,7 @@ those outcomes map to are pinned separately — together that is the whole
 routing decision, with no DB/LLM/network involved.
 """
 
-from ai_engine.graph.base import Terminal
+from ai_engine.core.node import Terminal
 from ai_engine.graph.flow import wire_triage
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
@@ -134,7 +134,7 @@ def test_main_wires_the_prompt_for_settings_prompt_version():
     changing what actually ran. This reads the prompt off the InferNode in
     the production graph."""
 
-    from ai_engine.config import settings
+    from ai_engine.core.config import settings
     from ai_engine.llm.prompt_store import load_system_prompt
     from ai_engine.main import _graph
 

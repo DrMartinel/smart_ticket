@@ -18,7 +18,7 @@ from __future__ import annotations
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any, Protocol
 
-if TYPE_CHECKING:  # keeps `providers` free of a runtime import of `llm`
+if TYPE_CHECKING:  # keeps `core` free of a runtime import of `llm`
     from ai_engine.llm.client import LLMResult
 
 

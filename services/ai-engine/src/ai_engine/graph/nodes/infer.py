@@ -18,13 +18,13 @@ from pydantic import ValidationError
 
 from contracts.llm_draft import LLMProposalEnvelope
 
-from ai_engine.config import settings
-from ai_engine.graph.budget import BudgetedNode
-from ai_engine.graph.state import TriageState
+from ai_engine.core.budget import BudgetedNode
+from ai_engine.core.config import settings
+from ai_engine.core.protocols import LLMClient
+from ai_engine.core.state import TriageState
 from ai_engine.llm.circuit_breaker import CircuitOpenError
 from ai_engine.llm.client import AllLLMDownError
 from ai_engine.llm.prompt_store import load_system_prompt
-from ai_engine.providers.protocols import LLMClient
 
 logger = logging.getLogger(__name__)
 

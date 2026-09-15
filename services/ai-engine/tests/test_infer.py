@@ -17,7 +17,7 @@ import time
 
 import pytest
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 from ai_engine.graph.nodes.infer import InferNode
 from ai_engine.llm.circuit_breaker import CircuitOpenError
 from ai_engine.llm.client import AllLLMDownError, LLMResult

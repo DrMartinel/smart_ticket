@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 
 
 @dataclass(frozen=True)

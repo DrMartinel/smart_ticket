@@ -18,7 +18,7 @@ import unicodedata
 from collections.abc import Callable
 from typing import Any
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 

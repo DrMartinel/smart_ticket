@@ -6,7 +6,7 @@ code).
 module import time, which meant `settings.prompt_version` was a no-op:
 bumping it changed the version reported in logs and responses while the
 graph kept running the old file. CLAUDE.md says to bump the version in the
-filename AND in config.py; this makes the second half actually do something.
+filename AND in core/config.py; this makes the second half actually do something.
 """
 
 from __future__ import annotations

@@ -11,9 +11,9 @@ from __future__ import annotations
 from contracts.enums import PIILevel
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
-from ai_engine.graph.base import BaseNode
-from ai_engine.graph.state import TriageState
-from ai_engine.providers.protocols import ConnectionSource
+from ai_engine.core.node import BaseNode
+from ai_engine.core.protocols import ConnectionSource
+from ai_engine.core.state import TriageState
 
 # Deny-by-default when the policy lookup can't answer. NOT a constructor
 # parameter and NOT a Settings field: "degrade toward humans" means there
@@ -64,7 +64,7 @@ class EmitSignalsNode(BaseNode):
         rerank_margin = max(0.0, rerank_top1 - rerank_top2) if len(reranked) > 1 else 0.0
         # `retrieval_floor` is read from STATE, never from a constructor
         # param: it arrives per-request in AIRunRequest so core-api stays the
-        # single owner of calibration (see config.py's module docstring).
+        # single owner of calibration (see core/config.py's module docstring).
         docs_above_floor = sum(1 for r in reranked if r.score >= state["retrieval_floor"])
 
         kb_slug = None

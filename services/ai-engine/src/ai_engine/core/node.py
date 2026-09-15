@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any, ClassVar
 
-from ai_engine.graph.state import TriageState
+from ai_engine.core.state import TriageState
 
 
 class BaseNode(ABC):

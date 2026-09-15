@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import httpx
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 from ai_engine.llm.circuit_breaker import CIRCUIT, CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)

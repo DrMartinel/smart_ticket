@@ -146,7 +146,7 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 |---|---|
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
-| What the model is asked | `ai-engine/llm/prompts/*.md` — bump the version in filename and `config.py` |
+| What the model is asked | `ai-engine/llm/prompts/*.md` — bump the version in filename and `core/config.py` |
 | What counts as PII | `patterns.py` (regex) or the NER prompt in `masking.py` |
 | How relevance is judged | `ai-engine/providers/reranker.py`, `retrieval/` |
 | Any tunable number | `thresholds.yaml`, nowhere else |

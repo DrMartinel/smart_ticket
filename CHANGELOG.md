@@ -34,6 +34,16 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **Definitions moved into `ai_engine/core/`.** Settings, graph state, node
+  base classes and provider Protocols now live apart from the code that
+  implements them. Import paths changed, with no compatibility shims:
+  `ai_engine.config` → `ai_engine.core.config`,
+  `ai_engine.graph.state` → `ai_engine.core.state`,
+  `ai_engine.graph.base` → `ai_engine.core.node`,
+  `ai_engine.graph.budget` → `ai_engine.core.budget`,
+  `ai_engine.providers.protocols` → `ai_engine.core.protocols`.
+  Nodes, providers, retrieval, the LLM client, graph wiring and data models
+  (`Candidate`, `RankedChunk`, `LLMResult`, …) are unchanged. No behaviour changed.
 - **Settings are read where they are used, not passed down from `main.py`.**
   Retrieval functions (`bm25_search`, `vector_search`,
   `reciprocal_rank_fusion`), nodes, providers and `PsycopgConnectionSource`

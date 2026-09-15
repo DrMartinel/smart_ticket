@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 
 _ERROR_CODE_RE = re.compile(r"0x[0-9A-Fa-f]{8}|ERR-\d+")
 ERROR_CODE_BOOST = 0.5

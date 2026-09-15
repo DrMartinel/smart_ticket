@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 from ai_engine.retrieval.bm25 import LexicalHit
 from ai_engine.retrieval.vector import VectorHit
 

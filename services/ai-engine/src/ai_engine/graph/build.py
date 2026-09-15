@@ -25,7 +25,7 @@ from types import MappingProxyType
 
 from langgraph.graph import END, START, StateGraph
 
-from ai_engine.graph.base import BaseNode, Terminal
+from ai_engine.core.node import BaseNode, Terminal
 
 
 def _require_instance(value: object, role: str) -> BaseNode:

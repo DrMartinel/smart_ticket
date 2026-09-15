@@ -13,7 +13,7 @@ import hashlib
 import httpx
 import numpy as np
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 
 # A property of bge-m3 AND of the pgvector column width — changing it needs
 # a migration, so it is not node configuration.

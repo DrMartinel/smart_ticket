@@ -25,7 +25,7 @@ function or the nodes:
 
 from __future__ import annotations
 
-from ai_engine.graph.base import Terminal
+from ai_engine.core.node import Terminal
 from ai_engine.graph.build import GraphBuilder
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode

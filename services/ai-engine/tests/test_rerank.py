@@ -7,7 +7,7 @@ silently changes how often the LLM is called at all.
 
 from __future__ import annotations
 
-from ai_engine.config import settings
+from ai_engine.core.config import settings
 from ai_engine.graph.nodes.rerank import RerankNode
 
 
