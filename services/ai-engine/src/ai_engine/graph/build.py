@@ -1,102 +1,129 @@
 """
-Graph compiler — the only place a node class becomes a LangGraph string
+Graph builder — the only place a node becomes a LangGraph string
 (add_node names, edge targets, START/END).
 
-`compile_graph` validates a flow table before registering anything, so
-wiring mistakes raise at startup, never mid-run when the first ticket takes
-an unusual branch. It is generic: the triage topology lives in `flow.py`,
-and `main.py` constructs the nodes and compiles them.
+Routes attach an outcome to the next node *instance*, and live on the
+builder rather than on node classes or `Outcome` members:
+`BaseNode.Outcome.DONE` is one enum member shared by every single-exit
+node, and the same node class may serve more than one graph. Nodes are
+never written to, so the "read-only after __init__" rule holds.
+
+Every route targets a node, including the end: a `Terminal` instance is a
+real node, and compile() gives it the graph's only edge to END.
+
+`route()` rejects a bad route as it is declared and `compile()` rejects a
+bad graph before registering anything, so wiring mistakes raise at
+startup, never mid-run when the first ticket takes an unusual branch. It
+is generic: the triage topology lives in `flow.py`.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from enum import Enum
+from types import MappingProxyType
+
 from langgraph.graph import END, START, StateGraph
 
-from ai_engine.graph.base import BaseNode, Flow, Terminal
+from ai_engine.graph.base import BaseNode, Terminal
 
 
-def _match_instances(nodes: list[BaseNode], flow: Flow) -> dict[type[BaseNode], BaseNode]:
-    """Key each instance by the FLOW class it is an instance of.
-
-    `isinstance` rather than `type(n)`, so a test can pass a subclass of a
-    real node (`class FakeInfer(InferNode)`) and have it wired in that
-    node's place, under that node's name.
-    """
-
-    instances: dict[type[BaseNode], BaseNode] = {}
-    for node in nodes:
-        matches = [cls for cls in flow if isinstance(node, cls)]
-        if not matches:
-            raise ValueError(f"{type(node).__name__} has no flow entry")
-        if len(matches) > 1:
-            raise ValueError(
-                f"{type(node).__name__} matches several flow entries: {[c.__name__ for c in matches]}"
-            )
-        cls = matches[0]
-        if cls in instances:
-            raise ValueError(f"{cls.__name__} was given more than one instance")
-        instances[cls] = node
-    return instances
+def _require_instance(value: object, role: str) -> BaseNode:
+    if isinstance(value, type) and issubclass(value, BaseNode):
+        raise TypeError(f"{role}: pass an instance of {value.__name__}, not the class")
+    if not isinstance(value, BaseNode):
+        raise TypeError(f"{role}: expected a BaseNode instance, got {value!r}")
+    return value
 
 
-def _validate(instances: dict[type[BaseNode], BaseNode], flow: Flow, entry: type[BaseNode]) -> None:
-    if entry not in instances:
-        raise ValueError(f"entry {entry.__name__} has no instance")
+class GraphBuilder:
+    def __init__(self, *, entry: BaseNode) -> None:
+        self._entry = _require_instance(entry, "entry")
+        self._routes: dict[BaseNode, dict[Enum, BaseNode]] = {}
 
-    # Its own pass first, so a missing instance is reported as that — not as
-    # a dangling edge from whichever row happens to point at it.
-    if absent := [cls.__name__ for cls in flow if cls not in instances]:
-        raise ValueError(f"flow lists {absent} but no instance was given")
+    @property
+    def entry(self) -> BaseNode:
+        return self._entry
 
-    for cls, routes in flow.items():
-        if "DONE" not in cls.Outcome.__members__ and cls.decide is BaseNode.decide:
-            raise ValueError(
-                f"{cls.__name__} defines its own Outcome but does not override decide()"
-            )
-        foreign = [o for o in routes if o not in set(cls.Outcome)]
-        if foreign:
-            raise ValueError(f"{cls.__name__}: routes outcomes it cannot produce {foreign}")
-        missing = set(cls.Outcome) - set(routes)
-        if missing:
-            raise ValueError(f"{cls.__name__}: unrouted {sorted(m.value for m in missing)}")
-        for outcome, target in routes.items():
-            if target is not Terminal and target not in instances:
+    @property
+    def routes(self) -> Mapping[BaseNode, Mapping[Enum, BaseNode]]:
+        """Read-only view of every declared route, for tests and inspection."""
+        return MappingProxyType({n: MappingProxyType(r) for n, r in self._routes.items()})
+
+    def route(self, source: BaseNode, outcome: Enum, target: BaseNode) -> None:
+        _require_instance(source, "source")
+        _require_instance(target, "target")
+
+        cls = type(source)
+        if isinstance(source, Terminal):
+            raise ValueError(f"{cls.__name__} ends the graph and cannot be routed onward")
+        # Identity, not `in`: Outcome is a StrEnum, so a member of another
+        # node's enum with the same value ("Done") compares equal.
+        if not any(outcome is member for member in cls.Outcome):
+            raise ValueError(f"{cls.__name__}: routes an outcome it cannot produce {outcome!r}")
+
+        routes = self._routes.setdefault(source, {})
+        if outcome in routes:
+            raise ValueError(f"{cls.__name__}.{outcome.value} is already routed")
+        routes[outcome] = target
+
+    def _reachable(self) -> list[BaseNode]:
+        seen: dict[BaseNode, None] = {}  # insertion-ordered set
+        stack = [self._entry]
+        while stack:
+            node = stack.pop()
+            if node in seen:
+                continue
+            seen[node] = None
+            stack += self._routes.get(node, {}).values()
+        return list(seen)
+
+    def _validate(self, nodes: list[BaseNode]) -> None:
+        by_name: dict[str, BaseNode] = {}
+        for node in nodes:
+            if by_name.setdefault(node.name, node) is not node:
+                raise ValueError(f"{type(node).__name__} was given more than one instance")
+
+        # Every other node has all its outcomes routed, so without a Terminal
+        # every run would cycle until LangGraph's recursion limit.
+        if not any(isinstance(n, Terminal) for n in nodes):
+            raise ValueError("no Terminal is reachable from the entry")
+
+        for node in nodes:
+            cls = type(node)
+            if isinstance(node, Terminal):
+                continue  # its only exit is END, added by compile()
+            if "DONE" not in cls.Outcome.__members__ and cls.decide is BaseNode.decide:
                 raise ValueError(
-                    f"{cls.__name__}.{outcome.value} -> {target.__name__}: no instance"
+                    f"{cls.__name__} defines its own Outcome but does not override decide()"
                 )
+            missing = set(cls.Outcome) - set(self._routes.get(node, {}))
+            if missing:
+                raise ValueError(f"{cls.__name__}: unrouted {sorted(m.value for m in missing)}")
 
-    seen: set[type[BaseNode]] = set()
-    stack: list[type[BaseNode]] = [entry]
-    while stack:
-        cls = stack.pop()
-        if cls in seen:
-            continue
-        seen.add(cls)
-        stack += [t for t in flow[cls].values() if t is not Terminal]
-    if orphans := set(instances) - seen:
-        raise ValueError(f"unreachable: {sorted(c.__name__ for c in orphans)}")
+        # Traversal can't produce an orphan, but a node whose own routes were
+        # declared and that nothing points at can — which is exactly what a
+        # route aimed at the wrong target leaves behind.
+        if orphans := [n for n in self._routes if n not in nodes]:
+            raise ValueError(f"unreachable: {sorted(type(n).__name__ for n in orphans)}")
 
+    def compile(self, state_schema: type, checkpointer=None):
+        nodes = self._reachable()
+        self._validate(nodes)
 
-def compile_graph(
-    state_schema: type,
-    nodes: list[BaseNode],
-    flow: Flow,
-    entry: type[BaseNode],
-    checkpointer=None,
-):
-    instances = _match_instances(nodes, flow)
-    _validate(instances, flow, entry)
+        graph = StateGraph(state_schema)
+        for node in nodes:
+            graph.add_node(node.name, node)
 
-    graph = StateGraph(state_schema)
-    for cls, node in instances.items():
-        graph.add_node(cls.name, node)
+        for node in nodes:
+            if isinstance(node, Terminal):
+                graph.add_edge(node.name, END)
+                continue
+            targets = {o: t.name for o, t in self._routes[node].items()}
+            if len(targets) == 1:  # single exit -> plain edge
+                graph.add_edge(node.name, next(iter(targets.values())))
+            else:
+                graph.add_conditional_edges(node.name, node.decide, targets)
 
-    for cls, routes in flow.items():
-        targets = {o: (END if t is Terminal else t.name) for o, t in routes.items()}
-        if len(targets) == 1:  # single exit -> plain edge
-            graph.add_edge(cls.name, next(iter(targets.values())))
-        else:
-            graph.add_conditional_edges(cls.name, instances[cls].decide, targets)
-
-    graph.add_edge(START, entry.name)
-    return graph.compile(checkpointer=checkpointer)
+        graph.add_edge(START, self._entry.name)
+        return graph.compile(checkpointer=checkpointer)

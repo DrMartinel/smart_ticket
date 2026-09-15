@@ -144,7 +144,7 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
        ├─ RetryInference (schema invalid AND iteration < 2) ──► infer   (exactly one retry)
        │ SchemaValid / RetriesExhausted
        ▼
-   emit_signals ──► END
+   emit_signals ──► terminal ──► END
 ```
 
 Three properties are structural, not conventional:
@@ -157,11 +157,12 @@ Each node is a `BaseNode` subclass (`graph/base.py`) taking its collaborators
 and configuration through `__init__`. Its node name is derived from the class
 name (`HybridRetrieveNode` → `hybrid_retrieve`), and a branching node reports
 where it ended up as a domain `Outcome` from `decide()` — it never names its
-successor. The whole topology is the `FLOW` table in `graph/flow.py`.
-`compile_graph` in `graph/build.py` validates it at startup (every outcome
-routed, no dangling target, nothing unreachable) and is the only place a class
-becomes a LangGraph string. `main.py` constructs the instances and compiles
-them once, at import time. See
+successor. The whole topology is `wire_triage` in `graph/flow.py`, which
+routes each outcome of a node instance to the next instance on a
+`GraphBuilder` (`graph/build.py`). `GraphBuilder.compile` validates the routes
+at startup (every outcome routed, nothing unreachable) and is the only place a
+node becomes a LangGraph string. `main.py` constructs the instances, wires and
+compiles them once, at import time. See
 [graph-node-architecture.md](graph-node-architecture.md).
 Nodes depend on the four Protocols in `providers/protocols.py` — `Embedder`,
 `Reranker`, `LLMClient`, `ConnectionSource` — never on a concrete provider

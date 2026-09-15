@@ -11,14 +11,10 @@ from __future__ import annotations
 
 import re
 from abc import ABC, abstractmethod
-from enum import Enum, StrEnum
+from enum import StrEnum
 from typing import Any, ClassVar
 
 from ai_engine.graph.state import TriageState
-
-
-class Terminal:
-    """Edge target meaning 'stop here'. Keeps LangGraph's END out of app code."""
 
 
 class BaseNode(ABC):
@@ -54,5 +50,17 @@ class BaseNode(ABC):
         return self.Outcome.DONE
 
 
-Target = type[BaseNode] | type[Terminal]
-Flow = dict[type[BaseNode], dict[Enum, Target]]
+class Terminal(BaseNode):
+    """The node every path ends on. Keeps LangGraph's END out of app code:
+    `GraphBuilder.compile` gives it the only edge to END, so it is never
+    routed onward.
+
+    It changes no state — returning a key outside TriageState (such as
+    END) would make LangGraph reject the update and abort the run.
+    """
+
+    class Outcome(StrEnum):
+        DONE = "Done"
+
+    def __call__(self, state: TriageState) -> dict:
+        return {}

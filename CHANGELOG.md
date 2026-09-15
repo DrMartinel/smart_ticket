@@ -34,6 +34,28 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **Graph wiring moved from the `FLOW` table to `GraphBuilder`.** Routes
+  now map an outcome of a node *instance* to the next instance —
+  `g.route(rerank, RerankNode.Outcome.EVIDENCE_BELOW_FLOOR, emit)` — and live
+  on the builder, never on node classes or `Outcome` members (which
+  single-exit nodes share). The triage topology is `wire_triage(...)` in
+  `graph/flow.py`, taking every node as a required keyword; `main.py` and
+  the `triage_nodes` fixture (now a dict) both go through it.
+  - Removed: `FLOW`, `ENTRY`, the `Flow` and `Target` types and `compile_graph`; the
+    `isinstance` matching of instances to flow classes.
+  - Validation: bad routes raise as declared (class passed instead of
+    instance, foreign or duplicate outcome); `compile()` raises on unrouted
+    outcomes, unreachable routed nodes and same-name instances. Outcome
+    membership is now checked by identity — previously a same-valued member
+    of another `StrEnum` passed.
+  - A test fake subclass now registers under its own name (`fake_infer`),
+    not the real node's. Existing production node names are unchanged.
+  - **`Terminal` is now a real node** (`graph/base.py`), not a marker class:
+    routes target `Terminal()`, it runs as a no-op `terminal` step, and
+    `compile()` gives it the graph's only edge to END. Traces and streamed
+    step names gain a final `terminal` step. Routing out of a Terminal, or
+    a graph with no reachable Terminal, raises at startup.
+  - No routing behaviour changed.
 - **Graph wiring moved to a validated flow table.** Every node subclasses
   `BaseNode` (`graph/base.py`), reports a domain `Outcome` from `decide()`,
   and never names its successor. The topology lives in one `FLOW` dict in

@@ -80,13 +80,12 @@ def test_over_budget_ticket_still_reaches_emit_signals_through_the_graph(
     TrustSignals, and never touches the embedder, reranker or LLM — rather
     than a BudgetExceeded escaping and aborting the run."""
 
-    from ai_engine.graph.build import compile_graph
-    from ai_engine.graph.flow import ENTRY, FLOW
+    from ai_engine.graph.flow import wire_triage
     from ai_engine.graph.state import TriageState
 
     embedder, reranker, llm = fake_embedder(), fake_reranker(), fake_llm()
     nodes = triage_nodes(embedder=embedder, reranker=reranker, llm=llm)
-    graph = compile_graph(TriageState, nodes, FLOW, ENTRY)
+    graph = wire_triage(**nodes).compile(TriageState)
 
     final = graph.invoke(exhausted_budget_state())
 

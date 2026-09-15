@@ -66,22 +66,11 @@ class BudgetedNode(BaseNode):
         if own_call is None:
             return
 
-        # functools.wraps keeps the original name and annotations — LangGraph
-        # reads __call__'s type hints when the node is registered.
         @functools.wraps(own_call)
         def guarded_call(self: Any, state: TriageState) -> dict:
-            # Only the check is inside the try: catching around the node's own
-            # work would let a BudgetExceeded raised mid-work discard updates
-            # already paid for (llm_calls, tokens_used).
             try:
                 check_budget(state)
             except BudgetExceeded as e:
-                # Only degraded_reason — none of the node's own keys. Every
-                # reader uses .get() with an empty default, so an absent key
-                # already means "nothing retrieved / reranked / proposed". And
-                # infer, the only node in a loop, is re-entered only when
-                # validate found proposal to be None, so a skipped retry leaves
-                # no stale proposal behind.
                 return {"degraded_reason": e.reason}
             return own_call(self, state)
 

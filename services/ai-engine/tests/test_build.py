@@ -1,13 +1,13 @@
 """
 Graph routing tests — spec §6.2's two safety-critical structural
 properties: refuse-before-LLM, and a retry loop hard-capped at
-iteration < 2. Each node's `decide()` is tested directly, and the FLOW rows
+iteration < 2. Each node's `decide()` is tested directly, and the routes
 those outcomes map to are pinned separately — together that is the whole
 routing decision, with no DB/LLM/network involved.
 """
 
 from ai_engine.graph.base import Terminal
-from ai_engine.graph.flow import ENTRY, FLOW
+from ai_engine.graph.flow import wire_triage
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
@@ -67,19 +67,22 @@ def test_schema_valid_decides_valid(fuzzy_threshold):
     assert node.decide(state) is ValidateNode.Outcome.SCHEMA_VALID
 
 
-def test_safety_critical_flow_rows():
+def test_safety_critical_routes(triage_nodes):
     """The outcomes above are only half the routing decision; these are the
-    rows that make them mean refuse-before-LLM and a bounded retry."""
+    routes that make them mean refuse-before-LLM and a bounded retry."""
 
-    assert ENTRY is InjectionNode
-    assert FLOW[InjectionNode][InjectionNode.Outcome.INJECTION_DETECTED] is EmitSignalsNode
-    assert FLOW[RerankNode][RerankNode.Outcome.EVIDENCE_BELOW_FLOOR] is EmitSignalsNode
-    assert FLOW[ValidateNode][ValidateNode.Outcome.RETRY_INFERENCE] is InferNode
-    assert FLOW[ValidateNode][ValidateNode.Outcome.RETRIES_EXHAUSTED] is EmitSignalsNode
-    assert FLOW[EmitSignalsNode][EmitSignalsNode.Outcome.DONE] is Terminal
+    n = triage_nodes()
+    g = wire_triage(**n)
+
+    assert g.entry is n["injection"]
+    assert g.routes[n["injection"]][InjectionNode.Outcome.INJECTION_DETECTED] is n["emit"]
+    assert g.routes[n["rerank"]][RerankNode.Outcome.EVIDENCE_BELOW_FLOOR] is n["emit"]
+    assert g.routes[n["validate"]][ValidateNode.Outcome.RETRY_INFERENCE] is n["infer"]
+    assert g.routes[n["validate"]][ValidateNode.Outcome.RETRIES_EXHAUSTED] is n["emit"]
+    assert isinstance(g.routes[n["emit"]][EmitSignalsNode.Outcome.DONE], Terminal)
 
 
-def test_graph_has_exactly_the_seven_expected_nodes():
+def test_graph_has_exactly_the_expected_nodes():
     from ai_engine.main import _graph
 
     nodes = {n for n in _graph.get_graph().nodes if not n.startswith("__")}
@@ -92,6 +95,7 @@ def test_graph_has_exactly_the_seven_expected_nodes():
         InferNode.name,
         ValidateNode.name,
         EmitSignalsNode.name,
+        Terminal.name,
     }
     # Pinned literally once: these strings are what shows up in traces.
     assert nodes == {
@@ -102,21 +106,24 @@ def test_graph_has_exactly_the_seven_expected_nodes():
         "infer",
         "validate",
         "emit_signals",
+        "terminal",
     }
 
 
-def test_compiled_edges_match_flow():
-    """The production topology is asserted rather than eyeballed: every FLOW
-    row is an edge, and there are no edges FLOW does not declare."""
+def test_compiled_edges_match_wiring(triage_nodes):
+    """The production topology is asserted rather than eyeballed: every
+    route declared in wire_triage is an edge, and there are no edges it does
+    not declare."""
 
     from ai_engine.main import _graph
 
     edges = {(e.source, e.target) for e in _graph.get_graph().edges}
 
-    expected = {("__start__", ENTRY.name)}
-    for cls, routes in FLOW.items():
+    g = wire_triage(**triage_nodes())
+    expected = {("__start__", g.entry.name), (Terminal.name, "__end__")}
+    for source, routes in g.routes.items():
         for target in routes.values():
-            expected.add((cls.name, "__end__" if target is Terminal else target.name))
+            expected.add((source.name, target.name))
 
     assert edges == expected
 

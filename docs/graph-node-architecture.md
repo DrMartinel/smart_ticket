@@ -31,8 +31,8 @@ node identity is persisted and has to survive a process restart:
 
 A class object cannot round-trip through a database row; a name can. So the
 goal is not to remove strings from LangGraph. It is to **push them into a
-single conversion function** (`compile_graph` in `graph/build.py`) and keep
-application code referencing classes and typed enums.
+single conversion function** (`GraphBuilder.compile` in `graph/build.py`) and
+keep application code referencing node instances and typed enums.
 
 ---
 
@@ -68,13 +68,15 @@ outcome it reached), and its `Outcome` enum. Nothing else.
 `InjectionClear`, `EvidenceBelowFloor` / `EvidenceAboveFloor` — not `True` /
 `False`. A reviewer can follow the flow without reading node internals.
 
-**A node never knows what comes after it.** Successors live in one flow table.
-That makes nodes reusable, makes cycles expressible, and removes any
-definition-order constraint between node classes.
+**A node never knows what comes after it.** Successors are declared on a
+`GraphBuilder`, which maps each outcome of a node *instance* to the next
+instance, all in one wiring function. That makes nodes reusable, makes cycles
+expressible, and removes any definition-order constraint between node classes.
 
-**Everything is validated at startup.** Unrouted outcomes, dangling targets and
-unreachable nodes all raise inside `compile_graph()` — which `main.py` calls
-at uvicorn import time — never when the first ticket takes an unusual branch.
+**Everything is validated at startup.** Bad routes raise as they are declared;
+unrouted outcomes and unreachable nodes raise inside `GraphBuilder.compile()` —
+which `main.py` calls at uvicorn import time — never when the first ticket
+takes an unusual branch.
 
 **A node instance is a singleton and must stay stateless per call.** `__init__`
 runs once and may hold read-only collaborators (DB pool, embedder, LLM client)
@@ -99,10 +101,6 @@ accumulate into.
 ### 4.2 BaseNode — `graph/base.py`
 
 ```python
-class Terminal:
-    """Edge target meaning 'stop here'. Keeps LangGraph's END out of app code."""
-
-
 class BaseNode(ABC):
     name: ClassVar[str]
 
@@ -129,65 +127,86 @@ values, so LangGraph's path-map lookup works either way, and `str(member)` is
 the value — edge labels in `draw_mermaid()` read `EvidenceBelowFloor`, not
 `Outcome.EVIDENCE_BELOW_FLOOR`.
 
-`base.py` also defines the flow table's types —
-`Target = type[BaseNode] | type[Terminal]` and
-`Flow = dict[type[BaseNode], dict[Enum, Target]]` — so `flow.py` depends only on
-`base.py` and the nodes, never on the builder.
-
-### 4.3 Flow table — `graph/flow.py`
-
-The entire topology in one place (safety comments trimmed here):
+`base.py` also defines `Terminal`, the node every path ends on:
 
 ```python
-FLOW: Flow = {
-    InjectionNode: {
-        InjectionNode.Outcome.INJECTION_DETECTED: EmitSignalsNode,
-        InjectionNode.Outcome.INJECTION_CLEAR: HybridRetrieveNode,
-    },
-    HybridRetrieveNode: {HybridRetrieveNode.Outcome.DONE: RerankNode},
-    RerankNode: {
-        RerankNode.Outcome.EVIDENCE_BELOW_FLOOR: EmitSignalsNode,  # refuse-before-LLM
-        RerankNode.Outcome.EVIDENCE_ABOVE_FLOOR: SelectFewshotsNode,
-    },
-    SelectFewshotsNode: {SelectFewshotsNode.Outcome.DONE: InferNode},
-    InferNode: {InferNode.Outcome.DONE: ValidateNode},
-    ValidateNode: {
-        ValidateNode.Outcome.RETRY_INFERENCE: InferNode,  # the only cycle
-        ValidateNode.Outcome.SCHEMA_VALID: EmitSignalsNode,
-        ValidateNode.Outcome.RETRIES_EXHAUSTED: EmitSignalsNode,
-    },
-    EmitSignalsNode: {EmitSignalsNode.Outcome.DONE: Terminal},
-}
+class Terminal(BaseNode):
+    class Outcome(StrEnum):
+        DONE = "Done"
 
-ENTRY = InjectionNode
+    def __call__(self, state: TriageState) -> dict:
+        return {}
 ```
 
-### 4.4 Compiler — `graph/build.py`
+It is a real node — registered as `terminal`, visible in traces and
+`draw_mermaid()` — so every route targets a node instance and the builder
+needs no marker special case in `route()`. It changes no state: returning a key
+outside `TriageState` (such as `END`) would make LangGraph reject the update
+and abort the run. It keeps LangGraph's `END` out of app code, because
+`compile()` gives it the graph's only edge to `END`.
 
-`compile_graph(state_schema, nodes, flow, entry, checkpointer=None)` is
-generic — it knows nothing about triage — and is the only place a class
-becomes a string. Before registering anything it
-checks, and raises `ValueError` on:
+### 4.3 Wiring — `graph/flow.py`
 
-- an instance that matches no flow entry, or more than one;
-- two instances for the same flow class;
-- the entry class having no instance;
-- a flow class having no instance;
+The entire topology in one function (safety comments trimmed here). Every node
+is a required keyword, so a caller cannot forget one:
+
+```python
+def wire_triage(*, injection, retrieve, rerank, fewshots, infer, validate, emit) -> GraphBuilder:
+    g = GraphBuilder(entry=injection)
+    g.route(injection, InjectionNode.Outcome.INJECTION_DETECTED, emit)
+    g.route(injection, InjectionNode.Outcome.INJECTION_CLEAR, retrieve)
+    g.route(retrieve, HybridRetrieveNode.Outcome.DONE, rerank)
+    g.route(rerank, RerankNode.Outcome.EVIDENCE_BELOW_FLOOR, emit)  # refuse-before-LLM
+    g.route(rerank, RerankNode.Outcome.EVIDENCE_ABOVE_FLOOR, fewshots)
+    g.route(fewshots, SelectFewshotsNode.Outcome.DONE, infer)
+    g.route(infer, InferNode.Outcome.DONE, validate)
+    g.route(validate, ValidateNode.Outcome.RETRY_INFERENCE, infer)  # the only cycle
+    g.route(validate, ValidateNode.Outcome.SCHEMA_VALID, emit)
+    g.route(validate, ValidateNode.Outcome.RETRIES_EXHAUSTED, emit)
+    g.route(emit, EmitSignalsNode.Outcome.DONE, Terminal())  # no deps: built here
+    return g
+```
+
+### 4.4 Builder — `graph/build.py`
+
+`GraphBuilder(entry=node)` is generic — it knows nothing about triage — and
+its `compile(state_schema, checkpointer=None)` is the only place a node
+becomes a string. Routes are stored on the builder, keyed by node **instance**,
+never on node classes or `Outcome` members (§7 says why).
+
+`route(source, outcome, target)` raises immediately on:
+
+- a node class passed where an instance is expected (`TypeError`);
+- an outcome the source's class cannot produce — checked by **identity**,
+  because `Outcome` is a `StrEnum` and a member of another enum with the same
+  value compares equal;
+- an outcome that is already routed;
+- a route out of a `Terminal` (its only exit is `END`).
+
+`compile()` finds the nodes by walking routes from the entry, then, before
+registering anything, raises `ValueError` on:
+
+- two reachable instances with the same node name (LangGraph would collide);
+- no `Terminal` reachable from the entry (with every outcome routed, every run
+  would cycle until LangGraph's recursion limit aborts it);
 - a class whose own `Outcome` has no `DONE` but which does not override
   `decide()` (it would crash on first call);
-- a route keyed by an outcome the class cannot produce;
-- an outcome with no route;
-- a route to a class that has no instance;
-- a node unreachable from the entry.
+- a reachable node with an unrouted outcome — including a target whose own
+  routes were never declared;
+- a node that has routes but is unreachable from the entry — which is what a
+  route aimed at the wrong target leaves behind.
 
-Instances are matched to flow classes with **`isinstance`, not `type()`**, and
-registered under the *flow class's* name. That is the test seam: pass
-`class FakeInferNode(InferNode)` in place of the real `InferNode` and it is
-wired as `infer`.
+Each instance registers under its own class's `name`. That is the test seam:
+pass a `FakeInferNode(...)` (a subclass of `InferNode`) as `infer=` and it is
+wired where the real one would be, visible in the graph as `fake_infer`.
 
 Registration: single-outcome nodes get `add_edge`, multi-outcome nodes get
 `add_conditional_edges(name, instance.decide, {outcome: target_name})`,
-`Terminal` becomes `END`, and the entry is `add_edge(START, entry.name)`.
+a `Terminal` gets `add_edge(name, END)`, and the entry is
+`add_edge(START, entry.name)`.
+
+`builder.entry` and `builder.routes` (a read-only mapping) let tests pin
+individual routes without compiling.
 
 ### 4.5 Assembly — `main.py`
 
@@ -196,19 +215,17 @@ time, and compiles them once:
 
 ```python
 _providers = build_providers(settings)
-_graph = compile_graph(
-    TriageState,
-    [InjectionNode(), HybridRetrieveNode(db=_providers.db, ...), RerankNode(...),
-     SelectFewshotsNode(...), InferNode(...), ValidateNode(...),
-     EmitSignalsNode(db=_providers.db)],
-    FLOW,
-    ENTRY,
-    checkpointer=None,
-)
+_graph = wire_triage(
+    injection=InjectionNode(),
+    retrieve=HybridRetrieveNode(db=_providers.db, ...),
+    rerank=RerankNode(...), fewshots=SelectFewshotsNode(...), infer=InferNode(...),
+    validate=ValidateNode(...), emit=EmitSignalsNode(db=_providers.db),
+).compile(TriageState, checkpointer=None)
 ```
 
-Tests build the same list wired to fakes with the `triage_nodes` fixture
-(`tests/conftest.py`) and call `compile_graph` themselves.
+Tests build the same instances wired to fakes with the `triage_nodes` fixture
+(`tests/conftest.py`), which returns a dict keyed by `wire_triage`'s
+parameters: `wire_triage(**triage_nodes()).compile(TriageState)`.
 
 ---
 
@@ -259,9 +276,9 @@ once at graph entry.
 Checklist when adding one: define `Outcome` members in domain language; put
 dependencies in `__init__` and nothing else; pick `BudgetedNode` if the node
 spends anything; keep `__call__` free of writes to `self`; return only
-changed keys; add the class to `FLOW` with every outcome routed; add an
-instance to the node list in `main.py` and to the `triage_nodes` fixture; test
-`decide()` directly (see `tests/test_build.py`).
+changed keys; add a parameter to `wire_triage` and route every outcome; pass
+an instance in `main.py` and in the `triage_nodes` fixture; test `decide()`
+directly (see `tests/test_build.py`).
 
 ---
 
@@ -283,7 +300,7 @@ after validate:    {..., "validation": {"schema_valid": False}, "iteration": 1}
 decide()        -> RetryInference      -> InferNode              # loops back once
 after infer:       {..., "proposal": <AutoReplyProposal>}
 after validate:    {..., "validation": {"schema_valid": True, ...}}
-decide()        -> SchemaValid         -> EmitSignalsNode -> END
+decide()        -> SchemaValid         -> EmitSignalsNode -> Terminal -> END
 ```
 
 ---
@@ -312,16 +329,34 @@ per-step; bypassing the graph forfeits it.
 construction sites so no single place knows the whole graph, and reachability
 cannot be validated.
 
+**Successors attached to `Outcome` members at startup
+(`Outcome.INJECTION_CLEAR.next = retrieve`).** Avoids the definition-order and
+thunk problems above, but writes wiring onto shared global objects:
+`BaseNode.Outcome.DONE` is one member inherited by every single-exit node, so
+their successors overwrite each other; a class could never serve two graphs;
+and every compile — each test's included — would rewire the production nodes.
+
+**A class-keyed flow table (`FLOW: dict[type[BaseNode], dict[Outcome, type]]`).**
+The previous design. Reads like a whiteboard, but being keyed by class it
+needed a separate node list matched back to classes with `isinstance`, and a
+class could appear only once in the whole table. Replaced by `GraphBuilder`,
+which routes instances directly.
+
+**Choosing the successor while a ticket runs (`Command(goto=...)`).** No
+startup validation, and refuse-before-LLM and the bounded retry would rest on
+whatever `decide()` returns rather than on the graph's structure.
+
 ---
 
 ## 8. Accepted tradeoff
 
 Routing is no longer local to the node. Reading `ValidateNode` does not tell
-you where `RetryInference` goes — you look it up in `FLOW`. We accept this: the
-table fits on one screen, it is what you would draw on a whiteboard anyway, and
-it is what makes whole-graph validation possible. If it ever grows past
-comfortable reading, split it per sub-pipeline rather than pushing wiring back
-into the nodes.
+you where `RetryInference` goes — you look it up in `wire_triage`. We accept
+this: the function fits on one screen, it is what you would draw on a
+whiteboard anyway, and it is what makes whole-graph validation possible. If it
+ever grows past comfortable reading, split it into one wiring function per
+sub-pipeline (routes are per instance, so a class can appear in several)
+rather than pushing wiring back into the nodes.
 
 ---
 
@@ -339,8 +374,8 @@ before renaming.
 **Qualify `decide()`'s return annotation with the class**
 (`-> RerankNode.Outcome`, not `-> Outcome`). LangGraph calls `get_type_hints()`
 on the router, which resolves annotations against module globals where a bare
-`Outcome` does not exist. Getting it wrong fails in `compile_graph()` at
-startup, not at runtime.
+`Outcome` does not exist. Getting it wrong fails in `GraphBuilder.compile()`
+at startup, not at runtime.
 
 **List-valued state fields replace rather than append** unless the schema
 declares a reducer — which is what we want today (§4.1).
@@ -359,10 +394,10 @@ sequences.
 
 Assert it rather than eyeballing it:
 
-- `tests/test_build.py::test_compiled_edges_match_flow` — the compiled graph's
-  edge set equals the set derived from `FLOW`.
-- `tests/test_build.py::test_safety_critical_flow_rows` — pins
-  refuse-before-LLM and the bounded retry to their FLOW rows.
+- `tests/test_build.py::test_compiled_edges_match_wiring` — the production
+  graph's edge set equals the set derived from `wire_triage`'s routes.
+- `tests/test_build.py::test_safety_critical_routes` — pins
+  refuse-before-LLM and the bounded retry to their routes.
 - `tests/test_compiler.py` — every validation rule in §4.4 raises.
 
 To look at it:

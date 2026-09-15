@@ -202,16 +202,18 @@ def _exhausted_budget_state(**overrides) -> dict:
     return _make_state(llm_calls=99, max_llm_calls=1, **overrides)
 
 
-def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> list:
-    """The seven production nodes wired to fakes — the test-side counterpart
-    of the list main.py builds. It cannot silently drift from FLOW:
-    compile_graph rejects a node list that is missing any FLOW class."""
+def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
+    """The seven production nodes wired to fakes, keyed by `wire_triage`'s
+    parameters — the test-side counterpart of the instances main.py builds.
+    Pass it as `wire_triage(**nodes)`; replace one entry with a subclass of
+    the real node to swap in a fake. It cannot silently drift: every
+    `wire_triage` parameter is a required keyword."""
 
     db = db if db is not None else FakeConnectionSource()
     embedder = embedder if embedder is not None else FakeEmbedder()
-    return [
-        InjectionNode(),
-        HybridRetrieveNode(
+    return {
+        "injection": InjectionNode(),
+        "retrieve": HybridRetrieveNode(
             db=db,
             embedder=embedder,
             bm25_top_k=settings.bm25_top_k,
@@ -219,19 +221,19 @@ def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> list:
             rrf_k=settings.rrf_k,
             candidate_limit=settings.fusion_candidate_limit,
         ),
-        RerankNode(
+        "rerank": RerankNode(
             reranker=reranker if reranker is not None else FakeReranker(),
             top_n=settings.rerank_top_n,
         ),
-        SelectFewshotsNode(db=db, embedder=embedder, fewshot_k=settings.fewshot_k),
-        InferNode(
+        "fewshots": SelectFewshotsNode(db=db, embedder=embedder, fewshot_k=settings.fewshot_k),
+        "infer": InferNode(
             llm=llm if llm is not None else FakeLLM(),
             system_prompt="SYSTEM",
             model_timeout_sec=settings.model_timeout_sec,
         ),
-        ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold),
-        EmitSignalsNode(db=db),
-    ]
+        "validate": ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold),
+        "emit": EmitSignalsNode(db=db),
+    }
 
 
 @pytest.fixture

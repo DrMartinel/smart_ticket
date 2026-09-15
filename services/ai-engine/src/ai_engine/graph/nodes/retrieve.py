@@ -23,8 +23,6 @@ class HybridRetrieveNode(BudgetedNode):
     ) -> None:
         self._db = db
         self._embedder = embedder
-        # Keyword-only and undefaulted: these are three same-typed ints, and
-        # a positional swap would be silent forever.
         self._bm25_top_k = bm25_top_k
         self._vector_top_k = vector_top_k
         self._rrf_k = rrf_k
@@ -39,10 +37,6 @@ class HybridRetrieveNode(BudgetedNode):
             query_embedding = self._embedder.embed(query)
             vector_hits = vector_search(conn, query_embedding, self._vector_top_k)
 
-        # This list is ORDERED by the RRF score and then SLICED — never
-        # thresholded. ADR-0005: RRF is rank-derived, so its magnitude means
-        # nothing; the only score a floor is ever compared against is the
-        # cross-encoder's, one node downstream.
         candidates = reciprocal_rank_fusion(bm25_hits, vector_hits, k=self._rrf_k)
         return {
             "candidates": candidates[: self._candidate_limit],

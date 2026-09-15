@@ -14,8 +14,7 @@ from fastapi import FastAPI
 from contracts.ai_request import AIRunRequest, AIRunResponse
 
 from ai_engine.config import settings
-from ai_engine.graph.build import compile_graph
-from ai_engine.graph.flow import ENTRY, FLOW
+from ai_engine.graph.flow import wire_triage
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
@@ -35,32 +34,29 @@ app = FastAPI(title="Smart Ticket Triage — ai-engine", version="1.0.0")
 # Built once, at import time: no constructor below may open a socket or load
 # a model, and a wiring mistake fails the boot rather than a request.
 _providers = build_providers(settings)
-_graph = compile_graph(
+_graph = wire_triage(
+    injection=InjectionNode(),
+    retrieve=HybridRetrieveNode(
+        db=_providers.db,
+        embedder=_providers.embedder,
+        bm25_top_k=settings.bm25_top_k,
+        vector_top_k=settings.vector_top_k,
+        rrf_k=settings.rrf_k,
+        candidate_limit=settings.fusion_candidate_limit,
+    ),
+    rerank=RerankNode(reranker=_providers.reranker, top_n=settings.rerank_top_n),
+    fewshots=SelectFewshotsNode(
+        db=_providers.db, embedder=_providers.embedder, fewshot_k=settings.fewshot_k
+    ),
+    infer=InferNode(
+        llm=_providers.llm,
+        system_prompt=load_system_prompt(settings.prompt_version),
+        model_timeout_sec=settings.model_timeout_sec,
+    ),
+    validate=ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold),
+    emit=EmitSignalsNode(db=_providers.db),
+).compile(
     TriageState,
-    [
-        InjectionNode(),
-        HybridRetrieveNode(
-            db=_providers.db,
-            embedder=_providers.embedder,
-            bm25_top_k=settings.bm25_top_k,
-            vector_top_k=settings.vector_top_k,
-            rrf_k=settings.rrf_k,
-            candidate_limit=settings.fusion_candidate_limit,
-        ),
-        RerankNode(reranker=_providers.reranker, top_n=settings.rerank_top_n),
-        SelectFewshotsNode(
-            db=_providers.db, embedder=_providers.embedder, fewshot_k=settings.fewshot_k
-        ),
-        InferNode(
-            llm=_providers.llm,
-            system_prompt=load_system_prompt(settings.prompt_version),
-            model_timeout_sec=settings.model_timeout_sec,
-        ),
-        ValidateNode(fuzzy_threshold=settings.quote_fuzzy_threshold),
-        EmitSignalsNode(db=_providers.db),
-    ],
-    FLOW,
-    ENTRY,
     checkpointer=None,  # stateless; idempotency lives at the Celery layer
 )
 
