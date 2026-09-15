@@ -60,12 +60,12 @@ class InjectionNode(BaseNode):
         self._patterns = patterns if patterns is not None else DEFAULT_PATTERNS
 
     def __call__(self, state: TriageState) -> dict:
-        text = f"{state['ticket'].subject_masked}\n{state['ticket'].body_masked}"
+        text = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
         matched = [name for name, pattern in self._patterns.items() if pattern.search(text)]
-        verdict: InjectionVerdict = {"detected": bool(matched), "matched_patterns": matched}
+        verdict = InjectionVerdict(detected=bool(matched), matched_patterns=matched)
         return {"injection": verdict}
 
     def decide(self, state: TriageState) -> InjectionNode.Outcome:
-        if state["injection"]["detected"]:
+        if state.injection.detected:  # always set: __call__ runs before decide
             return self.Outcome.INJECTION_DETECTED
         return self.Outcome.INJECTION_CLEAR

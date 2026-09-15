@@ -39,8 +39,9 @@ keep application code referencing node instances and typed enums.
 ## 2. Core concepts (LangGraph vocabulary)
 
 **State** — the shared schema that flows through the whole graph:
-`TriageState` in `core/state.py`. Nodes receive the full state and return only
-the keys they changed; LangGraph merges the update.
+`TriageState` in `core/state.py`, a frozen pydantic model. Nodes receive a
+`TriageState` instance and return a dict of only the fields they changed;
+LangGraph merges the update.
 
 **Node** — a callable taking the state and returning a dict of updates. We use
 class instances with `__call__`.
@@ -98,7 +99,29 @@ such as `Candidate` or `LLMResult` stay next to the code that produces them.
 
 ### 4.1 State — `core/state.py`
 
-One `TypedDict`, `TriageState`. Nodes return partial updates.
+One frozen pydantic model, `TriageState`, with `InjectionVerdict` and
+`ValidationResult` nested in it. Nodes read fields as attributes
+(`state.reranked`) and return partial update dicts — returning a whole model
+would overwrite every field. Progressive-output fields default to what "this
+node has not run" reads as (`[]`, `None`, `0`).
+
+What LangGraph (1.2.9) does with a pydantic schema, pinned in
+`tests/test_state.py`:
+
+- It validates the merged state when building the **next** node's input, so a
+  wrong-typed update aborts the run one step later with a `ValidationError` — a
+  500, which core-api routes to a human as `AIEngineUnavailable`.
+- It silently **drops** an update key that is not a field (as it did with the
+  `TypedDict`). `extra="forbid"` only guards direct construction.
+- `graph.invoke` returns a plain dict; `main.py` re-validates it into a
+  `TriageState`.
+- It infers a node's input schema from the `state:` annotation on `__call__`
+  unless told otherwise. `GraphBuilder.compile` passes
+  `input_schema=state_schema` so the graph's schema always wins.
+
+`candidates` and `reranked` are typed `list[Any]`: `Candidate` and
+`RankedChunk` live outside `core`, and importing them would invert the
+dependency.
 
 List-valued fields (`candidates`, `reranked`, `fewshots`) deliberately have
 **no reducer**. Each is owned by exactly one node, and the `validate → infer`
@@ -264,8 +287,8 @@ class RerankNode(BudgetedNode):
         return {"reranked": ranked[: settings.rerank_top_n]}
 
     def decide(self, state: TriageState) -> RerankNode.Outcome:
-        reranked = state.get("reranked") or []
-        if not reranked or reranked[0].score < state["retrieval_floor"]:
+        reranked = state.reranked
+        if not reranked or reranked[0].score < state.retrieval_floor:
             return self.Outcome.EVIDENCE_BELOW_FLOOR
         return self.Outcome.EVIDENCE_ABOVE_FLOOR
 ```

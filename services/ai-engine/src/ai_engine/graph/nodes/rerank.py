@@ -43,11 +43,11 @@ class RerankNode(BudgetedNode):
         self._reranker = reranker
 
     def __call__(self, state: TriageState) -> dict:
-        candidates: list[Candidate] = state.get("candidates", [])
+        candidates: list[Candidate] = state.candidates
         if not candidates:
             return {"reranked": []}
 
-        query = f"{state['ticket'].subject_masked}\n{state['ticket'].body_masked}"
+        query = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
         scores = self._reranker.score(query, [c.content for c in candidates])
 
         ranked = [
@@ -64,7 +64,7 @@ class RerankNode(BudgetedNode):
         return {"reranked": ranked[: settings.rerank_top_n]}
 
     def decide(self, state: TriageState) -> RerankNode.Outcome:
-        reranked = state.get("reranked") or []
-        if not reranked or reranked[0].score < state["retrieval_floor"]:
+        reranked = state.reranked
+        if not reranked or reranked[0].score < state.retrieval_floor:
             return self.Outcome.EVIDENCE_BELOW_FLOOR
         return self.Outcome.EVIDENCE_ABOVE_FLOOR

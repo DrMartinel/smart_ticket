@@ -71,9 +71,9 @@ class InferNode(BudgetedNode):
         self._attempt_headroom_divisor = attempt_headroom_divisor
 
     def __call__(self, state: TriageState) -> dict:
-        ticket = state["ticket"]
-        reranked = state.get("reranked", [])
-        fewshots = state.get("fewshots", [])
+        ticket = state.ticket
+        reranked = state.reranked
+        fewshots = state.fewshots
 
         user_prompt = (
             f"## KB excerpts\n{_format_chunks(reranked)}\n\n"
@@ -87,7 +87,7 @@ class InferNode(BudgetedNode):
         # wins. The budget protects the ticket's end-to-end latency; the
         # ceiling protects against a single call hanging indefinitely.
         floor = settings.min_attempt_timeout_sec
-        remaining = max(floor, state["started_at"] + state["max_latency_sec"] - time.time())
+        remaining = max(floor, state.started_at + state.max_latency_sec - time.time())
         per_attempt_timeout = min(
             settings.model_timeout_sec, max(floor, remaining / self._attempt_headroom_divisor)
         )
@@ -102,11 +102,11 @@ class InferNode(BudgetedNode):
             return {"proposal": None, "degraded_reason": "all_llm_down"}
 
         update = {
-            "tokens_used": state["tokens_used"] + result.tokens_in + result.tokens_out,
-            "llm_calls": state["llm_calls"] + 1,
-            "tokens_in": state.get("tokens_in", 0) + result.tokens_in,
-            "tokens_out": state.get("tokens_out", 0) + result.tokens_out,
-            "cost_usd": state.get("cost_usd", 0.0) + result.cost_usd,
+            "tokens_used": state.tokens_used + result.tokens_in + result.tokens_out,
+            "llm_calls": state.llm_calls + 1,
+            "tokens_in": state.tokens_in + result.tokens_in,
+            "tokens_out": state.tokens_out + result.tokens_out,
+            "cost_usd": state.cost_usd + result.cost_usd,
             "model_used": result.model,
         }
         if result.degraded_reason:

@@ -57,39 +57,41 @@ def healthz():
 def analyze(req: AIRunRequest) -> AIRunResponse:
     started_at = time.time()
 
-    initial_state: TriageState = {
-        "ticket": req.ticket,
-        "request_id": req.request_id,
-        "retrieval_floor": req.retrieval_floor,
-        "max_tokens": req.max_tokens,
-        "max_llm_calls": req.max_llm_calls,
-        "max_latency_sec": req.max_latency_sec,
-        "max_graph_iterations": req.max_graph_iterations,
-        "tokens_used": 0,
-        "llm_calls": 0,
-        "started_at": started_at,
-        "iteration": 0,
-    }
+    initial_state = TriageState(
+        ticket=req.ticket,
+        request_id=req.request_id,
+        retrieval_floor=req.retrieval_floor,
+        max_tokens=req.max_tokens,
+        max_llm_calls=req.max_llm_calls,
+        max_latency_sec=req.max_latency_sec,
+        max_graph_iterations=req.max_graph_iterations,
+        tokens_used=0,
+        llm_calls=0,
+        started_at=started_at,
+        iteration=0,
+    )
 
-    final_state = _graph.invoke(initial_state)
+    # invoke() returns a plain dict; re-validating gives typed access and the
+    # field defaults for anything no node set.
+    final_state = TriageState.model_validate(_graph.invoke(initial_state))
 
     latency_ms = int((time.time() - started_at) * 1000)
-    reranked = final_state.get("reranked") or []
+    reranked = final_state.reranked
 
     return AIRunResponse(
         request_id=req.request_id,
         graph_version=settings.graph_version,
         prompt_version=req.prompt_version,
-        model=final_state.get("model_used", "n/a"),
-        proposal=final_state.get("proposal"),
-        signals=final_state["signals"],
+        model=final_state.model_used or "n/a",
+        proposal=final_state.proposal,
+        signals=final_state.signals,
         retrieved_chunks=[
             {"chunk_id": r.chunk_id, "kb_slug": r.article_slug, "rerank_score": r.score}
             for r in reranked
         ],
-        tokens_in=final_state.get("tokens_in", 0),
-        tokens_out=final_state.get("tokens_out", 0),
-        cost_usd=final_state.get("cost_usd", 0.0),
+        tokens_in=final_state.tokens_in,
+        tokens_out=final_state.tokens_out,
+        cost_usd=final_state.cost_usd,
         latency_ms=latency_ms,
-        degraded_reason=final_state.get("degraded_reason"),
+        degraded_reason=final_state.degraded_reason,
     )

@@ -68,33 +68,26 @@ class ValidateNode(BaseNode):
         self._negations = negations if negations is not None else DEFAULT_NEGATIONS
 
     def __call__(self, state: TriageState) -> dict:
-        proposal = state.get("proposal")
-        reranked = state.get("reranked", [])
+        proposal = state.proposal
+        reranked = state.reranked
 
         if proposal is None:
-            result: ValidationResult = {
-                "schema_valid": False,
-                "quote_applicable": False,
-                "quote_match_ratio": 0.0,
-                "quote_source_in_topk": False,
-                "negation_consistent": False,
-                "category_consistent": False,
-            }
+            result = ValidationResult.all_failed()
             # `iteration` is bumped ONLY here. TriageState has no reducer on
             # it, so hoisting this to the top of the method would make every
             # successful pass increment too and silently shift the
             # `iteration < 2` retry cap in decide().
-            return {"validation": result, "iteration": state["iteration"] + 1}
+            return {"validation": result, "iteration": state.iteration + 1}
 
         if not isinstance(proposal.root, AutoReplyProposal):
-            result = {
-                "schema_valid": True,
-                "quote_applicable": False,
-                "quote_match_ratio": 0.0,
-                "quote_source_in_topk": False,
-                "negation_consistent": True,
-                "category_consistent": True,  # checked by core-api's router against KB category
-            }
+            result = ValidationResult(
+                schema_valid=True,
+                quote_applicable=False,
+                quote_match_ratio=0.0,
+                quote_source_in_topk=False,
+                negation_consistent=True,
+                category_consistent=True,  # checked by core-api's router against KB category
+            )
             return {"validation": result}
 
         quote = normalize_ws(proposal.root.verbatim_quote)
@@ -122,25 +115,22 @@ class ValidateNode(BaseNode):
             else False
         )
 
-        result = {
-            "schema_valid": True,
-            "quote_applicable": True,
-            "quote_match_ratio": ratio,
-            "quote_source_in_topk": in_topk,
-            "negation_consistent": neg_ok,
-            "category_consistent": True,
-        }
-        if source is not None:
-            result["source_chunk_id"] = source
-
+        result = ValidationResult(
+            schema_valid=True,
+            quote_applicable=True,
+            quote_match_ratio=ratio,
+            quote_source_in_topk=in_topk,
+            negation_consistent=neg_ok,
+            category_consistent=True,
+            source_chunk_id=source,
+        )
         return {"validation": result}
 
     def decide(self, state: TriageState) -> ValidateNode.Outcome:
-        validation = state.get("validation") or {}
-        if validation.get("schema_valid", False):
+        if state.validation is not None and state.validation.schema_valid:
             return self.Outcome.SCHEMA_VALID
         # Schema failure -> retry AT MOST once. Structurally bounded by
         # `iteration < 2` — the only cycle in the graph cannot loop forever.
-        if state["iteration"] < 2:
+        if state.iteration < 2:
             return self.Outcome.RETRY_INFERENCE
         return self.Outcome.RETRIES_EXHAUSTED

@@ -6,8 +6,11 @@ directly against hand-crafted (quote, source, should_pass) triples,
 including the negation-flip case that's the whole reason §6.4 exists.
 """
 
+from contracts.enums import PIILevel
 from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
+from contracts.ticket import TicketMasked
 
+from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.rerank import RankedChunk
 from ai_engine.graph.nodes.validate import ValidateNode
 
@@ -86,8 +89,35 @@ def _is_flagged(quote: str, sources: list[str]) -> bool:
             self_confidence=90,
         )
     )
-    result = _NODE({"proposal": proposal, "reranked": reranked, "iteration": 0})["validation"]
-    return not result["quote_source_in_topk"] or not result["negation_consistent"]
+    result = _NODE(_state(proposal, reranked))["validation"]
+    return not result.quote_source_in_topk or not result.negation_consistent
+
+
+def _state(proposal: LLMProposalEnvelope, reranked: list[RankedChunk]) -> TriageState:
+    """The validator reads only proposal, reranked and iteration; the rest is
+    filler to satisfy TriageState's required inputs."""
+
+    return TriageState(
+        ticket=TicketMasked(
+            ticket_public_id="EVAL-1",
+            subject_masked="",
+            body_masked="",
+            pii_level=PIILevel.ROUTINE,
+            placeholder_keys=[],
+        ),
+        request_id="eval",
+        retrieval_floor=0.0,
+        max_tokens=1,
+        max_llm_calls=1,
+        max_latency_sec=1,
+        max_graph_iterations=1,
+        tokens_used=0,
+        llm_calls=0,
+        started_at=0.0,
+        iteration=0,
+        proposal=proposal,
+        reranked=reranked,
+    )
 
 
 def test_quote_validation_precision_meets_threshold():

@@ -41,10 +41,10 @@ def check_budget(state: TriageState) -> None:
     """
 
     spent_vs_limit = {
-        "graph_iterations": (state["iteration"], state["max_graph_iterations"]),
-        "llm_calls": (state["llm_calls"], state["max_llm_calls"]),
-        "tokens": (state["tokens_used"], state["max_tokens"]),
-        "latency_sec": (time.time() - state["started_at"], state["max_latency_sec"]),
+        "graph_iterations": (state.iteration, state.max_graph_iterations),
+        "llm_calls": (state.llm_calls, state.max_llm_calls),
+        "tokens": (state.tokens_used, state.max_tokens),
+        "latency_sec": (time.time() - state.started_at, state.max_latency_sec),
     }
     for limit_name, (spent, limit) in spent_vs_limit.items():
         if spent >= limit:

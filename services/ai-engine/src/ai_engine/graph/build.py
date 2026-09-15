@@ -113,7 +113,11 @@ class GraphBuilder:
 
         graph = StateGraph(state_schema)
         for node in nodes:
-            graph.add_node(node.name, node)
+            # input_schema pinned to the graph's schema: left unset, LangGraph
+            # infers it from the `state:` annotation on __call__, so a node
+            # annotated with one schema would validate its input against that
+            # schema in any graph it is wired into.
+            graph.add_node(node.name, node, input_schema=state_schema)
 
         for node in nodes:
             if isinstance(node, Terminal):

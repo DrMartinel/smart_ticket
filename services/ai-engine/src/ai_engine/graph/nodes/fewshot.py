@@ -29,7 +29,7 @@ class SelectFewshotsNode(BaseNode):
         self._embedder = embedder
 
     def __call__(self, state: TriageState) -> dict:
-        ticket = state["ticket"]
+        ticket = state.ticket
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
         embedding = self._embedder.embed(query)
         literal = to_vector_literal(embedding)

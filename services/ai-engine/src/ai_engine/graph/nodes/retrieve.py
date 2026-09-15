@@ -17,7 +17,7 @@ class HybridRetrieveNode(BudgetedNode):
         self._embedder = embedder
 
     def __call__(self, state: TriageState) -> dict:
-        ticket = state["ticket"]
+        ticket = state.ticket
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
 
         with self._db.connect() as conn:

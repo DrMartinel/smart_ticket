@@ -6,6 +6,7 @@ text, no DB/LLM/network involved, so this suite always runs, unlike the
 live-pipeline suites.
 """
 
+from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.injection import InjectionNode
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
@@ -19,16 +20,28 @@ _NODE = InjectionNode()
 
 
 def _detect(subject: str, body: str) -> bool:
-    state = {
-        "ticket": TicketMasked(
+    # The detector reads only the ticket; the remaining required TriageState
+    # inputs are filler.
+    state = TriageState(
+        ticket=TicketMasked(
             ticket_public_id="TKT-EVAL",
             subject_masked=subject,
             body_masked=body,
             pii_level=PIILevel.ROUTINE,
             placeholder_keys=[],
-        )
-    }
-    return _NODE(state)["injection"]["detected"]
+        ),
+        request_id="eval",
+        retrieval_floor=0.0,
+        max_tokens=1,
+        max_llm_calls=1,
+        max_latency_sec=1,
+        max_graph_iterations=1,
+        tokens_used=0,
+        llm_calls=0,
+        started_at=0.0,
+        iteration=0,
+    )
+    return _NODE(state)["injection"].detected
 
 
 def test_injection_recall_meets_threshold():

@@ -7,6 +7,7 @@ routing decision, with no DB/LLM/network involved.
 """
 
 from ai_engine.core.node import Terminal
+from ai_engine.core.state import ValidationResult
 from ai_engine.graph.flow import wire_triage
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
@@ -21,48 +22,51 @@ def _chunk(score: float) -> RankedChunk:
     return RankedChunk(chunk_id=1, article_id=1, article_slug="KB-1", content="x", score=score)
 
 
-def test_injection_detected_decides_detected():
-    state = {"injection": {"detected": True, "matched_patterns": ["x"]}}
+def test_injection_detected_decides_detected(make_state):
+    state = make_state(injection={"detected": True, "matched_patterns": ["x"]})
     assert InjectionNode().decide(state) is InjectionNode.Outcome.INJECTION_DETECTED
 
 
-def test_no_injection_decides_clear():
-    state = {"injection": {"detected": False, "matched_patterns": []}}
+def test_no_injection_decides_clear(make_state):
+    state = make_state(injection={"detected": False, "matched_patterns": []})
     assert InjectionNode().decide(state) is InjectionNode.Outcome.INJECTION_CLEAR
 
 
-def test_empty_reranked_is_below_floor(fake_reranker):
-    state = {"reranked": [], "retrieval_floor": 0.45}
+def test_empty_reranked_is_below_floor(fake_reranker, make_state):
+    state = make_state(reranked=[], retrieval_floor=0.45)
     node = RerankNode(reranker=fake_reranker())
     assert node.decide(state) is RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
 
 
-def test_below_floor_is_below_floor(fake_reranker):
-    state = {"reranked": [_chunk(0.1)], "retrieval_floor": 0.45}
+def test_below_floor_is_below_floor(fake_reranker, make_state):
+    state = make_state(reranked=[_chunk(0.1)], retrieval_floor=0.45)
     node = RerankNode(reranker=fake_reranker())
     assert node.decide(state) is RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
 
 
-def test_above_floor_is_above_floor(fake_reranker):
-    state = {"reranked": [_chunk(0.9)], "retrieval_floor": 0.45}
+def test_above_floor_is_above_floor(fake_reranker, make_state):
+    state = make_state(reranked=[_chunk(0.9)], retrieval_floor=0.45)
     node = RerankNode(reranker=fake_reranker())
     assert node.decide(state) is RerankNode.Outcome.EVIDENCE_ABOVE_FLOOR
 
 
-def test_schema_invalid_retries_once():
-    state = {"validation": {"schema_valid": False}, "iteration": 0}
+def test_schema_invalid_retries_once(make_state):
+    validation = ValidationResult.all_failed().model_copy(update={"schema_valid": False})
+    state = make_state(validation=validation, iteration=0)
     node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.RETRY_INFERENCE
 
 
-def test_schema_invalid_stops_retrying_after_iteration_cap():
-    state = {"validation": {"schema_valid": False}, "iteration": 2}
+def test_schema_invalid_stops_retrying_after_iteration_cap(make_state):
+    validation = ValidationResult.all_failed().model_copy(update={"schema_valid": False})
+    state = make_state(validation=validation, iteration=2)
     node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.RETRIES_EXHAUSTED
 
 
-def test_schema_valid_decides_valid():
-    state = {"validation": {"schema_valid": True}, "iteration": 0}
+def test_schema_valid_decides_valid(make_state):
+    validation = ValidationResult.all_failed().model_copy(update={"schema_valid": True})
+    state = make_state(validation=validation, iteration=0)
     node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.SCHEMA_VALID
 

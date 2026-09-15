@@ -21,6 +21,7 @@ from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
 from ai_engine.core.providers import ConnectionSource, Embedder, LLMClient, Reranker
+from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
@@ -192,7 +193,7 @@ def _make_state(**overrides) -> dict:
         "iteration": 0,
     }
     state.update(overrides)
-    return state
+    return TriageState(**state)
 
 
 def _exhausted_budget_state(**overrides) -> dict:

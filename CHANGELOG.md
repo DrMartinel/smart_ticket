@@ -44,10 +44,26 @@ that moves a failure path is more significant here than a new feature.
   `ai_engine.providers.protocols` → `ai_engine.core.providers`.
   Nodes, providers, retrieval, the LLM client, graph wiring and data models
   (`Candidate`, `RankedChunk`, `LLMResult`, …) are unchanged. No behaviour changed.
+- **`TriageState` is a pydantic model.** `TriageState`, `InjectionVerdict`
+  and `ValidationResult` (`core/state.py`) are frozen `BaseModel`s instead of
+  `TypedDict`s. Nodes read `state.field` and still return partial update
+  dicts; unset progressive fields have defaults, and a missing `validation`
+  reads as `ValidationResult.all_failed()`, as before.
+  - **Behaviour change:** LangGraph now validates the merged state before each
+    node. A node returning a wrong-typed value aborts the run with a
+    `ValidationError` (a 500 → `AIEngineUnavailable` → human) instead of
+    passing the bad value onward.
+  - `GraphBuilder.compile` passes `input_schema=state_schema` to every node.
+    Without it LangGraph takes each node's input schema from its `state:`
+    annotation, which made `Terminal` (annotated `TriageState`) reject the
+    state of any other graph.
+  - Unchanged: an update key that is not a field is still silently dropped by
+    LangGraph. `Terminal`'s docstring previously claimed otherwise; corrected.
+  - Tests build state through `make_state`; partial dict states are gone.
 - **ai-engine value objects are pydantic models.** `LexicalHit`,
   `VectorHit`, `Candidate`, `RankedChunk` and `LLMResult` are frozen
-  `BaseModel`s instead of dataclasses; `TriageState`, `Providers` and
-  `CircuitBreaker` are unchanged. They stay internal to ai-engine — not
+  `BaseModel`s instead of dataclasses; `Providers` and `CircuitBreaker` are
+  unchanged. They stay internal to ai-engine — not
   `packages/contracts`, which is only for the core-api ↔ ai-engine wire.
   - **Behaviour change — malformed LLM responses.** A provider answering 200
     with a null `response` (Ollama) or `content` (cloud) used to reach the

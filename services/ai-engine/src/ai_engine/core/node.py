@@ -55,8 +55,9 @@ class Terminal(BaseNode):
     `GraphBuilder.compile` gives it the only edge to END, so it is never
     routed onward.
 
-    It changes no state — returning a key outside TriageState (such as
-    END) would make LangGraph reject the update and abort the run.
+    It changes no state, and must not return END or any other key outside
+    TriageState: LangGraph silently drops an unknown update key, so it would
+    look like it worked while doing nothing.
     """
 
     class Outcome(StrEnum):
