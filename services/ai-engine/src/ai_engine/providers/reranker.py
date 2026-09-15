@@ -19,6 +19,7 @@ from collections.abc import Callable
 from typing import Any
 
 from ai_engine.core.config import settings
+from ai_engine.core.providers import Reranker
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
 
@@ -55,7 +56,7 @@ def _lexical_score(query: str, passage: str) -> float:
     return overlap / len(q)  # in [0, 1] — fraction of query tokens covered
 
 
-class LexicalReranker:
+class LexicalReranker(Reranker):
     """Deterministic, dependency-free token-overlap scoring — the CI/eval
     fallback. NOT a stand-in for retrieval quality, only for exercising the
     pipeline shape without a GPU or a model download. Stateless."""
@@ -66,7 +67,7 @@ class LexicalReranker:
         return [_lexical_score(query, p) for p in passages]
 
 
-class CrossEncoderReranker:
+class CrossEncoderReranker(Reranker):
     """bge-reranker-v2-m3 via sentence-transformers — spec §6.3.
 
     `sentence-transformers` is an OPTIONAL extra (`--extra cross-encoder`).

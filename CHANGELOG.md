@@ -41,9 +41,16 @@ that moves a failure path is more significant here than a new feature.
   `ai_engine.graph.state` → `ai_engine.core.state`,
   `ai_engine.graph.base` → `ai_engine.core.node`,
   `ai_engine.graph.budget` → `ai_engine.core.budget`,
-  `ai_engine.providers.protocols` → `ai_engine.core.protocols`.
+  `ai_engine.providers.protocols` → `ai_engine.core.providers`.
   Nodes, providers, retrieval, the LLM client, graph wiring and data models
   (`Candidate`, `RankedChunk`, `LLMResult`, …) are unchanged. No behaviour changed.
+- **Provider seams are ABCs, not Protocols.** `Embedder`, `Reranker`,
+  `LLMClient` and `ConnectionSource` (`core/providers.py`) are abstract base
+  classes; every implementation and test fake subclasses its seam. Nothing
+  type-checks this repo, so a Protocol was enforced by nothing — a provider
+  with a misnamed method failed on the first ticket. It now raises
+  `TypeError` when `build_providers()` constructs it at import time, so the
+  process refuses to boot. Only method presence is checked, not signatures.
 - **Settings are read where they are used, not passed down from `main.py`.**
   Retrieval functions (`bm25_search`, `vector_search`,
   `reciprocal_rank_fusion`), nodes, providers and `PsycopgConnectionSource`

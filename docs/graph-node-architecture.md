@@ -90,8 +90,8 @@ threadpool. All per-call data belongs in state.
 
 ai-engine splits definitions from implementations. `ai_engine/core/` holds
 only the former — `config.py` (settings), `state.py`, `node.py` (`BaseNode`,
-`Terminal`), `budget.py` (`BudgetedNode`) and `protocols.py` (the provider
-seams) — and does no I/O. Everything that does work stays outside it:
+`Terminal`), `budget.py` (`BudgetedNode`) and `providers.py` (the provider
+seams, as ABCs) — and does no I/O. Everything that does work stays outside it:
 `graph/` (builder, wiring, nodes), `providers/`, `retrieval/`, `llm/`, `db.py`,
 `main.py`. Implementations import from `core`, never the reverse; data models
 such as `Candidate` or `LLMResult` stay next to the code that produces them.

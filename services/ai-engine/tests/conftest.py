@@ -20,6 +20,7 @@ import pytest
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
+from ai_engine.core.providers import ConnectionSource, Embedder, LLMClient, Reranker
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
@@ -30,7 +31,7 @@ from ai_engine.graph.nodes.validate import ValidateNode
 from ai_engine.retrieval.fusion import Candidate
 
 
-class FakeEmbedder:
+class FakeEmbedder(Embedder):
     """Records every string it was asked to embed, so a test can assert a
     budget-exhausted node bought no round-trip at all."""
 
@@ -46,7 +47,7 @@ class FakeEmbedder:
         return self._vector
 
 
-class FakeReranker:
+class FakeReranker(Reranker):
     """`scores` is consumed positionally against `passages`, so a test can
     hand back an order that INVERTS the input and prove the node's output
     order follows the reranker rather than the RRF order it was given
@@ -64,7 +65,7 @@ class FakeReranker:
         return list(self._scores[: len(passages)])
 
 
-class FakeLLM:
+class FakeLLM(LLMClient):
     """Records the timeout it was handed, which is the only way to assert
     the infer node leaves headroom for the fallback attempt."""
 
@@ -126,7 +127,7 @@ class _FakeConnection:
         return cur
 
 
-class FakeConnectionSource:
+class FakeConnectionSource(ConnectionSource):
     """`error` makes connect() raise, which is how the DB-outage failure
     paths get exercised. `events` records open/close ordering so a test can
     prove a connection is not held across an HTTP round-trip."""

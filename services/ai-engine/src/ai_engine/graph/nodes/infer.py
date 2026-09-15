@@ -20,7 +20,7 @@ from contracts.llm_draft import LLMProposalEnvelope
 
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
-from ai_engine.core.protocols import LLMClient
+from ai_engine.core.providers import LLMClient
 from ai_engine.core.state import TriageState
 from ai_engine.llm.circuit_breaker import CircuitOpenError
 from ai_engine.llm.client import AllLLMDownError

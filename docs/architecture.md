@@ -164,10 +164,12 @@ at startup (every outcome routed, nothing unreachable) and is the only place a
 node becomes a LangGraph string. `main.py` constructs the instances, wires and
 compiles them once, at import time. See
 [graph-node-architecture.md](graph-node-architecture.md).
-Nodes depend on the four Protocols in `core/protocols.py` — `Embedder`,
-`Reranker`, `LLMClient`, `ConnectionSource` — never on a concrete provider
-module, which is what makes every node testable with no DB, no Ollama and no
-model download.
+Nodes depend on the four abstract base classes in `core/providers.py` —
+`Embedder`, `Reranker`, `LLMClient`, `ConnectionSource` — never on a concrete
+provider module, which is what makes every node testable with no DB, no Ollama
+and no model download. Every implementation (and every test fake) subclasses
+its seam, so a provider missing its method fails at construction, which
+happens at startup.
 
 `providers/factory.py` is the single place `EMBEDDING_PROVIDER` and
 `RERANKER_PROVIDER` are read. Selection happens once at startup and an

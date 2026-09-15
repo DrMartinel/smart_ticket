@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import threading
 
+import pytest
+
 from ai_engine.core.config import settings
+from ai_engine.core.providers import ConnectionSource, Embedder, LLMClient, Reranker
 from ai_engine.providers.embeddings import EMBED_DIM, StubEmbedder
 from ai_engine.providers.reranker import CrossEncoderReranker, LexicalReranker
 
@@ -87,3 +90,41 @@ def test_lexical_reranker_returns_one_score_per_passage_in_input_order():
 
 def test_lexical_reranker_empty_passages_returns_empty():
     assert LexicalReranker().score("q", []) == []
+
+
+@pytest.mark.parametrize("seam", [Embedder, Reranker, LLMClient, ConnectionSource])
+def test_provider_missing_its_method_cannot_be_constructed(seam):
+    """The seams are ABCs because nothing type-checks this repo. A provider
+    whose method is misnamed (say `rerank` instead of `score`) must fail when
+    build_providers() constructs it at import time — a container that won't
+    boot — not with an AttributeError on the first ticket that reaches it.
+    """
+
+    class Misnamed(seam):
+        def misnamed(self):
+            return None
+
+    with pytest.raises(TypeError, match="abstract"):
+        Misnamed()
+
+
+@pytest.mark.parametrize(
+    ("embedding_provider", "reranker_provider"),
+    [("stub", "lexical"), ("ollama", "cross_encoder")],
+)
+def test_every_built_provider_subclasses_its_seam(
+    embedding_provider, reranker_provider, monkeypatch
+):
+    """Only a subclass gets the construction-time check above; a provider
+    added without inheriting from its seam would silently opt out of it."""
+
+    from ai_engine.providers.factory import build_providers
+
+    monkeypatch.setattr(settings, "embedding_provider", embedding_provider)
+    monkeypatch.setattr(settings, "reranker_provider", reranker_provider)
+    providers = build_providers()
+
+    assert isinstance(providers.embedder, Embedder)
+    assert isinstance(providers.reranker, Reranker)
+    assert isinstance(providers.llm, LLMClient)
+    assert isinstance(providers.db, ConnectionSource)

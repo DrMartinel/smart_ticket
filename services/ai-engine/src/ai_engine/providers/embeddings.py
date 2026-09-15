@@ -14,13 +14,14 @@ import httpx
 import numpy as np
 
 from ai_engine.core.config import settings
+from ai_engine.core.providers import Embedder
 
 # A property of bge-m3 AND of the pgvector column width — changing it needs
 # a migration, so it is not node configuration.
 EMBED_DIM = 1024
 
 
-class StubEmbedder:
+class StubEmbedder(Embedder):
     """Deterministic sha256-seeded vectors for CI/no-GPU environments.
 
     NOT a stand-in for retrieval quality — only for exercising the pipeline
@@ -36,7 +37,7 @@ class StubEmbedder:
         return vec.tolist()
 
 
-class OllamaEmbedder:
+class OllamaEmbedder(Embedder):
     """bge-m3 via Ollama. Stateless, so one instance is safe to share across
     FastAPI's threadpool."""
 

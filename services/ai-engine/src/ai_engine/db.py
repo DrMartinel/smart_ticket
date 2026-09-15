@@ -14,9 +14,10 @@ from contextlib import contextmanager
 import psycopg
 
 from ai_engine.core.config import settings
+from ai_engine.core.providers import ConnectionSource
 
 
-class PsycopgConnectionSource:
+class PsycopgConnectionSource(ConnectionSource):
     """Opens a fresh read-only connection per use. No pool — see the module
     docstring on the `ai_engine_ro` grant model.
 

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 import httpx
 
 from ai_engine.core.config import settings
+from ai_engine.core.providers import LLMClient
 from ai_engine.llm.circuit_breaker import CIRCUIT, CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
@@ -114,7 +115,7 @@ def _has_cloud() -> bool:
     return bool(settings.cloud_api_key and settings.cloud_base_url)
 
 
-class DefaultLLMClient:
+class DefaultLLMClient(LLMClient):
     """The `LLMClient` implementation backing the infer node.
 
     `circuit` defaults to the module singleton on purpose: spec §10.1 says

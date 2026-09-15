@@ -18,7 +18,7 @@ from enum import StrEnum
 
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
-from ai_engine.core.protocols import Reranker
+from ai_engine.core.providers import Reranker
 from ai_engine.core.state import TriageState
 from ai_engine.retrieval.fusion import Candidate
 

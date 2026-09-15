@@ -12,7 +12,7 @@ from contracts.enums import PIILevel
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
 from ai_engine.core.node import BaseNode
-from ai_engine.core.protocols import ConnectionSource
+from ai_engine.core.providers import ConnectionSource
 from ai_engine.core.state import TriageState
 
 # Deny-by-default when the policy lookup can't answer. NOT a constructor

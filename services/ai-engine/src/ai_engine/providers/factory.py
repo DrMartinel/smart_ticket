@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ai_engine.core.config import settings
-from ai_engine.core.protocols import ConnectionSource, Embedder, LLMClient, Reranker
+from ai_engine.core.providers import ConnectionSource, Embedder, LLMClient, Reranker
 from ai_engine.db import PsycopgConnectionSource
 from ai_engine.llm.client import DefaultLLMClient
 from ai_engine.providers.embeddings import OllamaEmbedder, StubEmbedder
