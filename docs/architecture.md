@@ -178,10 +178,26 @@ reranker, whose scores are a different calibration from the cross-encoder
 distribution `retrieval.floor` is fitted against (ADR-0005).
 
 Two constraints on anything added here: `main.py` builds the graph at uvicorn
-import time, so no constructor may open a socket or load a model (the cross-encoder
-loads lazily, behind a lock, on first use); and `analyze` is a sync `def`, so
-node instances are shared across FastAPI's threadpool and must be read-only
-after construction.
+import time, so no constructor may open a socket, and none may load a model
+except `CrossEncoderReranker`; and `analyze` is a sync `def`, so node instances
+are shared across FastAPI's threadpool and must be read-only after
+construction.
+
+`CrossEncoderReranker` is the one deliberate exception, and it loads its model
+**eagerly, in `__init__`**. With `RERANKER_PROVIDER=cross_encoder` the import of
+`main.py` blocks for that load, so the weights are resident before the process
+serves anything and no ticket pays for them. It is affordable only because the
+image bakes the weights and runs `HF_HUB_OFFLINE=1`, making this a ~2-5s local
+deserialize rather than a 2.3GB download. Two consequences to know about: the
+process looks hung for a few seconds at boot, and a broken model cache kills
+the container instead of degrading one ticket — intentionally, since there is
+no correct fallback (the lexical scorer is a different calibration, ADR-0005).
+
+`lexical` is the default, so none of that fires unless you select the
+cross-encoder — which is one environment variable and a restart, because
+`sentence-transformers` is a required dependency and the weights are already in
+the image. It used to be an optional extra the Dockerfile never installed, so
+the switch silently could not work at all.
 
 ### Stage 4 — Scoring and routing (core-api)
 

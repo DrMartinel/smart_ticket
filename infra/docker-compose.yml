@@ -118,6 +118,14 @@ services:
     build:
       context: ..
       dockerfile: services/ai-engine/Dockerfile
+      args:
+        # Must agree with RERANKER_MODEL / RERANKER_REVISION below — the image
+        # bakes one checkpoint and the container runs HF_HUB_OFFLINE=1, so a
+        # mismatch is a loud failure at startup rather than a silent download.
+        # That is the intent: which checkpoint is in use is a reviewed
+        # decision, not whatever `main` pointed at on build day (ADR-0005).
+        RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+        RERANKER_REVISION: ${RERANKER_REVISION:-main}
     environment:
       # read-only DSN — the ai_engine_ro role has SELECT-only grants on
       # kb_articles / kb_chunks / fewshot_examples (see infra/migrations/sql).
@@ -127,12 +135,29 @@ services:
       OLLAMA_INFER_MODEL: ${OLLAMA_INFER_MODEL:-qwen3.5:9b}
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
+      # `lexical` is the default; `cross_encoder` is always available (the
+      # dependency and weights ship in the image), so switching needs no
+      # rebuild. They are separate calibrations and retrieval.floor is a
+      # cross-encoder number (ADR-0005) — refusal behaviour under the default
+      # is uncalibrated. See docs/TODO.md item 4.
       RERANKER_PROVIDER: ${RERANKER_PROVIDER:-lexical}
+      RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+      RERANKER_REVISION: ${RERANKER_REVISION:-main}
       # Ceiling for a single model call. Kept in step with core-api's
       # OLLAMA_TIMEOUT_SEC; infer.py clamps to whichever of this and the
       # per-ticket latency budget is smaller.
       MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:-120}
       MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:-3}
+      # Optional cloud primary with Ollama as the fallback link (spec §10.3).
+      # Unset CLOUD_API_KEY means Ollama-only, which is the default here. Any
+      # half-configuration fails the boot rather than quietly degrading — see
+      # infra/.env.example for the per-provider rules and ADR-0007 for why
+      # anthropic/gemini cannot honour MODEL_CONNECT_TIMEOUT_SEC.
+      CLOUD_PROVIDER: ${CLOUD_PROVIDER:-openai}
+      CLOUD_API_KEY: ${CLOUD_API_KEY:-}
+      CLOUD_BASE_URL: ${CLOUD_BASE_URL:-}
+      CLOUD_MODEL: ${CLOUD_MODEL:-claude-sonnet-5}
+      CLOUD_MAX_OUTPUT_TOKENS: ${CLOUD_MAX_OUTPUT_TOKENS:-4096}
       GRAPH_VERSION: v2.1
     ports:
       - "8001:8001"

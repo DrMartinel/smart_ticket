@@ -8,19 +8,25 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "langgraph>=0.2",
+    "langchain-core>=1.5",
+    "langchain-ollama>=1.0",
+    "langchain-openai>=1.0",
     "psycopg[binary]>=3.2",
     "pgvector>=0.3",
     "httpx>=0.27",
     "rapidfuzz>=3.10",
     "numpy>=2.1",
     "pydantic-settings>=2.6",
-]
-
-[project.optional-dependencies]
-# Only needed when RERANKER_PROVIDER=cross_encoder. Kept optional so the
-# default (RERANKER_PROVIDER=lexical) install stays light and GPU-free —
-# install with `uv sync --package ai-engine --extra cross-encoder`.
-cross-encoder = [
+    "langchain-anthropic>=1.0",
+    "langchain-google-genai>=3.0",
+    # Mandatory, not an extra. It used to be optional so a default install
+    # stayed light and GPU-free, with RERANKER_PROVIDER=lexical as the
+    # default — but `retrieval.floor` is specified as a CROSS-ENCODER score
+    # (ADR-0005), so that default compared a cross-encoder threshold against
+    # token-overlap ratios: a different question, silently, with no error.
+    # The cross-encoder is now the only calibrated provider and ships with
+    # the service. Cost: this pulls torch, so installs and images are
+    # several GB heavier.
     "sentence-transformers>=3.2",
 ]
 

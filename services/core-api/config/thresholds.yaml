@@ -21,7 +21,17 @@ routing:
   quote_match: 0.95
 
 retrieval:
-  floor: 0.45         # 🔧 CROSS-ENCODER score, not cosine similarity (ADR-0005)
+  # 🔧 CROSS-ENCODER score, not cosine similarity and not an RRF score
+  # (ADR-0005), and never fitted to observed bge-reranker-v2-m3 output.
+  #
+  # ⚠️ ai-engine's default is RERANKER_PROVIDER=lexical, whose score is a
+  # token-overlap ratio — so by default this number is compared against a
+  # distribution it was not written for. core-api cannot detect that: it sends
+  # this value in AIRunRequest and has no visibility into which provider
+  # ai-engine selected. Until that is resolved, refusal behaviour is
+  # uncalibrated under BOTH providers, for different reasons.
+  # See docs/TODO.md item 4.
+  floor: 0.45
   margin: 0.08         # below this → downgrade trust, log "KB ambiguous"
   bm25_top_k: 20
   vector_top_k: 20

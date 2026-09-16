@@ -155,7 +155,13 @@ THRESHOLDS_PATH = os.environ.get("THRESHOLDS_PATH", str(BASE_DIR / "config" / "t
 
 
 def load_thresholds() -> Thresholds:
-    with open(THRESHOLDS_PATH) as f:
+    # encoding is explicit: without it Python uses the locale default, which is
+    # cp1252 on Windows, and thresholds.yaml carries non-ASCII (the 🔧 markers on
+    # unfitted values, ⚠️ on the calibration warnings). Those used to decode into
+    # silent mojibake — cp1252 happens to map every byte of 🔧 — until a
+    # character containing 0x8f made it throw, taking core-api's boot with it.
+    # Same defect as the golden-set loader fixed in evals/suites/golden_utils.py.
+    with open(THRESHOLDS_PATH, encoding="utf-8") as f:
         data = yaml.safe_load(f)
     return Thresholds(**data)
 

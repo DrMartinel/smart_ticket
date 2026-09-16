@@ -13,6 +13,125 @@ that moves a failure path is more significant here than a new feature.
 
 ## [Unreleased]
 
+### Changed
+
+- **The LLM client now uses LangChain chat models for transport; retry,
+  fallback and the circuit breaker are unchanged and still ours.**
+  `core/llm/client.py` lost ~90 lines of hand-written httpx and two bespoke
+  response schemas. It did NOT adopt `.with_retry()` / `.with_fallbacks()`:
+  those give no supported signal for *which* link answered, which would drop
+  `degraded_reason="cloud_fallback_to_ollama"` and make a degraded answer look
+  clean. `complete()`'s signature, both exception types and the
+  `degraded_reason` mapping in `infer.py` are untouched (ADR-0007)
+- **`OllamaEmbedder` calls through `langchain-ollama`.** The `Embedder` seam,
+  the raise-don't-degrade contract and the `EMBED_DIM` width check all stay on
+  our side — langchain has no opinion about the width our pgvector column was
+  migrated to
+- **LLM provider selection moved to startup.** `DefaultLLMClient` used to
+  re-read `settings` on every call to decide whether a cloud link existed;
+  `build_providers()` now resolves the chain once and injects it
+- **Token counts come from `usage_metadata`.** *Behaviour change:* an absent
+  and an explicitly-null token count are no longer distinguishable. The old
+  code rejected null as malformed; both now read as 0, so a provider emitting
+  nulls undercounts against the token budget instead of failing loudly
+  (ADR-0007)
+
+### Added
+
+- **Claude and Gemini as cloud providers**, alongside the existing
+  OpenAI-compatible link. `CLOUD_PROVIDER` selects between `openai`,
+  `anthropic` and `gemini`; Ollama remains the fallback behind whichever is
+  chosen. New `CLOUD_MAX_OUTPUT_TOKENS` caps a single cloud generation —
+  Anthropic defaults to 128000, enough for a runaway generation to eat the
+  per-ticket latency budget
+- **Cloud misconfiguration is now fatal at boot.** `CLOUD_BASE_URL` without a
+  key, `openai` without a base URL, `gemini` *with* one (the Google client has
+  no endpoint override, so it would be silently ignored), and any unknown
+  `CLOUD_PROVIDER` all fail the boot. Previously a half-configured cloud link
+  was invisible: the service ran Ollama-only while the operator believed
+  otherwise
+
+### Fixed
+
+- `evals/suites/golden_utils.py` read the golden set without an explicit
+  encoding, so the eval suite could not run on Windows at all — the Vietnamese
+  fixtures failed to decode under cp1252
+
+### Known limitations
+
+- `anthropic` and `gemini` cannot honour the 3s-connect / long-read split.
+  Their timeout fields are plain floats with no injectable HTTP client, so they
+  take a single flat timeout. Ollama — the provider the split was calibrated
+  for — is unaffected (ADR-0007)
+- The Anthropic API has no JSON output mode, unlike the other three providers.
+  Under `CLOUD_PROVIDER=anthropic` only the system prompt keeps the reply
+  parseable; unparseable output still degrades to HITL rather than 500ing
+
+### Changed
+
+- **`sentence-transformers` is a required dependency rather than an optional
+  extra, so the cross-encoder is always available.** `RERANKER_PROVIDER` still
+  defaults to `lexical`; what changed is that switching to `cross_encoder` is
+  now one environment variable and a restart, where before it silently could
+  not work in a container at all. Cost: torch is installed everywhere, so
+  images and CI are several GB heavier.
+- **The cross-encoder's weights are baked into the image.** It always pulls
+  `bge-reranker-v2-m3` into a layer, and the container runs `HF_HUB_OFFLINE=1`.
+  Previously the first ticket to reach the reranker downloaded ~2.3GB over the
+  network mid-request, and repeated it on every container recreate, since the
+  HF cache lived on the ephemeral filesystem. New `RERANKER_MODEL` /
+  `RERANKER_REVISION` settings must agree with the build args of the same name;
+  a mismatch is a hard error rather than a silent download. Pin
+  `RERANKER_REVISION` to a sha — left at `main`, an upstream commit swaps the
+  checkpoint, and with it the score distribution `retrieval.floor` was written
+  against, without failing loudly (ADR-0005). Costs: +~3-4GB on the image, and
+  the build now depends on the HF hub being reachable.
+- **`CrossEncoderReranker` loads its model in `__init__` instead of lazily on
+  first `score()`**, so the load lands at uvicorn import time and no ticket
+  pays it. *Behaviour change:* with `RERANKER_PROVIDER=cross_encoder` the
+  process blocks for a few seconds at boot and serves no `/healthz` until the
+  model is resident, and an unusable model cache kills the container rather
+  than degrading one ticket to HITL. Intended — there is no correct fallback,
+  since the lexical scorer is a different calibration (ADR-0005), so the loud
+  failure is the right one.
+- The load lock and `_model_or_load` are gone with it. They existed because
+  `analyze` is a sync `def`, so FastAPI served concurrent cold requests from a
+  threadpool against one shared instance and each racing request built its own
+  multi-GB model. Constructing eagerly removes that race by construction rather
+  than by locking.
+  `test_cross_encoder_builds_its_model_exactly_once_at_construction` keeps the
+  concurrent scoring threads, so restoring a lazy load without a lock fails
+  there rather than as an OOM in production.
+- Unit tests never load real weights: an autouse fixture in
+  `services/ai-engine/tests/conftest.py` stubs the loader, so a test that
+  selects `cross_encoder` does not also pull a 2.3GB checkpoint that no CI
+  runner has.
+- `build_providers()` no longer promises that *every* constructor is pure; the
+  cross-encoder is a documented exception and the rest are unchanged.
+- **Documented, not fixed: `retrieval.floor` is calibrated for a provider that
+  is not the default.** `floor = 0.45` is a CROSS-ENCODER score (ADR-0005), but
+  `lexical` scores `|query ∩ passage| / |query|` — a token-overlap ratio. The
+  default configuration therefore compares that threshold against a fraction of
+  matching words: a different question, decided silently, with no error and no
+  test that can see it. Now written down at every point it matters
+  (`thresholds.yaml`, `config.py`, `.env.example`, `eval-gate.yml`), and the
+  calibrated provider is finally reachable. Resolving it needs measured
+  cross-encoder scores *and* a way for core-api — which sends `retrieval_floor`
+  and cannot see which provider ai-engine selected — to know which calibration
+  applies. See `docs/TODO.md` item 4.
+
+### Fixed
+
+- **`RERANKER_PROVIDER=cross_encoder` could not work in the container at all.**
+  The image never installed `--extra cross-encoder`, and
+  `CrossEncoderReranker`'s constructor was pure, so the container booted green,
+  passed `/healthz`, and died with `ModuleNotFoundError` on the first ticket
+  that reached `score()` — after core-api had already handed it work. Same
+  silent-until-first-use shape as the typo'd provider value fixed earlier.
+  Fixed at the root: sentence-transformers is a required dependency now, and
+  the model loads at startup, so a broken environment fails the boot rather
+  than a ticket.
+
 ### Added
 
 - **CI/CD actually runs now.** There was no `.github/` directory, so

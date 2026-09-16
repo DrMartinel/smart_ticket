@@ -20,6 +20,7 @@ import pytest
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
+from ai_engine.core.providers import factory as factory_mod
 from ai_engine.core.providers.base import ConnectionSource, Embedder, LLMClient, Reranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import TriageState
@@ -221,6 +222,32 @@ def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
         "validate": ValidateNode(),
         "emit": EmitSignalsNode(db=db),
     }
+
+
+class _StubCrossEncoderModel:
+    """Stands in for a loaded `sentence_transformers.CrossEncoder`."""
+
+    def predict(self, pairs):
+        return [0.0] * len(pairs)
+
+
+@pytest.fixture(autouse=True)
+def never_load_real_reranker_weights(monkeypatch):
+    """Keep the unit suite free of a 2.3GB model load.
+
+    `build_providers()` loads the real model when `cross_encoder` is selected, and
+        it takes no arguments — so patching this name is the only way a test can
+        select that provider without pulling 2.3GB of weights that no CI runner
+        has. The default is `lexical`, so this does not fire on a plain
+        build_providers(); it catches the tests that switch. Autouse because the
+        trap is invisible from the test body: selecting a provider and loading a
+        multi-GB model do not look like the same action.
+
+        Tests that assert something ABOUT loading re-patch this themselves;
+        monkeypatch applies their stub over this one and unwinds both.
+    """
+
+    monkeypatch.setattr(factory_mod, "_load_cross_encoder", _StubCrossEncoderModel)
 
 
 # --- fixtures -------------------------------------------------------------

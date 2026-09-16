@@ -35,7 +35,13 @@ _MODEL_PATH = Path(settings.BASE_DIR) / "config" / "trust_model_v0.json"
 
 @lru_cache(maxsize=1)
 def _load_model() -> dict:
-    with open(_MODEL_PATH) as f:
+    # encoding is explicit for the same reason as load_thresholds() in
+    # config/settings/base.py: without it Python uses the locale default
+    # (cp1252 on Windows) and JSON is UTF-8 by spec. Today this file's
+    # non-ASCII sits only in its `_comment`, so the mojibake is invisible —
+    # but fit_trust_score.py regenerates it, and one Vietnamese character
+    # would turn a silent corruption into a boot failure.
+    with open(_MODEL_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 

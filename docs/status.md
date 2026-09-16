@@ -12,7 +12,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 |---|---|
 | Spec phases complete | **P0, P1** |
 | Phase in progress | **P2** — calibration scripts ready, awaiting ≥500 shadow pairs |
-| Unit tests | **111 passing** (73 core-api, 38 ai-engine) |
+| Unit tests | **238 passing** (74 core-api, 164 ai-engine) |
 | Eval suites | 8 collected; **7 pass, 1 known failure** (`other` category F1) |
 | Masking branch coverage | **100%** — the spec §14 P0 exit condition |
 | Router branch coverage | 98% — the one uncovered line is unreachable by construction |
@@ -74,18 +74,22 @@ Practically this fails safe — nobody can read raw PII at all right now, which 
 
 This is the expected P1 state, not a defect. `evals/calibration/fit_trust_score.py` and `choose_thresholds.py` exist and are ready; they need ≥500 shadow-mode `(signals, human verdict)` pairs to run. **Do not enable P3/P4 before this happens** — thresholds chosen by intuition are exactly what shadow mode is meant to replace.
 
-### Gap 3 — Reranker defaults to lexical
+### Gap 3 — `retrieval.floor` is calibrated for a provider that is not the default
 
-`RERANKER_PROVIDER=lexical` is the default: a deterministic lexical-overlap scorer with no model download and no GPU requirement, which keeps CI and offline development fast.
+`RERANKER_PROVIDER=lexical` is still the default: deterministic, fast, and it cannot fail to boot. What changed is that the cross-encoder is now **always available** — `sentence-transformers` is a required dependency rather than an optional extra, and the weights are baked into the ai-engine image — so `RERANKER_PROVIDER=cross_encoder` plus a restart is the whole switch. Previously it silently could not work in a container at all: the image never installed the extra, so it booted green and died on the first ticket to reach the reranker.
 
-The real cross-encoder (`bge-reranker-v2-m3`) is a one-line config change plus an optional dependency:
+**The open problem is calibration, and it is live in the default config.** `retrieval.floor = 0.45` is specified as a **cross-encoder** score (ADR-0005). `LexicalReranker` scores `|query ∩ passage| / |query|` — the fraction of query tokens present in the passage. So the shipped default compares a cross-encoder threshold against a fraction of matching words: a different question, decided silently, with no error and no test that can see it. Treat refusal behaviour under the default as uncalibrated.
 
-```bash
-uv sync --package ai-engine --extra cross-encoder
-# then set RERANKER_PROVIDER=cross_encoder
-```
+Two things have to happen to close it, and neither is a config edit:
 
-This matters because `retrieval.floor = 0.45` is specified as a **cross-encoder** score (ADR-0005). The lexical scorer produces a different distribution, so floor and margin need re-tuning whenever the provider changes — treat the two as separate calibrations, not interchangeable.
+1. **Measure.** Nobody has observed real `bge-reranker-v2-m3` scores on this KB, so `0.45` is a hand-set prior (🔧) even for the provider it was written for.
+2. **Make the pairing knowable.** core-api reads `retrieval.floor` and sends it in `AIRunRequest` ([ai_client.py](../services/core-api/apps/tickets/services/ai_client.py)), but `RERANKER_PROVIDER` is an ai-engine-only variable — core-api cannot see which provider scored, so it cannot pick the matching floor or detect a mismatch. A per-provider floor needs that coupling to exist first.
+
+When the cross-encoder *is* selected, the model loads **eagerly at startup** in `CrossEncoderReranker.__init__`, so no ticket pays the load — at the cost of a few seconds of apparent hang at boot, and a container that refuses to start if the model cache is unusable. The image runs `HF_HUB_OFFLINE=1`, so nothing downloads at runtime and a `RERANKER_MODEL`/`RERANKER_REVISION` mismatch fails loudly. Pin `RERANKER_REVISION` to a commit sha; left at `main`, an upstream push moves the distribution.
+
+Unit tests never load real weights: an autouse fixture in `services/ai-engine/tests/conftest.py` stubs the loader.
+
+See [TODO.md](TODO.md) item 4.
 
 ### Gap 4 — No external trace backend
 

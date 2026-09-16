@@ -113,28 +113,40 @@ Investigate whether the fix belongs in the KB content (KB-0010 is thin and seman
 
 ---
 
-## 4. Switch the reranker to the real cross-encoder
+## 4. Calibrate `retrieval.floor`, and make the provider/floor pairing knowable
 
-**Priority:** Medium · **Spec:** §6.3, ADR-0005
+**Priority:** High · **Spec:** §6.3, ADR-0005
 
 ### Problem
 
-`RERANKER_PROVIDER=lexical` is the default — a deterministic lexical-overlap scorer that needs no model download and no GPU, which keeps CI and offline development fast. It is not what the spec's retrieval quality assumes.
+Availability is **done**: `sentence-transformers` is a required dependency, the weights ship in the ai-engine image, and `RERANKER_PROVIDER=cross_encoder` is one variable plus a restart. It is no longer possible for the switch to silently not work.
 
-`retrieval.floor = 0.45` is specified as a **cross-encoder** score. The lexical scorer produces a different score distribution, so the floor and margin are not transferable between the two.
+Calibration is not done, and the mismatch is live in the shipped default:
+
+- `retrieval.floor = 0.45` is a **cross-encoder** score (🔧, never fitted).
+- The default provider is `lexical`, which scores `|query ∩ passage| / |query|`.
+- So the floor is compared against a token-overlap ratio. Different question, no error, no test that can see it.
+
+Note the shape of this: it is not "the wrong number", it is "a number from a different measurement compared against this one". Fixing it by nudging `0.45` would be the worst outcome, because it would make the mismatch invisible rather than absent.
+
+There is also a structural blocker. core-api owns `thresholds.yaml` and sends `retrieval_floor` in `AIRunRequest` ([ai_client.py](../services/core-api/apps/tickets/services/ai_client.py)), but `RERANKER_PROVIDER` is read only by ai-engine. **core-api cannot see which provider scored**, so it cannot select a matching floor, and a mismatch cannot currently be detected at all.
 
 ### Work
 
-```bash
-uv sync --package ai-engine --extra cross-encoder
-# then set RERANKER_PROVIDER=cross_encoder
-```
+1. Pin `RERANKER_REVISION` to a commit sha in `infra/.env` and the Dockerfile build arg. Do this first — with it at `main`, an upstream push moves the distribution out from under whatever you measure.
+2. Run the pipeline under `cross_encoder` and **look at the score distribution** before choosing anything. The GPU job in `eval-gate.yml` is the natural place; it is the only one with a runner that can carry the model.
 
-Then **re-tune `retrieval.floor` and `retrieval.margin` against the new distribution** and re-run `evals/suites/test_retrieval.py`. Treat lexical and cross-encoder as two separate calibrations, never interchangeable.
+   ```bash
+   RERANKER_PROVIDER=cross_encoder uv run --package evals pytest evals/suites/test_retrieval.py -q
+   ```
+3. Derive floor and margin from what you observe, not from what keeps CI green.
+4. Close the coupling. Options, cheapest first: have ai-engine echo its provider in `AIRunResponse` so core-api can log or reject a mismatch; or move the floor per-provider in `thresholds.yaml` and give core-api the provider setting (accepting that two services then share a value that can disagree).
 
 ### Done when
 
-Recall@5 ≥ 0.90 holds under `cross_encoder`, with floor/margin values derived from cross-encoder scores and `thresholds.yaml` noting which provider they were calibrated against.
+`Recall@5 ≥ 0.90` holds under `cross_encoder` with floor and margin derived from observed scores, `RERANKER_REVISION` is a sha, the 🔧 markers are gone from `retrieval` in `thresholds.yaml`, and a provider/floor mismatch is detectable rather than silent.
+
+> Per hard rule 9: do not move the floor to make a suite green. If the numbers disagree, that is the finding.
 
 ---
 
@@ -215,3 +227,20 @@ its own commit and its own test.
 ## 7. Housekeeping
 
 - **Golden set is synthetic.** Per spec §12.4, promote real cases into `evals/golden/tickets.jsonl` over time from the three free label sources already being captured: human overrides, technician reroutes, and reopens after auto-reply. `eval_candidates` rows are accumulating for exactly this — they just need a periodic review-and-promote pass.
+
+- **Cloud provider cost rates are placeholders.** `models.py` carries one
+  `*_COST_PER_1K_TOKENS` constant per provider, all illustrative. Replace each
+  with the provider's real rate card before `cost_per_ticket` dashboards are
+  trusted — the numbers are currently plausible-looking and wrong.
+
+- **`anthropic` / `gemini` cannot express a connect budget.** Both take a flat
+  timeout (ADR-0007), so an unreachable endpoint consumes the per-attempt read
+  budget rather than failing in ~3s. Acceptable today because Ollama keeps the
+  split and hosted APIs usually refuse fast. If either becomes the standing
+  primary, revisit — an upstream `http_client` parameter would fix it cleanly.
+
+- **`CLOUD_PROVIDER` and `CLOUD_MODEL` are not cross-checked.** Switching
+  provider without switching model reaches the API and fails there rather than
+  at boot, unlike every other misconfiguration in `build_providers()`. A
+  per-provider model-name prefix check would close the gap, at the cost of
+  needing maintenance as model names change.

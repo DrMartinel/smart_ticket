@@ -3,6 +3,9 @@ LLM client — circuit breaker + budget + retry + cloud→Ollama fallback,
 spec §10.1/§10.3. This is the ONLY place in ai-engine that calls out to an
 LLM; every caller (infer.py) goes through here so the failure-mode table
 in spec §10.3 is implemented once, not scattered across nodes.
+
+LangChain supplies the transport (see `models.py` and ADR-0007); everything
+below the `_invoke` call is unchanged policy.
 """
 
 from __future__ import annotations
@@ -10,20 +13,14 @@ from __future__ import annotations
 import logging
 import time
 
-import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, ConfigDict
 
-from ai_engine.core.config import settings
 from ai_engine.core.llm.circuit_breaker import CIRCUIT, CircuitBreaker, CircuitOpenError
+from ai_engine.core.llm.models import ChatModelFactory, content_as_text
 from ai_engine.core.providers.base import LLMClient
 
 logger = logging.getLogger(__name__)
-
-# Rough $/1K tokens for cost tracking. Ollama is treated as free (local
-# compute); cloud pricing is illustrative — replace with the real
-# provider's rate card before trusting cost_per_ticket dashboards.
-OLLAMA_COST_PER_1K_TOKENS = 0.0
-CLOUD_COST_PER_1K_TOKENS = 0.003
 
 
 class AllLLMDownError(Exception):
@@ -48,111 +45,56 @@ class LLMResult(BaseModel):
     degraded_reason: str | None = None
 
 
-# Provider response bodies, parsed with `model_validate_json` so that EVERY
-# malformed reply — not JSON, a missing or null field, an empty `choices` —
-# raises ValidationError, which `complete()` retries and falls back on like a
-# transport failure. Indexing into `resp.json()` by hand let KeyError,
-# IndexError, TypeError and JSONDecodeError escape the client as a 500.
-# Token counts default to 0 only when ABSENT (Ollama omits
-# `prompt_eval_count` for a cached prompt); a null count is malformed, not
-# zero — silently undercounting would loosen the per-ticket token budget.
+def _invoke(
+    factory: ChatModelFactory,
+    system_prompt: str,
+    user_prompt: str,
+    timeout: float,
+) -> LLMResult:
+    """One attempt against one provider. Raises on anything unusable.
 
+    Replaces the hand-written `_call_ollama` / `_call_cloud` pair and their
+    per-provider response schemas: LangChain normalises both wire formats
+    into an `AIMessage`, so the only provider-specific knowledge left here is
+    the cost rate.
+    """
+    model = factory(timeout)
+    message = model.invoke([SystemMessage(system_prompt), HumanMessage(user_prompt)])
 
-class _OllamaGenerateResponse(BaseModel):
-    response: str
-    prompt_eval_count: int = 0
-    eval_count: int = 0
+    text = content_as_text(message.content)
 
+    # Absent usage metadata means 0, matching the old behaviour for an Ollama
+    # reply that omits `prompt_eval_count` on a cached prompt. NOTE: the old
+    # code could tell an ABSENT count from an explicit null and rejected the
+    # latter as malformed; langchain-core normalises both to None, so that
+    # distinction is gone. Worst case is undercounting against the token
+    # budget rather than a loud failure — recorded in ADR-0007.
+    usage = message.usage_metadata or {}
+    tokens_in = usage.get("input_tokens", 0)
+    tokens_out = usage.get("output_tokens", 0)
 
-class _ChatMessage(BaseModel):
-    content: str
-
-
-class _ChatChoice(BaseModel):
-    message: _ChatMessage
-
-
-class _ChatUsage(BaseModel):
-    prompt_tokens: int = 0
-    completion_tokens: int = 0
-
-
-class _ChatCompletionResponse(BaseModel):
-    choices: list[_ChatChoice] = Field(min_length=1)
-    usage: _ChatUsage = _ChatUsage()
-
-
-def _budget(read_timeout: float) -> httpx.Timeout:
-    """Long read budget, short connect budget. An unreachable provider is
-    knowable in seconds and should fall through to the next link in the
-    fallback chain immediately rather than consuming the whole per-ticket
-    latency budget on a connection that will never open."""
-    return httpx.Timeout(read_timeout, connect=settings.model_connect_timeout_sec)
-
-
-def _call_ollama(system_prompt: str, user_prompt: str, timeout: float) -> LLMResult:
-    url = f"{settings.ollama_base_url.rstrip('/')}/api/generate"
-    payload = {
-        "model": settings.ollama_infer_model,
-        "system": system_prompt,
-        "prompt": user_prompt,
-        "stream": False,
-        "format": "json",
-        # Hybrid-thinking models (e.g. qwen3.5) default to emitting a long
-        # reasoning trace before the final answer, which both blows past
-        # reasonable per-ticket latency budgets (spec §10.2) and produces
-        # `response` text that isn't itself the JSON object we asked for.
-        # Ignored harmlessly by models that don't support the flag.
-        "think": False,
-    }
-    resp = httpx.post(url, json=payload, timeout=_budget(timeout))
-    resp.raise_for_status()
-    body = _OllamaGenerateResponse.model_validate_json(resp.content)
-    tokens_in, tokens_out = body.prompt_eval_count, body.eval_count
     return LLMResult(
-        text=body.response,
+        text=text,
         tokens_in=tokens_in,
         tokens_out=tokens_out,
-        model=f"ollama/{settings.ollama_infer_model}",
-        cost_usd=(tokens_in + tokens_out) / 1000 * OLLAMA_COST_PER_1K_TOKENS,
+        # From config, not from the response: `ai_runs.model_used` must read
+        # the same whether the provider echoed a model name or not.
+        model=factory.model_name,
+        cost_usd=(tokens_in + tokens_out) / 1000 * factory.cost_per_1k_tokens,
     )
-
-
-def _call_cloud(system_prompt: str, user_prompt: str, timeout: float) -> LLMResult:
-    if not settings.cloud_api_key or not settings.cloud_base_url:
-        raise RuntimeError("cloud provider not configured")
-
-    resp = httpx.post(
-        f"{settings.cloud_base_url.rstrip('/')}/v1/chat/completions",
-        headers={"Authorization": f"Bearer {settings.cloud_api_key}"},
-        json={
-            "model": settings.cloud_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "response_format": {"type": "json_object"},
-        },
-        timeout=_budget(timeout),
-    )
-    resp.raise_for_status()
-    body = _ChatCompletionResponse.model_validate_json(resp.content)
-    tokens_in, tokens_out = body.usage.prompt_tokens, body.usage.completion_tokens
-    return LLMResult(
-        text=body.choices[0].message.content,
-        tokens_in=tokens_in,
-        tokens_out=tokens_out,
-        model=settings.cloud_model,
-        cost_usd=(tokens_in + tokens_out) / 1000 * CLOUD_COST_PER_1K_TOKENS,
-    )
-
-
-def _has_cloud() -> bool:
-    return bool(settings.cloud_api_key and settings.cloud_base_url)
 
 
 class DefaultLLMClient(LLMClient):
     """The `LLMClient` implementation backing the infer node.
+
+    `primary` / `fallback` are resolved ONCE, in `providers/factory.py`, and
+    injected. This client no longer re-reads `settings` per call: provider
+    selection is a startup decision there, like every other provider choice,
+    and a half-configured cloud is fatal at boot rather than invisibly
+    degrading to Ollama-only.
+
+    `fallback` is None when no cloud provider is configured — the common case
+    in this environment — and then the chain is simply Ollama with retries.
 
     `circuit` defaults to the module singleton on purpose: spec §10.1 says
     one breaker per PROCESS, shared across every request and every client
@@ -163,7 +105,17 @@ class DefaultLLMClient(LLMClient):
     safe to share across FastAPI's threadpool.
     """
 
-    def __init__(self, *, circuit: CircuitBreaker = CIRCUIT) -> None:
+    def __init__(
+        self,
+        *,
+        primary: ChatModelFactory,
+        fallback: ChatModelFactory | None = None,
+        default_timeout: float,
+        circuit: CircuitBreaker = CIRCUIT,
+    ) -> None:
+        self._primary = primary
+        self._fallback = fallback
+        self._default_timeout = default_timeout
         self._circuit = circuit
 
     def complete(
@@ -180,24 +132,27 @@ class DefaultLLMClient(LLMClient):
         circuit = self._circuit
 
         if timeout is None:
-            timeout = settings.model_timeout_sec
+            timeout = self._default_timeout
 
         if not circuit.allow_request():
             raise CircuitOpenError("circuit is open — failing fast, not calling any LLM")
 
-        primary_is_cloud = _has_cloud()
-        primary_call = _call_cloud if primary_is_cloud else _call_ollama
-
         last_error: Exception | None = None
         for attempt in range(2):  # "retry backoff x2"
             try:
-                result = primary_call(system_prompt, user_prompt, timeout)
+                result = _invoke(self._primary, system_prompt, user_prompt, timeout)
                 circuit.record(success=True)
                 return result
-            # ValidationError: the provider answered, but not with a usable
-            # result. Same treatment as a transport failure — it must reach
-            # AllLLMDownError -> HITL, never escape as a 500.
-            except (httpx.HTTPError, RuntimeError, ValidationError) as e:
+            # Deliberately broad. The four providers raise from DISJOINT
+            # exception hierarchies — ollama surfaces raw `httpx` errors, the
+            # openai and anthropic SDKs raise their own over vendored `httpx2`
+            # (and `httpx.HTTPError is not httpx2.HTTPError`), google-genai
+            # adds a third — on top of whatever langchain-core raises parsing
+            # a reply. An enumerated tuple silently rots into a 500 with no
+            # TrustSignals the first time a dependency adds an exception type;
+            # the failure this protects is a ticket that should have degraded
+            # to HITL.
+            except Exception as e:
                 last_error = e
                 logger.warning("primary LLM call failed (attempt %d/2): %s", attempt + 1, e)
                 if attempt == 0:
@@ -205,12 +160,12 @@ class DefaultLLMClient(LLMClient):
 
         circuit.record(success=False)
 
-        if primary_is_cloud:
+        if self._fallback is not None:
             # Fall back to Ollama — a quality degradation, not a failure.
             try:
-                result = _call_ollama(system_prompt, user_prompt, timeout)
+                result = _invoke(self._fallback, system_prompt, user_prompt, timeout)
                 return result.model_copy(update={"degraded_reason": "cloud_fallback_to_ollama"})
-            except (httpx.HTTPError, ValidationError) as e:
+            except Exception as e:
                 last_error = e
                 logger.error("Ollama fallback also failed: %s", e)
 

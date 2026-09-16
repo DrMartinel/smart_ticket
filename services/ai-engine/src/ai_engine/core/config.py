@@ -23,7 +23,17 @@ class Settings(BaseSettings):
     ollama_embed_model: str = "bge-m3"
 
     embedding_provider: str = "ollama"  # "ollama" | "stub"
-    reranker_provider: str = "lexical"  # "cross_encoder" | "lexical"
+    # "cross_encoder" | "lexical". `lexical` is the default: deterministic,
+    # fast, and it cannot fail to boot. The cross-encoder is always AVAILABLE
+    # — sentence-transformers is a required dependency and the weights ship in
+    # the image — so switching is a one-variable change with no rebuild.
+    #
+    # ⚠️ The two are separate calibrations and `retrieval.floor` is specified
+    # against the CROSS-ENCODER distribution (ADR-0005). Under this default it
+    # is compared against LexicalReranker's token-overlap ratio instead, which
+    # is a different question answered silently. Treat refusal behaviour under
+    # `lexical` as uncalibrated. See docs/TODO.md item 4.
+    reranker_provider: str = "lexical"
 
     # Ceiling for any single model call (inference, embeddings). A cold
     # Ollama load can take 15-20s on its own, so a short ceiling reports
@@ -46,9 +56,23 @@ class Settings(BaseSettings):
 
     # Cloud provider is optional — if unset, the fallback chain (spec
     # §10.3) goes straight to Ollama, which is this environment's default.
+    # Setting cloud_api_key is what ENABLES the cloud primary; cloud_provider
+    # only picks which wire protocol it speaks.
+    #
+    # "openai" is any OpenAI-compatible endpoint and is the only one that
+    # needs cloud_base_url. "anthropic" and "gemini" are the first-party APIs
+    # and default to their own endpoints. Validated in providers/factory.py —
+    # an unknown value is fatal at boot, like every other provider setting.
+    cloud_provider: str = "openai"  # "openai" | "anthropic" | "gemini"
     cloud_api_key: str | None = None
     cloud_base_url: str | None = None
     cloud_model: str = "claude-sonnet-5"
+
+    # Ceiling on a single cloud generation. A triage proposal is a small JSON
+    # object, so this is well clear of a legitimate reply — it is here to stop
+    # a runaway generation from eating the whole per-ticket latency budget.
+    # Anthropic in particular defaults to 128000 if left unset.
+    cloud_max_output_tokens: int = 4096
 
     graph_version: str = "v2.1"
     prompt_version: str = "classify.v3"
@@ -70,6 +94,15 @@ class Settings(BaseSettings):
     quote_fuzzy_threshold: float = 0.95
 
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
+
+    # The checkpoint, not just the repo. Left at "main" this resolves to
+    # whatever BAAI last pushed, and a new commit upstream silently changes
+    # the score distribution `retrieval.floor` is calibrated against
+    # (ADR-0005) — a drift that does not fail loudly. Pin a commit sha here
+    # and in the RERANKER_REVISION build arg; the two must agree, because
+    # the image bakes one revision and HF_HUB_OFFLINE=1 makes fetching a
+    # different one an error rather than a silent download mid-ticket.
+    reranker_revision: str = "main"
 
 
 settings = Settings()

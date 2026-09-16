@@ -33,7 +33,11 @@ DEFAULT_SAMPLE = int(os.environ.get("EVAL_SAMPLE_SIZE", "8"))
 
 
 def load_golden(*tags: str) -> list[dict]:
-    cases = [json.loads(line) for line in GOLDEN_PATH.read_text().splitlines() if line.strip()]
+    cases = [
+        json.loads(line)
+        for line in GOLDEN_PATH.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     if not tags:
         return cases
     return [c for c in cases if any(t in c["tags"] for t in tags)]
@@ -54,7 +58,7 @@ def record_metric(name: str, value: float, **extra) -> None:
     results = {}
     if RESULTS_PATH.exists():
         try:
-            results = json.loads(RESULTS_PATH.read_text())
+            results = json.loads(RESULTS_PATH.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             results = {}
     results[name] = {"value": value, **extra}
