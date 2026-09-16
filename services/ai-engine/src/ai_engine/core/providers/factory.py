@@ -13,8 +13,7 @@ Every constructor called here is pure — no socket, no file read, no model
 download — with ONE deliberate exception: `_load_cross_encoder` below, which
 reads ~2.3GB of weights at startup so that no ticket pays the load.
 Everything else stays pure, which is what lets main.py build the graph at
-uvicorn import time and lets the default configuration be constructed in a
-test with no database and no environment.
+uvicorn import time without the database or Ollama being reachable.
 
 `build_providers` stays a flat composition root: read it top to bottom and
 see the whole startup contract, every unknown value closed with a
@@ -30,6 +29,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ai_engine.core.config import settings
+from ai_engine.core.db.client import SqlAlchemySessionSource
+from ai_engine.core.llm.base import LLMClient
 from ai_engine.core.llm.client import DefaultLLMClient
 from ai_engine.core.llm.models import (
     AnthropicChatModelFactory,
@@ -38,8 +39,7 @@ from ai_engine.core.llm.models import (
     OllamaChatModelFactory,
     OpenAIChatModelFactory,
 )
-from ai_engine.core.providers.base import ConnectionSource, Embedder, LLMClient, Reranker
-from ai_engine.core.providers.db import PsycopgConnectionSource
+from ai_engine.core.providers.base import Embedder, Reranker
 from ai_engine.core.providers.embeddings import OllamaEmbedder, StubEmbedder
 from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
 
@@ -49,7 +49,7 @@ class Providers:
     embedder: Embedder
     reranker: Reranker
     llm: LLMClient
-    db: ConnectionSource
+    db: SqlAlchemySessionSource
 
 
 def build_providers() -> Providers:
@@ -92,7 +92,7 @@ def build_providers() -> Providers:
             fallback=ollama if cloud else None,
             default_timeout=settings.model_timeout_sec,
         ),
-        db=PsycopgConnectionSource(),
+        db=SqlAlchemySessionSource(),
     )
 
 

@@ -164,12 +164,13 @@ at startup (every outcome routed, nothing unreachable) and is the only place a
 node becomes a LangGraph string. `main.py` constructs the instances, wires and
 compiles them once, at import time. See
 [graph-node-architecture.md](graph-node-architecture.md).
-Nodes depend on the four abstract base classes in `core/providers/base.py` —
-`Embedder`, `Reranker`, `LLMClient`, `ConnectionSource` — never on a concrete
-provider module, which is what makes every node testable with no DB, no Ollama
-and no model download. Every implementation (and every test fake) subclasses
-its seam, so a provider missing its method fails at construction, which
-happens at startup.
+Where a dependency has more than one implementation chosen from config, nodes
+depend on an abstract base class beside those implementations — `Embedder` and
+`Reranker` in `core/providers/base.py`, `LLMClient` in `core/llm/base.py` —
+never on a concrete provider module. Every implementation subclasses its base
+class, so a provider missing its method fails at construction, which happens
+at startup. The database client has one implementation and no base class:
+nodes take `SqlAlchemySessionSource` from `core/db/client.py`.
 
 `core/providers/factory.py` is the single place `EMBEDDING_PROVIDER` and
 `RERANKER_PROVIDER` are read. Selection happens once at startup and an

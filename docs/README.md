@@ -9,7 +9,7 @@ Start here. The documents below are ordered — reading them in sequence takes a
 | 1 | [`onboarding.md`](onboarding.md) | Get it running, submit a ticket, watch it get triaged. Concrete before abstract. | 30 min |
 | 2 | [`glossary.md`](glossary.md) | The vocabulary. The original spec is in Vietnamese and the codebase is dense with domain terms — skipping this makes everything else harder than it needs to be. | 10 min |
 | 3 | [`architecture.md`](architecture.md) | How the pieces fit, who is allowed to do what, and the path a single ticket takes. | 20 min |
-| 4 | [`adr/`](adr/) | Seven decisions that shaped the system, each written to survive being re-litigated. Read 0001 and 0003 at minimum. | 15 min |
+| 4 | [`adr/`](adr/) | Eight decisions that shaped the system, each written to survive being re-litigated. Read 0001 and 0003 at minimum. | 15 min |
 | 5 | [`development.md`](development.md) | Conventions, how to make common changes, and the setup gotchas that will otherwise cost you an afternoon. | 15 min |
 
 Then keep these nearby:

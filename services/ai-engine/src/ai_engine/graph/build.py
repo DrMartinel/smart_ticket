@@ -19,9 +19,7 @@ is generic: the triage topology lives in `flow.py`.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from enum import Enum
-from types import MappingProxyType
 
 from langgraph.graph import END, START, StateGraph
 
@@ -40,15 +38,6 @@ class GraphBuilder:
     def __init__(self, *, entry: BaseNode) -> None:
         self._entry = _require_instance(entry, "entry")
         self._routes: dict[BaseNode, dict[Enum, BaseNode]] = {}
-
-    @property
-    def entry(self) -> BaseNode:
-        return self._entry
-
-    @property
-    def routes(self) -> Mapping[BaseNode, Mapping[Enum, BaseNode]]:
-        """Read-only view of every declared route, for tests and inspection."""
-        return MappingProxyType({n: MappingProxyType(r) for n, r in self._routes.items()})
 
     def route(self, source: BaseNode, outcome: Enum, target: BaseNode) -> None:
         _require_instance(source, "source")
@@ -107,7 +96,7 @@ class GraphBuilder:
         if orphans := [n for n in self._routes if n not in nodes]:
             raise ValueError(f"unreachable: {sorted(type(n).__name__ for n in orphans)}")
 
-    def compile(self, state_schema: type, checkpointer=None):
+    def compile(self, state_schema: type):
         nodes = self._reachable()
         self._validate(nodes)
 
@@ -130,4 +119,6 @@ class GraphBuilder:
                 graph.add_conditional_edges(node.name, node.decide, targets)
 
         graph.add_edge(START, self._entry.name)
-        return graph.compile(checkpointer=checkpointer)
+        # No checkpointer: the graph is stateless per request; idempotency
+        # lives at the Celery layer in core-api.
+        return graph.compile()

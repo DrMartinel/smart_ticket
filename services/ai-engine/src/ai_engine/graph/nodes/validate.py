@@ -29,9 +29,8 @@ from ai_engine.core.node import BaseNode
 from ai_engine.core.state import TriageState, ValidationResult
 
 # A Vietnamese linguistic lexicon, not a tunable number — it belongs in code
-# for the same reason patterns.py holds the PII regexes. Constructor-visible
-# so a test can narrow it, not so deployments can diverge.
-DEFAULT_NEGATIONS = {"không", "chưa", "ngoại trừ", "trừ khi", "không được", "cấm"}
+# for the same reason patterns.py holds the PII regexes.
+NEGATIONS = {"không", "chưa", "ngoại trừ", "trừ khi", "không được", "cấm"}
 
 
 def normalize_ws(text: str) -> str:
@@ -63,9 +62,6 @@ class ValidateNode(BaseNode):
         SCHEMA_VALID = "SchemaValid"
         RETRY_INFERENCE = "RetryInference"
         RETRIES_EXHAUSTED = "RetriesExhausted"
-
-    def __init__(self, *, negations: set[str] | None = None) -> None:
-        self._negations = negations if negations is not None else DEFAULT_NEGATIONS
 
     def __call__(self, state: TriageState) -> dict:
         proposal = state.proposal
@@ -109,8 +105,7 @@ class ValidateNode(BaseNode):
 
         # 4. Negation check — fuzzy match cannot catch this.
         neg_ok = (
-            _negations_in(quote, self._negations)
-            == _negations_in(topk.get(source, ""), self._negations)
+            _negations_in(quote, NEGATIONS) == _negations_in(topk.get(source, ""), NEGATIONS)
             if in_topk
             else False
         )

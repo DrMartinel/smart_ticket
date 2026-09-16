@@ -15,7 +15,7 @@ from enum import StrEnum
 from ai_engine.core.node import BaseNode
 from ai_engine.core.state import InjectionVerdict, TriageState
 
-DEFAULT_PATTERNS: dict[str, re.Pattern] = {
+PATTERNS: dict[str, re.Pattern] = {
     "ignore_instructions_en": re.compile(
         r"(?i)\b(ignore|disregard|forget)\b.{0,30}\b(previous|prior|above|all)\b.{0,30}\b(instructions?|rules?|prompt)\b"
     ),
@@ -56,12 +56,9 @@ class InjectionNode(BaseNode):
         INJECTION_DETECTED = "InjectionDetected"
         INJECTION_CLEAR = "InjectionClear"
 
-    def __init__(self, *, patterns: dict[str, re.Pattern] | None = None) -> None:
-        self._patterns = patterns if patterns is not None else DEFAULT_PATTERNS
-
     def __call__(self, state: TriageState) -> dict:
         text = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
-        matched = [name for name, pattern in self._patterns.items() if pattern.search(text)]
+        matched = [name for name, pattern in PATTERNS.items() if pattern.search(text)]
         verdict = InjectionVerdict(detected=bool(matched), matched_patterns=matched)
         return {"injection": verdict}
 

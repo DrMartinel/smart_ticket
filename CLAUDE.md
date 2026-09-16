@@ -73,9 +73,9 @@ cd services/web && npm install
 ```
 
 ```bash
-uv run pytest                              # everything (238 unit + 8 eval)
+uv run pytest                              # everything (242 unit + 8 eval)
 uv run pytest services/core-api/tests -q   # 74
-uv run pytest services/ai-engine/tests -q  # 164
+uv run pytest services/ai-engine/tests -q  # 168
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
 
@@ -232,5 +232,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (seven
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (eight
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

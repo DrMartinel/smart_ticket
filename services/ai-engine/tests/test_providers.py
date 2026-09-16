@@ -10,7 +10,8 @@ import threading
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers.base import ConnectionSource, Embedder, LLMClient, Reranker
+from ai_engine.core.llm.base import LLMClient
+from ai_engine.core.providers.base import Embedder, Reranker
 from ai_engine.core.providers.embeddings import EMBED_DIM, OllamaEmbedder, StubEmbedder
 from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
 
@@ -148,7 +149,7 @@ def test_lexical_reranker_empty_passages_returns_empty():
     assert LexicalReranker().score("q", []) == []
 
 
-@pytest.mark.parametrize("seam", [Embedder, Reranker, LLMClient, ConnectionSource])
+@pytest.mark.parametrize("seam", [Embedder, Reranker, LLMClient])
 def test_provider_missing_its_method_cannot_be_constructed(seam):
     """The seams are ABCs because nothing type-checks this repo. A provider
     whose method is misnamed (say `rerank` instead of `score`) must fail when
@@ -189,4 +190,3 @@ def test_every_built_provider_subclasses_its_seam(
     assert isinstance(providers.embedder, Embedder)
     assert isinstance(providers.reranker, Reranker)
     assert isinstance(providers.llm, LLMClient)
-    assert isinstance(providers.db, ConnectionSource)

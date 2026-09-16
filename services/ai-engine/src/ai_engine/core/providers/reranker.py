@@ -24,7 +24,7 @@ class LexicalReranker(Reranker):
     DEFAULT, and no longer what CI runs — both now use the cross-encoder, so
     that the thresholds under test are the ones production uses.
 
-    Retained as a test double for offline work with no weights available. It
+    Retained for offline work with no weights available. It
     is NOT a stand-in for retrieval quality: it exercises the pipeline shape,
     and nothing it produces can be compared against `retrieval.floor`, which
     is a cross-encoder number (ADR-0005). Stateless.

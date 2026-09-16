@@ -12,7 +12,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 |---|---|
 | Spec phases complete | **P0, P1** |
 | Phase in progress | **P2** — calibration scripts ready, awaiting ≥500 shadow pairs |
-| Unit tests | **238 passing** (74 core-api, 164 ai-engine) |
+| Unit tests | **242 passing** (74 core-api, 168 ai-engine) |
 | Eval suites | 8 collected; **7 pass, 1 known failure** (`other` category F1) |
 | Masking branch coverage | **100%** — the spec §14 P0 exit condition |
 | Router branch coverage | 98% — the one uncovered line is unreachable by construction |

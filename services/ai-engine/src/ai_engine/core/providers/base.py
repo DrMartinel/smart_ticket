@@ -1,9 +1,12 @@
 """
-The four seams between a graph node and the outside world. Nodes depend on
-these base classes, never on a concrete provider module — which is what makes
-every node constructible in a test with no DB, no Ollama and no model
-download, and what lets `providers/factory.py` be the single place that
-reads `settings.embedding_provider` / `settings.reranker_provider`.
+The embedding and reranking seams. Nodes depend on these base classes, never
+on a concrete provider module — which is what lets `providers/factory.py` be
+the single place that reads
+`settings.embedding_provider` / `settings.reranker_provider`.
+
+`LLMClient` follows the same pattern and lives beside its implementation in
+`core/llm/base.py`. The database client has a single implementation and no
+seam: nodes take `core/db/client.py`'s `SqlAlchemySessionSource` directly.
 
 Nominal (ABC), not structural (Protocol), on purpose: this repo runs no type
 checker, so a Protocol was checked by nothing, and a provider with a
@@ -20,11 +23,6 @@ cannot satisfy a contract production would reject.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:  # llm.client subclasses LLMClient; a runtime import would cycle
-    from ai_engine.core.llm.client import LLMResult
 
 
 class Embedder(ABC):
@@ -50,29 +48,4 @@ class Reranker(ABC):
         return value is the ONLY number a retrieval threshold is ever
         compared against — never the RRF fusion score, whose magnitude is
         rank-derived and meaningless.
-        """
-
-
-class LLMClient(ABC):
-    @abstractmethod
-    def complete(
-        self, system_prompt: str, user_prompt: str, *, timeout: float | None = None
-    ) -> LLMResult:
-        """Implementations own circuit breaking / retry / fallback (spec
-        §10.3) and signal exhaustion by RAISING CircuitOpenError or
-        AllLLMDownError — never by returning empty text, which the infer
-        node would parse as a schema failure and attribute to the model,
-        sending the ticket to HITL under the wrong reason code.
-        """
-
-
-class ConnectionSource(ABC):
-    @abstractmethod
-    def connect(self) -> AbstractContextManager[Any]:
-        """A context manager yielding something with `.cursor()`.
-
-        Typed `Any` rather than `psycopg.Connection` deliberately: the
-        retrieval layer (`bm25_search`, `vector_search`) already takes an
-        untyped `conn`, and a stricter annotation would make every test
-        fake a lie.
         """

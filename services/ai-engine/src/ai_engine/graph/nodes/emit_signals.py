@@ -11,8 +11,11 @@ from __future__ import annotations
 from contracts.enums import PIILevel
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
+from sqlalchemy import select
+
+from ai_engine.core.db.tables import KbArticle
 from ai_engine.core.node import BaseNode
-from ai_engine.core.providers.base import ConnectionSource
+from ai_engine.core.db.client import SqlAlchemySessionSource
 from ai_engine.core.state import TriageState, ValidationResult
 
 # Deny-by-default when the policy lookup can't answer. NOT a constructor
@@ -24,7 +27,7 @@ _POLICY_FALLBACK_DENY: tuple[bool, str] = (False, "high")
 
 
 class EmitSignalsNode(BaseNode):
-    def __init__(self, *, db: ConnectionSource) -> None:
+    def __init__(self, *, db: SqlAlchemySessionSource) -> None:
         self._db = db
 
     def _lookup_kb_policy(self, kb_slug: str | None) -> tuple[bool, str]:
@@ -40,13 +43,11 @@ class EmitSignalsNode(BaseNode):
             # `connect()` MUST stay inside the try: a DB outage here has to
             # produce deny-by-default, not a 500 out of the terminal node
             # that every path through the graph passes through.
-            with self._db.connect() as conn, conn.cursor() as cur:
-                cur.execute(
-                    "SELECT auto_reply_allowed, risk_tier FROM kb_articles "
-                    "WHERE slug = %s AND is_active = true",
-                    (kb_slug,),
-                )
-                row = cur.fetchone()
+            statement = select(KbArticle.auto_reply_allowed, KbArticle.risk_tier).where(
+                KbArticle.slug == kb_slug, KbArticle.is_active.is_(True)
+            )
+            with self._db.connect() as session:
+                row = session.execute(statement).first()
                 if row:
                     return bool(row[0]), row[1]
         except Exception:  # noqa: BLE001 — best-effort only, never fail the graph over this

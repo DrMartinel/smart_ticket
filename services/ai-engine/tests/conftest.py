@@ -16,12 +16,14 @@ import time
 from contextlib import contextmanager
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
+from ai_engine.core.llm.base import LLMClient
 from ai_engine.core.providers import factory as factory_mod
-from ai_engine.core.providers.base import ConnectionSource, Embedder, LLMClient, Reranker
+from ai_engine.core.providers.base import Embedder, Reranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
@@ -85,51 +87,40 @@ class FakeLLM(LLMClient):
         return self._result
 
 
-class _FakeCursor:
+class _FakeResult:
     def __init__(self, rows):
         self._rows = rows
-        self._last: tuple | None = None
-        self.executed: list[tuple] = []
 
-    def execute(self, sql, params=None):
-        self._last = (sql, params)
+    def all(self):
+        return list(self._rows)
+
+    def first(self):
+        return self._rows[0] if self._rows else None
+
+
+class _FakeSession:
+    """Answers `execute(statement)` with canned rows. The statement is compiled
+    with the Postgres dialect first, so a `rows(sql, params)` callable can
+    tell queries apart by their SQL — and so a statement SQLAlchemy cannot
+    compile fails here rather than only against a real database."""
+
+    def __init__(self, rows):
+        self._rows = rows
+        self.executed: list[tuple[str, dict]] = []
+
+    def execute(self, statement):
+        compiled = statement.compile(dialect=postgresql.dialect())
+        sql, params = str(compiled), dict(compiled.params)
         self.executed.append((sql, params))
-
-    def _resolve(self):
-        # `rows` may be a callable so one connection can answer the BM25 and
+        # `rows` may be a callable so one session can answer the BM25 and
         # vector queries differently — the only way to test, for example,
         # "lexical found nothing but vector did".
         if callable(self._rows):
-            sql, params = self._last if self._last else ("", None)
-            return list(self._rows(sql, params))
-        return list(self._rows)
-
-    def fetchall(self):
-        return self._resolve()
-
-    def fetchone(self):
-        rows = self._resolve()
-        return rows[0] if rows else None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
+            return _FakeResult(list(self._rows(sql, params)))
+        return _FakeResult(list(self._rows))
 
 
-class _FakeConnection:
-    def __init__(self, rows):
-        self._rows = rows
-        self.cursors: list[_FakeCursor] = []
-
-    def cursor(self):
-        cur = _FakeCursor(self._rows)
-        self.cursors.append(cur)
-        return cur
-
-
-class FakeConnectionSource(ConnectionSource):
+class FakeSessionSource:
     """`error` makes connect() raise, which is how the DB-outage failure
     paths get exercised. `events` records open/close ordering so a test can
     prove a connection is not held across an HTTP round-trip."""
@@ -138,17 +129,17 @@ class FakeConnectionSource(ConnectionSource):
         self._rows = rows if callable(rows) else list(rows)
         self._error = error
         self.events: list[str] = []
-        self.connections: list[_FakeConnection] = []
+        self.sessions: list[_FakeSession] = []
 
     @contextmanager
     def connect(self):
         if self._error is not None:
             raise self._error
-        conn = _FakeConnection(self._rows)
-        self.connections.append(conn)
+        session = _FakeSession(self._rows)
+        self.sessions.append(session)
         self.events.append("open")
         try:
-            yield conn
+            yield session
         finally:
             self.events.append("close")
 
@@ -171,7 +162,6 @@ def _make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = 
         article_id=chunk_id * 10,
         article_slug=slug,
         content=content,
-        rrf_score=1.0 / chunk_id,
     )
 
 
@@ -211,7 +201,7 @@ def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
     the real node to swap in a fake. It cannot silently drift: every
     `wire_triage` parameter is a required keyword."""
 
-    db = db if db is not None else FakeConnectionSource()
+    db = db if db is not None else FakeSessionSource()
     embedder = embedder if embedder is not None else FakeEmbedder()
     return {
         "injection": InjectionNode(),
@@ -275,7 +265,7 @@ def fake_llm():
 
 @pytest.fixture
 def fake_db():
-    return FakeConnectionSource
+    return FakeSessionSource
 
 
 @pytest.fixture

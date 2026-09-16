@@ -189,10 +189,11 @@ def test_two_instances_of_one_node_raise():
 
 
 def test_outcome_from_another_node_raises():
-    g = GraphBuilder(entry=WorkNode())
+    work = WorkNode()
+    g = GraphBuilder(entry=work)
 
     with pytest.raises(ValueError, match="cannot produce"):
-        g.route(g.entry, GateNode.Outcome.OPEN, StopNode())
+        g.route(work, GateNode.Outcome.OPEN, StopNode())
 
 
 def test_equal_valued_outcome_from_another_enum_raises():
@@ -203,10 +204,11 @@ def test_equal_valued_outcome_from_another_enum_raises():
     class Other(StrEnum):
         DONE = "Done"
 
-    g = GraphBuilder(entry=WorkNode())
+    work = WorkNode()
+    g = GraphBuilder(entry=work)
 
     with pytest.raises(ValueError, match="cannot produce"):
-        g.route(g.entry, Other.DONE, Terminal())
+        g.route(work, Other.DONE, Terminal())
 
 
 def test_custom_outcome_without_decide_raises():

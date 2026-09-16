@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict
+from sqlalchemy import select
 
 from ai_engine.core.config import settings
+from ai_engine.core.db.tables import KbArticle, KbChunk
 
 
 class VectorHit(BaseModel):
@@ -17,26 +19,24 @@ class VectorHit(BaseModel):
     score: float  # cosine similarity, [-1, 1] in theory, [0, 1] in practice for text embeddings
 
 
-def to_vector_literal(embedding: list[float]) -> str:
-    return "[" + ",".join(repr(x) for x in embedding) + "]"
-
-
-def vector_search(conn, query_embedding: list[float]) -> list[VectorHit]:
-    literal = to_vector_literal(query_embedding)
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT c.id, c.article_id, a.slug, c.content,
-                   1 - (c.embedding <=> %(v)s::vector) AS score
-            FROM kb_chunks c
-            JOIN kb_articles a ON a.id = c.article_id
-            WHERE c.embedding IS NOT NULL
-            ORDER BY c.embedding <=> %(v)s::vector
-            LIMIT %(k)s
-            """,
-            {"v": literal, "k": settings.vector_top_k},
+def vector_search(session, query_embedding: list[float]) -> list[VectorHit]:
+    distance = KbChunk.embedding.cosine_distance(query_embedding)
+    statement = (
+        select(
+            KbChunk.id,
+            KbChunk.article_id,
+            KbArticle.slug,
+            KbChunk.content,
+            (1 - distance).label("score"),
         )
-        rows = cur.fetchall()
+        .join(KbArticle, KbArticle.id == KbChunk.article_id)
+        .where(KbChunk.embedding.is_not(None))
+        # Order by the raw distance, not by `score`: `<=>` in ORDER BY is what
+        # the HNSW index (vector_cosine_ops) can serve; `1 - <=>` is not.
+        .order_by(distance)
+        .limit(settings.vector_top_k)
+    )
+    rows = session.execute(statement).all()
     return [
         VectorHit(
             chunk_id=chunk_id,

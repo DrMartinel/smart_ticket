@@ -56,8 +56,8 @@ class BudgetedNode(BaseNode):
 
     Subclasses write an ordinary `__call__(self, state) -> dict`. When the
     class is defined, that `__call__` is wrapped with the budget check, so the
-    check cannot be forgotten — not even by a test fake that subclasses a real
-    node and overrides `__call__` again.
+    check cannot be forgotten — not even by a subclass of a real node that
+    overrides `__call__` again.
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:

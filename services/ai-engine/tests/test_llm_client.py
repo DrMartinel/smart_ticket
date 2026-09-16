@@ -68,13 +68,18 @@ def _ok(text='{"ok": true}', tokens_in=7, tokens_out=3):
     )
 
 
-def _client(primary, fallback=None, circuit=None):
-    return DefaultLLMClient(
-        primary=primary,
-        fallback=fallback,
-        default_timeout=30.0,
-        circuit=circuit or CircuitBreaker(),
-    )
+def _client(primary, fallback=None):
+    return DefaultLLMClient(primary=primary, fallback=fallback, default_timeout=30.0)
+
+
+@pytest.fixture(autouse=True)
+def fresh_circuit(monkeypatch):
+    """The client uses the process-wide breaker. Failures recorded by one test
+    would otherwise open it for the next."""
+
+    circuit = CircuitBreaker()
+    monkeypatch.setattr(client_module, "CIRCUIT", circuit)
+    return circuit
 
 
 @pytest.fixture
@@ -134,19 +139,18 @@ def test_no_provider_exception_escapes_as_anything_but_all_llm_down(exc, no_back
         _client(_FakeFactory(exc)).complete("s", "u")
 
 
-def test_circuit_open_is_not_swallowed_by_the_broad_except():
+def test_circuit_open_is_not_swallowed_by_the_broad_except(fresh_circuit):
     """CircuitOpenError and AllLLMDownError map to DIFFERENT degraded_reason
     codes ("circuit_open" vs "all_llm_down"), and the HITL dashboard is built
     on that enum. The broad except in the retry loop must not blur them."""
 
-    circuit = CircuitBreaker()
     # Force the breaker open: >20% failures over at least 5 events.
     for _ in range(10):
-        circuit.record(success=False)
+        fresh_circuit.record(success=False)
 
     primary = _FakeFactory(_ok())
     with pytest.raises(CircuitOpenError):
-        _client(primary, circuit=circuit).complete("s", "u")
+        _client(primary).complete("s", "u")
     assert primary.calls == 0, "an open circuit must not call any provider"
 
 

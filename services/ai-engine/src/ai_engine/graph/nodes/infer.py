@@ -20,10 +20,10 @@ from contracts.llm_draft import LLMProposalEnvelope
 
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
+from ai_engine.core.llm.base import LLMClient
 from ai_engine.core.llm.circuit_breaker import CircuitOpenError
 from ai_engine.core.llm.client import AllLLMDownError
 from ai_engine.core.llm.prompt_store import load_system_prompt
-from ai_engine.core.providers.base import LLMClient
 from ai_engine.core.state import TriageState
 
 logger = logging.getLogger(__name__)
@@ -49,12 +49,19 @@ def _format_fewshots(fewshots: list[dict]) -> str:
     )
 
 
+# Not a tunable: this is the arithmetic form of "the fallback chain in
+# llm/client.py gets exactly one more attempt inside the same per-ticket
+# latency budget". If that retry count changes, this changes with it — which
+# is why it is NOT a Settings field that could drift out of sync with the code
+# it describes.
+_ATTEMPT_HEADROOM_DIVISOR = 2
+
+
 class InferNode(BudgetedNode):
     def __init__(
         self,
         *,
         llm: LLMClient,
-        attempt_headroom_divisor: int = 2,
     ) -> None:
         self._llm = llm
         # Resolved once, at construction, from settings.prompt_version —
@@ -63,12 +70,6 @@ class InferNode(BudgetedNode):
         # on import, and its hardcoded "classify.v3.md" made
         # settings.prompt_version silently inert.
         self._system_prompt = load_system_prompt(settings.prompt_version)
-        # Not a tunable: this is the arithmetic form of "the fallback chain
-        # in llm/client.py gets exactly one more attempt inside the same
-        # per-ticket latency budget". If that retry count changes, this
-        # changes with it — which is why it is NOT a Settings field that
-        # could drift out of sync with the code it describes.
-        self._attempt_headroom_divisor = attempt_headroom_divisor
 
     def __call__(self, state: TriageState) -> dict:
         ticket = state.ticket
@@ -89,7 +90,7 @@ class InferNode(BudgetedNode):
         floor = settings.min_attempt_timeout_sec
         remaining = max(floor, state.started_at + state.max_latency_sec - time.time())
         per_attempt_timeout = min(
-            settings.model_timeout_sec, max(floor, remaining / self._attempt_headroom_divisor)
+            settings.model_timeout_sec, max(floor, remaining / _ATTEMPT_HEADROOM_DIVISOR)
         )
 
         try:

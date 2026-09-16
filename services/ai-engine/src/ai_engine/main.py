@@ -46,10 +46,7 @@ _graph = wire_triage(
     infer=InferNode(llm=_providers.llm),
     validate=ValidateNode(),
     emit=EmitSignalsNode(db=_providers.db),
-).compile(
-    TriageState,
-    checkpointer=None,  # stateless; idempotency lives at the Celery layer
-)
+).compile(TriageState)
 
 
 @app.get("/healthz")

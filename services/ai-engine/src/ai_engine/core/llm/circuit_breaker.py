@@ -102,10 +102,6 @@ class CircuitBreaker:
                     self.failure_threshold,
                 )
 
-    @property
-    def state(self) -> CircuitState:
-        return self._state
-
 
 # Module-level singleton — one breaker per ai-engine process, shared across
 # all requests it serves.

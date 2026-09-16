@@ -8,7 +8,6 @@ routing decision, with no DB/LLM/network involved.
 
 from ai_engine.core.node import Terminal
 from ai_engine.core.state import ValidationResult
-from ai_engine.graph.flow import wire_triage
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
@@ -71,19 +70,29 @@ def test_schema_valid_decides_valid(make_state):
     assert node.decide(state) is ValidateNode.Outcome.SCHEMA_VALID
 
 
-def test_safety_critical_routes(triage_nodes):
+def _edges() -> dict[tuple[str, str], str | None]:
+    """The production graph's edges as (source, target) -> outcome label.
+    Unconditional edges have no label."""
+
+    from ai_engine.main import _graph
+
+    return {(e.source, e.target): e.data for e in _graph.get_graph().edges}
+
+
+def test_safety_critical_routes():
     """The outcomes above are only half the routing decision; these are the
     routes that make them mean refuse-before-LLM and a bounded retry."""
 
-    n = triage_nodes()
-    g = wire_triage(**n)
+    edges = _edges()
 
-    assert g.entry is n["injection"]
-    assert g.routes[n["injection"]][InjectionNode.Outcome.INJECTION_DETECTED] is n["emit"]
-    assert g.routes[n["rerank"]][RerankNode.Outcome.EVIDENCE_BELOW_FLOOR] is n["emit"]
-    assert g.routes[n["validate"]][ValidateNode.Outcome.RETRY_INFERENCE] is n["infer"]
-    assert g.routes[n["validate"]][ValidateNode.Outcome.RETRIES_EXHAUSTED] is n["emit"]
-    assert isinstance(g.routes[n["emit"]][EmitSignalsNode.Outcome.DONE], Terminal)
+    assert ("__start__", "injection") in edges
+    assert edges[("injection", "emit_signals")] == InjectionNode.Outcome.INJECTION_DETECTED
+    assert edges[("rerank", "emit_signals")] == RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
+    assert edges[("validate", "infer")] == ValidateNode.Outcome.RETRY_INFERENCE
+    # SCHEMA_VALID and RETRIES_EXHAUSTED share this edge, so it carries only
+    # one label; that both outcomes are routed is enforced by compile().
+    assert ("validate", "emit_signals") in edges
+    assert ("emit_signals", "terminal") in edges
 
 
 def test_graph_has_exactly_the_expected_nodes():
@@ -114,22 +123,25 @@ def test_graph_has_exactly_the_expected_nodes():
     }
 
 
-def test_compiled_edges_match_wiring(triage_nodes):
-    """The production topology is asserted rather than eyeballed: every
-    route declared in wire_triage is an edge, and there are no edges it does
-    not declare."""
+def test_compiled_edges_are_exactly_the_triage_topology():
+    """The production topology is pinned literally rather than eyeballed: an
+    added, dropped or redirected route fails here. Refuse-before-LLM is the
+    absence of any path from rerank to infer that skips select_fewshots."""
 
-    from ai_engine.main import _graph
-
-    edges = {(e.source, e.target) for e in _graph.get_graph().edges}
-
-    g = wire_triage(**triage_nodes())
-    expected = {("__start__", g.entry.name), (Terminal.name, "__end__")}
-    for source, routes in g.routes.items():
-        for target in routes.values():
-            expected.add((source.name, target.name))
-
-    assert edges == expected
+    assert set(_edges()) == {
+        ("__start__", "injection"),
+        ("injection", "emit_signals"),
+        ("injection", "hybrid_retrieve"),
+        ("hybrid_retrieve", "rerank"),
+        ("rerank", "emit_signals"),
+        ("rerank", "select_fewshots"),
+        ("select_fewshots", "infer"),
+        ("infer", "validate"),
+        ("validate", "infer"),
+        ("validate", "emit_signals"),
+        ("emit_signals", "terminal"),
+        ("terminal", "__end__"),
+    }
 
 
 def test_main_wires_the_prompt_for_settings_prompt_version():

@@ -16,9 +16,9 @@ import time
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict
 
-from ai_engine.core.llm.circuit_breaker import CIRCUIT, CircuitBreaker, CircuitOpenError
+from ai_engine.core.llm.circuit_breaker import CIRCUIT, CircuitOpenError
 from ai_engine.core.llm.models import ChatModelFactory, content_as_text
-from ai_engine.core.providers.base import LLMClient
+from ai_engine.core.llm.base import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -96,10 +96,8 @@ class DefaultLLMClient(LLMClient):
     `fallback` is None when no cloud provider is configured — the common case
     in this environment — and then the chain is simply Ollama with retries.
 
-    `circuit` defaults to the module singleton on purpose: spec §10.1 says
-    one breaker per PROCESS, shared across every request and every client
-    instance. The parameter exists so a test can supply an isolated
-    breaker — not so production can run several.
+    Uses the module-level `CIRCUIT`: spec §10.1 says one breaker per
+    PROCESS, shared across every request and every client instance.
 
     Stateless apart from the breaker it delegates to, so one instance is
     safe to share across FastAPI's threadpool.
@@ -109,14 +107,12 @@ class DefaultLLMClient(LLMClient):
         self,
         *,
         primary: ChatModelFactory,
-        fallback: ChatModelFactory | None = None,
+        fallback: ChatModelFactory | None,
         default_timeout: float,
-        circuit: CircuitBreaker = CIRCUIT,
     ) -> None:
         self._primary = primary
         self._fallback = fallback
         self._default_timeout = default_timeout
-        self._circuit = circuit
 
     def complete(
         self, system_prompt: str, user_prompt: str, *, timeout: float | None = None
@@ -129,19 +125,17 @@ class DefaultLLMClient(LLMClient):
         degraded_reason codes, and the HITL dashboard is built on that enum.
         """
 
-        circuit = self._circuit
-
         if timeout is None:
             timeout = self._default_timeout
 
-        if not circuit.allow_request():
+        if not CIRCUIT.allow_request():
             raise CircuitOpenError("circuit is open — failing fast, not calling any LLM")
 
         last_error: Exception | None = None
         for attempt in range(2):  # "retry backoff x2"
             try:
                 result = _invoke(self._primary, system_prompt, user_prompt, timeout)
-                circuit.record(success=True)
+                CIRCUIT.record(success=True)
                 return result
             # Deliberately broad. The four providers raise from DISJOINT
             # exception hierarchies — ollama surfaces raw `httpx` errors, the
@@ -158,7 +152,7 @@ class DefaultLLMClient(LLMClient):
                 if attempt == 0:
                     time.sleep(0.5 * (attempt + 1))
 
-        circuit.record(success=False)
+        CIRCUIT.record(success=False)
 
         if self._fallback is not None:
             # Fall back to Ollama — a quality degradation, not a failure.

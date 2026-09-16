@@ -66,8 +66,8 @@ class ChatModelFactory(ABC):
     thing that cannot be known until call time — the per-attempt timeout.
 
     Construction must still open no socket: `build_providers()` runs at
-    uvicorn import time and in tests with no network (test_build.py).
-    Verified by test_providers_factory.py.
+    uvicorn import time, and a provider being unreachable must not stop the
+    process from booting.
     """
 
     def __init__(self, *, model_name: str, cost_per_1k_tokens: float) -> None:
@@ -210,7 +210,7 @@ class AnthropicChatModelFactory(_FlatTimeoutCloudFactory):
         model: str,
         api_key: str,
         max_output_tokens: int,
-        base_url: str | None = None,
+        base_url: str | None,
     ) -> None:
         super().__init__(model_name=model, cost_per_1k_tokens=ANTHROPIC_COST_PER_1K_TOKENS)
         self._kwargs: dict[str, Any] = {

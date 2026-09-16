@@ -10,10 +10,13 @@ active examples, not by an exact category filter.
 
 from __future__ import annotations
 
+from sqlalchemy import func, select
+
 from ai_engine.core.config import settings
+from ai_engine.core.db.client import SqlAlchemySessionSource
+from ai_engine.core.db.tables import FewshotExample
 from ai_engine.core.node import BaseNode
-from ai_engine.core.providers.base import ConnectionSource, Embedder
-from ai_engine.core.retrieval.vector import to_vector_literal
+from ai_engine.core.providers.base import Embedder
 from ai_engine.core.state import TriageState
 
 
@@ -24,7 +27,7 @@ class SelectFewshotsNode(BaseNode):
     spends an embedding round-trip without first checking the ticket's budget.
     """
 
-    def __init__(self, *, db: ConnectionSource, embedder: Embedder) -> None:
+    def __init__(self, *, db: SqlAlchemySessionSource, embedder: Embedder) -> None:
         self._db = db
         self._embedder = embedder
 
@@ -32,20 +35,21 @@ class SelectFewshotsNode(BaseNode):
         ticket = state.ticket
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
         embedding = self._embedder.embed(query)
-        literal = to_vector_literal(embedding)
 
-        with self._db.connect() as conn, conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT category, input_text, output_json
-                FROM fewshot_examples
-                WHERE retracted_at IS NULL AND expires_at > now() AND embedding IS NOT NULL
-                ORDER BY embedding <=> %(v)s::vector
-                LIMIT %(k)s
-                """,
-                {"v": literal, "k": settings.fewshot_k},
+        # Retracted (source ticket reopened, so its label is suspect) and
+        # expired examples are not in the pool: the model would learn from them.
+        statement = (
+            select(FewshotExample.category, FewshotExample.input_text, FewshotExample.output_json)
+            .where(
+                FewshotExample.retracted_at.is_(None),
+                FewshotExample.expires_at > func.now(),
+                FewshotExample.embedding.is_not(None),
             )
-            rows = cur.fetchall()
+            .order_by(FewshotExample.embedding.cosine_distance(embedding))
+            .limit(settings.fewshot_k)
+        )
+        with self._db.connect() as session:
+            rows = session.execute(statement).all()
 
         fewshots = [
             {"category": category, "input_text": input_text, "output_json": output_json}

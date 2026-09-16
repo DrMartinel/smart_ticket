@@ -6,9 +6,8 @@ Reciprocal Rank Fusion — spec §6.3.
 k=60 is the standard constant from the original RRF paper and is not
 meant to be tuned (spec §13 comment). The output of this module is an
 ORDERED LIST of candidates, not a scored one that anything downstream
-should threshold against — see ADR-0005. `Candidate.rrf_score` exists
-only to make the sort itself inspectable in tests/logs; nothing outside
-this module should read it as a relevance signal.
+should threshold against — see ADR-0005. The fused score is used only to
+sort and is deliberately not carried on `Candidate`.
 """
 
 from __future__ import annotations
@@ -27,7 +26,6 @@ class Candidate(BaseModel):
     article_id: int
     article_slug: str
     content: str
-    rrf_score: float  # ranking aid only — see module docstring / ADR-0005
 
 
 def reciprocal_rank_fusion(
@@ -52,7 +50,6 @@ def reciprocal_rank_fusion(
             article_id=meta[chunk_id][0],
             article_slug=meta[chunk_id][1],
             content=meta[chunk_id][2],
-            rrf_score=score,
         )
-        for chunk_id, score in ordered
+        for chunk_id, _ in ordered
     ]

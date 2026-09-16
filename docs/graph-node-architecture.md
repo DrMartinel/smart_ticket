@@ -53,7 +53,7 @@ mapped to the next node's name.
 **Checkpointer** — an optional storage backend (Postgres, SQLite, memory) that
 saves state after every node so a run can resume after a crash, pause for
 human approval (`interrupt_before`), or be replayed. **ai-engine does not use
-one**: `main.py` compiles the graph with `checkpointer=None`, every
+one**: `GraphBuilder.compile` passes no checkpointer, every
 `POST /v1/analyze` runs start to finish in memory, and retry/idempotency lives
 at core-api's Celery layer. The practical consequence is in §9.
 
@@ -91,9 +91,11 @@ threadpool. All per-call data belongs in state.
 
 `ai_engine/core/` is everything the nodes are built on: `config.py`
 (settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `budget.py`
-(`BudgetedNode`), `providers/` (the seams as ABCs in `base.py`, plus the
-embedders, rerankers, `db.py` and `factory.py`), `retrieval/` (BM25, vector,
-RRF) and `llm/` (client, circuit breaker, prompts). Outside it are only
+(`BudgetedNode`), `providers/` (the embedding and reranking seams as ABCs in
+`base.py`, plus the embedders, rerankers and `factory.py`), `db/` (the
+SQLAlchemy client and table declarations),
+`retrieval/` (BM25, vector, RRF) and `llm/` (the `LLMClient` seam, client,
+circuit breaker, prompts). Outside it are only
 `graph/` (builder, wiring, nodes) and `main.py`. The graph imports from
 `core`; `core` never imports from the graph.
 
@@ -201,7 +203,7 @@ def wire_triage(*, injection, retrieve, rerank, fewshots, infer, validate, emit)
 ### 4.4 Builder — `graph/build.py`
 
 `GraphBuilder(entry=node)` is generic — it knows nothing about triage — and
-its `compile(state_schema, checkpointer=None)` is the only place a node
+its `compile(state_schema)` is the only place a node
 becomes a string. Routes are stored on the builder, keyed by node **instance**,
 never on node classes or `Outcome` members (§7 says why).
 
@@ -254,7 +256,7 @@ _graph = wire_triage(
     infer=InferNode(llm=_providers.llm),
     validate=ValidateNode(),
     emit=EmitSignalsNode(db=_providers.db),
-).compile(TriageState, checkpointer=None)
+).compile(TriageState)
 ```
 
 Constructors take collaborators only. Every `Settings` value is read by the

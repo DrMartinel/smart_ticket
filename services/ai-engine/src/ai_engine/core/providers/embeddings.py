@@ -51,7 +51,7 @@ class OllamaEmbedder(Embedder):
 
     Construction opens no socket: `validate_model_on_init` stays at its
     default of False, which matters because build_providers() runs at uvicorn
-    import time and in tests with no Ollama. Stateless afterwards, so one
+    import time and Ollama may not be up yet. Stateless afterwards, so one
     instance is safe to share across FastAPI's threadpool.
     """
 

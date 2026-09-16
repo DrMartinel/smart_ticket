@@ -1,4 +1,3 @@
-from ai_engine.core.config import settings
 from ai_engine.core.retrieval.bm25 import LexicalHit
 from ai_engine.core.retrieval.fusion import reciprocal_rank_fusion
 from ai_engine.core.retrieval.vector import VectorHit
@@ -15,13 +14,6 @@ def test_rrf_favors_document_ranked_high_in_both_lists():
     ]
     fused = reciprocal_rank_fusion(bm25, vector)
     assert fused[0].chunk_id == 1  # rank 1 in both lists
-
-
-def test_rrf_score_uses_standard_formula():
-    bm25 = [LexicalHit(chunk_id=1, article_id=10, article_slug="KB-A", content="a", score=0.9)]
-    vector = []
-    fused = reciprocal_rank_fusion(bm25, vector)
-    assert fused[0].rrf_score == 1.0 / (settings.rrf_k + 1)
 
 
 def test_rrf_handles_disjoint_lists():

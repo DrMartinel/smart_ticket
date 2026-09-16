@@ -35,6 +35,35 @@ that moves a failure path is more significant here than a new feature.
   code rejected null as malformed; both now read as 0, so a provider emitting
   nulls undercounts against the token budget instead of failing loudly
   (ADR-0007)
+- **ai-engine's four read queries are built with SQLAlchemy 2.0 instead of
+  SQL strings** (BM25, vector, few-shot, KB policy). Declarative table classes
+  in `core/db/tables.py` list only the queried columns; core-api still owns
+  the schema. The `ConnectionSource` ABC is gone — it had one real
+  implementation — and `PsycopgConnectionSource` in `core/providers/db.py` is
+  now `SqlAlchemySessionSource` in `core/db/client.py`, beside the table
+  declarations (NullPool, still one connection per use, still no socket at
+  construction, still built only by `build_providers()`). The compiled SQL for
+  every query is now under test, including the filters that keep retracted
+  and expired few-shot examples out of the prompt (ADR-0008)
+- **`LLMClient` moved from `core/providers/base.py` to `core/llm/base.py`,**
+  beside its implementation; `providers/base.py` keeps `Embedder` and
+  `Reranker`. Import paths change; behaviour does not
+- **Removed code that existed only to serve tests from ai-engine.**
+  - Parameters nothing in production passed: `ValidateNode(negations=)` and
+    `InjectionNode(patterns=)` (now module constants `NEGATIONS` /
+    `PATTERNS`), `InferNode(attempt_headroom_divisor=)` (now a module
+    constant), `DefaultLLMClient(circuit=)` (it uses the process-wide
+    `CIRCUIT`; tests swap that module attribute), and
+    `GraphBuilder.compile(checkpointer=)` (always None)
+  - Defaults only tests relied on: `DefaultLLMClient`'s `fallback` and
+    `AnthropicChatModelFactory`'s `base_url` are now required
+  - Accessors only tests read: `GraphBuilder.routes`, `GraphBuilder.entry`,
+    `CircuitBreaker.state`, and `Candidate.rrf_score` (with its formula test;
+    fusion ordering is still tested)
+  - Comments that justified code by pointing at tests now state the
+    production reason, or were removed where there was none
+- **Embeddings are bound as `'[...]'` text**, via `pgvector.sqlalchemy`,
+  rather than hand-built literals cast with `::vector`
 
 ### Added
 

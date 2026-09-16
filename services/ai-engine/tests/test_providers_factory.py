@@ -17,7 +17,7 @@ from ai_engine.core.llm.models import (
     OpenAIChatModelFactory,
 )
 from ai_engine.core.providers import factory as factory_mod
-from ai_engine.core.providers.db import PsycopgConnectionSource
+from ai_engine.core.db.client import SqlAlchemySessionSource
 from ai_engine.core.providers.embeddings import OllamaEmbedder, StubEmbedder
 from ai_engine.core.providers.factory import build_providers
 from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
@@ -99,7 +99,7 @@ def test_build_providers_opens_no_connections(monkeypatch):
     providers = build_providers()
 
     assert isinstance(providers.reranker, LexicalReranker)
-    assert isinstance(providers.db, PsycopgConnectionSource)  # constructed, not connected
+    assert isinstance(providers.db, SqlAlchemySessionSource)  # constructed, not connected
 
 
 def test_cross_encoder_selection_loads_the_model_at_startup(monkeypatch):
@@ -354,7 +354,7 @@ def test_no_cloud_sdk_retries_on_top_of_ours(lexical_reranker):
     """
 
     anthropic = AnthropicChatModelFactory(
-        model="claude-sonnet-5", api_key="k", max_output_tokens=4096
+        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None
     )(30.0)
     gemini = GeminiChatModelFactory(model="gemini-2.5-pro", api_key="k", max_output_tokens=4096)(
         30.0
@@ -372,7 +372,7 @@ def test_flat_timeout_providers_still_bound_the_call(lexical_reranker):
     """
 
     anthropic = AnthropicChatModelFactory(
-        model="claude-sonnet-5", api_key="k", max_output_tokens=4096
+        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None
     )(45.0)
     gemini = GeminiChatModelFactory(model="gemini-2.5-pro", api_key="k", max_output_tokens=4096)(
         45.0
@@ -410,7 +410,7 @@ def test_factory_attributes_are_resolved_at_construction(lexical_reranker):
         model="qwen3.5:9b", base_url="http://localhost:11434", connect_timeout=3.0
     )
     anthropic = AnthropicChatModelFactory(
-        model="claude-sonnet-5", api_key="k", max_output_tokens=4096
+        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None
     )
 
     assert ollama.model_name == "ollama/qwen3.5:9b"
