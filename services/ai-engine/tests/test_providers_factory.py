@@ -9,6 +9,8 @@ import pytest
 
 from ai_engine.core.config import settings
 from ai_engine.core.llm.models import (
+    ANTHROPIC_COST_PER_1K_TOKENS,
+    OLLAMA_COST_PER_1K_TOKENS,
     AnthropicChatModelFactory,
     GeminiChatModelFactory,
     OllamaChatModelFactory,
@@ -391,6 +393,33 @@ def test_chat_models_are_cached_per_timeout_bucket(lexical_reranker):
 
     assert factory(30.0) is factory(30.4), "same bucket must reuse the model"
     assert factory(30.0) is not factory(31.0), "a different budget needs its own client"
+
+
+def test_factory_attributes_are_resolved_at_construction(lexical_reranker):
+    """`model_name` and `cost_per_1k_tokens` are compiled from config in
+    __init__, not properties evaluated on first read.
+
+    Two things rest on that. The values reach `ai_runs.model_used` and
+    `cost_usd` on a path that must read the same whether the call succeeded or
+    not, so they cannot depend on anything the call does; and reading either
+    one must not drag a chat model — and its HTTP client — into existence,
+    which is what keeps `build_providers()` socket-free at import time.
+    """
+
+    ollama = OllamaChatModelFactory(
+        model="qwen3.5:9b", base_url="http://localhost:11434", connect_timeout=3.0
+    )
+    anthropic = AnthropicChatModelFactory(
+        model="claude-sonnet-5", api_key="k", max_output_tokens=4096
+    )
+
+    assert ollama.model_name == "ollama/qwen3.5:9b"
+    assert ollama.cost_per_1k_tokens == OLLAMA_COST_PER_1K_TOKENS
+    assert anthropic.model_name == "claude-sonnet-5"
+    assert anthropic.cost_per_1k_tokens == ANTHROPIC_COST_PER_1K_TOKENS
+    assert ollama._cache == {} and anthropic._cache == {}, (
+        "reading an attribute must not build a model"
+    )
 
 
 def test_cloud_factory_is_none_without_an_api_key(monkeypatch, lexical_reranker):

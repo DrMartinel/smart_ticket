@@ -8,6 +8,10 @@ every `degraded_reason` stay in `client.py` — see the ADR for why they are not
 
 ## Why these are factories-of-models rather than models
 
+A factory resolves everything it can from config in `__init__` — the model
+name, the billing rate and the full constructor kwargs — and defers exactly
+one thing, the per-attempt timeout:
+
 `complete(timeout=...)` gets a PER-ATTEMPT budget computed from the ticket's
 remaining latency (infer.py), and that budget has to become a real socket
 timeout with the connect/read split intact: 3s to decide the provider is
@@ -53,12 +57,28 @@ GEMINI_COST_PER_1K_TOKENS = 0.001
 class ChatModelFactory(ABC):
     """Builds a chat model bound to one per-attempt timeout.
 
-    Construction must open no socket: `build_providers()` runs at uvicorn
-    import time and in tests with no network (test_build.py). Verified by
-    test_providers_factory.py.
+    Everything derivable from config is resolved HERE, in `__init__`:
+    `model_name`, `cost_per_1k_tokens` and each subclass's `_kwargs` (the
+    whole chat-model constructor call except the timeout). They are plain
+    attributes rather than properties so a misconfiguration shows up as a
+    startup error next to every other one, not on the first ticket that
+    happens to read the attribute. `_build` is left with exactly the one
+    thing that cannot be known until call time — the per-attempt timeout.
+
+    Construction must still open no socket: `build_providers()` runs at
+    uvicorn import time and in tests with no network (test_build.py).
+    Verified by test_providers_factory.py.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, model_name: str, cost_per_1k_tokens: float) -> None:
+        # What goes into `LLMResult.model`, and from there into
+        # `ai_runs.model_used`. From config rather than from the response, so
+        # it reads the same whether the call succeeded or not.
+        self.model_name = model_name
+        # Billing rate for this provider. Passed in by each subclass rather
+        # than looked up here, so adding a provider cannot silently inherit
+        # another one's rate.
+        self.cost_per_1k_tokens = cost_per_1k_tokens
         # Bounded by construction: the caller buckets timeouts to whole
         # seconds, and infer.py clamps them to
         # [min_attempt_timeout_sec, model_timeout_sec] — ~116 entries worst
@@ -79,51 +99,31 @@ class ChatModelFactory(ABC):
         return model
 
     @abstractmethod
-    def _build(self, timeout: float) -> BaseChatModel: ...
-
-    @property
-    @abstractmethod
-    def model_name(self) -> str:
-        """What goes into `LLMResult.model`, and from there into
-        `ai_runs.model_used`. Read from config rather than from the response
-        so it is identical whether the call succeeded or not."""
-
-    @property
-    @abstractmethod
-    def cost_per_1k_tokens(self) -> float:
-        """Billing rate for this provider. Lives here rather than in the
-        client so that adding a provider cannot silently inherit another
-        one's rate."""
+    def _build(self, timeout: float) -> BaseChatModel:
+        """Apply the per-attempt timeout to the kwargs `__init__` resolved."""
 
 
 class OllamaChatModelFactory(ChatModelFactory):
     def __init__(self, *, model: str, base_url: str, connect_timeout: float) -> None:
-        super().__init__()
-        self._model = model
-        self._base_url = base_url
+        super().__init__(model_name=f"ollama/{model}", cost_per_1k_tokens=OLLAMA_COST_PER_1K_TOKENS)
         self._connect_timeout = connect_timeout
-
-    @property
-    def model_name(self) -> str:
-        return f"ollama/{self._model}"
-
-    @property
-    def cost_per_1k_tokens(self) -> float:
-        return OLLAMA_COST_PER_1K_TOKENS
+        self._kwargs: dict[str, Any] = {
+            "model": model,
+            "base_url": base_url,
+            # Reproduces the old payload's `"format": "json"`.
+            "format": "json",
+            # Reproduces the old payload's `"think": False`. Hybrid-thinking
+            # models (qwen3.5) otherwise emit a long reasoning trace that both
+            # blows the latency budget (spec §10.2) and means `content` is not
+            # itself the JSON object we asked for.
+            "reasoning": False,
+        }
 
     def _build(self, timeout: float) -> BaseChatModel:
         from langchain_ollama import ChatOllama
 
         return ChatOllama(
-            model=self._model,
-            base_url=self._base_url,
-            # Reproduces the old payload's `"format": "json"`.
-            format="json",
-            # Reproduces the old payload's `"think": False`. Hybrid-thinking
-            # models (qwen3.5) otherwise emit a long reasoning trace that both
-            # blows the latency budget (spec §10.2) and means `content` is not
-            # itself the JSON object we asked for.
-            reasoning=False,
+            **self._kwargs,
             # `ollama` builds its httpx client with this verbatim, so the
             # connect/read split survives.
             client_kwargs={"timeout": httpx.Timeout(timeout, connect=self._connect_timeout)},
@@ -136,28 +136,20 @@ class OpenAIChatModelFactory(ChatModelFactory):
     same wire protocol, not a new provider."""
 
     def __init__(self, *, model: str, base_url: str, api_key: str, connect_timeout: float) -> None:
-        super().__init__()
-        self._model = model
-        self._base_url = base_url
-        self._api_key = api_key
+        super().__init__(model_name=model, cost_per_1k_tokens=OPENAI_COST_PER_1K_TOKENS)
         self._connect_timeout = connect_timeout
-
-    @property
-    def model_name(self) -> str:
-        return self._model
-
-    @property
-    def cost_per_1k_tokens(self) -> float:
-        return OPENAI_COST_PER_1K_TOKENS
+        self._kwargs: dict[str, Any] = {
+            "model": model,
+            "base_url": base_url,
+            "api_key": api_key,
+            "model_kwargs": {"response_format": _JSON_OBJECT},
+        }
 
     def _build(self, timeout: float) -> BaseChatModel:
         from langchain_openai import ChatOpenAI
 
         return ChatOpenAI(
-            model=self._model,
-            base_url=self._base_url,
-            api_key=self._api_key,
-            model_kwargs={"response_format": _JSON_OBJECT},
+            **self._kwargs,
             # `openai` vendors httpx2, a DIFFERENT package from the httpx the
             # ollama client uses — hence the second import. Passing an
             # httpx.Timeout here would not be understood.
@@ -220,71 +212,47 @@ class AnthropicChatModelFactory(_FlatTimeoutCloudFactory):
         max_output_tokens: int,
         base_url: str | None = None,
     ) -> None:
-        super().__init__()
-        self._model = model
-        self._api_key = api_key
-        self._max_output_tokens = max_output_tokens
-        self._base_url = base_url
-
-    @property
-    def model_name(self) -> str:
-        return self._model
-
-    @property
-    def cost_per_1k_tokens(self) -> float:
-        return ANTHROPIC_COST_PER_1K_TOKENS
+        super().__init__(model_name=model, cost_per_1k_tokens=ANTHROPIC_COST_PER_1K_TOKENS)
+        self._kwargs: dict[str, Any] = {
+            "model": model,
+            "api_key": api_key,
+            # Defaults to 128000. That is a ceiling, not a reservation, but an
+            # unbounded one lets a runaway generation consume the whole
+            # per-ticket latency budget — a triage proposal is a small object.
+            "max_tokens": max_output_tokens,
+            "max_retries": 0,
+        }
+        # Omitted rather than passed as None: the SDK falls back to its own
+        # default endpoint only when the argument is absent.
+        if base_url:
+            self._kwargs["base_url"] = base_url
 
     def _build(self, timeout: float) -> BaseChatModel:
         from langchain_anthropic import ChatAnthropic
 
-        kwargs: dict[str, Any] = {}
-        if self._base_url:
-            kwargs["base_url"] = self._base_url
-        return ChatAnthropic(
-            model=self._model,
-            api_key=self._api_key,
-            timeout=timeout,
-            # Defaults to 128000. That is a ceiling, not a reservation, but an
-            # unbounded one lets a runaway generation consume the whole
-            # per-ticket latency budget — a triage proposal is a small object.
-            max_tokens=self._max_output_tokens,
-            max_retries=0,
-            **kwargs,
-        )
+        return ChatAnthropic(**self._kwargs, timeout=timeout)
 
 
 class GeminiChatModelFactory(_FlatTimeoutCloudFactory):
     """Gemini via the first-party Google Generative AI API."""
 
     def __init__(self, *, model: str, api_key: str, max_output_tokens: int) -> None:
-        super().__init__()
-        self._model = model
-        self._api_key = api_key
-        self._max_output_tokens = max_output_tokens
-
-    @property
-    def model_name(self) -> str:
-        return self._model
-
-    @property
-    def cost_per_1k_tokens(self) -> float:
-        return GEMINI_COST_PER_1K_TOKENS
+        super().__init__(model_name=model, cost_per_1k_tokens=GEMINI_COST_PER_1K_TOKENS)
+        self._kwargs: dict[str, Any] = {
+            "model": model,
+            "google_api_key": api_key,
+            # Gemini's equivalent of the other providers' JSON mode.
+            "response_mime_type": "application/json",
+            "max_output_tokens": max_output_tokens,
+            "max_retries": 0,
+        }
 
     def _build(self, timeout: float) -> BaseChatModel:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
-        return ChatGoogleGenerativeAI(
-            model=self._model,
-            google_api_key=self._api_key,
-            # Gemini's equivalent of the other providers' JSON mode.
-            response_mime_type="application/json",
-            # langchain converts this to google-genai's milliseconds for us —
-            # it is seconds on this side of the boundary, like every other
-            # timeout in this service.
-            timeout=timeout,
-            max_output_tokens=self._max_output_tokens,
-            max_retries=0,
-        )
+        # langchain converts this to google-genai's milliseconds for us — it is
+        # seconds on this side of the boundary, like every other timeout here.
+        return ChatGoogleGenerativeAI(**self._kwargs, timeout=timeout)
 
 
 def content_as_text(content: Any) -> str:

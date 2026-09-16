@@ -46,21 +46,11 @@ class _FakeChatModel:
 
 class _FakeFactory(ChatModelFactory):
     def __init__(self, *replies, name="fake/model", cost=0.0):
-        super().__init__()
+        super().__init__(model_name=name, cost_per_1k_tokens=cost)
         self._model = _FakeChatModel(replies)
-        self._name = name
-        self._cost = cost
 
     def _build(self, timeout: float):
         return self._model
-
-    @property
-    def model_name(self) -> str:
-        return self._name
-
-    @property
-    def cost_per_1k_tokens(self) -> float:
-        return self._cost
 
     @property
     def calls(self) -> int:
