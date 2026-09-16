@@ -391,3 +391,14 @@ def test_chat_models_are_cached_per_timeout_bucket(lexical_reranker):
 
     assert factory(30.0) is factory(30.4), "same bucket must reuse the model"
     assert factory(30.0) is not factory(31.0), "a different budget needs its own client"
+
+
+def test_cloud_factory_is_none_without_an_api_key(monkeypatch, lexical_reranker):
+    """The Ollama-only path, now that selection is its own function: no key
+    means no cloud link, and build_providers turns that into a single-link
+    chain rather than a fallback that can never fire."""
+
+    monkeypatch.setattr(settings, "cloud_api_key", None)
+    monkeypatch.setattr(settings, "cloud_base_url", None)
+
+    assert factory_mod._build_cloud_factory() is None

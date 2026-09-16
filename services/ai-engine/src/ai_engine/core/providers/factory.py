@@ -16,11 +16,13 @@ Everything else stays pure, which is what lets main.py build the graph at
 uvicorn import time and lets the default configuration be constructed in a
 test with no database and no environment.
 
-`build_providers` is written as one flat sequence rather than a tree of
-`_build_*` helpers. It is a composition root: read every closed with a
-`ValueError`, and see the whole startup contract in one pass. The single
-extracted function, `_load_cross_encoder`, is extracted for reasons that are
-not stylistic — see its docstring.
+`build_providers` stays a flat composition root: read it top to bottom and
+see the whole startup contract, every unknown value closed with a
+`ValueError`. Only two things are extracted, each for a reason given in its
+own docstring and neither of them stylistic — `_build_cloud_factory` (three
+protocols and four half-configured shapes, all fatal) and
+`_load_cross_encoder` (a function-local torch import that must not be
+hoisted, and a module-level name the tests patch).
 """
 
 from __future__ import annotations
@@ -74,63 +76,7 @@ def build_providers() -> Providers:
     # call as DefaultLLMClient used to. Cloud is primary when configured, with
     # Ollama behind it; otherwise Ollama is primary and there is no second
     # link.
-    #
-    # Every misconfiguration below is fatal rather than a fallback to
-    # Ollama-only. A cloud link the operator believes is active but which
-    # silently is not has the same shape as a typo'd RERANKER_PROVIDER:
-    # nothing looks broken, the service is just quietly doing something else.
-    api_key = settings.cloud_api_key
-    base_url = settings.cloud_base_url
-
-    cloud: ChatModelFactory | None
-    if not api_key:
-        if base_url:
-            raise ValueError(
-                "cloud provider half-configured: CLOUD_BASE_URL is set but CLOUD_API_KEY "
-                "is unset. Set both to enable the cloud primary, or neither to run "
-                "Ollama-only."
-            )
-        cloud = None
-    else:
-        match settings.cloud_provider:
-            case "openai":
-                if not base_url:
-                    raise ValueError(
-                        "cloud_provider='openai' requires CLOUD_BASE_URL (the "
-                        "OpenAI-compatible endpoint). Use cloud_provider='anthropic' or "
-                        "'gemini' to call a first-party API instead."
-                    )
-                cloud = OpenAIChatModelFactory(
-                    model=settings.cloud_model,
-                    base_url=base_url,
-                    api_key=api_key,
-                    connect_timeout=settings.model_connect_timeout_sec,
-                )
-            case "anthropic":
-                cloud = AnthropicChatModelFactory(
-                    model=settings.cloud_model,
-                    api_key=api_key,
-                    max_output_tokens=settings.cloud_max_output_tokens,
-                    base_url=base_url,
-                )
-            case "gemini":
-                if base_url:
-                    raise ValueError(
-                        "cloud_provider='gemini' does not support CLOUD_BASE_URL — the "
-                        "Google client has no endpoint override. Unset it, or use "
-                        "cloud_provider='openai' to reach Gemini through a compatible "
-                        "gateway."
-                    )
-                cloud = GeminiChatModelFactory(
-                    model=settings.cloud_model,
-                    api_key=api_key,
-                    max_output_tokens=settings.cloud_max_output_tokens,
-                )
-            case other:
-                raise ValueError(
-                    f"unknown cloud_provider: {other!r} "
-                    "(expected 'openai', 'anthropic' or 'gemini')"
-                )
+    cloud = _build_cloud_factory()
 
     ollama = OllamaChatModelFactory(
         model=settings.ollama_infer_model,
@@ -148,6 +94,72 @@ def build_providers() -> Providers:
         ),
         db=PsycopgConnectionSource(),
     )
+
+
+def _build_cloud_factory() -> ChatModelFactory | None:
+    """Pick the cloud link from config, or None to run Ollama-only.
+
+    Extracted from the flat sequence above because it is the one provider
+    whose selection is not a single `match`: three wire protocols, plus four
+    half-configured shapes that each have to be fatal rather than a quiet
+    fallback. A cloud link the operator believes is active but which silently
+    is not has the same shape as a typo'd RERANKER_PROVIDER — nothing looks
+    broken, the service is just quietly doing something else.
+
+    Setting `cloud_api_key` is what enables the cloud primary;
+    `cloud_provider` only picks which protocol it speaks.
+    """
+
+    api_key = settings.cloud_api_key
+    base_url = settings.cloud_base_url
+
+    if not api_key:
+        if base_url:
+            raise ValueError(
+                "cloud provider half-configured: CLOUD_BASE_URL is set but CLOUD_API_KEY "
+                "is unset. Set both to enable the cloud primary, or neither to run "
+                "Ollama-only."
+            )
+        return None
+
+    match settings.cloud_provider:
+        case "openai":
+            if not base_url:
+                raise ValueError(
+                    "cloud_provider='openai' requires CLOUD_BASE_URL (the "
+                    "OpenAI-compatible endpoint). Use cloud_provider='anthropic' or "
+                    "'gemini' to call a first-party API instead."
+                )
+            return OpenAIChatModelFactory(
+                model=settings.cloud_model,
+                base_url=base_url,
+                api_key=api_key,
+                connect_timeout=settings.model_connect_timeout_sec,
+            )
+        case "anthropic":
+            return AnthropicChatModelFactory(
+                model=settings.cloud_model,
+                api_key=api_key,
+                max_output_tokens=settings.cloud_max_output_tokens,
+                base_url=base_url,
+            )
+        case "gemini":
+            if base_url:
+                raise ValueError(
+                    "cloud_provider='gemini' does not support CLOUD_BASE_URL — the "
+                    "Google client has no endpoint override. Unset it, or use "
+                    "cloud_provider='openai' to reach Gemini through a compatible "
+                    "gateway."
+                )
+            return GeminiChatModelFactory(
+                model=settings.cloud_model,
+                api_key=api_key,
+                max_output_tokens=settings.cloud_max_output_tokens,
+            )
+        case other:
+            raise ValueError(
+                f"unknown cloud_provider: {other!r} (expected 'openai', 'anthropic' or 'gemini')"
+            )
 
 
 def _load_cross_encoder():
