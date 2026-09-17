@@ -14,7 +14,10 @@ from fastapi import FastAPI
 from contracts.ai_request import AIRunRequest, AIRunResponse
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers.factory import build_providers
+from ai_engine.core.db.client import db
+from ai_engine.core.providers.embeddings import embedder
+from ai_engine.core.providers.llm import models
+from ai_engine.core.providers.reranker import reranker
 from ai_engine.core.state import TriageState
 from ai_engine.graph.flow import wire_triage
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
@@ -34,15 +37,14 @@ app = FastAPI(title="Smart Ticket Triage — ai-engine", version="1.0.0")
 # request. No constructor below may open a socket or load a model — every
 # model is served by vLLM (ADR-0009).
 # Tunables are read by the code that uses them, never threaded through here.
-_providers = build_providers()
 _graph = wire_triage(
     injection=InjectionNode(),
-    retrieve=HybridRetrieveNode(db=_providers.db, embedder=_providers.embedder),
-    rerank=RerankNode(reranker=_providers.reranker),
-    fewshots=SelectFewshotsNode(db=_providers.db, embedder=_providers.embedder),
-    infer=InferNode(llm=_providers.llm),
+    retrieve=HybridRetrieveNode(db=db, embedder=embedder),
+    rerank=RerankNode(reranker=reranker),
+    fewshots=SelectFewshotsNode(db=db, embedder=embedder),
+    infer=InferNode(llm=models.chat),
     validate=ValidateNode(),
-    emit=EmitSignalsNode(db=_providers.db),
+    emit=EmitSignalsNode(db=db),
 ).compile(TriageState)
 
 

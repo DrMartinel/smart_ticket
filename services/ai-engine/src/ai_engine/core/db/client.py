@@ -1,5 +1,5 @@
 """
-The only place ai-engine opens a DB session. `build_providers()` builds the
+The only place ai-engine opens a DB session. `db`, at the bottom, is the
 single instance; nodes receive it as `db` and never construct their own.
 
 Connects as `ai_engine_ro`, SELECT-only on kb_articles, kb_chunks and
@@ -44,3 +44,6 @@ class SqlAlchemySessionSource:
         # close. ai-engine has nothing to commit (ADR-0004).
         with Session(self._engine) as session:
             yield session
+
+
+db = SqlAlchemySessionSource()

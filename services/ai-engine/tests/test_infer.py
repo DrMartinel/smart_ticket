@@ -13,7 +13,7 @@ import pytest
 
 from ai_engine.core.config import settings
 from ai_engine.core.providers.llm.circuit_breaker import CircuitOpenError
-from ai_engine.core.providers.llm.client import AllLLMDownError, LLMResult
+from ai_engine.core.providers.llm.models import AllLLMDownError, LLMResult
 from ai_engine.core.prompts import load_system_prompt
 from ai_engine.graph.nodes.infer import InferNode
 
@@ -72,9 +72,8 @@ def test_budget_exhausted_makes_no_llm_call(fake_llm, exhausted_budget_state):
     assert llm.prompts == []
 
 
-def test_per_attempt_timeout_leaves_headroom_for_the_fallback_attempt(fake_llm, make_state):
-    """The client retries the primary and may fall back to vLLM within the
-    ticket's latency budget. Spending it all on the first attempt turns a
+def test_per_attempt_timeout_leaves_headroom_for_the_retry(fake_llm, make_state):
+    """The client makes two attempts within the ticket's latency budget. Spending it all on the first attempt turns a
     recoverable blip into all_llm_down.
     """
 
@@ -142,19 +141,6 @@ def test_valid_output_is_parsed_into_a_proposal(fake_llm, make_state):
     assert out["model_used"] == "vllm/test"
 
 
-def test_cloud_fallback_degraded_reason_reaches_state(fake_llm, make_state):
-    """Falling back from cloud to self-hosted vLLM is a quality degradation, not a
-    failure — but core-api has to see it, because the proposal it is about
-    to score came from the weaker model."""
-
-    llm = fake_llm(result=_result(degraded_reason="cloud_fallback_to_self_host"))
-
-    out = _node(llm)(make_state())
-
-    assert out["degraded_reason"] == "cloud_fallback_to_self_host"
-    assert out["proposal"] is not None
-
-
 def test_token_and_cost_counters_accumulate_across_the_retry(fake_llm, make_state):
     """The validate -> infer edge can run this node twice. Counters must add
     rather than overwrite, or a two-attempt ticket reports half its cost."""
@@ -174,7 +160,7 @@ def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate):
     """The model must echo kb_slug back in an AutoReplyProposal, so it has
     to be told what the slugs are — otherwise it invents one."""
 
-    from ai_engine.core.retrieval.rerank import RankedChunk
+    from ai_engine.core.state import RankedChunk
 
     chunk = RankedChunk(
         chunk_id=1, article_id=10, article_slug="vpn-reset", content="nội dung", score=0.9

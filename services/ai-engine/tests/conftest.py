@@ -8,6 +8,7 @@ outage, embedder down, circuit open, budget exhausted) testable.
 
 from __future__ import annotations
 
+import importlib
 import time
 from contextlib import contextmanager
 
@@ -17,9 +18,12 @@ from sqlalchemy.dialects import postgresql
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
-from ai_engine.core.providers.llm.client import LLMClient
-from ai_engine.core.providers.embeddings import Embedder
-from ai_engine.core.providers.reranker import Reranker
+from ai_engine.core.providers import embeddings
+from ai_engine.core.providers import reranker as reranker_module
+from ai_engine.core.providers.llm import models
+from ai_engine.core.providers.llm.models import LLMClient
+from ai_engine.core.providers.embeddings import LexicalEmbedder
+from ai_engine.core.providers.reranker import CrossEncoderReranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
@@ -31,7 +35,35 @@ from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode
 
 
-class FakeEmbedder(Embedder):
+def _reloader(module):
+    """Re-runs `module`'s import-time wiring against the current (usually
+    monkeypatched) settings, and returns the module. Every module-level
+    object is restored afterwards, so a test's config never leaks into
+    another test. Reloading redefines the module's classes too, so assert
+    against the returned module's classes (`m.VLLMLLM`), not ones imported
+    at the top of a test file."""
+
+    saved = dict(vars(module))
+    yield lambda: importlib.reload(module)
+    vars(module).update(saved)
+
+
+@pytest.fixture
+def reload_models():
+    yield from _reloader(models)
+
+
+@pytest.fixture
+def reload_embeddings():
+    yield from _reloader(embeddings)
+
+
+@pytest.fixture
+def reload_reranker():
+    yield from _reloader(reranker_module)
+
+
+class FakeEmbedder(LexicalEmbedder):
     """Records every string it was asked to embed, so a test can assert a
     budget-exhausted node bought no round-trip at all."""
 
@@ -47,7 +79,7 @@ class FakeEmbedder(Embedder):
         return self._vector
 
 
-class FakeReranker(Reranker):
+class FakeReranker(CrossEncoderReranker):
     """`scores` is consumed positionally against `passages`, so a test can
     hand back an order that INVERTS the input and prove the node's output
     order follows the reranker rather than the RRF order it was given
@@ -67,7 +99,7 @@ class FakeReranker(Reranker):
 
 class FakeLLM(LLMClient):
     """Records the timeout it was handed, which is the only way to assert
-    the infer node leaves headroom for the fallback attempt."""
+    the infer node leaves headroom for the retry."""
 
     def __init__(self, result=None, error: Exception | None = None):
         self.timeouts: list[float | None] = []

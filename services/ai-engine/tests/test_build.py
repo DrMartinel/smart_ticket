@@ -9,7 +9,7 @@ from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
 from ai_engine.graph.nodes.injection import InjectionNode
-from ai_engine.core.retrieval.rerank import RankedChunk
+from ai_engine.core.state import RankedChunk
 from ai_engine.graph.nodes.rerank import RerankNode
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode

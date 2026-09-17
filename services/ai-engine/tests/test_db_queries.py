@@ -13,7 +13,7 @@ from ai_engine.core.retrieval.bm25 import bm25_search
 from ai_engine.core.retrieval.vector import vector_search
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
-from ai_engine.core.retrieval.rerank import RankedChunk
+from ai_engine.core.state import RankedChunk
 
 
 def _only_statement(db) -> tuple[str, dict]:

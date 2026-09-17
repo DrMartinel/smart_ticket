@@ -14,10 +14,9 @@ from enum import StrEnum
 
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
-from ai_engine.core.providers.reranker import Reranker
+from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
 from ai_engine.core.retrieval.fusion import Candidate
-from ai_engine.core.retrieval.rerank import RankedChunk
-from ai_engine.core.state import TriageState
+from ai_engine.core.state import RankedChunk, TriageState
 
 
 class RerankNode(BudgetedNode):
@@ -25,7 +24,7 @@ class RerankNode(BudgetedNode):
         EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
         EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
-    def __init__(self, *, reranker: Reranker) -> None:
+    def __init__(self, *, reranker: CrossEncoderReranker | LexicalReranker) -> None:
         self._reranker = reranker
 
     def __call__(self, state: TriageState) -> dict:

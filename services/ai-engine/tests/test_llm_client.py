@@ -12,9 +12,9 @@ import httpx
 import pytest
 from langchain_core.messages import AIMessage
 
-from ai_engine.core.providers.llm import client as client_module
+from ai_engine.core.providers.llm import models as client_module
 from ai_engine.core.providers.llm.circuit_breaker import CircuitBreaker, CircuitOpenError
-from ai_engine.core.providers.llm.client import AllLLMDownError, LLMClient, LLMResult
+from ai_engine.core.providers.llm.models import AllLLMDownError, LLMClient, LLMResult
 
 
 class _FakeChatModel:
@@ -36,8 +36,8 @@ class _FakeChatModel:
 
 
 class _FakeLLM(LLMClient):
-    def __init__(self, *replies, name="fake/model", cost=0.0, fallback=None):
-        super().__init__(model_name=name, cost_per_1k_tokens=cost, fallback=fallback)
+    def __init__(self, *replies, name="fake/model", cost=0.0):
+        super().__init__(model_name=name, cost_per_1k_tokens=cost)
         self._model = _FakeChatModel(replies)
 
     def _build(self, timeout: float):
@@ -103,7 +103,7 @@ def test_unusable_content_raises_all_llm_down(content, no_backoff):
 # Every hierarchy that can realistically escape a provider. Raw httpx errors;
 # openai.APIError subclasses over vendored httpx2 (vLLM and the openai link) —
 # and httpx.HTTPError is NOT httpx2.HTTPError. An enumerated except
-# tuple in client.py would let one of these through as a 500.
+# tuple in `LLMClient.complete()` would let one of these through as a 500.
 _PROVIDER_ERRORS = {
     "httpx transport": httpx.ConnectTimeout("connect timed out"),
     "runtime": RuntimeError("provider not configured"),
@@ -138,27 +138,14 @@ def test_circuit_open_is_not_swallowed_by_the_broad_except(fresh_circuit):
     assert primary.calls == 0, "an open circuit must not call any provider"
 
 
-def test_failing_cloud_falls_back_to_self_host_and_marks_the_degradation(no_backoff):
-    """The fallback is a quality degradation that core-api has to see: the
-    trust score and the reviewer panel both read degraded_reason. Falling back
-    silently would look like a clean cloud answer."""
+def test_exhausted_retries_raise_all_llm_down(no_backoff):
+    """No fallback: after its two attempts the provider raises, and infer
+    maps that to all_llm_down → HITL, never to an empty proposal."""
 
-    fallback = _FakeLLM(_ok(), name="vllm/Qwen/Qwen3-8B-AWQ")
-    primary = _FakeLLM(RuntimeError("cloud down"), name="claude-sonnet-5", fallback=fallback)
-
-    result = primary.complete("s", "u", timeout=30.0)
-
-    assert result.degraded_reason == "cloud_fallback_to_self_host"
-    assert result.model == "vllm/Qwen/Qwen3-8B-AWQ"
-    assert primary.calls == 2, "the primary gets its retry before the chain falls back"
-    assert fallback.calls == 1
-
-
-def test_both_links_failing_raises_all_llm_down(no_backoff):
-    fallback = _FakeLLM(httpx.ConnectError("vllm down"))
-    primary = _FakeLLM(RuntimeError("cloud down"), fallback=fallback)
+    llm = _FakeLLM(RuntimeError("down"), RuntimeError("down"))
     with pytest.raises(AllLLMDownError):
-        primary.complete("s", "u", timeout=30.0)
+        llm.complete("s", "u", timeout=30.0)
+    assert llm.calls == 2
 
 
 def test_absent_usage_metadata_defaults_to_zero_tokens():

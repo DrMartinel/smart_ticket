@@ -23,7 +23,19 @@ from contracts.ticket import TicketMasked
 from contracts.trust import TrustSignals
 
 from ai_engine.core.retrieval.fusion import Candidate
-from ai_engine.core.retrieval.rerank import RankedChunk
+
+
+class RankedChunk(BaseModel):
+    """A reranked chunk — spec §6.3. `score` is the cross-encoder score, the
+    only one retrieval thresholds may compare against (ADR-0005)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    chunk_id: int
+    article_id: int
+    article_slug: str
+    content: str
+    score: float
 
 
 class TriageState(BaseModel):

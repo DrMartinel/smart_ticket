@@ -11,7 +11,7 @@ from contracts.enums import PIILevel
 from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
 
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
-from ai_engine.core.retrieval.rerank import RankedChunk
+from ai_engine.core.state import RankedChunk
 
 
 def _auto_reply(kb_slug: str = "kb-a") -> LLMProposalEnvelope:

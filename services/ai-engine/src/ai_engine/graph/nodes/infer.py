@@ -18,9 +18,9 @@ from contracts.llm_draft import LLMProposalEnvelope
 
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
-from ai_engine.core.providers.llm.client import LLMClient
+from ai_engine.core.providers.llm.models import LLMClient
 from ai_engine.core.providers.llm.circuit_breaker import CircuitOpenError
-from ai_engine.core.providers.llm.client import AllLLMDownError
+from ai_engine.core.providers.llm.models import AllLLMDownError
 from ai_engine.core.prompts import load_system_prompt
 from ai_engine.core.state import TriageState
 
@@ -47,9 +47,8 @@ def _format_fewshots(fewshots: list[dict]) -> str:
     )
 
 
-# Not a tunable: this is the arithmetic form of "the fallback chain in
-# llm/client.py gets exactly one more attempt inside the same per-ticket
-# latency budget". If that retry count changes, this changes with it — which
+# Not a tunable: this is the arithmetic form of "`LLMClient.complete()` makes
+# two attempts inside the same per-ticket latency budget". If that retry count changes, this changes with it — which
 # is why it is NOT a Settings field that could drift out of sync with the code
 # it describes.
 _ATTEMPT_HEADROOM_DIVISOR = 2
@@ -80,7 +79,7 @@ class InferNode(BudgetedNode):
             f"## Ticket\nSubject: {ticket.subject_masked}\nBody: {ticket.body_masked}"
         )
 
-        # Leave headroom for the fallback attempt within the same per-ticket
+        # Leave headroom for the retry within the same per-ticket
         # latency budget rather than using the full budget on a single try,
         # then clamp to the per-call model ceiling — whichever binds first
         # wins. The budget protects the ticket's end-to-end latency; the
@@ -108,8 +107,6 @@ class InferNode(BudgetedNode):
             "cost_usd": state.cost_usd + result.cost_usd,
             "model_used": result.model,
         }
-        if result.degraded_reason:
-            update["degraded_reason"] = result.degraded_reason
 
         try:
             parsed = json.loads(result.text)

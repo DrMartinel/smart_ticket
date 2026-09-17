@@ -5,6 +5,8 @@ thresholds belong to core-api (spec §1). The few numbers ai-engine needs
 core-api the single owner of calibration.
 """
 
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,20 +17,22 @@ class Settings(BaseSettings):
         "postgresql://ai_engine_ro:ai_engine_ro_password@localhost:5434/smart_triage"
     )
 
-    # Self-hosted vLLM (ADR-0009): the only link without a cloud provider,
-    # the fallback behind one otherwise (spec §10.3), and the embedder and
-    # reranker when those are set to "vllm". vLLM serves one model per server,
-    # so each capability has its own endpoint — see the `vllm` profile in
-    # infra/docker-compose.yml.
-    vllm_chat_base_url: str = "http://localhost:8100/v1"
-    vllm_chat_model: str = "Qwen/Qwen3-8B-AWQ"
-    vllm_embed_base_url: str = "http://localhost:8101/v1"
+    # The LLM clients (built at the bottom of providers/llm/models.py).
+    # Embeddings and reranking always run on self-hosted vLLM (ADR-0009), which
+    # serves one model per server — see the `vllm` profile in
+    # infra/docker-compose.yml. Chat runs on `chat_client_provider`: "vllm"
+    # uses chat_model / chat_base_url; the cloud providers "openai" |
+    # "anthropic" | "gemini" read the cloud_* settings. Anything else fails
+    # here, at boot.
+    chat_client_provider: Literal["vllm", "openai", "anthropic", "gemini"] = "vllm"
+    chat_base_url: str = "http://localhost:8100/v1"
+    chat_model: str = "Qwen/Qwen3-8B-AWQ"
+    embed_base_url: str = "http://localhost:8101/v1"
     # Must be the model AND runtime the KB chunks in pgvector were embedded
-    # with, and the same one core-api's VLLM_EMBED_MODEL uses. Vectors stored
-    # from Ollama must be re-embedded through vLLM before trusting retrieval
-    # (ADR-0009).
-    vllm_embed_model: str = "BAAI/bge-m3"
-    vllm_rerank_base_url: str = "http://localhost:8102/v1"
+    # with, and the same one core-api's EMBED_MODEL uses. Vectors stored
+    # from Ollama must be re-embedded before trusting retrieval (ADR-0009).
+    embed_model: str = "BAAI/bge-m3"
+    rerank_base_url: str = "http://localhost:8102/v1"
 
     # "vllm" | "stub". "stub" is deterministic and offline, for CI.
     embedding_provider: str = "vllm"
@@ -62,17 +66,10 @@ class Settings(BaseSettings):
     # failure that looks like a provider outage.
     min_attempt_timeout_sec: float = 5.0
 
-    # Cloud provider is optional — if unset, the fallback chain (spec
-    # §10.3) goes straight to self-hosted vLLM, which is this environment's
-    # default.
-    # Setting cloud_api_key is what ENABLES the cloud primary; cloud_provider
-    # only picks which wire protocol it speaks.
-    #
-    # "openai" is any OpenAI-compatible endpoint and is the only one that
-    # needs cloud_base_url. "anthropic" and "gemini" are the first-party APIs
-    # and default to their own endpoints. Validated in providers/factory.py —
-    # an unknown value is fatal at boot, like every other provider setting.
-    cloud_provider: str = "openai"  # "openai" | "anthropic" | "gemini"
+    # The cloud chat APIs, used when chat_client_provider is "openai",
+    # "anthropic" or "gemini". cloud_base_url is an optional proxy for
+    # "openai" and "anthropic" and is rejected for "gemini". Validated in providers/llm/models.py — any
+    # misconfiguration is fatal at boot.
     cloud_api_key: str | None = None
     cloud_base_url: str | None = None
     cloud_model: str = "claude-sonnet-5"
