@@ -71,11 +71,6 @@ class CrossEncoderReranker(Reranker):
     def score(self, query: str, passages: list[str]) -> list[float]:
         if not passages:
             return []
-        # bge-reranker-v2-m3 outputs an unbounded logit; `normalize=True` is
-        # the model card's sigmoid to [0,1], so it composes with the same
-        # floor/margin semantics as the lexical fallback. This is the exact
-        # number `retrieval_floor` is compared against (ADR-0005) — use the
-        # library's own mapping rather than a local re-implementation, so the
-        # scale is the one BAAI documents.
+
         scores = self._model.compute_score([(query, p) for p in passages], normalize=True)
         return [float(s) for s in scores]

@@ -49,11 +49,6 @@ class OllamaEmbedder(Embedder):
         self._embeddings = OllamaEmbeddings(
             model=self._model,
             base_url=settings.ollama_base_url,
-            # Long read budget, short connect budget: an unreachable provider
-            # is knowable in seconds, while a cold model load legitimately
-            # takes 15-20s. `ollama` hands this to httpx verbatim, so the
-            # split survives — collapsing the two is the documented
-            # "submit hangs ~120s" bug.
             client_kwargs={
                 "timeout": httpx.Timeout(
                     settings.model_timeout_sec, connect=settings.model_connect_timeout_sec
@@ -64,11 +59,6 @@ class OllamaEmbedder(Embedder):
     def embed(self, text: str) -> list[float]:
         embedding = self._embeddings.embed_query(text)
         if len(embedding) != EMBED_DIM:
-            # Raise rather than return a short vector: a dimension mismatch
-            # would otherwise surface as a pgvector error deep inside
-            # retrieval, or worse, as silently poor recall. Kept on this side
-            # of the seam because langchain-ollama has no opinion about the
-            # width our pgvector column was migrated to.
             raise ValueError(
                 f"embedding model {self._model!r} returned dim {len(embedding)}, "
                 f"expected {EMBED_DIM}"
