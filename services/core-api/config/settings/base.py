@@ -123,12 +123,12 @@ SHADOW_MODE = os.environ.get("SHADOW_MODE", "true").lower() == "true"
 AI_ENGINE_URL = os.environ.get("AI_ENGINE_URL", "http://localhost:8001")
 # Self-hosted vLLM (ADR-0009), the same servers ai-engine uses. vLLM serves
 # one model per server, so PII detection runs on the chat server's model.
-VLLM_CHAT_BASE_URL = os.environ.get("VLLM_CHAT_BASE_URL", "http://localhost:8100/v1")
-VLLM_CHAT_MODEL = os.environ.get("VLLM_CHAT_MODEL", "Qwen/Qwen3-8B-AWQ")
-VLLM_EMBED_BASE_URL = os.environ.get("VLLM_EMBED_BASE_URL", "http://localhost:8101/v1")
-# Must match ai-engine's VLLM_EMBED_MODEL: ticket, KB and query vectors are
+CHAT_BASE_URL = os.environ.get("CHAT_BASE_URL", "http://localhost:8100/v1")
+CHAT_MODEL = os.environ.get("CHAT_MODEL", "Qwen/Qwen3-8B-AWQ")
+EMBED_BASE_URL = os.environ.get("EMBED_BASE_URL", "http://localhost:8101/v1")
+# Must match ai-engine's EMBED_MODEL: ticket, KB and query vectors are
 # compared against each other, so they must come from one model and runtime.
-VLLM_EMBED_MODEL = os.environ.get("VLLM_EMBED_MODEL", "BAAI/bge-m3")
+EMBED_MODEL = os.environ.get("EMBED_MODEL", "BAAI/bge-m3")
 # Timeout for any single model call (NER, embeddings). Generous by design:
 # a cold model load alone can take 15-20s, and the old 3s NER budget
 # meant essentially every ticket timed out into PIILevel.MASK_FAILED before

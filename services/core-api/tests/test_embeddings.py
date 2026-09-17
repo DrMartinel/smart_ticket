@@ -29,8 +29,8 @@ def _mock_post(monkeypatch, handler):
 @pytest.fixture
 def vllm(settings):
     settings.EMBEDDING_PROVIDER = "vllm"
-    settings.VLLM_EMBED_BASE_URL = "http://vllm-embed:8000/v1"
-    settings.VLLM_EMBED_MODEL = "BAAI/bge-m3"
+    settings.EMBED_BASE_URL = "http://vllm-embed:8000/v1"
+    settings.EMBED_MODEL = "BAAI/bge-m3"
     return settings
 
 

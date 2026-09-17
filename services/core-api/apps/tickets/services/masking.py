@@ -121,9 +121,9 @@ async def llm_ner(text: str, timeout: float | httpx.Timeout | None = None) -> li
 
     if timeout is None:
         timeout = _ner_timeout()
-    url = f"{settings.VLLM_CHAT_BASE_URL.rstrip('/')}/chat/completions"
+    url = f"{settings.CHAT_BASE_URL.rstrip('/')}/chat/completions"
     payload = {
-        "model": settings.VLLM_CHAT_MODEL,
+        "model": settings.CHAT_MODEL,
         # Instructions go in the system message, data in the user message.
         # Concatenating both into one string let the model read the
         # instructions as part of the conversation and *reply* to them — on

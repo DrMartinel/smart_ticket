@@ -79,7 +79,7 @@ def process_ticket(self, ticket_id: int) -> dict:
     combined_text = f"{ticket.subject_masked}\n{ticket.body_masked}"
     try:
         embedding = embed_text(combined_text)
-        store_embedding(ticket, embedding, settings.VLLM_EMBED_MODEL)
+        store_embedding(ticket, embedding, settings.EMBED_MODEL)
         verdict = classify_similarity(ticket, embedding)
     except (httpx.HTTPError, ValueError) as e:
         # Same fail-open-to-human principle as the AIEngineUnavailable

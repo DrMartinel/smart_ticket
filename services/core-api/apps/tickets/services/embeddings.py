@@ -45,13 +45,13 @@ def _vllm_embed(text: str) -> list[float]:
     status="new", invisible to every queue.
     """
 
-    url = f"{settings.VLLM_EMBED_BASE_URL.rstrip('/')}/embeddings"
+    url = f"{settings.EMBED_BASE_URL.rstrip('/')}/embeddings"
     # Short connect budget, long read budget — an unreachable server is
     # knowable in seconds, while a cold model legitimately needs the full
     # read window. See MODEL_CONNECT_TIMEOUT_SEC in settings.
     resp = httpx.post(
         url,
-        json={"model": settings.VLLM_EMBED_MODEL, "input": text},
+        json={"model": settings.EMBED_MODEL, "input": text},
         timeout=httpx.Timeout(
             float(settings.MODEL_TIMEOUT_SEC), connect=float(settings.MODEL_CONNECT_TIMEOUT_SEC)
         ),
@@ -63,9 +63,9 @@ def _vllm_embed(text: str) -> list[float]:
         raise ValueError(f"unexpected embeddings response shape: {resp.text[:200]!r}") from e
     if not isinstance(embedding, list) or len(embedding) != EMBED_DIM:
         raise ValueError(
-            f"embedding model {settings.VLLM_EMBED_MODEL!r} returned "
+            f"embedding model {settings.EMBED_MODEL!r} returned "
             f"{len(embedding) if isinstance(embedding, list) else type(embedding).__name__}, "
-            f"expected {EMBED_DIM} dims — check VLLM_EMBED_MODEL"
+            f"expected {EMBED_DIM} dims — check EMBED_MODEL"
         )
     return embedding
 
