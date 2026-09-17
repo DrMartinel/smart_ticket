@@ -26,42 +26,6 @@ from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.retrieval.rerank import RankedChunk
 
 
-class InjectionVerdict(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    detected: bool
-    matched_patterns: list[str]
-
-
-class ValidationResult(BaseModel):
-    """No field defaults on purpose: every path through the validate node
-    must state each check's outcome, not inherit one by omission."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    schema_valid: bool
-    quote_applicable: bool
-    quote_match_ratio: float
-    quote_source_in_topk: bool
-    negation_consistent: bool
-    category_consistent: bool
-    source_chunk_id: int | None = None
-
-    @classmethod
-    def all_failed(cls) -> ValidationResult:
-        """Every check failed — for "no proposal to validate" and for a
-        state in which the validate node never ran."""
-
-        return cls(
-            schema_valid=False,
-            quote_applicable=False,
-            quote_match_ratio=0.0,
-            quote_source_in_topk=False,
-            negation_consistent=False,
-            category_consistent=False,
-        )
-
-
 class TriageState(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -84,13 +48,27 @@ class TriageState(BaseModel):
     # as. List fields deliberately have NO reducer: each is owned by exactly
     # one node, and a validate -> infer retry must overwrite the previous
     # attempt's output, not append to it.
-    injection: InjectionVerdict | None = None
+
+    # InjectionNode
+    injection_detected: bool = False
+    injection_matched_patterns: list[str] = []
+
     candidates: list[Candidate] = []  # post-RRF
     bm25_keyword_hit: bool = False  # did lexical search find ANY tsvector match at all
     reranked: list[RankedChunk] = []  # post cross-encoder
     fewshots: list[dict] = []
     proposal: LLMProposalEnvelope | None = None
-    validation: ValidationResult | None = None
+
+    # ValidateNode. The defaults read as "every check failed": refuse-before-LLM
+    # skips the validator, and a default of anything but "failed" would hand
+    # the trust scorer passing checks nobody performed.
+    schema_valid: bool = False
+    quote_applicable: bool = False
+    quote_match_ratio: float = 0.0
+    quote_source_in_topk: bool = False
+    negation_consistent: bool = False
+    category_consistent: bool = False
+    source_chunk_id: int | None = None
 
     # Terminal
     signals: TrustSignals | None = None

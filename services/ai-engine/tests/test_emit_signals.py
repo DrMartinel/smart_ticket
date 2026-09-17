@@ -127,7 +127,7 @@ def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state):
 def test_injection_verdict_is_forwarded_to_policy_signals(fake_db, make_state):
     node = EmitSignalsNode(db=fake_db())
 
-    out = node(make_state(injection={"detected": True, "matched_patterns": ["x"]}))
+    out = node(make_state(injection_detected=True))
 
     assert out["signals"].policy.injection_detected is True
 

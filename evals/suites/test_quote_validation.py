@@ -89,8 +89,8 @@ def _is_flagged(quote: str, sources: list[str]) -> bool:
             self_confidence=90,
         )
     )
-    result = _NODE(_state(proposal, reranked))["validation"]
-    return not result.quote_source_in_topk or not result.negation_consistent
+    result = _NODE(_state(proposal, reranked))
+    return not result["quote_source_in_topk"] or not result["negation_consistent"]
 
 
 def _state(proposal: LLMProposalEnvelope, reranked: list[RankedChunk]) -> TriageState:

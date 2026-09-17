@@ -101,8 +101,10 @@ circuit breaker, prompts). Outside it are only
 
 ### 4.1 State — `core/state.py`
 
-One frozen pydantic model, `TriageState`, with `InjectionVerdict` and
-`ValidationResult` nested in it. Nodes read fields as attributes
+One frozen pydantic model, `TriageState`, with every field flat — the injection
+verdict is `injection_detected` / `injection_matched_patterns`, and each
+validation check is its own field (`schema_valid`, `quote_match_ratio`, …).
+Nodes read fields as attributes
 (`state.reranked`) and return partial update dicts — returning a whole model
 would overwrite every field. Progressive-output fields default to what "this
 node has not run" reads as (`[]`, `None`, `0`).
@@ -125,6 +127,12 @@ What LangGraph (1.2.9) does with a pydantic schema, pinned in
 `candidates` is `list[Candidate]` and `reranked` is `list[RankedChunk]`. Both
 types live in `core/retrieval/`, not in their nodes, because `core` never
 imports from `graph/`.
+
+The validation defaults read as "every check failed": refuse-before-LLM skips
+the validator, and `emit_signals` must not report passing checks nobody ran.
+`ValidateNode` writes every check on every path (through `_checks`, which has
+no defaults), because a key left out would keep the previous attempt's value
+on the `validate → infer` retry.
 
 List-valued fields (`candidates`, `reranked`, `fewshots`) deliberately have
 **no reducer**. Each is owned by exactly one node, and the `validate → infer`
@@ -335,16 +343,16 @@ answer fails the schema:
 
 ```
 input:             {"ticket": ..., "iteration": 0, "retrieval_floor": 0.45, ...}
-after injection:   {..., "injection": {"detected": False, ...}}
+after injection:   {..., "injection_detected": False, ...}
 decide()        -> InjectionClear      -> HybridRetrieveNode
 after retrieve:    {..., "candidates": [...10]}
 after rerank:      {..., "reranked": [top1.score=0.81, ...]}
 decide()        -> EvidenceAboveFloor  -> SelectFewshotsNode -> InferNode
 after infer:       {..., "proposal": None}                       # unparseable JSON
-after validate:    {..., "validation": {"schema_valid": False}, "iteration": 1}
+after validate:    {..., "schema_valid": False, ..., "iteration": 1}
 decide()        -> RetryInference      -> InferNode              # loops back once
 after infer:       {..., "proposal": <AutoReplyProposal>}
-after validate:    {..., "validation": {"schema_valid": True, ...}}
+after validate:    {..., "schema_valid": True, ...}
 decide()        -> SchemaValid         -> EmitSignalsNode -> Terminal -> END
 ```
 

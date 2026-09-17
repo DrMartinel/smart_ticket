@@ -21,7 +21,7 @@ from contracts.llm_draft import AutoReplyProposal
 
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode
-from ai_engine.core.state import TriageState, ValidationResult
+from ai_engine.core.state import TriageState
 
 # A Vietnamese linguistic lexicon, not a tunable number — it belongs in code
 # for the same reason patterns.py holds the PII regexes.
@@ -52,6 +52,42 @@ def _best_fuzzy(quote: str, topk: dict[int, str]) -> tuple[int | None, float]:
     return best_id, best_ratio
 
 
+def _checks(
+    *,
+    schema_valid: bool,
+    quote_applicable: bool,
+    quote_match_ratio: float,
+    quote_source_in_topk: bool,
+    negation_consistent: bool,
+    category_consistent: bool,
+    source_chunk_id: int | None,
+) -> dict:
+    """Every check's outcome as a state update. No defaults on purpose: every
+    path must state each check, because a key left out keeps the previous
+    attempt's value on the validate -> infer retry."""
+
+    return {
+        "schema_valid": schema_valid,
+        "quote_applicable": quote_applicable,
+        "quote_match_ratio": quote_match_ratio,
+        "quote_source_in_topk": quote_source_in_topk,
+        "negation_consistent": negation_consistent,
+        "category_consistent": category_consistent,
+        "source_chunk_id": source_chunk_id,
+    }
+
+
+ALL_FAILED = _checks(
+    schema_valid=False,
+    quote_applicable=False,
+    quote_match_ratio=0.0,
+    quote_source_in_topk=False,
+    negation_consistent=False,
+    category_consistent=False,
+    source_chunk_id=None,
+)
+
+
 class ValidateNode(BaseNode):
     class Outcome(StrEnum):
         SCHEMA_VALID = "SchemaValid"
@@ -63,23 +99,22 @@ class ValidateNode(BaseNode):
         reranked = state.reranked
 
         if proposal is None:
-            result = ValidationResult.all_failed()
             # `iteration` is bumped ONLY here. TriageState has no reducer on
             # it, so hoisting this to the top of the method would make every
             # successful pass increment too and silently shift the
             # `iteration < 2` retry cap in decide().
-            return {"validation": result, "iteration": state.iteration + 1}
+            return {**ALL_FAILED, "iteration": state.iteration + 1}
 
         if not isinstance(proposal.root, AutoReplyProposal):
-            result = ValidationResult(
+            return _checks(
                 schema_valid=True,
                 quote_applicable=False,
                 quote_match_ratio=0.0,
                 quote_source_in_topk=False,
                 negation_consistent=True,
                 category_consistent=True,  # checked by core-api's router against KB category
+                source_chunk_id=None,
             )
-            return {"validation": result}
 
         quote = normalize_ws(proposal.root.verbatim_quote)
         topk = {c.chunk_id: normalize_ws(c.content) for c in reranked}
@@ -105,7 +140,7 @@ class ValidateNode(BaseNode):
             else False
         )
 
-        result = ValidationResult(
+        return _checks(
             schema_valid=True,
             quote_applicable=True,
             quote_match_ratio=ratio,
@@ -114,10 +149,9 @@ class ValidateNode(BaseNode):
             category_consistent=True,
             source_chunk_id=source,
         )
-        return {"validation": result}
 
     def decide(self, state: TriageState) -> ValidateNode.Outcome:
-        if state.validation is not None and state.validation.schema_valid:
+        if state.schema_valid:
             return self.Outcome.SCHEMA_VALID
         # Schema failure -> retry AT MOST once. Structurally bounded by
         # `iteration < 2` — the only cycle in the graph cannot loop forever.

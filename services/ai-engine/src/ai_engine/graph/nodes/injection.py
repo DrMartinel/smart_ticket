@@ -10,7 +10,7 @@ import re
 from enum import StrEnum
 
 from ai_engine.core.node import BaseNode
-from ai_engine.core.state import InjectionVerdict, TriageState
+from ai_engine.core.state import TriageState
 
 PATTERNS: dict[str, re.Pattern] = {
     "ignore_instructions_en": re.compile(
@@ -53,10 +53,9 @@ class InjectionNode(BaseNode):
     def __call__(self, state: TriageState) -> dict:
         text = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
         matched = [name for name, pattern in PATTERNS.items() if pattern.search(text)]
-        verdict = InjectionVerdict(detected=bool(matched), matched_patterns=matched)
-        return {"injection": verdict}
+        return {"injection_detected": bool(matched), "injection_matched_patterns": matched}
 
     def decide(self, state: TriageState) -> InjectionNode.Outcome:
-        if state.injection.detected:  # always set: __call__ runs before decide
+        if state.injection_detected:
             return self.Outcome.INJECTION_DETECTED
         return self.Outcome.INJECTION_CLEAR

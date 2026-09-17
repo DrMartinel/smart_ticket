@@ -18,6 +18,11 @@ that moves a failure path is more significant here than a new feature.
 - **`GraphBuilder` raises on a node update key the state schema lacks.**
   LangGraph silently dropped it, so a misspelled key looked like it worked;
   a non-dict return raises too
+- **`TriageState` is flat.** `InjectionVerdict` and `ValidationResult` are
+  gone: `injection` is now `injection_detected` / `injection_matched_patterns`,
+  and each validation check is a top-level field whose default reads as
+  "failed", replacing `ValidationResult.all_failed()`. No routing behaviour
+  changed
 - **`RankedChunk` moved to `core/retrieval/rerank.py`**, so
   `TriageState.reranked` is typed `list[RankedChunk]` instead of `list[Any]`
   and is validated like every other field

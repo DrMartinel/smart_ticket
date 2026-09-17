@@ -41,7 +41,7 @@ def _detect(subject: str, body: str) -> bool:
         started_at=0.0,
         iteration=0,
     )
-    return _NODE(state)["injection"].detected
+    return _NODE(state)["injection_detected"]
 
 
 def test_injection_recall_meets_threshold():

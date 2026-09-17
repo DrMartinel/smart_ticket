@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from ai_engine.core.state import TriageState, ValidationResult
+from ai_engine.core.state import TriageState
 from ai_engine.graph.build import GraphBuilder
 from ai_engine.graph.flow import wire_triage
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
@@ -49,12 +49,11 @@ def test_a_wrong_typed_update_fails_the_run(triage_nodes, make_state):
 
 
 def test_missing_validation_reads_as_every_check_failed(make_state):
-    """emit_signals falls back to this when validate never ran; a default of
+    """emit_signals reads these defaults when validate never ran; a default of
     anything but "failed" would hand the trust scorer passing checks nobody
     performed."""
 
-    assert make_state().validation is None
-    failed = ValidationResult.all_failed()
+    failed = make_state()
     assert not any(
         [
             failed.schema_valid,

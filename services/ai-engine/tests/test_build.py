@@ -5,7 +5,6 @@ tested separately, with no DB, LLM or network.
 """
 
 from ai_engine.core.node import Terminal
-from ai_engine.core.state import ValidationResult
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
@@ -21,12 +20,12 @@ def _chunk(score: float) -> RankedChunk:
 
 
 def test_injection_detected_decides_detected(make_state):
-    state = make_state(injection={"detected": True, "matched_patterns": ["x"]})
+    state = make_state(injection_detected=True)
     assert InjectionNode().decide(state) is InjectionNode.Outcome.INJECTION_DETECTED
 
 
 def test_no_injection_decides_clear(make_state):
-    state = make_state(injection={"detected": False, "matched_patterns": []})
+    state = make_state(injection_detected=False)
     assert InjectionNode().decide(state) is InjectionNode.Outcome.INJECTION_CLEAR
 
 
@@ -49,22 +48,19 @@ def test_above_floor_is_above_floor(fake_reranker, make_state):
 
 
 def test_schema_invalid_retries_once(make_state):
-    validation = ValidationResult.all_failed().model_copy(update={"schema_valid": False})
-    state = make_state(validation=validation, iteration=0)
+    state = make_state(schema_valid=False, iteration=0)
     node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.RETRY_INFERENCE
 
 
 def test_schema_invalid_stops_retrying_after_iteration_cap(make_state):
-    validation = ValidationResult.all_failed().model_copy(update={"schema_valid": False})
-    state = make_state(validation=validation, iteration=2)
+    state = make_state(schema_valid=False, iteration=2)
     node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.RETRIES_EXHAUSTED
 
 
 def test_schema_valid_decides_valid(make_state):
-    validation = ValidationResult.all_failed().model_copy(update={"schema_valid": True})
-    state = make_state(validation=validation, iteration=0)
+    state = make_state(schema_valid=True, iteration=0)
     node = ValidateNode()
     assert node.decide(state) is ValidateNode.Outcome.SCHEMA_VALID
 

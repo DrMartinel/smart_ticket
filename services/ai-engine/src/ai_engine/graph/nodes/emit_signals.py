@@ -14,7 +14,7 @@ from sqlalchemy import select
 from ai_engine.core.db.tables import KbArticle
 from ai_engine.core.node import BaseNode
 from ai_engine.core.db.client import SqlAlchemySessionSource
-from ai_engine.core.state import TriageState, ValidationResult
+from ai_engine.core.state import TriageState
 
 # Deny-by-default when the policy lookup can't answer. NOT a constructor
 # parameter and NOT a Settings field: "degrade toward humans" means there
@@ -53,7 +53,6 @@ class EmitSignalsNode(BaseNode):
 
     def __call__(self, state: TriageState) -> dict:
         reranked = state.reranked
-        validation = state.validation or ValidationResult.all_failed()
         proposal = state.proposal
 
         rerank_top1 = reranked[0].score if reranked else 0.0
@@ -83,20 +82,20 @@ class EmitSignalsNode(BaseNode):
                 topk_chunk_ids=[r.chunk_id for r in reranked],
             ),
             generation=GenerationSignals(
-                schema_valid=validation.schema_valid,
-                quote_match_ratio=validation.quote_match_ratio,
-                quote_source_in_topk=validation.quote_source_in_topk,
-                negation_consistent=validation.negation_consistent,
-                category_consistent=validation.category_consistent,
+                schema_valid=state.schema_valid,
+                quote_match_ratio=state.quote_match_ratio,
+                quote_source_in_topk=state.quote_source_in_topk,
+                negation_consistent=state.negation_consistent,
+                category_consistent=state.category_consistent,
                 # Computed by the validate node; forwarded so core-api can
                 # tell "no quote to check" apart from "the quote failed".
-                quote_applicable=validation.quote_applicable,
+                quote_applicable=state.quote_applicable,
             ),
             policy=PolicySignals(
                 kb_auto_reply_allowed=kb_auto_reply_allowed,
                 kb_risk_tier=kb_risk_tier,
                 pii_level=state.ticket.pii_level or PIILevel.ROUTINE,
-                injection_detected=state.injection is not None and state.injection.detected,
+                injection_detected=state.injection_detected,
                 mass_incident=False,  # not this graph's concern — core-api's incident detector owns it
             ),
             llm_self_confidence=self_confidence,
