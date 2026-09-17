@@ -18,7 +18,8 @@ from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
 from ai_engine.core.providers.llm.client import LLMClient
-from ai_engine.core.providers.base import Embedder, Reranker
+from ai_engine.core.providers.embeddings import Embedder
+from ai_engine.core.providers.reranker import Reranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode

@@ -1,6 +1,7 @@
 """
-Provider-class tests. Loading through build_providers is pinned in
-test_providers_factory.py.
+Provider tests: `Embedder` and `Reranker` own their contracts and delegate the
+model work to any `LLMClient` that serves it. Loading through build_providers
+is pinned in test_providers_factory.py.
 """
 
 from __future__ import annotations
@@ -11,58 +12,119 @@ import httpx
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers.base import Embedder, Reranker
+from ai_engine.core.providers.embeddings import EMBED_DIM, Embedder
 from ai_engine.core.providers.llm.client import LLMClient
-from ai_engine.core.providers.embeddings import (
-    EMBED_DIM,
-    StubEmbedder,
-    VLLMEmbedder,
-)
-from ai_engine.core.providers.reranker import (
-    LexicalReranker,
-    VLLMReranker,
-)
+from ai_engine.core.providers.llm.local import LexicalClient, StubClient
+from ai_engine.core.providers.llm.models import VLLMLLM
+from ai_engine.core.providers.reranker import Reranker
 
 
-def test_stub_embedder_is_deterministic_and_unit_norm():
-    """The eval suite runs with EMBEDDING_PROVIDER=stub and compares
-    retrieval results across runs; a non-deterministic stub would make every
-    retrieval metric noise."""
+class _ScriptedClient(LLMClient):
+    """Serves embed and rerank with canned replies, so the contract checks in
+    Embedder / Reranker are tested without any provider."""
 
-    embedder = StubEmbedder()
+    def __init__(self, vector=None, scores=None):
+        super().__init__(model_name="scripted", cost_per_1k_tokens=0.0, fallback=None)
+        self._vector = vector
+        self._scores = scores
+        self.rerank_calls = 0
+
+    def embed(self, text):
+        return self._vector
+
+    def rerank(self, query, passages):
+        self.rerank_calls += 1
+        return self._scores
+
+
+def _vllm(base_url="http://vllm:8000/v1", model="BAAI/bge-reranker-v2-m3") -> VLLMLLM:
+    return VLLMLLM(
+        model=model, base_url=base_url, connect_timeout=3.0, read_timeout=120.0, fallback=None
+    )
+
+
+# --- Embedder / Reranker contracts -------------------------------------------
+
+
+def test_a_client_that_cannot_do_the_job_fails_at_construction():
+    """A misconfigured provider must fail the boot — a container that won't
+    start — not the first ticket."""
+
+    with pytest.raises(TypeError, match="does not serve embeddings"):
+        Embedder(client=LexicalClient())
+    with pytest.raises(TypeError, match="does not serve reranking"):
+        Reranker(client=StubClient())
+
+
+@pytest.mark.parametrize("returned_dim", [0, 768, EMBED_DIM - 1])
+def test_embedder_rejects_a_wrong_width_vector(returned_dim):
+    """EMBED_DIM is the pgvector column width, which no client knows about.
+    A wrong-width vector fails far away as a pgvector error or — if empty —
+    as an ordinary refuse-before-LLM, reporting a provider outage as a
+    finding about the KB."""
+
+    embedder = Embedder(client=_ScriptedClient(vector=[0.1] * returned_dim))
+    with pytest.raises(ValueError, match=f"expected {EMBED_DIM}"):
+        embedder.embed("không đăng nhập được")
+
+
+@pytest.mark.parametrize("returned", [[0.5], [0.5, 0.5, 0.5]], ids=["short", "padded"])
+def test_reranker_rejects_a_score_count_that_does_not_match(returned):
+    """The rerank node zips scores against its candidates positionally — a
+    short or padded list mislabels which chunk got which score, and the top-1
+    score is what `retrieval_floor` is compared against (ADR-0005)."""
+
+    reranker = Reranker(client=_ScriptedClient(scores=returned))
+    with pytest.raises(ValueError, match="scores for 2 passages"):
+        reranker.score("q", ["a", "b"])
+
+
+def test_reranker_empty_passages_calls_no_client():
+    """Refuse-before-LLM and budget paths can reach the reranker with nothing
+    to score; they must get `[]` without a model call."""
+
+    client = _ScriptedClient(scores=[])
+    assert Reranker(client=client).score("q", []) == []
+    assert client.rerank_calls == 0
+
+
+def test_supports_reflects_what_a_client_implements():
+    assert _vllm().supports("chat") and _vllm().supports("embed") and _vllm().supports("rerank")
+    assert StubClient().supports("embed") and not StubClient().supports("chat")
+    assert LexicalClient().supports("rerank") and not LexicalClient().supports("embed")
+
+
+# --- local clients -----------------------------------------------------------
+
+
+def test_stub_client_is_deterministic_and_unit_norm():
+    """The eval suite runs with EMBEDDING_PROVIDER=stub and compares retrieval
+    results across runs; a non-deterministic stub would make every retrieval
+    metric noise."""
+
+    embedder = Embedder(client=StubClient())
     first = embedder.embed("không đăng nhập được")
-    second = embedder.embed("không đăng nhập được")
 
-    assert first == second
+    assert first == embedder.embed("không đăng nhập được")
     assert len(first) == EMBED_DIM
     assert abs(sum(x * x for x in first) ** 0.5 - 1.0) < 1e-9
     assert first != embedder.embed("a different ticket")
 
 
-@pytest.mark.parametrize("returned_dim", [0, 768, EMBED_DIM - 1])
-def test_vllm_embedder_rejects_a_wrong_width_vector(returned_dim, monkeypatch):
-    """EMBED_DIM is the pgvector column width, which neither langchain client
-    knows anything about, so the check lives on our side.
+def test_lexical_client_scores_one_per_passage_in_input_order():
+    passages = ["đăng nhập thất bại", "máy in hỏng", "vpn chậm"]
+    scores = Reranker(client=LexicalClient()).score("không đăng nhập được", passages)
 
-    A wrong-width vector fails far away as a pgvector error or — if empty
-    — as an ordinary refuse-before-LLM, reporting a provider outage as a
-    finding about the KB.
-    """
-
-    class _WrongWidthClient:
-        def embed_query(self, _text):
-            return [0.1] * returned_dim
-
-    embedder = VLLMEmbedder()
-    monkeypatch.setattr(embedder, "_embeddings", _WrongWidthClient())
-
-    with pytest.raises(ValueError, match=f"expected {EMBED_DIM}"):
-        embedder.embed("không đăng nhập được")
+    assert len(scores) == len(passages)
+    assert scores[0] == max(scores)
 
 
-def test_vllm_embedder_construction_opens_no_socket(monkeypatch):
-    """build_providers() constructs this at uvicorn import time and in tests
-    with no vLLM server reachable."""
+# --- VLLMLLM embed / rerank --------------------------------------------------
+
+
+def test_vllm_client_construction_opens_no_socket(monkeypatch):
+    """build_providers() constructs these at uvicorn import time, with no
+    vLLM server reachable."""
 
     import socket
 
@@ -74,76 +136,38 @@ def test_vllm_embedder_construction_opens_no_socket(monkeypatch):
         lambda self, addr, *a: (opened.append(addr), real_connect(self, addr, *a))[1],
     )
 
-    VLLMEmbedder()
+    client = _vllm()
+    Embedder(client=client)
+    Reranker(client=client)
+    _ = client._embeddings  # built on first use; building must not connect either
+    _ = client._rerank_http
     assert opened == []
 
 
-def test_lexical_reranker_returns_one_score_per_passage_in_input_order():
-    """The rerank node zips these scores against its candidate list
-    positionally — a reordered or short return silently mislabels which
-    chunk got which score, and the top-1 score is what `retrieval_floor`
-    is compared against (ADR-0005)."""
+def test_vllm_embed_returns_the_models_vector():
+    class _Embeddings:
+        def embed_query(self, text):
+            return [0.2] * EMBED_DIM
 
-    passages = ["đăng nhập thất bại", "máy in hỏng", "vpn chậm"]
-    scores = LexicalReranker().score("không đăng nhập được", passages)
+    client = _vllm(model="BAAI/bge-m3")
+    client.__dict__["_embeddings"] = _Embeddings()
 
-    assert len(scores) == len(passages)
-    assert scores[0] == max(scores)
+    assert Embedder(client=client).embed("q") == [0.2] * EMBED_DIM
 
 
-def test_lexical_reranker_empty_passages_returns_empty():
-    assert LexicalReranker().score("q", []) == []
-
-
-@pytest.mark.parametrize("seam", [Embedder, Reranker, LLMClient])
-def test_provider_missing_its_method_cannot_be_constructed(seam):
-    """A provider with a misnamed method (`rerank` instead of `score`) must
-    fail at construction — a container that won't boot — not on the first
-    ticket.
-    """
-
-    class Misnamed(seam):
-        def misnamed(self):
-            return None
-
-    with pytest.raises(TypeError, match="abstract"):
-        Misnamed()
-
-
-@pytest.mark.parametrize(
-    ("embedding_provider", "reranker_provider"),
-    [("stub", "lexical"), ("vllm", "vllm")],
-)
-def test_every_built_provider_subclasses_its_seam(
-    embedding_provider, reranker_provider, monkeypatch
-):
-    """Only a subclass gets the construction-time check above; a provider
-    added without inheriting from its seam would silently opt out of it."""
-
-    from ai_engine.core.providers.factory import build_providers
-
-    monkeypatch.setattr(settings, "embedding_provider", embedding_provider)
-    monkeypatch.setattr(settings, "reranker_provider", reranker_provider)
-    providers = build_providers()
-
-    assert isinstance(providers.embedder, Embedder)
-    assert isinstance(providers.reranker, Reranker)
-    assert isinstance(providers.llm, LLMClient)
-
-
-def _vllm_reranker(handler) -> VLLMReranker:
-    reranker = VLLMReranker()
-    reranker._client = httpx.Client(
+def _vllm_reranker(handler) -> Reranker:
+    client = _vllm(base_url=settings.vllm_rerank_base_url, model=settings.reranker_model)
+    client.__dict__["_rerank_http"] = httpx.Client(
         base_url=settings.vllm_rerank_base_url, transport=httpx.MockTransport(handler)
     )
-    return reranker
+    return Reranker(client=client)
 
 
 def _rerank_reply(pairs):
     return {"results": [{"index": i, "relevance_score": s} for i, s in pairs]}
 
 
-def test_vllm_reranker_returns_scores_in_input_order_not_rank_order():
+def test_vllm_rerank_returns_scores_in_input_order_not_rank_order():
     """vLLM sorts results by score. The rerank node zips scores against its
     candidates positionally, so they must come back in INPUT order."""
 
@@ -165,13 +189,6 @@ def test_vllm_reranker_returns_scores_in_input_order_not_rank_order():
     }
 
 
-def test_vllm_reranker_empty_passages_sends_no_request():
-    def handler(request):
-        raise AssertionError("no request expected")
-
-    assert _vllm_reranker(handler).score("q", []) == []
-
-
 _UNUSABLE_RERANK_REPLIES = {
     "too few": _rerank_reply([(0, 0.5)]),
     "duplicate index": _rerank_reply([(0, 0.5), (0, 0.4)]),
@@ -184,7 +201,7 @@ _UNUSABLE_RERANK_REPLIES = {
 @pytest.mark.parametrize(
     "body", _UNUSABLE_RERANK_REPLIES.values(), ids=_UNUSABLE_RERANK_REPLIES.keys()
 )
-def test_vllm_reranker_raises_on_an_unusable_reply(body):
+def test_vllm_rerank_raises_on_an_unusable_reply(body):
     """A short or misindexed result list would attach relevance to the wrong
     chunk while the ranking still looks plausible."""
 
@@ -193,10 +210,31 @@ def test_vllm_reranker_raises_on_an_unusable_reply(body):
         reranker.score("q", ["a", "b"])
 
 
-def test_vllm_reranker_raises_on_a_server_error():
+def test_vllm_rerank_raises_on_a_server_error():
     """No fallback to lexical: a different calibration (ADR-0005). The ticket
     degrades to HITL instead."""
 
     reranker = _vllm_reranker(lambda request: httpx.Response(503))
     with pytest.raises(httpx.HTTPStatusError):
         reranker.score("q", ["a"])
+
+
+@pytest.mark.parametrize(
+    ("embedding_provider", "reranker_provider"),
+    [("stub", "lexical"), ("vllm", "vllm")],
+)
+def test_every_built_provider_is_the_shared_class(
+    embedding_provider, reranker_provider, monkeypatch
+):
+    """Nodes depend on Embedder / Reranker / LLMClient; whatever the config,
+    build_providers must hand them those types."""
+
+    from ai_engine.core.providers.factory import build_providers
+
+    monkeypatch.setattr(settings, "embedding_provider", embedding_provider)
+    monkeypatch.setattr(settings, "reranker_provider", reranker_provider)
+    providers = build_providers()
+
+    assert isinstance(providers.embedder, Embedder)
+    assert isinstance(providers.reranker, Reranker)
+    assert isinstance(providers.llm, LLMClient)

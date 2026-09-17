@@ -18,12 +18,8 @@ from ai_engine.core.providers.llm.models import (
 )
 from ai_engine.core.providers import factory as factory_mod
 from ai_engine.core.db.client import SqlAlchemySessionSource
-from ai_engine.core.providers.embeddings import StubEmbedder, VLLMEmbedder
 from ai_engine.core.providers.factory import build_providers
-from ai_engine.core.providers.reranker import (
-    LexicalReranker,
-    VLLMReranker,
-)
+from ai_engine.core.providers.llm.local import LexicalClient, StubClient
 
 
 def test_unknown_reranker_provider_raises_rather_than_falling_back_to_lexical(monkeypatch):
@@ -56,7 +52,7 @@ def test_default_reranker_is_the_vllm_cross_encoder():
     """
 
     assert settings.reranker_provider == "vllm"
-    assert isinstance(build_providers().reranker, VLLMReranker)
+    assert isinstance(build_providers().reranker._client, VLLMLLM)
 
 
 def test_build_providers_opens_no_connections(monkeypatch):
@@ -68,26 +64,54 @@ def test_build_providers_opens_no_connections(monkeypatch):
     monkeypatch.setattr(settings, "reranker_provider", "lexical")
     providers = build_providers()
 
-    assert isinstance(providers.reranker, LexicalReranker)
+    assert isinstance(providers.reranker._client, LexicalClient)
     assert isinstance(providers.db, SqlAlchemySessionSource)  # constructed, not connected
 
 
 @pytest.mark.parametrize(
     ("provider", "expected"),
-    [("stub", StubEmbedder), ("vllm", VLLMEmbedder)],
+    [("stub", StubClient), ("vllm", VLLMLLM)],
 )
 def test_embedding_provider_selection(provider, expected, monkeypatch):
     monkeypatch.setattr(settings, "embedding_provider", provider)
-    assert isinstance(build_providers().embedder, expected)
+    assert isinstance(build_providers().embedder._client, expected)
 
 
 @pytest.mark.parametrize(
     ("provider", "expected"),
-    [("lexical", LexicalReranker), ("vllm", VLLMReranker)],
+    [("lexical", LexicalClient), ("vllm", VLLMLLM)],
 )
 def test_reranker_provider_selection(provider, expected, monkeypatch):
     monkeypatch.setattr(settings, "reranker_provider", provider)
-    assert isinstance(build_providers().reranker, expected)
+    assert isinstance(build_providers().reranker._client, expected)
+
+
+def test_each_vllm_capability_gets_its_own_server(monkeypatch, lexical_reranker):
+    """vLLM serves one model per server, so chat, embeddings and reranking
+    must each point at their own base URL and model — and none of them may
+    carry a fallback that switches model mid-run."""
+
+    _unconfigure_cloud(monkeypatch)
+    monkeypatch.setattr(settings, "embedding_provider", "vllm")
+    monkeypatch.setattr(settings, "reranker_provider", "vllm")
+    providers = build_providers()
+
+    clients = {
+        "chat": providers.llm,
+        "embed": providers.embedder._client,
+        "rerank": providers.reranker._client,
+    }
+    assert {name: c._base_url for name, c in clients.items()} == {
+        "chat": settings.vllm_chat_base_url,
+        "embed": settings.vllm_embed_base_url,
+        "rerank": settings.vllm_rerank_base_url,
+    }
+    assert {name: c._model for name, c in clients.items()} == {
+        "chat": settings.vllm_chat_model,
+        "embed": settings.vllm_embed_model,
+        "rerank": settings.reranker_model,
+    }
+    assert all(c._fallback is None for c in clients.values())
 
 
 # --- LLM chain wiring (ADR-0007) -------------------------------------------
@@ -312,6 +336,7 @@ def test_chat_models_are_cached_per_timeout_bucket(lexical_reranker):
         model="Qwen/Qwen3-8B-AWQ",
         base_url="http://localhost:8100/v1",
         connect_timeout=3.0,
+        read_timeout=120.0,
         fallback=None,
     )
 
@@ -332,6 +357,7 @@ def test_provider_attributes_are_resolved_at_construction(lexical_reranker):
         model="Qwen/Qwen3-8B-AWQ",
         base_url="http://localhost:8100/v1",
         connect_timeout=3.0,
+        read_timeout=120.0,
         fallback=None,
     )
     anthropic = AnthropicLLM(
@@ -370,6 +396,7 @@ def test_vllm_llm_asks_for_json_without_thinking_or_sdk_retries(lexical_reranker
         model="Qwen/Qwen3-8B-AWQ",
         base_url="http://localhost:8100/v1",
         connect_timeout=3.0,
+        read_timeout=120.0,
         fallback=None,
     )
     chat = llm._chat_model(30.0)

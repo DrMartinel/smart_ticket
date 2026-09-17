@@ -164,13 +164,17 @@ at startup (every outcome routed, nothing unreachable) and is the only place a
 node becomes a LangGraph string. `main.py` constructs the instances, wires and
 compiles them once, at import time. See
 [graph-node-architecture.md](graph-node-architecture.md).
-Where a dependency has more than one implementation chosen from config, nodes
-depend on an abstract base class beside those implementations — `Embedder` and
-`Reranker` in `core/providers/base.py`, `LLMClient` in
-`core/providers/llm/client.py` —
-never on a concrete provider module. Every implementation subclasses its base
-class, so a provider missing its method fails at construction, which happens
-at startup. The database client has one implementation and no base class:
+Models are reached through two layers. `LLMClient`
+(`core/providers/llm/client.py`) is the lower one: a provider subclass talks to
+one model and implements whichever of chat, `embed` and `rerank` its API
+serves — `VLLMLLM` all three, `StubClient` and `LexicalClient`
+(`core/providers/llm/local.py`) one each, for CI. `Embedder` and `Reranker`
+(`core/providers/embeddings.py`, `reranker.py`) are the upper one: single
+classes that take any client, delegate the model work, and own their contract
+(vector width, one score per passage in input order). They check
+`client.supports(...)` at construction, so a client that cannot do the job
+fails at startup. Nodes depend on `Embedder`, `Reranker` and `LLMClient`,
+never on a provider class. The database client has one implementation and no base class:
 nodes take `SqlAlchemySessionSource` from `core/db/client.py`.
 
 `core/providers/factory.py` is the single place `EMBEDDING_PROVIDER` and

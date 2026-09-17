@@ -148,7 +148,7 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `core/config.py` |
 | What counts as PII | `patterns.py` (regex) or the NER prompt in `masking.py` |
-| How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
+| How relevance is judged | `ai-engine/core/providers/reranker.py` (contract), the rerank client in `core/providers/llm/`, `core/retrieval/` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
 DB fields: edit the model, then `makemigrations` / `migrate` via
@@ -187,7 +187,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Every ticket `mask_failed` | vllm-chat isn't running or reachable, or `VLLM_CHAT_MODEL` doesn't match what it serves. **Never "fix" this by treating NER failure as no-PII-found** |
 | Submit hangs ~120s | Connect and read timeouts collapsed into one. Deliberately separate: 3s connect, 120s read (a cold model load legitimately takes 15–20s) |
 | All four generation checks ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
-| Unaccented Vietnamese matches nothing | Diacritic folding (`_strip_diacritics`) in the lexical reranker regressed; `đ`/`Đ` need special handling |
+| Unaccented Vietnamese matches nothing | Diacritic folding (`_strip_diacritics`) in `LexicalClient` regressed; `đ`/`Đ` need special handling |
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |

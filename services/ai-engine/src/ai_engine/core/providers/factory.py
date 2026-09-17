@@ -7,8 +7,8 @@ distribution (ADR-0005) with nothing looking broken.
 No constructor here opens a socket or loads a model. That lets main.py build
 the graph at import time without the DB or vLLM.
 
-`build_providers` stays a flat composition root; only `_build_cloud_llm` is
-extracted, for the reason in its docstring.
+`build_providers` stays a flat composition root; only `_vllm` and
+`_build_cloud_llm` are extracted, each for the reason in its docstring.
 """
 
 from __future__ import annotations
@@ -24,12 +24,9 @@ from ai_engine.core.providers.llm.models import (
     OpenAILLM,
     VLLMLLM,
 )
-from ai_engine.core.providers.base import Embedder, Reranker
-from ai_engine.core.providers.embeddings import StubEmbedder, VLLMEmbedder
-from ai_engine.core.providers.reranker import (
-    LexicalReranker,
-    VLLMReranker,
-)
+from ai_engine.core.providers.embeddings import Embedder
+from ai_engine.core.providers.llm.local import LexicalClient, StubClient
+from ai_engine.core.providers.reranker import Reranker
 
 
 @dataclass(frozen=True)
@@ -43,35 +40,47 @@ class Providers:
 def build_providers() -> Providers:
     match settings.embedding_provider:
         case "stub":
-            embedder: Embedder = StubEmbedder()
+            embedder = Embedder(client=StubClient())
         case "vllm":
-            embedder = VLLMEmbedder()
+            embedder = Embedder(
+                client=_vllm(settings.vllm_embed_model, settings.vllm_embed_base_url)
+            )
         case other:
             raise ValueError(f"unknown embedding_provider: {other!r} (expected 'vllm' or 'stub')")
 
     match settings.reranker_provider:
         case "lexical":
-            reranker: Reranker = LexicalReranker()
+            reranker = Reranker(client=LexicalClient())
         case "vllm":
-            reranker = VLLMReranker()
+            reranker = Reranker(
+                client=_vllm(settings.reranker_model, settings.vllm_rerank_base_url)
+            )
         case other:
             raise ValueError(f"unknown reranker_provider: {other!r} (expected 'vllm' or 'lexical')")
 
     # --- LLM chain (spec §10.3, ADR-0007) ---------------------------------
     # Resolved once, here. Cloud is primary when configured, with self-hosted
     # vLLM as its fallback; otherwise vLLM is the only link (ADR-0009).
-    self_host = VLLMLLM(
-        model=settings.vllm_chat_model,
-        base_url=settings.vllm_chat_base_url,
-        connect_timeout=settings.model_connect_timeout_sec,
-        fallback=None,
-    )
+    self_host = _vllm(settings.vllm_chat_model, settings.vllm_chat_base_url)
 
     return Providers(
         embedder=embedder,
         reranker=reranker,
         llm=_build_cloud_llm(fallback=self_host) or self_host,
         db=SqlAlchemySessionSource(),
+    )
+
+
+def _vllm(model: str, base_url: str) -> VLLMLLM:
+    """A client for one vLLM server — one model per server (ADR-0009). Never a
+    fallback: embed and rerank must not switch model mid-run (ADR-0005)."""
+
+    return VLLMLLM(
+        model=model,
+        base_url=base_url,
+        connect_timeout=settings.model_connect_timeout_sec,
+        read_timeout=settings.model_timeout_sec,
+        fallback=None,
     )
 
 

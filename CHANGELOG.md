@@ -15,6 +15,14 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **`Embedder` and `Reranker` take any `LLMClient`.** They are single classes
+  that delegate the model work to an injected client and own their contracts
+  (EMBED_DIM, one score per passage in input order), checking
+  `client.supports(...)` at startup. `LLMClient` gains optional `embed()` and
+  `rerank()` beside chat; `VLLMLLM` serves all three, and `StubClient` /
+  `LexicalClient` (`providers/llm/local.py`) serve CI. `VLLMEmbedder`,
+  `VLLMReranker`, `StubEmbedder`, `LexicalReranker` and `providers/base.py` are
+  gone. No behaviour changed
 - **The in-process cross-encoder is removed (ADR-0009).** `CrossEncoderReranker`,
   `_load_cross_encoder`, the `reranker_revision` / `reranker_use_fp16` settings,
   the `FlagEmbedding` dependency (and torch with it) and the weight bake in the

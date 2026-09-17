@@ -12,7 +12,7 @@ from ai_engine.core.config import settings
 from ai_engine.core.db.client import SqlAlchemySessionSource
 from ai_engine.core.db.tables import FewshotExample
 from ai_engine.core.node import BaseNode
-from ai_engine.core.providers.base import Embedder
+from ai_engine.core.providers.embeddings import Embedder
 from ai_engine.core.state import TriageState
 
 

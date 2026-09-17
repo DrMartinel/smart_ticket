@@ -2,17 +2,19 @@
 LLM client — circuit breaker, retry and cloud→self-hosted fallback (spec
 §10.1/§10.3). `LLMClient.complete()` is the ONLY place ai-engine calls an LLM,
 so the §10.3 failure table is implemented once. LangChain supplies transport
-only (ADR-0007): each provider in `models.py` subclasses `LLMClient` and
-implements `_build()`, and nothing else.
+only (ADR-0007).
 
-Nodes depend on `LLMClient`, never on a provider subclass or a LangChain type.
+`LLMClient` is the layer that talks to a model. It serves up to three
+capabilities — chat (`complete`, via `_build`), `embed` and `rerank` — and a
+provider implements whichever its API supports. Nodes never see a client
+directly for embeddings or reranking: `Embedder` and `Reranker` take one and
+own their own contracts.
 """
 
 from __future__ import annotations
 
 import logging
 import time
-from abc import ABC, abstractmethod
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -46,11 +48,13 @@ class LLMResult(BaseModel):
     degraded_reason: str | None = None
 
 
-class LLMClient(ABC):
-    """One LLM provider, optionally with a fallback behind it.
+class LLMClient:
+    """One model provider, optionally with a chat fallback behind it.
 
-    `complete()` owns the breaker, the retry and the fallback; a provider
-    subclass implements only `_build()`. Construction opens no socket:
+    `complete()` owns the breaker, the retry and the fallback; a chat provider
+    implements only `_build()`. `embed` and `rerank` have no breaker, retry or
+    fallback: they RAISE on any failure, because a fallback there would change
+    the vector space or the score scale mid-run (ADR-0005). Construction opens no socket:
     `build_providers()` runs at import time and must boot with providers
     unreachable. Uses the module-level `CIRCUIT` — one breaker per process
     (spec §10.1). Otherwise stateless, so safe to share across FastAPI's
@@ -81,10 +85,27 @@ class LLMClient(ABC):
         # — ~116 entries worst case, one cheap HTTP client each.
         self._cache: dict[int, BaseChatModel] = {}
 
-    @abstractmethod
+    def supports(self, capability: str) -> bool:
+        """Whether this provider implements `capability` ("chat", "embed" or
+        "rerank"). Checked at construction by whatever consumes the client, so
+        a provider that cannot do the job fails the boot, not a ticket."""
+
+        method = {"chat": "_build", "embed": "embed", "rerank": "rerank"}[capability]
+        return getattr(type(self), method) is not getattr(LLMClient, method)
+
     def _build(self, timeout: float) -> BaseChatModel:
         """Construct this provider's chat model bound to `timeout`. Must not
         retry internally: retry policy lives in `complete()` only."""
+        raise NotImplementedError(f"{type(self).__name__} does not serve chat")
+
+    def embed(self, text: str) -> list[float]:
+        """One dense vector for `text`. RAISES on any failure."""
+        raise NotImplementedError(f"{type(self).__name__} does not serve embeddings")
+
+    def rerank(self, query: str, passages: list[str]) -> list[float]:
+        """One relevance score per passage, in input order. RAISES on any
+        failure."""
+        raise NotImplementedError(f"{type(self).__name__} does not serve reranking")
 
     def complete(self, system_prompt: str, user_prompt: str, *, timeout: float) -> LLMResult:
         """Retry ×2 on this provider → fall back → raise AllLLMDownError

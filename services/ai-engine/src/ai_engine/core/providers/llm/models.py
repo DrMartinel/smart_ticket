@@ -10,8 +10,10 @@ latency budget and register as a single breaker failure.
 
 from __future__ import annotations
 
+from functools import cached_property
 from typing import Any
 
+import httpx
 import httpx2
 from langchain_core.language_models import BaseChatModel
 
@@ -35,19 +37,35 @@ GEMINI_COST_PER_1K_TOKENS = 0.001
 
 class VLLMLLM(LLMClient):
     """A self-hosted vLLM server over its OpenAI-compatible API (ADR-0009).
+    Serves chat, `embed` (`/v1/embeddings`) and `rerank` (`/v1/rerank`) —
+    whichever the model on `base_url` supports, since vLLM runs one model per
+    server.
 
-    Self-hosted, so it is billed as free, and its model name is prefixed so `ai_runs.model_used` tells it apart from a cloud model.
+    Self-hosted, so it is billed as free, and its model name is prefixed so
+    `ai_runs.model_used` tells it apart from a cloud model. The embedding and
+    rerank HTTP clients are built on first use and open no socket until then.
     """
 
     def __init__(
-        self, *, model: str, base_url: str, connect_timeout: float, fallback: LLMClient | None
+        self,
+        *,
+        model: str,
+        base_url: str,
+        connect_timeout: float,
+        read_timeout: float,
+        fallback: LLMClient | None,
     ) -> None:
         super().__init__(
             model_name=f"vllm/{model}",
             cost_per_1k_tokens=VLLM_COST_PER_1K_TOKENS,
             fallback=fallback,
         )
+        self._model = model
+        self._base_url = base_url
         self._connect_timeout = connect_timeout
+        # Chat takes a per-attempt timeout from infer.py; embed and rerank use
+        # this ceiling.
+        self._read_timeout = read_timeout
         self._kwargs: dict[str, Any] = {
             "model": model,
             "base_url": base_url,
@@ -68,6 +86,64 @@ class VLLMLLM(LLMClient):
             timeout=httpx2.Timeout(timeout, connect=self._connect_timeout),
             max_retries=0,
         )
+
+    def embed(self, text: str) -> list[float]:
+        return self._embeddings.embed_query(text)
+
+    def rerank(self, query: str, passages: list[str]) -> list[float]:
+        response = self._rerank_http.post(
+            "/rerank", json={"model": self._model, "query": query, "documents": passages}
+        )
+        response.raise_for_status()
+        return _scores_in_input_order(response.json(), expected=len(passages))
+
+    @cached_property
+    def _embeddings(self):
+        from langchain_openai import OpenAIEmbeddings
+
+        return OpenAIEmbeddings(
+            model=self._model,
+            base_url=self._base_url,
+            api_key="EMPTY",
+            # Otherwise langchain pre-tokenises with tiktoken and sends token
+            # ids from OpenAI's vocabulary, which bge-m3 would embed as garbage.
+            check_embedding_ctx_length=False,
+            max_retries=0,
+            # Separate connect and read timeouts: an unreachable server is
+            # knowable in seconds, a cold model load takes 15-20s. Collapsing
+            # them is the "submit hangs ~120s" bug.
+            timeout=httpx2.Timeout(self._read_timeout, connect=self._connect_timeout),
+        )
+
+    @cached_property
+    def _rerank_http(self) -> httpx.Client:
+        return httpx.Client(
+            base_url=self._base_url,
+            timeout=httpx.Timeout(self._read_timeout, connect=self._connect_timeout),
+        )
+
+
+def _scores_in_input_order(body: Any, *, expected: int) -> list[float]:
+    """vLLM returns results sorted by score, each carrying its input `index`.
+    Scores must come back in INPUT order, so a missing, duplicated or
+    out-of-range index raises rather than attaching a score to the wrong
+    chunk.
+
+    `retrieval.floor` was specified as bge-reranker-v2-m3's sigmoid-normalized
+    score, never fitted; confirm vLLM returns that scale before calibrating
+    (ADR-0005, docs/TODO.md item 4).
+    """
+
+    try:
+        results = body["results"]
+        by_index = {int(r["index"]): float(r["relevance_score"]) for r in results}
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError(f"unusable vLLM rerank reply: {body!r}") from e
+    if len(results) != expected or sorted(by_index) != list(range(expected)):
+        raise ValueError(
+            f"vLLM rerank returned indices {sorted(by_index)}, expected 0..{expected - 1}"
+        )
+    return [by_index[i] for i in range(expected)]
 
 
 class OpenAILLM(LLMClient):

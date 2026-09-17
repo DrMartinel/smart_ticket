@@ -27,11 +27,15 @@ any more, and ai-engine loads no model itself.
 
 ai-engine (`OllamaLLM`, `OllamaEmbedder` and `langchain-ollama` are removed):
 
-| Capability | Setting | vLLM class |
+| Capability | Setting | Code |
 |---|---|---|
 | Chat LLM | always vLLM — the only link without a cloud provider, the fallback behind one | `VLLMLLM` |
-| Embeddings | `EMBEDDING_PROVIDER=vllm` (default) \| `stub` | `VLLMEmbedder` |
-| Reranking | `RERANKER_PROVIDER=vllm` (default) \| `lexical` | `VLLMReranker` |
+| Embeddings | `EMBEDDING_PROVIDER=vllm` (default) \| `stub` | `Embedder(client=VLLMLLM(...))` |
+| Reranking | `RERANKER_PROVIDER=vllm` (default) \| `lexical` | `Reranker(client=VLLMLLM(...))` |
+
+`Embedder` and `Reranker` take any `LLMClient` that serves the capability; one
+`VLLMLLM` class serves chat, `embed` and `rerank`, with one instance per vLLM
+server.
 
 core-api:
 
@@ -45,10 +49,11 @@ self-hosted servers. vLLM serves one model per process, so the three
 capabilities are three servers (`vllm-chat`, `vllm-embed`, `vllm-rerank` in the
 `vllm` compose profile), each with its own base URL.
 
-Each class keeps the contract of the provider it replaces: no socket at
+Each client keeps the contract of the provider it replaces: no socket at
 construction, separate connect and read timeouts, SDK retries off (retry and
 fallback stay in `LLMClient.complete()`, ADR-0007), and RAISE rather than
-degrade. `VLLMReranker` never falls back to lexical.
+degrade. `embed` and `rerank` never fall back — not to lexical, not to another
+model.
 
 ## Consequences
 
