@@ -114,7 +114,8 @@ What LangGraph (1.2.9) does with a pydantic schema, pinned in
   wrong-typed update aborts the run one step later with a `ValidationError` — a
   500, which core-api routes to a human as `AIEngineUnavailable`.
 - It silently **drops** an update key that is not a field (as it did with the
-  `TypedDict`). `extra="forbid"` only guards direct construction.
+  `TypedDict`). `extra="forbid"` only guards direct construction, so
+  `GraphBuilder` raises on such a key instead (§4.4).
 - `graph.invoke` returns a plain dict; `main.py` re-validates it into a
   `TriageState`.
 - It infers a node's input schema from the `state:` annotation on `__call__`
@@ -233,7 +234,10 @@ Each instance registers under its own class's `name`. That is the test seam:
 pass a `FakeInferNode(...)` (a subclass of `InferNode`) as `infer=` and it is
 wired where the real one would be, visible in the graph as `fake_infer`.
 
-Registration: single-outcome nodes get `add_edge`, multi-outcome nodes get
+Registration: each node is added through an adapter that raises `ValueError`
+if its update has a key the state schema lacks — LangGraph would drop it
+silently — and `TypeError` if it is not a dict. Single-outcome nodes get
+`add_edge`, multi-outcome nodes get
 `add_conditional_edges(name, instance.decide, {outcome: target_name})`,
 a `Terminal` gets `add_edge(name, END)`, and the entry is
 `add_edge(START, entry.name)`.

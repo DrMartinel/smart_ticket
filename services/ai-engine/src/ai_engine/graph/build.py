@@ -9,11 +9,17 @@ to END.
 
 `route()` and `compile()` reject bad wiring at startup, never mid-run. The
 triage topology lives in `flow.py`.
+
+Each node is registered through an adapter that raises on an update key the
+state schema does not have: LangGraph would drop it silently, so a misspelled
+key would look like it worked.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import Enum
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
@@ -26,6 +32,22 @@ def _require_instance(value: object, role: str) -> BaseNode:
     if not isinstance(value, BaseNode):
         raise TypeError(f"{role}: expected a BaseNode instance, got {value!r}")
     return value
+
+
+def _checked(node: BaseNode, state_keys: set[str]) -> Callable[[Any], dict]:
+    def run(state: Any) -> dict:
+        update = node(state)
+        if not isinstance(update, dict):
+            raise TypeError(f"{type(node).__name__} returned {update!r}, expected a dict")
+        if unknown := set(update) - state_keys:
+            raise ValueError(
+                f"{type(node).__name__} returned keys the state schema does not have "
+                f"{sorted(unknown)}"
+            )
+        return update
+
+    run.node = node  # type: ignore[attr-defined]  # for introspection in tests
+    return run
 
 
 class GraphBuilder:
@@ -95,12 +117,13 @@ class GraphBuilder:
         self._validate(nodes)
 
         graph = StateGraph(state_schema)
+        state_keys = set(graph.channels)
         for node in nodes:
             # input_schema pinned to the graph's schema: left unset, LangGraph
             # infers it from the `state:` annotation on __call__, so a node
             # annotated with one schema would validate its input against that
             # schema in any graph it is wired into.
-            graph.add_node(node.name, node, input_schema=state_schema)
+            graph.add_node(node.name, _checked(node, state_keys), input_schema=state_schema)
 
         for node in nodes:
             if isinstance(node, Terminal):

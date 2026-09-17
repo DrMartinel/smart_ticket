@@ -23,8 +23,8 @@ def test_state_is_frozen(make_state):
 
 
 def test_state_rejects_unknown_fields(make_state):
-    """Guards direct construction (main.py, tests). Unknown keys in a node's
-    returned update are dropped by LangGraph before this ever runs."""
+    """Guards direct construction (main.py, tests). An unknown key in a node's
+    returned update is rejected by GraphBuilder instead."""
 
     with pytest.raises(ValidationError, match="extra"):
         make_state(degraded_reasn="typo")

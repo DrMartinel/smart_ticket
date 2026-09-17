@@ -155,8 +155,8 @@ def test_main_wires_the_prompt_for_settings_prompt_version():
     from ai_engine.main import _graph
 
     # LangGraph internals: PregelNode.bound is the RunnableCallable wrapping
-    # the node instance we registered.
-    infer = _graph.nodes[InferNode.name].bound.func
+    # GraphBuilder's adapter, which keeps the node instance on `.node`.
+    infer = _graph.nodes[InferNode.name].bound.func.node
 
     expected = load_system_prompt(settings.prompt_version)
     assert infer._system_prompt == expected

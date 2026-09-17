@@ -7,7 +7,8 @@ installed LangGraph:
   wrong-typed update fails one step later as a 500, which core-api sends to a
   human.
 - Update keys that are not fields are silently dropped before validation;
-  `extra="forbid"` only guards direct construction.
+  `extra="forbid"` only guards direct construction, so `GraphBuilder` raises
+  on them instead.
 - `graph.invoke` returns a plain dict.
 
 Frozen, so an in-place mutation — which would be silently discarded — raises.

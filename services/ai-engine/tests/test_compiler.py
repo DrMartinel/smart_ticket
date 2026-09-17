@@ -260,3 +260,19 @@ def test_subclass_fake_routes_in_place_of_the_real_node():
 
     assert app.invoke({"flag": True})["seen"] == ["fake"]
     assert "fake_work" in app.get_graph().nodes
+
+
+def test_update_key_missing_from_the_schema_raises():
+    """LangGraph silently drops an update key that is not a state field, so a
+    misspelled key would look like it worked. It must raise instead."""
+
+    class TypoNode(BaseNode):
+        def __call__(self, state):
+            return {"sean": ["typo"]}
+
+    node = TypoNode()
+    g = GraphBuilder(entry=node)
+    g.route(node, TypoNode.Outcome.DONE, Terminal())
+
+    with pytest.raises(ValueError, match=r"TypoNode returned keys .* \['sean'\]"):
+        g.compile(_State).invoke({})
