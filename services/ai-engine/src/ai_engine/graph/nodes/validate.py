@@ -1,18 +1,13 @@
 """
-Validator — spec §6.4. Implements the four checks in the exact order the
-spec gives, because the order encodes why each one exists:
+Validator — spec §6.4. Four checks, in the spec's order:
 
-1. Exact substring match first — cheap, unambiguous.
-2. Fuzzy match ONLY as a narrow allowance for whitespace/punctuation
-   drift, gated at 0.95 — not a general "close enough" check.
-3. The quote's source chunk MUST be one of the retrieved top-k. A quote
-   that is verbatim-correct but pulled from the WRONG KB article is a
-   wrong answer with a misleadingly high string-similarity score.
-4. Negation check — the one fuzzy matching cannot catch. "được cấp
-   quyền" vs "không được cấp quyền" score ~0.96 similarity while meaning
-   the opposite thing. This is the single highest-value check added
-   after the v1 architecture review, and it exists specifically because
-   of how common negated conditions are in ITSM runbook-style KB content.
+1. Exact substring match — cheap and unambiguous.
+2. Fuzzy match gated at 0.95, only for whitespace/punctuation drift.
+3. The quote's source chunk must be in the retrieved top-k; a verbatim quote
+   from the WRONG article is still a wrong answer.
+4. Negation: "được cấp quyền" vs "không được cấp quyền" score ~0.96 similarity
+   with opposite meanings, and negated conditions are common in runbook-style
+   KB content.
 """
 
 from __future__ import annotations

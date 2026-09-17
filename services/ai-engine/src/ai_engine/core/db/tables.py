@@ -1,23 +1,15 @@
 """
-Query-building descriptions of the three tables `ai_engine_ro` may read
-(ADR-0004, ADR-0008). NOT the schema.
+Partial query descriptions of the three tables `ai_engine_ro` may read
+(ADR-0004, ADR-0008). NOT the schema: core-api owns that, and only the columns
+ai-engine uses are declared.
 
-The schema is owned by core-api — its Django models plus
-infra/migrations/sql/ — and these classes are deliberately partial: they
-declare only the columns ai-engine selects or filters on, so an unused column
-changing in core-api needs no edit here. Three rules follow from that:
-
-- Never call `Base.metadata.create_all()` (or `drop_all`). These are not
-  full table definitions; the SELECT-only role would reject the DDL anyway,
-  but it must not be attempted.
-- Never instantiate these classes or `session.add()` them. ai-engine has no
-  write authority; queries select columns and get plain rows back.
-- Never add a table here that isn't in 0004_grants_and_audit_lockdown.sql's
-  SELECT grant. A business table appearing in this module is the ADR-0004
-  boundary eroding in code before it fails at the database.
+- Never call `create_all()` / `drop_all()`: these are not full definitions.
+- Never instantiate these classes or `session.add()` them: ai-engine has no
+  write authority.
+- Never add a table outside 0004_grants_and_audit_lockdown.sql's SELECT grant.
 
 `tests/test_db_tables.py` pins the table set and the absence of DDL/write
-calls; nothing can pin "never instantiated", so that one is on review.
+calls; "never instantiated" is on review.
 """
 
 from __future__ import annotations

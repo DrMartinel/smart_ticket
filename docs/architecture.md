@@ -196,7 +196,7 @@ no correct fallback (the lexical scorer is a different calibration, ADR-0005).
 
 `lexical` is the default, so none of that fires unless you select the
 cross-encoder — which is one environment variable and a restart, because
-`sentence-transformers` is a required dependency and the weights are already in
+`FlagEmbedding` (BAAI's `FlagReranker`, from GitHub at a pinned commit) is a required dependency and the weights are already in
 the image. It used to be an optional extra the Dockerfile never installed, so
 the switch silently could not work at all.
 

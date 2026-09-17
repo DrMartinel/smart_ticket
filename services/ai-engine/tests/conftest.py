@@ -1,13 +1,9 @@
 """
-Fakes for the four provider seams, plus a TriageState builder.
+Fakes for the provider seams, plus state and node builders.
 
-ai-engine's tests deliberately used no fixtures and no mocks while every
-node was a pure function. Nodes now take their collaborators through
-__init__, which is what makes the failure paths reachable in a unit test at
-all — DB outage, embedder down, circuit open, budget exhausted. These are
-plain classes rather than unittest.mock objects on purpose: a fake whose
-behaviour you can read in one place beats a Mock configured three lines
-away from the assertion.
+Plain classes rather than unittest.mock, so a fake's behaviour reads in one
+place. Injected through node `__init__`, they make the failure paths (DB
+outage, embedder down, circuit open, budget exhausted) testable.
 """
 
 from __future__ import annotations
@@ -166,9 +162,9 @@ def _make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = 
 
 
 def _make_state(**overrides) -> dict:
-    """A valid TriageState with generous budgets. Tests that care about one
-    budget override exactly that key, which makes the intent obvious —
-    previously every test rewrote the whole literal dict."""
+    """A valid TriageState with generous budgets; tests override only the key
+    they care about.
+    """
 
     state = {
         "ticket": _make_ticket(),
@@ -196,10 +192,9 @@ def _exhausted_budget_state(**overrides) -> dict:
 
 def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
     """The seven production nodes wired to fakes, keyed by `wire_triage`'s
-    parameters — the test-side counterpart of the instances main.py builds.
-    Pass it as `wire_triage(**nodes)`; replace one entry with a subclass of
-    the real node to swap in a fake. It cannot silently drift: every
-    `wire_triage` parameter is a required keyword."""
+    parameters. Use as `wire_triage(**nodes)`; replace an entry to swap in
+    a fake.
+    """
 
     db = db if db is not None else FakeSessionSource()
     embedder = embedder if embedder is not None else FakeEmbedder()
@@ -215,26 +210,20 @@ def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
 
 
 class _StubCrossEncoderModel:
-    """Stands in for a loaded `sentence_transformers.CrossEncoder`."""
+    """Stands in for a loaded `FlagEmbedding.FlagReranker`."""
 
-    def predict(self, pairs):
+    def compute_score(self, pairs, **kwargs):
         return [0.0] * len(pairs)
 
 
 @pytest.fixture(autouse=True)
 def never_load_real_reranker_weights(monkeypatch):
-    """Keep the unit suite free of a 2.3GB model load.
+    """Keep the unit suite from loading the real multi-GB reranker model.
 
-    `build_providers()` loads the real model when `cross_encoder` is selected, and
-        it takes no arguments — so patching this name is the only way a test can
-        select that provider without pulling 2.3GB of weights that no CI runner
-        has. The default is `lexical`, so this does not fire on a plain
-        build_providers(); it catches the tests that switch. Autouse because the
-        trap is invisible from the test body: selecting a provider and loading a
-        multi-GB model do not look like the same action.
-
-        Tests that assert something ABOUT loading re-patch this themselves;
-        monkeypatch applies their stub over this one and unwinds both.
+    `build_providers()` takes no arguments, so patching the loader is the
+    only way to select `cross_encoder` without weights. Autouse because,
+    from a test body, selecting a provider doesn't look like loading a
+    model. Tests that assert on loading re-patch it themselves.
     """
 
     monkeypatch.setattr(factory_mod, "_load_cross_encoder", _StubCrossEncoderModel)

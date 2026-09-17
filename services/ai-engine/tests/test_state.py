@@ -1,7 +1,6 @@
 """
-TriageState as a pydantic model. These pin what the switch from TypedDict
-actually changed, so a LangGraph upgrade that alters any of it fails here
-rather than in production.
+TriageState as a pydantic model. Pins LangGraph's behaviour around it, so an
+upgrade that changes it fails here.
 """
 
 from __future__ import annotations
@@ -32,10 +31,10 @@ def test_state_rejects_unknown_fields(make_state):
 
 
 def test_a_wrong_typed_update_fails_the_run(triage_nodes, make_state):
-    """LangGraph validates the merged state when it builds the next node's
-    input. A node returning a wrong-typed value must abort the run — a 500
-    core-api routes to a human as AIEngineUnavailable — never flow onward
-    into TrustSignals as a value nothing downstream expects."""
+    """LangGraph validates merged state before the next node. A wrong-typed
+    update must abort the run (a 500 core-api routes to a human), never
+    flow on into TrustSignals.
+    """
 
     class BrokenRetrieve(HybridRetrieveNode):
         def __call__(self, state):

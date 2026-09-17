@@ -1,14 +1,10 @@
 """
-BM25-style lexical retrieval over `kb_chunks.tsv` — spec §6.3. Uses
-Postgres's `ts_rank_cd` (cover density ranking) rather than plain
-`ts_rank`, since cover density rewards query terms appearing close
-together, which matters for short error-code-heavy queries.
+BM25-style lexical retrieval over `kb_chunks.tsv` — spec §6.3.
 
-Error codes get an explicit post-hoc boost (spec: "weight cao cho mã lỗi:
-0x[0-9A-F]{8}, ERR-\\d+") because `ts_rank_cd` alone treats `ERR-4042`
-like any other token — it has no notion that a ticket quoting the exact
-error code should be pulled far ahead of one that's merely topically
-similar.
+Uses `ts_rank_cd` (cover density), which rewards query terms appearing close
+together — good for short, error-code-heavy queries. Error codes
+(`0x1A2B3C4D`, `ERR-4042`) get an explicit boost, since `ts_rank_cd` treats
+them like any other token.
 """
 
 from __future__ import annotations

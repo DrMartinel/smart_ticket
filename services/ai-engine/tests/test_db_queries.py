@@ -1,11 +1,7 @@
 """
-The SQL each query sends. The session fakes answer with canned rows, so
-without these a dropped filter would pass every other test in this suite and
-only show up as wrong rows in production. Each test runs the real code path
-and reads the statement `FakeSessionSource` recorded.
-
-Assertions are on the clauses each query is FOR, not on the full SQL text —
-column order, aliasing and whitespace can change freely.
+The SQL each query sends. Session fakes return canned rows, so without these a
+dropped filter would only show up as wrong rows in production. Assertions
+target each query's purpose, not the full SQL text.
 """
 
 from __future__ import annotations
@@ -27,10 +23,10 @@ def _only_statement(db) -> tuple[str, dict]:
 
 
 def test_vector_search_orders_by_cosine_distance_over_embedded_chunks_only(fake_db):
-    """ORDER BY must be the bare `<=>` expression — that is what the HNSW
-    `vector_cosine_ops` index can serve. Ordering by the derived similarity
-    would still return correct rows, just via a sequential scan of every
-    chunk: a latency regression with no functional symptom."""
+    """ORDER BY must be the bare `<=>` expression the HNSW index can serve.
+    Ordering by the derived similarity still returns correct rows, via a
+    full scan — a silent latency regression.
+    """
 
     db = fake_db()
     with db.connect() as session:
@@ -45,10 +41,10 @@ def test_vector_search_orders_by_cosine_distance_over_embedded_chunks_only(fake_
 
 
 def test_bm25_search_matches_and_ranks_on_tsv_with_the_simple_config(fake_db):
-    """The query config must be 'simple' because that is what the tsv trigger
-    indexes with (0003_constraints_and_triggers.sql — Postgres has no
-    Vietnamese config). A mismatched config returns no rows rather than an
-    error, which reads downstream as "the KB has nothing relevant"."""
+    """The query config must be 'simple' to match the tsv trigger
+    (0003_constraints_and_triggers.sql). A mismatch returns no rows rather
+    than an error, which reads as "the KB has nothing relevant".
+    """
 
     db = fake_db()
     with db.connect() as session:
@@ -66,9 +62,10 @@ def test_bm25_search_matches_and_ranks_on_tsv_with_the_simple_config(fake_db):
 def test_fewshot_selection_excludes_retracted_and_expired_examples(
     fake_db, fake_embedder, make_state
 ):
-    """An example is retracted when its source ticket reopens, i.e. its label
-    is suspect. Showing it to the model teaches the mistake. Nothing else in
-    the suite would notice these filters going missing."""
+    """A retracted example (its source ticket reopened) has a suspect label;
+    showing it to the model teaches the mistake. Nothing else would notice
+    these filters going missing.
+    """
 
     db = fake_db()
     SelectFewshotsNode(db=db, embedder=fake_embedder(vector=[0.3]))(make_state())
@@ -82,11 +79,10 @@ def test_fewshot_selection_excludes_retracted_and_expired_examples(
 
 
 def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state):
-    """The policy lookup turns ANY exception into deny-by-default, so a query
-    that fails to build or execute never surfaces as an error — every ticket
-    would just quietly report `kb_auto_reply_allowed=False`. This is the only
-    place a broken policy query is visible: no statement recorded fails the
-    unpacking in `_only_statement`."""
+    """The policy lookup turns any exception into deny-by-default, so a
+    broken query never surfaces as an error. This is the only place it is
+    visible.
+    """
 
     proposal = LLMProposalEnvelope(
         root=AutoReplyProposal(

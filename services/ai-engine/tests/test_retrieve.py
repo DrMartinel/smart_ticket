@@ -20,12 +20,10 @@ def _node(db, embedder):
 def test_embedder_failure_propagates_rather_than_returning_empty_candidates(
     fake_db, fake_embedder, kb_row, make_state
 ):
-    """An Ollama outage must not be silently reshaped into an empty
-    candidate list. Empty candidates mean "nothing in the KB matched",
-    which routes as an ordinary refuse-before-LLM; a dead embedding
-    provider is an infrastructure degrade and has to be visible as one.
-    This is the retrieval-layer cousin of mask_failed resolving to
-    "no PII found".
+    """An Ollama outage must not become an empty candidate list, which routes
+    as an ordinary refuse-before-LLM. An infrastructure degrade has to be
+    visible as one — the retrieval cousin of mask_failed resolving to "no
+    PII found".
     """
 
     embedder = fake_embedder(error=RuntimeError("ollama unreachable"))
@@ -54,9 +52,8 @@ def test_budget_exhausted_makes_no_embedding_call(fake_db, fake_embedder, exhaus
 def test_bm25_keyword_hit_is_false_when_lexical_finds_nothing(
     fake_db, fake_embedder, kb_row, make_state
 ):
-    """`bm25_keyword_hit` feeds core-api's trust scorer. Reporting True on a
-    pure-vector match inflates the trust score for exactly the case where
-    the evidence is weakest — a semantic neighbour with no lexical overlap.
+    """`bm25_keyword_hit` feeds the trust scorer. True on a pure-vector match
+    inflates trust exactly where the evidence is weakest.
     """
 
     def rows(sql, params):

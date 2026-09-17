@@ -1,20 +1,14 @@
 """
-Graph builder — the only place a node becomes a LangGraph string
-(add_node names, edge targets, START/END).
+Graph builder — the only place a node becomes a LangGraph string (add_node
+names, edge targets, START/END).
 
-Routes attach an outcome to the next node *instance*, and live on the
-builder rather than on node classes or `Outcome` members:
-`BaseNode.Outcome.DONE` is one enum member shared by every single-exit
-node, and the same node class may serve more than one graph. Nodes are
-never written to, so the "read-only after __init__" rule holds.
+Routes map an outcome to the next node *instance* and live on the builder, not
+on node classes: `BaseNode.Outcome.DONE` is shared by every single-exit node,
+and one class may serve several graphs. A `Terminal` node holds the only edge
+to END.
 
-Every route targets a node, including the end: a `Terminal` instance is a
-real node, and compile() gives it the graph's only edge to END.
-
-`route()` rejects a bad route as it is declared and `compile()` rejects a
-bad graph before registering anything, so wiring mistakes raise at
-startup, never mid-run when the first ticket takes an unusual branch. It
-is generic: the triage topology lives in `flow.py`.
+`route()` and `compile()` reject bad wiring at startup, never mid-run. The
+triage topology lives in `flow.py`.
 """
 
 from __future__ import annotations

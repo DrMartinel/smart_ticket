@@ -40,12 +40,9 @@ def _chunk(chunk_id: int, score: float, slug: str = "kb-a") -> RankedChunk:
 
 
 def test_kb_policy_lookup_failure_denies_auto_reply(fake_db, make_state):
-    """A DB outage during the best-effort policy lookup must degrade to
-    deny-by-default, not propagate. This node is terminal — every path
-    through the graph passes through it — so raising here turns a
-    recoverable "we couldn't check the KB policy" into no TrustSignals at
-    all, and core-api gets a 500 instead of a ticket it can route to a
-    human.
+    """A DB outage during the policy lookup must deny auto-reply, not raise.
+    This node is terminal, so raising yields no TrustSignals and core-api
+    gets a 500 instead of a ticket it can route to a human.
     """
 
     db = fake_db(error=RuntimeError("connection refused"))
@@ -71,11 +68,9 @@ def test_missing_kb_slug_denies_without_touching_the_database(fake_db, make_stat
 
 
 def test_docs_above_floor_uses_the_per_request_floor_from_state(fake_db, make_state):
-    """`retrieval_floor` arrives per-request in AIRunRequest so core-api
-    stays the single owner of calibration. If this node ever reads a floor
-    from its own config instead, every ticket is scored against the wrong
-    threshold and core-api's recorded thresholds_used stops matching what
-    actually ran.
+    """`retrieval_floor` arrives per-request so core-api owns calibration. A
+    floor read from local config would score tickets against a threshold
+    that doesn't match core-api's recorded thresholds_used.
     """
 
     node = EmitSignalsNode(db=fake_db())
@@ -115,10 +110,9 @@ def test_no_reranked_chunks_yields_zeroed_retrieval_signals(fake_db, make_state)
 
 
 def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state):
-    """Refuse-before-LLM skips the validator entirely. Absent validation
-    must read as "the checks did not pass", never as "no checks were
-    needed" — this is the mask_failed-style regression for generation
-    signals."""
+    """Refuse-before-LLM skips the validator. Absent validation must read as
+    "the checks did not pass", never as "no checks were needed".
+    """
 
     node = EmitSignalsNode(db=fake_db())
 
@@ -150,9 +144,9 @@ def test_pii_level_is_carried_from_the_ticket(level, fake_db, make_state, make_t
 
 
 def test_policy_is_read_from_the_database_when_a_kb_slug_is_present(fake_db, make_state):
-    """The companion to the outage test: with a reachable DB the node
-    reports what the KB row actually says, so a False in the outage test is
-    attributable to the outage rather than to the lookup never running."""
+    """Companion to the outage test: with a reachable DB the node reports the
+    KB row, so the outage test's False is attributable to the outage.
+    """
 
     db = fake_db(rows=[(True, "low")])
     node = EmitSignalsNode(db=db)

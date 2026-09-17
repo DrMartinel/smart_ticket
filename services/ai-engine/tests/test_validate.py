@@ -1,8 +1,7 @@
 """
-Validator tests — spec §6.4. The negation check is the highest-value
-addition versus a naive fuzzy-match-only validator, so it gets the most
-coverage here: fuzzy matching alone would score "được cấp quyền" vs
-"không được cấp quyền" at ~0.96 similarity despite meaning the opposite.
+Validator tests — spec §6.4. The negation check gets the most coverage: fuzzy
+matching alone scores "được cấp quyền" vs "không được cấp quyền" at ~0.96
+despite opposite meanings.
 """
 
 from contracts.enums import TicketCategory

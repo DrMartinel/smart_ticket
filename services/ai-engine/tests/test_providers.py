@@ -1,6 +1,6 @@
 """
-Provider-class tests. That constructing the cross-encoder imports nothing
-is pinned in test_providers_factory.py, through build_providers.
+Provider-class tests. Loading through build_providers is pinned in
+test_providers_factory.py.
 """
 
 from __future__ import annotations
@@ -18,23 +18,20 @@ from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReran
 
 def _fake_model():
     class _Model:
-        def predict(self, pairs):
+        def compute_score(self, pairs, **kwargs):
             return [0.0] * len(pairs)
 
     return _Model()
 
 
 def test_cross_encoder_builds_its_model_exactly_once_at_construction():
-    """The model loads in __init__, so scoring — concurrently or not — must
-    never build another one.
+    """The model arrives built, so concurrent scoring must never build
+    another.
 
-    This used to be a lazy load guarded by a lock, because `analyze` in
-    main.py is a sync def and FastAPI serves concurrent requests from a
-    threadpool against one shared reranker: each racing cold request built
-    its own multi-GB CrossEncoder, multiplying peak RAM into an OOM kill.
-    Constructing eagerly removes the race by construction rather than by
-    locking. The threads below are kept so that reintroducing a lazy load
-    without a lock fails here instead of in production.
+    FastAPI serves `analyze` from a threadpool against one shared
+    reranker; a lazy load let each racing cold request build its own
+    multi-GB model (OOM). The threads make a lock-less lazy load fail
+    here.
     """
 
     model = _fake_model()
@@ -57,19 +54,13 @@ def test_cross_encoder_builds_its_model_exactly_once_at_construction():
 
 
 def test_cross_encoder_empty_passages_scores_nothing():
-    """Refuse-before-LLM and budget-exhausted paths reach the reranker with
-    nothing to score, and must get an empty list rather than an error or a
-    call into the model.
-
-    This test previously also asserted that an empty passage list paid no
-    model load. That is no longer meaningful — the load happens in __init__,
-    deliberately (see CrossEncoderReranker's docstring) — but the empty-input
-    contract it also covered is still worth pinning.
+    """Refuse-before-LLM and budget-exhausted paths can reach the reranker
+    with nothing to score; they must get `[]` without a model call.
     """
 
     class _ExplodingModel:
-        def predict(self, pairs):
-            raise AssertionError("predict must not be called for an empty passage list")
+        def compute_score(self, pairs, **kwargs):
+            raise AssertionError("compute_score must not be called for an empty passage list")
 
     reranker = CrossEncoderReranker(model=_ExplodingModel())
     assert reranker.score("q", []) == []
@@ -92,14 +83,12 @@ def test_stub_embedder_is_deterministic_and_unit_norm():
 
 @pytest.mark.parametrize("returned_dim", [0, 768, EMBED_DIM - 1])
 def test_ollama_embedder_rejects_a_wrong_width_vector(returned_dim, monkeypatch):
-    """EMBED_DIM is the pgvector column width, and langchain-ollama has no
-    opinion about it — so this check has to live on our side of the seam.
+    """EMBED_DIM is the pgvector column width, which langchain-ollama knows
+    nothing about, so the check lives on our side.
 
-    A short vector does not fail where it is produced. It travels into
-    retrieval and surfaces either as a pgvector dimension error far from the
-    cause, or (worse, with a zero-length result) as an ordinary "the KB has
-    nothing relevant" refuse-before-LLM. That reports a provider outage to the
-    reviewer as a confident finding about the knowledge base.
+    A wrong-width vector fails far away as a pgvector error or — if empty
+    — as an ordinary refuse-before-LLM, reporting a provider outage as a
+    finding about the KB.
     """
 
     class _WrongWidthClient:
@@ -151,10 +140,9 @@ def test_lexical_reranker_empty_passages_returns_empty():
 
 @pytest.mark.parametrize("seam", [Embedder, Reranker, LLMClient])
 def test_provider_missing_its_method_cannot_be_constructed(seam):
-    """The seams are ABCs because nothing type-checks this repo. A provider
-    whose method is misnamed (say `rerank` instead of `score`) must fail when
-    build_providers() constructs it at import time — a container that won't
-    boot — not with an AttributeError on the first ticket that reaches it.
+    """A provider with a misnamed method (`rerank` instead of `score`) must
+    fail at construction — a container that won't boot — not on the first
+    ticket.
     """
 
     class Misnamed(seam):

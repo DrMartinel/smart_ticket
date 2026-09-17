@@ -119,7 +119,7 @@ Investigate whether the fix belongs in the KB content (KB-0010 is thin and seman
 
 ### Problem
 
-Availability is **done**: `sentence-transformers` is a required dependency, the weights ship in the ai-engine image, and `RERANKER_PROVIDER=cross_encoder` is one variable plus a restart. It is no longer possible for the switch to silently not work.
+Availability is **done**: `FlagEmbedding` (BAAI's `FlagReranker`, from GitHub at a pinned commit) is a required dependency, the weights ship in the ai-engine image, and `RERANKER_PROVIDER=cross_encoder` is one variable plus a restart. It is no longer possible for the switch to silently not work.
 
 Calibration is not done, and the mismatch is live in the shipped default:
 

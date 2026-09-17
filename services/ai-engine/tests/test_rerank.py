@@ -14,14 +14,10 @@ from ai_engine.graph.nodes.rerank import RerankNode
 def test_output_order_follows_the_reranker_not_the_rrf_order(
     fake_reranker, make_candidate, make_state
 ):
-    """ADR-0005: candidates arrive ordered by RRF, whose magnitude is
-    rank-derived and meaningless. The node must reorder by cross-encoder
-    score and discard the RRF order entirely.
-
-    The failure this pins does not fail loudly: if the sort were dropped,
-    `reranked[0].score` would be whichever chunk RRF happened to rank first,
-    and the retrieval floor would be compared against the wrong chunk's
-    score forever.
+    """ADR-0005: candidates arrive in RRF order, which means nothing for
+    thresholds; the node must reorder by cross-encoder score. Dropping the
+    sort fails silently — the floor would be compared against whichever
+    chunk RRF ranked first.
     """
 
     candidates = [make_candidate(1, "a"), make_candidate(2, "b"), make_candidate(3, "c")]
@@ -47,10 +43,9 @@ def test_truncation_uses_the_configured_top_n(
 
 
 def test_empty_candidates_returns_empty_without_a_degraded_reason(fake_reranker, make_state):
-    """ "The KB had nothing to rerank" is an ordinary refuse-before-LLM, and
-    core-api gives it a different reason code from an infrastructure
-    degrade. Emitting degraded_reason here would relabel every
-    nothing-in-the-KB ticket as a system failure on the HITL dashboard.
+    """An empty KB is an ordinary refuse-before-LLM with its own reason code.
+    Setting degraded_reason would mislabel it as a system failure on the
+    HITL dashboard.
     """
 
     reranker = fake_reranker(scores=[0.9])

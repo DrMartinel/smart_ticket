@@ -1,9 +1,7 @@
 """
-Terminal node — spec §6.2 `emit_signals`. Assembles the `TrustSignals`
-that everything else (core-api's trust_scorer, router) actually acts on.
-This node NEVER writes to any database, business or otherwise — it only
-reads (best-effort, for the `policy` block's log-only fields) and returns
-a value. Every path through the graph ends here.
+Terminal node — spec §6.2 `emit_signals`. Assembles the `TrustSignals` that
+core-api's trust scorer and router act on; every path ends here. It NEVER
+writes to a database, only reads best-effort for the log-only `policy` fields.
 """
 
 from __future__ import annotations
@@ -31,11 +29,10 @@ class EmitSignalsNode(BaseNode):
         self._db = db
 
     def _lookup_kb_policy(self, kb_slug: str | None) -> tuple[bool, str]:
-        """Best-effort, log-only lookup — NOT the authority check. The
-        authoritative auto_reply_allowed check happens in core-api's router
-        against its own KBArticleMeta fetch (ADR-0002); this is purely so
-        TrustSignals.policy carries something informative for the audit
-        trail/UI rather than a placeholder."""
+        """Best-effort and log-only — NOT the authority check, which
+        core-api's router does against its own KB fetch (ADR-0002).
+        Only makes `TrustSignals.policy` informative for audit and UI.
+        """
 
         if not kb_slug:
             return _POLICY_FALLBACK_DENY

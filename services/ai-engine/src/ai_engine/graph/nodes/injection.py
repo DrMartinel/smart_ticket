@@ -1,10 +1,7 @@
 """
-Injection Detector — spec §6.2 node `detect_inject` (graph node
-`injection`), runs FIRST, before any retrieval or LLM cost is spent.
-Attachments are treated as fully untrusted (spec §5.2) — this build
-doesn't fetch/parse attachment content at all, which is the simplest way
-to honor "coi như untrusted hoàn toàn": nothing from an attachment ever
-reaches the prompt.
+Injection detector — spec §6.2 `detect_inject`. Runs FIRST, before any
+retrieval or LLM cost. Attachments are fully untrusted (spec §5.2) and never
+fetched, so nothing from one reaches the prompt.
 """
 
 from __future__ import annotations
@@ -45,11 +42,8 @@ PATTERNS: dict[str, re.Pattern] = {
 
 
 class InjectionNode(BaseNode):
-    """Prompt-injection screen — spec §6.2 node `detect_inject`.
-
-    A hit routes straight to `EmitSignalsNode` (see graph/flow.py), so no
-    further token is spent on a ticket that is trying to talk to the model
-    rather than to support.
+    """Prompt-injection screen. A hit routes straight to `EmitSignalsNode`,
+    spending no further tokens.
     """
 
     class Outcome(StrEnum):

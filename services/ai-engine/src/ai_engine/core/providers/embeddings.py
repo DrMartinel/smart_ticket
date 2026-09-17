@@ -1,9 +1,7 @@
 """
-Same pluggable embedding strategy as core-api's
-apps/tickets/services/embeddings.py (bge-m3 via Ollama by default, a
-deterministic stub for CI/no-GPU environments) — duplicated rather than
-shared because ai-engine and core-api deliberately don't import each
-other's code (ADR-0004); `contracts` is the only shared package.
+Embedding providers, duplicated from core-api's
+apps/tickets/services/embeddings.py because the two services never import each
+other's code (ADR-0004).
 """
 
 from __future__ import annotations
@@ -22,11 +20,8 @@ EMBED_DIM = 1024
 
 
 class StubEmbedder(Embedder):
-    """Deterministic sha256-seeded vectors for CI/no-GPU environments.
-
-    NOT a stand-in for retrieval quality — only for exercising the pipeline
-    shape without a GPU or a model download. Stateless; safe to share across
-    FastAPI's threadpool.
+    """Deterministic sha256-seeded vectors for CI/no-GPU runs. Exercises the
+    pipeline shape, not retrieval quality. Stateless.
     """
 
     def embed(self, text: str) -> list[float]:
@@ -38,21 +33,13 @@ class StubEmbedder(Embedder):
 
 
 class OllamaEmbedder(Embedder):
-    """bge-m3 via Ollama, over langchain-ollama's client (ADR-0007).
+    """bge-m3 via Ollama over langchain-ollama (ADR-0007). Nodes never see a
+    LangChain type: `embed` returns `list[float]` and RAISES rather than
+    degrading.
 
-    LangChain owns the transport only. The `Embedder` seam is unchanged and
-    the nodes never see a LangChain type: `embed` still returns a bare
-    `list[float]` and still RAISES rather than degrading, per base.py.
-
-    Configuration is read once, here, rather than per call — same reason as
-    the LLM chain in providers/factory.py. Unlike the chat models there is no
-    per-call timeout to bucket on (`embed` takes none), so the client is built
-    once in __init__ and reused.
-
-    Construction opens no socket: `validate_model_on_init` stays at its
-    default of False, which matters because build_providers() runs at uvicorn
-    import time and Ollama may not be up yet. Stateless afterwards, so one
-    instance is safe to share across FastAPI's threadpool.
+    The client is built once in __init__ and opens no socket
+    (`validate_model_on_init` stays False), since build_providers() runs
+    at import time when Ollama may be down. Stateless afterwards.
     """
 
     def __init__(self) -> None:

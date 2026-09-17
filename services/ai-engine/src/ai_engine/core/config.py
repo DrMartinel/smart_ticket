@@ -1,11 +1,8 @@
 """
-ai-engine settings. Deliberately does NOT read config/thresholds.yaml —
-that file's routing/business thresholds belong to core-api only (spec §1:
-"ai-engine KHÔNG quyết định routing"). The few numeric values ai-engine
-does need to make its own refuse-before-LLM decision (retrieval_floor,
-budget) arrive per-request in `AIRunRequest`, not from a config file this
-service reads on its own — that keeps core-api the single owner of
-calibration data.
+ai-engine settings. Deliberately does NOT read thresholds.yaml: routing
+thresholds belong to core-api (spec §1). The few numbers ai-engine needs
+(retrieval_floor, budget) arrive per-request in `AIRunRequest`, keeping
+core-api the single owner of calibration.
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -25,7 +22,7 @@ class Settings(BaseSettings):
     embedding_provider: str = "ollama"  # "ollama" | "stub"
     # "cross_encoder" | "lexical". `lexical` is the default: deterministic,
     # fast, and it cannot fail to boot. The cross-encoder is always AVAILABLE
-    # — sentence-transformers is a required dependency and the weights ship in
+    # — FlagEmbedding is a required dependency and the weights ship in
     # the image — so switching is a one-variable change with no rebuild.
     #
     # ⚠️ The two are separate calibrations and `retrieval.floor` is specified
@@ -33,7 +30,7 @@ class Settings(BaseSettings):
     # is compared against LexicalReranker's token-overlap ratio instead, which
     # is a different question answered silently. Treat refusal behaviour under
     # `lexical` as uncalibrated. See docs/TODO.md item 4.
-    reranker_provider: str = "lexical"
+    reranker_provider: str = "cross_encoder"
 
     # Ceiling for any single model call (inference, embeddings). A cold
     # Ollama load can take 15-20s on its own, so a short ceiling reports
@@ -103,6 +100,12 @@ class Settings(BaseSettings):
     # the image bakes one revision and HF_HUB_OFFLINE=1 makes fetching a
     # different one an error rather than a silent download mid-ticket.
     reranker_revision: str = "main"
+
+    # Half precision, as the bge-reranker-v2-m3 model card recommends. Only
+    # takes effect on GPU — FlagEmbedding forces fp32 on CPU. fp16 shifts
+    # scores slightly, so this is part of the calibration: `retrieval.floor`
+    # fitted under one setting is not guaranteed under the other (ADR-0005).
+    reranker_use_fp16: bool = True
 
 
 settings = Settings()

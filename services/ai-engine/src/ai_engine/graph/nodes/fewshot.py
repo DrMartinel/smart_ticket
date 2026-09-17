@@ -1,11 +1,7 @@
 """
-Few-shot selector — spec §6.2 node `select_shots` (graph node
-`select_fewshots`). Reads `fewshot_examples` through the same read-only
-connection as KB retrieval (ai_engine_ro has SELECT on exactly this table
-plus kb_articles/kb_chunks — nothing else). Category isn't known yet at
-this point in the pipeline (that's what inference is about to determine),
-so selection is by nearest neighbor on the ticket embedding across all
-active examples, not by an exact category filter.
+Few-shot selector — spec §6.2 `select_shots`. Reads `fewshot_examples` over
+the read-only connection. The category is not known yet, so selection is
+nearest-neighbour on the ticket embedding across all active examples.
 """
 
 from __future__ import annotations
@@ -21,10 +17,8 @@ from ai_engine.core.state import TriageState
 
 
 class SelectFewshotsNode(BaseNode):
-    """Note this node is a plain BaseNode, NOT a BudgetedNode like
-    retrieve/rerank/infer — carried over from the original as-is rather than
-    changed inside a refactor, but see docs/TODO.md: it is the only node that
-    spends an embedding round-trip without first checking the ticket's budget.
+    """A plain BaseNode, NOT a BudgetedNode: the only node that spends an
+    embedding round-trip without checking the budget. See docs/TODO.md.
     """
 
     def __init__(self, *, db: SqlAlchemySessionSource, embedder: Embedder) -> None:

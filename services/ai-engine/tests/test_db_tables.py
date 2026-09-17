@@ -21,10 +21,10 @@ _WRITE_CALL = re.compile(
 
 
 def test_only_granted_tables_are_declared():
-    """A business table (tickets, ai_runs, routing_decisions, ...) declared
-    here would fail at the database anyway — but only on the first ticket
-    that reached the query, as a permission error the policy lookup would
-    swallow into deny-by-default."""
+    """A business table declared here would fail only on the first ticket
+    that queried it, as a permission error the policy lookup swallows into
+    deny-by-default.
+    """
 
     assert set(Base.metadata.tables) == _GRANTED_TABLES
 

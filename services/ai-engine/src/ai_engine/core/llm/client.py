@@ -1,11 +1,7 @@
 """
-LLM client — circuit breaker + budget + retry + cloud→Ollama fallback,
-spec §10.1/§10.3. This is the ONLY place in ai-engine that calls out to an
-LLM; every caller (infer.py) goes through here so the failure-mode table
-in spec §10.3 is implemented once, not scattered across nodes.
-
-LangChain supplies the transport (see `models.py` and ADR-0007); everything
-below the `_invoke` call is unchanged policy.
+LLM client — circuit breaker, budget, retry and cloud→Ollama fallback (spec
+§10.1/§10.3). The ONLY place ai-engine calls an LLM, so the §10.3 failure
+table is implemented once. LangChain supplies transport only (ADR-0007).
 """
 
 from __future__ import annotations
@@ -24,16 +20,16 @@ logger = logging.getLogger(__name__)
 
 
 class AllLLMDownError(Exception):
-    """Both cloud (if configured) and Ollama failed. Callers must treat
-    this as degraded_reason="all_llm_down" -> HITL, never as empty output
-    treated like a valid (if boring) proposal."""
+    """Every provider failed. Callers map this to
+    degraded_reason="all_llm_down" → HITL, never to an empty proposal.
+    """
 
 
 class LLMResult(BaseModel):
-    """Validated on construction, so a malformed provider response (say a
-    null `response`/`content`) fails inside the client, where it is retried
-    and falls back, instead of reaching the infer node as `text=None` and
-    being blamed on the model as a schema failure."""
+    """Validated on construction, so a malformed reply (e.g. null content)
+    fails inside the client, where it is retried, instead of reaching
+    infer as `text=None` and being blamed on the model.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -53,10 +49,8 @@ def _invoke(
 ) -> LLMResult:
     """One attempt against one provider. Raises on anything unusable.
 
-    Replaces the hand-written `_call_ollama` / `_call_cloud` pair and their
-    per-provider response schemas: LangChain normalises both wire formats
-    into an `AIMessage`, so the only provider-specific knowledge left here is
-    the cost rate.
+    LangChain normalises the wire formats, so the cost rate is the only
+    provider-specific detail left here.
     """
     model = factory(timeout)
     message = model.invoke([SystemMessage(system_prompt), HumanMessage(user_prompt)])
@@ -85,22 +79,13 @@ def _invoke(
 
 
 class DefaultLLMClient(LLMClient):
-    """The `LLMClient` implementation backing the infer node.
+    """The `LLMClient` behind the infer node.
 
-    `primary` / `fallback` are resolved ONCE, in `providers/factory.py`, and
-    injected. This client no longer re-reads `settings` per call: provider
-    selection is a startup decision there, like every other provider choice,
-    and a half-configured cloud is fatal at boot rather than invisibly
-    degrading to Ollama-only.
-
-    `fallback` is None when no cloud provider is configured — the common case
-    in this environment — and then the chain is simply Ollama with retries.
-
-    Uses the module-level `CIRCUIT`: spec §10.1 says one breaker per
-    PROCESS, shared across every request and every client instance.
-
-    Stateless apart from the breaker it delegates to, so one instance is
-    safe to share across FastAPI's threadpool.
+    `primary` / `fallback` are resolved once in `providers/factory.py`;
+    `fallback` is None without a cloud provider, leaving Ollama with
+    retries. Uses the module-level `CIRCUIT` — one breaker per process
+    (spec §10.1). Otherwise stateless, so safe to share across FastAPI's
+    threadpool.
     """
 
     def __init__(
@@ -117,12 +102,12 @@ class DefaultLLMClient(LLMClient):
     def complete(
         self, system_prompt: str, user_prompt: str, *, timeout: float | None = None
     ) -> LLMResult:
-        """Retry backoff ×2 on the primary provider → fall back to Ollama →
-        raise AllLLMDownError (spec §10.3 failure table, row 1-2).
+        """Retry ×2 on the primary → fall back to Ollama → raise
+        AllLLMDownError (spec §10.3).
 
-        Exhaustion is signalled by RAISING, never by returning empty text:
-        the infer node maps these two exception types to specific
-        degraded_reason codes, and the HITL dashboard is built on that enum.
+        Exhaustion RAISES, never returns empty text: infer maps each
+        exception to its own degraded_reason, and the HITL dashboard
+        is built on that enum.
         """
 
         if timeout is None:

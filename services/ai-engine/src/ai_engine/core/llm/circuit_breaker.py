@@ -1,12 +1,9 @@
 """
-Circuit breaker — spec §10.1. Hardcoded here rather than in
-config/thresholds.yaml on purpose: this is a reliability mechanism about
-the LLM *transport*, not a calibration value core-api's routing depends
-on, so it stays local to the component whose failures it's protecting.
+Circuit breaker — spec §10.1. Hardcoded rather than in thresholds.yaml: it
+protects the LLM transport, not a calibration value routing depends on.
 
-In-memory, per-process state — acceptable for a single ai-engine
-instance; a multi-instance deployment would want this in Redis, but that
-would be a state-management concern, not a change to the breaker's logic.
+In-memory, per-process state; a multi-instance deployment would move it to
+Redis.
 """
 
 from __future__ import annotations

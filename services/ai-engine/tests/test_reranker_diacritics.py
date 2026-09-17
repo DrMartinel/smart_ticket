@@ -1,13 +1,10 @@
 """
 Lexical reranker must fold Vietnamese diacritics — spec §6.3.
 
-Vietnamese support tickets are very often typed without tone marks
-("khong dang nhap duoc may tinh") while KB articles are written with them
-("không đăng nhập được máy tính"). Under exact token matching those are
-disjoint vocabularies, so a ticket that restates a KB title almost
-verbatim scored ~0.04 rather than ~0.75 — below `retrieval.floor`, which
-tripped refuse-before-LLM and pushed every such ticket to a human with
-"nothing in the KB matches". The retrieval was fine; the tokenizer wasn't.
+Tickets are often typed without tone marks ("khong dang nhap duoc") while KB
+articles have them. Without folding, a near-verbatim match scored ~0.04
+instead of ~0.75 — below `retrieval.floor` — sending such tickets to a human
+as "nothing in the KB matches".
 """
 
 from ai_engine.core.providers.reranker import LexicalReranker

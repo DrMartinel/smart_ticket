@@ -1,9 +1,7 @@
 """
-Graph routing tests — spec §6.2's two safety-critical structural
-properties: refuse-before-LLM, and a retry loop hard-capped at
-iteration < 2. Each node's `decide()` is tested directly, and the routes
-those outcomes map to are pinned separately — together that is the whole
-routing decision, with no DB/LLM/network involved.
+Graph routing — spec §6.2's refuse-before-LLM and a retry loop capped at
+iteration < 2. Each node's `decide()` and the routes its outcomes map to are
+tested separately, with no DB, LLM or network.
 """
 
 from ai_engine.core.node import Terminal
@@ -124,9 +122,10 @@ def test_graph_has_exactly_the_expected_nodes():
 
 
 def test_compiled_edges_are_exactly_the_triage_topology():
-    """The production topology is pinned literally rather than eyeballed: an
-    added, dropped or redirected route fails here. Refuse-before-LLM is the
-    absence of any path from rerank to infer that skips select_fewshots."""
+    """Pins the production topology literally: an added, dropped or
+    redirected route fails. Refuse-before-LLM is the absence of a rerank →
+    infer path that skips select_fewshots.
+    """
 
     assert set(_edges()) == {
         ("__start__", "injection"),
@@ -145,10 +144,10 @@ def test_compiled_edges_are_exactly_the_triage_topology():
 
 
 def test_main_wires_the_prompt_for_settings_prompt_version():
-    """The prompt filename used to be hardcoded, so bumping
-    settings.prompt_version changed what the response *claimed* ran without
-    changing what actually ran. This reads the prompt off the InferNode in
-    the production graph."""
+    """Bumping settings.prompt_version must change the prompt that actually
+    runs, not just the version reported. Reads the prompt off the
+    production InferNode.
+    """
 
     from ai_engine.core.config import settings
     from ai_engine.core.llm.prompt_store import load_system_prompt

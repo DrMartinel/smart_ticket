@@ -1,13 +1,10 @@
 """
-The two `Reranker` implementations (spec §6.3), selected by
-`RERANKER_PROVIDER` in `providers/factory.py`. See each class for what it
-costs and what it does not buy.
+The two `Reranker` implementations (spec §6.3), selected in
+`providers/factory.py`.
 
-`cross_encoder` is the DEFAULT and the only calibrated one. Their outputs
-are separate calibrations and never interchangeable: `retrieval.floor` is
-specified against the cross-encoder distribution (ADR-0005), so running
-lexical compares that floor against token-overlap ratios — a different
-question, answered silently and without error.
+Their scores are separate calibrations: `retrieval.floor` is a cross-encoder
+number (ADR-0005), so under lexical it is silently compared against
+token-overlap ratios.
 """
 
 from __future__ import annotations
@@ -20,14 +17,11 @@ from ai_engine.core.providers.base import Reranker
 
 
 class LexicalReranker(Reranker):
-    """Deterministic, dependency-free token-overlap scoring. NO LONGER THE
-    DEFAULT, and no longer what CI runs — both now use the cross-encoder, so
-    that the thresholds under test are the ones production uses.
+    """Deterministic, dependency-free token-overlap scoring, for offline work
+    without model weights.
 
-    Retained for offline work with no weights available. It
-    is NOT a stand-in for retrieval quality: it exercises the pipeline shape,
-    and nothing it produces can be compared against `retrieval.floor`, which
-    is a cross-encoder number (ADR-0005). Stateless.
+    NOT a stand-in for retrieval quality, and its scores cannot be
+    compared against `retrieval.floor` (ADR-0005). Stateless.
     """
 
     def score(self, query: str, passages: list[str]) -> list[float]:
@@ -57,32 +51,18 @@ class LexicalReranker(Reranker):
 
 
 class CrossEncoderReranker(Reranker):
-    """bge-reranker-v2-m3 via sentence-transformers — spec §6.3.
+    """bge-reranker-v2-m3 via FlagEmbedding's `FlagReranker` — spec §6.3.
 
-    Takes an ALREADY-LOADED model. It does not import sentence-transformers,
-    does not read the model cache, and does no I/O of any kind — the ~5.3s of
-    torch import plus weight deserialization happens in
-    `providers/factory.py::_load_cross_encoder`, at startup, so no ticket pays
-    it. Same shape as every node in this service: collaborators arrive through
-    __init__ and the composition root owns the impure part.
+    Takes an ALREADY-LOADED model and does no I/O; the load happens at
+    startup in `providers/factory.py::_load_cross_encoder`. Boot therefore
+    blocks until the weights are resident, and an unusable model cache
+    kills the container instead of degrading tickets — there is no correct
+    fallback, since lexical is a different calibration (ADR-0005).
 
-    Two consequences of loading at startup, both intended:
-
-    * With `RERANKER_PROVIDER=cross_encoder`, importing `ai_engine.main` blocks
-      for the load, so the process looks hung for a few seconds at boot and
-      serves no `/healthz` until the weights are resident.
-    * An unusable model cache kills the container instead of degrading one
-      ticket to HITL. There is no correct fallback: the lexical scorer is a
-      different calibration from the one `retrieval.floor` was fitted against
-      (ADR-0005), so failing the boot is the loud version.
-
-    There is deliberately NO lock and no lazy load. Both existed to stop a
-    cold-start stampede from building one multi-GB model per thread of
-    FastAPI's threadpool; receiving a built model makes the race impossible.
-    If anyone reintroduces lazy loading, the lock has to come back with it —
-    a model built per racing request is an OOM kill, not a slow request.
-
-    Read-only after construction, like every other node/provider.
+    No lazy load and no lock: receiving a built model makes a cold-start
+    stampede (one multi-GB model per thread, an OOM kill) impossible.
+    Reintroduce lazy loading and the lock must come back. Read-only after
+    construction.
     """
 
     def __init__(self, *, model: Any) -> None:
@@ -91,9 +71,11 @@ class CrossEncoderReranker(Reranker):
     def score(self, query: str, passages: list[str]) -> list[float]:
         if not passages:
             return []
-        raw_scores = self._model.predict([(query, p) for p in passages])
-        # bge-reranker-v2-m3 outputs an unbounded logit; squash to [0,1] so
-        # it composes with the same floor/margin semantics as the lexical
-        # fallback. Kept as a literal rather than math.exp: this feeds the
-        # exact number `retrieval_floor` is compared against (ADR-0005).
-        return [1 / (1 + pow(2.718281828, -float(s))) for s in raw_scores]
+        # bge-reranker-v2-m3 outputs an unbounded logit; `normalize=True` is
+        # the model card's sigmoid to [0,1], so it composes with the same
+        # floor/margin semantics as the lexical fallback. This is the exact
+        # number `retrieval_floor` is compared against (ADR-0005) — use the
+        # library's own mapping rather than a local re-implementation, so the
+        # scale is the one BAAI documents.
+        scores = self._model.compute_score([(query, p) for p in passages], normalize=True)
+        return [float(s) for s in scores]

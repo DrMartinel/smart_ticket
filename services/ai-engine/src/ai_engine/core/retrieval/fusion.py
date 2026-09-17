@@ -3,11 +3,9 @@ Reciprocal Rank Fusion — spec §6.3.
 
     score(d) = Σ 1 / (k + rank_i(d))
 
-k=60 is the standard constant from the original RRF paper and is not
-meant to be tuned (spec §13 comment). The output of this module is an
-ORDERED LIST of candidates, not a scored one that anything downstream
-should threshold against — see ADR-0005. The fused score is used only to
-sort and is deliberately not carried on `Candidate`.
+k=60 is the standard constant from the RRF paper, not meant to be tuned. The
+output is an ORDERED list only: the fused score sorts and is deliberately not
+carried on `Candidate`, so nothing can threshold against it (ADR-0005).
 """
 
 from __future__ import annotations

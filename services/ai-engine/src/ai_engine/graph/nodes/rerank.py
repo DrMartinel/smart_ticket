@@ -1,14 +1,11 @@
 """
-Cross-encoder rerank node — spec §6.2/§6.3. This is where the refuse-
-before-LLM decision actually happens: if the top reranked score is below
-`retrieval_floor` (passed in per-request from core-api, spec §8/§13),
-the graph routes straight to `emit_signals` and the LLM is never called.
-That's both the biggest cost saver and the biggest safety property in the
-graph — a model given no real source material has nothing to do but
-fabricate one (spec §6.2 comment).
+Cross-encoder rerank node — spec §6.2/§6.3, where refuse-before-LLM is
+decided. A top score below the per-request `retrieval_floor` routes straight
+to `emit_signals`, so a model with no real source material is never asked to
+fabricate one.
 
-Thresholds apply ONLY to this node's output (the cross-encoder score),
-never to the RRF score from fusion.py — see ADR-0005.
+Thresholds apply ONLY to this node's score, never to fusion's RRF score
+(ADR-0005).
 """
 
 from __future__ import annotations

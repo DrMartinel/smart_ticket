@@ -18,9 +18,10 @@ class LLMClient(ABC):
     def complete(
         self, system_prompt: str, user_prompt: str, *, timeout: float | None = None
     ) -> LLMResult:
-        """Implementations own circuit breaking / retry / fallback (spec
+        """Implementations own circuit breaking, retry and fallback (spec
         §10.3) and signal exhaustion by RAISING CircuitOpenError or
-        AllLLMDownError — never by returning empty text, which the infer
-        node would parse as a schema failure and attribute to the model,
-        sending the ticket to HITL under the wrong reason code.
+        AllLLMDownError.
+
+        Never return empty text: infer would blame the model and send
+        the ticket to HITL under the wrong reason code.
         """

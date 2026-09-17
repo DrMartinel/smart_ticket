@@ -1,15 +1,10 @@
 """
-Budget guard — spec §6.2 ("guard_budget — gọi lại trước mỗi node tốn kém")
-and §10.2.
+Budget guard — spec §6.2, §10.2.
 
-Every expensive node (retrieve, rerank, infer) inherits `BudgetedNode`, which
-checks the per-request budget before the node runs. Building the check into
-the node, rather than adding a separate guard node, means it runs on every
-pass through the validate → infer retry loop, not just once at graph entry.
-
-This is a cost control and a security control: an adversarial ticket
-engineered to trigger the retry loop could otherwise burn through budget in
-minutes.
+Every expensive node (retrieve, rerank, infer) inherits `BudgetedNode`, so the
+check runs on every pass through the validate → infer retry loop, not just
+once at graph entry. It is a cost control and a security control: an
+adversarial ticket could otherwise loop through its budget.
 """
 
 from __future__ import annotations
@@ -23,11 +18,10 @@ from ai_engine.core.state import TriageState
 
 
 class BudgetExceeded(Exception):
-    """Raised by `check_budget`; caught by the wrapper `BudgetedNode` puts
-    around each node's `__call__`.
+    """Raised by `check_budget`, caught by `BudgetedNode`'s wrapper.
 
-    Never let it escape a node: an uncaught one aborts `graph.invoke`, turning
-    a degrade-to-human into a 500 with no TrustSignals.
+    Must never escape a node: that aborts `graph.invoke` and turns a
+    degrade-to-human into a 500 with no TrustSignals.
     """
 
     reason = "budget_exceeded"  # the degraded_reason core-api routes on
@@ -36,8 +30,8 @@ class BudgetExceeded(Exception):
 def check_budget(state: TriageState) -> None:
     """Raise `BudgetExceeded` if any per-request limit is spent.
 
-    The limits arrive in state from AIRunRequest, which core-api fills from
-    thresholds.yaml — ai-engine itself owns no budget numbers.
+    Limits arrive in state from core-api's thresholds.yaml; ai-engine owns
+    no budget numbers.
     """
 
     spent_vs_limit = {
@@ -54,10 +48,8 @@ def check_budget(state: TriageState) -> None:
 class BudgetedNode(BaseNode):
     """A node that spends tokens, latency or a network round-trip.
 
-    Subclasses write an ordinary `__call__(self, state) -> dict`. When the
-    class is defined, that `__call__` is wrapped with the budget check, so the
-    check cannot be forgotten — not even by a subclass of a real node that
-    overrides `__call__` again.
+    Its `__call__` is wrapped with the budget check at class definition,
+    so no subclass — even one overriding `__call__` again — can skip it.
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:

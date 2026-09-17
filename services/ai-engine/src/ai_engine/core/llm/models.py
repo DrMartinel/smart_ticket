@@ -1,32 +1,16 @@
 """
-Chat-model construction for the LLM client (ADR-0007).
+Chat-model construction for the LLM client (ADR-0007). LangChain owns
+transport only; retry, fallback, the breaker and every `degraded_reason` stay
+in `client.py`.
 
-LangChain owns TRANSPORT here and nothing else: these factories build a
-configured `BaseChatModel` and stop. Retry, fallback, the circuit breaker and
-every `degraded_reason` stay in `client.py` — see the ADR for why they are not
-`.with_retry()` / `.with_fallbacks()`.
-
-## Why these are factories-of-models rather than models
-
-A factory resolves everything it can from config in `__init__` — the model
-name, the billing rate and the full constructor kwargs — and defers exactly
-one thing, the per-attempt timeout:
-
-`complete(timeout=...)` gets a PER-ATTEMPT budget computed from the ticket's
-remaining latency (infer.py), and that budget has to become a real socket
-timeout with the connect/read split intact: 3s to decide the provider is
-unreachable, the rest to wait on a model that may legitimately take 15-20s to
-warm up. Collapsing the two is the documented "submit hangs ~120s" bug.
-
-Neither chat model accepts a per-invoke timeout — measured, not assumed:
-`ChatOllama._chat_params` never forwards one, so `.bind(timeout=...)` is
-silently dropped. The timeout is only configurable on the underlying HTTP
-client, i.e. at construction. Construction costs ~260ms, far too much to pay
-on every attempt, so models are built once per distinct timeout and cached.
-
-Mutating the live client's timeout instead would be cheaper and wrong: `analyze`
-is a sync def, so FastAPI runs it in a threadpool, and one ticket's short budget
-would silently become another's.
+Factories rather than models because the per-attempt timeout (derived from the
+ticket's remaining latency budget) must become a real socket timeout with the
+connect/read split intact: 3s to call a provider unreachable, the rest for a
+model that may take 15-20s to warm up. Chat models only accept a timeout at
+construction (`ChatOllama` silently drops `.bind(timeout=...)`), and
+construction costs ~260ms, so models are built once per timeout and cached.
+Mutating a shared client's timeout instead would leak one ticket's budget into
+another across the threadpool.
 """
 
 from __future__ import annotations
@@ -57,17 +41,11 @@ GEMINI_COST_PER_1K_TOKENS = 0.001
 class ChatModelFactory(ABC):
     """Builds a chat model bound to one per-attempt timeout.
 
-    Everything derivable from config is resolved HERE, in `__init__`:
-    `model_name`, `cost_per_1k_tokens` and each subclass's `_kwargs` (the
-    whole chat-model constructor call except the timeout). They are plain
-    attributes rather than properties so a misconfiguration shows up as a
-    startup error next to every other one, not on the first ticket that
-    happens to read the attribute. `_build` is left with exactly the one
-    thing that cannot be known until call time — the per-attempt timeout.
-
-    Construction must still open no socket: `build_providers()` runs at
-    uvicorn import time, and a provider being unreachable must not stop the
-    process from booting.
+    `model_name`, `cost_per_1k_tokens` and `_kwargs` are resolved in
+    `__init__` as plain attributes, so misconfiguration fails at startup;
+    `_build` only applies the timeout. Construction opens no socket:
+    `build_providers()` runs at import time and must boot with providers
+    unreachable.
     """
 
     def __init__(self, *, model_name: str, cost_per_1k_tokens: float) -> None:
@@ -131,9 +109,9 @@ class OllamaChatModelFactory(ChatModelFactory):
 
 
 class OpenAIChatModelFactory(ChatModelFactory):
-    """An OpenAI-compatible endpoint — which is how the cloud link was already
-    being called (`/v1/chat/completions` with a bearer token), so this is the
-    same wire protocol, not a new provider."""
+    """An OpenAI-compatible endpoint (`/v1/chat/completions` with a bearer
+    token).
+    """
 
     def __init__(self, *, model: str, base_url: str, api_key: str, connect_timeout: float) -> None:
         super().__init__(model_name=model, cost_per_1k_tokens=OPENAI_COST_PER_1K_TOKENS)
@@ -163,45 +141,27 @@ class OpenAIChatModelFactory(ChatModelFactory):
 
 
 class _FlatTimeoutCloudFactory(ChatModelFactory):
-    """Shared base for the two first-party cloud SDKs.
+    """Shared base for the first-party Anthropic and Gemini SDKs.
 
-    ## Why these cannot honour the connect/read split
+    These get a FLAT timeout: both take it as a pydantic `float` and
+    expose no injectable HTTP client, and reaching into the library's
+    cached client would break silently on upgrade. Acceptable because the
+    connect/read split targets a blackholed local Ollama; a hosted API
+    that is down usually refuses the connection or fails DNS immediately.
 
-    Ollama and the OpenAI-compatible link both let us hand the transport a
-    real `httpx.Timeout`, so an unreachable provider is knowable in ~3s while
-    a slow one still gets the full read budget. Neither of these two does:
-    `ChatAnthropic.default_request_timeout` and `ChatGoogleGenerativeAI.timeout`
-    are pydantic `float` fields (a `Timeout` object fails validation), and
-    neither class exposes an injectable HTTP client. Reaching past that into
-    the library's `cached_property` client would work today and break silently
-    on upgrade — the exact failure shape this module exists to prevent.
-
-    So these get a FLAT timeout, and that is a real if bounded difference.
-    It is tolerable because the split was calibrated for the failure the
-    gotchas table actually documents — "containers can't reach Ollama", a
-    blackholed connection to a host on the local network. A hosted API that is
-    down generally refuses the connection or fails DNS, both of which return
-    immediately regardless of the connect budget. Ollama, the case that
-    motivated the split, keeps it.
-
-    Both SDKs also retry internally by default (2 for Anthropic, 6 for
-    Gemini). Left on, a single `complete()` could issue a dozen requests and
-    blow the per-ticket latency budget while the circuit breaker saw one
-    failure. Retry policy lives in client.py and nowhere else, so subclasses
-    pass `max_retries=0`.
+    Both SDKs retry internally by default (2 for Anthropic, 6 for Gemini).
+    Subclasses pass `max_retries=0` so retry policy stays in client.py and
+    the breaker sees every failure.
     """
 
 
 class AnthropicChatModelFactory(_FlatTimeoutCloudFactory):
     """Claude via the first-party Anthropic API.
 
-    NOTE: unlike the other three providers this one has NO JSON output mode —
-    Anthropic exposes no `response_format`/`format` equivalent, so the only
-    thing keeping the reply parseable is the instruction in the system prompt.
-    infer.py already routes unparseable output to HITL rather than a 500
-    (commit e2c1247), so this is a HITL-rate risk, not a correctness hole —
-    but it means a prompt change is likelier to hurt here than on the others.
-    Watch the eval gate when switching to this provider.
+    Has NO JSON output mode; only the system prompt keeps replies
+    parseable. Unparseable output goes to HITL, so this is a HITL-rate
+    risk rather than a correctness hole — watch the eval gate when
+    switching to it.
     """
 
     def __init__(
@@ -256,16 +216,12 @@ class GeminiChatModelFactory(_FlatTimeoutCloudFactory):
 
 
 def content_as_text(content: Any) -> str:
-    """The one value we take from an `AIMessage`, with the contract
-    `base.py` states for it: exhaustion is signalled by RAISING, never by
-    returning empty text.
+    """The text of an `AIMessage`, RAISING on blank or block-structured
+    content.
 
-    A blank or block-structured `content` reaching infer.py would be parsed as
-    a schema failure and blamed on the MODEL (`proposal=None`, no
-    degraded_reason) when the truth is a transport-level problem that should
-    retry, fall back, and land in HITL as `all_llm_down`. This is the
-    replacement for the hand-written response models that used to catch the
-    same class of bad reply.
+    Returned as-is, such content would reach infer as a schema failure
+    blamed on the model, when it is a transport problem that should retry,
+    fall back and land in HITL as `all_llm_down`.
     """
     if not isinstance(content, str) or not content.strip():
         raise ValueError(f"LLM returned unusable content: {content!r}")

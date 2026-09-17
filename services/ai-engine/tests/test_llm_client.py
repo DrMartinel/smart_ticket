@@ -1,18 +1,9 @@
 """
-LLM-client tests. The theme is where an unusable provider reply ends up.
+LLM-client tests: where an unusable provider reply ends up.
 
-A provider that answers but hands back nothing usable — blank content, content
-that is not a string, no content at all — must be treated exactly like a
-transport failure: retry, fall back, then AllLLMDownError, which the infer node
-maps to degraded_reason="all_llm_down" -> HITL. Escaping the client would turn a
-degrade-to-human into a 500 with no TrustSignals.
-
-Since LangChain took over transport (ADR-0007) these drive fake
-`ChatModelFactory`s rather than a patched `httpx.post`. The malformed-body table
-this file used to carry lived one layer lower — `{"response": null}` and friends
-are now langchain-core's problem, and what reaches us is an `AIMessage` — so the
-equivalent cases are expressed against message content, plus a parametrised
-check that NO exception type escapes `complete()`.
+Blank, non-string or missing content must be treated like a transport failure
+— retry, fall back, then AllLLMDownError → HITL. Escaping the client would be
+a 500 with no TrustSignals. Drives fake `ChatModelFactory`s (ADR-0007).
 """
 
 from __future__ import annotations
@@ -28,9 +19,10 @@ from ai_engine.core.llm.models import ChatModelFactory
 
 
 class _FakeChatModel:
-    """Stands in for a BaseChatModel. Not a subclass: `invoke` is the entire
-    surface `_invoke` touches, and a real subclass would drag in pydantic
-    validation that has nothing to do with what these tests pin."""
+    """Stands in for a BaseChatModel. Not a subclass: `invoke` is all
+    `_invoke` touches, and subclassing drags in unrelated pydantic
+    validation.
+    """
 
     def __init__(self, replies):
         self._replies = list(replies)
@@ -127,12 +119,9 @@ _PROVIDER_ERRORS = {
 
 @pytest.mark.parametrize("exc", _PROVIDER_ERRORS.values(), ids=_PROVIDER_ERRORS.keys())
 def test_no_provider_exception_escapes_as_anything_but_all_llm_down(exc, no_backoff):
-    """The guard for the deliberately-broad `except Exception` in complete().
-
-    ai-engine has no authority to fail a ticket: every provider failure must
-    arrive at infer.py as AllLLMDownError so it becomes a HITL degrade with a
-    reason code. Anything else surfaces as a 500 with no TrustSignals, and the
-    reviewer sees a blank panel instead of "the model was unreachable".
+    """Guards the deliberately broad `except Exception` in complete(): every
+    provider failure must reach infer.py as AllLLMDownError, or it becomes
+    a 500 and the reviewer sees a blank panel.
     """
 
     with pytest.raises(AllLLMDownError):
@@ -178,9 +167,9 @@ def test_both_links_failing_raises_all_llm_down(no_backoff):
 
 
 def test_absent_usage_metadata_defaults_to_zero_tokens():
-    """Ollama omits token counts for a cached prompt, so absent must mean 0
-    rather than an error. Note this is now indistinguishable from a provider
-    reporting null counts — see ADR-0007."""
+    """Ollama omits token counts for a cached prompt, so absent means 0, not
+    an error (indistinguishable from null counts — ADR-0007).
+    """
 
     result = _client(_FakeFactory(AIMessage(content='{"ok": true}'))).complete("s", "u")
     assert (result.tokens_in, result.tokens_out) == (0, 0)
@@ -198,10 +187,10 @@ def test_model_name_comes_from_config_not_the_response():
 
 
 def test_cost_is_billed_at_the_factorys_own_rate():
-    """The rate lives on the factory, not the client. With four providers at
-    three different rates, a client-side "is this the cloud link?" test would
-    bill Gemini calls at Anthropic's rate and the dashboard would look
-    plausible while being wrong."""
+    """The rate lives on the factory. A client-side "is this the cloud link?"
+    check would bill Gemini at Anthropic's rate, and the dashboard would
+    look plausible while wrong.
+    """
 
     result = _client(_FakeFactory(_ok(tokens_in=900, tokens_out=100), cost=0.003)).complete(
         "s", "u"
@@ -216,8 +205,9 @@ def test_local_provider_is_free():
 
 
 def test_llm_result_rejects_a_null_text():
-    """Unchanged from before LangChain: LLMResult validates on construction so
-    a None text cannot reach infer.py as a proposal."""
+    """LLMResult validates on construction, so a None text cannot reach
+    infer.py.
+    """
 
     with pytest.raises(Exception):
         LLMResult(text=None, tokens_in=0, tokens_out=0, model="m", cost_usd=0.0)

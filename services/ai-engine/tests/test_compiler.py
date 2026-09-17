@@ -1,8 +1,7 @@
 """
-GraphBuilder's startup validation. Every wiring mistake must raise at build
-time — never mid-run, when the first ticket takes an unusual branch. Uses
-throwaway nodes and a mini graph so these tests pin the builder, not the
-triage topology (test_build.py does that).
+GraphBuilder's startup validation: every wiring mistake must raise at build
+time, not mid-run. Uses throwaway nodes so these pin the builder, not the
+triage topology (test_build.py).
 """
 
 from __future__ import annotations
@@ -106,9 +105,9 @@ def test_target_with_no_routes_raises():
 
 
 def test_misrouted_target_leaves_node_unreachable():
-    """Nodes are discovered by walking from the entry, so a route aimed at
-    the wrong node silently drops the intended one from the traversal. Its
-    own declared routes are what give it away."""
+    """A route aimed at the wrong node drops the intended one from traversal;
+    its own declared routes give it away.
+    """
 
     gate, work, stop = GateNode(), WorkNode(), StopNode()
     g = GraphBuilder(entry=gate)

@@ -1,23 +1,16 @@
-"""TriageState — spec §6.1.
+"""
+TriageState — spec §6.1, as a Pydantic graph schema. Verified against the
+installed LangGraph:
 
-Pydantic models, which LangGraph (1.x) supports as a graph schema. What that
-does and does not buy, verified against the installed version:
+- Nodes receive a `TriageState` and return a PARTIAL dict of changed fields.
+- The merged state is validated when building the next node's input, so a
+  wrong-typed update fails one step later as a 500, which core-api sends to a
+  human.
+- Update keys that are not fields are silently dropped before validation;
+  `extra="forbid"` only guards direct construction.
+- `graph.invoke` returns a plain dict.
 
-- Each node receives a `TriageState` instance and returns a PARTIAL dict of
-  the fields it changed, exactly as before. Returning a whole model would
-  overwrite every field.
-- LangGraph validates the merged state when it builds the NEXT node's input.
-  A node returning a wrong-typed value therefore fails one step later, as a
-  ValidationError escaping `graph.invoke` — a 500, which core-api treats as
-  `AIEngineUnavailable` and sends to a human. `Terminal` being a real node
-  means `emit_signals`' update is validated too.
-- An update key that is not a field is silently dropped — by LangGraph,
-  before validation, with a TypedDict schema as much as with this one.
-  `extra="forbid"` only guards direct construction (tests, `main.py`).
-- `graph.invoke` returns a plain dict, not a model.
-
-Frozen: a node that mutated state in place would have its change silently
-discarded, so mutation raises instead.
+Frozen, so an in-place mutation — which would be silently discarded — raises.
 """
 
 from __future__ import annotations

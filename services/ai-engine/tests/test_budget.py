@@ -1,8 +1,6 @@
 """
-The budget guard's contract. The per-node degrade tests (test_retrieve,
-test_rerank, test_infer) prove each real node spends nothing when over
-budget; these pin the base class those guarantees rest on, and prove the
-degrade still reaches a human through the compiled graph.
+The budget guard's base-class contract, and that a degrade still reaches a
+human through the compiled graph. Per-node degrade tests live with each node.
 """
 
 import pytest
@@ -75,10 +73,10 @@ def test_wrapped_call_keeps_the_node_signature():
 def test_over_budget_ticket_still_reaches_emit_signals_through_the_graph(
     fake_embedder, fake_reranker, fake_llm, triage_nodes, exhausted_budget_state
 ):
-    """The nodes' own output keys are absent when degraded. This proves that
-    is enough: the compiled graph still routes to emit_signals, produces
-    TrustSignals, and never touches the embedder, reranker or LLM — rather
-    than a BudgetExceeded escaping and aborting the run."""
+    """With the nodes' output keys absent, the compiled graph must still
+    reach emit_signals and produce TrustSignals without touching the
+    embedder, reranker or LLM — not abort on an escaped BudgetExceeded.
+    """
 
     from ai_engine.core.state import TriageState
     from ai_engine.graph.flow import wire_triage

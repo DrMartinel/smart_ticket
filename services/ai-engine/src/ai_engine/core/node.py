@@ -51,13 +51,12 @@ class BaseNode(ABC):
 
 
 class Terminal(BaseNode):
-    """The node every path ends on. Keeps LangGraph's END out of app code:
-    `GraphBuilder.compile` gives it the only edge to END, so it is never
-    routed onward.
+    """The node every path ends on. `GraphBuilder.compile` gives it the only
+    edge to END, keeping END out of app code.
 
-    It changes no state, and must not return END or any other key outside
-    TriageState: LangGraph silently drops an unknown update key, so it would
-    look like it worked while doing nothing.
+    It returns no update: LangGraph silently drops keys outside
+    TriageState, so returning END would look like it worked while doing
+    nothing.
     """
 
     class Outcome(StrEnum):

@@ -1,27 +1,15 @@
 """
-The single place provider selection happens.
+The single place provider selection happens — once, at startup, with any
+unknown value fatal. A silent fallback (a typo'd RERANKER_PROVIDER degrading
+to lexical) would compare `retrieval.floor` against the wrong score
+distribution (ADR-0005) with nothing looking broken.
 
-Previously `embed_text` and `rerank` each re-read a settings string on every
-call and fell through silently on anything unrecognized. That made a typo'd
-`RERANKER_PROVIDER` degrade to the lexical scorer, whose score distribution
-is a different calibration from the cross-encoder one `retrieval.floor` was
-fitted against (ADR-0005) — so the refuse-before-LLM rate would be wrong and
-nothing would look broken. Selection now happens once, at startup, and an
-unknown value is fatal.
+No constructor here opens a socket or reads a file, except
+`_load_cross_encoder`, which loads the reranker weights so no ticket pays for
+it. That lets main.py build the graph at import time without the DB or Ollama.
 
-Every constructor called here is pure — no socket, no file read, no model
-download — with ONE deliberate exception: `_load_cross_encoder` below, which
-reads ~2.3GB of weights at startup so that no ticket pays the load.
-Everything else stays pure, which is what lets main.py build the graph at
-uvicorn import time without the database or Ollama being reachable.
-
-`build_providers` stays a flat composition root: read it top to bottom and
-see the whole startup contract, every unknown value closed with a
-`ValueError`. Only two things are extracted, each for a reason given in its
-own docstring and neither of them stylistic — `_build_cloud_factory` (three
-protocols and four half-configured shapes, all fatal) and
-`_load_cross_encoder` (a function-local torch import that must not be
-hoisted, and a module-level name the tests patch).
+`build_providers` stays a flat composition root; only `_build_cloud_factory`
+and `_load_cross_encoder` are extracted, each for the reason in its docstring.
 """
 
 from __future__ import annotations
@@ -97,17 +85,12 @@ def build_providers() -> Providers:
 
 
 def _build_cloud_factory() -> ChatModelFactory | None:
-    """Pick the cloud link from config, or None to run Ollama-only.
+    """Pick the cloud link from config, or None for Ollama-only.
 
-    Extracted from the flat sequence above because it is the one provider
-    whose selection is not a single `match`: three wire protocols, plus four
-    half-configured shapes that each have to be fatal rather than a quiet
-    fallback. A cloud link the operator believes is active but which silently
-    is not has the same shape as a typo'd RERANKER_PROVIDER — nothing looks
-    broken, the service is just quietly doing something else.
-
-    Setting `cloud_api_key` is what enables the cloud primary;
-    `cloud_provider` only picks which protocol it speaks.
+    `cloud_api_key` enables the cloud primary; `cloud_provider` picks the
+    protocol. Every half-configured shape is fatal: a cloud link the
+    operator believes is active but silently isn't is the same failure as
+    a typo'd RERANKER_PROVIDER.
     """
 
     api_key = settings.cloud_api_key
@@ -163,27 +146,25 @@ def _build_cloud_factory() -> ChatModelFactory | None:
 
 
 def _load_cross_encoder():
-    """Import sentence-transformers and build the model — the one impure
-    constructor-time operation in this factory, and the reason it is a named
-    module-level function rather than inline code.
+    """Load the FlagEmbedding reranker — the one impure constructor in this
+    factory.
 
-    The import is function-local and MUST STAY THAT WAY. This module is
-    imported unconditionally by main.py, so hoisting it makes every boot and
-    every test session pay ~3.8s of torch import — including under the default
-    `RERANKER_PROVIDER=lexical`, which never touches it. Measured: `import
-    ai_engine.main` goes from 1.3s to 5.0s.
+    The import is function-local and MUST stay so: main.py always imports
+    this module, and hoisting it makes every boot and test session pay
+    seconds of torch import, even under `lexical`. It is a module-level
+    name so tests can patch it (`build_providers()` takes no arguments);
+    see the autouse fixture in tests/conftest.py.
 
-    Being a module-level name is the other half. Tests reach this through
-    `build_providers()`, which takes no arguments, so patching this name is the
-    only way to construct a cross-encoder without 2.3GB of real weights; the
-    autouse fixture in `services/ai-engine/tests/conftest.py` does exactly
-    that. Inline the body and the unit suite goes from 12.3s to 74.1s.
-
-    `revision` is pinned so an upstream commit cannot swap the checkpoint — and
-    with it the score distribution `retrieval.floor` was written against —
-    without failing loudly (ADR-0005).
+    `revision` is pinned so an upstream commit cannot silently swap the
+    checkpoint `retrieval.floor` is calibrated against (ADR-0005).
+    `FlagReranker` takes no revision, so it is resolved to a local
+    snapshot first; under HF_HUB_OFFLINE=1 a revision missing from the
+    baked cache raises.
     """
 
-    from sentence_transformers import CrossEncoder  # deferred: see above
+    # deferred: see above
+    from FlagEmbedding import FlagReranker
+    from huggingface_hub import snapshot_download
 
-    return CrossEncoder(settings.reranker_model, revision=settings.reranker_revision)
+    path = snapshot_download(settings.reranker_model, revision=settings.reranker_revision)
+    return FlagReranker(path, use_fp16=settings.reranker_use_fp16)

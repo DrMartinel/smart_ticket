@@ -1,11 +1,9 @@
 """
-LLM inference node — spec §6.2 node `infer`. Builds the prompt from
-retrieved chunks + few-shots, calls llm/client.py (which owns circuit
-breaker / retry / fallback), and attempts to parse the result into
-`LLMProposalEnvelope`. Parse/validation failure here is NOT an exception
-— it's recorded as `schema_valid=False` in validate.py and the graph's
-own retry edge (`validate -> infer`, capped at iteration < 2) gives the
-model exactly one more chance before the router sends it to HITL.
+LLM inference node — spec §6.2 `infer`. Builds the prompt from retrieved
+chunks and few-shots, calls the LLM client, and parses the reply into
+`LLMProposalEnvelope`. A parse failure is not an exception: validate records
+`schema_valid=False`, and the `validate -> infer` edge (capped at iteration <
+2) allows one retry before HITL.
 """
 
 from __future__ import annotations

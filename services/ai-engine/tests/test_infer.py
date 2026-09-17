@@ -1,13 +1,7 @@
 """
-Infer-node tests.
-
-The theme is reason codes. This node has three distinct ways to come back
-without a proposal — circuit open, every provider down, and a model that
-answered with something unparseable — and core-api routes all three to a
-human. But the HITL dashboard is built on the reason-code enum, so a
-degrade that reaches HITL under the *wrong* code is invisible to the
-people staffing the queue. The exact strings are therefore part of the
-contract, not an implementation detail.
+Infer-node tests. Circuit open, every provider down, and unparseable output
+all reach HITL, but the dashboard is built on the reason-code enum — so the
+exact codes are part of the contract.
 """
 
 from __future__ import annotations
@@ -49,9 +43,7 @@ def _node(llm, **kw):
 
 
 def test_circuit_open_maps_to_degraded_reason_circuit_open(fake_llm, make_state):
-    """Fail-fast when the breaker is open. The reason code must survive
-    verbatim — free text is invisible to the dashboard the on-call rota is
-    staffed from."""
+    """Fail fast when the breaker is open, with the reason code verbatim."""
 
     out = _node(fake_llm(error=CircuitOpenError("open")))(make_state())
 
@@ -81,10 +73,9 @@ def test_budget_exhausted_makes_no_llm_call(fake_llm, exhausted_budget_state):
 
 
 def test_per_attempt_timeout_leaves_headroom_for_the_fallback_attempt(fake_llm, make_state):
-    """llm/client.py retries the primary twice and may then fall back to
-    Ollama, all inside the ticket's latency budget. Spending the whole
-    remaining budget on the first attempt would leave the fallback no room,
-    turning a recoverable provider blip into all_llm_down.
+    """The client retries the primary and may fall back to Ollama within the
+    ticket's latency budget. Spending it all on the first attempt turns a
+    recoverable blip into all_llm_down.
     """
 
     llm = fake_llm(result=_result())
@@ -121,9 +112,8 @@ def test_per_attempt_timeout_never_drops_below_the_floor(fake_llm, make_state):
 
 
 def test_unparseable_output_yields_no_proposal_but_still_charges_tokens(fake_llm, make_state):
-    """A chatty broken model must not loop for free. The retry edge is
-    capped at one extra attempt, but the tokens it burned still count
-    against the ticket's budget and against cost_per_ticket.
+    """Tokens burned on unparseable output still count against the budget and
+    cost_per_ticket, so a broken model cannot loop for free.
     """
 
     llm = fake_llm(result=_result(text="I'm afraid I can't do that."))

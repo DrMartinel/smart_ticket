@@ -29,7 +29,7 @@ ARG RERANKER_REVISION=main
 ENV HF_HOME=/opt/hf
 
 # Manifests only, before the sources below: dependency resolution and the model
-# bake are expensive (sentence-transformers pulls torch) and depend on none of
+# bake are expensive (FlagEmbedding pulls torch) and depend on none of
 # our code, so they get their own layers and survive every source edit.
 # Reversing this makes a one-line change in a node re-download the weights.
 COPY pyproject.toml uv.lock* /workspace/
@@ -47,7 +47,9 @@ ENV PYTHONUNBUFFERED=1
 # when the layer exits — the point is the populated cache underneath, so that no
 # container start and no ticket ever touches the network for it. Deliberately
 # above HF_HUB_OFFLINE: this is the one step that is *supposed* to hit the hub.
-RUN python -c "import sys; from sentence_transformers import CrossEncoder; CrossEncoder(sys.argv[1], revision=sys.argv[2])" \
+# Same resolve-then-load as factory.py::_load_cross_encoder, so the cache this
+# populates is exactly the one the runtime load resolves against.
+RUN python -c "import sys; from huggingface_hub import snapshot_download; from FlagEmbedding import FlagReranker; FlagReranker(snapshot_download(sys.argv[1], revision=sys.argv[2]))" \
       "$RERANKER_MODEL" "$RERANKER_REVISION"
 
 # Everything past here is baked, so reaching for the hub at runtime means
