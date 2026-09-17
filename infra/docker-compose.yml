@@ -15,12 +15,17 @@ x-core-api-env: &core-api-env
   CELERY_BROKER_URL: redis://redis:6379/0
   CELERY_RESULT_BACKEND: redis://redis:6379/1
   AI_ENGINE_URL: http://ai-engine:8001
-  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-  OLLAMA_NER_MODEL: ${OLLAMA_NER_MODEL:-qwen3:8b}
+  # Self-hosted vLLM (ADR-0009) — the `vllm` profile below. PII detection runs
+  # on the chat server's model; embeddings must match ai-engine's.
+  VLLM_CHAT_BASE_URL: ${VLLM_CHAT_BASE_URL:-http://vllm-chat:8000/v1}
+  VLLM_CHAT_MODEL: ${VLLM_CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
+  VLLM_EMBED_BASE_URL: ${VLLM_EMBED_BASE_URL:-http://vllm-embed:8000/v1}
+  VLLM_EMBED_MODEL: ${VLLM_EMBED_MODEL:-BAAI/bge-m3}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-vllm}
   # Ceiling for a single model call (NER, embeddings). Must stay below the
   # gunicorn --timeout in docker-entrypoint.sh, since masking runs inline.
-  OLLAMA_TIMEOUT_SEC: ${OLLAMA_TIMEOUT_SEC:-120}
-  OLLAMA_CONNECT_TIMEOUT_SEC: ${OLLAMA_CONNECT_TIMEOUT_SEC:-3}
+  MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:-120}
+  MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:-3}
   PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-Zm9yLWRldi1vbmx5LTMyLWJ5dGUta2V5LWhlcmUhISE=}
   THRESHOLDS_PATH: /workspace/services/core-api/config/thresholds.yaml
   ALLOWED_HOSTS: "*"
@@ -118,38 +123,31 @@ services:
     build:
       context: ..
       dockerfile: services/ai-engine/Dockerfile
-      args:
-        # Must agree with RERANKER_MODEL / RERANKER_REVISION below — the image
-        # bakes one checkpoint and the container runs HF_HUB_OFFLINE=1, so a
-        # mismatch is a loud failure at startup rather than a silent download.
-        # That is the intent: which checkpoint is in use is a reviewed
-        # decision, not whatever `main` pointed at on build day (ADR-0005).
-        RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
-        RERANKER_REVISION: ${RERANKER_REVISION:-main}
     environment:
       # read-only DSN — the ai_engine_ro role has SELECT-only grants on
       # kb_articles / kb_chunks / fewshot_examples (see infra/migrations/sql).
       # This is a structural permission boundary, not a convention (ADR-0004).
       DATABASE_URL: postgresql://ai_engine_ro:${POSTGRES_AI_RO_PASSWORD:-ai_engine_ro_password}@db:5432/${POSTGRES_DB:-smart_triage}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
-      OLLAMA_INFER_MODEL: ${OLLAMA_INFER_MODEL:-qwen3.5:9b}
-      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
-      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-ollama}
-      # `lexical` is the default; `cross_encoder` is always available (the
-      # dependency and weights ship in the image), so switching needs no
-      # rebuild. They are separate calibrations and retrieval.floor is a
-      # cross-encoder number (ADR-0005) — refusal behaviour under the default
-      # is uncalibrated. See docs/TODO.md item 4.
-      RERANKER_PROVIDER: ${RERANKER_PROVIDER:-lexical}
+      # ai-engine's self-hosted models run on vLLM (ADR-0009) — start the
+      # `vllm` profile below. The base URLs default to those services.
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-vllm}
+      VLLM_CHAT_BASE_URL: ${VLLM_CHAT_BASE_URL:-http://vllm-chat:8000/v1}
+      VLLM_CHAT_MODEL: ${VLLM_CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
+      VLLM_EMBED_BASE_URL: ${VLLM_EMBED_BASE_URL:-http://vllm-embed:8000/v1}
+      VLLM_EMBED_MODEL: ${VLLM_EMBED_MODEL:-BAAI/bge-m3}
+      VLLM_RERANK_BASE_URL: ${VLLM_RERANK_BASE_URL:-http://vllm-rerank:8000/v1}
+      # `vllm` serves the bge-reranker-v2-m3 cross-encoder from vllm-rerank;
+      # `lexical` is for CI and is a different calibration from the
+      # cross-encoder score retrieval.floor is specified against (ADR-0005).
+      # See docs/TODO.md item 4.
+      RERANKER_PROVIDER: ${RERANKER_PROVIDER:-vllm}
       RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
-      RERANKER_REVISION: ${RERANKER_REVISION:-main}
-      # Ceiling for a single model call. Kept in step with core-api's
-      # OLLAMA_TIMEOUT_SEC; infer.py clamps to whichever of this and the
-      # per-ticket latency budget is smaller.
+      # Ceiling for a single model call, shared with core-api; infer.py clamps
+      # to whichever of this and the per-ticket latency budget is smaller.
       MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:-120}
       MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:-3}
-      # Optional cloud primary with Ollama as the fallback link (spec §10.3).
-      # Unset CLOUD_API_KEY means Ollama-only, which is the default here. Any
+      # Optional cloud primary with vLLM as the fallback link (spec §10.3).
+      # Unset CLOUD_API_KEY means vLLM-only, which is the default here. Any
       # half-configuration fails the boot rather than quietly degrading — see
       # infra/.env.example for the per-provider rules and ADR-0007 for why
       # anthropic/gemini cannot honour MODEL_CONNECT_TIMEOUT_SEC.
@@ -168,42 +166,66 @@ services:
       - "host.docker.internal:host-gateway"
     networks: [smart-triage]
 
-  # Optional: run Ollama INSIDE the compose network instead of on the host.
+  # Self-hosted vLLM for every model in the system (ADR-0009): ai-engine's
+  # inference, embeddings and reranking, and core-api's PII detection and
+  # embeddings. Required for real masking — without it every ticket is
+  # MASK_FAILED and goes to a human, by design.
   #
-  #   docker compose --profile local-llm up -d
-  #   (and set OLLAMA_BASE_URL=http://ollama:11434 in infra/.env)
+  #   docker compose --profile vllm up -d
   #
-  # Why this exists: reaching a host-run Ollama from a container depends on
-  # host.docker.internal resolving AND the host firewall permitting the
-  # Docker bridge subnet. A ufw rule blocking that subnet drops the packets
-  # silently — containers hang on connect while `curl localhost:11434` works
-  # fine on the host, which is a genuinely confusing failure to diagnose.
-  # Running Ollama as a compose service removes the host network path (and
-  # the sudo needed to open it) from the picture entirely.
-  #
-  # The host's existing model store is bind-mounted read-only, so this
-  # re-uses whatever is already pulled — no re-download of ~39GB. Adjust
-  # OLLAMA_MODELS_DIR if your install keeps models elsewhere (a systemd
-  # install uses /usr/share/ollama/.ollama/models; a user install uses
-  # ~/.ollama/models).
-  #
-  # Note: a host Ollama and this one share the same GPU. Both unload models
-  # after their idle keep-alive, but if you run heavy models on both at once
-  # on a 12GB card you can exhaust VRAM — stop the host service if so.
-  ollama:
-    image: ollama/ollama:latest
-    profiles: ["local-llm"]
-    environment:
-      OLLAMA_HOST: 0.0.0.0
+  # vLLM serves one model per server and reserves GPU memory up front, so the
+  # three share the card through the *_GPU_UTIL fractions — tune them to your
+  # VRAM. Not yet run against real hardware: before trusting it, confirm
+  # vllm-rerank's score scale (ADR-0005) and re-embed stored vectors
+  # (ADR-0009, docs/TODO.md item 4).
+  vllm-chat:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG:-latest}
+    profiles: ["vllm"]
+    command:
+      - --model=${VLLM_CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
+      - --gpu-memory-utilization=${VLLM_CHAT_GPU_UTIL:-0.6}
+      - --max-model-len=${VLLM_CHAT_MAX_MODEL_LEN:-8192}
     volumes:
-      - ${OLLAMA_MODELS_DIR:-/usr/share/ollama/.ollama/models}:/root/.ollama/models:ro
-    deploy:
+      - ${HF_CACHE_DIR:-./.hf-cache}:/root/.cache/huggingface
+    ports:
+      - "8100:8000"
+    deploy: &vllm-gpu
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    networks: [smart-triage]
+
+  vllm-embed:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG:-latest}
+    profiles: ["vllm"]
+    command:
+      - --model=${VLLM_EMBED_MODEL:-BAAI/bge-m3}
+      - --gpu-memory-utilization=${VLLM_EMBED_GPU_UTIL:-0.1}
+    volumes:
+      - ${HF_CACHE_DIR:-./.hf-cache}:/root/.cache/huggingface
+    ports:
+      - "8101:8000"
+    deploy: *vllm-gpu
+    networks: [smart-triage]
+
+  vllm-rerank:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG:-latest}
+    profiles: ["vllm"]
+    command:
+      # Pin RERANKER_REVISION to a commit sha: left at `main`, an upstream push
+      # silently moves the score scale retrieval.floor is compared against
+      # (ADR-0005).
+      - --model=${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
+      - --revision=${RERANKER_REVISION:-main}
+      - --gpu-memory-utilization=${VLLM_RERANK_GPU_UTIL:-0.1}
+    volumes:
+      - ${HF_CACHE_DIR:-./.hf-cache}:/root/.cache/huggingface
+    ports:
+      - "8102:8000"
+    deploy: *vllm-gpu
     networks: [smart-triage]
 
   web:

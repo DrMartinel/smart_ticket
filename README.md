@@ -75,7 +75,7 @@ Three services with **structurally enforced** permission boundaries:
 |---|---|
 | PostgreSQL 17 + pgvector | Relational data, 1024-dim HNSW vector indexes, `tsvector` full-text search |
 | Redis 7 | Celery broker & result backend |
-| Ollama (on host) | Local LLM: inference, PII NER, embeddings |
+| vLLM (`vllm` profile) | Self-hosted models: inference, PII NER, embeddings, rerank |
 
 ---
 
@@ -155,17 +155,14 @@ smart_ticket/
 | Node.js | 18.18+ | 24 recommended (Next 15) |
 | Docker + Compose | — | Compose v2+ |
 | [uv](https://docs.astral.sh/uv/) | 0.9+ | manages the Python workspace |
-| [Ollama](https://ollama.ai/) | — | runs **on the host**, not in Docker |
+| NVIDIA GPU | — | for the `vllm` compose profile; on Windows, via WSL2 / Docker Desktop |
 
-### Ollama models
+### Models
 
-```bash
-ollama pull qwen3.5:9b   # inference (ai-engine)
-ollama pull qwen3:8b     # PII NER tier-2 (core-api masking)
-ollama pull bge-m3       # embeddings, 1024-dim, multilingual VI/EN
-```
-
-Roughly 16 GB of model weights; `bge-m3` alone (1.2 GB) is enough to exercise retrieval if you set `RERANKER_PROVIDER=lexical` (the default).
+The `vllm` compose profile downloads its models from Hugging Face on first start
+(`VLLM_CHAT_MODEL`, `VLLM_EMBED_MODEL`, and `RERANKER_MODEL` for `vllm-rerank`),
+cached in `HF_CACHE_DIR`. Without it every ticket still flows — masking fails
+closed to `MASK_FAILED` and everything goes to a human, by design.
 
 ---
 
@@ -189,18 +186,11 @@ python -c "import os,base64;print('PII_ENCRYPTION_KEY='+base64.b64encode(os.uran
 cd infra && docker compose up -d --build
 ```
 
-If your host firewall blocks the Docker bridge subnet, containers cannot reach a
-host-run Ollama — they hang on connect even though `curl localhost:11434` works
-fine on the host. Rather than opening the firewall (which needs `sudo`), run
-Ollama as a compose service; it bind-mounts your existing model store read-only,
-so nothing re-downloads:
+Self-hosted models run in the `vllm` profile (ADR-0009):
 
 ```bash
-docker compose --profile local-llm up -d
+docker compose --profile vllm up -d
 ```
-
-then set `OLLAMA_BASE_URL=http://ollama:11434` in `infra/.env` (and
-`OLLAMA_MODELS_DIR` if your models aren't in `/usr/share/ollama/.ollama/models`).
 
 | Service | Port | |
 |---|---|---|
@@ -278,12 +268,11 @@ Full list in [`infra/.env.example`](infra/.env.example). The ones that change be
 | Variable | Default | Effect |
 |---|---|---|
 | `SHADOW_MODE` | `true` | Router records decisions without acting; everything still goes to HITL |
-| `EMBEDDING_PROVIDER` | `ollama` | `stub` = deterministic hash embeddings, no network (used by CI) |
-| `RERANKER_PROVIDER` | `lexical` | `cross_encoder` enables bge-reranker-v2-m3 (needs the extra dep) |
+| `EMBEDDING_PROVIDER` | `vllm` | `stub` = deterministic hash embeddings, no network (used by CI) |
+| `RERANKER_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |
-| `OLLAMA_TIMEOUT_SEC` | `120` | Ceiling for one core-api model call (NER, embeddings) |
-| `MODEL_TIMEOUT_SEC` | `120` | Same ceiling for ai-engine (inference, embeddings) |
+| `MODEL_TIMEOUT_SEC` | `120` | Ceiling for one model call (NER, embeddings, inference) |
 | `DJANGO_AUTO_SEED_DEMO` | `false` | Seed demo data on container start |
 
 ---
@@ -293,7 +282,7 @@ Full list in [`infra/.env.example`](infra/.env.example). The ones that change be
 ```
 Ticket submitted  ──►  PII Masking (INLINE, before any DB write)
                          │  regex tier 1 → critical (password/token)  ──►  BLOCK + security alert
-                         │  Ollama NER tier 2 → timeout/error         ──►  HITL (mask_failed)
+                         │  LLM NER tier 2 → timeout/error            ──►  HITL (mask_failed)
                          ▼
                        Embedding + Incident Detection
                          │  embedding unavailable                     ──►  HITL (embedding_unavailable)
@@ -433,7 +422,7 @@ P3 precedes P4 deliberately: a wrong auto-route costs one technician click (and 
 
 ## Operations
 
-[`docs/runbooks/on-call.md`](docs/runbooks/on-call.md) covers circuit-breaker trips, budget exhaustion, Ollama/embedding outages, degraded retrieval, and the MASK_FAILED flood.
+[`docs/runbooks/on-call.md`](docs/runbooks/on-call.md) covers circuit-breaker trips, budget exhaustion, embedding outages, degraded retrieval, and the MASK_FAILED flood.
 
 The two metrics most worth watching are counterintuitive: **`reopen_rate_after_autoreply`** (a wrong auto-reply that closed the ticket is an *invisible* failure) and **`approve_rate_per_reviewer`** — a reviewer approving >95% at <10 s median is rubber-stamping, which is worse than having no HITL at all because it manufactures false assurance.
 
@@ -447,9 +436,9 @@ The two metrics most worth watching are counterintuitive: **`reopen_rate_after_a
 | AI pipeline | FastAPI 0.140 · LangGraph |
 | Task queue | Celery 5.6 · Redis 7 |
 | Database | PostgreSQL 17 · pgvector (HNSW) |
-| Embeddings | BGE-M3, 1024-dim (via Ollama) |
+| Embeddings | BGE-M3, 1024-dim (via vLLM) |
 | Reranker | lexical (default) · BGE-Reranker-v2-M3 (optional) |
-| LLM | Qwen 3.5 9B · Qwen 3 8B for NER (via Ollama) |
+| LLM | Qwen 3 8B AWQ for inference and PII NER (via vLLM) |
 | Frontend | Next.js 15 · React 19 · Tailwind |
 | Tooling | uv workspace · pytest · Ruff |
 

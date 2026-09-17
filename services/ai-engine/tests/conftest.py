@@ -17,8 +17,7 @@ from sqlalchemy.dialects import postgresql
 from contracts.enums import PIILevel
 from contracts.ticket import TicketMasked
 
-from ai_engine.core.llm.base import LLMClient
-from ai_engine.core.providers import factory as factory_mod
+from ai_engine.core.providers.llm.client import LLMClient
 from ai_engine.core.providers.base import Embedder, Reranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import TriageState
@@ -75,7 +74,10 @@ class FakeLLM(LLMClient):
         self._result = result
         self._error = error
 
-    def complete(self, system_prompt: str, user_prompt: str, *, timeout: float | None = None):
+    def _build(self, timeout: float):
+        raise AssertionError("FakeLLM overrides complete(); no chat model is built")
+
+    def complete(self, system_prompt: str, user_prompt: str, *, timeout: float):
         self.timeouts.append(timeout)
         self.prompts.append((system_prompt, user_prompt))
         if self._error is not None:
@@ -207,26 +209,6 @@ def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
         "validate": ValidateNode(),
         "emit": EmitSignalsNode(db=db),
     }
-
-
-class _StubCrossEncoderModel:
-    """Stands in for a loaded `FlagEmbedding.FlagReranker`."""
-
-    def compute_score(self, pairs, **kwargs):
-        return [0.0] * len(pairs)
-
-
-@pytest.fixture(autouse=True)
-def never_load_real_reranker_weights(monkeypatch):
-    """Keep the unit suite from loading the real multi-GB reranker model.
-
-    `build_providers()` takes no arguments, so patching the loader is the
-    only way to select `cross_encoder` without weights. Autouse because,
-    from a test body, selecting a provider doesn't look like loading a
-    model. Tests that assert on loading re-patch it themselves.
-    """
-
-    monkeypatch.setattr(factory_mod, "_load_cross_encoder", _StubCrossEncoderModel)
 
 
 # --- fixtures -------------------------------------------------------------

@@ -79,12 +79,12 @@ def process_ticket(self, ticket_id: int) -> dict:
     combined_text = f"{ticket.subject_masked}\n{ticket.body_masked}"
     try:
         embedding = embed_text(combined_text)
-        store_embedding(ticket, embedding, settings.OLLAMA_EMBED_MODEL)
+        store_embedding(ticket, embedding, settings.VLLM_EMBED_MODEL)
         verdict = classify_similarity(ticket, embedding)
     except (httpx.HTTPError, ValueError) as e:
         # Same fail-open-to-human principle as the AIEngineUnavailable
         # branch below (spec §10.3: "khi degrade, luôn đẩy về con người").
-        # Without this, an Ollama/embedding outage left the ticket stuck
+        # Without this, an embedding outage left the ticket stuck
         # at status="new" forever — no RoutingDecision, no ReviewItem,
         # invisible to every queue and dashboard.
         logger.warning(

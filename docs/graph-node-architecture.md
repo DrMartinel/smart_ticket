@@ -92,10 +92,10 @@ threadpool. All per-call data belongs in state.
 `ai_engine/core/` is everything the nodes are built on: `config.py`
 (settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `budget.py`
 (`BudgetedNode`), `providers/` (the embedding and reranking seams as ABCs in
-`base.py`, plus the embedders, rerankers and `factory.py`), `db/` (the
-SQLAlchemy client and table declarations),
-`retrieval/` (BM25, vector, RRF) and `llm/` (the `LLMClient` seam, client,
-circuit breaker, prompts). Outside it are only
+`base.py`; the embedders, rerankers and `factory.py`; and `llm/`, the
+`LLMClient` seam and its client, chat-model factories and circuit breaker), `prompts/` (the
+versioned system prompts and their loader), `db/` (the SQLAlchemy client and
+table declarations) and `retrieval/` (BM25, vector, RRF). Outside it are only
 `graph/` (builder, wiring, nodes) and `main.py`. The graph imports from
 `core`; `core` never imports from the graph.
 

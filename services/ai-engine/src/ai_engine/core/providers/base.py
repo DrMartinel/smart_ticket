@@ -1,8 +1,8 @@
 """
 The embedding and reranking seams. Nodes depend on these, never on a concrete
 provider, so `providers/factory.py` is the single place provider settings are
-read. (`LLMClient` lives in `core/llm/base.py`; the DB client has one
-implementation and no seam.)
+read. (`LLMClient` lives beside its implementation in `providers/llm/client.py`;
+the DB client has one implementation and no seam.)
 
 ABCs, not Protocols: nothing type-checks this repo, so a misnamed method must
 be a `TypeError` at construction — at boot — not a failure on the first

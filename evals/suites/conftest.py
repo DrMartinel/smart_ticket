@@ -8,7 +8,7 @@ running core-api HTTP server. ai-engine's pure nodes (injection detector,
 validator, RRF fusion) are imported the same way. Anything that needs
 real retrieval/LLM output goes over HTTP to a live ai-engine instance at
 AI_ENGINE_URL and is skipped — not failed — when that's unreachable, so
-`pytest evals/suites` stays runnable in environments without Ollama/Postgres.
+`pytest evals/suites` stays runnable in environments without vLLM/Postgres.
 """
 
 from __future__ import annotations

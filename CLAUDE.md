@@ -85,7 +85,7 @@ Coverage on the two modules where it is contractual:
 uv run pytest services/core-api/tests -q --cov=apps.tickets.services.masking --cov=apps.tickets.services.router --cov-report=term-missing
 ```
 
-Full stack (7 containers + Ollama). Migrations run automatically on `core-api` start:
+Full stack (7 containers + the `vllm` profile for models). Migrations run automatically on `core-api` start:
 
 ```bash
 cp infra/.env.example infra/.env && cd infra && docker compose up -d --build
@@ -129,7 +129,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Shared schemas (single source of truth) | [packages/contracts/](packages/contracts/src/contracts/) |
 | The AI pipeline (LangGraph) | [graph/build.py](services/ai-engine/src/ai_engine/graph/build.py) |
-| Prompts (versioned, eval-gated like code) | [core/llm/prompts/](services/ai-engine/src/ai_engine/core/llm/prompts/) |
+| Prompts (versioned, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
@@ -146,7 +146,7 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 |---|---|
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
-| What the model is asked | `ai-engine/core/llm/prompts/*.md` — bump the version in filename and `core/config.py` |
+| What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `core/config.py` |
 | What counts as PII | `patterns.py` (regex) or the NER prompt in `masking.py` |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
@@ -168,9 +168,10 @@ copies that directory — a new SQL file that isn't copied fails at container st
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
-- Reranker defaults to `lexical` (dependency-free, for CI/offline). `retrieval.floor`
-  is specified as a *cross-encoder* score — the two distributions are separate
-  calibrations, never interchangeable.
+- Reranker defaults to `vllm` (the bge-reranker-v2-m3 cross-encoder on vllm-rerank);
+  `lexical` is dependency-free, for CI/offline. `retrieval.floor` is specified as a
+  *cross-encoder* score — the two distributions are separate calibrations, never
+  interchangeable.
 - PII quarantine **write** path is done; the **read** path is not. Currently fails
   safe (nobody can read raw PII). **Do not add a `decrypt()` call without writing
   the `PiiAccessLog` row in the same transaction, with a mandatory non-empty reason.**
@@ -183,7 +184,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 |---|---|
 | `Failed to spawn: pytest` | `uv sync` instead of `uv sync --all-packages` — the root project has no deps of its own |
 | `ModuleNotFoundError: tests.*` on a whole-workspace run | core-api and ai-engine both have a package named `tests`. Handled by `--import-mode=importlib` in root `pyproject.toml` — don't remove it |
-| Every ticket `mask_failed` | Containers can't reach Ollama, or the NER model isn't pulled. **Never "fix" this by treating NER failure as no-PII-found** |
+| Every ticket `mask_failed` | vllm-chat isn't running or reachable, or `VLLM_CHAT_MODEL` doesn't match what it serves. **Never "fix" this by treating NER failure as no-PII-found** |
 | Submit hangs ~120s | Connect and read timeouts collapsed into one. Deliberately separate: 3s connect, 120s read (a cold model load legitimately takes 15–20s) |
 | All four generation checks ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
 | Unaccented Vietnamese matches nothing | Diacritic folding (`_strip_diacritics`) in the lexical reranker regressed; `đ`/`Đ` need special handling |
@@ -232,5 +233,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (eight
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (nine
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

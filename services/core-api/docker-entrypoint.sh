@@ -16,7 +16,7 @@ if [ "${DJANGO_AUTO_SEED_DEMO:-false}" = "true" ]; then
 fi
 
 echo "core-api: starting gunicorn..."
-# --timeout must exceed OLLAMA_TIMEOUT_SEC (120s default): PII masking runs
+# --timeout must exceed MODEL_TIMEOUT_SEC (120s default): PII masking runs
 # INLINE inside the submit request (spec §5 — masking may never be async,
 # or raw PII would briefly exist in the DB/broker). If gunicorn reaps the
 # worker first, the caller gets a 502 instead of a clean MASK_FAILED, and

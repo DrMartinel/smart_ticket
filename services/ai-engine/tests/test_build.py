@@ -147,7 +147,7 @@ def test_main_wires_the_prompt_for_settings_prompt_version():
     """
 
     from ai_engine.core.config import settings
-    from ai_engine.core.llm.prompt_store import load_system_prompt
+    from ai_engine.core.prompts import load_system_prompt
     from ai_engine.main import _graph
 
     # LangGraph internals: PregelNode.bound is the RunnableCallable wrapping

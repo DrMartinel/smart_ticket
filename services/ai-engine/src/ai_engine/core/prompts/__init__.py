@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-PROMPT_DIR = Path(__file__).resolve().parent / "prompts"
+PROMPT_DIR = Path(__file__).resolve().parent
 
 
 def load_system_prompt(version: str) -> str:
-    """Resolve a prompt version ("classify.v3") to prompts/classify.v3.md.
+    """Resolve a prompt version ("classify.v3") to core/prompts/classify.v3.md.
 
     Called at startup, so a missing prompt crashes the boot rather than
     the first ticket.

@@ -36,7 +36,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §5 | Masking engine (inline, two-tier) | ✅ | 100% branch coverage; regex tier-1 short-circuits before any LLM call |
 | §6 | LangGraph pipeline | ✅ | Refuse-before-LLM and the `iteration < 2` cap both verified |
 | §6.3 | Hybrid retrieval BM25 + vector + RRF | ✅ | RRF k=60; no threshold on fused rank (ADR-0005) |
-| §6.3 | Cross-encoder reranker | ⚠️ Optional | `lexical` is the default, and now folds Vietnamese diacritics — without that, unaccented tickets never matched the accented KB; see [Gap 3](#gap-3-reranker-defaults-to-lexical) |
+| §6.3 | Cross-encoder reranker | ⚠️ Unverified | Served by vLLM (`RERANKER_PROVIDER=vllm`, the default), not yet run against real hardware; `lexical` (for CI) folds Vietnamese diacritics; see [Gap 3](#gap-3--retrievalfloor-is-uncalibrated) |
 | §6.4 | Validator (quote → fuzzy → in-top-k → negation) | ✅ | Negation check verified catching a real `negation_mismatch` live |
 | §7 | Trust scorer, outside ai-engine | ⚠️ Uncalibrated | Works, but coefficients are a hand-set prior — see [Gap 2](#gap-2-trust-score-is-an-uncalibrated-prior) |
 | §8 | Switch router — pure function, hard gates ordered | ✅ | Every branch unit-tested with no DB/LLM/network |
@@ -74,20 +74,16 @@ Practically this fails safe — nobody can read raw PII at all right now, which 
 
 This is the expected P1 state, not a defect. `evals/calibration/fit_trust_score.py` and `choose_thresholds.py` exist and are ready; they need ≥500 shadow-mode `(signals, human verdict)` pairs to run. **Do not enable P3/P4 before this happens** — thresholds chosen by intuition are exactly what shadow mode is meant to replace.
 
-### Gap 3 — `retrieval.floor` is calibrated for a provider that is not the default
+### Gap 3 — `retrieval.floor` is uncalibrated
 
-`RERANKER_PROVIDER=lexical` is still the default: deterministic, fast, and it cannot fail to boot. What changed is that the cross-encoder is now **always available** — `FlagEmbedding` (BAAI's `FlagReranker`, from GitHub at a pinned commit) is a required dependency rather than an optional extra, and the weights are baked into the ai-engine image — so `RERANKER_PROVIDER=cross_encoder` plus a restart is the whole switch. Previously it silently could not work in a container at all: the image never installed the extra, so it booted green and died on the first ticket to reach the reranker.
+`RERANKER_PROVIDER=vllm` is the default: the `bge-reranker-v2-m3` cross-encoder served by vllm-rerank (ADR-0009). The in-process FlagEmbedding reranker is gone, and with it torch and the baked weights in the ai-engine image.
 
-**The open problem is calibration, and it is live in the default config.** `retrieval.floor = 0.45` is specified as a **cross-encoder** score (ADR-0005). `LexicalReranker` scores `|query ∩ passage| / |query|` — the fraction of query tokens present in the passage. So the shipped default compares a cross-encoder threshold against a fraction of matching words: a different question, decided silently, with no error and no test that can see it. Treat refusal behaviour under the default as uncalibrated.
+**The open problem is calibration.** `retrieval.floor = 0.45` is specified as a **cross-encoder** score (ADR-0005), but it was never fitted, and whether vLLM returns the same sigmoid-normalized scale FlagEmbedding did is unverified. Under `lexical` (CI), the floor is compared against `|query ∩ passage| / |query|` instead — a different question, decided silently. Treat refusal behaviour as uncalibrated.
 
 Two things have to happen to close it, and neither is a config edit:
 
 1. **Measure.** Nobody has observed real `bge-reranker-v2-m3` scores on this KB, so `0.45` is a hand-set prior (🔧) even for the provider it was written for.
 2. **Make the pairing knowable.** core-api reads `retrieval.floor` and sends it in `AIRunRequest` ([ai_client.py](../services/core-api/apps/tickets/services/ai_client.py)), but `RERANKER_PROVIDER` is an ai-engine-only variable — core-api cannot see which provider scored, so it cannot pick the matching floor or detect a mismatch. A per-provider floor needs that coupling to exist first.
-
-When the cross-encoder *is* selected, the model loads **eagerly at startup** in `CrossEncoderReranker.__init__`, so no ticket pays the load — at the cost of a few seconds of apparent hang at boot, and a container that refuses to start if the model cache is unusable. The image runs `HF_HUB_OFFLINE=1`, so nothing downloads at runtime and a `RERANKER_MODEL`/`RERANKER_REVISION` mismatch fails loudly. Pin `RERANKER_REVISION` to a commit sha; left at `main`, an upstream push moves the distribution.
-
-Unit tests never load real weights: an autouse fixture in `services/ai-engine/tests/conftest.py` stubs the loader.
 
 See [TODO.md](TODO.md) item 4.
 
@@ -103,13 +99,11 @@ This is a genuine, reproducible model finding, recorded in `evals/baselines/base
 
 ---
 
-## Environment caveat: Ollama reachability from containers
+## Environment caveat: self-hosted models moved to vLLM, unverified
 
-By default Ollama runs on the host, not in Docker. On a host firewall that blocks the Docker bridge subnet, containers cannot reach `host.docker.internal:11434` even though Ollama is healthy locally — every ticket then degrades to HITL with `embedding_unavailable` or `ai_engine_unavailable`.
+The verification above ran on Ollama. Both services now use self-hosted vLLM (ADR-0009) — code only, **not yet run against real hardware**. Until it is, treat masking quality, embeddings and inference on vLLM as unverified; stored vectors must also be re-embedded through vLLM.
 
-This is environmental, not a code defect, and the system's response to it is correct. Two fixes, in [`runbooks/on-call.md`](runbooks/on-call.md#containers-cannot-reach-ollama-on-the-host): run Ollama as a compose service (`--profile local-llm`, no sudo, re-uses the existing model store), or open the Docker subnet with a ufw rule.
-
-Because it can't be assumed away, the connect timeout is budgeted separately from the read timeout (`OLLAMA_CONNECT_TIMEOUT_SEC=3` vs `OLLAMA_TIMEOUT_SEC=120`). An unreachable provider fails in ~3s instead of burning the full read budget — which matters because masking is inline in the submit request, so that delay is a user watching a spinner.
+The connect timeout stays budgeted separately from the read timeout (`MODEL_CONNECT_TIMEOUT_SEC=3` vs `MODEL_TIMEOUT_SEC=120`). An unreachable provider fails in ~3s instead of burning the full read budget — which matters because masking is inline in the submit request, so that delay is a user watching a spinner.
 
 ---
 

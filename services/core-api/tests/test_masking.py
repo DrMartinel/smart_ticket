@@ -1,7 +1,7 @@
 """
 Masking engine — spec §5. This is the P0 exit condition (spec §14:
 "masking test coverage 100%"), so every branch of the two-tier pipeline is
-covered: critical short-circuit, Ollama success, Ollama timeout/error
+covered: critical short-circuit, LLM success, LLM timeout/error
 (MASK_FAILED, never silently "clean"), and placeholder numbering.
 """
 
@@ -15,10 +15,10 @@ from contracts.enums import PIILevel
 from contracts.ticket import TicketIn
 
 from apps.tickets.services.masking import (
-    OllamaError,
+    NERError,
     _spans_to_hits,
     mask,
-    ollama_ner,
+    llm_ner,
     regex_scan,
     regex_scan_ticket,
 )
@@ -29,16 +29,21 @@ def run_mask(raw: TicketIn):
 
 
 def run_ner(text: str):
-    return async_to_sync(ollama_ner)(text)
+    return async_to_sync(llm_ner)(text)
 
 
-def _mock_ollama_client(monkeypatch, generate_response: str):
-    """Ollama's format="json" guarantees valid JSON, not any particular
-    top-level shape — this stubs the /api/generate call to return a given
-    `response` string, exactly as Ollama's HTTP API wraps it."""
+def _chat_reply(content):
+    """A vLLM `/v1/chat/completions` body carrying `content` as the reply."""
+    return {"choices": [{"message": {"role": "assistant", "content": content}}]}
+
+
+def _mock_llm_client(monkeypatch, generate_response: str):
+    """JSON mode guarantees valid JSON, not any particular top-level shape —
+    this stubs the chat completions call to return a given `content` string,
+    exactly as vLLM's OpenAI-compatible API wraps it."""
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json={"response": generate_response})
+        return httpx.Response(200, json=_chat_reply(generate_response))
 
     class MockAsyncClient(httpx.AsyncClient):
         def __init__(self, *a, **kw):
@@ -83,7 +88,7 @@ class TestRegexTier:
 
 
 class TestMaskCriticalShortCircuit:
-    def test_critical_short_circuits_before_ollama(self, monkeypatch):
+    def test_critical_short_circuits_before_llm(self, monkeypatch):
         called = False
 
         async def fake_ner(*a, **kw):
@@ -91,21 +96,21 @@ class TestMaskCriticalShortCircuit:
             called = True
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
         raw = TicketIn(subject="quen mat khau", body="password: hunter2 can ho tro gap")
         result = run_mask(raw)
 
         assert result.pii_level is PIILevel.CRITICAL
         assert "hunter2" not in result.body_masked
-        assert called is False, "Ollama must never be called once a CRITICAL hit is found"
+        assert called is False, "The LLM must never be called once a CRITICAL hit is found"
 
 
-class TestMaskOllamaTier:
-    def test_ollama_timeout_becomes_mask_failed_not_clean(self, monkeypatch):
+class TestMaskLlmTier:
+    def test_llm_timeout_becomes_mask_failed_not_clean(self, monkeypatch):
         async def raise_timeout(*a, **kw):
             raise TimeoutError("simulated timeout")
 
-        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", raise_timeout)
+        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", raise_timeout)
         raw = TicketIn(
             subject="Van de ky thuat", body="Toi can ho tro voi thiet bi cua minh, xin cam on"
         )
@@ -113,14 +118,14 @@ class TestMaskOllamaTier:
 
         assert result.pii_level is PIILevel.MASK_FAILED
 
-    def test_ollama_error_becomes_mask_failed_not_clean(self, monkeypatch):
-        # ollama_ner's own contract already converts httpx/JSON errors into
-        # OllamaError before they escape (see masking.py) — that's the
-        # exception shape callers of ollama_ner actually need to handle.
+    def test_llm_error_becomes_mask_failed_not_clean(self, monkeypatch):
+        # llm_ner's own contract already converts httpx/JSON errors into
+        # NERError before they escape (see masking.py) — that's the
+        # exception shape callers of llm_ner actually need to handle.
         async def raise_error(*a, **kw):
-            raise OllamaError("simulated 500")
+            raise NERError("simulated 500")
 
-        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", raise_error)
+        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", raise_error)
         raw = TicketIn(
             subject="Van de ky thuat", body="May tinh cua toi bi loi man hinh xanh sang nay"
         )
@@ -128,11 +133,11 @@ class TestMaskOllamaTier:
 
         assert result.pii_level is PIILevel.MASK_FAILED
 
-    def test_ollama_success_merges_freeform_hits(self, monkeypatch):
+    def test_llm_success_merges_freeform_hits(self, monkeypatch):
         async def fake_ner(text, timeout=None):
             return ["anh Tuan phong ke toan"] if "Tuan" in text else []
 
-        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
         raw = TicketIn(
             subject="Ho tro", body="Lien he anh Tuan phong ke toan de biet them chi tiet nhe"
         )
@@ -145,7 +150,7 @@ class TestMaskOllamaTier:
         async def fake_ner(*a, **kw):
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
         raw = TicketIn(
             subject="May in bi ket giay", body="May in tren tang 3 bi ket giay tu sang nay"
         )
@@ -158,7 +163,7 @@ class TestMaskOllamaTier:
         async def fake_ner(*a, **kw):
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
         raw = TicketIn(
             subject="Xac minh danh tinh", body="So CCCD cua toi la 012345678901, can xac minh gap"
         )
@@ -168,26 +173,26 @@ class TestMaskOllamaTier:
         assert "012345678901" not in result.body_masked
 
 
-class TestOllamaNerResponseParsing:
+class TestLlmNerResponseParsing:
     """Regression coverage for a real failure mode hit against a live
-    Ollama qwen3:8b: despite the prompt asking for a bare JSON array,
-    format="json" only guarantees valid JSON — the model routinely wraps
+    qwen3:8b (on Ollama, before ADR-0009): despite the prompt asking for a
+    bare JSON array, plain JSON mode only guarantees valid JSON — the model routinely wraps
     the array in an object, e.g. {"found": []} instead of []. Before the
     fix, that shape was treated as an unrecoverable parse error, which
     flagged every single ticket as MASK_FAILED regardless of content."""
 
     def test_bare_array_response(self, monkeypatch):
-        _mock_ollama_client(monkeypatch, json.dumps(["anh Tuan phong ke toan"]))
+        _mock_llm_client(monkeypatch, json.dumps(["anh Tuan phong ke toan"]))
         assert run_ner("...") == ["anh Tuan phong ke toan"]
 
     def test_object_wrapped_array_response(self, monkeypatch):
-        _mock_ollama_client(monkeypatch, json.dumps({"found": ["anh Tuan phong ke toan"]}))
+        _mock_llm_client(monkeypatch, json.dumps({"found": ["anh Tuan phong ke toan"]}))
         assert run_ner("...") == ["anh Tuan phong ke toan"]
 
     def test_schema_constrained_spans_key(self, monkeypatch):
         """The request pins a JSON Schema requiring `spans`, so this is the
         shape the provider is grammar-constrained to return."""
-        _mock_ollama_client(monkeypatch, json.dumps({"spans": ["anh Tuan phong ke toan"]}))
+        _mock_llm_client(monkeypatch, json.dumps({"spans": ["anh Tuan phong ke toan"]}))
         assert run_ner("...") == ["anh Tuan phong ke toan"]
 
     def test_request_pins_a_json_schema_not_bare_json_mode(self, monkeypatch):
@@ -201,7 +206,7 @@ class TestOllamaNerResponseParsing:
 
         def handler(request: httpx.Request) -> httpx.Response:
             seen["payload"] = json.loads(request.content)
-            return httpx.Response(200, json={"response": json.dumps({"spans": []})})
+            return httpx.Response(200, json=_chat_reply(json.dumps({"spans": []})))
 
         class MockAsyncClient(httpx.AsyncClient):
             def __init__(self, *a, **kw):
@@ -211,41 +216,69 @@ class TestOllamaNerResponseParsing:
         monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
         run_ner("some ticket text")
 
-        fmt = seen["payload"]["format"]
-        assert isinstance(fmt, dict), f"expected a JSON Schema, got {fmt!r}"
-        assert fmt["required"] == ["spans"]
-        # Instructions must travel in `system`, data in `prompt` — merging
-        # them let the model reply to the instructions instead of obeying.
-        assert seen["payload"]["prompt"] == "some ticket text"
-        assert "system" in seen["payload"]
+        fmt = seen["payload"]["response_format"]
+        assert fmt["type"] == "json_schema", f"expected a JSON Schema, got {fmt!r}"
+        assert fmt["json_schema"]["schema"]["required"] == ["spans"]
+        # Instructions must travel in the system message, data in the user
+        # message — merging them let the model reply to the instructions
+        # instead of obeying.
+        system, user = seen["payload"]["messages"]
+        assert system["role"] == "system"
+        assert user == {"role": "user", "content": "some ticket text"}
 
     def test_object_with_no_list_still_fails_closed(self, monkeypatch):
         """A bare {} is ambiguous — it could mean "nothing found" or a
         confused model. Masking must never resolve ambiguity toward
         "clean" (spec §5.2), so this stays an error and the ticket goes
         to a human."""
-        _mock_ollama_client(monkeypatch, "{}")
-        with pytest.raises(OllamaError):
+        _mock_llm_client(monkeypatch, "{}")
+        with pytest.raises(NERError):
             run_ner("...")
 
     def test_object_wrapped_empty_array_response(self, monkeypatch):
-        _mock_ollama_client(monkeypatch, json.dumps({"result": []}))
+        _mock_llm_client(monkeypatch, json.dumps({"result": []}))
         assert run_ner("...") == []
 
     def test_object_with_no_list_value_raises(self, monkeypatch):
-        _mock_ollama_client(monkeypatch, json.dumps({"found": "not a list"}))
-        with pytest.raises(OllamaError):
+        _mock_llm_client(monkeypatch, json.dumps({"found": "not a list"}))
+        with pytest.raises(NERError):
+            run_ner("...")
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            _chat_reply(None),
+            {"choices": []},
+            {"choices": [{"message": {}}]},
+            {"error": "model not loaded"},
+        ],
+        ids=["null content", "no choices", "no content key", "error body"],
+    )
+    def test_reply_without_content_fails_closed(self, monkeypatch, body):
+        """A reply with no content is a broken reply, not "nothing found".
+        Reading it as [] would resolve toward clean — the one direction
+        masking may never fail (spec §5.2)."""
+
+        class MockAsyncClient(httpx.AsyncClient):
+            def __init__(self, *a, **kw):
+                kw["transport"] = httpx.MockTransport(
+                    lambda request: httpx.Response(200, json=body)
+                )
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+        with pytest.raises(NERError):
             run_ner("...")
 
     def test_non_json_response_raises(self, monkeypatch):
-        _mock_ollama_client(monkeypatch, "not json at all")
-        with pytest.raises(OllamaError):
+        _mock_llm_client(monkeypatch, "not json at all")
+        with pytest.raises(NERError):
             run_ner("...")
 
     def test_transport_timeout_becomes_timeout_error(self, monkeypatch):
-        # Exercises ollama_ner's own httpx.TimeoutException -> TimeoutError
-        # conversion — the other timeout test in TestMaskOllamaTier mocks
-        # ollama_ner() wholesale, so it never runs this branch.
+        # Exercises llm_ner's own httpx.TimeoutException -> TimeoutError
+        # conversion — the other timeout test in TestMaskLlmTier mocks
+        # llm_ner() wholesale, so it never runs this branch.
         def handler(request: httpx.Request) -> httpx.Response:
             raise httpx.TimeoutException("simulated network timeout")
 
@@ -261,12 +294,12 @@ class TestOllamaNerResponseParsing:
 
 class TestNerTimeoutIsConfigurable:
     """The NER budget used to be a hardcoded 3.0s module constant, which is
-    shorter than a cold Ollama model load (15-20s) — so in practice every
+    shorter than a cold model load (15-20s) — so in practice every
     ticket timed out into MASK_FAILED before the model finished warming up.
-    It now reads settings.OLLAMA_TIMEOUT_SEC at call time."""
+    It now reads settings.MODEL_TIMEOUT_SEC at call time."""
 
     def test_default_timeout_is_two_minutes(self, settings):
-        assert settings.OLLAMA_TIMEOUT_SEC == 120.0
+        assert settings.MODEL_TIMEOUT_SEC == 120.0
 
     def test_connect_budget_is_short_and_separate_from_read(self, settings, monkeypatch):
         """The two describe different failures. A blocked/dropped route
@@ -280,7 +313,7 @@ class TestNerTimeoutIsConfigurable:
             def __init__(self, *a, **kw):
                 seen["timeout"] = kw.get("timeout")
                 kw["transport"] = httpx.MockTransport(
-                    lambda request: httpx.Response(200, json={"response": "[]"})
+                    lambda request: httpx.Response(200, json=_chat_reply("[]"))
                 )
                 super().__init__(*a, **kw)
 
@@ -289,8 +322,8 @@ class TestNerTimeoutIsConfigurable:
 
         t = seen["timeout"]
         assert isinstance(t, httpx.Timeout)
-        assert t.connect == settings.OLLAMA_CONNECT_TIMEOUT_SEC == 3.0
-        assert t.read == settings.OLLAMA_TIMEOUT_SEC == 120.0
+        assert t.connect == settings.MODEL_CONNECT_TIMEOUT_SEC == 3.0
+        assert t.read == settings.MODEL_TIMEOUT_SEC == 120.0
         assert t.connect < t.read, "connect must fail fast; only reads get the long budget"
 
     def test_connect_timeout_still_becomes_mask_failed(self, monkeypatch):
@@ -317,13 +350,13 @@ class TestNerTimeoutIsConfigurable:
             def __init__(self, *a, **kw):
                 seen["timeout"] = kw.get("timeout")
                 kw["transport"] = httpx.MockTransport(
-                    lambda request: httpx.Response(200, json={"response": "[]"})
+                    lambda request: httpx.Response(200, json=_chat_reply("[]"))
                 )
                 super().__init__(*a, **kw)
 
         monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", RecordingAsyncClient)
 
-        settings.OLLAMA_TIMEOUT_SEC = 45.0
+        settings.MODEL_TIMEOUT_SEC = 45.0
         run_ner("...")
         assert seen["timeout"].read == 45.0
 
@@ -334,12 +367,12 @@ class TestNerTimeoutIsConfigurable:
             def __init__(self, *a, **kw):
                 seen["timeout"] = kw.get("timeout")
                 kw["transport"] = httpx.MockTransport(
-                    lambda request: httpx.Response(200, json={"response": "[]"})
+                    lambda request: httpx.Response(200, json=_chat_reply("[]"))
                 )
                 super().__init__(*a, **kw)
 
         monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", RecordingAsyncClient)
-        async_to_sync(ollama_ner)("...", 7.5)
+        async_to_sync(llm_ner)("...", 7.5)
         assert seen["timeout"] == 7.5
 
 
@@ -367,7 +400,7 @@ class TestPlaceholderNumbering:
         async def fake_ner(*a, **kw):
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
         raw = TicketIn(
             subject="lien he an@x.com",
             body="Neu khong lien lac duoc qua an@x.com thi goi dt gium toi voi",
@@ -381,7 +414,7 @@ class TestPlaceholderNumbering:
         async def fake_ner(*a, **kw):
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.ollama_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
         raw = TicketIn(subject="lien he", body="email 1 la a@x.com, email 2 la b@x.com nhe ban oi")
         result = run_mask(raw)
         assert "[EMAIL_1]" in result.body_masked

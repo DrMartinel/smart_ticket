@@ -18,7 +18,7 @@ Seven containers plus a local LLM runtime:
 | `db` | 5434 | Postgres 17 + pgvector |
 | `redis` | 6380 | Celery broker |
 | `worker` / `beat` | — | Celery worker and scheduler |
-| `ollama` | — | Optional; local models (see step 2) |
+| `vllm-chat` / `vllm-embed` / `vllm-rerank` | 8100–8102 | Self-hosted models, `vllm` profile (see step 2) |
 
 > `db` and `redis` are published on **5434** and **6380** to avoid colliding with anything already running locally. Inside the compose network they are still `db:5432` and `redis:6379`.
 
@@ -32,50 +32,36 @@ Seven containers plus a local LLM runtime:
 | [uv](https://docs.astral.sh/uv/) | 0.9+ |
 | Python | 3.13+ |
 | Node | 18.18+ (24 recommended) |
-| [Ollama](https://ollama.ai/) | any recent |
+| NVIDIA GPU | for vLLM; on Windows via WSL2 / Docker Desktop |
 
-```bash
-ollama pull qwen3.5:9b   # inference
-ollama pull qwen3:8b     # PII detection during masking
-ollama pull bge-m3       # embeddings, 1024-dim, multilingual VI/EN
-```
-
-That is ~13GB. If you only want the pipeline to *run*, `bge-m3` alone is enough — the rest degrades to the human queue, which is the designed behavior and perfectly good for a first look.
+Without a GPU the pipeline still *runs*: masking fails closed to `MASK_FAILED` and everything degrades to the human queue, which is the designed behavior and perfectly good for a first look. Set `EMBEDDING_PROVIDER=stub` to keep retrieval exercising something.
 
 ---
 
-## 2. Choose how containers reach Ollama
+---
 
-This is the single most common setup failure, so decide deliberately.
+## 2. Start the self-hosted models
 
-Ollama runs on your host. Containers reach it via `host.docker.internal`, which only works if your host firewall permits the Docker bridge subnet. When it doesn't, packets are **dropped** rather than refused — so containers hang on connect while `curl localhost:11434` works perfectly on the host. That asymmetry makes it look like an application bug.
-
-**Option A — run Ollama as a compose service (no sudo).** Re-uses your already-downloaded models via a read-only bind mount, so nothing re-downloads:
-
-```bash
-docker compose --profile local-llm up -d
-```
-
-and in `infra/.env`:
-```
-OLLAMA_BASE_URL=http://ollama:11434
-OLLAMA_MODELS_DIR=/usr/share/ollama/.ollama/models   # ~/.ollama/models for a user install
-```
-
-**Option B — open the firewall (needs sudo).** Keep `OLLAMA_BASE_URL=http://host.docker.internal:11434` and:
+Every model — inference, PII detection, embeddings, reranking — is served by
+vLLM in the `vllm` compose profile (ADR-0009). It needs an NVIDIA GPU; on
+Windows, Docker Desktop with the WSL2 backend.
 
 ```bash
-sudo ufw allow from 172.16.0.0/12 to any port 11434 proto tcp
+cd infra && docker compose --profile vllm up -d vllm-chat vllm-embed vllm-rerank
 ```
 
-Either way, verify:
+The first start downloads the models into `HF_CACHE_DIR`. The three servers
+share one GPU through `VLLM_CHAT_GPU_UTIL` / `VLLM_EMBED_GPU_UTIL` /
+`VLLM_RERANK_GPU_UTIL` in `infra/.env` — tune them to your VRAM. Verify from
+inside the network:
 
 ```bash
 docker compose exec core-api sh -c \
-  'curl -s -m 5 -o /dev/null -w "%{http_code}\n" $OLLAMA_BASE_URL/api/tags'
+  'curl -s -m 5 -o /dev/null -w "%{http_code}\n" $VLLM_CHAT_BASE_URL/models'
 ```
 
-`200` is good. `000` after a hang means the path is blocked — go back and pick the other option.
+`200` is good. Anything else means masking will fail closed to `MASK_FAILED`
+for every ticket.
 
 ---
 
@@ -173,9 +159,9 @@ You are ready to work on this when you can answer:
 | Symptom | Cause | Fix |
 |---|---|---|
 | `Failed to spawn: pytest` | Used `uv sync` | `uv sync --all-packages` |
-| Every ticket is `mask_failed` | Containers can't reach Ollama | Step 2 |
-| Submit hangs ~120s | Same, before the connect-timeout split landed | Step 2; confirm `OLLAMA_CONNECT_TIMEOUT_SEC=3` |
-| All four generation checks show ✗ | No LLM ran — read the reason code above the panel | Usually Ollama reachability |
+| Every ticket is `mask_failed` | vllm-chat is not running or not reachable | Step 2 |
+| Submit hangs ~120s | Connect and read timeouts collapsed into one | Step 2; confirm `MODEL_CONNECT_TIMEOUT_SEC=3` |
+| All four generation checks show ✗ | No LLM ran — read the reason code above the panel | Usually vLLM not running |
 | Vietnamese ticket matches nothing | Was a real bug (diacritics); fixed. If it recurs, check `_strip_diacritics` in the reranker | — |
 | Port 5432/6379 conflict | You are looking at the wrong ports | Use **5434** / **6380** |
 | `core-api` exits on boot | `thresholds.yaml` unreadable or malformed | It is parsed into a Pydantic model at boot, on purpose — read the traceback |

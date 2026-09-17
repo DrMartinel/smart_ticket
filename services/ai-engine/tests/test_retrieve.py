@@ -20,16 +20,16 @@ def _node(db, embedder):
 def test_embedder_failure_propagates_rather_than_returning_empty_candidates(
     fake_db, fake_embedder, kb_row, make_state
 ):
-    """An Ollama outage must not become an empty candidate list, which routes
+    """An embedder outage must not become an empty candidate list, which routes
     as an ordinary refuse-before-LLM. An infrastructure degrade has to be
     visible as one — the retrieval cousin of mask_failed resolving to "no
     PII found".
     """
 
-    embedder = fake_embedder(error=RuntimeError("ollama unreachable"))
+    embedder = fake_embedder(error=RuntimeError("vllm unreachable"))
     node = _node(fake_db(rows=[kb_row(1, "a", 0.9)]), embedder)
 
-    with pytest.raises(RuntimeError, match="ollama unreachable"):
+    with pytest.raises(RuntimeError, match="vllm unreachable"):
         node(make_state())
 
 

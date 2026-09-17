@@ -6,9 +6,9 @@ avoids entirely.
 
 Two-tier pipeline:
   Tier 1 — regex: fast, high-confidence, structured patterns. CRITICAL
-           hits (password/token/API key) short-circuit before Ollama is
+           hits (password/token/API key) short-circuit before the LLM is
            even called.
-  Tier 2 — local LLM (Ollama): catches free-form PII regex misses, e.g.
+  Tier 2 — self-hosted LLM (vLLM, ADR-0009): catches free-form PII regex misses, e.g.
            "anh Tuấn phòng kế toán tầng 3". A timeout or error here becomes
            PIILevel.MASK_FAILED, never "treat as clean" — uncertainty must
            cost a human's time, not risk a leak (spec §5.2).
@@ -37,12 +37,12 @@ def _ner_timeout() -> httpx.Timeout:
     can adjust it without reloading the module.
 
     Connect and read are budgeted separately on purpose — see
-    OLLAMA_CONNECT_TIMEOUT_SEC in settings. An unreachable provider is
+    MODEL_CONNECT_TIMEOUT_SEC in settings. An unreachable provider is
     knowable in seconds; only a *reachable but busy* one deserves the
     full read budget.
     """
-    read = float(getattr(settings, "OLLAMA_TIMEOUT_SEC", 120.0))
-    connect = float(getattr(settings, "OLLAMA_CONNECT_TIMEOUT_SEC", 3.0))
+    read = float(settings.MODEL_TIMEOUT_SEC)
+    connect = float(settings.MODEL_CONNECT_TIMEOUT_SEC)
     return httpx.Timeout(read, connect=connect)
 
 
@@ -64,9 +64,9 @@ Rules:
 - Output the array and nothing else.
 """
 
-# Grammar-constrains the response so the parser never has to guess. The
-# wrapper object exists because Ollama's structured-output support is
-# reliable for objects; `spans` is the array we actually want.
+# Grammar-constrains the response so the parser never has to guess (vLLM
+# structured outputs). The wrapper object exists because structured output is
+# most reliable for objects; `spans` is the array we actually want.
 _NER_RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {"spans": {"type": "array", "items": {"type": "string"}}},
@@ -92,7 +92,7 @@ class ScanResult:
         return any(h.level is PIILevel.CRITICAL for h in self.hits)
 
 
-class OllamaError(Exception):
+class NERError(Exception):
     pass
 
 
@@ -115,43 +115,50 @@ def regex_scan_ticket(raw: TicketIn) -> ScanResult:
     return ScanResult(hits=regex_scan(raw.subject) + regex_scan(raw.body))
 
 
-async def ollama_ner(text: str, timeout: float | httpx.Timeout | None = None) -> list[str]:
-    """Tier 2. Raises OllamaError/TimeoutError on any failure — callers
+async def llm_ner(text: str, timeout: float | httpx.Timeout | None = None) -> list[str]:
+    """Tier 2. Raises NERError/TimeoutError on any failure — callers
     MUST treat that as MASK_FAILED, never as "no PII found"."""
 
     if timeout is None:
         timeout = _ner_timeout()
-    url = f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/generate"
+    url = f"{settings.VLLM_CHAT_BASE_URL.rstrip('/')}/chat/completions"
     payload = {
-        "model": settings.OLLAMA_NER_MODEL,
-        # Instructions go in `system`, data in `prompt`. Concatenating both
-        # into one string let the model read the instructions as part of
-        # the conversation and *reply* to them — on short subjects it would
-        # answer {"error": "please provide the text to analyze"}, which the
-        # parser then rightly rejected, producing a spurious MASK_FAILED
-        # for a ticket that simply had no free-form PII.
-        "system": _NER_SYSTEM_PROMPT,
-        "prompt": text,
-        "stream": False,
-        # A JSON *Schema*, not the bare "json" mode. "json" only guarantees
-        # syntactically valid JSON and lets the model invent the shape — in
-        # practice it returned {"found": [...]}, {"result": [...]}, a bare
-        # {}, an {"error": ...} object, and occasionally truncated output.
-        # Every one of those became a spurious MASK_FAILED. Constraining
-        # the grammar makes the shape a guarantee instead of a hope.
-        "format": _NER_RESPONSE_SCHEMA,
+        "model": settings.VLLM_CHAT_MODEL,
+        # Instructions go in the system message, data in the user message.
+        # Concatenating both into one string let the model read the
+        # instructions as part of the conversation and *reply* to them — on
+        # short subjects it would answer {"error": "please provide the text
+        # to analyze"}, which the parser then rightly rejected, producing a
+        # spurious MASK_FAILED for a ticket that simply had no free-form PII.
+        "messages": [
+            {"role": "system", "content": _NER_SYSTEM_PROMPT},
+            {"role": "user", "content": text},
+        ],
+        # A JSON *Schema*, not the bare json_object mode. That only
+        # guarantees syntactically valid JSON and lets the model invent the
+        # shape — in practice it returned {"found": [...]}, {"result": [...]},
+        # a bare {}, an {"error": ...} object, and occasionally truncated
+        # output. Every one of those became a spurious MASK_FAILED.
+        # Constraining the grammar makes the shape a guarantee instead of a
+        # hope.
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "ner_spans", "schema": _NER_RESPONSE_SCHEMA},
+        },
         # qwen3 is a hybrid-thinking model; the reasoning trace is wasted
         # latency here and can crowd out the JSON we asked for.
-        "think": False,
+        "chat_template_kwargs": {"enable_thinking": False},
     }
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
             data = resp.json()
-            raw_out = data.get("response", "[]")
+            # No default: a reply without content is a broken reply, not
+            # "nothing found". Defaulting it to [] would resolve toward clean.
+            raw_out = data["choices"][0]["message"]["content"]
             parsed = json.loads(raw_out)
-            # Ollama's format="json" guarantees valid JSON, not a top-level
+            # JSON mode guarantees valid JSON, not a top-level
             # array — models routinely wrap the array in an object (e.g.
             # {"found": [...]}) despite the prompt asking for a bare array.
             # Unwrap the first list value found rather than treating that
@@ -164,12 +171,12 @@ async def ollama_ner(text: str, timeout: float | httpx.Timeout | None = None) ->
             if isinstance(parsed, dict):
                 parsed = next((v for v in parsed.values() if isinstance(v, list)), None)
             if not isinstance(parsed, list):
-                raise OllamaError(f"unexpected NER response shape: {raw_out!r}")
+                raise NERError(f"unexpected NER response shape: {raw_out!r}")
             return [str(x) for x in parsed]
     except httpx.TimeoutException as e:
         raise TimeoutError(str(e)) from e
-    except (httpx.HTTPError, json.JSONDecodeError, KeyError) as e:
-        raise OllamaError(str(e)) from e
+    except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
+        raise NERError(str(e)) from e
 
 
 def _mask_field(
@@ -243,7 +250,7 @@ async def mask(raw: TicketIn) -> MaskResult:
     if any(h.level is PIILevel.CRITICAL for h in subject_hits + body_hits):
         # BLOCK path: mask what we found (so nothing raw is ever returned)
         # but flag CRITICAL so router.py hard-gates this ticket immediately,
-        # before anything — including Ollama — is called again.
+        # before anything — including the LLM — is called again.
         subject_masked, body_masked, placeholder_map, _ = _apply(raw, subject_hits, body_hits)
         return MaskResult(subject_masked, body_masked, PIILevel.CRITICAL, placeholder_map)
 
@@ -255,11 +262,11 @@ async def mask(raw: TicketIn) -> MaskResult:
         # budget would outlast the gunicorn request timeout and turn a
         # clean MASK_FAILED into a 502.
         llm_subject_spans, llm_body_spans = await asyncio.gather(
-            ollama_ner(raw.subject), ollama_ner(raw.body)
+            llm_ner(raw.subject), llm_ner(raw.body)
         )
-    except (TimeoutError, OllamaError) as e:
+    except (TimeoutError, NERError) as e:
         logger.warning(
-            "masking: Ollama NER failed (%s) — flagging MASK_FAILED, not treating as clean", e
+            "masking: LLM NER failed (%s) — flagging MASK_FAILED, not treating as clean", e
         )
         subject_masked, body_masked, placeholder_map, _ = _apply(raw, subject_hits, body_hits)
         return MaskResult(subject_masked, body_masked, PIILevel.MASK_FAILED, placeholder_map)

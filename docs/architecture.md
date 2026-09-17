@@ -45,8 +45,8 @@ The third is the strongest, and it is why splitting `ai-engine` into its own ser
 │  → rerank → infer    │   └────────────────────────┘
 │  → validate          │
 │                      │   ┌────────────────────────┐
-│  NO business writes  │   │  Ollama                │
-│  NO routing decisions│──►│  inference · embed · NER│
+│  NO business writes  │   │  vLLM (self-hosted)    │
+│  NO routing decisions│──►│  infer · embed · rerank│
 └──────────────────────┘   └────────────────────────┘
 ```
 
@@ -166,39 +166,27 @@ compiles them once, at import time. See
 [graph-node-architecture.md](graph-node-architecture.md).
 Where a dependency has more than one implementation chosen from config, nodes
 depend on an abstract base class beside those implementations — `Embedder` and
-`Reranker` in `core/providers/base.py`, `LLMClient` in `core/llm/base.py` —
+`Reranker` in `core/providers/base.py`, `LLMClient` in
+`core/providers/llm/client.py` —
 never on a concrete provider module. Every implementation subclasses its base
 class, so a provider missing its method fails at construction, which happens
 at startup. The database client has one implementation and no base class:
 nodes take `SqlAlchemySessionSource` from `core/db/client.py`.
 
 `core/providers/factory.py` is the single place `EMBEDDING_PROVIDER` and
-`RERANKER_PROVIDER` are read. Selection happens once at startup and an
+`RERANKER_PROVIDER` are read. ai-engine's self-hosted models run on vLLM —
+chat always, embeddings and rerank by default —
+over its OpenAI-compatible APIs (ADR-0009). core-api uses the same vLLM servers
+for PII detection and embeddings. Selection happens once at startup and an
 unrecognized value is fatal — a typo used to fall through to the lexical
 reranker, whose scores are a different calibration from the cross-encoder
 distribution `retrieval.floor` is fitted against (ADR-0005).
 
 Two constraints on anything added here: `main.py` builds the graph at uvicorn
-import time, so no constructor may open a socket, and none may load a model
-except `CrossEncoderReranker`; and `analyze` is a sync `def`, so node instances
+import time, so no constructor may open a socket or load a model — every model
+is served by vLLM; and `analyze` is a sync `def`, so node instances
 are shared across FastAPI's threadpool and must be read-only after
 construction.
-
-`CrossEncoderReranker` is the one deliberate exception, and it loads its model
-**eagerly, in `__init__`**. With `RERANKER_PROVIDER=cross_encoder` the import of
-`main.py` blocks for that load, so the weights are resident before the process
-serves anything and no ticket pays for them. It is affordable only because the
-image bakes the weights and runs `HF_HUB_OFFLINE=1`, making this a ~2-5s local
-deserialize rather than a 2.3GB download. Two consequences to know about: the
-process looks hung for a few seconds at boot, and a broken model cache kills
-the container instead of degrading one ticket — intentionally, since there is
-no correct fallback (the lexical scorer is a different calibration, ADR-0005).
-
-`lexical` is the default, so none of that fires unless you select the
-cross-encoder — which is one environment variable and a restart, because
-`FlagEmbedding` (BAAI's `FlagReranker`, from GitHub at a pinned commit) is a required dependency and the weights are already in
-the image. It used to be an optional extra the Dockerfile never installed, so
-the switch silently could not work at all.
 
 ### Stage 4 — Scoring and routing (core-api)
 
@@ -291,7 +279,7 @@ Every degradation resolves toward a human. A user waiting longer is acceptable; 
 
 | Failure | Response |
 |---|---|
-| Cloud LLM timeout | Retry ×2 → Ollama fallback → HITL |
+| Cloud LLM timeout | Retry ×2 → self-hosted vLLM fallback → HITL |
 | All LLMs down | HITL, `degraded_reason="all_llm_down"` |
 | Embedding unavailable | HITL, `embedding_unavailable` |
 | pgvector slow | BM25 only → always HITL (weak retrieval never earns automation) |
@@ -310,7 +298,7 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 |---|---|
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
-| What the model is asked | `ai-engine/core/llm/prompts/*.md` — versioned, and eval-gated like code |
+| What the model is asked | `ai-engine/core/prompts/*.md` — versioned, and eval-gated like code |
 | What counts as PII | `tickets/services/patterns.py` (regex) or the NER prompt in `masking.py` |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | What a reviewer sees | `TrustSignalsPanel.tsx`, `ReviewForm.tsx` |

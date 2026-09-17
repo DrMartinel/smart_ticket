@@ -1,12 +1,12 @@
 # On-call runbook
 
-## Circuit breaker opened (`ai-engine/core/llm/client.py`)
+## Circuit breaker opened (`ai-engine/core/providers/llm/client.py`)
 
 **Alert fires when:** LLM failure rate > 20% over a trailing 5-minute
 window (`CIRCUIT.failure_threshold`).
 
 **What this means operationally:** every ticket that would have gone
-through `infer` is now falling back to Ollama, and if that also fails,
+through `infer` is now falling back to self-hosted vLLM, and if that also fails,
 straight to HITL with `degraded_reason="all_llm_down"`. HITL queue depth
 will rise sharply within minutes. This is a staffing signal, not just a
 technical one — see spec §10.1.
@@ -66,70 +66,34 @@ to every queue and dashboard. If you ever see tickets stuck at `new` with
 no routing row, look here first.
 
 **Actions:**
-1. Check Ollama on the host: `curl -s localhost:11434/api/tags`.
-2. Confirm `bge-m3` is present (`ollama list`) — a missing model returns an
-   error, not a timeout.
-3. If Ollama is healthy from the host but the worker still fails, this is
-   almost certainly container→host networking, not Ollama (see below).
+1. Check the embedding server: `docker compose --profile vllm ps vllm-embed`
+   and `docker compose logs vllm-embed`.
+2. From the worker, confirm it answers:
+   `docker compose exec worker sh -c 'curl -s -m 5 $VLLM_EMBED_BASE_URL/models'`
+   — the served model must be `VLLM_EMBED_MODEL`.
+3. A wrong-width vector raises `ValueError` and lands here too — check that
+   `VLLM_EMBED_MODEL` is a 1024-dim model (`bge-m3`).
 4. `EMBEDDING_PROVIDER=stub` is a legitimate emergency lever: it keeps the
    pipeline flowing with deterministic hash embeddings. Retrieval quality
    collapses, so *everything* lands in HITL — acceptable for a short
    outage, not as a standing configuration.
 
-## Containers cannot reach Ollama on the host
-
-**Symptom:** `httpx.ConnectTimeout` from `worker`/`ai-engine`, while
-`curl localhost:11434` from the host succeeds. Every ticket degrades to
-HITL via `embedding_unavailable` or `ai_engine_unavailable`.
-
-**What this means:** Ollama runs on the host, not in Docker. Containers
-reach it via `host.docker.internal`, which compose maps to the bridge
-gateway. A host firewall that blocks the Docker subnet silently breaks
-this — the containers are healthy, Ollama is healthy, and only the path
-between them is dead.
-
-**Diagnosis:**
-```sh
-docker compose exec worker sh -c \
-  'curl -s -m 5 -o /dev/null -w "%{http_code}\n" http://host.docker.internal:11434/api/tags'
-```
-`000` with a ~5 s hang means blocked/dropped, not refused.
-
-**Actions — pick one:**
-
-*A. Sidestep the host network entirely (no sudo).* Run Ollama as a compose
-service on the same network, re-using the host's already-downloaded models:
-```sh
-docker compose --profile local-llm up -d
-# then in infra/.env:  OLLAMA_BASE_URL=http://ollama:11434
-```
-The model store is bind-mounted read-only (`OLLAMA_MODELS_DIR`, default
-`/usr/share/ollama/.ollama/models`), so nothing re-downloads. Note both
-Ollamas share one GPU — if VRAM runs short, stop the host service.
-
-*B. Open the firewall (needs sudo).*
-1. Confirm Ollama binds beyond loopback: `OLLAMA_HOST=0.0.0.0` (a
-   `127.0.0.1`-only bind is unreachable from any container).
-2. Allow the Docker bridge range to the Ollama port, e.g. with ufw:
-   ```sh
-   sudo ufw allow from 172.16.0.0/12 to any port 11434 proto tcp
-   ```
-3. Re-run the diagnosis above; expect `200`.
-
 ## `MASK_FAILED` flood — every ticket lands in the mask_failed queue
 
-**What this means:** tier-2 NER (Ollama) is failing for every ticket, and
+**What this means:** tier-2 NER (vLLM) is failing for every ticket, and
 masking is correctly refusing to treat "I couldn't check" as "it's clean"
 (spec §5.2). The system is behaving as designed; the queue is the symptom,
 not the bug.
 
 **Known causes, in order of likelihood:**
-1. **Ollama returning HTTP 500 under load.** Several models sharing one
-   GPU will OOM-thrash. Check `ollama ps` for co-resident models and the
-   Ollama logs for 500s. Mitigation is capacity, not code.
-2. **Model unavailable.** `qwen3:8b` (`OLLAMA_NER_MODEL`) not pulled.
+1. **vllm-chat down or out of memory.** It shares the GPU with vllm-embed and
+   vllm-rerank through fixed `*_GPU_UTIL` fractions. Check
+   `docker compose logs vllm-chat` for OOM or 5xx. Mitigation is capacity,
+   not code.
+2. **Model unavailable.** `VLLM_CHAT_MODEL` in core-api does not match the
+   model vllm-chat is serving — the server rejects the request.
 3. **Timeout too short for a cold start.** The per-call ceiling is
-   `OLLAMA_TIMEOUT_SEC` (120s default). A cold Ollama model load alone can
+   `MODEL_TIMEOUT_SEC` (120s default). A cold model load alone can
    take 15–20s, so a low value here reports "provider down" for what is
    really "provider still warming up" — this was the original cause of a
    flood, back when the NER budget was a hardcoded 3s. If you raise it
@@ -137,12 +101,12 @@ not the bug.
    the gunicorn `--timeout` in `docker-entrypoint.sh` too: masking runs
    inline in the submit request, so gunicorn reaping the worker first
    turns a clean MASK_FAILED into a 502 and loses the ticket.
-4. **Response-shape drift.** `format="json"` guarantees valid JSON, *not* a
-   top-level array — models routinely wrap it (`{"found": [...]}`). The
-   parser unwraps the first list value it finds; a model that returns some
-   genuinely different shape will fail closed to `MASK_FAILED`. Check the
-   `masking: Ollama NER failed (...)` warning — it logs the offending
-   payload verbatim.
+4. **Response-shape drift.** The request pins a JSON Schema, so the reply
+   should be `{"spans": [...]}`; the parser also unwraps the first list value
+   of any other object. A server that ignores the schema, or a reply with no
+   content, fails closed to `MASK_FAILED`. Check the
+   `masking: LLM NER failed (...)` warning — it logs the offending payload
+   verbatim.
 
 **Do not** "fix" this by treating NER failure as no-PII-found. That inverts
 the one safety property this stage exists to guarantee.

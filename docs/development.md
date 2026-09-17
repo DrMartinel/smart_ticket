@@ -91,7 +91,7 @@ Routers live in `apps/<app>/api.py` (Django Ninja). Follow the RBAC decorator pa
 
 ### Change a prompt
 
-Prompts are versioned files in `services/ai-engine/src/ai_engine/core/llm/prompts/`. Bump the version in the filename and in `core/config.py`, and note what changed. **Prompt changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI.
+Prompts are versioned files in `services/ai-engine/src/ai_engine/core/prompts/`. Bump the version in the filename and in `core/config.py`, and note what changed. **Prompt changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI.
 
 ### Add a KB article
 
@@ -129,7 +129,7 @@ Two invariants CI enforces that you should not work around:
 |---|---|
 | `Failed to spawn: pytest` | `uv sync` instead of `uv sync --all-packages` |
 | `ModuleNotFoundError: tests.*` on a whole-workspace run | core-api and ai-engine both have a package named `tests`. Handled by `--import-mode=importlib` in root `pyproject.toml` — don't remove it |
-| Every ticket `mask_failed` | Containers can't reach Ollama (see [`onboarding.md`](onboarding.md) step 2), or the NER model isn't pulled |
+| Every ticket `mask_failed` | vllm-chat isn't running or reachable (see [`onboarding.md`](onboarding.md) step 2), or `VLLM_CHAT_MODEL` doesn't match what it serves |
 | Submit hangs for a long time | Connect and read timeouts collapsed into one. They're deliberately separate: 3s connect, 120s read |
 | All four generation checks ✗ | No LLM ran. Read the reason code above the panel — usually a degraded run |
 | Unaccented Vietnamese matches nothing | The lexical reranker folds diacritics (`_strip_diacritics`). If this regresses, tickets typed without tone marks stop matching an accented KB |

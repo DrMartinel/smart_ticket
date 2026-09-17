@@ -14,7 +14,7 @@
 #      No GPU, no LLM, no network — this tier alone catches most
 #      regressions and never flakes on infra.
 #
-#   2. Runs when a real Ollama-compatible endpoint is available (self-hosted
+#   2. Runs when a real vLLM endpoint is available (self-hosted
 #      GPU runner, or a hosted endpoint via secrets) — the live-pipeline
 #      suites (retrieval, classification, refusal, end-to-end) against the
 #      FULL golden set (EVAL_FULL_RUN=1), gated by report.py's regression
@@ -60,7 +60,7 @@ jobs:
       DATABASE_URL: postgresql://app_user:app_password@localhost:5432/smart_triage
       SECRET_KEY: ci-only-key
       EMBEDDING_PROVIDER: stub
-      # Matches the shipped default. Note what that means: retrieval.floor is a
+      # No vLLM in this job. Note what that means: retrieval.floor is a
       # CROSS-ENCODER score (ADR-0005), so the refusal-related metrics in this
       # gate are measured against a threshold compared to token-overlap ratios.
       # They protect the wiring, not the retrieval calibration — see
@@ -103,8 +103,8 @@ jobs:
           path: evals/report.md
 
   live-pipeline-suites:
-    # Requires a self-hosted runner with Ollama (or OLLAMA_BASE_URL
-    # pointed at a hosted endpoint via secrets) + bge-m3 pulled. Skipped
+    # Requires a self-hosted runner with vLLM (the `vllm` compose profile,
+    # or VLLM_*_BASE_URL pointed at an endpoint via secrets). Skipped
     # automatically if that label isn't available in this repo — remove
     # the `if:` guard once a real runner is provisioned.
     if: ${{ vars.HAS_GPU_RUNNER == 'true' }}
@@ -113,11 +113,10 @@ jobs:
     env:
       DATABASE_URL: postgresql://app_user:app_password@localhost:5432/smart_triage
       AI_ENGINE_URL: http://localhost:8001
-      EMBEDDING_PROVIDER: ollama
-      # Matches the shipped default, same caveat as offline-suites above. This
-      # is the job that SHOULD eventually run cross_encoder — it is the only one
-      # with a GPU runner, and item 4 needs its score distribution.
-      RERANKER_PROVIDER: lexical
+      EMBEDDING_PROVIDER: vllm
+      # The shipped default: the cross-encoder served by vllm-rerank. This is
+      # the only job with a GPU runner, and item 4 needs its score distribution.
+      RERANKER_PROVIDER: vllm
       EVAL_FULL_RUN: "1"
     steps:
       - uses: actions/checkout@v4

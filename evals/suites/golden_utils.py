@@ -23,7 +23,7 @@ RESULTS_PATH = (
 AI_ENGINE_URL = os.environ.get("AI_ENGINE_URL", "http://localhost:8001")
 
 # Live-pipeline suites call a real LLM per case (~3-5s each on local
-# Ollama hardware). Running the full golden set on every local test
+# vLLM hardware). Running the full golden set on every local test
 # invocation is impractical; CI / a real quality gate should set
 # EVAL_FULL_RUN=1 to use the complete set (spec §12.3's actual gate).
 # The default sample size is deliberately small — enough to prove the

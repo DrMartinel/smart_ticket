@@ -12,9 +12,9 @@ import time
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.core.llm.circuit_breaker import CircuitOpenError
-from ai_engine.core.llm.client import AllLLMDownError, LLMResult
-from ai_engine.core.llm.prompt_store import load_system_prompt
+from ai_engine.core.providers.llm.circuit_breaker import CircuitOpenError
+from ai_engine.core.providers.llm.client import AllLLMDownError, LLMResult
+from ai_engine.core.prompts import load_system_prompt
 from ai_engine.graph.nodes.infer import InferNode
 
 _VALID_OUTPUT = json.dumps(
@@ -32,7 +32,7 @@ def _result(text: str = _VALID_OUTPUT, **kw) -> LLMResult:
         text=text,
         tokens_in=kw.pop("tokens_in", 100),
         tokens_out=kw.pop("tokens_out", 20),
-        model=kw.pop("model", "ollama/test"),
+        model=kw.pop("model", "vllm/test"),
         cost_usd=kw.pop("cost_usd", 0.0),
         **kw,
     )
@@ -73,7 +73,7 @@ def test_budget_exhausted_makes_no_llm_call(fake_llm, exhausted_budget_state):
 
 
 def test_per_attempt_timeout_leaves_headroom_for_the_fallback_attempt(fake_llm, make_state):
-    """The client retries the primary and may fall back to Ollama within the
+    """The client retries the primary and may fall back to vLLM within the
     ticket's latency budget. Spending it all on the first attempt turns a
     recoverable blip into all_llm_down.
     """
@@ -139,19 +139,19 @@ def test_valid_output_is_parsed_into_a_proposal(fake_llm, make_state):
 
     assert out["proposal"] is not None
     assert out["proposal"].root.proposed_intent == "route_to_team"
-    assert out["model_used"] == "ollama/test"
+    assert out["model_used"] == "vllm/test"
 
 
 def test_cloud_fallback_degraded_reason_reaches_state(fake_llm, make_state):
-    """Falling back from cloud to Ollama is a quality degradation, not a
+    """Falling back from cloud to self-hosted vLLM is a quality degradation, not a
     failure — but core-api has to see it, because the proposal it is about
     to score came from the weaker model."""
 
-    llm = fake_llm(result=_result(degraded_reason="cloud_fallback_to_ollama"))
+    llm = fake_llm(result=_result(degraded_reason="cloud_fallback_to_self_host"))
 
     out = _node(llm)(make_state())
 
-    assert out["degraded_reason"] == "cloud_fallback_to_ollama"
+    assert out["degraded_reason"] == "cloud_fallback_to_self_host"
     assert out["proposal"] is not None
 
 

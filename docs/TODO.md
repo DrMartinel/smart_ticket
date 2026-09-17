@@ -103,7 +103,7 @@ This is recorded in `evals/baselines/baseline.json` as a known issue rather than
 
 ### Work
 
-Investigate whether the fix belongs in the KB content (KB-0010 is thin and semantically distant from the tickets that should match it) or in the classification prompt (`services/ai-engine/src/ai_engine/core/llm/prompts/classify.v3.md`). Prompt changes go through the eval gate like code changes.
+Investigate whether the fix belongs in the KB content (KB-0010 is thin and semantically distant from the tickets that should match it) or in the classification prompt (`services/ai-engine/src/ai_engine/core/prompts/classify.v3.md`). Prompt changes go through the eval gate like code changes.
 
 ### Done when
 
@@ -119,13 +119,11 @@ Investigate whether the fix belongs in the KB content (KB-0010 is thin and seman
 
 ### Problem
 
-Availability is **done**: `FlagEmbedding` (BAAI's `FlagReranker`, from GitHub at a pinned commit) is a required dependency, the weights ship in the ai-engine image, and `RERANKER_PROVIDER=cross_encoder` is one variable plus a restart. It is no longer possible for the switch to silently not work.
-
-Calibration is not done, and the mismatch is live in the shipped default:
+The cross-encoder is the default: `RERANKER_PROVIDER=vllm` serves `bge-reranker-v2-m3` from vllm-rerank (ADR-0009). Calibration is not done:
 
 - `retrieval.floor = 0.45` is a **cross-encoder** score (🔧, never fitted).
-- The default provider is `lexical`, which scores `|query ∩ passage| / |query|`.
-- So the floor is compared against a token-overlap ratio. Different question, no error, no test that can see it.
+- It was written against FlagEmbedding's sigmoid-normalized `compute_score(normalize=True)`; whether vLLM returns that same scale is unverified.
+- Under `lexical` (CI), the floor is compared against a token-overlap ratio. Different question, no error, no test that can see it.
 
 Note the shape of this: it is not "the wrong number", it is "a number from a different measurement compared against this one". Fixing it by nudging `0.45` would be the worst outcome, because it would make the mismatch invisible rather than absent.
 
@@ -133,18 +131,27 @@ There is also a structural blocker. core-api owns `thresholds.yaml` and sends `r
 
 ### Work
 
-1. Pin `RERANKER_REVISION` to a commit sha in `infra/.env` and the Dockerfile build arg. Do this first — with it at `main`, an upstream push moves the distribution out from under whatever you measure.
-2. Run the pipeline under `cross_encoder` and **look at the score distribution** before choosing anything. The GPU job in `eval-gate.yml` is the natural place; it is the only one with a runner that can carry the model.
+1. Pin `RERANKER_REVISION` to a commit sha in `infra/.env` (it is passed to vllm-rerank). Do this first — with it at `main`, an upstream push moves the distribution out from under whatever you measure.
+2. Confirm vllm-rerank's scores are in [0, 1] on the sigmoid scale, then run the pipeline under `vllm` and **look at the score distribution** before choosing anything. The GPU job in `eval-gate.yml` is the natural place.
 
    ```bash
-   RERANKER_PROVIDER=cross_encoder uv run --package evals pytest evals/suites/test_retrieval.py -q
+   RERANKER_PROVIDER=vllm uv run --package evals pytest evals/suites/test_retrieval.py -q
    ```
 3. Derive floor and margin from what you observe, not from what keeps CI green.
 4. Close the coupling. Options, cheapest first: have ai-engine echo its provider in `AIRunResponse` so core-api can log or reject a mismatch; or move the floor per-provider in `thresholds.yaml` and give core-api the provider setting (accepting that two services then share a value that can disagree).
 
+### vLLM (ADR-0009)
+
+The in-process FlagEmbedding reranker is removed, so there is no local score
+to compare against: step 2 above is the check. Both services now embed through vLLM, so the KB chunks, ticket
+embeddings and few-shot examples already in pgvector must be re-embedded
+through it. Masking's tier-2 NER moved to `VLLM_CHAT_MODEL` and needs its
+detection quality re-checked on real tickets. None of the vLLM path has run
+against real hardware yet.
+
 ### Done when
 
-`Recall@5 ≥ 0.90` holds under `cross_encoder` with floor and margin derived from observed scores, `RERANKER_REVISION` is a sha, the 🔧 markers are gone from `retrieval` in `thresholds.yaml`, and a provider/floor mismatch is detectable rather than silent.
+`Recall@5 ≥ 0.90` holds under `vllm` with floor and margin derived from observed scores, `RERANKER_REVISION` is a sha, the 🔧 markers are gone from `retrieval` in `thresholds.yaml`, and a provider/floor mismatch is detectable rather than silent.
 
 > Per hard rule 9: do not move the floor to make a suite green. If the numbers disagree, that is the finding.
 
@@ -218,7 +225,7 @@ process-lifetime and grow unboundedly across tickets.
 
 In `HybridRetrieveNode`, the embedding round-trip happens inside
 `with self._db.connect()`, pinning an `ai_engine_ro` connection for the
-15–20s a cold Ollama model load can take. Hoisting it out is a small change
+15–20s a cold model load can take. Hoisting it out is a small change
 but it reorders two I/O operations and their failure sequence, so it wants
 its own commit and its own test.
 
@@ -235,7 +242,7 @@ its own commit and its own test.
 
 - **`anthropic` / `gemini` cannot express a connect budget.** Both take a flat
   timeout (ADR-0007), so an unreachable endpoint consumes the per-attempt read
-  budget rather than failing in ~3s. Acceptable today because Ollama keeps the
+  budget rather than failing in ~3s. Acceptable today because vLLM keeps the
   split and hosted APIs usually refuse fast. If either becomes the standing
   primary, revisit — an upstream `http_client` parameter would fix it cleanly.
 

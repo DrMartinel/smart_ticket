@@ -2,7 +2,7 @@
 process_ticket — spec §10.3's overarching rule: any degradation must fail
 open to a human, never fail silent. AIEngineUnavailable already had that
 fallback; the embedding call ahead of it (used for incident/duplicate
-detection) did not — an Ollama outage there raised an uncaught exception
+detection) did not — an embedding outage there raised an uncaught exception
 straight out of the Celery task, leaving the ticket stuck at status="new"
 forever with no RoutingDecision and no ReviewItem, invisible to every
 queue and dashboard. This is the regression test for that fix.

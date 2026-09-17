@@ -1,5 +1,5 @@
 """
-The two `Reranker` implementations (spec §6.3), selected in
+The `Reranker` implementations (spec §6.3), selected in
 `providers/factory.py`.
 
 Their scores are separate calibrations: `retrieval.floor` is a cross-encoder
@@ -13,6 +13,9 @@ import re
 import unicodedata
 from typing import Any
 
+import httpx
+
+from ai_engine.core.config import settings
 from ai_engine.core.providers.base import Reranker
 
 
@@ -50,27 +53,55 @@ class LexicalReranker(Reranker):
         return overlap / len(q)
 
 
-class CrossEncoderReranker(Reranker):
-    """bge-reranker-v2-m3 via FlagEmbedding's `FlagReranker` — spec §6.3.
+class VLLMReranker(Reranker):
+    """`reranker_model` served by a self-hosted vLLM server, over its
+    Cohere-style `/v1/rerank` (ADR-0009).
 
-    Takes an ALREADY-LOADED model and does no I/O; the load happens at
-    startup in `providers/factory.py::_load_cross_encoder`. Boot therefore
-    blocks until the weights are resident, and an unusable model cache
-    kills the container instead of degrading tickets — there is no correct
-    fallback, since lexical is a different calibration (ADR-0005).
+    `retrieval.floor` was specified as bge-reranker-v2-m3's sigmoid-normalized
+    score (FlagEmbedding's `compute_score(normalize=True)`), never fitted.
+    Confirm vLLM returns that same scale before calibrating against it
+    (ADR-0005, docs/TODO.md item 4).
 
-    No lazy load and no lock: receiving a built model makes a cold-start
-    stampede (one multi-GB model per thread, an OOM kill) impossible.
-    Reintroduce lazy loading and the lock must come back. Read-only after
-    construction.
+    RAISES on any failure or unusable reply; there is no fallback, because
+    lexical is a different calibration. The HTTP client opens no socket at
+    construction. Read-only afterwards.
     """
 
-    def __init__(self, *, model: Any) -> None:
-        self._model = model
+    def __init__(self) -> None:
+        self._model = settings.reranker_model
+        self._client = httpx.Client(
+            base_url=settings.vllm_rerank_base_url,
+            # Connect and read stay separate: an unreachable server is
+            # knowable in seconds, a cold model load is not.
+            timeout=httpx.Timeout(
+                settings.model_timeout_sec, connect=settings.model_connect_timeout_sec
+            ),
+        )
 
     def score(self, query: str, passages: list[str]) -> list[float]:
         if not passages:
             return []
 
-        scores = self._model.compute_score([(query, p) for p in passages], normalize=True)
-        return [float(s) for s in scores]
+        response = self._client.post(
+            "/rerank", json={"model": self._model, "query": query, "documents": passages}
+        )
+        response.raise_for_status()
+        return _scores_in_input_order(response.json(), expected=len(passages))
+
+
+def _scores_in_input_order(body: Any, *, expected: int) -> list[float]:
+    """vLLM returns results sorted by score, each carrying its input `index`.
+    The rerank node zips scores against its candidates POSITIONALLY, so a
+    missing, duplicated or out-of-range index must raise rather than attach a
+    score to the wrong chunk."""
+
+    try:
+        results = body["results"]
+        by_index = {int(r["index"]): float(r["relevance_score"]) for r in results}
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError(f"unusable vLLM rerank reply: {body!r}") from e
+    if len(results) != expected or sorted(by_index) != list(range(expected)):
+        raise ValueError(
+            f"vLLM rerank returned indices {sorted(by_index)}, expected 0..{expected - 1}"
+        )
+    return [by_index[i] for i in range(expected)]

@@ -31,11 +31,8 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Smart Ticket Triage — ai-engine", version="1.0.0")
 
 # Built once, at import time, so a wiring mistake fails the boot rather than a
-# request. No constructor below may open a socket, and none may load a model
-# except CrossEncoderReranker, which does so on purpose (its weights are baked
-# into the image, so this is a ~2-5s deserialize that keeps the cost off the
-# first ticket — see its docstring). With RERANKER_PROVIDER=cross_encoder this
-# import therefore blocks for that load before uvicorn serves anything.
+# request. No constructor below may open a socket or load a model — every
+# model is served by vLLM (ADR-0009).
 # Tunables are read by the code that uses them, never threaded through here.
 _providers = build_providers()
 _graph = wire_triage(

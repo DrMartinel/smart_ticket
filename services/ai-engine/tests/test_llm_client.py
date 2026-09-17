@@ -3,7 +3,7 @@ LLM-client tests: where an unusable provider reply ends up.
 
 Blank, non-string or missing content must be treated like a transport failure
 — retry, fall back, then AllLLMDownError → HITL. Escaping the client would be
-a 500 with no TrustSignals. Drives fake `ChatModelFactory`s (ADR-0007).
+a 500 with no TrustSignals. Drives a fake `LLMClient` subclass (ADR-0007).
 """
 
 from __future__ import annotations
@@ -12,15 +12,14 @@ import httpx
 import pytest
 from langchain_core.messages import AIMessage
 
-from ai_engine.core.llm import client as client_module
-from ai_engine.core.llm.circuit_breaker import CircuitBreaker, CircuitOpenError
-from ai_engine.core.llm.client import AllLLMDownError, DefaultLLMClient, LLMResult
-from ai_engine.core.llm.models import ChatModelFactory
+from ai_engine.core.providers.llm import client as client_module
+from ai_engine.core.providers.llm.circuit_breaker import CircuitBreaker, CircuitOpenError
+from ai_engine.core.providers.llm.client import AllLLMDownError, LLMClient, LLMResult
 
 
 class _FakeChatModel:
     """Stands in for a BaseChatModel. Not a subclass: `invoke` is all
-    `_invoke` touches, and subclassing drags in unrelated pydantic
+    `_attempt` touches, and subclassing drags in unrelated pydantic
     validation.
     """
 
@@ -36,9 +35,9 @@ class _FakeChatModel:
         return reply
 
 
-class _FakeFactory(ChatModelFactory):
-    def __init__(self, *replies, name="fake/model", cost=0.0):
-        super().__init__(model_name=name, cost_per_1k_tokens=cost)
+class _FakeLLM(LLMClient):
+    def __init__(self, *replies, name="fake/model", cost=0.0, fallback=None):
+        super().__init__(model_name=name, cost_per_1k_tokens=cost, fallback=fallback)
         self._model = _FakeChatModel(replies)
 
     def _build(self, timeout: float):
@@ -58,10 +57,6 @@ def _ok(text='{"ok": true}', tokens_in=7, tokens_out=3):
             "total_tokens": tokens_in + tokens_out,
         },
     )
-
-
-def _client(primary, fallback=None):
-    return DefaultLLMClient(primary=primary, fallback=fallback, default_timeout=30.0)
 
 
 @pytest.fixture(autouse=True)
@@ -99,15 +94,15 @@ def test_unusable_content_raises_all_llm_down(content, no_backoff):
     boring-but-valid proposal. It must exhaust the chain rather than be
     handed to infer.py as text."""
 
-    primary = _FakeFactory(AIMessage(content=content))
+    primary = _FakeLLM(AIMessage(content=content))
     with pytest.raises(AllLLMDownError):
-        _client(primary).complete("s", "u")
+        primary.complete("s", "u", timeout=30.0)
     assert primary.calls == 2, "an unusable reply must be retried like a transport failure"
 
 
-# Every hierarchy that can realistically escape a provider. ollama surfaces raw
-# httpx errors; the cloud link raises openai.APIError subclasses over vendored
-# httpx2 — and httpx.HTTPError is NOT httpx2.HTTPError. An enumerated except
+# Every hierarchy that can realistically escape a provider. Raw httpx errors;
+# openai.APIError subclasses over vendored httpx2 (vLLM and the openai link) —
+# and httpx.HTTPError is NOT httpx2.HTTPError. An enumerated except
 # tuple in client.py would let one of these through as a 500.
 _PROVIDER_ERRORS = {
     "httpx transport": httpx.ConnectTimeout("connect timed out"),
@@ -125,7 +120,7 @@ def test_no_provider_exception_escapes_as_anything_but_all_llm_down(exc, no_back
     """
 
     with pytest.raises(AllLLMDownError):
-        _client(_FakeFactory(exc)).complete("s", "u")
+        _FakeLLM(exc).complete("s", "u", timeout=30.0)
 
 
 def test_circuit_open_is_not_swallowed_by_the_broad_except(fresh_circuit):
@@ -137,41 +132,41 @@ def test_circuit_open_is_not_swallowed_by_the_broad_except(fresh_circuit):
     for _ in range(10):
         fresh_circuit.record(success=False)
 
-    primary = _FakeFactory(_ok())
+    primary = _FakeLLM(_ok())
     with pytest.raises(CircuitOpenError):
-        _client(primary).complete("s", "u")
+        primary.complete("s", "u", timeout=30.0)
     assert primary.calls == 0, "an open circuit must not call any provider"
 
 
-def test_failing_cloud_falls_back_to_ollama_and_marks_the_degradation(no_backoff):
+def test_failing_cloud_falls_back_to_self_host_and_marks_the_degradation(no_backoff):
     """The fallback is a quality degradation that core-api has to see: the
     trust score and the reviewer panel both read degraded_reason. Falling back
     silently would look like a clean cloud answer."""
 
-    primary = _FakeFactory(RuntimeError("cloud down"), name="claude-sonnet-5")
-    fallback = _FakeFactory(_ok(), name="ollama/qwen3.5:9b")
+    fallback = _FakeLLM(_ok(), name="vllm/Qwen/Qwen3-8B-AWQ")
+    primary = _FakeLLM(RuntimeError("cloud down"), name="claude-sonnet-5", fallback=fallback)
 
-    result = _client(primary, fallback).complete("s", "u")
+    result = primary.complete("s", "u", timeout=30.0)
 
-    assert result.degraded_reason == "cloud_fallback_to_ollama"
-    assert result.model == "ollama/qwen3.5:9b"
+    assert result.degraded_reason == "cloud_fallback_to_self_host"
+    assert result.model == "vllm/Qwen/Qwen3-8B-AWQ"
     assert primary.calls == 2, "the primary gets its retry before the chain falls back"
     assert fallback.calls == 1
 
 
 def test_both_links_failing_raises_all_llm_down(no_backoff):
-    primary = _FakeFactory(RuntimeError("cloud down"))
-    fallback = _FakeFactory(httpx.ConnectError("ollama down"))
+    fallback = _FakeLLM(httpx.ConnectError("vllm down"))
+    primary = _FakeLLM(RuntimeError("cloud down"), fallback=fallback)
     with pytest.raises(AllLLMDownError):
-        _client(primary, fallback).complete("s", "u")
+        primary.complete("s", "u", timeout=30.0)
 
 
 def test_absent_usage_metadata_defaults_to_zero_tokens():
-    """Ollama omits token counts for a cached prompt, so absent means 0, not
+    """A provider may omit token counts, so absent means 0, not
     an error (indistinguishable from null counts — ADR-0007).
     """
 
-    result = _client(_FakeFactory(AIMessage(content='{"ok": true}'))).complete("s", "u")
+    result = _FakeLLM(AIMessage(content='{"ok": true}')).complete("s", "u", timeout=30.0)
     assert (result.tokens_in, result.tokens_out) == (0, 0)
 
 
@@ -182,26 +177,26 @@ def test_model_name_comes_from_config_not_the_response():
 
     reply = _ok()
     reply.response_metadata["model"] = "something-else-entirely"
-    result = _client(_FakeFactory(reply, name="ollama/qwen3.5:9b")).complete("s", "u")
-    assert result.model == "ollama/qwen3.5:9b"
+    result = _FakeLLM(reply, name="vllm/Qwen/Qwen3-8B-AWQ").complete("s", "u", timeout=30.0)
+    assert result.model == "vllm/Qwen/Qwen3-8B-AWQ"
 
 
-def test_cost_is_billed_at_the_factorys_own_rate():
-    """The rate lives on the factory. A client-side "is this the cloud link?"
+def test_cost_is_billed_at_the_providers_own_rate():
+    """The rate lives on the provider. A client-side "is this the cloud link?"
     check would bill Gemini at Anthropic's rate, and the dashboard would
     look plausible while wrong.
     """
 
-    result = _client(_FakeFactory(_ok(tokens_in=900, tokens_out=100), cost=0.003)).complete(
-        "s", "u"
+    result = _FakeLLM(_ok(tokens_in=900, tokens_out=100), cost=0.003).complete(
+        "s", "u", timeout=30.0
     )
     assert result.tokens_in == 900
     assert result.cost_usd == pytest.approx(0.003)
 
 
 def test_local_provider_is_free():
-    result = _client(_FakeFactory(_ok(tokens_in=1000, tokens_out=0), cost=0.0)).complete("s", "u")
-    assert result.cost_usd == 0.0, "ollama is local compute, treated as free"
+    result = _FakeLLM(_ok(tokens_in=1000, tokens_out=0), cost=0.0).complete("s", "u", timeout=30.0)
+    assert result.cost_usd == 0.0, "self-hosted vLLM is local compute, treated as free"
 
 
 def test_llm_result_rejects_a_null_text():

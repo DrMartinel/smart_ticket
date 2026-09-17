@@ -9,7 +9,6 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "langgraph>=0.2",
     "langchain-core>=1.5",
-    "langchain-ollama>=1.0",
     "langchain-openai>=1.0",
     "psycopg[binary]>=3.2",
     "pgvector>=0.3",
@@ -20,22 +19,6 @@ dependencies = [
     "pydantic-settings>=2.6",
     "langchain-anthropic>=1.0",
     "langchain-google-genai>=3.0",
-    # Mandatory, not an extra. It used to be optional so a default install
-    # stayed light and GPU-free, with RERANKER_PROVIDER=lexical as the
-    # default — but `retrieval.floor` is specified as a CROSS-ENCODER score
-    # (ADR-0005), so that default compared a cross-encoder threshold against
-    # token-overlap ratios: a different question, silently, with no error.
-    # The cross-encoder is now the only calibrated provider and ships with
-    # the service. Cost: this pulls torch, so installs and images are
-    # several GB heavier.
-    #
-    # Loaded through FlagEmbedding's FlagReranker, BAAI's own reference
-    # implementation for bge-reranker-v2-m3 (per the model card), installed
-    # from GitHub. Pinned to a commit rather than a branch: the reranker's
-    # tokenization/truncation/scoring code shapes the score distribution
-    # `retrieval.floor` is compared against just as much as the checkpoint
-    # does (ADR-0005), so an upstream push must not change it silently.
-    "FlagEmbedding",  # source pinned under [tool.uv.sources]
 ]
 
 [dependency-groups]
@@ -54,4 +37,3 @@ packages = ["src/ai_engine"]
 
 [tool.uv.sources]
 contracts = { workspace = true }
-FlagEmbedding = { git = "https://github.com/FlagOpen/FlagEmbedding.git", rev = "fd1a2bdf69488ffebe0327999d4400d8c8058a0b" }

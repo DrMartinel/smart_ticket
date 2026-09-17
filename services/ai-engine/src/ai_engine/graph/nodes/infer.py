@@ -18,10 +18,10 @@ from contracts.llm_draft import LLMProposalEnvelope
 
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
-from ai_engine.core.llm.base import LLMClient
-from ai_engine.core.llm.circuit_breaker import CircuitOpenError
-from ai_engine.core.llm.client import AllLLMDownError
-from ai_engine.core.llm.prompt_store import load_system_prompt
+from ai_engine.core.providers.llm.client import LLMClient
+from ai_engine.core.providers.llm.circuit_breaker import CircuitOpenError
+from ai_engine.core.providers.llm.client import AllLLMDownError
+from ai_engine.core.prompts import load_system_prompt
 from ai_engine.core.state import TriageState
 
 logger = logging.getLogger(__name__)

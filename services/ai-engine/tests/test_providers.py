@@ -5,65 +5,23 @@ test_providers_factory.py.
 
 from __future__ import annotations
 
-import threading
+import json
 
+import httpx
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.core.llm.base import LLMClient
 from ai_engine.core.providers.base import Embedder, Reranker
-from ai_engine.core.providers.embeddings import EMBED_DIM, OllamaEmbedder, StubEmbedder
-from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
-
-
-def _fake_model():
-    class _Model:
-        def compute_score(self, pairs, **kwargs):
-            return [0.0] * len(pairs)
-
-    return _Model()
-
-
-def test_cross_encoder_builds_its_model_exactly_once_at_construction():
-    """The model arrives built, so concurrent scoring must never build
-    another.
-
-    FastAPI serves `analyze` from a threadpool against one shared
-    reranker; a lazy load let each racing cold request build its own
-    multi-GB model (OOM). The threads make a lock-less lazy load fail
-    here.
-    """
-
-    model = _fake_model()
-    reranker = CrossEncoderReranker(model=model)
-    assert reranker._model is model  # handed in built; nothing to load, ever
-
-    barrier = threading.Barrier(8)
-
-    def race():
-        barrier.wait()
-        reranker.score("q", ["p"])
-
-    threads = [threading.Thread(target=race) for _ in range(8)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
-
-    assert reranker._model is model
-
-
-def test_cross_encoder_empty_passages_scores_nothing():
-    """Refuse-before-LLM and budget-exhausted paths can reach the reranker
-    with nothing to score; they must get `[]` without a model call.
-    """
-
-    class _ExplodingModel:
-        def compute_score(self, pairs, **kwargs):
-            raise AssertionError("compute_score must not be called for an empty passage list")
-
-    reranker = CrossEncoderReranker(model=_ExplodingModel())
-    assert reranker.score("q", []) == []
+from ai_engine.core.providers.llm.client import LLMClient
+from ai_engine.core.providers.embeddings import (
+    EMBED_DIM,
+    StubEmbedder,
+    VLLMEmbedder,
+)
+from ai_engine.core.providers.reranker import (
+    LexicalReranker,
+    VLLMReranker,
+)
 
 
 def test_stub_embedder_is_deterministic_and_unit_norm():
@@ -82,9 +40,9 @@ def test_stub_embedder_is_deterministic_and_unit_norm():
 
 
 @pytest.mark.parametrize("returned_dim", [0, 768, EMBED_DIM - 1])
-def test_ollama_embedder_rejects_a_wrong_width_vector(returned_dim, monkeypatch):
-    """EMBED_DIM is the pgvector column width, which langchain-ollama knows
-    nothing about, so the check lives on our side.
+def test_vllm_embedder_rejects_a_wrong_width_vector(returned_dim, monkeypatch):
+    """EMBED_DIM is the pgvector column width, which neither langchain client
+    knows anything about, so the check lives on our side.
 
     A wrong-width vector fails far away as a pgvector error or — if empty
     — as an ordinary refuse-before-LLM, reporting a provider outage as a
@@ -95,17 +53,16 @@ def test_ollama_embedder_rejects_a_wrong_width_vector(returned_dim, monkeypatch)
         def embed_query(self, _text):
             return [0.1] * returned_dim
 
-    embedder = OllamaEmbedder()
+    embedder = VLLMEmbedder()
     monkeypatch.setattr(embedder, "_embeddings", _WrongWidthClient())
 
     with pytest.raises(ValueError, match=f"expected {EMBED_DIM}"):
         embedder.embed("không đăng nhập được")
 
 
-def test_ollama_embedder_construction_opens_no_socket(monkeypatch):
+def test_vllm_embedder_construction_opens_no_socket(monkeypatch):
     """build_providers() constructs this at uvicorn import time and in tests
-    with no Ollama reachable. langchain-ollama would do a round trip here if
-    `validate_model_on_init` were ever turned on."""
+    with no vLLM server reachable."""
 
     import socket
 
@@ -117,7 +74,7 @@ def test_ollama_embedder_construction_opens_no_socket(monkeypatch):
         lambda self, addr, *a: (opened.append(addr), real_connect(self, addr, *a))[1],
     )
 
-    OllamaEmbedder()
+    VLLMEmbedder()
     assert opened == []
 
 
@@ -155,7 +112,7 @@ def test_provider_missing_its_method_cannot_be_constructed(seam):
 
 @pytest.mark.parametrize(
     ("embedding_provider", "reranker_provider"),
-    [("stub", "lexical"), ("ollama", "cross_encoder")],
+    [("stub", "lexical"), ("vllm", "vllm")],
 )
 def test_every_built_provider_subclasses_its_seam(
     embedding_provider, reranker_provider, monkeypatch
@@ -163,14 +120,8 @@ def test_every_built_provider_subclasses_its_seam(
     """Only a subclass gets the construction-time check above; a provider
     added without inheriting from its seam would silently opt out of it."""
 
-    from ai_engine.core.providers import factory as factory_mod
     from ai_engine.core.providers.factory import build_providers
 
-    # CI has the dependency but not the ~2.3GB checkpoint, and
-    # CrossEncoderReranker loads its model in __init__. This test is about the
-    # seam check, not about model loading, so it stubs the loader — the loading
-    # behaviour itself is pinned in test_providers_factory.py.
-    monkeypatch.setattr(factory_mod, "_load_cross_encoder", object)
     monkeypatch.setattr(settings, "embedding_provider", embedding_provider)
     monkeypatch.setattr(settings, "reranker_provider", reranker_provider)
     providers = build_providers()
@@ -178,3 +129,74 @@ def test_every_built_provider_subclasses_its_seam(
     assert isinstance(providers.embedder, Embedder)
     assert isinstance(providers.reranker, Reranker)
     assert isinstance(providers.llm, LLMClient)
+
+
+def _vllm_reranker(handler) -> VLLMReranker:
+    reranker = VLLMReranker()
+    reranker._client = httpx.Client(
+        base_url=settings.vllm_rerank_base_url, transport=httpx.MockTransport(handler)
+    )
+    return reranker
+
+
+def _rerank_reply(pairs):
+    return {"results": [{"index": i, "relevance_score": s} for i, s in pairs]}
+
+
+def test_vllm_reranker_returns_scores_in_input_order_not_rank_order():
+    """vLLM sorts results by score. The rerank node zips scores against its
+    candidates positionally, so they must come back in INPUT order."""
+
+    sent = []
+
+    def handler(request):
+        sent.append((request.url.path, json.loads(request.content)))
+        return httpx.Response(200, json=_rerank_reply([(2, 0.9), (0, 0.4), (1, 0.1)]))
+
+    scores = _vllm_reranker(handler).score("vpn down", ["a", "b", "c"])
+
+    assert scores == [0.4, 0.1, 0.9]
+    [(path, body)] = sent
+    assert path == "/v1/rerank"
+    assert body == {
+        "model": settings.reranker_model,
+        "query": "vpn down",
+        "documents": ["a", "b", "c"],
+    }
+
+
+def test_vllm_reranker_empty_passages_sends_no_request():
+    def handler(request):
+        raise AssertionError("no request expected")
+
+    assert _vllm_reranker(handler).score("q", []) == []
+
+
+_UNUSABLE_RERANK_REPLIES = {
+    "too few": _rerank_reply([(0, 0.5)]),
+    "duplicate index": _rerank_reply([(0, 0.5), (0, 0.4)]),
+    "index out of range": _rerank_reply([(0, 0.5), (2, 0.4)]),
+    "missing score": {"results": [{"index": 0}, {"index": 1}]},
+    "no results": {"data": []},
+}
+
+
+@pytest.mark.parametrize(
+    "body", _UNUSABLE_RERANK_REPLIES.values(), ids=_UNUSABLE_RERANK_REPLIES.keys()
+)
+def test_vllm_reranker_raises_on_an_unusable_reply(body):
+    """A short or misindexed result list would attach relevance to the wrong
+    chunk while the ranking still looks plausible."""
+
+    reranker = _vllm_reranker(lambda request: httpx.Response(200, json=body))
+    with pytest.raises(ValueError):
+        reranker.score("q", ["a", "b"])
+
+
+def test_vllm_reranker_raises_on_a_server_error():
+    """No fallback to lexical: a different calibration (ADR-0005). The ticket
+    degrades to HITL instead."""
+
+    reranker = _vllm_reranker(lambda request: httpx.Response(503))
+    with pytest.raises(httpx.HTTPStatusError):
+        reranker.score("q", ["a"])

@@ -42,7 +42,7 @@ Worth knowing, because these are the invariants a reviewer will check you haven'
 
 Spec §14 makes it the P0 exit condition, and the reason is asymmetry: a masking bug leaks PII silently, while a masking false-positive merely creates work. The tests pin, among others:
 
-- A `critical` regex hit short-circuits **before** Ollama is called at all.
+- A `critical` regex hit short-circuits **before** the LLM is called at all.
 - A tier-2 timeout or error becomes `MASK_FAILED`, never "no PII found".
 - A bare `{}` from the model still fails closed — resolving ambiguity toward "clean" is the one thing this stage must never do.
 - Numbered placeholders preserve co-reference (the same email twice stays `[EMAIL_1]` twice).

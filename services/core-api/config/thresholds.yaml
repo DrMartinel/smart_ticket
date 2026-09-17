@@ -54,7 +54,7 @@ budget:
   max_tokens_per_ticket: 8000
   max_llm_calls: 4
   # 🔧 Must stay comfortably above the per-call model ceiling
-  # (OLLAMA_TIMEOUT_SEC / ai-engine model_timeout_sec, both 120s by
+  # (MODEL_TIMEOUT_SEC in core-api and ai-engine, both 120s by
   # default), otherwise the graph's budget guard aborts the run before a
   # single cold-start inference can finish and every ticket degrades to
   # HITL for a reason that is really just "the model was loading".

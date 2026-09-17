@@ -8,27 +8,22 @@ from __future__ import annotations
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.core.llm.models import (
+from ai_engine.core.providers.llm.models import (
     ANTHROPIC_COST_PER_1K_TOKENS,
-    OLLAMA_COST_PER_1K_TOKENS,
-    AnthropicChatModelFactory,
-    GeminiChatModelFactory,
-    OllamaChatModelFactory,
-    OpenAIChatModelFactory,
+    VLLM_COST_PER_1K_TOKENS,
+    AnthropicLLM,
+    GeminiLLM,
+    OpenAILLM,
+    VLLMLLM,
 )
 from ai_engine.core.providers import factory as factory_mod
 from ai_engine.core.db.client import SqlAlchemySessionSource
-from ai_engine.core.providers.embeddings import OllamaEmbedder, StubEmbedder
+from ai_engine.core.providers.embeddings import StubEmbedder, VLLMEmbedder
 from ai_engine.core.providers.factory import build_providers
-from ai_engine.core.providers.reranker import CrossEncoderReranker, LexicalReranker
-
-
-def _stub_cross_encoder(monkeypatch):
-    """Make the cross-encoder constructible without the multi-GB checkpoint,
-    which CI runners don't have.
-    """
-
-    monkeypatch.setattr(factory_mod, "_load_cross_encoder", object)
+from ai_engine.core.providers.reranker import (
+    LexicalReranker,
+    VLLMReranker,
+)
 
 
 def test_unknown_reranker_provider_raises_rather_than_falling_back_to_lexical(monkeypatch):
@@ -52,31 +47,22 @@ def test_unknown_embedding_provider_raises(monkeypatch):
         build_providers()
 
 
-def test_default_reranker_is_lexical_and_switching_needs_only_the_env_var():
-    """Pins the shipped default, and that `RERANKER_PROVIDER=cross_encoder`
-    plus a restart reaches the cross-encoder without a rebuild.
+def test_default_reranker_is_the_vllm_cross_encoder():
+    """Pins the shipped default: the cross-encoder `retrieval.floor` is
+    specified against (ADR-0005), served by vLLM (ADR-0009). `lexical` is for
+    CI and must be selected explicitly.
 
-    Does NOT assert calibration: `retrieval.floor` is a cross-encoder
-    number (ADR-0005) — see docs/TODO.md item 4.
+    Does NOT assert calibration — see docs/TODO.md item 4.
     """
 
-    assert settings.reranker_provider == "lexical"
-    assert isinstance(build_providers().reranker, LexicalReranker)
-
-    monkey = pytest.MonkeyPatch()
-    try:
-        monkey.setattr(settings, "reranker_provider", "cross_encoder")
-        monkey.setattr(factory_mod, "_load_cross_encoder", object)
-        assert isinstance(build_providers().reranker, CrossEncoderReranker)
-    finally:
-        monkey.undo()
+    assert settings.reranker_provider == "vllm"
+    assert isinstance(build_providers().reranker, VLLMReranker)
 
 
 def test_build_providers_opens_no_connections(monkeypatch):
     """main.py calls build_providers() at import time, and test_build.py
     imports main.py with no database. A constructor that opens a socket
-    breaks both. Loading reranker weights is the one exception: a local
-    read, not a connection.
+    breaks both.
     """
 
     monkeypatch.setattr(settings, "reranker_provider", "lexical")
@@ -86,33 +72,9 @@ def test_build_providers_opens_no_connections(monkeypatch):
     assert isinstance(providers.db, SqlAlchemySessionSource)  # constructed, not connected
 
 
-def test_cross_encoder_selection_loads_the_model_at_startup(monkeypatch):
-    """Selecting the cross-encoder loads its weights in build_providers(),
-    not on the first score().
-
-    Per-request loading would cost seconds per cold request and let
-    concurrent requests build their own copies. The image bakes the
-    weights (HF_HUB_OFFLINE=1), so this is a local read; a broken cache
-    fails the boot, intended since lexical is no correct fallback
-    (ADR-0005).
-    """
-
-    loaded = []
-    sentinel = object()
-
-    monkeypatch.setattr(factory_mod, "_load_cross_encoder", lambda: (loaded.append(1), sentinel)[1])
-    monkeypatch.setattr(settings, "reranker_provider", "cross_encoder")
-
-    providers = build_providers()
-
-    assert isinstance(providers.reranker, CrossEncoderReranker)
-    assert loaded == [1]  # before any request, not on first score()
-    assert providers.reranker._model is sentinel
-
-
 @pytest.mark.parametrize(
     ("provider", "expected"),
-    [("stub", StubEmbedder), ("ollama", OllamaEmbedder)],
+    [("stub", StubEmbedder), ("vllm", VLLMEmbedder)],
 )
 def test_embedding_provider_selection(provider, expected, monkeypatch):
     monkeypatch.setattr(settings, "embedding_provider", provider)
@@ -121,18 +83,16 @@ def test_embedding_provider_selection(provider, expected, monkeypatch):
 
 @pytest.mark.parametrize(
     ("provider", "expected"),
-    [("lexical", LexicalReranker), ("cross_encoder", CrossEncoderReranker)],
+    [("lexical", LexicalReranker), ("vllm", VLLMReranker)],
 )
 def test_reranker_provider_selection(provider, expected, monkeypatch):
-    _stub_cross_encoder(monkeypatch)
     monkeypatch.setattr(settings, "reranker_provider", provider)
     assert isinstance(build_providers().reranker, expected)
 
 
 # --- LLM chain wiring (ADR-0007) -------------------------------------------
 #
-# Provider selection for the LLM moved out of DefaultLLMClient (which re-read
-# settings on every call) into build_providers(), so these are startup tests
+# Provider selection for the LLM happens once, in build_providers(), so these are startup tests
 # like the ones above: the point is that a misconfiguration is loud.
 
 
@@ -153,29 +113,30 @@ def _unconfigure_cloud(monkeypatch):
     monkeypatch.setattr(settings, "cloud_base_url", None)
 
 
-def test_no_cloud_configured_gives_ollama_primary_and_no_fallback(monkeypatch, lexical_reranker):
+def test_no_cloud_configured_gives_vllm_primary_and_no_fallback(monkeypatch, lexical_reranker):
     """The default in this environment. There is no second link to fall back
-    to, so the chain is Ollama plus its retry."""
+    to, so the chain is self-hosted vLLM plus its retry."""
 
     _unconfigure_cloud(monkeypatch)
     llm = build_providers().llm
 
-    assert isinstance(llm._primary, OllamaChatModelFactory)
+    assert isinstance(llm, VLLMLLM)
     assert llm._fallback is None
 
 
 @pytest.mark.parametrize(
     ("provider", "base_url", "expected"),
     [
-        ("openai", "https://cloud.example", OpenAIChatModelFactory),
-        ("anthropic", None, AnthropicChatModelFactory),
-        ("gemini", None, GeminiChatModelFactory),
+        ("openai", "https://cloud.example", OpenAILLM),
+        ("anthropic", None, AnthropicLLM),
+        ("gemini", None, GeminiLLM),
     ],
 )
-def test_each_cloud_provider_becomes_primary_with_ollama_behind_it(
+def test_each_cloud_provider_becomes_primary_with_vllm_behind_it(
     provider, base_url, expected, monkeypatch, lexical_reranker
 ):
-    """Whichever cloud provider is selected, Ollama stays the fallback link —
+    """Whichever cloud provider is selected, self-hosted vLLM stays the
+    fallback link —
     spec §10.3. A cloud primary with nothing behind it would turn a provider
     outage into an all_llm_down degrade for every ticket."""
 
@@ -185,8 +146,9 @@ def test_each_cloud_provider_becomes_primary_with_ollama_behind_it(
 
     llm = build_providers().llm
 
-    assert isinstance(llm._primary, expected)
-    assert isinstance(llm._fallback, OllamaChatModelFactory)
+    assert isinstance(llm, expected)
+    assert isinstance(llm._fallback, VLLMLLM)
+    assert llm._fallback._fallback is None
 
 
 def test_unknown_cloud_provider_raises(monkeypatch, lexical_reranker):
@@ -232,14 +194,14 @@ def test_anthropic_accepts_an_optional_base_url(monkeypatch, lexical_reranker):
     monkeypatch.setattr(settings, "cloud_api_key", "key")
     monkeypatch.setattr(settings, "cloud_base_url", "https://proxy.example")
 
-    assert isinstance(build_providers().llm._primary, AnthropicChatModelFactory)
+    assert isinstance(build_providers().llm, AnthropicLLM)
 
 
-def test_base_url_without_an_api_key_is_fatal_rather_than_silently_ollama_only(
+def test_base_url_without_an_api_key_is_fatal_rather_than_silently_self_hosted_only(
     monkeypatch, lexical_reranker
 ):
     """An endpoint without a key must fail the boot, not silently run
-    Ollama-only while the operator believes a cloud primary is in place.
+    self-hosted only while the operator believes a cloud primary is in place.
     """
 
     monkeypatch.setattr(settings, "cloud_api_key", None)
@@ -278,8 +240,8 @@ def test_building_chat_models_opens_no_connections(
     llm = build_providers().llm
     # Force the lazily-built models into existence too — the cache means
     # construction is deferred until the first call with a given timeout.
-    llm._primary(30.0)
-    llm._fallback(30.0)
+    llm._chat_model(30.0)
+    llm._fallback._chat_model(30.0)
 
     assert opened == []
 
@@ -288,15 +250,8 @@ def test_building_chat_models_opens_no_connections(
     ("factory", "attr", "expected"),
     [
         (
-            lambda: OllamaChatModelFactory(
-                model="qwen3.5:9b", base_url="http://localhost:11434", connect_timeout=3.0
-            ),
-            "format",
-            "json",
-        ),
-        (
-            lambda: GeminiChatModelFactory(
-                model="gemini-2.5-pro", api_key="k", max_output_tokens=4096
+            lambda: GeminiLLM(
+                model="gemini-2.5-pro", api_key="k", max_output_tokens=4096, fallback=None
             ),
             "response_mime_type",
             "application/json",
@@ -310,7 +265,7 @@ def test_providers_with_a_json_mode_actually_set_it(factory, attr, expected, lex
     (ADR-0007).
     """
 
-    assert getattr(factory()(30.0), attr) == expected
+    assert getattr(factory()._chat_model(30.0), attr) == expected
 
 
 def test_no_cloud_sdk_retries_on_top_of_ours(lexical_reranker):
@@ -320,12 +275,12 @@ def test_no_cloud_sdk_retries_on_top_of_ours(lexical_reranker):
     in client.py.
     """
 
-    anthropic = AnthropicChatModelFactory(
-        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None
-    )(30.0)
-    gemini = GeminiChatModelFactory(model="gemini-2.5-pro", api_key="k", max_output_tokens=4096)(
-        30.0
-    )
+    anthropic = AnthropicLLM(
+        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None, fallback=None
+    )._chat_model(30.0)
+    gemini = GeminiLLM(
+        model="gemini-2.5-pro", api_key="k", max_output_tokens=4096, fallback=None
+    )._chat_model(30.0)
 
     assert anthropic.max_retries == 0
     assert gemini.max_retries == 0
@@ -337,12 +292,12 @@ def test_flat_timeout_providers_still_bound_the_call(lexical_reranker):
     request outlives the ticket.
     """
 
-    anthropic = AnthropicChatModelFactory(
-        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None
-    )(45.0)
-    gemini = GeminiChatModelFactory(model="gemini-2.5-pro", api_key="k", max_output_tokens=4096)(
-        45.0
-    )
+    anthropic = AnthropicLLM(
+        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None, fallback=None
+    )._chat_model(45.0)
+    gemini = GeminiLLM(
+        model="gemini-2.5-pro", api_key="k", max_output_tokens=4096, fallback=None
+    )._chat_model(45.0)
 
     assert anthropic.default_request_timeout == 45.0
     assert gemini.timeout == 45.0
@@ -353,38 +308,46 @@ def test_chat_models_are_cached_per_timeout_bucket(lexical_reranker):
     built per attempt. Buckets floor to whole seconds so a bucket can never
     exceed the budget it came from."""
 
-    factory = OllamaChatModelFactory(
-        model="qwen3.5:9b", base_url="http://localhost:11434", connect_timeout=3.0
+    llm = VLLMLLM(
+        model="Qwen/Qwen3-8B-AWQ",
+        base_url="http://localhost:8100/v1",
+        connect_timeout=3.0,
+        fallback=None,
     )
 
-    assert factory(30.0) is factory(30.4), "same bucket must reuse the model"
-    assert factory(30.0) is not factory(31.0), "a different budget needs its own client"
+    assert llm._chat_model(30.0) is llm._chat_model(30.4), "same bucket must reuse the model"
+    assert llm._chat_model(30.0) is not llm._chat_model(31.0), (
+        "a different budget needs its own client"
+    )
 
 
-def test_factory_attributes_are_resolved_at_construction(lexical_reranker):
+def test_provider_attributes_are_resolved_at_construction(lexical_reranker):
     """`model_name` and `cost_per_1k_tokens` are resolved in __init__, not
     lazily. They feed `ai_runs.model_used` / `cost_usd` whether or not the
     call succeeds, and reading them must not build a chat model — which
     keeps `build_providers()` socket-free.
     """
 
-    ollama = OllamaChatModelFactory(
-        model="qwen3.5:9b", base_url="http://localhost:11434", connect_timeout=3.0
+    vllm = VLLMLLM(
+        model="Qwen/Qwen3-8B-AWQ",
+        base_url="http://localhost:8100/v1",
+        connect_timeout=3.0,
+        fallback=None,
     )
-    anthropic = AnthropicChatModelFactory(
-        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None
+    anthropic = AnthropicLLM(
+        model="claude-sonnet-5", api_key="k", max_output_tokens=4096, base_url=None, fallback=None
     )
 
-    assert ollama.model_name == "ollama/qwen3.5:9b"
-    assert ollama.cost_per_1k_tokens == OLLAMA_COST_PER_1K_TOKENS
+    assert vllm.model_name == "vllm/Qwen/Qwen3-8B-AWQ"
+    assert vllm.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
     assert anthropic.model_name == "claude-sonnet-5"
     assert anthropic.cost_per_1k_tokens == ANTHROPIC_COST_PER_1K_TOKENS
-    assert ollama._cache == {} and anthropic._cache == {}, (
+    assert vllm._cache == {} and anthropic._cache == {}, (
         "reading an attribute must not build a model"
     )
 
 
-def test_cloud_factory_is_none_without_an_api_key(monkeypatch, lexical_reranker):
+def test_cloud_llm_is_none_without_an_api_key(monkeypatch, lexical_reranker):
     """No API key means no cloud link, so build_providers makes a single-link
     chain rather than a fallback that can never fire.
     """
@@ -392,4 +355,51 @@ def test_cloud_factory_is_none_without_an_api_key(monkeypatch, lexical_reranker)
     monkeypatch.setattr(settings, "cloud_api_key", None)
     monkeypatch.setattr(settings, "cloud_base_url", None)
 
-    assert factory_mod._build_cloud_factory() is None
+    assert factory_mod._build_cloud_llm(fallback=None) is None
+
+
+# --- Self-hosted LLM (ADR-0009) --------------------------------------------
+
+
+def test_vllm_llm_asks_for_json_without_thinking_or_sdk_retries(lexical_reranker):
+    """JSON mode keeps `json.loads` in infer.py working; a thinking trace
+    would blow the latency budget; SDK retries would stack on ours. Self-hosted,
+    so billed as free and named apart from cloud models."""
+
+    llm = VLLMLLM(
+        model="Qwen/Qwen3-8B-AWQ",
+        base_url="http://localhost:8100/v1",
+        connect_timeout=3.0,
+        fallback=None,
+    )
+    chat = llm._chat_model(30.0)
+
+    assert chat.model_kwargs["response_format"] == {"type": "json_object"}
+    assert chat.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}
+    assert chat.max_retries == 0
+    assert llm.model_name == "vllm/Qwen/Qwen3-8B-AWQ"
+    assert llm.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
+
+
+def test_all_vllm_providers_open_no_connections(monkeypatch, lexical_reranker):
+    """build_providers() runs at import time, so pointing every capability at
+    a vLLM server that is not running must still boot."""
+
+    import socket
+
+    _unconfigure_cloud(monkeypatch)
+    monkeypatch.setattr(settings, "embedding_provider", "vllm")
+    monkeypatch.setattr(settings, "reranker_provider", "vllm")
+
+    opened = []
+    real_connect = socket.socket.connect
+    monkeypatch.setattr(
+        socket.socket,
+        "connect",
+        lambda self, addr, *a: (opened.append(addr), real_connect(self, addr, *a))[1],
+    )
+
+    providers = build_providers()
+    providers.llm._chat_model(30.0)
+
+    assert opened == []

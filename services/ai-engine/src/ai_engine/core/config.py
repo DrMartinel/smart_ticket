@@ -15,25 +15,36 @@ class Settings(BaseSettings):
         "postgresql://ai_engine_ro:ai_engine_ro_password@localhost:5434/smart_triage"
     )
 
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_infer_model: str = "qwen3.5:9b"
-    ollama_embed_model: str = "bge-m3"
+    # Self-hosted vLLM (ADR-0009): the only link without a cloud provider,
+    # the fallback behind one otherwise (spec §10.3), and the embedder and
+    # reranker when those are set to "vllm". vLLM serves one model per server,
+    # so each capability has its own endpoint — see the `vllm` profile in
+    # infra/docker-compose.yml.
+    vllm_chat_base_url: str = "http://localhost:8100/v1"
+    vllm_chat_model: str = "Qwen/Qwen3-8B-AWQ"
+    vllm_embed_base_url: str = "http://localhost:8101/v1"
+    # Must be the model AND runtime the KB chunks in pgvector were embedded
+    # with, and the same one core-api's VLLM_EMBED_MODEL uses. Vectors stored
+    # from Ollama must be re-embedded through vLLM before trusting retrieval
+    # (ADR-0009).
+    vllm_embed_model: str = "BAAI/bge-m3"
+    vllm_rerank_base_url: str = "http://localhost:8102/v1"
 
-    embedding_provider: str = "ollama"  # "ollama" | "stub"
-    # "cross_encoder" | "lexical". `lexical` is the default: deterministic,
-    # fast, and it cannot fail to boot. The cross-encoder is always AVAILABLE
-    # — FlagEmbedding is a required dependency and the weights ship in
-    # the image — so switching is a one-variable change with no rebuild.
+    # "vllm" | "stub". "stub" is deterministic and offline, for CI.
+    embedding_provider: str = "vllm"
+    # "vllm" | "lexical". "vllm" serves the `reranker_model` cross-encoder
+    # from self-hosted vLLM (ADR-0009). "lexical" is deterministic, offline and
+    # dependency-free, for CI.
     #
-    # ⚠️ The two are separate calibrations and `retrieval.floor` is specified
-    # against the CROSS-ENCODER distribution (ADR-0005). Under this default it
-    # is compared against LexicalReranker's token-overlap ratio instead, which
-    # is a different question answered silently. Treat refusal behaviour under
-    # `lexical` as uncalibrated. See docs/TODO.md item 4.
-    reranker_provider: str = "cross_encoder"
+    # ⚠️ They are separate calibrations and `retrieval.floor` is specified
+    # against the CROSS-ENCODER distribution (ADR-0005). Under `lexical` it is
+    # compared against a token-overlap ratio instead, which is a different
+    # question answered silently. Treat refusal behaviour under `lexical` as
+    # uncalibrated. See docs/TODO.md item 4.
+    reranker_provider: str = "vllm"
 
-    # Ceiling for any single model call (inference, embeddings). A cold
-    # Ollama load can take 15-20s on its own, so a short ceiling reports
+    # Ceiling for any single model call (inference, embeddings, rerank). A
+    # cold model load can take 15-20s on its own, so a short ceiling reports
     # "provider down" for what is really "provider still warming up".
     # Note this is a CEILING, not a reservation: the per-ticket latency
     # budget in AIRunRequest still bounds the graph as a whole, and
@@ -52,7 +63,8 @@ class Settings(BaseSettings):
     min_attempt_timeout_sec: float = 5.0
 
     # Cloud provider is optional — if unset, the fallback chain (spec
-    # §10.3) goes straight to Ollama, which is this environment's default.
+    # §10.3) goes straight to self-hosted vLLM, which is this environment's
+    # default.
     # Setting cloud_api_key is what ENABLES the cloud primary; cloud_provider
     # only picks which wire protocol it speaks.
     #
@@ -81,7 +93,7 @@ class Settings(BaseSettings):
     fewshot_k: int = 3
 
     # How many post-fusion candidates the reranker actually scores. This is
-    # the cross-encoder's batch size, so it is directly a cost/latency knob.
+    # the reranker's batch size, so it is directly a cost/latency knob.
     # It is a SLICE of an RRF-ordered list, never a threshold on the RRF
     # score — ADR-0005.
     fusion_candidate_limit: int = 10
@@ -90,22 +102,10 @@ class Settings(BaseSettings):
     # verbatim quote — NOT a general "close enough" check (spec §6.4).
     quote_fuzzy_threshold: float = 0.95
 
+    # The model name sent to vllm-rerank. The checkpoint revision is pinned
+    # where the model is loaded — RERANKER_REVISION on the vllm-rerank service
+    # (ADR-0005: an upstream commit must not silently move the score scale).
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
-
-    # The checkpoint, not just the repo. Left at "main" this resolves to
-    # whatever BAAI last pushed, and a new commit upstream silently changes
-    # the score distribution `retrieval.floor` is calibrated against
-    # (ADR-0005) — a drift that does not fail loudly. Pin a commit sha here
-    # and in the RERANKER_REVISION build arg; the two must agree, because
-    # the image bakes one revision and HF_HUB_OFFLINE=1 makes fetching a
-    # different one an error rather than a silent download mid-ticket.
-    reranker_revision: str = "main"
-
-    # Half precision, as the bge-reranker-v2-m3 model card recommends. Only
-    # takes effect on GPU — FlagEmbedding forces fp32 on CPU. fp16 shifts
-    # scores slightly, so this is part of the calibration: `retrieval.floor`
-    # fitted under one setting is not guaranteed under the other (ADR-0005).
-    reranker_use_fp16: bool = True
 
 
 settings = Settings()

@@ -15,6 +15,42 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **The in-process cross-encoder is removed (ADR-0009).** `CrossEncoderReranker`,
+  `_load_cross_encoder`, the `reranker_revision` / `reranker_use_fp16` settings,
+  the `FlagEmbedding` dependency (and torch with it) and the weight bake in the
+  ai-engine Dockerfile are gone. *Behaviour change:* `RERANKER_PROVIDER` accepts
+  `vllm` or `lexical` and now defaults to `vllm` everywhere, so reranking needs
+  vllm-rerank running. `RERANKER_REVISION` now pins the vllm-rerank checkpoint
+- **core-api uses self-hosted vLLM instead of Ollama (ADR-0009).** Tier-2 PII
+  NER calls `/v1/chat/completions` on `VLLM_CHAT_MODEL` with a JSON Schema
+  (`ollama_ner`/`OllamaError` are now `llm_ner`/`NERError`); embeddings call
+  `/v1/embeddings` on `VLLM_EMBED_MODEL`. `OLLAMA_*` settings are replaced by
+  `VLLM_*` and `MODEL_TIMEOUT_SEC` / `MODEL_CONNECT_TIMEOUT_SEC`, and the
+  `ollama` compose profile is gone. *Behaviour changes:* masking runs on a
+  different model and must be re-checked on real tickets; stored vectors must
+  be re-embedded; an unknown `EMBEDDING_PROVIDER` now raises (→
+  `embedding_unavailable`) instead of silently using Ollama; a NER reply with
+  no content now fails closed to `MASK_FAILED` — it used to default to `[]`,
+  i.e. "no PII found"; the fallback reason is now `cloud_fallback_to_self_host`
+- **ai-engine no longer uses Ollama; self-hosted vLLM replaces it (ADR-0009).**
+  `OllamaLLM`, `OllamaEmbedder`, the `ollama_*` settings, `SELF_HOST_PROVIDER`
+  and the `langchain-ollama` dependency are removed. `VLLMLLM` is always the
+  self-hosted link, and `EMBEDDING_PROVIDER` now defaults to `vllm`.
+  *Behaviour change:* real inference and embeddings need the `vllm` compose
+  profile running, and the KB must be re-embedded through vLLM. core-api still
+  uses Ollama for PII masking and ticket embeddings (since migrated, above)
+- **Model backends live under `core/providers/`.** `core/llm/` is gone: the
+  LLM client, chat-model factories and circuit breaker moved to
+  `core/providers/llm/`, the `LLMClient` seam moved into
+  `core/providers/llm/client.py`, and the prompts and their loader moved to
+  `core/prompts/`. No behaviour changed
+- **One LLM class hierarchy.** `LLMClient` owns the breaker, retry, fallback
+  and reply parsing; `OllamaLLM`, `OpenAILLM`, `AnthropicLLM` and `GeminiLLM`
+  subclass it and implement only `_build()`. `DefaultLLMClient`,
+  `ChatModelFactory` and `_FlatTimeoutCloudFactory` are gone, and the fallback
+  is passed to the primary provider (`AnthropicLLM(..., fallback=OllamaLLM(...))`).
+  `complete()` now requires `timeout` — the infer node always passed one. No
+  behaviour changed
 - **`GraphBuilder` raises on a node update key the state schema lacks.**
   LangGraph silently dropped it, so a misspelled key looked like it worked;
   a non-dict return raises too
@@ -78,6 +114,13 @@ that moves a failure path is more significant here than a new feature.
 
 ### Added
 
+- **Self-hosted vLLM backend (ADR-0009).** `SELF_HOST_PROVIDER=vllm`,
+  `EMBEDDING_PROVIDER=vllm` and `RERANKER_PROVIDER=vllm` direct the chat LLM,
+  embeddings and reranking to vLLM's OpenAI-compatible APIs (`VLLMLLM`,
+  `VLLMEmbedder`, `VLLMReranker`), with a `vllm` compose profile running one
+  server per model. Code only — not yet run against a
+  real server: the rerank score is unverified against the in-process
+  cross-encoder, and switching the embedder needs the KB re-embedded
 - **Claude and Gemini as cloud providers**, alongside the existing
   OpenAI-compatible link. `CLOUD_PROVIDER` selects between `openai`,
   `anthropic` and `gemini`; Ollama remains the fallback behind whichever is
