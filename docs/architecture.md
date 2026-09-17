@@ -165,21 +165,24 @@ node becomes a LangGraph string. `main.py` constructs the instances, wires and
 compiles them once, at import time. See
 [graph-node-architecture.md](graph-node-architecture.md).
 Models are reached through two layers. `LLMClient`
-(`core/providers/llm/client.py`) is the lower one: a provider subclass talks to
-one model and implements whichever of chat, `embed` and `rerank` its API
-serves — `VLLMLLM` all three, `StubClient` and `LexicalClient`
-(`core/providers/llm/local.py`) one each, for CI. `Embedder` and `Reranker`
-(`core/providers/embeddings.py`, `reranker.py`) are the upper one: single
-classes that take any client, delegate the model work, and own their contract
-(vector width, one score per passage in input order). They check
-`client.supports(...)` at construction, so a client that cannot do the job
-fails at startup. Nodes depend on `Embedder`, `Reranker` and `LLMClient`,
-never on a provider class. The database client has one implementation and no base class:
+(`core/providers/llm/models.py`, with the providers that subclass it) is the
+lower one and only abstracts
+communication with a model server: chat through `complete()`, raw JSON requests
+through `request()` (implemented by `VLLMLLM`). `LexicalEmbedder` and `CrossEncoderReranker`
+(`core/providers/embeddings.py`, `reranker.py`) are the upper one and own their
+tasks: they build the `/embeddings` or `/rerank` request, parse the reply, and
+enforce their contract (vector width, one score per passage in input order).
+They call the client objects `core/providers/llm/models.py` builds from config at
+import time (`embed`, `rerank`, `chat`), one per server. `StubEmbedder` and `LexicalReranker` are
+standalone offline alternatives for CI that talk to no server. Nodes accept
+either implementation of each, and any `LLMClient`. The database client
+has one implementation and no base class:
 nodes take `SqlAlchemySessionSource` from `core/db/client.py`.
 
-`core/providers/factory.py` is the single place `EMBEDDING_PROVIDER` and
-`RERANKER_PROVIDER` are read. ai-engine's self-hosted models run on vLLM —
-chat always, embeddings and rerank by default —
+The bottoms of `core/providers/embeddings.py` and `reranker.py` are the only
+places `EMBEDDING_PROVIDER` and `RERANKER_PROVIDER` are read, and
+`core/db/client.py` builds the single `db`. ai-engine's self-hosted models run
+on vLLM — embeddings and rerank always, chat by default —
 over its OpenAI-compatible APIs (ADR-0009). core-api uses the same vLLM servers
 for PII detection and embeddings. Selection happens once at startup and an
 unrecognized value is fatal — a typo used to fall through to the lexical
@@ -283,7 +286,7 @@ Every degradation resolves toward a human. A user waiting longer is acceptable; 
 
 | Failure | Response |
 |---|---|
-| Cloud LLM timeout | Retry ×2 → self-hosted vLLM fallback → HITL |
+| LLM timeout | Retry ×2 → HITL (`all_llm_down`) |
 | All LLMs down | HITL, `degraded_reason="all_llm_down"` |
 | Embedding unavailable | HITL, `embedding_unavailable` |
 | pgvector slow | BM25 only → always HITL (weak retrieval never earns automation) |

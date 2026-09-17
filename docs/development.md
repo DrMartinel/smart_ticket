@@ -129,10 +129,10 @@ Two invariants CI enforces that you should not work around:
 |---|---|
 | `Failed to spawn: pytest` | `uv sync` instead of `uv sync --all-packages` |
 | `ModuleNotFoundError: tests.*` on a whole-workspace run | core-api and ai-engine both have a package named `tests`. Handled by `--import-mode=importlib` in root `pyproject.toml` — don't remove it |
-| Every ticket `mask_failed` | vllm-chat isn't running or reachable (see [`onboarding.md`](onboarding.md) step 2), or `VLLM_CHAT_MODEL` doesn't match what it serves |
+| Every ticket `mask_failed` | vllm-chat isn't running or reachable (see [`onboarding.md`](onboarding.md) step 2), or `CHAT_MODEL` doesn't match what it serves |
 | Submit hangs for a long time | Connect and read timeouts collapsed into one. They're deliberately separate: 3s connect, 120s read |
 | All four generation checks ✗ | No LLM ran. Read the reason code above the panel — usually a degraded run |
-| Unaccented Vietnamese matches nothing | `LexicalClient` folds diacritics (`_strip_diacritics`). If this regresses, tickets typed without tone marks stop matching an accented KB |
+| Unaccented Vietnamese matches nothing | `LexicalReranker` folds diacritics (`_strip_diacritics`). If this regresses, tickets typed without tone marks stop matching an accented KB |
 | Connecting to port 5432 / 6379 fails | Host ports are **5434** and **6380**; `db:5432` / `redis:6379` are internal only |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — it's parsed into a Pydantic model at startup on purpose, so bad config fails loudly rather than at routing time |
 | Frontend types out of sync | Re-run `gen_typescript.py` |

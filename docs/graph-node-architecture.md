@@ -92,7 +92,7 @@ threadpool. All per-call data belongs in state.
 `ai_engine/core/` is everything the nodes are built on: `config.py`
 (settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `budget.py`
 (`BudgetedNode`), `providers/` (the embedding and reranking seams as ABCs in
-`base.py`; the embedders, rerankers and `factory.py`; and `llm/`, the
+`base.py`; the embedders and rerankers; and `llm/`, the
 `LLMClient` seam and its client, chat-model factories and circuit breaker), `prompts/` (the
 versioned system prompts and their loader), `db/` (the SQLAlchemy client and
 table declarations) and `retrieval/` (BM25, vector, RRF). Outside it are only
@@ -255,19 +255,19 @@ individual routes without compiling.
 
 ### 4.5 Assembly — `main.py`
 
-`main.py` builds the providers and the seven node instances inline, at import
-time, and compiles them once:
+`main.py` imports the providers built at the bottom of their own modules at
+import time (`db`, `embedder`, `reranker`, `models.chat`),
+builds the seven node instances inline, and compiles them once:
 
 ```python
-_providers = build_providers()
 _graph = wire_triage(
     injection=InjectionNode(),
-    retrieve=HybridRetrieveNode(db=_providers.db, embedder=_providers.embedder),
-    rerank=RerankNode(reranker=_providers.reranker),
-    fewshots=SelectFewshotsNode(db=_providers.db, embedder=_providers.embedder),
-    infer=InferNode(llm=_providers.llm),
+    retrieve=HybridRetrieveNode(db=db, embedder=embedder),
+    rerank=RerankNode(reranker=reranker),
+    fewshots=SelectFewshotsNode(db=db, embedder=embedder),
+    infer=InferNode(llm=models.chat),
     validate=ValidateNode(),
-    emit=EmitSignalsNode(db=_providers.db),
+    emit=EmitSignalsNode(db=db),
 ).compile(TriageState)
 ```
 
@@ -293,7 +293,7 @@ class RerankNode(BudgetedNode):
         EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
         EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
-    def __init__(self, *, reranker: Reranker) -> None:
+    def __init__(self, *, reranker: CrossEncoderReranker) -> None:
         self._reranker = reranker  # read-only after construction
 
     def __call__(self, state: TriageState) -> dict:  # budget checked first

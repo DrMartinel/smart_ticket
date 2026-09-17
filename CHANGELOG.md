@@ -15,14 +15,38 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
-- **`Embedder` and `Reranker` take any `LLMClient`.** They are single classes
-  that delegate the model work to an injected client and own their contracts
-  (EMBED_DIM, one score per passage in input order), checking
-  `client.supports(...)` at startup. `LLMClient` gains optional `embed()` and
-  `rerank()` beside chat; `VLLMLLM` serves all three, and `StubClient` /
-  `LexicalClient` (`providers/llm/local.py`) serve CI. `VLLMEmbedder`,
-  `VLLMReranker`, `StubEmbedder`, `LexicalReranker` and `providers/base.py` are
-  gone. No behaviour changed
+- **Chat runs on whatever `CHAT_CLIENT_PROVIDER` says; no fallback.**
+  Behaviour change: `CHAT_CLIENT_PROVIDER` takes `vllm` | `openai` |
+  `anthropic` | `gemini`, and `CLOUD_PROVIDER` is gone. `openai` is OpenAI's
+  cloud API for chat only, configured by the `CLOUD_*` settings;
+  `EMBED_CLIENT_PROVIDER` and `RERANK_CLIENT_PROVIDER` are gone, as embeddings
+  and reranking always run on vLLM. A provider that fails
+  its two attempts degrades the ticket to HITL as `all_llm_down`;
+  `cloud_fallback_to_self_host` is no longer produced, and
+  `LLMResult.degraded_reason` and every `fallback` parameter are gone.
+- **ai-engine's providers are module-level objects built at import time.**
+  `providers/llm/models.py` builds `chat`, `embed`, `rerank` and `self_host`
+  from settings at its bottom (the provider classes read their own config),
+  and `embeddings.py`, `reranker.py` and `db/client.py` build `embedder`,
+  `reranker` and `db` the same way; `providers/factory.py` is gone.
+  `CHAT_CLIENT_PROVIDER` is a `Literal` on `Settings`.
+  `build_providers()`, `Providers` and `LLM` are gone; main.py imports
+  those objects directly. `*_MODEL` / `*_BASE_URL` pick each vLLM model and
+  server; an unknown provider fails the boot. The `LLMClient` base class and its providers
+  now live together in `providers/llm/models.py`, and `VLLMLLM` and
+  `OpenAILLM` are separate classes. `VLLM_CHAT_BASE_URL`, `VLLM_CHAT_MODEL`,
+  `VLLM_EMBED_BASE_URL`, `VLLM_EMBED_MODEL` and `VLLM_RERANK_BASE_URL` are
+  renamed `CHAT_BASE_URL`, `CHAT_MODEL`, `EMBED_BASE_URL`, `EMBED_MODEL` and
+  `RERANK_BASE_URL` in both services. No behaviour changed with the defaults
+- **`LexicalEmbedder` and `CrossEncoderReranker` own their tasks; `LLMClient` only carries
+  requests.** `LexicalEmbedder` and `CrossEncoderReranker` build the `/embeddings` and `/rerank`
+  payloads, parse the replies and enforce their contracts (EMBED_DIM, one score
+  per passage in input order), calling `models.embed` / `models.rerank`
+  via `LLMClient.request()`, implemented by `VLLMLLM`. `LLMClient` and its
+  providers live together in
+  `providers/llm/models.py`. `StubEmbedder` and `LexicalReranker` are
+  standalone offline classes for CI, not subclasses. `VLLMEmbedder`, `VLLMReranker` and
+  `providers/base.py` are gone. No behaviour changed
 - **The in-process cross-encoder is removed (ADR-0009).** `CrossEncoderReranker`,
   `_load_cross_encoder`, the `reranker_revision` / `reranker_use_fp16` settings,
   the `FlagEmbedding` dependency (and torch with it) and the weight bake in the
@@ -30,9 +54,9 @@ that moves a failure path is more significant here than a new feature.
   `vllm` or `lexical` and now defaults to `vllm` everywhere, so reranking needs
   vllm-rerank running. `RERANKER_REVISION` now pins the vllm-rerank checkpoint
 - **core-api uses self-hosted vLLM instead of Ollama (ADR-0009).** Tier-2 PII
-  NER calls `/v1/chat/completions` on `VLLM_CHAT_MODEL` with a JSON Schema
+  NER calls `/v1/chat/completions` on `CHAT_MODEL` with a JSON Schema
   (`ollama_ner`/`OllamaError` are now `llm_ner`/`NERError`); embeddings call
-  `/v1/embeddings` on `VLLM_EMBED_MODEL`. `OLLAMA_*` settings are replaced by
+  `/v1/embeddings` on `EMBED_MODEL`. `OLLAMA_*` settings are replaced by
   `VLLM_*` and `MODEL_TIMEOUT_SEC` / `MODEL_CONNECT_TIMEOUT_SEC`, and the
   `ollama` compose profile is gone. *Behaviour changes:* masking runs on a
   different model and must be re-checked on real tickets; stored vectors must
@@ -50,7 +74,7 @@ that moves a failure path is more significant here than a new feature.
 - **Model backends live under `core/providers/`.** `core/llm/` is gone: the
   LLM client, chat-model factories and circuit breaker moved to
   `core/providers/llm/`, the `LLMClient` seam moved into
-  `core/providers/llm/client.py`, and the prompts and their loader moved to
+  `core/providers/llm/models.py`, and the prompts and their loader moved to
   `core/prompts/`. No behaviour changed
 - **One LLM class hierarchy.** `LLMClient` owns the breaker, retry, fallback
   and reply parsing; `OllamaLLM`, `OpenAILLM`, `AnthropicLLM` and `GeminiLLM`

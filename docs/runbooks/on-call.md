@@ -1,6 +1,6 @@
 # On-call runbook
 
-## Circuit breaker opened (`ai-engine/core/providers/llm/client.py`)
+## Circuit breaker opened (`ai-engine/core/providers/llm/models.py`)
 
 **Alert fires when:** LLM failure rate > 20% over a trailing 5-minute
 window (`CIRCUIT.failure_threshold`).
@@ -69,10 +69,10 @@ no routing row, look here first.
 1. Check the embedding server: `docker compose --profile vllm ps vllm-embed`
    and `docker compose logs vllm-embed`.
 2. From the worker, confirm it answers:
-   `docker compose exec worker sh -c 'curl -s -m 5 $VLLM_EMBED_BASE_URL/models'`
-   — the served model must be `VLLM_EMBED_MODEL`.
+   `docker compose exec worker sh -c 'curl -s -m 5 $EMBED_BASE_URL/models'`
+   — the served model must be `EMBED_MODEL`.
 3. A wrong-width vector raises `ValueError` and lands here too — check that
-   `VLLM_EMBED_MODEL` is a 1024-dim model (`bge-m3`).
+   `EMBED_MODEL` is a 1024-dim model (`bge-m3`).
 4. `EMBEDDING_PROVIDER=stub` is a legitimate emergency lever: it keeps the
    pipeline flowing with deterministic hash embeddings. Retrieval quality
    collapses, so *everything* lands in HITL — acceptable for a short
@@ -90,7 +90,7 @@ not the bug.
    vllm-rerank through fixed `*_GPU_UTIL` fractions. Check
    `docker compose logs vllm-chat` for OOM or 5xx. Mitigation is capacity,
    not code.
-2. **Model unavailable.** `VLLM_CHAT_MODEL` in core-api does not match the
+2. **Model unavailable.** `CHAT_MODEL` in core-api does not match the
    model vllm-chat is serving — the server rejects the request.
 3. **Timeout too short for a cold start.** The per-call ceiling is
    `MODEL_TIMEOUT_SEC` (120s default). A cold model load alone can

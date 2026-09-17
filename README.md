@@ -116,7 +116,7 @@ smart_ticket/
 │   │   └── src/ai_engine/
 │   │       ├── graph/nodes/     #   injection · retrieve · rerank · fewshot · infer · validate
 │   │       └── core/            #   settings · state · node base classes, and:
-│   │           ├── providers/   #     seams (ABCs) · embedders · rerankers · db · factory
+│   │           ├── providers/   #     seams (ABCs) · embedders · rerankers · db
 │   │           ├── llm/         #     client (circuit breaker, budget), versioned prompts
 │   │           └── retrieval/   #     bm25 · vector · rrf fusion
 │   └── web/                     # Next.js App Router
@@ -160,7 +160,7 @@ smart_ticket/
 ### Models
 
 The `vllm` compose profile downloads its models from Hugging Face on first start
-(`VLLM_CHAT_MODEL`, `VLLM_EMBED_MODEL`, and `RERANKER_MODEL` for `vllm-rerank`),
+(`CHAT_MODEL`, `EMBED_MODEL`, and `RERANKER_MODEL` for `vllm-rerank`),
 cached in `HF_CACHE_DIR`. Without it every ticket still flows — masking fails
 closed to `MASK_FAILED` and everything goes to a human, by design.
 

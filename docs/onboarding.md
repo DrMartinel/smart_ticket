@@ -57,7 +57,7 @@ inside the network:
 
 ```bash
 docker compose exec core-api sh -c \
-  'curl -s -m 5 -o /dev/null -w "%{http_code}\n" $VLLM_CHAT_BASE_URL/models'
+  'curl -s -m 5 -o /dev/null -w "%{http_code}\n" $CHAT_BASE_URL/models'
 ```
 
 `200` is good. Anything else means masking will fail closed to `MASK_FAILED`

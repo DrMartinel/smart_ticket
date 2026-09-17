@@ -145,7 +145,7 @@ There is also a structural blocker. core-api owns `thresholds.yaml` and sends `r
 The in-process FlagEmbedding reranker is removed, so there is no local score
 to compare against: step 2 above is the check. Both services now embed through vLLM, so the KB chunks, ticket
 embeddings and few-shot examples already in pgvector must be re-embedded
-through it. Masking's tier-2 NER moved to `VLLM_CHAT_MODEL` and needs its
+through it. Masking's tier-2 NER moved to `CHAT_MODEL` and needs its
 detection quality re-checked on real tickets. None of the vLLM path has run
 against real hardware yet.
 
@@ -248,6 +248,6 @@ its own commit and its own test.
 
 - **`CLOUD_PROVIDER` and `CLOUD_MODEL` are not cross-checked.** Switching
   provider without switching model reaches the API and fails there rather than
-  at boot, unlike every other misconfiguration in `build_providers()`. A
+  at boot, unlike every other provider misconfiguration. A
   per-provider model-name prefix check would close the gap, at the cost of
   needing maintenance as model names change.

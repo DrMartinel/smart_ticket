@@ -30,19 +30,19 @@ ai-engine (`OllamaLLM`, `OllamaEmbedder` and `langchain-ollama` are removed):
 | Capability | Setting | Code |
 |---|---|---|
 | Chat LLM | always vLLM — the only link without a cloud provider, the fallback behind one | `VLLMLLM` |
-| Embeddings | `EMBEDDING_PROVIDER=vllm` (default) \| `stub` | `Embedder(client=VLLMLLM(...))` |
-| Reranking | `RERANKER_PROVIDER=vllm` (default) \| `lexical` | `Reranker(client=VLLMLLM(...))` |
+| Embeddings | `EMBEDDING_PROVIDER=vllm` (default) \| `stub` | `LexicalEmbedder` → `models.embed` |
+| Reranking | `RERANKER_PROVIDER=vllm` (default) \| `lexical` | `CrossEncoderReranker` → `models.rerank` |
 
-`Embedder` and `Reranker` take any `LLMClient` that serves the capability; one
-`VLLMLLM` class serves chat, `embed` and `rerank`, with one instance per vLLM
-server.
+`LLMClient` only carries requests to the server; `LexicalEmbedder` and `CrossEncoderReranker` own
+the `/embeddings` and `/rerank` payloads and replies. One `VLLMLLM` instance
+per vLLM server.
 
 core-api:
 
 | Capability | vLLM endpoint | Code |
 |---|---|---|
-| Tier-2 PII NER (masking) | `/v1/chat/completions` on `VLLM_CHAT_MODEL`, JSON-Schema-constrained | `masking.llm_ner` |
-| Ticket / KB / few-shot embeddings | `/v1/embeddings` on `VLLM_EMBED_MODEL` (`EMBEDDING_PROVIDER=vllm` default \| `stub`) | `embeddings.embed_text` |
+| Tier-2 PII NER (masking) | `/v1/chat/completions` on `CHAT_MODEL`, JSON-Schema-constrained | `masking.llm_ner` |
+| Ticket / KB / few-shot embeddings | `/v1/embeddings` on `EMBED_MODEL` (`EMBEDDING_PROVIDER=vllm` default \| `stub`) | `embeddings.embed_text` |
 
 With `RERANKER_PROVIDER=vllm`, every model operation in the system goes to the
 self-hosted servers. vLLM serves one model per process, so the three
@@ -52,8 +52,8 @@ capabilities are three servers (`vllm-chat`, `vllm-embed`, `vllm-rerank` in the
 Each client keeps the contract of the provider it replaces: no socket at
 construction, separate connect and read timeouts, SDK retries off (retry and
 fallback stay in `LLMClient.complete()`, ADR-0007), and RAISE rather than
-degrade. `embed` and `rerank` never fall back — not to lexical, not to another
-model.
+degrade. `request()` never falls back — embeddings and reranking must not switch
+to lexical or to another model.
 
 ## Consequences
 
@@ -68,7 +68,7 @@ model.
   Query and KB embeddings must come from the same model on the same runtime,
   or retrieval quality degrades silently.
 - **Masking now runs on a different model.** Tier-2 NER moved from Ollama's
-  `qwen3:8b` to `VLLM_CHAT_MODEL` (default `Qwen/Qwen3-8B-AWQ`), sharing the
+  `qwen3:8b` to `CHAT_MODEL` (default `Qwen/Qwen3-8B-AWQ`), sharing the
   chat server with inference because vLLM serves one model per server. The
   fail-closed contract is unchanged — any error, timeout or unusable reply is
   `MASK_FAILED` — but detection quality on real tickets must be re-checked
