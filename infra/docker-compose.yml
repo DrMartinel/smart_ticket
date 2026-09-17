@@ -17,10 +17,10 @@ x-core-api-env: &core-api-env
   AI_ENGINE_URL: http://ai-engine:8001
   # Self-hosted vLLM (ADR-0009) — the `vllm` profile below. PII detection runs
   # on the chat server's model; embeddings must match ai-engine's.
-  VLLM_CHAT_BASE_URL: ${VLLM_CHAT_BASE_URL:-http://vllm-chat:8000/v1}
-  VLLM_CHAT_MODEL: ${VLLM_CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
-  VLLM_EMBED_BASE_URL: ${VLLM_EMBED_BASE_URL:-http://vllm-embed:8000/v1}
-  VLLM_EMBED_MODEL: ${VLLM_EMBED_MODEL:-BAAI/bge-m3}
+  CHAT_BASE_URL: ${CHAT_BASE_URL:-http://vllm-chat:8000/v1}
+  CHAT_MODEL: ${CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
+  EMBED_BASE_URL: ${EMBED_BASE_URL:-http://vllm-embed:8000/v1}
+  EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
   EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-vllm}
   # Ceiling for a single model call (NER, embeddings). Must stay below the
   # gunicorn --timeout in docker-entrypoint.sh, since masking runs inline.
@@ -128,14 +128,16 @@ services:
       # kb_articles / kb_chunks / fewshot_examples (see infra/migrations/sql).
       # This is a structural permission boundary, not a convention (ADR-0004).
       DATABASE_URL: postgresql://ai_engine_ro:${POSTGRES_AI_RO_PASSWORD:-ai_engine_ro_password}@db:5432/${POSTGRES_DB:-smart_triage}
-      # ai-engine's self-hosted models run on vLLM (ADR-0009) — start the
-      # `vllm` profile below. The base URLs default to those services.
+      # CHAT_CLIENT_PROVIDER picks where chat runs ("vllm" | "openai" |
+      # "anthropic" | "gemini"); embeddings and reranking always run on vLLM.
+      # Defaults are the `vllm` profile below (ADR-0009).
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-vllm}
-      VLLM_CHAT_BASE_URL: ${VLLM_CHAT_BASE_URL:-http://vllm-chat:8000/v1}
-      VLLM_CHAT_MODEL: ${VLLM_CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
-      VLLM_EMBED_BASE_URL: ${VLLM_EMBED_BASE_URL:-http://vllm-embed:8000/v1}
-      VLLM_EMBED_MODEL: ${VLLM_EMBED_MODEL:-BAAI/bge-m3}
-      VLLM_RERANK_BASE_URL: ${VLLM_RERANK_BASE_URL:-http://vllm-rerank:8000/v1}
+      CHAT_CLIENT_PROVIDER: ${CHAT_CLIENT_PROVIDER:-vllm}
+      CHAT_BASE_URL: ${CHAT_BASE_URL:-http://vllm-chat:8000/v1}
+      CHAT_MODEL: ${CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
+      EMBED_BASE_URL: ${EMBED_BASE_URL:-http://vllm-embed:8000/v1}
+      EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
+      RERANK_BASE_URL: ${RERANK_BASE_URL:-http://vllm-rerank:8000/v1}
       # `vllm` serves the bge-reranker-v2-m3 cross-encoder from vllm-rerank;
       # `lexical` is for CI and is a different calibration from the
       # cross-encoder score retrieval.floor is specified against (ADR-0005).
@@ -146,12 +148,10 @@ services:
       # to whichever of this and the per-ticket latency budget is smaller.
       MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:-120}
       MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:-3}
-      # Optional cloud primary with vLLM as the fallback link (spec §10.3).
-      # Unset CLOUD_API_KEY means vLLM-only, which is the default here. Any
-      # half-configuration fails the boot rather than quietly degrading — see
-      # infra/.env.example for the per-provider rules and ADR-0007 for why
-      # anthropic/gemini cannot honour MODEL_CONNECT_TIMEOUT_SEC.
-      CLOUD_PROVIDER: ${CLOUD_PROVIDER:-openai}
+      # Used when CHAT_CLIENT_PROVIDER is openai, anthropic or gemini. Any
+      # misconfiguration fails the boot — see infra/.env.example for the
+      # per-provider rules and ADR-0007 for why anthropic/gemini cannot honour
+      # MODEL_CONNECT_TIMEOUT_SEC.
       CLOUD_API_KEY: ${CLOUD_API_KEY:-}
       CLOUD_BASE_URL: ${CLOUD_BASE_URL:-}
       CLOUD_MODEL: ${CLOUD_MODEL:-claude-sonnet-5}
@@ -182,7 +182,7 @@ services:
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG:-latest}
     profiles: ["vllm"]
     command:
-      - --model=${VLLM_CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
+      - --model=${CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
       - --gpu-memory-utilization=${VLLM_CHAT_GPU_UTIL:-0.6}
       - --max-model-len=${VLLM_CHAT_MAX_MODEL_LEN:-8192}
     volumes:
@@ -202,7 +202,7 @@ services:
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG:-latest}
     profiles: ["vllm"]
     command:
-      - --model=${VLLM_EMBED_MODEL:-BAAI/bge-m3}
+      - --model=${EMBED_MODEL:-BAAI/bge-m3}
       - --gpu-memory-utilization=${VLLM_EMBED_GPU_UTIL:-0.1}
     volumes:
       - ${HF_CACHE_DIR:-./.hf-cache}:/root/.cache/huggingface
