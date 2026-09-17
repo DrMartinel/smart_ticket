@@ -12,23 +12,12 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict
-
 from ai_engine.core.budget import BudgetedNode
 from ai_engine.core.config import settings
 from ai_engine.core.providers.base import Reranker
 from ai_engine.core.retrieval.fusion import Candidate
+from ai_engine.core.retrieval.rerank import RankedChunk
 from ai_engine.core.state import TriageState
-
-
-class RankedChunk(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    chunk_id: int
-    article_id: int
-    article_slug: str
-    content: str
-    score: float
 
 
 class RerankNode(BudgetedNode):

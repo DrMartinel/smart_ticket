@@ -11,7 +11,7 @@ from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
 from contracts.ticket import TicketMasked
 
 from ai_engine.core.state import TriageState
-from ai_engine.graph.nodes.rerank import RankedChunk
+from ai_engine.core.retrieval.rerank import RankedChunk
 from ai_engine.graph.nodes.validate import ValidateNode
 
 # The production-configured validator — zero I/O at construction, so the

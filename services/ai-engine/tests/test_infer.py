@@ -174,7 +174,7 @@ def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate):
     """The model must echo kb_slug back in an AutoReplyProposal, so it has
     to be told what the slugs are — otherwise it invents one."""
 
-    from ai_engine.graph.nodes.rerank import RankedChunk
+    from ai_engine.core.retrieval.rerank import RankedChunk
 
     chunk = RankedChunk(
         chunk_id=1, article_id=10, article_slug="vpn-reset", content="nội dung", score=0.9

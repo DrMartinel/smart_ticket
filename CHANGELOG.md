@@ -15,6 +15,9 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **`RankedChunk` moved to `core/retrieval/rerank.py`**, so
+  `TriageState.reranked` is typed `list[RankedChunk]` instead of `list[Any]`
+  and is validated like every other field
 - **The LLM client now uses LangChain chat models for transport; retry,
   fallback and the circuit breaker are unchanged and still ours.**
   `core/llm/client.py` lost ~90 lines of hand-written httpx and two bespoke

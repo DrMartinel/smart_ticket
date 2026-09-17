@@ -15,8 +15,6 @@ Frozen, so an in-place mutation — which would be silently discarded — raises
 
 from __future__ import annotations
 
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict
 
 from contracts.llm_draft import LLMProposalEnvelope
@@ -24,6 +22,7 @@ from contracts.ticket import TicketMasked
 from contracts.trust import TrustSignals
 
 from ai_engine.core.retrieval.fusion import Candidate
+from ai_engine.core.retrieval.rerank import RankedChunk
 
 
 class InjectionVerdict(BaseModel):
@@ -84,14 +83,10 @@ class TriageState(BaseModel):
     # as. List fields deliberately have NO reducer: each is owned by exactly
     # one node, and a validate -> infer retry must overwrite the previous
     # attempt's output, not append to it.
-    #
-    # `reranked` is `list[Any]`, not `list[RankedChunk]`: RankedChunk is
-    # defined by the rerank node in `graph/`, and `core` never imports from
-    # the graph.
     injection: InjectionVerdict | None = None
     candidates: list[Candidate] = []  # post-RRF
     bm25_keyword_hit: bool = False  # did lexical search find ANY tsvector match at all
-    reranked: list[Any] = []  # ai_engine.graph.nodes.rerank.RankedChunk, post cross-encoder
+    reranked: list[RankedChunk] = []  # post cross-encoder
     fewshots: list[dict] = []
     proposal: LLMProposalEnvelope | None = None
     validation: ValidationResult | None = None

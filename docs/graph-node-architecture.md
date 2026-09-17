@@ -121,9 +121,9 @@ What LangGraph (1.2.9) does with a pydantic schema, pinned in
   unless told otherwise. `GraphBuilder.compile` passes
   `input_schema=state_schema` so the graph's schema always wins.
 
-`reranked` is typed `list[Any]`: `RankedChunk` is defined by the rerank node
-in `graph/`, and `core` never imports from the graph. `candidates` is
-`list[Candidate]`.
+`candidates` is `list[Candidate]` and `reranked` is `list[RankedChunk]`. Both
+types live in `core/retrieval/`, not in their nodes, because `core` never
+imports from `graph/`.
 
 List-valued fields (`candidates`, `reranked`, `fewshots`) deliberately have
 **no reducer**. Each is owned by exactly one node, and the `validate → infer`
