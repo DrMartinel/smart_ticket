@@ -22,8 +22,8 @@ from ai_engine.core.providers import embeddings
 from ai_engine.core.providers import reranker as reranker_module
 from ai_engine.core.providers.llm import models
 from ai_engine.core.providers.llm.models import LLMClient
-from ai_engine.core.providers.embeddings import LexicalEmbedder
-from ai_engine.core.providers.reranker import CrossEncoderReranker
+from ai_engine.core.providers.embeddings import Embedder
+from ai_engine.core.providers.reranker import Reranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
@@ -63,7 +63,7 @@ def reload_reranker():
     yield from _reloader(reranker_module)
 
 
-class FakeEmbedder(LexicalEmbedder):
+class FakeEmbedder(Embedder):
     """Records every string it was asked to embed, so a test can assert a
     budget-exhausted node bought no round-trip at all."""
 
@@ -79,7 +79,7 @@ class FakeEmbedder(LexicalEmbedder):
         return self._vector
 
 
-class FakeReranker(CrossEncoderReranker):
+class FakeReranker(Reranker):
     """`scores` is consumed positionally against `passages`, so a test can
     hand back an order that INVERTS the input and prove the node's output
     order follows the reranker rather than the RRF order it was given

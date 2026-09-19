@@ -13,13 +13,23 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from abc import ABC, abstractmethod
 from typing import Any
 
 from ai_engine.core.config import settings
 from ai_engine.core.providers.llm import models
 
 
-class CrossEncoderReranker:
+class Reranker(ABC):
+    """What the rerank node depends on."""
+
+    @abstractmethod
+    def score(self, query: str, passages: list[str]) -> list[float]:
+        """One score per passage, in input order. Ordering and truncation
+        belong to the rerank node."""
+
+
+class CrossEncoderReranker(Reranker):
     """Scores query/passage pairs with `settings.reranker_model` through
     `models.rerank`, against a Cohere-style `/rerank` endpoint (as
     vLLM serves). No fallback: another scorer is a different calibration
@@ -31,12 +41,8 @@ class CrossEncoderReranker:
     """
 
     def score(self, query: str, passages: list[str]) -> list[float]:
-        """One score per passage, in input order. Ordering and truncation
-        belong to the rerank node.
-
-        Per ADR-0005 this is the ONLY number a retrieval threshold is
-        compared against — never the rank-derived RRF score.
-        """
+        """Per ADR-0005 this is the ONLY number a retrieval threshold is
+        compared against — never the rank-derived RRF score."""
 
         if not passages:
             return []
@@ -63,7 +69,7 @@ def _scores_in_input_order(body: Any, *, expected: int) -> list[float]:
     return [by_index[i] for i in range(expected)]
 
 
-class LexicalReranker:
+class LexicalReranker(Reranker):
     """Deterministic, dependency-free token-overlap scoring,
     |query ∩ passage| / |query|, for offline work. Talks to no server.
 

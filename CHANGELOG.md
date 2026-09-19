@@ -45,7 +45,8 @@ that moves a failure path is more significant here than a new feature.
   via `LLMClient.request()`, implemented by `VLLMLLM`. `LLMClient` and its
   providers live together in
   `providers/llm/models.py`. `StubEmbedder` and `LexicalReranker` are
-  standalone offline classes for CI, not subclasses. `VLLMEmbedder`, `VLLMReranker` and
+  offline classes for CI; all four subclass `Embedder` / `Reranker`, the
+  base classes the nodes depend on. `VLLMEmbedder`, `VLLMReranker` and
   `providers/base.py` are gone. No behaviour changed
 - **The in-process cross-encoder is removed (ADR-0009).** `CrossEncoderReranker`,
   `_load_cross_encoder`, the `reranker_revision` / `reranker_use_fp16` settings,

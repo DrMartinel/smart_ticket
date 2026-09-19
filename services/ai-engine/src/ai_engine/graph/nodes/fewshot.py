@@ -12,7 +12,7 @@ from ai_engine.core.config import settings
 from ai_engine.core.db.client import SqlAlchemySessionSource
 from ai_engine.core.db.tables import FewshotExample
 from ai_engine.core.node import BaseNode
-from ai_engine.core.providers.embeddings import LexicalEmbedder, StubEmbedder
+from ai_engine.core.providers.embeddings import Embedder
 from ai_engine.core.state import TriageState
 
 
@@ -21,9 +21,7 @@ class SelectFewshotsNode(BaseNode):
     embedding round-trip without checking the budget. See docs/TODO.md.
     """
 
-    def __init__(
-        self, *, db: SqlAlchemySessionSource, embedder: LexicalEmbedder | StubEmbedder
-    ) -> None:
+    def __init__(self, *, db: SqlAlchemySessionSource, embedder: Embedder) -> None:
         self._db = db
         self._embedder = embedder
 
