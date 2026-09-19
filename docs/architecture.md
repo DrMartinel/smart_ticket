@@ -174,8 +174,8 @@ tasks: they build the `/embeddings` or `/rerank` request, parse the reply, and
 enforce their contract (vector width, one score per passage in input order).
 They call the client objects `core/providers/llm/models.py` builds from config at
 import time (`embed`, `rerank`, `chat`), one per server. `StubEmbedder` and `LexicalReranker` are
-standalone offline alternatives for CI that talk to no server. Nodes accept
-either implementation of each, and any `LLMClient`. The database client
+offline alternatives for CI that talk to no server. Nodes depend on the `Embedder`
+and `Reranker` base classes and on `LLMClient`, never on a provider class. The database client
 has one implementation and no base class:
 nodes take `SqlAlchemySessionSource` from `core/db/client.py`.
 
