@@ -19,7 +19,7 @@ class AIRunRequest(BaseModel):
     max_llm_calls: int
     max_latency_sec: int
     max_graph_iterations: int
-    prompt_version: str = "classify.v3"
+    prompt_version: str = "classify.v4"
 
 
 class AIRunResponse(BaseModel):

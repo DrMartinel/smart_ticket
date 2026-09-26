@@ -81,7 +81,7 @@ class Settings(BaseSettings):
     cloud_max_output_tokens: int = 4096
 
     graph_version: str = "v2.1"
-    prompt_version: str = "classify.v3"
+    prompt_version: str = "classify.v4"
 
     rrf_k: int = 60
     bm25_top_k: int = 20
