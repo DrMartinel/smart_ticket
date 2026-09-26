@@ -41,21 +41,24 @@ PATTERNS: dict[str, re.Pattern] = {
 }
 
 
+class InjectionOutcome(StrEnum):
+    INJECTION_DETECTED = "InjectionDetected"
+    INJECTION_CLEAR = "InjectionClear"
+
+
 class InjectionNode(BaseNode):
     """Prompt-injection screen. A hit routes straight to `EmitSignalsNode`,
     spending no further tokens.
     """
 
-    class Outcome(StrEnum):
-        INJECTION_DETECTED = "InjectionDetected"
-        INJECTION_CLEAR = "InjectionClear"
+    Outcome = InjectionOutcome
 
     def __call__(self, state: TriageState) -> dict:
         text = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
         matched = [name for name, pattern in PATTERNS.items() if pattern.search(text)]
         return {"injection_detected": bool(matched), "injection_matched_patterns": matched}
 
-    def decide(self, state: TriageState) -> InjectionNode.Outcome:
+    def decide(self, state: TriageState) -> InjectionOutcome:
         if state.injection_detected:
-            return self.Outcome.INJECTION_DETECTED
-        return self.Outcome.INJECTION_CLEAR
+            return InjectionOutcome.INJECTION_DETECTED
+        return InjectionOutcome.INJECTION_CLEAR

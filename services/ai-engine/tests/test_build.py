@@ -8,11 +8,11 @@ from ai_engine.core.node import Terminal
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
-from ai_engine.graph.nodes.injection import InjectionNode
+from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome
 from ai_engine.core.state import RankedChunk
-from ai_engine.graph.nodes.rerank import RerankNode
+from ai_engine.graph.nodes.rerank import RerankNode, RerankOutcome
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
-from ai_engine.graph.nodes.validate import ValidateNode
+from ai_engine.graph.nodes.validate import ValidateNode, ValidateOutcome
 
 
 def _chunk(score: float) -> RankedChunk:
@@ -21,48 +21,48 @@ def _chunk(score: float) -> RankedChunk:
 
 def test_injection_detected_decides_detected(make_state):
     state = make_state(injection_detected=True)
-    assert InjectionNode().decide(state) is InjectionNode.Outcome.INJECTION_DETECTED
+    assert InjectionNode().decide(state) is InjectionOutcome.INJECTION_DETECTED
 
 
 def test_no_injection_decides_clear(make_state):
     state = make_state(injection_detected=False)
-    assert InjectionNode().decide(state) is InjectionNode.Outcome.INJECTION_CLEAR
+    assert InjectionNode().decide(state) is InjectionOutcome.INJECTION_CLEAR
 
 
 def test_empty_reranked_is_below_floor(fake_reranker, make_state):
     state = make_state(reranked=[], retrieval_floor=0.45)
     node = RerankNode(reranker=fake_reranker())
-    assert node.decide(state) is RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
+    assert node.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_below_floor_is_below_floor(fake_reranker, make_state):
     state = make_state(reranked=[_chunk(0.1)], retrieval_floor=0.45)
     node = RerankNode(reranker=fake_reranker())
-    assert node.decide(state) is RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
+    assert node.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_above_floor_is_above_floor(fake_reranker, make_state):
     state = make_state(reranked=[_chunk(0.9)], retrieval_floor=0.45)
     node = RerankNode(reranker=fake_reranker())
-    assert node.decide(state) is RerankNode.Outcome.EVIDENCE_ABOVE_FLOOR
+    assert node.decide(state) is RerankOutcome.EVIDENCE_ABOVE_FLOOR
 
 
 def test_schema_invalid_retries_once(make_state):
     state = make_state(schema_valid=False, iteration=0)
     node = ValidateNode()
-    assert node.decide(state) is ValidateNode.Outcome.RETRY_INFERENCE
+    assert node.decide(state) is ValidateOutcome.RETRY_INFERENCE
 
 
 def test_schema_invalid_stops_retrying_after_iteration_cap(make_state):
     state = make_state(schema_valid=False, iteration=2)
     node = ValidateNode()
-    assert node.decide(state) is ValidateNode.Outcome.RETRIES_EXHAUSTED
+    assert node.decide(state) is ValidateOutcome.RETRIES_EXHAUSTED
 
 
 def test_schema_valid_decides_valid(make_state):
     state = make_state(schema_valid=True, iteration=0)
     node = ValidateNode()
-    assert node.decide(state) is ValidateNode.Outcome.SCHEMA_VALID
+    assert node.decide(state) is ValidateOutcome.SCHEMA_VALID
 
 
 def _edges() -> dict[tuple[str, str], str | None]:
@@ -81,9 +81,9 @@ def test_safety_critical_routes():
     edges = _edges()
 
     assert ("__start__", "injection") in edges
-    assert edges[("injection", "emit_signals")] == InjectionNode.Outcome.INJECTION_DETECTED
-    assert edges[("rerank", "emit_signals")] == RerankNode.Outcome.EVIDENCE_BELOW_FLOOR
-    assert edges[("validate", "infer")] == ValidateNode.Outcome.RETRY_INFERENCE
+    assert edges[("injection", "emit_signals")] == InjectionOutcome.INJECTION_DETECTED
+    assert edges[("rerank", "emit_signals")] == RerankOutcome.EVIDENCE_BELOW_FLOOR
+    assert edges[("validate", "infer")] == ValidateOutcome.RETRY_INFERENCE
     # SCHEMA_VALID and RETRIES_EXHAUSTED share this edge, so it carries only
     # one label; that both outcomes are routed is enforced by compile().
     assert ("validate", "emit_signals") in edges

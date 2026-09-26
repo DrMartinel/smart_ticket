@@ -143,11 +143,13 @@ accumulate into.
 ### 4.2 BaseNode — `core/node.py`
 
 ```python
+class SingleExit(StrEnum):
+    DONE = "Done"
+
+
 class BaseNode(ABC):
     name: ClassVar[str]
-
-    class Outcome(StrEnum):
-        DONE = "Done"
+    Outcome: ClassVar[type[StrEnum]] = SingleExit
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -160,9 +162,14 @@ class BaseNode(ABC):
     @abstractmethod
     def __call__(self, state: TriageState) -> dict: ...
 
-    def decide(self, state: TriageState) -> BaseNode.Outcome:
-        return self.Outcome.DONE
+    def decide(self, state: TriageState) -> StrEnum:
+        return SingleExit.DONE
 ```
+
+A node with more than one exit defines its enum at module level and assigns
+it (`Outcome = RerankOutcome`) rather than nesting a `class Outcome`. An enum
+with members cannot be subclassed, so a nested override is an unrelated class
+that type checkers report as an incompatible override.
 
 `Outcome` is a `StrEnum`: members compare and hash exactly like their string
 values, so LangGraph's path-map lookup works either way, and `str(member)` is
@@ -173,9 +180,6 @@ the value — edge labels in `draw_mermaid()` read `EvidenceBelowFloor`, not
 
 ```python
 class Terminal(BaseNode):
-    class Outcome(StrEnum):
-        DONE = "Done"
-
     def __call__(self, state: TriageState) -> dict:
         return {}
 ```
@@ -195,17 +199,17 @@ is a required keyword, so a caller cannot forget one:
 ```python
 def wire_triage(*, injection, retrieve, rerank, fewshots, infer, validate, emit) -> GraphBuilder:
     g = GraphBuilder(entry=injection)
-    g.route(injection, InjectionNode.Outcome.INJECTION_DETECTED, emit)
-    g.route(injection, InjectionNode.Outcome.INJECTION_CLEAR, retrieve)
-    g.route(retrieve, HybridRetrieveNode.Outcome.DONE, rerank)
-    g.route(rerank, RerankNode.Outcome.EVIDENCE_BELOW_FLOOR, emit)  # refuse-before-LLM
-    g.route(rerank, RerankNode.Outcome.EVIDENCE_ABOVE_FLOOR, fewshots)
-    g.route(fewshots, SelectFewshotsNode.Outcome.DONE, infer)
-    g.route(infer, InferNode.Outcome.DONE, validate)
-    g.route(validate, ValidateNode.Outcome.RETRY_INFERENCE, infer)  # the only cycle
-    g.route(validate, ValidateNode.Outcome.SCHEMA_VALID, emit)
-    g.route(validate, ValidateNode.Outcome.RETRIES_EXHAUSTED, emit)
-    g.route(emit, EmitSignalsNode.Outcome.DONE, Terminal())  # no deps: built here
+    g.route(injection, InjectionOutcome.INJECTION_DETECTED, emit)
+    g.route(injection, InjectionOutcome.INJECTION_CLEAR, retrieve)
+    g.route(retrieve, SingleExit.DONE, rerank)
+    g.route(rerank, RerankOutcome.EVIDENCE_BELOW_FLOOR, emit)  # refuse-before-LLM
+    g.route(rerank, RerankOutcome.EVIDENCE_ABOVE_FLOOR, fewshots)
+    g.route(fewshots, SingleExit.DONE, infer)
+    g.route(infer, SingleExit.DONE, validate)
+    g.route(validate, ValidateOutcome.RETRY_INFERENCE, infer)  # the only cycle
+    g.route(validate, ValidateOutcome.SCHEMA_VALID, emit)
+    g.route(validate, ValidateOutcome.RETRIES_EXHAUSTED, emit)
+    g.route(emit, SingleExit.DONE, Terminal())  # no deps: built here
     return g
 ```
 
@@ -231,8 +235,8 @@ registering anything, raises `ValueError` on:
 - two reachable instances with the same node name (LangGraph would collide);
 - no `Terminal` reachable from the entry (with every outcome routed, every run
   would cycle until LangGraph's recursion limit aborts it);
-- a class whose own `Outcome` has no `DONE` but which does not override
-  `decide()` (it would crash on first call);
+- a class that sets its own `Outcome` but does not override `decide()`
+  (the default would return `SingleExit.DONE`, which it cannot produce);
 - a reachable node with an unrouted outcome — including a target whose own
   routes were never declared;
 - a node that has routes but is unreachable from the entry — which is what a
@@ -288,10 +292,13 @@ parameters: `wire_triage(**triage_nodes()).compile(TriageState)`.
 A branching node (`nodes/rerank.py`, abridged):
 
 ```python
+class RerankOutcome(StrEnum):
+    EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
+    EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
+
+
 class RerankNode(BudgetGuardMixin, BaseNode):
-    class Outcome(StrEnum):
-        EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
-        EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
+    Outcome = RerankOutcome
 
     def __init__(self, *, reranker: CrossEncoderReranker) -> None:
         self._reranker = reranker  # read-only after construction
@@ -300,15 +307,16 @@ class RerankNode(BudgetGuardMixin, BaseNode):
         ...
         return {"reranked": ranked[: settings.rerank_top_n]}
 
-    def decide(self, state: TriageState) -> RerankNode.Outcome:
+    def decide(self, state: TriageState) -> RerankOutcome:
         reranked = state.reranked
         if not reranked or reranked[0].score < state.retrieval_floor:
-            return self.Outcome.EVIDENCE_BELOW_FLOOR
-        return self.Outcome.EVIDENCE_ABOVE_FLOOR
+            return RerankOutcome.EVIDENCE_BELOW_FLOOR
+        return RerankOutcome.EVIDENCE_ABOVE_FLOOR
 ```
 
-A single-exit node needs neither an `Outcome` override nor a `decide()` — it
-inherits `DONE` and gets a plain edge (`HybridRetrieveNode`, `InferNode`, …).
+A single-exit node needs neither an `Outcome` nor a `decide()` — it inherits
+`SingleExit` and is routed with `SingleExit.DONE` (`HybridRetrieveNode`,
+`InferNode`, …).
 
 A node that spends tokens, latency or a network round-trip mixes in
 `BudgetGuardMixin` (`core/budget.py`) ahead of `BaseNode`:
@@ -328,7 +336,8 @@ of the node, it runs on every pass through the `validate → infer` retry, not
 once at graph entry. Using the mixin on a class that is not a `BaseNode` raises
 `TypeError` at definition — it would look budgeted while guarding nothing.
 
-Checklist when adding one: define `Outcome` members in domain language; put
+Checklist when adding one: define a module-level `<Name>Outcome` enum in domain
+language and assign it to `Outcome`; put
 dependencies in `__init__` and nothing else; mix in `BudgetGuardMixin` if the node
 spends anything; keep `__call__` free of writes to `self`; return only
 changed keys; add a parameter to `wire_triage` and route every outcome; pass
@@ -387,7 +396,7 @@ cannot be validated.
 **Successors attached to `Outcome` members at startup
 (`Outcome.INJECTION_CLEAR.next = retrieve`).** Avoids the definition-order and
 thunk problems above, but writes wiring onto shared global objects:
-`BaseNode.Outcome.DONE` is one member inherited by every single-exit node, so
+`SingleExit.DONE` is one member shared by every single-exit node, so
 their successors overwrite each other; a class could never serve two graphs;
 and every compile — each test's included — would rewire the production nodes.
 
@@ -426,11 +435,11 @@ step names and `get_graph()` output change. If a checkpointer is ever added,
 in-flight threads saved under the old name will not resume: drain or migrate
 before renaming.
 
-**Qualify `decide()`'s return annotation with the class**
-(`-> RerankNode.Outcome`, not `-> Outcome`). LangGraph calls `get_type_hints()`
-on the router, which resolves annotations against module globals where a bare
-`Outcome` does not exist. Getting it wrong fails in `GraphBuilder.compile()`
-at startup, not at runtime.
+**Annotate `decide()` with the module-level enum** (`-> RerankOutcome`, not
+`-> Outcome`). LangGraph calls `get_type_hints()` on the router, which
+resolves annotations against module globals where a bare `Outcome` does not
+exist. Getting it wrong fails in `GraphBuilder.compile()` at startup, not at
+runtime.
 
 **List-valued state fields replace rather than append** unless the schema
 declares a reducer — which is what we want today (§4.1).

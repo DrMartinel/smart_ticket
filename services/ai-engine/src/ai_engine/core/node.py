@@ -17,6 +17,12 @@ from typing import Any, ClassVar
 from ai_engine.core.state import TriageState
 
 
+class SingleExit(StrEnum):
+    """The outcome of every node with one exit."""
+
+    DONE = "Done"
+
+
 class BaseNode(ABC):
     """One unit of work in the triage graph.
 
@@ -27,10 +33,11 @@ class BaseNode(ABC):
 
     name: ClassVar[str]
 
-    class Outcome(StrEnum):
-        """Business meanings this node can end in. Subclasses override."""
-
-        DONE = "Done"
+    # Business meanings this node can end in. A node with more than one exit
+    # assigns its own module-level enum here, not a nested class: an enum with
+    # members can't be subclassed, so a nested override is an unrelated class
+    # that type checkers reject.
+    Outcome: ClassVar[type[StrEnum]] = SingleExit
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -44,10 +51,10 @@ class BaseNode(ABC):
     def __call__(self, state: TriageState) -> dict:
         """Do the work. Return only the state keys that changed."""
 
-    def decide(self, state: TriageState) -> BaseNode.Outcome:
+    def decide(self, state: TriageState) -> StrEnum:
         """Which outcome did this run reach? Runs after __call__'s update is
         merged, so it sees fresh state. Default: single exit."""
-        return self.Outcome.DONE
+        return SingleExit.DONE
 
 
 class Terminal(BaseNode):
@@ -58,9 +65,6 @@ class Terminal(BaseNode):
     TriageState, so returning END would look like it worked while doing
     nothing.
     """
-
-    class Outcome(StrEnum):
-        DONE = "Done"
 
     def __call__(self, state: TriageState) -> dict:
         return {}

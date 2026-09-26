@@ -20,10 +20,13 @@ from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import RankedChunk, TriageState
 
 
+class RerankOutcome(StrEnum):
+    EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
+    EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
+
+
 class RerankNode(BudgetGuardMixin, BaseNode):
-    class Outcome(StrEnum):
-        EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
-        EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
+    Outcome = RerankOutcome
 
     def __init__(self, *, reranker: Reranker) -> None:
         self._reranker = reranker
@@ -49,8 +52,8 @@ class RerankNode(BudgetGuardMixin, BaseNode):
         ranked.sort(key=lambda r: r.score, reverse=True)
         return {"reranked": ranked[: settings.rerank_top_n]}
 
-    def decide(self, state: TriageState) -> RerankNode.Outcome:
+    def decide(self, state: TriageState) -> RerankOutcome:
         reranked = state.reranked
         if not reranked or reranked[0].score < state.retrieval_floor:
-            return self.Outcome.EVIDENCE_BELOW_FLOOR
-        return self.Outcome.EVIDENCE_ABOVE_FLOOR
+            return RerankOutcome.EVIDENCE_BELOW_FLOOR
+        return RerankOutcome.EVIDENCE_ABOVE_FLOOR

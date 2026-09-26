@@ -73,7 +73,7 @@ def test_node_annotation_does_not_override_the_graph_schema():
 
     from typing import TypedDict
 
-    from ai_engine.core.node import BaseNode, Terminal
+    from ai_engine.core.node import BaseNode, SingleExit, Terminal
 
     class Other(BaseModel):
         required_elsewhere: int
@@ -87,6 +87,6 @@ def test_node_annotation_does_not_override_the_graph_schema():
 
     node = AnnotatedNode()
     g = GraphBuilder(entry=node)
-    g.route(node, AnnotatedNode.Outcome.DONE, Terminal())
+    g.route(node, SingleExit.DONE, Terminal())
 
     assert g.compile(_Loose).invoke({})["seen"] == ["ran"]

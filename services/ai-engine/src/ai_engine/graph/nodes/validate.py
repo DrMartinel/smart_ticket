@@ -88,11 +88,14 @@ ALL_FAILED = _checks(
 )
 
 
+class ValidateOutcome(StrEnum):
+    SCHEMA_VALID = "SchemaValid"
+    RETRY_INFERENCE = "RetryInference"
+    RETRIES_EXHAUSTED = "RetriesExhausted"
+
+
 class ValidateNode(BaseNode):
-    class Outcome(StrEnum):
-        SCHEMA_VALID = "SchemaValid"
-        RETRY_INFERENCE = "RetryInference"
-        RETRIES_EXHAUSTED = "RetriesExhausted"
+    Outcome = ValidateOutcome
 
     def __call__(self, state: TriageState) -> dict:
         proposal = state.proposal
@@ -150,11 +153,11 @@ class ValidateNode(BaseNode):
             source_chunk_id=source,
         )
 
-    def decide(self, state: TriageState) -> ValidateNode.Outcome:
+    def decide(self, state: TriageState) -> ValidateOutcome:
         if state.schema_valid:
-            return self.Outcome.SCHEMA_VALID
+            return ValidateOutcome.SCHEMA_VALID
         # Schema failure -> retry AT MOST once. Structurally bounded by
         # `iteration < 2` — the only cycle in the graph cannot loop forever.
         if state.iteration < 2:
-            return self.Outcome.RETRY_INFERENCE
-        return self.Outcome.RETRIES_EXHAUSTED
+            return ValidateOutcome.RETRY_INFERENCE
+        return ValidateOutcome.RETRIES_EXHAUSTED

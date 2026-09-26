@@ -3,7 +3,7 @@ Graph builder — the only place a node becomes a LangGraph string (add_node
 names, edge targets, START/END).
 
 Routes map an outcome to the next node *instance* and live on the builder, not
-on node classes: `BaseNode.Outcome.DONE` is shared by every single-exit node,
+on node classes: `SingleExit.DONE` is shared by every single-exit node,
 and one class may serve several graphs. A `Terminal` node holds the only edge
 to END.
 
@@ -23,7 +23,7 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
-from ai_engine.core.node import BaseNode, Terminal
+from ai_engine.core.node import BaseNode, SingleExit, Terminal
 
 
 def _require_instance(value: object, role: str) -> BaseNode:
@@ -98,7 +98,7 @@ class GraphBuilder:
             cls = type(node)
             if isinstance(node, Terminal):
                 continue  # its only exit is END, added by compile()
-            if "DONE" not in cls.Outcome.__members__ and cls.decide is BaseNode.decide:
+            if cls.Outcome is not SingleExit and cls.decide is BaseNode.decide:
                 raise ValueError(
                     f"{cls.__name__} defines its own Outcome but does not override decide()"
                 )
