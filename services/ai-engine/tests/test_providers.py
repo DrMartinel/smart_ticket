@@ -246,6 +246,6 @@ def test_every_built_provider_is_the_shared_type(
     e = reload_embeddings()
     r = reload_reranker()
 
-    assert isinstance(e.embedder, (e.LexicalEmbedder, e.StubEmbedder))
-    assert isinstance(r.reranker, (r.CrossEncoderReranker, r.LexicalReranker))
+    assert isinstance(e.embedder, e.Embedder)
+    assert isinstance(r.reranker, r.Reranker)
     assert isinstance(models.chat, LLMClient)

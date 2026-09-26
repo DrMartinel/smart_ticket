@@ -12,6 +12,7 @@ the same model by config.
 from __future__ import annotations
 
 import hashlib
+from abc import ABC, abstractmethod
 
 import numpy as np
 
@@ -23,20 +24,24 @@ from ai_engine.core.providers.llm import models
 EMBED_DIM = 1024
 
 
-class LexicalEmbedder:
+class Embedder(ABC):
+    """What the retrieve and few-shot nodes depend on."""
+
+    @abstractmethod
+    def embed(self, text: str) -> list[float]:
+        """One dense vector of EMBED_DIM floats. Raises on provider failure —
+        never a zero or empty vector. That would read as "the KB has nothing
+        relevant" instead of "the embedder is down", and the two reach HITL
+        under different reason codes."""
+
+
+class LexicalEmbedder(Embedder):
     """Embeds text with `settings.embed_model` through
     `models.embed`, against an OpenAI-compatible `/embeddings`
     endpoint. Stateless.
     """
 
     def embed(self, text: str) -> list[float]:
-        """One dense vector of EMBED_DIM floats.
-
-        Raises on provider failure — never a zero or empty vector. That would
-        read as "the KB has nothing relevant" instead of "the embedder is
-        down", and the two reach HITL under different reason codes.
-        """
-
         model = settings.embed_model
         body = models.embed.request("/embeddings", {"model": model, "input": text})
         try:
@@ -49,7 +54,7 @@ class LexicalEmbedder:
         return vector
 
 
-class StubEmbedder:
+class StubEmbedder(Embedder):
     """Deterministic sha256-seeded unit vectors for CI/no-GPU runs. Talks to
     no server. Exercises the pipeline shape, not retrieval quality.
     Stateless."""
