@@ -16,8 +16,9 @@ from pydantic import ValidationError
 
 from contracts.llm_draft import LLMProposalEnvelope
 
-from ai_engine.core.budget import BudgetedNode
+from ai_engine.core.budget import BudgetGuardMixin
 from ai_engine.core.config import settings
+from ai_engine.core.node import BaseNode
 from ai_engine.core.providers.llm.models import LLMClient
 from ai_engine.core.providers.llm.circuit_breaker import CircuitOpenError
 from ai_engine.core.providers.llm.models import AllLLMDownError
@@ -54,7 +55,7 @@ def _format_fewshots(fewshots: list[dict]) -> str:
 _ATTEMPT_HEADROOM_DIVISOR = 2
 
 
-class InferNode(BudgetedNode):
+class InferNode(BudgetGuardMixin, BaseNode):
     def __init__(
         self,
         *,

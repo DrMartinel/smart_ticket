@@ -1,7 +1,7 @@
 """
 Budget guard — spec §6.2, §10.2.
 
-Every expensive node (retrieve, rerank, infer) inherits `BudgetedNode`, so the
+Every expensive node (retrieve, rerank, infer) mixes in `BudgetGuardMixin`, so the
 check runs on every pass through the validate → infer retry loop, not just
 once at graph entry. It is a cost control and a security control: an
 adversarial ticket could otherwise loop through its budget.
@@ -18,7 +18,7 @@ from ai_engine.core.state import TriageState
 
 
 class BudgetExceeded(Exception):
-    """Raised by `check_budget`, caught by `BudgetedNode`'s wrapper.
+    """Raised by `check_budget`, caught by `BudgetGuardMixin`'s wrapper.
 
     Must never escape a node: that aborts `graph.invoke` and turns a
     degrade-to-human into a 500 with no TrustSignals.
@@ -45,15 +45,22 @@ def check_budget(state: TriageState) -> None:
             raise BudgetExceeded(limit_name)
 
 
-class BudgetedNode(BaseNode):
-    """A node that spends tokens, latency or a network round-trip.
+class BudgetGuardMixin:
+    """Mix into a node that spends tokens, latency or a network round-trip:
+    `class RerankNode(BudgetGuardMixin, BaseNode)`.
 
     Its `__call__` is wrapped with the budget check at class definition,
     so no subclass — even one overriding `__call__` again — can skip it.
+    A mixin rather than a `BaseNode` subclass so "is budgeted" stays one
+    orthogonal trait, not a rung in the node hierarchy.
     """
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
+        # Only a node's __call__ runs inside the graph; on anything else the
+        # wrap would silently guard nothing.
+        if not issubclass(cls, BaseNode):
+            raise TypeError(f"{cls.__qualname__}: BudgetGuardMixin must be combined with BaseNode")
         own_call = cls.__dict__.get("__call__")
         if own_call is None:
             return

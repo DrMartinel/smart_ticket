@@ -5,7 +5,8 @@ human through the compiled graph. Per-node degrade tests live with each node.
 
 import pytest
 
-from ai_engine.core.budget import BudgetedNode
+from ai_engine.core.budget import BudgetGuardMixin
+from ai_engine.core.node import BaseNode
 
 _LIMITS = pytest.mark.parametrize(
     "overrides",
@@ -19,7 +20,7 @@ _LIMITS = pytest.mark.parametrize(
 )
 
 
-class _SpyNode(BudgetedNode):
+class _SpyNode(BudgetGuardMixin, BaseNode):
     def __init__(self):
         self.ran = []
 
@@ -57,6 +58,17 @@ def test_a_subclass_overriding_call_again_is_still_guarded(make_state, exhausted
     assert node(exhausted_budget_state()) == {"degraded_reason": "budget_exceeded"}
     assert node.ran == []
     assert node(make_state()) == {"candidates": ["fake"]}
+
+
+def test_mixin_without_base_node_is_rejected():
+    """Outside a BaseNode the wrapped __call__ never runs in the graph, so the
+    class would look budgeted while guarding nothing — fail at definition."""
+
+    with pytest.raises(TypeError, match="BaseNode"):
+
+        class _NotANode(BudgetGuardMixin):
+            def __call__(self, state: dict) -> dict:
+                return {}
 
 
 def test_wrapped_call_keeps_the_node_signature():

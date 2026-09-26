@@ -91,7 +91,7 @@ threadpool. All per-call data belongs in state.
 
 `ai_engine/core/` is everything the nodes are built on: `config.py`
 (settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `budget.py`
-(`BudgetedNode`), `providers/` (the embedding and reranking seams as ABCs in
+(`BudgetGuardMixin`), `providers/` (the embedding and reranking seams as ABCs in
 `base.py`; the embedders and rerankers; and `llm/`, the
 `LLMClient` seam and its client, chat-model factories and circuit breaker), `prompts/` (the
 versioned system prompts and their loader), `db/` (the SQLAlchemy client and
@@ -288,7 +288,7 @@ parameters: `wire_triage(**triage_nodes()).compile(TriageState)`.
 A branching node (`nodes/rerank.py`, abridged):
 
 ```python
-class RerankNode(BudgetedNode):
+class RerankNode(BudgetGuardMixin, BaseNode):
     class Outcome(StrEnum):
         EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
         EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
@@ -310,10 +310,11 @@ class RerankNode(BudgetedNode):
 A single-exit node needs neither an `Outcome` override nor a `decide()` — it
 inherits `DONE` and gets a plain edge (`HybridRetrieveNode`, `InferNode`, …).
 
-A node that spends tokens, latency or a network round-trip inherits
-`BudgetedNode` (`core/budget.py`) instead of `BaseNode`. The node still
+A node that spends tokens, latency or a network round-trip mixes in
+`BudgetGuardMixin` (`core/budget.py`) ahead of `BaseNode`:
+`class RerankNode(BudgetGuardMixin, BaseNode)`. The node still
 writes an ordinary `__call__(self, state) -> dict`; when the class is defined,
-`BudgetedNode.__init_subclass__` wraps that `__call__` so the per-request
+`BudgetGuardMixin.__init_subclass__` wraps that `__call__` so the per-request
 budget is checked before it runs. `check_budget(state)` raises
 `BudgetExceeded`; the wrapper catches it and returns only
 `degraded_reason="budget_exceeded"`, so nodes write no degrade code at all.
@@ -324,10 +325,11 @@ with an empty default — an over-budget ticket still routes below the floor to
 automatic, the check cannot be forgotten — a test fake that subclasses
 `InferNode` and overrides `__call__` is wrapped too. Because the check is part
 of the node, it runs on every pass through the `validate → infer` retry, not
-once at graph entry.
+once at graph entry. Using the mixin on a class that is not a `BaseNode` raises
+`TypeError` at definition — it would look budgeted while guarding nothing.
 
 Checklist when adding one: define `Outcome` members in domain language; put
-dependencies in `__init__` and nothing else; pick `BudgetedNode` if the node
+dependencies in `__init__` and nothing else; mix in `BudgetGuardMixin` if the node
 spends anything; keep `__call__` free of writes to `self`; return only
 changed keys; add a parameter to `wire_triage` and route every outcome; pass
 an instance in `main.py` and in the `triage_nodes` fixture; test `decide()`
@@ -434,7 +436,7 @@ at startup, not at runtime.
 declares a reducer — which is what we want today (§4.1).
 
 **Never fold `budget.py` into `build.py`** (or a shared `utils.py`). Nodes
-import `BudgetedNode`, and `build.py` imports the nodes — a circular import.
+import `BudgetGuardMixin`, and `build.py` imports the nodes — a circular import.
 `budget.py` imports only `node.py` and `state.py`, which keeps it safe.
 
 **Fan-out.** A router may return a list of node names to run several nodes in

@@ -17,7 +17,7 @@ from ai_engine.core.state import TriageState
 
 
 class SelectFewshotsNode(BaseNode):
-    """A plain BaseNode, NOT a BudgetedNode: the only node that spends an
+    """A plain BaseNode, NOT a BudgetGuardMixin node: the only node that spends an
     embedding round-trip without checking the budget. See docs/TODO.md.
     """
 

@@ -12,14 +12,15 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from ai_engine.core.budget import BudgetedNode
+from ai_engine.core.budget import BudgetGuardMixin
 from ai_engine.core.config import settings
+from ai_engine.core.node import BaseNode
 from ai_engine.core.providers.reranker import Reranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import RankedChunk, TriageState
 
 
-class RerankNode(BudgetedNode):
+class RerankNode(BudgetGuardMixin, BaseNode):
     class Outcome(StrEnum):
         EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
         EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"

@@ -198,10 +198,10 @@ request whose `prompt_version` does not match with a 400.
 **Priority:** Low
 
 It is the only node that spends an embedding round-trip without first checking
-the budget — `retrieve`, `rerank` and `infer` all inherit `BudgetedNode`. Possibly deliberate
+the budget — `retrieve`, `rerank` and `infer` all mix in `BudgetGuardMixin`. Possibly deliberate
 (few-shot selection is cheap relative to inference), possibly an oversight.
 
-**Done when** either it inherits `BudgetedNode`, or a comment in
+**Done when** either it mixes in `BudgetGuardMixin`, or a comment in
 `SelectFewshotsNode` states why it is exempt.
 
 ### 6c. The same query is embedded twice per ticket
