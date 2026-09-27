@@ -54,15 +54,25 @@ class TriageState(BaseModel):
     injection_detected: bool = False
     injection_matched_patterns: list[str] = []
 
+    # HybridRetrieveNode
+    bm25_keyword_hit: bool = False
     candidates: list[Candidate] = []  # post-RRF
-    bm25_keyword_hit: bool = False  # did lexical search find ANY tsvector match at all
-    reranked: list[RankedChunk] = []  # post cross-encoder
-    fewshots: list[dict] = []
-    proposal: LLMProposalEnvelope | None = None
 
-    # ValidateNode. The defaults read as "every check failed": refuse-before-LLM
-    # skips the validator, and a default of anything but "failed" would hand
-    # the trust scorer passing checks nobody performed.
+    # RerankNode
+    reranked: list[RankedChunk] = []
+
+    # SelectFewshotsNode
+    fewshots: list[dict] = []
+
+    # InferNode
+    proposal: LLMProposalEnvelope | None = None
+    tokens_in: int = 0
+    tokens_out: int = 0
+    cost_usd: float = 0.0
+    model_used: str | None = None
+    degraded_reason: str | None = None
+
+    # ValidateNode
     schema_valid: bool = False
     quote_applicable: bool = False
     quote_match_ratio: float = 0.0
@@ -71,10 +81,5 @@ class TriageState(BaseModel):
     category_consistent: bool = False
     source_chunk_id: int | None = None
 
-    # Terminal
+    # EmitSignalsNode
     signals: TrustSignals | None = None
-    tokens_in: int = 0
-    tokens_out: int = 0
-    cost_usd: float = 0.0
-    model_used: str | None = None
-    degraded_reason: str | None = None
