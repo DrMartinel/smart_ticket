@@ -13,6 +13,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from ai_engine.core.config import settings
 from ai_engine.core.db.tables import KbArticle, KbChunk
@@ -31,7 +32,7 @@ class LexicalHit(BaseModel):
     score: float
 
 
-def bm25_search(session, query_text: str) -> list[LexicalHit]:
+def bm25_search(session: Session, query_text: str) -> list[LexicalHit]:
     error_codes = _ERROR_CODE_RE.findall(query_text)
 
     tsquery = func.plainto_tsquery("simple", query_text)
@@ -46,7 +47,7 @@ def bm25_search(session, query_text: str) -> list[LexicalHit]:
     )
     rows = session.execute(statement).all()
 
-    hits = []
+    hits: list[LexicalHit] = []
     for chunk_id, article_id, article_slug, content, score in rows:
         boosted = float(score)
         if error_codes and any(code in content for code in error_codes):

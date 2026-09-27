@@ -10,6 +10,7 @@ those three. Queries are SQLAlchemy 2.0 against `tables.py` (ADR-0008).
 
 from __future__ import annotations
 
+from collections.abc import Generator
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine, make_url
@@ -39,7 +40,7 @@ class SqlAlchemySessionSource:
         self._engine = create_engine(_psycopg3_url(settings.database_url), poolclass=NullPool)
 
     @contextmanager
-    def connect(self):
+    def connect(self) -> Generator[Session]:
         # Never committed: the session's implicit transaction is rolled back on
         # close. ai-engine has nothing to commit (ADR-0004).
         with Session(self._engine) as session:

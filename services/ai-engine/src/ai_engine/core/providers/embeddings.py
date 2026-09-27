@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 from abc import ABC, abstractmethod
+from typing import cast
 
 import numpy as np
 
@@ -48,9 +49,13 @@ class LexicalEmbedder(Embedder):
             vector = body["data"][0]["embedding"]
         except (KeyError, IndexError, TypeError) as e:
             raise ValueError(f"unusable embeddings reply: {body!r}") from e
-        if not isinstance(vector, list) or len(vector) != EMBED_DIM:
-            size = len(vector) if isinstance(vector, list) else type(vector).__name__
-            raise ValueError(f"{model!r} returned dim {size}, expected {EMBED_DIM}")
+        if not isinstance(vector, list):
+            raise ValueError(
+                f"{model!r} returned dim {type(vector).__name__}, expected {EMBED_DIM}"
+            )
+        vector = cast(list[float], vector)
+        if len(vector) != EMBED_DIM:
+            raise ValueError(f"{model!r} returned dim {len(vector)}, expected {EMBED_DIM}")
         return vector
 
 

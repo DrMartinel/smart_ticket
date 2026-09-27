@@ -65,3 +65,20 @@ testpaths = ["services/core-api/tests", "services/ai-engine/tests", "evals/suite
 # conftest gets a path-derived name. Do not add one back — a whole-workspace
 # run dies at collection, while each suite still passes on its own.
 addopts = "--import-mode=importlib"
+
+[tool.pyright]
+# Strict, scoped to ai-engine for now: it is clean, and GraphBuilder's wiring
+# checks lean on its hints. Widen deliberately, one clean package at a time.
+# Suppressions are per line and name their rule; the remaining ones all sit
+# on LangGraph's boundary (its generics are partly unparameterized).
+include = ["services/ai-engine/src"]
+# The workspace venv (`uv sync --all-packages`), so imports resolve to the
+# same packages the tests run against.
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.13"
+typeCheckingMode = "strict"
+# The workspace packages are editable installs with no py.typed marker, so
+# through the venv pyright treats them as untyped third-party code. Resolving
+# them from source makes them first-party.
+extraPaths = ["services/ai-engine/src", "packages/contracts/src"]

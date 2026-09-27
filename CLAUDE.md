@@ -79,6 +79,12 @@ uv run pytest services/ai-engine/tests -q  # 168
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
 
+Type check (strict, ai-engine only; scope and settings in root `pyproject.toml`, version pinned in `lint.yml`):
+
+```bash
+uvx pyright@1.1.414
+```
+
 Coverage on the two modules where it is contractual:
 
 ```bash
@@ -213,6 +219,7 @@ behavior. A green unit suite says nothing about whether the model got worse.
 ## Before opening a PR
 
 - [ ] `uv run pytest` passes
+- [ ] `uvx pyright@1.1.414` is clean
 - [ ] New behavior has a test; new *failure* paths do too
 - [ ] No new magic numbers — did it go in `thresholds.yaml`?
 - [ ] Contract change → types regenerated, new fields defaulted

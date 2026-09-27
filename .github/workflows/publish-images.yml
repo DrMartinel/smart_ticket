@@ -66,6 +66,10 @@ jobs:
       - name: ruff check
         run: uvx ruff@0.16.7 check . --exclude .venv --output-format=github
 
+      # Pinned to match lint.yml; scope comes from pyproject.toml [tool.pyright].
+      - name: pyright
+        run: uvx pyright@1.1.414
+
       - name: Migrate
         working-directory: services/core-api
         run: uv run python manage.py migrate

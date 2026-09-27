@@ -6,6 +6,9 @@
 # repo is clean under the historical default but ruff 0.16 widened its own
 # and reports 104 findings on unchanged code. pyproject.toml pins the rule
 # selection; this pins the binary. Bump both together, deliberately.
+#
+# Pyright is pinned for the same reason: a new release can add checks and
+# turn unchanged code red. Its scope lives in pyproject.toml [tool.pyright].
 
 name: lint
 
@@ -19,6 +22,7 @@ permissions:
 
 env:
   RUFF_VERSION: "0.16.7"
+  PYRIGHT_VERSION: "1.1.414"
 
 jobs:
   ruff:
@@ -35,3 +39,17 @@ jobs:
 
       - name: ruff format --check
         run: uvx ruff@${{ env.RUFF_VERSION }} format --check . --exclude .venv
+
+  pyright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+
+      # Type hints are not enforced at runtime, so this is the only thing that
+      # makes them binding. Needs the real dependencies installed: without
+      # them every third-party import is Unknown and most checks go quiet.
+      - run: uv sync --all-packages
+
+      - name: pyright
+        run: uvx pyright@${{ env.PYRIGHT_VERSION }}

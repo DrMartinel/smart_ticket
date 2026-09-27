@@ -13,6 +13,20 @@ that moves a failure path is more significant here than a new feature.
 
 ## [Unreleased]
 
+### Added
+
+- **Pyright in CI, strict mode, scoped to ai-engine.** A pinned `pyright` job
+  in `lint.yml` and a step in `publish-images.yml`'s `verify`; config in root
+  `pyproject.toml`. Getting there typed the node return value as
+  `StateUpdate` (`core/node.py`), the DB session and retrieval functions, and
+  the builder's `compile()`, which is now generic over the state schema.
+  Behaviour change, minor: `GraphBuilder`'s adapter no longer raises its own
+  `TypeError` for a non-dict node update; LangGraph's `InvalidUpdateError`
+  catches the same case at the same point. `_require_instance` is removed
+  too: passing a node class where an instance belongs is now caught by
+  pyright, not at startup. An unchecked caller (tests, scripts) that makes
+  that mistake fails on the first `invoke` instead, with a less clear error.
+
 ### Changed
 
 - **Nodes use the provider singletons directly.** `EmitSignalsNode`,

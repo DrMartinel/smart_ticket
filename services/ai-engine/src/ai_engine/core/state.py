@@ -16,6 +16,8 @@ Frozen, so an in-place mutation — which would be silently discarded — raises
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict
 
 from contracts.llm_draft import LLMProposalEnvelope
@@ -62,7 +64,7 @@ class TriageState(BaseModel):
     reranked: list[RankedChunk] = []
 
     # SelectFewshotsNode
-    fewshots: list[dict] = []
+    fewshots: list[dict[str, Any]] = []
 
     # InferNode
     proposal: LLMProposalEnvelope | None = None
