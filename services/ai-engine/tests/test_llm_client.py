@@ -2,7 +2,7 @@
 LLM-client tests: where an unusable provider reply ends up.
 
 Blank, non-string or missing content must be treated like a transport failure
-— retry, fall back, then AllLLMDownError → HITL. Escaping the client would be
+— AllLLMDownError → HITL. Escaping the client would be
 a 500 with no TrustSignals. Drives a fake `LLMClient` subclass (ADR-0007).
 """
 
@@ -12,14 +12,12 @@ import httpx
 import pytest
 from langchain_core.messages import AIMessage
 
-from ai_engine.core.providers.llm import models as client_module
-from ai_engine.core.providers.llm.circuit_breaker import CircuitBreaker, CircuitOpenError
 from ai_engine.core.providers.llm.models import AllLLMDownError, LLMClient, LLMResult
 
 
 class _FakeChatModel:
     """Stands in for a BaseChatModel. Not a subclass: `invoke` is all
-    `_attempt` touches, and subclassing drags in unrelated pydantic
+    `complete()` touches, and subclassing drags in unrelated pydantic
     validation.
     """
 
@@ -37,10 +35,11 @@ class _FakeChatModel:
 
 class _FakeLLM(LLMClient):
     def __init__(self, *replies, name="fake/model", cost=0.0):
-        super().__init__(model_name=name, cost_per_1k_tokens=cost)
+        # Set before super().__init__(), which calls _build().
         self._model = _FakeChatModel(replies)
+        super().__init__(model=name, api_key="unused", base_url=None, cost_per_1k_tokens=cost)
 
-    def _build(self, timeout: float):
+    def _build(self):
         return self._model
 
     @property
@@ -59,21 +58,6 @@ def _ok(text='{"ok": true}', tokens_in=7, tokens_out=3):
     )
 
 
-@pytest.fixture(autouse=True)
-def fresh_circuit(monkeypatch):
-    """The client uses the process-wide breaker. Failures recorded by one test
-    would otherwise open it for the next."""
-
-    circuit = CircuitBreaker()
-    monkeypatch.setattr(client_module, "CIRCUIT", circuit)
-    return circuit
-
-
-@pytest.fixture
-def no_backoff(monkeypatch):
-    monkeypatch.setattr(client_module.time, "sleep", lambda _s: None)
-
-
 # Content that is not a usable answer. Each of these would otherwise reach
 # infer.py, fail `json.loads`, and be recorded as the MODEL producing bad
 # output (proposal=None, no degraded_reason) when the real cause is upstream.
@@ -89,15 +73,15 @@ _UNUSABLE_CONTENT = {
 
 
 @pytest.mark.parametrize("content", _UNUSABLE_CONTENT.values(), ids=_UNUSABLE_CONTENT.keys())
-def test_unusable_content_raises_all_llm_down(content, no_backoff):
+def test_unusable_content_raises_all_llm_down(content):
     """Blank or block-structured content is a transport-level failure, not a
-    boring-but-valid proposal. It must exhaust the chain rather than be
-    handed to infer.py as text."""
+    boring-but-valid proposal. It must raise rather than be handed to
+    infer.py as text."""
 
     primary = _FakeLLM(AIMessage(content=content))
     with pytest.raises(AllLLMDownError):
-        primary.complete("s", "u", timeout=30.0)
-    assert primary.calls == 2, "an unusable reply must be retried like a transport failure"
+        primary.complete("s", "u")
+    assert primary.calls == 1
 
 
 # Every hierarchy that can realistically escape a provider. Raw httpx errors;
@@ -113,39 +97,25 @@ _PROVIDER_ERRORS = {
 
 
 @pytest.mark.parametrize("exc", _PROVIDER_ERRORS.values(), ids=_PROVIDER_ERRORS.keys())
-def test_no_provider_exception_escapes_as_anything_but_all_llm_down(exc, no_backoff):
+def test_no_provider_exception_escapes_as_anything_but_all_llm_down(exc):
     """Guards the deliberately broad `except Exception` in complete(): every
     provider failure must reach infer.py as AllLLMDownError, or it becomes
     a 500 and the reviewer sees a blank panel.
     """
 
     with pytest.raises(AllLLMDownError):
-        _FakeLLM(exc).complete("s", "u", timeout=30.0)
+        _FakeLLM(exc).complete("s", "u")
 
 
-def test_circuit_open_is_not_swallowed_by_the_broad_except(fresh_circuit):
-    """CircuitOpenError and AllLLMDownError map to DIFFERENT degraded_reason
-    codes ("circuit_open" vs "all_llm_down"), and the HITL dashboard is built
-    on that enum. The broad except in the retry loop must not blur them."""
+def test_a_single_failure_raises_without_retrying():
+    """No retry and no fallback: the first failure raises, and infer maps it
+    to all_llm_down → HITL, never to an empty proposal. A second call here
+    means a retry crept back in."""
 
-    # Force the breaker open: >20% failures over at least 5 events.
-    for _ in range(10):
-        fresh_circuit.record(success=False)
-
-    primary = _FakeLLM(_ok())
-    with pytest.raises(CircuitOpenError):
-        primary.complete("s", "u", timeout=30.0)
-    assert primary.calls == 0, "an open circuit must not call any provider"
-
-
-def test_exhausted_retries_raise_all_llm_down(no_backoff):
-    """No fallback: after its two attempts the provider raises, and infer
-    maps that to all_llm_down → HITL, never to an empty proposal."""
-
-    llm = _FakeLLM(RuntimeError("down"), RuntimeError("down"))
+    llm = _FakeLLM(RuntimeError("down"), _ok())
     with pytest.raises(AllLLMDownError):
-        llm.complete("s", "u", timeout=30.0)
-    assert llm.calls == 2
+        llm.complete("s", "u")
+    assert llm.calls == 1
 
 
 def test_absent_usage_metadata_defaults_to_zero_tokens():
@@ -153,7 +123,7 @@ def test_absent_usage_metadata_defaults_to_zero_tokens():
     an error (indistinguishable from null counts — ADR-0007).
     """
 
-    result = _FakeLLM(AIMessage(content='{"ok": true}')).complete("s", "u", timeout=30.0)
+    result = _FakeLLM(AIMessage(content='{"ok": true}')).complete("s", "u")
     assert (result.tokens_in, result.tokens_out) == (0, 0)
 
 
@@ -164,25 +134,23 @@ def test_model_name_comes_from_config_not_the_response():
 
     reply = _ok()
     reply.response_metadata["model"] = "something-else-entirely"
-    result = _FakeLLM(reply, name="vllm/Qwen/Qwen3-8B-AWQ").complete("s", "u", timeout=30.0)
-    assert result.model == "vllm/Qwen/Qwen3-8B-AWQ"
+    result = _FakeLLM(reply, name="Qwen/Qwen3-8B-AWQ").complete("s", "u")
+    assert result.model == "Qwen/Qwen3-8B-AWQ"
 
 
 def test_cost_is_billed_at_the_providers_own_rate():
     """The rate lives on the provider. A client-side "is this the cloud link?"
-    check would bill Gemini at Anthropic's rate, and the dashboard would
+    check would bill every provider at one rate, and the dashboard would
     look plausible while wrong.
     """
 
-    result = _FakeLLM(_ok(tokens_in=900, tokens_out=100), cost=0.003).complete(
-        "s", "u", timeout=30.0
-    )
+    result = _FakeLLM(_ok(tokens_in=900, tokens_out=100), cost=0.003).complete("s", "u")
     assert result.tokens_in == 900
     assert result.cost_usd == pytest.approx(0.003)
 
 
 def test_local_provider_is_free():
-    result = _FakeLLM(_ok(tokens_in=1000, tokens_out=0), cost=0.0).complete("s", "u", timeout=30.0)
+    result = _FakeLLM(_ok(tokens_in=1000, tokens_out=0), cost=0.0).complete("s", "u")
     assert result.cost_usd == 0.0, "self-hosted vLLM is local compute, treated as free"
 
 

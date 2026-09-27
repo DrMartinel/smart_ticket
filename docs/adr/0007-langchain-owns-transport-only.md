@@ -1,7 +1,19 @@
 # ADR-0007: LangChain owns LLM transport only — retry, fallback and the breaker stay ours
 
-**Status:** Accepted
+**Status:** Accepted — amended 2026-09-27
 **Date:** 2026-09-16
+
+> **Amendment (2026-09-27):** the retry and the circuit breaker have since been
+> removed outright to simplify the project; `complete()` makes one attempt and
+> maps any failure to `AllLLMDownError`. The core decision stands: LangChain
+> supplies transport only, and `.with_retry()` / `.with_fallbacks()` / SDK
+> retries stay off (`max_retries=0`). Sections below about the retry loop and
+> the breaker describe the design as it was.
+>
+> **Amendment (2026-09-27, later):** the Anthropic and Gemini providers are
+> removed; chat runs on self-hosted vLLM or OpenAI, both through the OpenAI
+> SDK. Sections below about Anthropic, Gemini, flat timeouts and the missing
+> JSON mode describe providers that no longer exist.
 
 ## Context
 

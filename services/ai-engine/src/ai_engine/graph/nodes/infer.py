@@ -2,25 +2,21 @@
 LLM inference node — spec §6.2 `infer`. Builds the prompt from retrieved
 chunks and few-shots, calls the LLM client, and parses the reply into
 `LLMProposalEnvelope`. A parse failure is not an exception: validate records
-`schema_valid=False`, and the `validate -> infer` edge (capped at iteration <
-2) allows one retry before HITL.
+`schema_valid=False` and the ticket goes to HITL.
 """
 
 from __future__ import annotations
 
 import json
 import logging
-import time
 
 from pydantic import ValidationError
 
 from contracts.llm_draft import LLMProposalEnvelope
 
-from ai_engine.core.budget import BudgetGuardMixin
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode
 from ai_engine.core.providers.llm.models import LLMClient
-from ai_engine.core.providers.llm.circuit_breaker import CircuitOpenError
 from ai_engine.core.providers.llm.models import AllLLMDownError
 from ai_engine.core.prompts import load_system_prompt
 from ai_engine.core.state import TriageState
@@ -48,14 +44,7 @@ def _format_fewshots(fewshots: list[dict]) -> str:
     )
 
 
-# Not a tunable: this is the arithmetic form of "`LLMClient.complete()` makes
-# two attempts inside the same per-ticket latency budget". If that retry count changes, this changes with it — which
-# is why it is NOT a Settings field that could drift out of sync with the code
-# it describes.
-_ATTEMPT_HEADROOM_DIVISOR = 2
-
-
-class InferNode(BudgetGuardMixin, BaseNode):
+class InferNode(BaseNode):
     def __init__(
         self,
         *,
@@ -80,32 +69,15 @@ class InferNode(BudgetGuardMixin, BaseNode):
             f"## Ticket\nSubject: {ticket.subject_masked}\nBody: {ticket.body_masked}"
         )
 
-        # Leave headroom for the retry within the same per-ticket
-        # latency budget rather than using the full budget on a single try,
-        # then clamp to the per-call model ceiling — whichever binds first
-        # wins. The budget protects the ticket's end-to-end latency; the
-        # ceiling protects against a single call hanging indefinitely.
-        floor = settings.min_attempt_timeout_sec
-        remaining = max(floor, state.started_at + state.max_latency_sec - time.time())
-        per_attempt_timeout = min(
-            settings.model_timeout_sec, max(floor, remaining / _ATTEMPT_HEADROOM_DIVISOR)
-        )
-
         try:
-            result = self._llm.complete(
-                self._system_prompt, user_prompt, timeout=per_attempt_timeout
-            )
-        except CircuitOpenError:
-            return {"proposal": None, "degraded_reason": "circuit_open"}
+            result = self._llm.complete(self._system_prompt, user_prompt)
         except AllLLMDownError:
             return {"proposal": None, "degraded_reason": "all_llm_down"}
 
         update = {
-            "tokens_used": state.tokens_used + result.tokens_in + result.tokens_out,
-            "llm_calls": state.llm_calls + 1,
-            "tokens_in": state.tokens_in + result.tokens_in,
-            "tokens_out": state.tokens_out + result.tokens_out,
-            "cost_usd": state.cost_usd + result.cost_usd,
+            "tokens_in": result.tokens_in,
+            "tokens_out": result.tokens_out,
+            "cost_usd": result.cost_usd,
             "model_used": result.model,
         }
 

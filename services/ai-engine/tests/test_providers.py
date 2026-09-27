@@ -20,13 +20,13 @@ from ai_engine.core.providers.llm.models import VLLMLLM
 from ai_engine.core.providers.reranker import LexicalReranker, CrossEncoderReranker
 
 
-class _ScriptedClient(LLMClient):
+class _ScriptedClient:
     """Answers every request with one canned body and records what was sent.
     Swapped in for `models.embed` / `models.rerank`, so the
-    task logic in LexicalEmbedder / CrossEncoderReranker is tested without a server."""
+    task logic in LexicalEmbedder / CrossEncoderReranker is tested without a server.
+    Only `request()` is ever called on those, so nothing else is faked."""
 
     def __init__(self, body):
-        super().__init__(model_name="scripted", cost_per_1k_tokens=0.0)
         self._body = body
         self.sent: list[tuple[str, dict]] = []
 
@@ -144,7 +144,7 @@ def test_reranker_returns_scores_in_input_order_not_rank_order(serve_rerank):
 
 
 def test_reranker_empty_passages_sends_no_request(serve_rerank):
-    """Refuse-before-LLM and budget paths can reach the reranker with nothing
+    """Refuse-before-LLM paths can reach the reranker with nothing
     to score; they must get `[]` without a model call."""
 
     client = serve_rerank(_rerank_reply([]))

@@ -14,11 +14,10 @@ dependencies = [
     "pgvector>=0.3",
     "sqlalchemy>=2.0",
     "httpx>=0.27",
+    "httpx2>=2.0",  # the OpenAI SDK's transport; imported directly for timeouts
     "rapidfuzz>=3.10",
     "numpy>=2.1",
     "pydantic-settings>=2.6",
-    "langchain-anthropic>=1.0",
-    "langchain-google-genai>=3.0",
 ]
 
 [dependency-groups]
