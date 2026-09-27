@@ -42,15 +42,20 @@ def test_unknown_embedding_provider_raises(monkeypatch, reload_embeddings):
         reload_embeddings()
 
 
-def test_default_reranker_is_the_vllm_cross_encoder(reload_reranker):
+def test_default_reranker_is_the_vllm_cross_encoder(monkeypatch, reload_reranker):
     """Pins the shipped default: the cross-encoder `retrieval.floor` is
     specified against (ADR-0005), served by vLLM (ADR-0009). `lexical` is for
     CI and must be selected explicitly.
 
+    Reads the declared default, not the `settings` instance: CI exports
+    RERANKER_PROVIDER=lexical, so the instance reflects the job's env.
+
     Does NOT assert calibration — see docs/TODO.md item 4.
     """
 
-    assert settings.reranker_provider == "vllm"
+    default = Settings.model_fields["reranker_provider"].default
+    assert default == "vllm"
+    monkeypatch.setattr(settings, "reranker_provider", default)
     m = reload_reranker()
     assert type(m.reranker) is m.CrossEncoderReranker
 
