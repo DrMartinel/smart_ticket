@@ -157,9 +157,12 @@ def process_ticket(self, ticket_id: int) -> dict:
         )
         return _finalize(ticket, ai_run, decision, trace_id)
 
-    if resp.degraded_reason == "circuit_open":
+    # The chat LLM failed. Routed here rather than through the router, which
+    # sees only proposal=None and would label an outage SCHEMA_INVALID — the
+    # same code as "the model returned bad JSON".
+    if resp.degraded_reason == ReasonCode.ALL_LLM_DOWN.value:
         decision = _degraded_decision(
-            ReasonCode.CIRCUIT_OPEN, ReviewQueue.LOW_CONFIDENCE, priority=2
+            ReasonCode.ALL_LLM_DOWN, ReviewQueue.LOW_CONFIDENCE, priority=2
         )
         ai_run = _persist_ai_run(
             ticket,

@@ -65,6 +65,7 @@ REASON_CODES = [
     "category_inconsistent",
     "ai_engine_unavailable",
     "budget_exceeded",
+    "all_llm_down",
     "circuit_open",
     "all_checks_passed",
 ]

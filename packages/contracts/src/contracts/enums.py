@@ -53,6 +53,9 @@ class ReasonCode(StrEnum):
     AI_ENGINE_UNAVAILABLE = "ai_engine_unavailable"
     EMBEDDING_UNAVAILABLE = "embedding_unavailable"
     BUDGET_EXCEEDED = "budget_exceeded"
+    ALL_LLM_DOWN = "all_llm_down"  # the chat LLM call failed, for any reason
+    # No longer produced — the circuit breaker was removed. Kept so review
+    # items persisted before that still deserialize.
     CIRCUIT_OPEN = "circuit_open"
     # ok
     ALL_CHECKS_PASSED = "all_checks_passed"

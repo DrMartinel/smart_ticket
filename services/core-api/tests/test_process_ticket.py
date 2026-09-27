@@ -61,3 +61,52 @@ class TestEmbeddingFailureFailsOpenToHitl:
 
         ticket.refresh_from_db()
         assert ticket.status != "new"
+
+
+def _llm_failed_response(reason: str, request_id: str):
+    """What ai-engine returns when its chat LLM call failed: no proposal,
+    and `reason` as the degraded_reason."""
+
+    from contracts.ai_request import AIRunResponse
+
+    from apps.tickets.tasks import _degraded_signals
+
+    return AIRunResponse(
+        request_id=request_id,
+        graph_version="test",
+        prompt_version="test",
+        model="n/a",
+        proposal=None,
+        signals=_degraded_signals(),
+        degraded_reason=reason,
+    )
+
+
+@pytest.mark.django_db
+class TestLlmFailureKeepsItsReasonCode:
+    """Before this branch existed, core-api sent an LLM outage through the
+    router, which sees only proposal=None and labelled it SCHEMA_INVALID —
+    indistinguishable on the dashboard from "the model returned bad JSON"."""
+
+    def test_llm_failure_reaches_hitl_as_all_llm_down(self, employee_user, monkeypatch):
+        reason = ReasonCode.ALL_LLM_DOWN
+        from apps.tickets.services.incident import IncidentVerdict
+
+        ticket = make_ticket(employee_user)
+        monkeypatch.setattr("apps.tickets.tasks.embed_text", lambda text: [0.0])
+        monkeypatch.setattr("apps.tickets.tasks.store_embedding", lambda *a: None)
+        monkeypatch.setattr(
+            "apps.tickets.tasks.classify_similarity", lambda *a: IncidentVerdict(kind="unique")
+        )
+        monkeypatch.setattr(
+            "apps.tickets.tasks.analyze",
+            lambda masked, request_id: _llm_failed_response(reason.value, request_id),
+        )
+
+        result = process_ticket.apply(args=[ticket.id]).get()
+
+        assert result["branch"] == Branch.HITL.value
+        decision = ticket.routing_decisions.order_by("-id").first()
+        assert decision.reason_code == reason.value
+        assert ticket.review_items.exists(), "must land in a review queue"
+        assert ticket.ai_runs.order_by("-id").first().degraded_reason == reason.value

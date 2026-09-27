@@ -106,6 +106,7 @@ export default function TrustSignalsPanel({
     "embedding_unavailable",
     "ai_engine_unavailable",
     "budget_exceeded",
+    "all_llm_down",
     "circuit_open",
     "mass_incident",
     "injection_detected",
