@@ -10,7 +10,7 @@ class RetrievalSignals(BaseModel):
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
     bm25_keyword_hit: bool
     docs_above_floor: int = Field(ge=0)
-    topk_chunk_ids: list[int] = Field(default_factory=list)
+    topk_chunk_ids: list[int] = Field(default_factory=list[int])
 
 
 class GenerationSignals(BaseModel):

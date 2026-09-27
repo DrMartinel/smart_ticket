@@ -12,6 +12,7 @@ This is the only legitimate way `generated.ts` changes. Nothing in
 from __future__ import annotations
 
 import sys
+from typing import Any
 from pathlib import Path
 
 MODELS = [
@@ -90,6 +91,8 @@ def emit_json_schema(model_name: str) -> str:
     return _schema_to_ts(model_name, schema)
 
 
+type JsonSchema = dict[str, Any]
+
 PY_TO_TS = {
     "string": "string",
     "integer": "number",
@@ -99,7 +102,7 @@ PY_TO_TS = {
 }
 
 
-def _ts_type(prop: dict, defs: dict) -> str:
+def _ts_type(prop: JsonSchema, defs: JsonSchema) -> str:
     if "$ref" in prop:
         return prop["$ref"].split("/")[-1]
     if "anyOf" in prop:
@@ -115,10 +118,10 @@ def _ts_type(prop: dict, defs: dict) -> str:
         return " | ".join(f'"{v}"' for v in prop["enum"])
     if "const" in prop:
         return f'"{prop["const"]}"'
-    return PY_TO_TS.get(prop.get("type"), "unknown")
+    return PY_TO_TS.get(prop.get("type", ""), "unknown")
 
 
-def _schema_to_ts(name: str, schema: dict) -> str:
+def _schema_to_ts(name: str, schema: JsonSchema) -> str:
     props = schema.get("properties", {})
     required = set(schema.get("required", []))
     lines = [f"export interface {name} {{"]
