@@ -79,7 +79,7 @@ uv run pytest services/ai-engine/tests -q  # 168
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
 
-Type check (strict, ai-engine only; scope and settings in root `pyproject.toml`, version pinned in `lint.yml`):
+Type check (strict for all source code, standard for tests; scope and settings in root `pyproject.toml`, version pinned in `lint.yml`):
 
 ```bash
 uvx pyright@1.1.414
@@ -202,6 +202,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
+| pyright: unknown `id` / `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime: declare it on the model (`id: int`, `ticket_id: int`, `ai_runs: RelatedManager[AiRun]`), and give a FK to a string target its model (`models.ForeignKey[User](settings.AUTH_USER_MODEL, …)`) |
 
 ## Testing conventions
 

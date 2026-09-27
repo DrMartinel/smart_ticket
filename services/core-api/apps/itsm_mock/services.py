@@ -6,12 +6,21 @@ plausible result, not calling a real system.
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 from django.db import transaction
 
+from apps.accounts.models import User
 from apps.itsm_mock.models import RunbookExecution
 from apps.review.models import ReviewItem
 
-RUNBOOK_REGISTRY: dict[str, dict] = {
+
+class Runbook(TypedDict):
+    title: str
+    required_fields: list[str]
+
+
+RUNBOOK_REGISTRY: dict[str, Runbook] = {
     "RB-RESET-PASSWORD": {
         "title": "Reset user password",
         "required_fields": ["target_username"],
@@ -32,7 +41,7 @@ class RunbookError(Exception):
 
 
 @transaction.atomic
-def execute_runbook(*, review_item: ReviewItem, executed_by) -> RunbookExecution:
+def execute_runbook(*, review_item: ReviewItem, executed_by: User) -> RunbookExecution:
     """ADR-0006, enforced here as a second, independent check beyond the
     router: this refuses to run unless an actual approving decision exists
     on this review item, regardless of how the caller got here."""
@@ -53,7 +62,7 @@ def execute_runbook(*, review_item: ReviewItem, executed_by) -> RunbookExecution
     runbook_id = draft.get("runbook_id")
     payload = draft.get("draft_payload", {})
 
-    spec = RUNBOOK_REGISTRY.get(runbook_id)
+    spec = RUNBOOK_REGISTRY.get(runbook_id) if isinstance(runbook_id, str) else None
     if spec is None:
         raise RunbookError(f"unknown runbook_id: {runbook_id!r}")
 

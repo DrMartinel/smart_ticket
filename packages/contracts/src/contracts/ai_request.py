@@ -1,5 +1,7 @@
 """Wire contract between core-api and ai-engine — spec §6."""
 
+from typing import Any
+
 from pydantic import BaseModel
 
 from contracts.llm_draft import LLMProposalEnvelope
@@ -25,7 +27,7 @@ class AIRunResponse(BaseModel):
     model: str
     proposal: LLMProposalEnvelope | None
     signals: TrustSignals
-    retrieved_chunks: list[dict] = []
+    retrieved_chunks: list[dict[str, Any]] = []
     tokens_in: int = 0
     tokens_out: int = 0
     cost_usd: float = 0.0

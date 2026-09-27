@@ -24,7 +24,7 @@ pre-calibration threshold should gate.
 
 from __future__ import annotations
 
-from contracts.enums import Branch
+from contracts.enums import Branch, RiskTier, TicketCategory
 from contracts.routing import KBArticleMeta
 from contracts.trust import TrustSignals
 from django.conf import settings
@@ -45,9 +45,9 @@ def _kb_meta_for(proposal: dict | None) -> KBArticleMeta | None:
     return KBArticleMeta(
         id=kb.id,
         slug=kb.slug,
-        category=kb.category,
+        category=TicketCategory(kb.category),
         auto_reply_allowed=kb.auto_reply_allowed,
-        risk_tier=kb.risk_tier,
+        risk_tier=RiskTier(kb.risk_tier),
     )
 
 

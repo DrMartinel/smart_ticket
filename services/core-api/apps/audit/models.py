@@ -6,15 +6,21 @@ itself refuses UPDATE/DELETE for the app role too — this is not just a
 convention).
 """
 
+from __future__ import annotations
+
+from typing import Any
+
 from django.db import models
 
 
 class AuditLog(models.Model):
+    id: int
+
     ticket_id = models.BigIntegerField(null=True, blank=True)
     actor_type = models.CharField(max_length=20)  # system|ai|human
     actor_id = models.BigIntegerField(null=True, blank=True)
     event = models.CharField(max_length=100)
-    payload = models.JSONField(default=dict)
+    payload: models.JSONField[dict[str, Any]] = models.JSONField(default=dict)
     trace_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
 

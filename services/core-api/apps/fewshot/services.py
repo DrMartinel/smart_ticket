@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
+from apps.accounts.models import User
 from apps.fewshot.models import FewshotExample
 from apps.tickets.models import Ticket
 
@@ -20,8 +23,8 @@ def add_example(
     ticket: Ticket,
     category: str,
     input_text: str,
-    output_json: dict,
-    approver,
+    output_json: dict[str, Any],
+    approver: User,
     user_confirmed: bool,
 ) -> FewshotExample:
     if not user_confirmed:

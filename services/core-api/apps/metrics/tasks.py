@@ -7,6 +7,8 @@ in a separate dashboard nobody checks.
 
 from __future__ import annotations
 
+from typing import Any
+
 import statistics
 from datetime import timedelta
 
@@ -20,7 +22,7 @@ from apps.tickets.models import AiRun
 
 
 @shared_task
-def weekly_drift_check() -> dict:
+def weekly_drift_check() -> dict[str, Any]:
     now = timezone.now()
     this_week = AiRun.objects.filter(
         created_at__gte=now - timedelta(days=7), trust_score__isnull=False
@@ -34,7 +36,7 @@ def weekly_drift_check() -> dict:
     this_scores = list(this_week.values_list("trust_score", flat=True))
     last_scores = list(last_week.values_list("trust_score", flat=True))
 
-    alerts: list[dict] = []
+    alerts: list[dict[str, Any]] = []
     th = settings.THRESHOLDS.alerts
 
     if this_scores and last_scores:

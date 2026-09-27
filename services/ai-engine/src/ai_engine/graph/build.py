@@ -38,11 +38,8 @@ from collections.abc import Hashable
 from enum import Enum
 from typing import Any
 
-# langgraph ships inline types but no py.typed marker; pyright still reads them.
 from langgraph.graph import END, START, StateGraph  # pyright: ignore[reportMissingTypeStubs]
 from langgraph.graph.state import CompiledStateGraph  # pyright: ignore[reportMissingTypeStubs]
-
-# LangGraph's own bound for a state schema; public module, not in its __all__.
 from langgraph.typing import StateLike  # pyright: ignore[reportMissingTypeStubs, reportPrivateImportUsage]
 
 from ai_engine.core.node import BaseNode, SingleExit, StateUpdate, Terminal
@@ -120,9 +117,7 @@ class GraphBuilder:
         if orphans := [node for node in self._routes if node not in nodes]:
             raise ValueError(f"unreachable: {sorted(type(n).__name__ for n in orphans)}")
 
-        # --- Translation to LangGraph. The reportUnknown* ignores below are
-        # LangGraph's, not ours: some of its own generics are left
-        # unparameterized (BaseChannel, BaseCheckpointSaver).
+        # --- Translation to LangGraph.
 
         graph: StateGraph[S, None, S, S] = StateGraph(state_schema)
         state_keys: set[str] = set(graph.channels)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
@@ -141,7 +136,6 @@ class GraphBuilder:
             if node is self.end:
                 graph.add_edge(node.name, END)
                 continue
-            # Hashable keys, not Enum: path_map's dict type is invariant.
             targets: dict[Hashable, str] = {
                 outcome: target.name for outcome, target in self._routes[node].items()
             }

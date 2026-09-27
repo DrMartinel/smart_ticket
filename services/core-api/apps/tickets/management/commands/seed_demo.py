@@ -5,6 +5,8 @@ shape), so the system is exercisable end to end immediately after
 `docker compose up`.
 """
 
+from typing import Any
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils import timezone
@@ -178,7 +180,7 @@ class Command(BaseCommand):
     help = "Seed demo users and KB articles."
 
     @transaction.atomic
-    def handle(self, *args, **options):
+    def handle(self, *args: Any, **options: Any) -> None:
         for u in USERS:
             user, created = User.objects.get_or_create(
                 username=u["username"], defaults={"role": u["role"], "email": u["email"]}

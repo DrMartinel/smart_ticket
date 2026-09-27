@@ -15,6 +15,7 @@ silently.
 from __future__ import annotations
 
 import hashlib
+from typing import cast
 
 import httpx
 import numpy as np
@@ -58,16 +59,21 @@ def _vllm_embed(text: str) -> list[float]:
     )
     resp.raise_for_status()
     try:
-        embedding = resp.json()["data"][0]["embedding"]
+        embedding: object = resp.json()["data"][0]["embedding"]
     except (KeyError, IndexError, TypeError) as e:
         raise ValueError(f"unexpected embeddings response shape: {resp.text[:200]!r}") from e
-    if not isinstance(embedding, list) or len(embedding) != EMBED_DIM:
+    if not isinstance(embedding, list):
         raise ValueError(
-            f"embedding model {settings.EMBED_MODEL!r} returned "
-            f"{len(embedding) if isinstance(embedding, list) else type(embedding).__name__}, "
+            f"embedding model {settings.EMBED_MODEL!r} returned {type(embedding).__name__}, "
             f"expected {EMBED_DIM} dims — check EMBED_MODEL"
         )
-    return embedding
+    vector = cast(list[float], embedding)
+    if len(vector) != EMBED_DIM:
+        raise ValueError(
+            f"embedding model {settings.EMBED_MODEL!r} returned {len(vector)}, "
+            f"expected {EMBED_DIM} dims — check EMBED_MODEL"
+        )
+    return vector
 
 
 def embed_text(text: str) -> list[float]:

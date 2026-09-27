@@ -10,6 +10,7 @@ Usage:
 
 import json
 from pathlib import Path
+from typing import Any
 
 OUT_PATH = Path(__file__).parent / "tickets.jsonl"
 
@@ -518,8 +519,8 @@ PII_CASES = [
 ]
 
 
-def build() -> list[dict]:
-    cases: list[dict] = []
+def build() -> list[dict[str, Any]]:
+    cases: list[dict[str, Any]] = []
     n = 0
 
     # kb_covered: 60 (12 articles x 5 variants)

@@ -4,6 +4,8 @@ this function is testable end to end without DB/LLM/network. These tests
 hold that promise: no django_db marker needed anywhere in this file.
 """
 
+from typing import Any
+
 from contracts.enums import Branch, PIILevel, ReasonCode, TicketCategory
 from contracts.llm_draft import (
     AutoReplyProposal,
@@ -28,7 +30,7 @@ from apps.tickets.services.router import route
 
 
 def make_thresholds(**overrides) -> Thresholds:
-    base = dict(
+    base: dict[str, Any] = dict(
         version="test",
         calibration_source="test",
         routing=RoutingThresholds(t_auto=0.88, t_route=0.72, quote_match=0.95),
@@ -86,7 +88,7 @@ def good_signals(**overrides) -> TrustSignals:
 
 
 def kb(**overrides) -> KBArticleMeta:
-    base = dict(
+    base: dict[str, Any] = dict(
         id=1,
         slug="KB-0001",
         category=TicketCategory.ACCESS,
@@ -98,7 +100,7 @@ def kb(**overrides) -> KBArticleMeta:
 
 
 def auto_reply_proposal(**overrides) -> LLMProposalEnvelope:
-    base = dict(
+    base: dict[str, Any] = dict(
         proposed_intent="auto_reply",
         kb_slug="KB-0001",
         verbatim_quote="0123456789 verbatim quote text",
@@ -110,7 +112,7 @@ def auto_reply_proposal(**overrides) -> LLMProposalEnvelope:
 
 
 def route_proposal(**overrides) -> LLMProposalEnvelope:
-    base = dict(
+    base: dict[str, Any] = dict(
         proposed_intent="route_to_team",
         proposed_category=TicketCategory.NETWORK,
         rationale="r",
@@ -121,7 +123,7 @@ def route_proposal(**overrides) -> LLMProposalEnvelope:
 
 
 def runbook_proposal(**overrides) -> LLMProposalEnvelope:
-    base = dict(
+    base: dict[str, Any] = dict(
         proposed_intent="runbook",
         runbook_id="RB-1",
         draft_payload={"a": 1},
@@ -167,6 +169,7 @@ def test_mask_failed_goes_to_mask_failed_queue_priority_1():
     d = route(signals, auto_reply_proposal(), kb(), TH)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.PII_MASK_FAILED
+    assert d.queue is not None
     assert d.queue.value == "mask_failed"
     assert d.priority == 1
 
@@ -262,6 +265,7 @@ def test_auto_reply_all_checks_pass():
 def test_runbook_always_hitl_even_with_perfect_signals():
     d = route(good_signals(), runbook_proposal(), kb(), TH)
     assert d.branch is Branch.HITL
+    assert d.queue is not None
     assert d.queue.value == "runbook_approval"
     assert d.draft_payload == {"a": 1}
 
@@ -271,6 +275,7 @@ def test_runbook_hitl_even_with_no_kb_at_all():
     # unconditionally, regardless of KB state.
     d = route(good_signals(), runbook_proposal(), None, TH)
     assert d.branch is Branch.HITL
+    assert d.queue is not None
     assert d.queue.value == "runbook_approval"
 
 
@@ -365,7 +370,7 @@ def test_unhandled_proposal_type_degrades_to_hitl_rather_than_falling_through():
     class _Envelope:
         root = _FutureProposal()
 
-    d = route(good_signals(), _Envelope(), kb(), TH)
+    d = route(good_signals(), _Envelope(), kb(), TH)  # pyright: ignore[reportArgumentType]
 
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.SCHEMA_INVALID

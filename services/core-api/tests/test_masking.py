@@ -324,6 +324,7 @@ class TestNerTimeoutIsConfigurable:
         assert isinstance(t, httpx.Timeout)
         assert t.connect == settings.MODEL_CONNECT_TIMEOUT_SEC == 3.0
         assert t.read == settings.MODEL_TIMEOUT_SEC == 120.0
+        assert t.connect is not None and t.read is not None
         assert t.connect < t.read, "connect must fail fast; only reads get the long budget"
 
     def test_connect_timeout_still_becomes_mask_failed(self, monkeypatch):

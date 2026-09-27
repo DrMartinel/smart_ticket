@@ -1,5 +1,7 @@
 """Routing decision + threshold contracts — spec §8, §13."""
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from contracts.enums import Branch, ReasonCode, ReviewQueue, RiskTier, TicketCategory
@@ -26,7 +28,7 @@ class RoutingDecision(BaseModel):
     kb_slug: str | None = None
     queue: ReviewQueue | None = None
     priority: int = 3
-    draft_payload: dict | None = None
+    draft_payload: dict[str, Any] | None = None
     alert_security: bool = False
 
 

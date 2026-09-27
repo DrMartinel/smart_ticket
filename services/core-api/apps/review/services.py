@@ -64,9 +64,8 @@ def decide(
     review_item.save(update_fields=["state"])
 
     if action_taken != "approve":
-        ai_prediction = {}
-        if review_item.ai_run_id:
-            ai_prediction = review_item.ai_run.proposed_draft or {}
+        ai_run = review_item.ai_run
+        ai_prediction = (ai_run.proposed_draft or {}) if ai_run is not None else {}
         EvalCandidate.objects.create(
             ticket=review_item.ticket,
             source="human_override",

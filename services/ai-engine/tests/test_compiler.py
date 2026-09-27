@@ -7,7 +7,7 @@ triage topology (test_build.py).
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import TypedDict
+from typing import Any, TypedDict
 
 import pytest
 
@@ -31,12 +31,12 @@ class GateNode(BaseNode):
     def __call__(self, state):
         return {}
 
-    def decide(self, state) -> GateOutcome:
+    def decide(self, state: Any) -> GateOutcome:
         return GateOutcome.OPEN if state.get("flag") else GateOutcome.SHUT
 
 
 class WorkNode(BaseNode):
-    def __call__(self, state):
+    def __call__(self, state: Any):
         return {"seen": [*state.get("seen", []), self.name]}
 
 

@@ -30,6 +30,7 @@ import os
 import sys
 from datetime import date
 from pathlib import Path
+from typing import Any, cast
 
 import django
 import numpy as np
@@ -52,7 +53,9 @@ SHADOW_MODE_MIN_N = 500  # spec §7.1 / §14 P1 exit condition
 def load_shadow_pairs() -> tuple[np.ndarray, np.ndarray, list[str]]:
     """Returns (X, y, case_ids). y=1 means the human approved outright."""
 
-    X, y, ids = [], [], []
+    X: list[list[float]] = []
+    y: list[int] = []
+    ids: list[str] = []
     decisions = (
         ReviewDecision.objects.select_related("review_item", "review_item__ai_run")
         .exclude(review_item__ai_run__isnull=True)
@@ -60,6 +63,8 @@ def load_shadow_pairs() -> tuple[np.ndarray, np.ndarray, list[str]]:
     )
     for decision in decisions.iterator():
         ai_run = decision.review_item.ai_run
+        if ai_run is None:
+            continue
         try:
             signals = TrustSignals(**ai_run.trust_signals)
         except Exception:  # noqa: BLE001 — skip malformed/legacy rows rather than crash the fit
@@ -106,14 +111,17 @@ def main() -> None:
         print("REFUSING to fit: all labels are the same class — need both approvals and overrides.")
         sys.exit(1)
 
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import train_test_split
+    from sklearn.linear_model import LogisticRegression  # pyright: ignore[reportMissingTypeStubs]
+    from sklearn.model_selection import train_test_split  # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y if min(np.bincount(y)) >= 2 else None
+    X_train, X_test, y_train, y_test = cast(
+        list[np.ndarray],
+        train_test_split(
+            X, y, test_size=0.2, random_state=42, stratify=y if min(np.bincount(y)) >= 2 else None
+        ),
     )
 
-    model = LogisticRegression(max_iter=1000)
+    model: Any = LogisticRegression(max_iter=1000)
     model.fit(X_train, y_train)
 
     train_acc = model.score(X_train, y_train)

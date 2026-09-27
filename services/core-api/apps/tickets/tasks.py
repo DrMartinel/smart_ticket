@@ -15,13 +15,16 @@ from __future__ import annotations
 import logging
 
 import httpx
-from celery import shared_task
+from celery import Task, shared_task
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from contracts.enums import Branch, PIILevel, ReasonCode, ReviewQueue
+from contracts.ai_request import AIRunResponse
+from contracts.enums import Branch, PIILevel, ReasonCode, ReviewQueue, RiskTier, TicketCategory
+from contracts.llm_draft import LLMProposalEnvelope
 from contracts.routing import KBArticleMeta
+from contracts.routing import RoutingDecision as Decision
 from contracts.ticket import TicketMasked
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
@@ -37,6 +40,8 @@ from apps.tickets.services.incident import classify_similarity, store_embedding
 from apps.tickets.services.trust_scorer import score as compute_trust
 
 logger = logging.getLogger(__name__)
+
+type TaskResult = dict[str, str | bool]
 
 
 def _today_ai_cost_usd() -> float:
@@ -68,7 +73,7 @@ def _degraded_signals() -> TrustSignals:
 
 
 @shared_task(bind=True, max_retries=0)
-def process_ticket(self, ticket_id: int) -> dict:
+def process_ticket(self: Task[[int], TaskResult], ticket_id: int) -> TaskResult:
     ticket = Ticket.objects.select_related("reporter").get(id=ticket_id)
     trace_id = f"ticket-{ticket.public_id}"
 
@@ -181,9 +186,9 @@ def process_ticket(self, ticket_id: int) -> dict:
             kb_meta = KBArticleMeta(
                 id=kb.id,
                 slug=kb.slug,
-                category=kb.category,
+                category=TicketCategory(kb.category),
                 auto_reply_allowed=kb.auto_reply_allowed,
-                risk_tier=kb.risk_tier,
+                risk_tier=RiskTier(kb.risk_tier),
             )
 
     decision = router_service.route(resp.signals, resp.proposal, kb_meta, settings.THRESHOLDS)
@@ -198,10 +203,10 @@ def process_ticket(self, ticket_id: int) -> dict:
     return _finalize(ticket, ai_run, decision, trace_id, kb=kb_meta)
 
 
-def _degraded_decision(reason_code: ReasonCode, queue: ReviewQueue, *, priority: int = 3):
-    from contracts.routing import RoutingDecision as RD
-
-    return RD(
+def _degraded_decision(
+    reason_code: ReasonCode, queue: ReviewQueue, *, priority: int = 3
+) -> Decision:
+    return Decision(
         branch=Branch.HITL,
         reason_code=reason_code,
         reason_detail=f"degraded: {reason_code.value}",
@@ -212,7 +217,13 @@ def _degraded_decision(reason_code: ReasonCode, queue: ReviewQueue, *, priority:
 
 
 def _persist_ai_run(
-    ticket, idempotency_key, signals, proposal, *, resp=None, degraded_reason=None
+    ticket: Ticket,
+    idempotency_key: str,
+    signals: TrustSignals,
+    proposal: LLMProposalEnvelope | None,
+    *,
+    resp: AIRunResponse | None = None,
+    degraded_reason: str | None = None,
 ) -> AiRun:
     trust = compute_trust(signals) if signals.generation.schema_valid or proposal else None
     try:
@@ -242,7 +253,14 @@ def _persist_ai_run(
         return AiRun.objects.get(idempotency_key=idempotency_key)
 
 
-def _finalize(ticket: Ticket, ai_run: AiRun, decision, trace_id: str, *, kb=None) -> dict:
+def _finalize(
+    ticket: Ticket,
+    ai_run: AiRun,
+    decision: Decision,
+    trace_id: str,
+    *,
+    kb: KBArticleMeta | None = None,
+) -> TaskResult:
     shadow = settings.SHADOW_MODE
 
     with transaction.atomic():
@@ -289,7 +307,9 @@ def _finalize(ticket: Ticket, ai_run: AiRun, decision, trace_id: str, *, kb=None
     }
 
 
-def _execute_or_enqueue(ticket: Ticket, ai_run: AiRun, decision, shadow: bool, kb) -> None:
+def _execute_or_enqueue(
+    ticket: Ticket, ai_run: AiRun, decision: Decision, shadow: bool, kb: KBArticleMeta | None
+) -> None:
     branch = decision.branch
 
     if branch is Branch.BLOCK:

@@ -1,14 +1,28 @@
 """HITL queue + eval data — spec §3.4."""
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
 from django.conf import settings
 from django.db import models
 
 from contracts.enums import ReviewAction, ReviewQueue, Verdict
+from apps.accounts.models import User
 from apps.kb.models import KbArticle
 from apps.tickets.models import AiRun, Ticket
 
+if TYPE_CHECKING:
+    from django.db.models.manager import RelatedManager
+
 
 class ReviewItem(models.Model):
+    id: int
+    ticket_id: int
+    ai_run_id: int | None
+    claimed_by_id: int | None
+    decisions: RelatedManager[ReviewDecision]
+
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="review_items")
     ai_run = models.ForeignKey(
         AiRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
@@ -16,7 +30,7 @@ class ReviewItem(models.Model):
     queue = models.CharField(max_length=30, choices=[(q.value, q.value) for q in ReviewQueue])
     priority = models.SmallIntegerField(default=3)
     state = models.CharField(max_length=20, default="pending")
-    claimed_by = models.ForeignKey(
+    claimed_by = models.ForeignKey[User](
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
     claimed_at = models.DateTimeField(null=True, blank=True)
@@ -31,8 +45,13 @@ class ReviewDecision(models.Model):
     thể, không phải nút Approve" — this is why the fields below are
     specific verdicts, not a single approve/reject boolean."""
 
+    id: int
+    review_item_id: int
+    reviewer_id: int
+    corrected_kb_id: int | None
+
     review_item = models.ForeignKey(ReviewItem, on_delete=models.CASCADE, related_name="decisions")
-    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    reviewer = models.ForeignKey[User](settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
 
     kb_verdict = models.CharField(
         max_length=20, choices=[(v.value, v.value) for v in Verdict], null=True, blank=True
@@ -58,10 +77,13 @@ class EvalCandidate(models.Model):
     """Auto-generated golden-set candidate from any human override — spec
     §12.4's free-label loop."""
 
+    id: int
+    ticket_id: int
+
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="eval_candidates")
     source = models.CharField(max_length=30)  # human_override|reroute|reopen|refusal_spike
-    ai_prediction = models.JSONField()
-    human_truth = models.JSONField()
+    ai_prediction: models.JSONField[dict[str, Any]] = models.JSONField()
+    human_truth: models.JSONField[dict[str, Any]] = models.JSONField()
     promoted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

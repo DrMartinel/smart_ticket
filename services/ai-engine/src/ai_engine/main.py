@@ -39,8 +39,7 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
     )
 
     # invoke() returns a plain dict; re-validating gives typed access and the
-    # field defaults for anything no node set. (The ignore: LangGraph leaves
-    # Command unparameterized in invoke's signature.)
+    # field defaults for anything no node set.
     final_state = TriageState.model_validate(
         triage_graph.invoke(initial_state)  # pyright: ignore[reportUnknownMemberType]
     )

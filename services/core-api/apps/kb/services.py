@@ -50,7 +50,7 @@ def ingest_article(article: KbArticle) -> list[KbChunk]:
 
     KbChunk.objects.filter(article=article).delete()
     pieces = chunk_body(article.body)
-    chunks = []
+    chunks: list[KbChunk] = []
     for i, content in enumerate(pieces):
         embedding = embed_text(content)
         chunk = KbChunk.objects.create(
@@ -83,8 +83,6 @@ def set_auto_reply_allowed(
         raise KBGovernanceError("only manager-role users may change auto_reply_allowed")
     if not reason or not reason.strip():
         raise KBGovernanceError("reason is required")
-    if allowed and article.approved_by_id is None and actor is None:
-        raise KBGovernanceError("cannot enable auto_reply without an approver")
 
     old_value = str(article.auto_reply_allowed)
     article.auto_reply_allowed = allowed

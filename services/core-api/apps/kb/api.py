@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from typing import Any
+
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
+from apps.accounts.rbac import AuthedRequest
 from apps.kb.models import KbArticle
 from apps.kb.services import (
     KBGovernanceError,
@@ -33,7 +36,7 @@ class RiskTierIn(Schema):
     reason: str
 
 
-def _serialize(a: KbArticle) -> dict:
+def _serialize(a: KbArticle) -> dict[str, Any]:
     return {
         "id": a.id,
         "slug": a.slug,
@@ -48,26 +51,28 @@ def _serialize(a: KbArticle) -> dict:
 
 
 @router.get("", auth=JWTAuth())
-def list_articles(request):
+def list_articles(request: AuthedRequest) -> list[dict[str, Any]]:
     return [_serialize(a) for a in KbArticle.objects.filter(is_active=True).order_by("slug")]
 
 
 @router.post("", auth=JWTAuth())
-def create_article(request, payload: ArticleIn):
+def create_article(request: AuthedRequest, payload: ArticleIn) -> dict[str, Any]:
     article = KbArticle.objects.create(**payload.dict())
     ingest_article(article)
     return _serialize(article)
 
 
 @router.post("/{slug}/reingest", auth=JWTAuth())
-def reingest(request, slug: str):
+def reingest(request: AuthedRequest, slug: str) -> dict[str, Any]:
     article = _get_or_404(slug)
     chunks = ingest_article(article)
     return {"slug": slug, "chunks": len(chunks)}
 
 
 @router.post("/{slug}/auto-reply-allowed", auth=JWTAuth())
-def toggle_auto_reply(request, slug: str, payload: AutoReplyFlagIn):
+def toggle_auto_reply(
+    request: AuthedRequest, slug: str, payload: AutoReplyFlagIn
+) -> dict[str, Any]:
     article = _get_or_404(slug)
     try:
         set_auto_reply_allowed(
@@ -79,7 +84,7 @@ def toggle_auto_reply(request, slug: str, payload: AutoReplyFlagIn):
 
 
 @router.post("/{slug}/risk-tier", auth=JWTAuth())
-def change_risk_tier(request, slug: str, payload: RiskTierIn):
+def change_risk_tier(request: AuthedRequest, slug: str, payload: RiskTierIn) -> dict[str, Any]:
     article = _get_or_404(slug)
     try:
         set_risk_tier(
