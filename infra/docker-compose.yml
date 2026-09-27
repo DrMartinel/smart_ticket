@@ -128,8 +128,8 @@ services:
       # kb_articles / kb_chunks / fewshot_examples (see infra/migrations/sql).
       # This is a structural permission boundary, not a convention (ADR-0004).
       DATABASE_URL: postgresql://ai_engine_ro:${POSTGRES_AI_RO_PASSWORD:-ai_engine_ro_password}@db:5432/${POSTGRES_DB:-smart_triage}
-      # CHAT_CLIENT_PROVIDER picks where chat runs ("vllm" | "openai" |
-      # "anthropic" | "gemini"); embeddings and reranking always run on vLLM.
+      # CHAT_CLIENT_PROVIDER picks where chat runs ("vllm" | "openai");
+      # embeddings and reranking always run on vLLM.
       # Defaults are the `vllm` profile below (ADR-0009).
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-vllm}
       CHAT_CLIENT_PROVIDER: ${CHAT_CLIENT_PROVIDER:-vllm}
@@ -144,17 +144,14 @@ services:
       # See docs/TODO.md item 4.
       RERANKER_PROVIDER: ${RERANKER_PROVIDER:-vllm}
       RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
-      # Ceiling for a single model call, shared with core-api; infer.py clamps
-      # to whichever of this and the per-ticket latency budget is smaller.
+      # Ceiling for a single model call, shared with core-api.
       MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:-120}
       MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:-3}
-      # Used when CHAT_CLIENT_PROVIDER is openai, anthropic or gemini. Any
-      # misconfiguration fails the boot — see infra/.env.example for the
-      # per-provider rules and ADR-0007 for why anthropic/gemini cannot honour
-      # MODEL_CONNECT_TIMEOUT_SEC.
+      # Used when CHAT_CLIENT_PROVIDER=openai; key and model are then required
+      # and either missing fails the boot — see infra/.env.example.
       CLOUD_API_KEY: ${CLOUD_API_KEY:-}
       CLOUD_BASE_URL: ${CLOUD_BASE_URL:-}
-      CLOUD_MODEL: ${CLOUD_MODEL:-claude-sonnet-5}
+      CLOUD_MODEL: ${CLOUD_MODEL:-}
       CLOUD_MAX_OUTPUT_TOKENS: ${CLOUD_MAX_OUTPUT_TOKENS:-4096}
       GRAPH_VERSION: v2.1
     ports:
