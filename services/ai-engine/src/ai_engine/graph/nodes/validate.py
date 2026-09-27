@@ -19,7 +19,7 @@ from rapidfuzz import fuzz
 from contracts.llm_draft import AutoReplyProposal
 
 from ai_engine.core.config import settings
-from ai_engine.core.node import BaseNode
+from ai_engine.core.node import BaseNode, StateUpdate
 from ai_engine.core.state import TriageState
 
 # A Vietnamese linguistic lexicon, not a tunable number — it belongs in code
@@ -60,7 +60,7 @@ def _checks(
     negation_consistent: bool,
     category_consistent: bool,
     source_chunk_id: int | None,
-) -> dict:
+) -> StateUpdate:
     """Every check's outcome as a state update. No defaults on purpose: every
     path must state each check explicitly."""
 
@@ -87,7 +87,7 @@ ALL_FAILED = _checks(
 
 
 class ValidateNode(BaseNode):
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         proposal = state.proposal
         reranked = state.reranked
 
@@ -138,3 +138,6 @@ class ValidateNode(BaseNode):
             category_consistent=True,
             source_chunk_id=source,
         )
+
+
+validate = ValidateNode()

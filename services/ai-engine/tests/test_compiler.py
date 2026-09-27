@@ -56,7 +56,7 @@ def _wire(gate=None, work=None, stop=None) -> GraphBuilder:
     g.route(gate, GateOutcome.OPEN, work)
     g.route(gate, GateOutcome.SHUT, stop)
     g.route(work, SingleExit.DONE, stop)
-    g.route(stop, SingleExit.DONE, Terminal())
+    g.route(stop, SingleExit.DONE, g.end)
     return g
 
 
@@ -87,7 +87,7 @@ def test_unrouted_outcome_raises():
     gate, stop = GateNode(), StopNode()
     g = GraphBuilder(entry=gate)
     g.route(gate, GateOutcome.OPEN, stop)
-    g.route(stop, SingleExit.DONE, Terminal())
+    g.route(stop, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match="GateNode: unrouted"):
         g.compile(_State)
@@ -101,7 +101,7 @@ def test_target_with_no_routes_raises():
     g = GraphBuilder(entry=gate)
     g.route(gate, GateOutcome.OPEN, StrayNode())
     g.route(gate, GateOutcome.SHUT, stop)
-    g.route(stop, SingleExit.DONE, Terminal())
+    g.route(stop, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match="StrayNode: unrouted"):
         g.compile(_State)
@@ -117,34 +117,24 @@ def test_misrouted_target_leaves_node_unreachable():
     g.route(gate, GateOutcome.OPEN, stop)  # meant: work
     g.route(gate, GateOutcome.SHUT, stop)
     g.route(work, SingleExit.DONE, stop)
-    g.route(stop, SingleExit.DONE, Terminal())
+    g.route(stop, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match=r"unreachable: \['WorkNode'\]"):
         g.compile(_State)
-
-
-def test_class_instead_of_instance_raises():
-    g = GraphBuilder(entry=GateNode())
-
-    with pytest.raises(TypeError, match="pass an instance of StopNode"):
-        g.route(WorkNode(), SingleExit.DONE, StopNode)
-    with pytest.raises(TypeError, match="pass an instance of GateNode"):
-        GraphBuilder(entry=GateNode)
 
 
 def test_terminal_cannot_be_routed_onward():
     """Terminal's only exit is the END edge compile() adds; a second route
     out of it would let a run continue past the point it claims to stop."""
 
-    end = Terminal()
     g = GraphBuilder(entry=WorkNode())
 
     with pytest.raises(ValueError, match="cannot be routed onward"):
-        g.route(end, SingleExit.DONE, StopNode())
+        g.route(g.end, SingleExit.DONE, StopNode())
 
 
 def test_graph_without_reachable_terminal_raises():
-    """Every outcome routed and no Terminal means every run cycles until
+    """Every outcome routed and no route to the end means every run cycles until
     LangGraph's recursion limit aborts it — a 500, not a degrade-to-human."""
 
     a, b = WorkNode(), StopNode()
@@ -152,7 +142,20 @@ def test_graph_without_reachable_terminal_raises():
     g.route(a, SingleExit.DONE, b)
     g.route(b, SingleExit.DONE, a)
 
-    with pytest.raises(ValueError, match="no Terminal is reachable"):
+    with pytest.raises(ValueError, match="no route reaches the end"):
+        g.compile(_State)
+
+
+def test_a_terminal_the_builder_does_not_own_is_not_an_end():
+    """Only `builder.end` finishes a path. A stray `Terminal()` is an ordinary
+    node, so a graph routed into one has no end — rather than silently gaining
+    a second one."""
+
+    work = WorkNode()
+    g = GraphBuilder(entry=work)
+    g.route(work, SingleExit.DONE, Terminal())
+
+    with pytest.raises(ValueError, match="no route reaches the end"):
         g.compile(_State)
 
 
@@ -168,7 +171,7 @@ def test_terminal_is_a_real_step_before_end():
 def test_duplicate_route_raises():
     work = WorkNode()
     g = GraphBuilder(entry=work)
-    g.route(work, SingleExit.DONE, Terminal())
+    g.route(work, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match="already routed"):
         g.route(work, SingleExit.DONE, StopNode())
@@ -184,7 +187,7 @@ def test_two_instances_of_one_node_raise():
     g.route(gate, GateOutcome.SHUT, second)
     g.route(first, SingleExit.DONE, stop)
     g.route(second, SingleExit.DONE, stop)
-    g.route(stop, SingleExit.DONE, Terminal())
+    g.route(stop, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match="WorkNode was given more than one instance"):
         g.compile(_State)
@@ -210,7 +213,7 @@ def test_equal_valued_outcome_from_another_enum_raises():
     g = GraphBuilder(entry=work)
 
     with pytest.raises(ValueError, match="cannot produce"):
-        g.route(work, Other.DONE, Terminal())
+        g.route(work, Other.DONE, g.end)
 
 
 def test_custom_outcome_without_decide_raises():
@@ -228,7 +231,7 @@ def test_custom_outcome_without_decide_raises():
     g = GraphBuilder(entry=fork)
     g.route(fork, ForkOutcome.LEFT, stop)
     g.route(fork, ForkOutcome.RIGHT, stop)
-    g.route(stop, SingleExit.DONE, Terminal())
+    g.route(stop, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match="does not override decide"):
         g.compile(_State)
@@ -244,7 +247,7 @@ def test_one_node_class_serves_two_graphs_with_different_routes():
 
     solo = WorkNode()
     g = GraphBuilder(entry=solo)
-    g.route(solo, SingleExit.DONE, Terminal())
+    g.route(solo, SingleExit.DONE, g.end)
     second = g.compile(_State)
 
     assert first.invoke({"flag": True})["seen"] == ["work"]
@@ -277,7 +280,7 @@ def test_update_key_missing_from_the_schema_raises():
 
     node = TypoNode()
     g = GraphBuilder(entry=node)
-    g.route(node, SingleExit.DONE, Terminal())
+    g.route(node, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match=r"TypoNode returned keys .* \['sean'\]"):
         g.compile(_State).invoke({})

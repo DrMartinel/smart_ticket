@@ -35,52 +35,59 @@ def _result(text: str = _VALID_OUTPUT, **kw) -> LLMResult:
     )
 
 
-def _node(llm, **kw):
-    return InferNode(llm=llm, **kw)
+@pytest.fixture
+def make_node(use_llm):
+    def make(llm):
+        use_llm(llm)
+        return InferNode()
+
+    return make
 
 
-def test_all_llm_down_maps_to_degraded_reason_all_llm_down(fake_llm, make_state):
+def test_all_llm_down_maps_to_degraded_reason_all_llm_down(fake_llm, make_state, make_node):
     """Must not be confusable with "the model replied with bad JSON": both
     reach HITL, but only this one means the LLM itself failed."""
 
-    out = _node(fake_llm(error=AllLLMDownError("nothing answered")))(make_state())
+    out = make_node(fake_llm(error=AllLLMDownError("nothing answered")))(make_state())
 
     assert out["proposal"] is None
     assert out["degraded_reason"] == "all_llm_down"
     assert "tokens_in" not in out  # no call completed, so nothing is charged
 
 
-def test_unparseable_output_yields_no_proposal_but_still_charges_tokens(fake_llm, make_state):
+def test_unparseable_output_yields_no_proposal_but_still_charges_tokens(
+    fake_llm, make_state, make_node
+):
     """Tokens burned on unparseable output still count toward
     cost_per_ticket, so a broken model is not free.
     """
 
     llm = fake_llm(result=_result(text="I'm afraid I can't do that."))
 
-    out = _node(llm)(make_state())
+    out = make_node(llm)(make_state())
 
     assert out["proposal"] is None
     assert (out["tokens_in"], out["tokens_out"]) == (100, 20)
 
 
-def test_schema_violating_json_yields_no_proposal(fake_llm, make_state):
+def test_schema_violating_json_yields_no_proposal(fake_llm, make_state, make_node):
     """Valid JSON that is not a valid proposal is still a schema failure —
     it must not slip through as a proposal with missing fields."""
 
     llm = fake_llm(result=_result(text=json.dumps({"proposed_intent": "nonsense"})))
 
-    assert _node(llm)(make_state())["proposal"] is None
+    assert make_node(llm)(make_state())["proposal"] is None
 
 
-def test_valid_output_is_parsed_into_a_proposal(fake_llm, make_state):
-    out = _node(fake_llm(result=_result()))(make_state())
+def test_valid_output_is_parsed_into_a_proposal(fake_llm, make_state, make_node):
+    out = make_node(fake_llm(result=_result()))(make_state())
 
     assert out["proposal"] is not None
     assert out["proposal"].root.proposed_intent == "route_to_team"
     assert out["model_used"] == "vllm/test"
 
 
-def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate):
+def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate, make_node):
     """The model must echo kb_slug back in an AutoReplyProposal, so it has
     to be told what the slugs are — otherwise it invents one."""
 
@@ -91,7 +98,7 @@ def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate):
     )
     llm = fake_llm(result=_result())
 
-    _node(llm)(make_state(reranked=[chunk]))
+    make_node(llm)(make_state(reranked=[chunk]))
 
     _, user_prompt = llm.prompts[0]
     assert "vpn-reset" in user_prompt

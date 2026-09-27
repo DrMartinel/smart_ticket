@@ -9,22 +9,18 @@ from __future__ import annotations
 from sqlalchemy import func, select
 
 from ai_engine.core.config import settings
-from ai_engine.core.db.client import SqlAlchemySessionSource
+from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import FewshotExample
-from ai_engine.core.node import BaseNode
-from ai_engine.core.providers.embeddings import Embedder
+from ai_engine.core.node import BaseNode, StateUpdate
+from ai_engine.core.providers.embeddings import embedder
 from ai_engine.core.state import TriageState
 
 
 class SelectFewshotsNode(BaseNode):
-    def __init__(self, *, db: SqlAlchemySessionSource, embedder: Embedder) -> None:
-        self._db = db
-        self._embedder = embedder
-
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         ticket = state.ticket
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
-        embedding = self._embedder.embed(query)
+        embedding = embedder.embed(query)
 
         # Retracted (source ticket reopened, so its label is suspect) and
         # expired examples are not in the pool: the model would learn from them.
@@ -38,7 +34,7 @@ class SelectFewshotsNode(BaseNode):
             .order_by(FewshotExample.embedding.cosine_distance(embedding))
             .limit(settings.fewshot_k)
         )
-        with self._db.connect() as session:
+        with db.connect() as session:
             rows = session.execute(statement).all()
 
         fewshots = [
@@ -46,3 +42,6 @@ class SelectFewshotsNode(BaseNode):
             for category, input_text, output_json in rows
         ]
         return {"fewshots": fewshots}
+
+
+select_fewshots = SelectFewshotsNode()

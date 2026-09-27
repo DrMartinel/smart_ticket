@@ -9,22 +9,23 @@ from __future__ import annotations
 
 import json
 import logging
+from typing import Any
 
 from pydantic import ValidationError
 
 from contracts.llm_draft import LLMProposalEnvelope
 
 from ai_engine.core.config import settings
-from ai_engine.core.node import BaseNode
-from ai_engine.core.providers.llm.models import LLMClient
+from ai_engine.core.node import BaseNode, StateUpdate
+from ai_engine.core.providers.llm import models
 from ai_engine.core.providers.llm.models import AllLLMDownError
 from ai_engine.core.prompts import load_system_prompt
-from ai_engine.core.state import TriageState
+from ai_engine.core.state import RankedChunk, TriageState
 
 logger = logging.getLogger(__name__)
 
 
-def _format_chunks(reranked: list) -> str:
+def _format_chunks(reranked: list[RankedChunk]) -> str:
     if not reranked:
         return "(no relevant excerpts found)"
     # kb_slug is what the model must echo back in AutoReplyProposal.kb_slug
@@ -35,7 +36,7 @@ def _format_chunks(reranked: list) -> str:
     )
 
 
-def _format_fewshots(fewshots: list[dict]) -> str:
+def _format_fewshots(fewshots: list[dict[str, Any]]) -> str:
     if not fewshots:
         return "(none available)"
     return "\n\n".join(
@@ -45,20 +46,11 @@ def _format_fewshots(fewshots: list[dict]) -> str:
 
 
 class InferNode(BaseNode):
-    def __init__(
-        self,
-        *,
-        llm: LLMClient,
-    ) -> None:
-        self._llm = llm
-        # Resolved once, at construction, from settings.prompt_version —
-        # main.py builds this node at import time, so a missing prompt fails
-        # the boot. The old module-level _SYSTEM_PROMPT touched the filesystem
-        # on import, and its hardcoded "classify.v3.md" made
-        # settings.prompt_version silently inert.
+    def __init__(self) -> None:
+        # Loaded at construction, so a missing prompt file fails the boot.
         self._system_prompt = load_system_prompt(settings.prompt_version)
 
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         ticket = state.ticket
         reranked = state.reranked
         fewshots = state.fewshots
@@ -70,11 +62,11 @@ class InferNode(BaseNode):
         )
 
         try:
-            result = self._llm.complete(self._system_prompt, user_prompt)
+            result = models.chat.complete(self._system_prompt, user_prompt)
         except AllLLMDownError:
             return {"proposal": None, "degraded_reason": "all_llm_down"}
 
-        update = {
+        update: StateUpdate = {
             "tokens_in": result.tokens_in,
             "tokens_out": result.tokens_out,
             "cost_usd": result.cost_usd,
@@ -90,3 +82,6 @@ class InferNode(BaseNode):
             update["proposal"] = None
 
         return update
+
+
+infer = InferNode()

@@ -2,8 +2,8 @@
 Fakes for the provider seams, plus state and node builders.
 
 Plain classes rather than unittest.mock, so a fake's behaviour reads in one
-place. Injected through node `__init__`, they make the failure paths (DB
-outage, embedder down, LLM down) testable.
+place. Swapped in for the provider singletons by the `use_*` fixtures, they
+make the failure paths (DB outage, embedder down, LLM down) testable.
 """
 
 from __future__ import annotations
@@ -25,13 +25,10 @@ from ai_engine.core.providers.embeddings import Embedder
 from ai_engine.core.providers.reranker import Reranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import TriageState
-from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
-from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
-from ai_engine.graph.nodes.infer import InferNode
-from ai_engine.graph.nodes.injection import InjectionNode
-from ai_engine.graph.nodes.rerank import RerankNode
-from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
-from ai_engine.graph.nodes.validate import ValidateNode
+from ai_engine.graph.nodes import emit_signals as emit_signals_node
+from ai_engine.graph.nodes import fewshot as fewshot_node
+from ai_engine.graph.nodes import rerank as rerank_node
+from ai_engine.graph.nodes import retrieve as retrieve_node
 
 
 def _reloader(module):
@@ -204,25 +201,6 @@ def _make_state(**overrides) -> dict:
     return TriageState(**state)
 
 
-def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
-    """The seven production nodes wired to fakes, keyed by `wire_triage`'s
-    parameters. Use as `wire_triage(**nodes)`; replace an entry to swap in
-    a fake.
-    """
-
-    db = db if db is not None else FakeSessionSource()
-    embedder = embedder if embedder is not None else FakeEmbedder()
-    return {
-        "injection": InjectionNode(),
-        "retrieve": HybridRetrieveNode(db=db, embedder=embedder),
-        "rerank": RerankNode(reranker=reranker if reranker is not None else FakeReranker()),
-        "fewshots": SelectFewshotsNode(db=db, embedder=embedder),
-        "infer": InferNode(llm=llm if llm is not None else FakeLLM()),
-        "validate": ValidateNode(),
-        "emit": EmitSignalsNode(db=db),
-    }
-
-
 # --- fixtures -------------------------------------------------------------
 # The fakes and builders are exposed as fixtures rather than imported
 # directly: the root pyproject runs pytest with --import-mode=importlib
@@ -251,11 +229,49 @@ def fake_db():
     return FakeSessionSource
 
 
+# Nodes use the provider singletons directly (`db`, `embedder`, `reranker`,
+# `models.chat`). These fixtures swap one in for a fake in every node module
+# that reads it, and return the fake. The modules are listed here once, so a
+# test cannot miss one; monkeypatch raises on a misspelled attribute and
+# restores everything after the test.
+
+
 @pytest.fixture
-def triage_nodes():
-    """_triage_nodes — call it with (db=..., embedder=..., reranker=..., llm=...)
-    to replace any fake."""
-    return _triage_nodes
+def use_db(monkeypatch):
+    def use(fake):
+        for module in (retrieve_node, fewshot_node, emit_signals_node):
+            monkeypatch.setattr(module, "db", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
+def use_embedder(monkeypatch):
+    def use(fake):
+        for module in (retrieve_node, fewshot_node):
+            monkeypatch.setattr(module, "embedder", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
+def use_reranker(monkeypatch):
+    def use(fake):
+        monkeypatch.setattr(rerank_node, "reranker", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
+def use_llm(monkeypatch):
+    def use(fake):
+        monkeypatch.setattr(models, "chat", fake)
+        return fake
+
+    return use
 
 
 @pytest.fixture

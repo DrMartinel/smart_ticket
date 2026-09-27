@@ -61,9 +61,11 @@ at core-api's Celery layer. The practical consequence is in §9.
 
 ## 3. Design principles
 
-**A node owns exactly five things.** Its name (auto-derived), its `__init__`
-(dependencies only), its `__call__` (the work), its `decide()` (which business
-outcome it reached), and its `Outcome` enum. Nothing else.
+**A node owns exactly four things.** Its name (auto-derived), its `__call__`
+(the work), its `decide()` (which business outcome it reached), and its
+`Outcome` enum. Nothing else. It uses the provider singletons (`db`,
+`embedder`, `reranker`, `models.chat`) directly; an `__init__` is only for
+one-time setup that must fail at boot, like `InferNode` loading its prompt.
 
 **Outcomes carry business meaning, not booleans.** `InjectionDetected` /
 `InjectionClear`, `EvidenceBelowFloor` / `EvidenceAboveFloor` — not `True` /
@@ -71,7 +73,7 @@ outcome it reached), and its `Outcome` enum. Nothing else.
 
 **A node never knows what comes after it.** Successors are declared on a
 `GraphBuilder`, which maps each outcome of a node *instance* to the next
-instance, all in one wiring function. That makes nodes reusable, makes cycles
+instance, all in one route list at the bottom of `graph/build.py`. That makes nodes reusable, makes cycles
 expressible, and removes any definition-order constraint between node classes.
 
 **Everything is validated at startup.** Bad routes raise as they are declared;
@@ -79,9 +81,8 @@ unrouted outcomes and unreachable nodes raise inside `GraphBuilder.compile()` �
 which `main.py` calls at uvicorn import time — never when the first ticket
 takes an unusual branch.
 
-**A node instance is a singleton and must stay stateless per call.** `__init__`
-runs once and may hold read-only collaborators (DB pool, embedder, LLM client)
-and config. `__call__` runs per request and must never write to `self`:
+**A node instance is a singleton and must stay stateless per call.** It is
+built once, at import. `__call__` runs per request and must never write to `self`:
 `analyze` is a sync `def`, so FastAPI shares one instance across its
 threadpool. All per-call data belongs in state.
 
@@ -177,9 +178,15 @@ the value — edge labels in `draw_mermaid()` read `EvidenceBelowFloor`, not
 
 ```python
 class Terminal(BaseNode):
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         return {}
 ```
+
+App code never builds one. Each `GraphBuilder` owns exactly one, `builder.end`,
+and a path finishes by routing to it:
+`g.route(emit_signals, SingleExit.DONE, g.end)`. The builder recognises its
+own instance by identity, so a graph cannot gain a second end, and a stray
+`Terminal()` is just an ordinary node that ends nothing.
 
 It is a real node — registered as `terminal`, visible in traces and
 `draw_mermaid()` — so every route targets a node instance and the builder
@@ -188,27 +195,29 @@ outside `TriageState` (such as `END`) would make LangGraph reject the update
 and abort the run. It keeps LangGraph's `END` out of app code, because
 `compile()` gives it the graph's only edge to `END`.
 
-### 4.3 Wiring — `graph/flow.py`
+### 4.3 Wiring — the bottom of `graph/build.py`
 
-The entire topology in one function (safety comments trimmed here). Every node
-is a required keyword, so a caller cannot forget one:
+The entire topology, as routes on the production node instances (safety
+comments trimmed here):
 
 ```python
-def wire_triage(*, injection, retrieve, rerank, fewshots, infer, validate, emit) -> GraphBuilder:
-    g = GraphBuilder(entry=injection)
-    g.route(injection, InjectionOutcome.INJECTION_DETECTED, emit)
-    g.route(injection, InjectionOutcome.INJECTION_CLEAR, retrieve)
-    g.route(retrieve, SingleExit.DONE, rerank)
-    g.route(rerank, RerankOutcome.EVIDENCE_BELOW_FLOOR, emit)  # refuse-before-LLM
-    g.route(rerank, RerankOutcome.EVIDENCE_ABOVE_FLOOR, fewshots)
-    g.route(fewshots, SingleExit.DONE, infer)
-    g.route(infer, SingleExit.DONE, validate)
-    g.route(validate, SingleExit.DONE, emit)  # no cycle: schema failure goes to HITL
-    g.route(emit, SingleExit.DONE, Terminal())  # no deps: built here
-    return g
+_triage = GraphBuilder(entry=injection)
+_triage.route(injection, InjectionOutcome.INJECTION_DETECTED, emit_signals)
+_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, hybrid_retrieve)
+_triage.route(hybrid_retrieve, SingleExit.DONE, rerank)
+_triage.route(rerank, RerankOutcome.EVIDENCE_BELOW_FLOOR, emit_signals)  # refuse-before-LLM
+_triage.route(rerank, RerankOutcome.EVIDENCE_ABOVE_FLOOR, select_fewshots)
+_triage.route(select_fewshots, SingleExit.DONE, infer)
+_triage.route(infer, SingleExit.DONE, validate)
+_triage.route(validate, SingleExit.DONE, emit_signals)  # no cycle: schema failure goes to HITL
+_triage.route(emit_signals, SingleExit.DONE, _triage.end)  # every path ends here
+
+triage_graph = _triage.compile(TriageState)
 ```
 
-### 4.4 Builder — `graph/build.py`
+`main.py` only imports and invokes `triage_graph`.
+
+### 4.4 Builder — `GraphBuilder` in `graph/build.py`
 
 `GraphBuilder(entry=node)` is generic — it knows nothing about triage — and
 its `compile(state_schema)` is the only place a node
@@ -217,18 +226,20 @@ never on node classes or `Outcome` members (§7 says why).
 
 `route(source, outcome, target)` raises immediately on:
 
-- a node class passed where an instance is expected (`TypeError`);
 - an outcome the source's class cannot produce — checked by **identity**,
   because `Outcome` is a `StrEnum` and a member of another enum with the same
   value compares equal;
 - an outcome that is already routed;
-- a route out of a `Terminal` (its only exit is `END`).
+- a route out of `builder.end` (its only exit is `END`).
+
+A node *class* passed where an instance belongs is not checked at runtime:
+pyright (strict, in CI) rejects it at the call site.
 
 `compile()` finds the nodes by walking routes from the entry, then, before
 registering anything, raises `ValueError` on:
 
 - two reachable instances with the same node name (LangGraph would collide);
-- no `Terminal` reachable from the entry (with every outcome routed, every run
+- `builder.end` not reachable from the entry (with every outcome routed, every run
   would cycle until LangGraph's recursion limit aborts it);
 - a class that sets its own `Outcome` but does not override `decide()`
   (the default would return `SingleExit.DONE`, which it cannot produce);
@@ -237,48 +248,49 @@ registering anything, raises `ValueError` on:
 - a node that has routes but is unreachable from the entry — which is what a
   route aimed at the wrong target leaves behind.
 
-Each instance registers under its own class's `name`. That is the test seam:
-pass a `FakeInferNode(...)` (a subclass of `InferNode`) as `infer=` and it is
-wired where the real one would be, visible in the graph as `fake_infer`.
+Each instance registers under its own class's `name`, so a test double shows
+up under its own name: a `FakeInferNode(...)` (a subclass of `InferNode`)
+routed in a test graph appears as `fake_infer`.
 
 Registration: each node is added through an adapter that raises `ValueError`
 if its update has a key the state schema lacks — LangGraph would drop it
-silently — and `TypeError` if it is not a dict. Single-outcome nodes get
+silently. (A non-dict update is rejected by LangGraph itself, with
+`InvalidUpdateError`.) Single-outcome nodes get
 `add_edge`, multi-outcome nodes get
 `add_conditional_edges(name, instance.decide, {outcome: target_name})`,
-a `Terminal` gets `add_edge(name, END)`, and the entry is
+`builder.end` gets `add_edge(name, END)`, and the entry is
 `add_edge(START, entry.name)`.
 
 `builder.entry` and `builder.routes` (a read-only mapping) let tests pin
 individual routes without compiling.
 
-### 4.5 Assembly — `main.py`
+### 4.5 Assembly — `triage_graph` in `graph/build.py`
 
-`main.py` imports the providers built at the bottom of their own modules at
-import time (`db`, `embedder`, `reranker`, `models.chat`),
-builds the seven node instances inline, and compiles them once:
+Each node module ends with its production instance. Nodes take no
+dependencies: they use the providers built at the bottom of their own modules
+(`db`, `embedder`, `reranker`, `models.chat`) directly.
 
 ```python
-_graph = wire_triage(
-    injection=InjectionNode(),
-    retrieve=HybridRetrieveNode(db=db, embedder=embedder),
-    rerank=RerankNode(reranker=reranker),
-    fewshots=SelectFewshotsNode(db=db, embedder=embedder),
-    infer=InferNode(llm=models.chat),
-    validate=ValidateNode(),
-    emit=EmitSignalsNode(db=db),
-).compile(TriageState)
+# nodes/rerank.py
+rerank = RerankNode()
 ```
 
-Constructors take collaborators only. Every `Settings` value is read by the
+`graph/build.py` imports those seven instances and routes them (§4.3). Each
+instance is named after its node's `name`, so the variable, the
+LangGraph node and the trace entry all read the same.
+
+Every `Settings` value is read by the
 code that consumes it — `bm25_search` reads `settings.bm25_top_k`,
 `RerankNode` reads `settings.rerank_top_n` — so no tunable is threaded
-through `main.py` or a node that merely passes it on. Tests that need a
+through the assembly or a node that merely passes it on. Tests that need a
 non-default value `monkeypatch.setattr(settings, ...)`.
 
-Tests build the same instances wired to fakes with the `triage_nodes` fixture
-(`tests/conftest.py`), which returns a dict keyed by `wire_triage`'s
-parameters: `wire_triage(**triage_nodes()).compile(TriageState)`.
+Tests that exercise a node swap its providers for the fakes in
+`tests/conftest.py` with the `use_db`, `use_embedder`, `use_reranker` and
+`use_llm` fixtures, which patch every node module that reads that provider:
+`use_db(fake_db()); EmitSignalsNode()(state)`. Tests that exercise the builder wire a small graph of
+their own (`tests/test_compiler.py`). The production topology is pinned
+literally by `tests/test_build.py`.
 
 ---
 
@@ -315,9 +327,11 @@ A single-exit node needs neither an `Outcome` nor a `decide()` — it inherits
 
 Checklist when adding one: define a module-level `<Name>Outcome` enum in domain
 language and assign it to `Outcome`; put
-dependencies in `__init__` and nothing else; keep `__call__` free of writes to `self`; return only
-changed keys; add a parameter to `wire_triage` and route every outcome; pass
-an instance in `main.py` and in the `triage_nodes` fixture; test `decide()`
+use the provider singletons directly, and add the module to the matching
+`use_*` fixture in `tests/conftest.py`; keep `__call__` free of writes to `self`; return only
+changed keys; end the module with its production instance, named after the
+node's `name`; route every outcome at the bottom of `graph/build.py`; add it
+to the literal node and edge sets in `tests/test_build.py`; test `decide()`
 directly (see `tests/test_build.py`).
 
 ---
@@ -387,8 +401,8 @@ whatever `decide()` returns rather than on the graph's structure.
 ## 8. Accepted tradeoff
 
 Routing is no longer local to the node. Reading `RerankNode` does not tell
-you where `EvidenceBelowFloor` goes — you look it up in `wire_triage`. We accept
-this: the function fits on one screen, it is what you would draw on a
+you where `EvidenceBelowFloor` goes — you look it up at the bottom of
+`graph/build.py`. We accept this: the route list fits on one screen, it is what you would draw on a
 whiteboard anyway, and it is what makes whole-graph validation possible. If it
 ever grows past comfortable reading, split it into one wiring function per
 sub-pipeline (routes are per instance, so a class can appear in several)
@@ -426,8 +440,8 @@ sequences.
 
 Assert it rather than eyeballing it:
 
-- `tests/test_build.py::test_compiled_edges_match_wiring` — the production
-  graph's edge set equals the set derived from `wire_triage`'s routes.
+- `tests/test_build.py::test_compiled_edges_are_exactly_the_triage_topology` —
+  pins the production graph's edge set literally.
 - `tests/test_build.py::test_safety_critical_routes` — pins
   refuse-before-LLM to its route and asserts there is no `validate → infer` cycle.
 - `tests/test_compiler.py` — every validation rule in §4.4 raises.
@@ -436,5 +450,5 @@ To look at it:
 
 ```bash
 uv run --package ai-engine python -c \
-  "from ai_engine.main import _graph; print(_graph.get_graph().draw_mermaid())"
+  "from ai_engine.graph.build import triage_graph; print(triage_graph.get_graph().draw_mermaid())"
 ```

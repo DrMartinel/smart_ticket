@@ -8,10 +8,9 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from ai_engine.core.node import BaseNode, SingleExit
 from ai_engine.core.state import TriageState
 from ai_engine.graph.build import GraphBuilder
-from ai_engine.graph.flow import wire_triage
-from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 
 
 def test_state_is_frozen(make_state):
@@ -30,22 +29,22 @@ def test_state_rejects_unknown_fields(make_state):
         make_state(degraded_reasn="typo")
 
 
-def test_a_wrong_typed_update_fails_the_run(triage_nodes, make_state):
+def test_a_wrong_typed_update_fails_the_run(make_state):
     """LangGraph validates merged state before the next node. A wrong-typed
     update must abort the run (a 500 core-api routes to a human), never
     flow on into TrustSignals.
     """
 
-    class BrokenRetrieve(HybridRetrieveNode):
+    class BrokenNode(BaseNode):
         def __call__(self, state):
             return {"candidates": "not a list"}
 
-    nodes = triage_nodes()
-    nodes["retrieve"] = BrokenRetrieve(db=nodes["emit"]._db, embedder=None)
-    graph = wire_triage(**nodes).compile(TriageState)
+    node = BrokenNode()
+    g = GraphBuilder(entry=node)
+    g.route(node, SingleExit.DONE, g.end)
 
     with pytest.raises(ValidationError, match="candidates"):
-        graph.invoke(make_state())
+        g.compile(TriageState).invoke(make_state())
 
 
 def test_missing_validation_reads_as_every_check_failed(make_state):
@@ -73,8 +72,6 @@ def test_node_annotation_does_not_override_the_graph_schema():
 
     from typing import TypedDict
 
-    from ai_engine.core.node import BaseNode, SingleExit, Terminal
-
     class Other(BaseModel):
         required_elsewhere: int
 
@@ -87,6 +84,6 @@ def test_node_annotation_does_not_override_the_graph_schema():
 
     node = AnnotatedNode()
     g = GraphBuilder(entry=node)
-    g.route(node, SingleExit.DONE, Terminal())
+    g.route(node, SingleExit.DONE, g.end)
 
     assert g.compile(_Loose).invoke({})["seen"] == ["ran"]

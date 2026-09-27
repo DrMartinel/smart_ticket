@@ -7,13 +7,14 @@ writes to a database, only reads best-effort for the log-only `policy` fields.
 from __future__ import annotations
 
 from contracts.enums import PIILevel
+from contracts.llm_draft import AutoReplyProposal
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
 from sqlalchemy import select
 
 from ai_engine.core.db.tables import KbArticle
-from ai_engine.core.node import BaseNode
-from ai_engine.core.db.client import SqlAlchemySessionSource
+from ai_engine.core.node import BaseNode, StateUpdate
+from ai_engine.core.db.client import db
 from ai_engine.core.state import TriageState
 
 # Deny-by-default when the policy lookup can't answer. NOT a constructor
@@ -25,9 +26,6 @@ _POLICY_FALLBACK_DENY: tuple[bool, str] = (False, "high")
 
 
 class EmitSignalsNode(BaseNode):
-    def __init__(self, *, db: SqlAlchemySessionSource) -> None:
-        self._db = db
-
     def _lookup_kb_policy(self, kb_slug: str | None) -> tuple[bool, str]:
         """Best-effort and log-only — NOT the authority check, which
         core-api's router does against its own KB fetch (ADR-0002).
@@ -43,7 +41,7 @@ class EmitSignalsNode(BaseNode):
             statement = select(KbArticle.auto_reply_allowed, KbArticle.risk_tier).where(
                 KbArticle.slug == kb_slug, KbArticle.is_active.is_(True)
             )
-            with self._db.connect() as session:
+            with db.connect() as session:
                 row = session.execute(statement).first()
                 if row:
                     return bool(row[0]), row[1]
@@ -51,7 +49,7 @@ class EmitSignalsNode(BaseNode):
             pass
         return _POLICY_FALLBACK_DENY
 
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         reranked = state.reranked
         proposal = state.proposal
 
@@ -63,13 +61,11 @@ class EmitSignalsNode(BaseNode):
         # single owner of calibration (see core/config.py's module docstring).
         docs_above_floor = sum(1 for r in reranked if r.score >= state.retrieval_floor)
 
-        kb_slug = None
-        self_confidence = None
-        if proposal is not None and getattr(proposal.root, "proposed_intent", None) == "auto_reply":
-            kb_slug = proposal.root.kb_slug
-            self_confidence = proposal.root.self_confidence
-        elif proposal is not None and hasattr(proposal.root, "self_confidence"):
-            self_confidence = proposal.root.self_confidence
+        root = proposal.root if proposal is not None else None
+        # Only an auto-reply cites a KB article whose policy can apply.
+        kb_slug = root.kb_slug if isinstance(root, AutoReplyProposal) else None
+        # InsufficientContext carries no self_confidence.
+        self_confidence = getattr(root, "self_confidence", None)
 
         kb_auto_reply_allowed, kb_risk_tier = self._lookup_kb_policy(kb_slug)
 
@@ -101,3 +97,6 @@ class EmitSignalsNode(BaseNode):
             llm_self_confidence=self_confidence,
         )
         return {"signals": signals}
+
+
+emit_signals = EmitSignalsNode()

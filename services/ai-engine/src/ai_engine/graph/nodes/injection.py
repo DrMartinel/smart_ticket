@@ -9,10 +9,10 @@ from __future__ import annotations
 import re
 from enum import StrEnum
 
-from ai_engine.core.node import BaseNode
+from ai_engine.core.node import BaseNode, StateUpdate
 from ai_engine.core.state import TriageState
 
-PATTERNS: dict[str, re.Pattern] = {
+PATTERNS: dict[str, re.Pattern[str]] = {
     "ignore_instructions_en": re.compile(
         r"(?i)\b(ignore|disregard|forget)\b.{0,30}\b(previous|prior|above|all)\b.{0,30}\b(instructions?|rules?|prompt)\b"
     ),
@@ -49,7 +49,7 @@ class InjectionNode(BaseNode):
 
     Outcome = InjectionOutcome
 
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         text = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
         matched = [name for name, pattern in PATTERNS.items() if pattern.search(text)]
         return {"injection_detected": bool(matched), "injection_matched_patterns": matched}
@@ -58,3 +58,6 @@ class InjectionNode(BaseNode):
         if state.injection_detected:
             return InjectionOutcome.INJECTION_DETECTED
         return InjectionOutcome.INJECTION_CLEAR
+
+
+injection = InjectionNode()

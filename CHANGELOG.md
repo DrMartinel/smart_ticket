@@ -13,6 +13,29 @@ that moves a failure path is more significant here than a new feature.
 
 ## [Unreleased]
 
+### Changed
+
+- **Nodes use the provider singletons directly.** `EmitSignalsNode`,
+  `SelectFewshotsNode`, `HybridRetrieveNode`, `RerankNode` and `InferNode` no
+  longer take `db` / `embedder` / `reranker` / `llm` in `__init__`; they read
+  the module-level `db`, `embedder`, `reranker` and `models.chat`. Tests swap
+  them with new `use_db`, `use_embedder`, `use_reranker` and `use_llm`
+  fixtures (`tests/conftest.py`), which patch every node module that reads
+  each one.
+- **`GraphBuilder` owns the end node.** Each builder creates one `Terminal`,
+  exposed as `builder.end`; routes finish with `g.route(node, …, g.end)`
+  instead of `Terminal()`. The builder recognises it by identity, so
+  `build.py` has no `isinstance` checks left and a graph cannot have two ends.
+  A `Terminal()` built by app code is now an ordinary node: a graph routed
+  into one fails `compile()` with "no route reaches the end".
+- **The triage graph is built in one file.** `graph/flow.py` is merged into
+  `graph/build.py`, which now holds `GraphBuilder`, the route list and the
+  compiled `triage_graph`. Each node module builds its own production
+  instance (`injection`, `hybrid_retrieve`, `rerank`, …), and `main.py` only
+  imports and invokes `triage_graph`. Removed: `main._graph`, `wire_triage`
+  and the `triage_nodes` test fixture. No behaviour change: same nodes, same
+  routes.
+
 ### Removed
 
 - **ai-engine no longer retries or enforces a per-ticket budget.**

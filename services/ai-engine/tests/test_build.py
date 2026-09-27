@@ -28,21 +28,21 @@ def test_no_injection_decides_clear(make_state):
     assert InjectionNode().decide(state) is InjectionOutcome.INJECTION_CLEAR
 
 
-def test_empty_reranked_is_below_floor(fake_reranker, make_state):
+def test_empty_reranked_is_below_floor(make_state):
     state = make_state(reranked=[], retrieval_floor=0.45)
-    node = RerankNode(reranker=fake_reranker())
+    node = RerankNode()
     assert node.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
 
 
-def test_below_floor_is_below_floor(fake_reranker, make_state):
+def test_below_floor_is_below_floor(make_state):
     state = make_state(reranked=[_chunk(0.1)], retrieval_floor=0.45)
-    node = RerankNode(reranker=fake_reranker())
+    node = RerankNode()
     assert node.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
 
 
-def test_above_floor_is_above_floor(fake_reranker, make_state):
+def test_above_floor_is_above_floor(make_state):
     state = make_state(reranked=[_chunk(0.9)], retrieval_floor=0.45)
-    node = RerankNode(reranker=fake_reranker())
+    node = RerankNode()
     assert node.decide(state) is RerankOutcome.EVIDENCE_ABOVE_FLOOR
 
 
@@ -50,9 +50,9 @@ def _edges() -> dict[tuple[str, str], str | None]:
     """The production graph's edges as (source, target) -> outcome label.
     Unconditional edges have no label."""
 
-    from ai_engine.main import _graph
+    from ai_engine.graph.build import triage_graph
 
-    return {(e.source, e.target): e.data for e in _graph.get_graph().edges}
+    return {(e.source, e.target): e.data for e in triage_graph.get_graph().edges}
 
 
 def test_safety_critical_routes():
@@ -71,9 +71,9 @@ def test_safety_critical_routes():
 
 
 def test_graph_has_exactly_the_expected_nodes():
-    from ai_engine.main import _graph
+    from ai_engine.graph.build import triage_graph
 
-    nodes = {n for n in _graph.get_graph().nodes if not n.startswith("__")}
+    nodes = {n for n in triage_graph.get_graph().nodes if not n.startswith("__")}
 
     assert nodes == {
         InjectionNode.name,
@@ -127,11 +127,11 @@ def test_main_wires_the_prompt_for_settings_prompt_version():
 
     from ai_engine.core.config import settings
     from ai_engine.core.prompts import load_system_prompt
-    from ai_engine.main import _graph
+    from ai_engine.graph.build import triage_graph
 
     # LangGraph internals: PregelNode.bound is the RunnableCallable wrapping
     # GraphBuilder's adapter, which keeps the node instance on `.node`.
-    infer = _graph.nodes[InferNode.name].bound.func.node
+    infer = triage_graph.nodes[InferNode.name].bound.func.node
 
     expected = load_system_prompt(settings.prompt_version)
     assert infer._system_prompt == expected

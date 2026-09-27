@@ -39,14 +39,15 @@ def _chunk(chunk_id: int, score: float, slug: str = "kb-a") -> RankedChunk:
     )
 
 
-def test_kb_policy_lookup_failure_denies_auto_reply(fake_db, make_state):
+def test_kb_policy_lookup_failure_denies_auto_reply(fake_db, make_state, use_db):
     """A DB outage during the policy lookup must deny auto-reply, not raise.
     This node is terminal, so raising yields no TrustSignals and core-api
     gets a 500 instead of a ticket it can route to a human.
     """
 
     db = fake_db(error=RuntimeError("connection refused"))
-    node = EmitSignalsNode(db=db)
+    use_db(db)
+    node = EmitSignalsNode()
 
     out = node(make_state(reranked=[_chunk(1, 0.9)], proposal=_auto_reply()))
 
@@ -54,12 +55,13 @@ def test_kb_policy_lookup_failure_denies_auto_reply(fake_db, make_state):
     assert out["signals"].policy.kb_risk_tier == "high"
 
 
-def test_missing_kb_slug_denies_without_touching_the_database(fake_db, make_state):
+def test_missing_kb_slug_denies_without_touching_the_database(fake_db, make_state, use_db):
     """No slug means there is nothing to look up — it must not be read as
     "policy check passed"."""
 
     db = fake_db(rows=[(True, "low")])
-    node = EmitSignalsNode(db=db)
+    use_db(db)
+    node = EmitSignalsNode()
 
     out = node(make_state(reranked=[_chunk(1, 0.9)]))
 
@@ -67,13 +69,15 @@ def test_missing_kb_slug_denies_without_touching_the_database(fake_db, make_stat
     assert db.events == []
 
 
-def test_docs_above_floor_uses_the_per_request_floor_from_state(fake_db, make_state):
+def test_docs_above_floor_uses_the_per_request_floor_from_state(fake_db, make_state, use_db):
     """`retrieval_floor` arrives per-request so core-api owns calibration. A
     floor read from local config would score tickets against a threshold
     that doesn't match core-api's recorded thresholds_used.
     """
 
-    node = EmitSignalsNode(db=fake_db())
+    use_db(fake_db())
+
+    node = EmitSignalsNode()
     chunks = [_chunk(1, 0.9), _chunk(2, 0.6), _chunk(3, 0.2)]
 
     high = node(make_state(reranked=chunks, retrieval_floor=0.8))
@@ -83,12 +87,14 @@ def test_docs_above_floor_uses_the_per_request_floor_from_state(fake_db, make_st
     assert low["signals"].retrieval.docs_above_floor == 3
 
 
-def test_rerank_margin_is_zero_for_a_single_chunk(fake_db, make_state):
+def test_rerank_margin_is_zero_for_a_single_chunk(fake_db, make_state, use_db):
     """Margin is top1 - top2; with one chunk there is no second score.
     Reporting top1 itself as the margin would inflate the trust score on
     exactly the thin-evidence case the margin exists to catch."""
 
-    node = EmitSignalsNode(db=fake_db())
+    use_db(fake_db())
+
+    node = EmitSignalsNode()
 
     out = node(make_state(reranked=[_chunk(1, 0.9)]))
 
@@ -96,11 +102,13 @@ def test_rerank_margin_is_zero_for_a_single_chunk(fake_db, make_state):
     assert out["signals"].retrieval.rerank_top1 == 0.9
 
 
-def test_no_reranked_chunks_yields_zeroed_retrieval_signals(fake_db, make_state):
+def test_no_reranked_chunks_yields_zeroed_retrieval_signals(fake_db, make_state, use_db):
     """The refuse-before-LLM and injection paths both arrive here with
     nothing retrieved. That must produce zeros, not a KeyError."""
 
-    node = EmitSignalsNode(db=fake_db())
+    use_db(fake_db())
+
+    node = EmitSignalsNode()
 
     out = node(make_state())
 
@@ -109,12 +117,14 @@ def test_no_reranked_chunks_yields_zeroed_retrieval_signals(fake_db, make_state)
     assert out["signals"].retrieval.topk_chunk_ids == []
 
 
-def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state):
+def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, use_db):
     """Refuse-before-LLM skips the validator. Absent validation must read as
     "the checks did not pass", never as "no checks were needed".
     """
 
-    node = EmitSignalsNode(db=fake_db())
+    use_db(fake_db())
+
+    node = EmitSignalsNode()
 
     generation = node(make_state())["signals"].generation
 
@@ -124,8 +134,9 @@ def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state):
     assert generation.category_consistent is False
 
 
-def test_injection_verdict_is_forwarded_to_policy_signals(fake_db, make_state):
-    node = EmitSignalsNode(db=fake_db())
+def test_injection_verdict_is_forwarded_to_policy_signals(fake_db, make_state, use_db):
+    use_db(fake_db())
+    node = EmitSignalsNode()
 
     out = node(make_state(injection_detected=True))
 
@@ -133,8 +144,9 @@ def test_injection_verdict_is_forwarded_to_policy_signals(fake_db, make_state):
 
 
 @pytest.mark.parametrize("level", [PIILevel.ROUTINE, PIILevel.SENSITIVE, PIILevel.CRITICAL])
-def test_pii_level_is_carried_from_the_ticket(level, fake_db, make_state, make_ticket):
-    node = EmitSignalsNode(db=fake_db())
+def test_pii_level_is_carried_from_the_ticket(level, fake_db, make_state, make_ticket, use_db):
+    use_db(fake_db())
+    node = EmitSignalsNode()
     ticket = make_ticket()
     ticket = ticket.model_copy(update={"pii_level": level})
 
@@ -143,13 +155,14 @@ def test_pii_level_is_carried_from_the_ticket(level, fake_db, make_state, make_t
     assert out["signals"].policy.pii_level == level
 
 
-def test_policy_is_read_from_the_database_when_a_kb_slug_is_present(fake_db, make_state):
+def test_policy_is_read_from_the_database_when_a_kb_slug_is_present(fake_db, make_state, use_db):
     """Companion to the outage test: with a reachable DB the node reports the
     KB row, so the outage test's False is attributable to the outage.
     """
 
     db = fake_db(rows=[(True, "low")])
-    node = EmitSignalsNode(db=db)
+    use_db(db)
+    node = EmitSignalsNode()
 
     out = node(make_state(reranked=[_chunk(1, 0.9)], proposal=_auto_reply()))
 

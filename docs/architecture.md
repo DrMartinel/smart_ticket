@@ -151,16 +151,18 @@ Three properties are structural, not conventional:
 2. **Refuse-before-LLM.** Weak retrieval means the model is never invoked — cheaper *and* safer.
 3. **No loop.** The graph is acyclic — every node runs at most once per ticket, so non-termination is impossible by construction. A schema-invalid proposal goes to a human, not back to the model.
 
-Each node is a `BaseNode` subclass (`core/node.py`) taking its collaborators
-through `__init__` and reading tunables from `core/config.py`. Its node name is derived from the class
+Each node is a `BaseNode` subclass (`core/node.py`) that uses the provider
+singletons (`db`, `embedder`, `reranker`, `models.chat`) directly and reads
+tunables from `core/config.py`. Its node name is derived from the class
 name (`HybridRetrieveNode` → `hybrid_retrieve`), and a branching node reports
 where it ended up as a domain `Outcome` from `decide()` — it never names its
-successor. The whole topology is `wire_triage` in `graph/flow.py`, which
-routes each outcome of a node instance to the next instance on a
-`GraphBuilder` (`graph/build.py`). `GraphBuilder.compile` validates the routes
-at startup (every outcome routed, nothing unreachable) and is the only place a
-node becomes a LangGraph string. `main.py` constructs the instances, wires and
-compiles them once, at import time. See
+successor. Everything that makes the graph lives in `graph/build.py`: the
+generic `GraphBuilder`, the topology (a list of routes from each outcome of a
+node instance to the next instance), and `triage_graph`, compiled once at
+import time from the instances each node module builds. `GraphBuilder.compile`
+validates the routes at startup (every outcome routed, nothing unreachable)
+and is the only place a node becomes a LangGraph string. `main.py` only
+invokes `triage_graph`. See
 [graph-node-architecture.md](graph-node-architecture.md).
 Models are reached through two layers. `LLMClient`
 (`core/providers/llm/models.py`, with the providers that subclass it) is the

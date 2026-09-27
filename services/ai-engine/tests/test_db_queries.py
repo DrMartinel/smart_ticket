@@ -60,7 +60,7 @@ def test_bm25_search_matches_and_ranks_on_tsv_with_the_simple_config(fake_db):
 
 
 def test_fewshot_selection_excludes_retracted_and_expired_examples(
-    fake_db, fake_embedder, make_state
+    fake_db, fake_embedder, make_state, use_db, use_embedder
 ):
     """A retracted example (its source ticket reopened) has a suspect label;
     showing it to the model teaches the mistake. Nothing else would notice
@@ -68,7 +68,9 @@ def test_fewshot_selection_excludes_retracted_and_expired_examples(
     """
 
     db = fake_db()
-    SelectFewshotsNode(db=db, embedder=fake_embedder(vector=[0.3]))(make_state())
+    use_db(db)
+    use_embedder(fake_embedder(vector=[0.3]))
+    SelectFewshotsNode()(make_state())
     sql, params = _only_statement(db)
 
     assert "fewshot_examples.retracted_at IS NULL" in sql
@@ -78,7 +80,7 @@ def test_fewshot_selection_excludes_retracted_and_expired_examples(
     assert settings.fewshot_k in params.values()
 
 
-def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state):
+def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state, use_db):
     """The policy lookup turns any exception into deny-by-default, so a
     broken query never surfaces as an error. This is the only place it is
     visible.
@@ -98,7 +100,8 @@ def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state
     )
 
     db = fake_db()
-    EmitSignalsNode(db=db)(make_state(reranked=[chunk], proposal=proposal))
+    use_db(db)
+    EmitSignalsNode()(make_state(reranked=[chunk], proposal=proposal))
     sql, params = _only_statement(db)
 
     assert sql.startswith("SELECT kb_articles.auto_reply_allowed, kb_articles.risk_tier")

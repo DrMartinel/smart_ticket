@@ -14,38 +14,13 @@ from fastapi import FastAPI
 from contracts.ai_request import AIRunRequest, AIRunResponse
 
 from ai_engine.core.config import settings
-from ai_engine.core.db.client import db
-from ai_engine.core.providers.embeddings import embedder
-from ai_engine.core.providers.llm import models
-from ai_engine.core.providers.reranker import reranker
 from ai_engine.core.state import TriageState
-from ai_engine.graph.flow import wire_triage
-from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
-from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
-from ai_engine.graph.nodes.infer import InferNode
-from ai_engine.graph.nodes.injection import InjectionNode
-from ai_engine.graph.nodes.rerank import RerankNode
-from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
-from ai_engine.graph.nodes.validate import ValidateNode
+from ai_engine.graph.build import triage_graph
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Smart Ticket Triage — ai-engine", version="1.0.0")
-
-# Built once, at import time, so a wiring mistake fails the boot rather than a
-# request. No constructor below may open a socket or load a model — every
-# model is served by vLLM (ADR-0009).
-# Tunables are read by the code that uses them, never threaded through here.
-_graph = wire_triage(
-    injection=InjectionNode(),
-    retrieve=HybridRetrieveNode(db=db, embedder=embedder),
-    rerank=RerankNode(reranker=reranker),
-    fewshots=SelectFewshotsNode(db=db, embedder=embedder),
-    infer=InferNode(llm=models.chat),
-    validate=ValidateNode(),
-    emit=EmitSignalsNode(db=db),
-).compile(TriageState)
 
 
 @app.get("/healthz")
@@ -64,8 +39,16 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
     )
 
     # invoke() returns a plain dict; re-validating gives typed access and the
-    # field defaults for anything no node set.
-    final_state = TriageState.model_validate(_graph.invoke(initial_state))
+    # field defaults for anything no node set. (The ignore: LangGraph leaves
+    # Command unparameterized in invoke's signature.)
+    final_state = TriageState.model_validate(
+        triage_graph.invoke(initial_state)  # pyright: ignore[reportUnknownMemberType]
+    )
+
+    # EmitSignalsNode is on every path (graph/build.py), so this means miswiring.
+    # Raising gives core-api a 500, which it sends to a human.
+    if final_state.signals is None:
+        raise RuntimeError("triage graph finished without emitting signals")
 
     latency_ms = int((time.time() - started_at) * 1000)
     reranked = final_state.reranked

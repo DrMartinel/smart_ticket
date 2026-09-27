@@ -56,8 +56,8 @@ def test_default_reranker_is_the_vllm_cross_encoder(reload_reranker):
 
 
 def test_building_providers_opens_no_connections(monkeypatch, reload_reranker):
-    """main.py imports the modules that build the providers, and test_build.py
-    imports main.py with no database. A constructor that opens a socket breaks
+    """graph/build.py imports the modules that build the providers, and
+    test_build.py imports it with no database. A constructor that opens a socket breaks
     both.
     """
 

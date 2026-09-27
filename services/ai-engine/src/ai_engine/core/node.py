@@ -1,10 +1,12 @@
 """
 Node contract — see docs/graph-node-architecture.md.
 
-A node owns exactly five things: its name (derived from the class name), its
-`__init__` (dependencies only), its `__call__` (the work), its `decide()`
-(which business outcome it reached) and its `Outcome` enum. It never knows
-what runs after it — that lives in `graph/flow.py`.
+A node owns exactly four things: its name (derived from the class name), its
+`__call__` (the work), its `decide()` (which business outcome it reached) and
+its `Outcome` enum. It uses the provider singletons (`db`, `embedder`,
+`reranker`, `models.chat`) directly; tests swap them with the `use_*`
+fixtures. It never knows
+what runs after it — that lives in `graph/build.py`.
 """
 
 from __future__ import annotations
@@ -15,6 +17,8 @@ from enum import StrEnum
 from typing import Any, ClassVar
 
 from ai_engine.core.state import TriageState
+
+type StateUpdate = dict[str, Any]
 
 
 class SingleExit(StrEnum):
@@ -48,7 +52,7 @@ class BaseNode(ABC):
         cls.name = name
 
     @abstractmethod
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         """Do the work. Return only the state keys that changed."""
 
     def decide(self, state: TriageState) -> StrEnum:
@@ -58,13 +62,14 @@ class BaseNode(ABC):
 
 
 class Terminal(BaseNode):
-    """The node every path ends on. `GraphBuilder.compile` gives it the only
-    edge to END, keeping END out of app code.
+    """The node every path ends on. Built by `GraphBuilder` (`builder.end`),
+    never by app code: the builder recognises its own instance by identity and
+    gives it the only edge to END, keeping END out of app code.
 
     It returns no update: LangGraph silently drops keys outside
     TriageState, so returning END would look like it worked while doing
     nothing.
     """
 
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         return {}

@@ -13,8 +13,8 @@ from __future__ import annotations
 from enum import StrEnum
 
 from ai_engine.core.config import settings
-from ai_engine.core.node import BaseNode
-from ai_engine.core.providers.reranker import Reranker
+from ai_engine.core.node import BaseNode, StateUpdate
+from ai_engine.core.providers.reranker import reranker
 from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.core.state import RankedChunk, TriageState
 
@@ -27,16 +27,13 @@ class RerankOutcome(StrEnum):
 class RerankNode(BaseNode):
     Outcome = RerankOutcome
 
-    def __init__(self, *, reranker: Reranker) -> None:
-        self._reranker = reranker
-
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
         candidates: list[Candidate] = state.candidates
         if not candidates:
             return {"reranked": []}
 
         query = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
-        scores = self._reranker.score(query, [c.content for c in candidates])
+        scores = reranker.score(query, [c.content for c in candidates])
 
         ranked = [
             RankedChunk(
@@ -56,3 +53,6 @@ class RerankNode(BaseNode):
         if not reranked or reranked[0].score < state.retrieval_floor:
             return RerankOutcome.EVIDENCE_BELOW_FLOOR
         return RerankOutcome.EVIDENCE_ABOVE_FLOOR
+
+
+rerank = RerankNode()
