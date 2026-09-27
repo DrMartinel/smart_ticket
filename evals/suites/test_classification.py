@@ -12,6 +12,7 @@ AutoReplyProposal doesn't carry a category field of its own.
 """
 
 from collections import defaultdict
+from typing import Any
 
 from suites.golden_utils import EVAL_FULL_RUN, analyze, load_golden, record_metric
 
@@ -43,7 +44,7 @@ _SLUG_CATEGORY = {
 }
 
 
-def _predicted_category(result: dict) -> str | None:
+def _predicted_category(result: dict[str, Any]) -> str | None:
     proposal = result.get("proposal") or {}
     intent = proposal.get("proposed_intent")
     if intent in ("route_to_team", "runbook"):
@@ -51,7 +52,7 @@ def _predicted_category(result: dict) -> str | None:
     if intent == "auto_reply":
         chunks = result.get("retrieved_chunks") or []
         slug = chunks[0]["kb_slug"] if chunks else proposal.get("kb_slug")
-        return _SLUG_CATEGORY.get(slug)
+        return _SLUG_CATEGORY.get(slug) if isinstance(slug, str) else None
     return None
 
 

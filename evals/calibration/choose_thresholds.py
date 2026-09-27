@@ -38,13 +38,13 @@ django.setup()
 from contracts.trust import TrustSignals  # noqa: E402
 
 from apps.review.models import ReviewDecision  # noqa: E402
-from apps.tickets.services.trust_scorer import extract_features  # noqa: E402
+from apps.tickets.services.trust_scorer import TrustModel, extract_features  # noqa: E402
 
 T_AUTO_PRECISION_FLOOR = 0.95
 T_ROUTE_PRECISION_FLOOR = 0.85
 
 
-def _score_with_model(signals: TrustSignals, model: dict) -> float:
+def _score_with_model(signals: TrustSignals, model: TrustModel) -> float:
     from apps.tickets.services.trust_scorer import FEATURES
 
     x = extract_features(signals)
@@ -52,14 +52,15 @@ def _score_with_model(signals: TrustSignals, model: dict) -> float:
     return 1.0 / (1.0 + np.exp(-z))
 
 
-def _collect(intent: str, verdict_field: str, model: dict) -> tuple[list[float], list[int]]:
+def _collect(intent: str, verdict_field: str, model: TrustModel) -> tuple[list[float], list[int]]:
     """Re-scores every case with `model` rather than trusting the
     `trust_score` value stored on each `ai_run` — those rows may span
     several model versions over time (whatever was active when each ran),
     which would make the resulting PR curve a mix of models rather than a
     curve for the specific model these thresholds are being chosen for."""
 
-    scores, labels = [], []
+    scores: list[float] = []
+    labels: list[int] = []
     decisions = (
         ReviewDecision.objects.select_related("review_item__ai_run")
         .exclude(review_item__ai_run__isnull=True)
@@ -67,6 +68,8 @@ def _collect(intent: str, verdict_field: str, model: dict) -> tuple[list[float],
     )
     for decision in decisions.iterator():
         ai_run = decision.review_item.ai_run
+        if ai_run is None:
+            continue
         draft = ai_run.proposed_draft or {}
         if (
             draft.get("root", {}).get("proposed_intent") != intent
@@ -90,9 +93,9 @@ def _smallest_threshold_for_precision(
 ) -> float | None:
     if not scores or len(set(labels)) < 2:
         return None
-    from sklearn.metrics import precision_recall_curve
+    from sklearn.metrics import precision_recall_curve  # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
 
-    precision, recall, thresholds = precision_recall_curve(labels, scores)
+    precision, _recall, thresholds = precision_recall_curve(labels, scores)
     # precision_recall_curve returns len(thresholds) = len(precision) - 1
     candidates = [(t, p) for t, p in zip(thresholds, precision[:-1]) if p >= floor]
     if not candidates:

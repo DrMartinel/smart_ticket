@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any, cast
 
 RESULTS_PATH = Path(__file__).parent / ".results.json"
 REPORT_PATH = Path(__file__).parent / "report.md"
@@ -31,17 +32,17 @@ CATEGORY_F1_ABSOLUTE_FLOOR = 0.85
 RETRIEVAL_RECALL_MAX_DROP = 0.03
 
 
-def _get(results: dict, name: str) -> float | None:
+def _get(results: dict[str, Any], name: str) -> float | None:
     """Results written by `record_metric()` are `{"value": ..., ...}`
     dicts; baseline.json stores plain floats (it's a hand-reviewed
     fixture, not a machine-written log) — accept either shape."""
     entry = results.get(name)
     if entry is None:
         return None
-    return entry["value"] if isinstance(entry, dict) else entry
+    return cast(dict[str, float], entry)["value"] if isinstance(entry, dict) else entry
 
 
-def evaluate(results: dict, baseline: dict) -> tuple[list[str], list[str]]:
+def evaluate(results: dict[str, Any], baseline: dict[str, Any]) -> tuple[list[str], list[str]]:
     """Returns (failures, notes)."""
     failures: list[str] = []
     notes: list[str] = []
@@ -102,7 +103,7 @@ def main() -> None:
         raise SystemExit(2)
 
     results = json.loads(RESULTS_PATH.read_text())
-    baseline = json.loads(args.compare.read_text()) if args.compare.exists() else {}
+    baseline: dict[str, Any] = json.loads(args.compare.read_text()) if args.compare.exists() else {}
 
     failures, notes = evaluate(results, baseline)
 
