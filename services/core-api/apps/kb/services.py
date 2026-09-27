@@ -83,8 +83,6 @@ def set_auto_reply_allowed(
         raise KBGovernanceError("only manager-role users may change auto_reply_allowed")
     if not reason or not reason.strip():
         raise KBGovernanceError("reason is required")
-    if allowed and article.approved_by_id is None and actor is None:
-        raise KBGovernanceError("cannot enable auto_reply without an approver")
 
     old_value = str(article.auto_reply_allowed)
     article.auto_reply_allowed = allowed
