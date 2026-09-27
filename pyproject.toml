@@ -28,6 +28,8 @@ dev = [
     "pytest-django>=4.9",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
+    "celery-types>=0.26.0",
+    "django-types>=0.24.0",
 ]
 
 [tool.ruff]
@@ -67,18 +69,30 @@ testpaths = ["services/core-api/tests", "services/ai-engine/tests", "evals/suite
 addopts = "--import-mode=importlib"
 
 [tool.pyright]
-# Strict, scoped to ai-engine for now: it is clean, and GraphBuilder's wiring
-# checks lean on its hints. Widen deliberately, one clean package at a time.
-# Suppressions are per line and name their rule; the remaining ones all sit
-# on LangGraph's boundary (its generics are partly unparameterized).
-include = ["services/ai-engine/src"]
+# Strict for all source code; tests run in standard mode, where strict would
+# mostly mean annotating every pytest fixture. New code starts strict.
+# Suppressions are per line and name their rule; most sit on untyped library
+# boundaries (LangGraph's generics are partly unparameterized).
+include = ["services/ai-engine", "services/core-api", "packages/contracts", "evals"]
+strict = [
+    "services/ai-engine/src",
+    "services/core-api/apps",
+    "services/core-api/config",
+    "packages/contracts",
+    "evals/report.py",
+    "evals/calibration",
+    "evals/golden",
+]
+# Django's generated migrations are not hand-written code.
+exclude = ["**/migrations", "**/__pycache__", "**/node_modules", "**/.*"]
+typeCheckingMode = "standard"
 # The workspace venv (`uv sync --all-packages`), so imports resolve to the
 # same packages the tests run against.
 venvPath = "."
 venv = ".venv"
 pythonVersion = "3.13"
-typeCheckingMode = "strict"
 # The workspace packages are editable installs with no py.typed marker, so
 # through the venv pyright treats them as untyped third-party code. Resolving
-# them from source makes them first-party.
-extraPaths = ["services/ai-engine/src", "packages/contracts/src"]
+# them from source makes them first-party. The last two are the import roots
+# core-api (`apps.*`, `config.*`) and evals (`suites.*`) run from.
+extraPaths = ["services/ai-engine/src", "packages/contracts/src", "services/core-api", "evals"]

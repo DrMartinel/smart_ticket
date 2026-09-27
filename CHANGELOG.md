@@ -29,6 +29,16 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **Pyright covers the whole repo.** Strict for all source code (ai-engine,
+  core-api, contracts, the eval scripts), standard for tests; Django
+  migrations are excluded. core-api is typed with `django-types` and
+  `celery-types` (dev dependencies), so models declare what Django adds at
+  runtime (`id`, `<fk>_id`, reverse managers) and name the model on FKs to a
+  string target. Ninja handlers take `AuthedRequest` (`apps/accounts/rbac.py`).
+  No behaviour change; generated TS types and migrations are unchanged.
+  The one deletion: the approver check in `set_auto_reply_allowed` was
+  unreachable (`actor.is_manager` is read first, so a `None` actor already
+  raised) and is removed.
 - **Nodes use the provider singletons directly.** `EmitSignalsNode`,
   `SelectFewshotsNode`, `HybridRetrieveNode`, `RerankNode` and `InferNode` no
   longer take `db` / `embedder` / `reranker` / `llm` in `__init__`; they read
