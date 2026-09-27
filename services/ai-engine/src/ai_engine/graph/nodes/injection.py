@@ -22,10 +22,6 @@ PATTERNS: dict[str, re.Pattern] = {
     "role_override_en": re.compile(
         r"(?i)\byou are now\b|\bact as\b|\bnew system prompt\b|\bDAN mode\b"
     ),
-    # NOTE: "bạn" is required adjacent to "bây giờ là" in either word
-    # order — "bây giờ là" alone is an ordinary Vietnamese phrase for
-    # telling the time ("bây giờ là 3 giờ chiều") and would false-positive
-    # on ordinary tickets if matched without that anchor.
     "role_override_vi": re.compile(
         r"(?i)\bbạn bây giờ là\b|\bbây giờ bạn là\b|\bhãy đóng vai\b|\bquên vai trò\b"
     ),
