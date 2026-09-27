@@ -8,6 +8,8 @@ handed off to Celery for everything downstream (retrieval, LLM, routing).
 
 from __future__ import annotations
 
+from typing import Any
+
 from asgiref.sync import async_to_sync
 from django.db import transaction
 from ninja import Router, Schema
@@ -17,6 +19,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from contracts.ticket import TicketIn
 
+from apps.accounts.rbac import AuthedRequest
 from apps.audit.services import audit
 from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.services.crypto import build_quarantine_entries
@@ -40,7 +43,7 @@ class TicketSubmitIn(Schema):
 
 
 @router.post("/submit", auth=JWTAuth())
-def submit_ticket(request, payload: TicketSubmitIn):
+def submit_ticket(request: AuthedRequest, payload: TicketSubmitIn) -> dict[str, Any]:
     try:
         ticket_in = TicketIn(**payload.dict())
     except PydanticValidationError as e:
@@ -95,7 +98,7 @@ def submit_ticket(request, payload: TicketSubmitIn):
 
 
 @router.get("/{public_id}", auth=JWTAuth())
-def get_ticket(request, public_id: str):
+def get_ticket(request: AuthedRequest, public_id: str) -> dict[str, Any]:
     try:
         t = Ticket.objects.get(public_id=public_id)
     except Ticket.DoesNotExist as e:

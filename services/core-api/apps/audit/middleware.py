@@ -6,17 +6,20 @@ connected back to the full LLM trace.
 """
 
 import uuid
+from collections.abc import Callable
+
+from django.http import HttpRequest, HttpResponse
 
 _HEADER = "X-Trace-Id"
 
 
 class TraceIdMiddleware:
-    def __init__(self, get_response):
+    def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
-    def __call__(self, request):
+    def __call__(self, request: HttpRequest) -> HttpResponse:
         trace_id = request.headers.get(_HEADER) or uuid.uuid4().hex
-        request.trace_id = trace_id
+        setattr(request, "trace_id", trace_id)
         response = self.get_response(request)
         response[_HEADER] = trace_id
         return response

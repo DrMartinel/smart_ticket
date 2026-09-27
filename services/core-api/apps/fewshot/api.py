@@ -1,13 +1,16 @@
+from typing import Any
+
 from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
+from apps.accounts.rbac import AuthedRequest
 from apps.fewshot.services import active_examples_for_category
 
 router = Router(tags=["fewshot"])
 
 
 @router.get("/category/{category}", auth=JWTAuth())
-def list_active(request, category: str):
+def list_active(request: AuthedRequest, category: str) -> list[dict[str, Any]]:
     examples = active_examples_for_category(category)
     return [
         {

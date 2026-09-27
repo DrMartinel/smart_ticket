@@ -13,6 +13,8 @@ that can skip it (ADR-0006).
 
 from __future__ import annotations
 
+from typing import Any
+
 from contracts.enums import Branch, PIILevel, ReasonCode, ReviewQueue
 from contracts.llm_draft import (
     AutoReplyProposal,
@@ -54,7 +56,7 @@ def _hitl(
     queue: str,
     detail: str = "",
     priority: int = 3,
-    draft_payload: dict | None = None,
+    draft_payload: dict[str, Any] | None = None,
     gate_failed: str | None = None,
 ) -> RoutingDecision:
     return RoutingDecision(
@@ -153,7 +155,7 @@ def route(
         )
 
     # ── Branch B: auto-route ──
-    if isinstance(proposal.root, RouteProposal):
+    if isinstance(proposal.root, RouteProposal):  # pyright: ignore[reportUnnecessaryIsInstance]
         if not g.category_consistent:
             return _hitl(ReasonCode.CATEGORY_INCONSISTENT, queue=ReviewQueue.LOW_CONFIDENCE.value)
         if trust < th.t_route:

@@ -50,7 +50,7 @@ def ingest_article(article: KbArticle) -> list[KbChunk]:
 
     KbChunk.objects.filter(article=article).delete()
     pieces = chunk_body(article.body)
-    chunks = []
+    chunks: list[KbChunk] = []
     for i, content in enumerate(pieces):
         embedding = embed_text(content)
         chunk = KbChunk.objects.create(

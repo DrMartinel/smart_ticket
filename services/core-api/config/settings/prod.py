@@ -2,7 +2,7 @@ import os
 
 from .base import *  # noqa: F403
 
-DEBUG = False
+DEBUG = False  # pyright: ignore[reportConstantRedefinition]
 
 if SECRET_KEY == "dev-only-insecure-secret-key-change-me":  # noqa: F405
     raise RuntimeError("SECRET_KEY must be set explicitly in production")

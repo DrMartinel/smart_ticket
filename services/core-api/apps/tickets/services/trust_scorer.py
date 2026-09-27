@@ -13,6 +13,7 @@ import json
 import math
 from functools import lru_cache
 from pathlib import Path
+from typing import TypedDict
 
 from django.conf import settings
 
@@ -33,8 +34,14 @@ FEATURES = [
 _MODEL_PATH = Path(settings.BASE_DIR) / "config" / "trust_model_v0.json"
 
 
+class TrustModel(TypedDict):
+    model_version: str
+    intercept: float
+    weights: dict[str, float]
+
+
 @lru_cache(maxsize=1)
-def _load_model() -> dict:
+def _load_model() -> TrustModel:
     # encoding is explicit for the same reason as load_thresholds() in
     # config/settings/base.py: without it Python uses the locale default
     # (cp1252 on Windows) and JSON is UTF-8 by spec. Today this file's

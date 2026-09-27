@@ -9,6 +9,8 @@ phản xạ còn tệ hơn không có HITL").
 
 from __future__ import annotations
 
+from typing import Any
+
 from datetime import timedelta
 
 from django.db.models import Count, F, Q
@@ -29,7 +31,7 @@ def _percentile(values: list[float], p: float) -> float | None:
     return values[f] + (values[c] - values[f]) * (k - f)
 
 
-def quality_metrics(window_days: int = 30) -> dict:
+def quality_metrics(window_days: int = 30) -> dict[str, Any]:
     since = timezone.now() - timedelta(days=window_days)
 
     autoreplied = Ticket.objects.filter(
@@ -80,7 +82,7 @@ def quality_metrics(window_days: int = 30) -> dict:
     }
 
 
-def hitl_health_metrics(window_days: int = 30) -> dict:
+def hitl_health_metrics(window_days: int = 30) -> dict[str, Any]:
     since = timezone.now() - timedelta(days=window_days)
 
     queue_depth = list(
@@ -111,7 +113,7 @@ def hitl_health_metrics(window_days: int = 30) -> dict:
     ):
         times_by_reviewer.setdefault(reviewer_id, []).append(seconds)
 
-    per_reviewer = []
+    per_reviewer: list[dict[str, Any]] = []
     for row in per_reviewer_counts:
         row["approve_rate"] = row["approved"] / row["total"] if row["total"] else None
         row["median_time_spent_sec"] = _percentile(
@@ -127,7 +129,7 @@ def hitl_health_metrics(window_days: int = 30) -> dict:
     }
 
 
-def ops_metrics(window_days: int = 7) -> dict:
+def ops_metrics(window_days: int = 7) -> dict[str, Any]:
     since = timezone.now() - timedelta(days=window_days)
     runs = AiRun.objects.filter(created_at__gte=since)
     latencies = list(runs.exclude(latency_ms__isnull=True).values_list("latency_ms", flat=True))
@@ -145,7 +147,7 @@ def ops_metrics(window_days: int = 7) -> dict:
     }
 
 
-def business_metrics(window_days: int = 30) -> dict:
+def business_metrics(window_days: int = 30) -> dict[str, Any]:
     since = timezone.now() - timedelta(days=window_days)
     routed = RoutingDecision.objects.filter(decided_at__gte=since)
     total = routed.count()
@@ -161,7 +163,7 @@ def business_metrics(window_days: int = 30) -> dict:
     }
 
 
-def dashboard_summary(window_days: int = 30) -> dict:
+def dashboard_summary(window_days: int = 30) -> dict[str, Any]:
     return {
         "quality": quality_metrics(window_days),
         "hitl_health": hitl_health_metrics(window_days),

@@ -8,6 +8,7 @@ with dev-safe defaults — those defaults are NOT meant to be used in prod
 
 import os
 from pathlib import Path
+from typing import Any
 
 import yaml
 from contracts.routing import Thresholds
@@ -45,7 +46,7 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = "config.urls"
 
-TEMPLATES = [
+TEMPLATES: list[dict[str, Any]] = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
         "DIRS": [],
@@ -71,7 +72,7 @@ _db_url = os.environ.get(
 )
 
 
-def _parse_database_url(url: str) -> dict:
+def _parse_database_url(url: str) -> dict[str, Any]:
     # Minimal parser to avoid an extra dependency (dj-database-url) for a
     # single, well-known URL shape.
     from urllib.parse import urlparse

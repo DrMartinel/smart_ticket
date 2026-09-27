@@ -5,6 +5,8 @@ rather than by counting rows, so IDs stay monotonic and collision-free even
 under concurrent ticket submission.
 """
 
+from typing import cast
+
 from django.db import connection
 from django.utils import timezone
 
@@ -12,12 +14,12 @@ from django.utils import timezone
 def next_ticket_public_id() -> str:
     with connection.cursor() as cur:
         cur.execute("SELECT nextval('ticket_public_id_seq')")
-        n = cur.fetchone()[0]
+        n = cast(tuple[int], cur.fetchone())[0]
     return f"TKT-{timezone.now().year}-{n:06d}"
 
 
 def next_incident_public_id() -> str:
     with connection.cursor() as cur:
         cur.execute("SELECT nextval('incident_public_id_seq')")
-        n = cur.fetchone()[0]
+        n = cast(tuple[int], cur.fetchone())[0]
     return f"INC-{timezone.now().year}-{n:04d}"

@@ -37,7 +37,7 @@ class TestEmbeddingFailureFailsOpenToHitl:
 
         monkeypatch.setattr("apps.tickets.tasks.embed_text", raise_timeout)
 
-        result = process_ticket.apply(args=[ticket.id]).get()
+        result = process_ticket.apply(args=(ticket.id,)).get()
 
         assert result["branch"] == Branch.HITL.value
 
@@ -57,7 +57,7 @@ class TestEmbeddingFailureFailsOpenToHitl:
             lambda text: (_ for _ in ()).throw(httpx.ConnectTimeout("simulated")),
         )
 
-        process_ticket.apply(args=[ticket.id]).get()
+        process_ticket.apply(args=(ticket.id,)).get()
 
         ticket.refresh_from_db()
         assert ticket.status != "new"
@@ -103,10 +103,13 @@ class TestLlmFailureKeepsItsReasonCode:
             lambda masked, request_id: _llm_failed_response(reason.value, request_id),
         )
 
-        result = process_ticket.apply(args=[ticket.id]).get()
+        result = process_ticket.apply(args=(ticket.id,)).get()
 
         assert result["branch"] == Branch.HITL.value
         decision = ticket.routing_decisions.order_by("-id").first()
+        assert decision is not None
         assert decision.reason_code == reason.value
         assert ticket.review_items.exists(), "must land in a review queue"
-        assert ticket.ai_runs.order_by("-id").first().degraded_reason == reason.value
+        ai_run = ticket.ai_runs.order_by("-id").first()
+        assert ai_run is not None
+        assert ai_run.degraded_reason == reason.value
