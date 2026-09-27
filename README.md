@@ -83,7 +83,7 @@ Three services with **structurally enforced** permission boundaries:
 
 - **LLM proposes, code decides.** [`router.py::route()`](services/core-api/apps/tickets/services/router.py) is the *only* place a `Branch` is chosen. It is a pure function — no I/O, thresholds passed as a parameter — so every branch is exhaustively unit-testable without a model or a network (ADR-0001).
 - **Trust score over self-confidence.** `llm_self_confidence` is logged but **never** routed on. Trust comes from externally verifiable signals: rerank scores, whether the quoted text actually exists in the retrieved chunk, whether a negation got flipped (ADR-0003).
-- **Fail toward humans.** Every degradation — LLM timeout, embedding outage, masking failure, weak retrieval, budget exhaustion — routes to HITL. Never to auto-reply. A user waiting longer is acceptable; a user receiving a confident wrong answer is not.
+- **Fail toward humans.** Every degradation — LLM timeout, embedding outage, masking failure, weak retrieval, daily cost ceiling — routes to HITL. Never to auto-reply. A user waiting longer is acceptable; a user receiving a confident wrong answer is not.
 - **Authority lives on the KB, not in the model.** `kb_articles.auto_reply_allowed` defaults to `false`, is settable only by a manager with a logged reason, and is enforced by a DB `CHECK` constraint requiring a named approver (ADR-0002).
 - **Refuse before spending.** If reranked retrieval falls below the floor, the LLM is never called — cheaper *and* safer, since a model with no source is a model that invents one.
 - **Shadow mode first.** The same `route()` runs in both modes, so calibration data describes exactly what will happen when it's switched live.
@@ -117,7 +117,7 @@ smart_ticket/
 │   │       ├── graph/nodes/     #   injection · retrieve · rerank · fewshot · infer · validate
 │   │       └── core/            #   settings · state · node base classes, and:
 │   │           ├── providers/   #     seams (ABCs) · embedders · rerankers · db
-│   │           ├── llm/         #     client (circuit breaker, budget), versioned prompts
+│   │           ├── llm/         #     client, versioned prompts
 │   │           └── retrieval/   #     bm25 · vector · rrf fusion
 │   └── web/                     # Next.js App Router
 │       ├── app/                 #   submit · queue · review/[id] · dashboard · kb · login
@@ -256,7 +256,7 @@ services/core-api/config/thresholds.yaml
 | `routing.quote_match` | 0.95 | Minimum verbatim-quote match ratio |
 | `retrieval.floor` | 0.45 | **Cross-encoder** score below which the LLM is never called (ADR-0005) |
 | `incident.min_count` | 5 | Similar tickets needed before mass-incident escalation |
-| `budget.max_latency_sec` | 300 | End-to-end graph budget; must exceed the per-call model ceiling |
+| `budget.max_latency_sec` | 300 | How long core-api waits on ai-engine; must exceed the per-call model ceiling |
 | `budget.daily_cost_ceiling_usd` | 50 | Daily spend cap — exceeding it routes everything to HITL |
 
 Values marked 🔧 are **assumptions awaiting calibration**, not tuned values. The full snapshot is written into `routing_decisions.thresholds_used` on every decision, so a post-hoc investigation can always recover what the thresholds were *at the time*.
@@ -295,7 +295,7 @@ Ticket submitted  ──►  PII Masking (INLINE, before any DB write)
                          ├─ cross-encoder rerank → top-3
                          │     └─ below floor        ──► refuse, LLM never called
                          ├─ few-shot selection
-                         ├─ LLM inference (JSON schema, ≤1 retry)
+                         ├─ LLM inference (JSON schema, no retry)
                          └─ validation: exact quote → fuzzy ≥0.95 → in-top-k → negation check
                          ▼
                        Trust Scorer  (core-api — deliberately NOT in ai-engine)
@@ -422,7 +422,7 @@ P3 precedes P4 deliberately: a wrong auto-route costs one technician click (and 
 
 ## Operations
 
-[`docs/runbooks/on-call.md`](docs/runbooks/on-call.md) covers circuit-breaker trips, budget exhaustion, embedding outages, degraded retrieval, and the MASK_FAILED flood.
+[`docs/runbooks/on-call.md`](docs/runbooks/on-call.md) covers LLM provider outages, the daily cost ceiling, embedding outages, degraded retrieval, and the MASK_FAILED flood.
 
 The two metrics most worth watching are counterintuitive: **`reopen_rate_after_autoreply`** (a wrong auto-reply that closed the ticket is an *invisible* failure) and **`approve_rate_per_reviewer`** — a reviewer approving >95% at <10 s median is rubber-stamping, which is worse than having no HITL at all because it manufactures false assurance.
 

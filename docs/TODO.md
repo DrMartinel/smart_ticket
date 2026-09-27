@@ -193,17 +193,6 @@ prompt that never passed the eval gate spec §12.3 requires.
 **Done when** `main.py` either returns `settings.prompt_version`, or rejects a
 request whose `prompt_version` does not match with a 400.
 
-### 6b. `select_fewshots` never checks the budget
-
-**Priority:** Low
-
-It is the only node that spends an embedding round-trip without first checking
-the budget — `retrieve`, `rerank` and `infer` all mix in `BudgetGuardMixin`. Possibly deliberate
-(few-shot selection is cheap relative to inference), possibly an oversight.
-
-**Done when** either it mixes in `BudgetGuardMixin`, or a comment in
-`SelectFewshotsNode` states why it is exempt.
-
 ### 6c. The same query is embedded twice per ticket
 
 **Priority:** Low
@@ -235,19 +224,7 @@ its own commit and its own test.
 
 - **Golden set is synthetic.** Per spec §12.4, promote real cases into `evals/golden/tickets.jsonl` over time from the three free label sources already being captured: human overrides, technician reroutes, and reopens after auto-reply. `eval_candidates` rows are accumulating for exactly this — they just need a periodic review-and-promote pass.
 
-- **Cloud provider cost rates are placeholders.** `models.py` carries one
-  `*_COST_PER_1K_TOKENS` constant per provider, all illustrative. Replace each
-  with the provider's real rate card before `cost_per_ticket` dashboards are
-  trusted — the numbers are currently plausible-looking and wrong.
-
-- **`anthropic` / `gemini` cannot express a connect budget.** Both take a flat
-  timeout (ADR-0007), so an unreachable endpoint consumes the per-attempt read
-  budget rather than failing in ~3s. Acceptable today because vLLM keeps the
-  split and hosted APIs usually refuse fast. If either becomes the standing
-  primary, revisit — an upstream `http_client` parameter would fix it cleanly.
-
-- **`CLOUD_PROVIDER` and `CLOUD_MODEL` are not cross-checked.** Switching
-  provider without switching model reaches the API and fails there rather than
-  at boot, unlike every other provider misconfiguration. A
-  per-provider model-name prefix check would close the gap, at the cost of
-  needing maintenance as model names change.
+- **The OpenAI cost rate is a placeholder.** `OPENAI_COST_PER_1K_TOKENS` in
+  `models.py` is illustrative. Replace it with the real rate card for
+  `CLOUD_MODEL` before `cost_per_ticket` dashboards are trusted — the number
+  is currently plausible-looking and wrong.

@@ -13,6 +13,46 @@ that moves a failure path is more significant here than a new feature.
 
 ## [Unreleased]
 
+### Removed
+
+- **ai-engine no longer retries or enforces a per-ticket budget.**
+  Behaviour change, made to simplify the project around retrieval and
+  embedding. `LLMClient.complete()` makes exactly one attempt; any failure is
+  `all_llm_down` → HITL. The `validate → infer` retry is gone: a
+  schema-invalid proposal goes straight to `emit_signals` and HITL, and the
+  graph is now acyclic. `core/budget.py` (`BudgetGuardMixin`, `check_budget`,
+  `BudgetExceeded`) is deleted, so ai-engine never emits
+  `degraded_reason="budget_exceeded"`; every LLM call uses the fixed
+  `MODEL_TIMEOUT_SEC` ceiling, and `MIN_ATTEMPT_TIMEOUT_SEC` is gone.
+  `AIRunRequest` loses `max_tokens`, `max_llm_calls`, `max_latency_sec` and
+  `max_graph_iterations`; `thresholds.yaml` loses
+  `budget.max_tokens_per_ticket`, `max_llm_calls` and `max_graph_iterations`.
+  `budget.max_latency_sec` (core-api's HTTP timeout to ai-engine) and
+  core-api's `daily_cost_ceiling_usd` stay, as does the `BUDGET_EXCEEDED`
+  reason code they still produce. SDK retries stay disabled (`max_retries=0`).
+- **The LLM circuit breaker is gone.** Behaviour change: `circuit_breaker.py`
+  is deleted and ai-engine never emits `degraded_reason="circuit_open"`.
+  During a provider outage every ticket now makes its own call and waits for
+  it to fail (3s if unreachable, up to `MODEL_TIMEOUT_SEC` if hung) before
+  going to HITL as `all_llm_down`. core-api's `circuit_open` branch is
+  removed; `ReasonCode.CIRCUIT_OPEN` stays so existing rows still deserialize.
+
+- **Anthropic and Gemini chat providers are gone.** Behaviour change:
+  `CHAT_CLIENT_PROVIDER` takes `vllm` | `openai` only, and `anthropic` /
+  `gemini` now fail the boot. `langchain-anthropic` and
+  `langchain-google-genai` are dropped. `CLOUD_MODEL` no longer defaults to
+  `claude-sonnet-5` and is required with `openai`, alongside `CLOUD_API_KEY`.
+  `CLOUD_MAX_OUTPUT_TOKENS` now caps OpenAI generations — it was only wired
+  to the removed providers before.
+
+### Added
+
+- **`all_llm_down` is a `ReasonCode`.** Behaviour change: a failed chat call
+  now reaches HITL with reason code `all_llm_down`. Previously core-api routed
+  an LLM outage through the router, which saw only `proposal=None` and
+  labelled it `schema_invalid` — the same code as "the model returned bad
+  JSON".
+
 ### Changed
 
 - **Chat runs on whatever `CHAT_CLIENT_PROVIDER` says; no fallback.**

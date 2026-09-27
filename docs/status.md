@@ -34,7 +34,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §3.5 | Few-shot pool, incidents, append-only audit | ✅ | `REVOKE UPDATE, DELETE ON audit_log` applied in SQL migration |
 | §4 | Discriminated-union contracts, `proposed_` prefixes | ✅ | `LLMProposalEnvelope` as `RootModel`, `frozen=True` on `TicketMasked` |
 | §5 | Masking engine (inline, two-tier) | ✅ | 100% branch coverage; regex tier-1 short-circuits before any LLM call |
-| §6 | LangGraph pipeline | ✅ | Refuse-before-LLM and the `iteration < 2` cap both verified |
+| §6 | LangGraph pipeline | ✅ | Refuse-before-LLM verified; graph is acyclic (no LLM retry) |
 | §6.3 | Hybrid retrieval BM25 + vector + RRF | ✅ | RRF k=60; no threshold on fused rank (ADR-0005) |
 | §6.3 | Cross-encoder reranker | ⚠️ Unverified | Served by vLLM (`RERANKER_PROVIDER=vllm`, the default), not yet run against real hardware; `lexical` (for CI) folds Vietnamese diacritics; see [Gap 3](#gap-3--retrievalfloor-is-uncalibrated) |
 | §6.4 | Validator (quote → fuzzy → in-top-k → negation) | ✅ | Negation check verified catching a real `negation_mismatch` live |
@@ -42,8 +42,8 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §8 | Switch router — pure function, hard gates ordered | ✅ | Every branch unit-tested with no DB/LLM/network |
 | §8.2 | Shadow mode | ✅ | Same `route()` in both modes |
 | §9 | Incident detector (adaptive baseline + 3σ) | ✅ | Concurrent-worker dedup serialized by a Postgres advisory lock |
-| §10.1 | Circuit breaker | ✅ | 20% / 5 min window, 10 min open, 10% half-open |
-| §10.2 | Per-ticket budget + daily cost ceiling | ✅ | Ceiling enforced in core-api (only side that sees total spend) |
+| §10.1 | Circuit breaker | ❌ Removed | Deliberately dropped to simplify; every LLM failure is `all_llm_down` → HITL |
+| §10.2 | Per-ticket budget + daily cost ceiling | ⚠️ Partial | Per-ticket budget removed; daily ceiling still enforced in core-api |
 | §10.3 | Failure-mode table — always degrade to a human | ✅ | Including the embedding path (fixed 2026-07-28) |
 | §11.1 | Dashboard metrics | ✅ | `reopen_rate_after_autoreply`, `approve_rate_per_reviewer`, `median_time_spent` all implemented |
 | §11.2 | `trace_id` propagation | ⚠️ Partial | Threaded through app + audit log; no LangSmith/Langfuse export — see [Gap 4](#gap-4-no-external-trace-backend) |

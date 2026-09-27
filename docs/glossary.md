@@ -113,11 +113,10 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 ## Operations
 
-**Circuit breaker** — trips at >20% LLM failures over 5 minutes, stays open 10 minutes, then admits 10% of traffic. When it opens, **alert the on-call team**: it means HITL volume is about to spike and more reviewers are needed. That is operational information, not a technical log line.
 
 **Budget** — per-ticket caps on tokens, LLM calls, latency, and graph iterations, plus a daily cost ceiling. Exceeding any of them routes to HITL. This is both a cost control and a security control: an adversarial ticket engineered to induce a retry loop could otherwise burn the day's quota in minutes.
 
-**Degraded** — any run where the pipeline could not complete normally (`embedding_unavailable`, `ai_engine_unavailable`, `circuit_open`, `budget_exceeded`). All of them degrade *toward a human*. A user waiting longer is acceptable; a user receiving a confident wrong answer is not.
+**Degraded** — any run where the pipeline could not complete normally (`embedding_unavailable`, `ai_engine_unavailable`, `all_llm_down`, `budget_exceeded`). All of them degrade *toward a human*. A user waiting longer is acceptable; a user receiving a confident wrong answer is not.
 
 **Runbook** — a scripted remediation the system can propose but **never** execute autonomously. Always through HITL, with no trust threshold high enough to skip it ([ADR-0006](adr/0006-runbook-always-hitl.md)). The spec flags this as the guardrail most likely to erode once `automation_rate` becomes a KPI.
 

@@ -141,9 +141,7 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
        ▼
    validate          quote → fuzzy ≥0.95 → in-top-k → negation
        │
-       ├─ RetryInference (schema invalid AND iteration < 2) ──► infer   (exactly one retry)
-       │ SchemaValid / RetriesExhausted
-       ▼
+       ▼                 (schema invalid → no retry; emit_signals, then HITL)
    emit_signals ──► terminal ──► END
 ```
 
@@ -151,7 +149,7 @@ Three properties are structural, not conventional:
 
 1. **No node writes business data.** The graph returns signals and a proposal. All authority stays in core-api.
 2. **Refuse-before-LLM.** Weak retrieval means the model is never invoked — cheaper *and* safer.
-3. **No unbounded loop.** Exactly one edge can cycle (`validate → infer`), hard-capped at `iteration < 2`. Non-termination is impossible by construction, not by convention.
+3. **No loop.** The graph is acyclic — every node runs at most once per ticket, so non-termination is impossible by construction. A schema-invalid proposal goes to a human, not back to the model.
 
 Each node is a `BaseNode` subclass (`core/node.py`) taking its collaborators
 through `__init__` and reading tunables from `core/config.py`. Its node name is derived from the class
@@ -167,8 +165,8 @@ compiles them once, at import time. See
 Models are reached through two layers. `LLMClient`
 (`core/providers/llm/models.py`, with the providers that subclass it) is the
 lower one and only abstracts
-communication with a model server: chat through `complete()`, raw JSON requests
-through `request()` (implemented by `VLLMLLM`). `LexicalEmbedder` and `CrossEncoderReranker`
+communication with a model server: chat through `complete()` on every provider,
+and raw JSON requests through `request()`, which only `VLLMLLM` has. `LexicalEmbedder` and `CrossEncoderReranker`
 (`core/providers/embeddings.py`, `reranker.py`) are the upper one and own their
 tasks: they build the `/embeddings` or `/rerank` request, parse the reply, and
 enforce their contract (vector width, one score per passage in input order).
@@ -286,13 +284,12 @@ Every degradation resolves toward a human. A user waiting longer is acceptable; 
 
 | Failure | Response |
 |---|---|
-| LLM timeout | Retry ×2 → HITL (`all_llm_down`) |
-| All LLMs down | HITL, `degraded_reason="all_llm_down"` |
+| LLM unreachable, timed out or erroring | No retry → HITL, `all_llm_down` |
 | Embedding unavailable | HITL, `embedding_unavailable` |
 | pgvector slow | BM25 only → always HITL (weak retrieval never earns automation) |
 | ai-engine down | Tickets still accepted; all to HITL — **fail open toward people** |
 | Worker dies mid-task | `acks_late` + idempotency key; redelivery cannot double-send |
-| Budget exceeded | AI off for the day; everything to HITL |
+| Daily cost ceiling exceeded (core-api) | AI off for the day; everything to HITL |
 | DB read-only | Submission returns 503 — an explicit refusal beats a silent loss |
 
 Two timeout budgets exist per model call, and the distinction matters: **connect** is short (3s) because an unreachable provider is knowable immediately, while **read** is long (120s) because a cold model load legitimately takes 15–20s. Collapsing them means an unreachable provider burns the full read budget — which, since masking is inline, is a user watching a spinner.

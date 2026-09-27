@@ -1,29 +1,21 @@
 # On-call runbook
 
-## Circuit breaker opened (`ai-engine/core/providers/llm/models.py`)
+## LLM provider failing (spike in `all_llm_down`)
 
-**Alert fires when:** LLM failure rate > 20% over a trailing 5-minute
-window (`CIRCUIT.failure_threshold`).
-
-**What this means operationally:** every ticket that would have gone
-through `infer` is now falling back to self-hosted vLLM, and if that also fails,
-straight to HITL with `degraded_reason="all_llm_down"`. HITL queue depth
-will rise sharply within minutes. This is a staffing signal, not just a
-technical one — see spec §10.1.
+**What this means:** the chat model is failing. There is no retry and no
+circuit breaker, so every ticket that reaches `infer` makes one call, waits
+for it to fail (up to `MODEL_CONNECT_TIMEOUT_SEC` if the provider is
+unreachable, up to `MODEL_TIMEOUT_SEC` if it hangs) and goes to HITL with
+reason code `all_llm_down`. HITL queue depth will rise sharply within
+minutes. This is a staffing signal, not just a technical one.
 
 **Actions:**
-1. Check `docker compose logs ai-engine` / provider status page for the
-   configured cloud LLM.
-2. Check `daily_cost_ceiling_usd` — if the circuit opened because of budget
-   exhaustion rather than provider errors, that's a different problem
-   (see below).
-3. Notify the review queue owner so extra reviewers can be pulled in — the
-   circuit stays open for `open_duration` (10 min) before trying 10% of
-   traffic again (half-open).
-4. If the underlying provider outage is prolonged, consider manually
-   flipping `SHADOW_MODE` considerations aside — HITL already receives
-   everything degraded, so no config change is needed for tickets to keep
-   flowing; this is a "add people" incident, not a "change code" incident.
+1. Check `docker compose logs ai-engine` — each failure is logged with its
+   cause — and vllm-chat (or OpenAI's status page).
+2. Notify the review queue owner so extra reviewers can be pulled in.
+3. No config change is needed for tickets to keep flowing — HITL already
+   receives everything degraded. This is an "add people" incident, not a
+   "change code" incident.
 
 ## Daily cost ceiling exceeded (`budget.daily_cost_ceiling_usd`)
 
@@ -31,9 +23,10 @@ technical one — see spec §10.1.
 ticket routes to HITL with `degraded_reason="budget_exceeded"`.
 
 **Actions:**
-1. Check `ai_runs` for a spike in `tokens_in`/`llm_calls` per ticket —
-   this is the signature of an adversarial ticket designed to induce a
-   retry loop (spec §10.2).
+1. Check `ai_runs` for a spike in `tokens_in`/`tokens_out` per ticket.
+   ai-engine makes at most one LLM call per ticket and enforces no
+   per-ticket token budget, so a spike means oversized inputs or runaway
+   generations (bounded only by `CLOUD_MAX_OUTPUT_TOKENS`).
 2. If it's legitimate volume, that's a capacity-planning conversation for
    tomorrow's ceiling, not a same-day override — raising the ceiling
    live during an incident should not be a one-person decision.
