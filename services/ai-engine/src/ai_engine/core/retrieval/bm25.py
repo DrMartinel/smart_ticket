@@ -31,12 +31,8 @@ class LexicalHit(BaseModel):
     score: float
 
 
-def extract_error_codes(text: str) -> list[str]:
-    return _ERROR_CODE_RE.findall(text)
-
-
 def bm25_search(session, query_text: str) -> list[LexicalHit]:
-    error_codes = extract_error_codes(query_text)
+    error_codes = _ERROR_CODE_RE.findall(query_text)
 
     tsquery = func.plainto_tsquery("simple", query_text)
     score = func.ts_rank_cd(KbChunk.tsv, tsquery).label("score")
