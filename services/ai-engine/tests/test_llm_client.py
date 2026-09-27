@@ -8,6 +8,8 @@ a 500 with no TrustSignals. Drives a fake `LLMClient` subclass (ADR-0007).
 
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 from langchain_core.messages import AIMessage
@@ -39,7 +41,7 @@ class _FakeLLM(LLMClient):
         self._model = _FakeChatModel(replies)
         super().__init__(model=name, api_key="unused", base_url=None, cost_per_1k_tokens=cost)
 
-    def _build(self):
+    def _build(self) -> Any:
         return self._model
 
     @property
@@ -160,4 +162,4 @@ def test_llm_result_rejects_a_null_text():
     """
 
     with pytest.raises(Exception):
-        LLMResult(text=None, tokens_in=0, tokens_out=0, model="m", cost_usd=0.0)
+        LLMResult(text=None, tokens_in=0, tokens_out=0, model="m", cost_usd=0.0)  # pyright: ignore[reportArgumentType]

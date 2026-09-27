@@ -6,7 +6,8 @@ provider is "right" — the point is that a misconfiguration is loud.
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
+from langchain_openai import ChatOpenAI
+from pydantic import SecretStr, ValidationError
 
 from ai_engine.core.config import Settings, settings
 from ai_engine.core.providers.llm.models import (
@@ -210,6 +211,7 @@ def test_openai_asks_for_json_without_sdk_retries_and_capped_output(cloud_key):
     generation from running until the read timeout."""
 
     chat = OpenAILLM().client
+    assert isinstance(chat, ChatOpenAI)
 
     assert chat.model_kwargs["response_format"] == {"type": "json_object"}
     assert chat.max_retries == 0
@@ -241,6 +243,7 @@ def test_vllm_llm_asks_for_json_without_thinking_or_sdk_retries():
 
     llm = VLLMLLM(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
     chat = llm.client
+    assert isinstance(chat, ChatOpenAI)
 
     assert chat.model_kwargs["response_format"] == {"type": "json_object"}
     assert chat.extra_body == {"chat_template_kwargs": {"enable_thinking": False}}
@@ -277,4 +280,6 @@ def test_all_vllm_providers_open_no_connections(monkeypatch, reload_models):
 def test_openai_client_authenticates_with_its_api_key(cloud_key, monkeypatch):
     monkeypatch.setattr(settings, "cloud_api_key", "secret")
     chat = OpenAILLM().client
+    assert isinstance(chat, ChatOpenAI)
+    assert isinstance(chat.openai_api_key, SecretStr)
     assert chat.openai_api_key.get_secret_value() == "secret"

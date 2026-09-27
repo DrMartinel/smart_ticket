@@ -46,7 +46,7 @@ def test_above_floor_is_above_floor(make_state):
     assert node.decide(state) is RerankOutcome.EVIDENCE_ABOVE_FLOOR
 
 
-def _edges() -> dict[tuple[str, str], str | None]:
+def _edges() -> dict[tuple[str, str], object]:
     """The production graph's edges as (source, target) -> outcome label.
     Unconditional edges have no label."""
 
@@ -131,7 +131,7 @@ def test_main_wires_the_prompt_for_settings_prompt_version():
 
     # LangGraph internals: PregelNode.bound is the RunnableCallable wrapping
     # GraphBuilder's adapter, which keeps the node instance on `.node`.
-    infer = triage_graph.nodes[InferNode.name].bound.func.node
+    infer = triage_graph.nodes[InferNode.name].bound.func.node  # pyright: ignore[reportAttributeAccessIssue]
 
     expected = load_system_prompt(settings.prompt_version)
     assert infer._system_prompt == expected

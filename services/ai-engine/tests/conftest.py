@@ -9,7 +9,9 @@ make the failure paths (DB outage, embedder down, LLM down) testable.
 from __future__ import annotations
 
 import importlib
+from collections.abc import Callable, Iterable
 from contextlib import contextmanager
+from typing import Any
 
 import pytest
 from sqlalchemy.dialects import postgresql
@@ -104,7 +106,7 @@ class FakeLLM(LLMClient):
     def _build(self):
         raise AssertionError("FakeLLM overrides complete(); no chat model is built")
 
-    def complete(self, system_prompt: str, user_prompt: str):
+    def complete(self, system_prompt: str, user_prompt: str) -> Any:
         self.prompts.append((system_prompt, user_prompt))
         if self._error is not None:
             raise self._error
@@ -122,13 +124,16 @@ class _FakeResult:
         return self._rows[0] if self._rows else None
 
 
+type Rows = Iterable[Any] | Callable[[str, dict[str, Any]], Iterable[Any]]
+
+
 class _FakeSession:
     """Answers `execute(statement)` with canned rows. The statement is compiled
     with the Postgres dialect first, so a `rows(sql, params)` callable can
     tell queries apart by their SQL — and so a statement SQLAlchemy cannot
     compile fails here rather than only against a real database."""
 
-    def __init__(self, rows):
+    def __init__(self, rows: Rows) -> None:
         self._rows = rows
         self.executed: list[tuple[str, dict]] = []
 
@@ -149,7 +154,7 @@ class FakeSessionSource:
     paths get exercised. `events` records open/close ordering so a test can
     prove a connection is not held across an HTTP round-trip."""
 
-    def __init__(self, rows=(), error: Exception | None = None):
+    def __init__(self, rows: Rows = (), error: Exception | None = None):
         self._rows = rows if callable(rows) else list(rows)
         self._error = error
         self.events: list[str] = []
@@ -189,7 +194,7 @@ def _make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = 
     )
 
 
-def _make_state(**overrides) -> dict:
+def _make_state(**overrides) -> TriageState:
     """A valid TriageState; tests override only the key they care about."""
 
     state = {
