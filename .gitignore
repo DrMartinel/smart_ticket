@@ -38,4 +38,10 @@ infra/.env.*
 .idea/
 .DS_Store
 
-# Docker volumes are named, not bind-mounted, so nothing to ignore there.
+# Hugging Face model cache bind-mounted into the vLLM containers
+# (HF_CACHE_DIR, default infra/.hf-cache) — ~10 GB of downloaded weights.
+infra/.hf-cache/
+
+# Per-machine compose tuning (e.g. GPU flags), merged automatically by
+# `docker compose` — not shared config.
+infra/docker-compose.override.yml
