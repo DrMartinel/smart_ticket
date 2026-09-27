@@ -157,6 +157,11 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
+**Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
+`/ai-engine-feature` for any ai-engine change · `/ai-engine-review` before a PR ·
+`/refactor` for behaviour-preserving cleanup in any Python service. The
+repo-wide style guide is `.claude/skills/refactor/references/readability.md`.
+
 DB fields: edit the model, then `makemigrations` / `migrate` via
 `services/core-api/manage.py`. Table and column names mirror the spec DDL via
 `db_table` — keep that alignment, `infra/migrations/sql/` is written against
