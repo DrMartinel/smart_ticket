@@ -8,17 +8,13 @@ from contracts.trust import TrustSignals
 
 
 class AIRunRequest(BaseModel):
-    """POST /v1/analyze body. `thresholds_snapshot` only carries the pieces
-    the graph needs to make a refuse-before-LLM decision (retrieval floor,
-    budget) — routing thresholds stay in core-api."""
+    """POST /v1/analyze body. Carries only the threshold the graph needs to
+    make a refuse-before-LLM decision (retrieval floor) — routing thresholds
+    stay in core-api."""
 
     request_id: str
     ticket: TicketMasked
     retrieval_floor: float
-    max_tokens: int
-    max_llm_calls: int
-    max_latency_sec: int
-    max_graph_iterations: int
     prompt_version: str = "classify.v4"
 
 

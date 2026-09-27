@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ai_engine.core.budget import BudgetGuardMixin
 from ai_engine.core.config import settings
 from ai_engine.core.db.client import SqlAlchemySessionSource
 from ai_engine.core.node import BaseNode
@@ -13,7 +12,7 @@ from ai_engine.core.retrieval.vector import vector_search
 from ai_engine.core.state import TriageState
 
 
-class HybridRetrieveNode(BudgetGuardMixin, BaseNode):
+class HybridRetrieveNode(BaseNode):
     def __init__(self, *, db: SqlAlchemySessionSource, embedder: Embedder) -> None:
         self._db = db
         self._embedder = embedder

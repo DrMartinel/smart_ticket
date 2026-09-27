@@ -25,10 +25,6 @@ def analyze(ticket: TicketMasked, request_id: str) -> AIRunResponse:
         request_id=request_id,
         ticket=ticket,
         retrieval_floor=th.retrieval_floor,
-        max_tokens=th.budget.max_tokens_per_ticket,
-        max_llm_calls=th.budget.max_llm_calls,
-        max_latency_sec=th.budget.max_latency_sec,
-        max_graph_iterations=th.budget.max_graph_iterations,
     )
     url = f"{settings.AI_ENGINE_URL.rstrip('/')}/v1/analyze"
     try:

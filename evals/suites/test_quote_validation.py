@@ -94,7 +94,7 @@ def _is_flagged(quote: str, sources: list[str]) -> bool:
 
 
 def _state(proposal: LLMProposalEnvelope, reranked: list[RankedChunk]) -> TriageState:
-    """The validator reads only proposal, reranked and iteration; the rest is
+    """The validator reads only proposal and reranked; the rest is
     filler to satisfy TriageState's required inputs."""
 
     return TriageState(
@@ -107,14 +107,6 @@ def _state(proposal: LLMProposalEnvelope, reranked: list[RankedChunk]) -> Triage
         ),
         request_id="eval",
         retrieval_floor=0.0,
-        max_tokens=1,
-        max_llm_calls=1,
-        max_latency_sec=1,
-        max_graph_iterations=1,
-        tokens_used=0,
-        llm_calls=0,
-        started_at=0.0,
-        iteration=0,
         proposal=proposal,
         reranked=reranked,
     )

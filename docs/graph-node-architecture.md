@@ -90,10 +90,9 @@ threadpool. All per-call data belongs in state.
 ## 4. The architecture
 
 `ai_engine/core/` is everything the nodes are built on: `config.py`
-(settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `budget.py`
-(`BudgetGuardMixin`), `providers/` (the embedding and reranking seams as ABCs in
+(settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `providers/` (the embedding and reranking seams as ABCs in
 `base.py`; the embedders and rerankers; and `llm/`, the
-`LLMClient` seam and its client, chat-model factories and circuit breaker), `prompts/` (the
+`LLMClient` seam and its client, chat-model factories), `prompts/` (the
 versioned system prompts and their loader), `db/` (the SQLAlchemy client and
 table declarations) and `retrieval/` (BM25, vector, RRF). Outside it are only
 `graph/` (builder, wiring, nodes) and `main.py`. The graph imports from
@@ -131,12 +130,10 @@ imports from `graph/`.
 The validation defaults read as "every check failed": refuse-before-LLM skips
 the validator, and `emit_signals` must not report passing checks nobody ran.
 `ValidateNode` writes every check on every path (through `_checks`, which has
-no defaults), because a key left out would keep the previous attempt's value
-on the `validate → infer` retry.
+no defaults), so no path can silently leave a check at its default.
 
 List-valued fields (`candidates`, `reranked`, `fewshots`) deliberately have
-**no reducer**. Each is owned by exactly one node, and the `validate → infer`
-retry must overwrite the previous attempt, not append to it. Add a reducer
+**no reducer**. Each is owned by exactly one node. Add a reducer
 (`Annotated[list, operator.add]`) only for a field several nodes genuinely
 accumulate into.
 
@@ -206,9 +203,7 @@ def wire_triage(*, injection, retrieve, rerank, fewshots, infer, validate, emit)
     g.route(rerank, RerankOutcome.EVIDENCE_ABOVE_FLOOR, fewshots)
     g.route(fewshots, SingleExit.DONE, infer)
     g.route(infer, SingleExit.DONE, validate)
-    g.route(validate, ValidateOutcome.RETRY_INFERENCE, infer)  # the only cycle
-    g.route(validate, ValidateOutcome.SCHEMA_VALID, emit)
-    g.route(validate, ValidateOutcome.RETRIES_EXHAUSTED, emit)
+    g.route(validate, SingleExit.DONE, emit)  # no cycle: schema failure goes to HITL
     g.route(emit, SingleExit.DONE, Terminal())  # no deps: built here
     return g
 ```
@@ -297,13 +292,13 @@ class RerankOutcome(StrEnum):
     EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
 
-class RerankNode(BudgetGuardMixin, BaseNode):
+class RerankNode(BaseNode):
     Outcome = RerankOutcome
 
     def __init__(self, *, reranker: CrossEncoderReranker) -> None:
         self._reranker = reranker  # read-only after construction
 
-    def __call__(self, state: TriageState) -> dict:  # budget checked first
+    def __call__(self, state: TriageState) -> dict:
         ...
         return {"reranked": ranked[: settings.rerank_top_n]}
 
@@ -316,30 +311,11 @@ class RerankNode(BudgetGuardMixin, BaseNode):
 
 A single-exit node needs neither an `Outcome` nor a `decide()` — it inherits
 `SingleExit` and is routed with `SingleExit.DONE` (`HybridRetrieveNode`,
-`InferNode`, …).
-
-A node that spends tokens, latency or a network round-trip mixes in
-`BudgetGuardMixin` (`core/budget.py`) ahead of `BaseNode`:
-`class RerankNode(BudgetGuardMixin, BaseNode)`. The node still
-writes an ordinary `__call__(self, state) -> dict`; when the class is defined,
-`BudgetGuardMixin.__init_subclass__` wraps that `__call__` so the per-request
-budget is checked before it runs. `check_budget(state)` raises
-`BudgetExceeded`; the wrapper catches it and returns only
-`degraded_reason="budget_exceeded"`, so nodes write no degrade code at all.
-Leaving the node's own keys absent is safe because every reader uses `.get()`
-with an empty default — an over-budget ticket still routes below the floor to
-`emit_signals`. Never let `BudgetExceeded` escape a node: it would abort
-`graph.invoke` and turn a degrade-to-human into a 500. Because the wrap is
-automatic, the check cannot be forgotten — a test fake that subclasses
-`InferNode` and overrides `__call__` is wrapped too. Because the check is part
-of the node, it runs on every pass through the `validate → infer` retry, not
-once at graph entry. Using the mixin on a class that is not a `BaseNode` raises
-`TypeError` at definition — it would look budgeted while guarding nothing.
+`InferNode`, `ValidateNode`, …).
 
 Checklist when adding one: define a module-level `<Name>Outcome` enum in domain
 language and assign it to `Outcome`; put
-dependencies in `__init__` and nothing else; mix in `BudgetGuardMixin` if the node
-spends anything; keep `__call__` free of writes to `self`; return only
+dependencies in `__init__` and nothing else; keep `__call__` free of writes to `self`; return only
 changed keys; add a parameter to `wire_triage` and route every outcome; pass
 an instance in `main.py` and in the `triage_nodes` fixture; test `decide()`
 directly (see `tests/test_build.py`).
@@ -349,24 +325,20 @@ directly (see `tests/test_build.py`).
 ## 6. Execution order (important)
 
 `decide()` runs **after** `__call__`'s update is merged, so the routing
-decision always sees fresh state. Worked example, a ticket whose first LLM
-answer fails the schema:
+decision always sees fresh state. Worked example, a ticket whose LLM answer
+fails the schema:
 
 ```
-input:             {"ticket": ..., "iteration": 0, "retrieval_floor": 0.45, ...}
+input:             {"ticket": ..., "retrieval_floor": 0.45, ...}
 after injection:   {..., "injection_detected": False, ...}
 decide()        -> InjectionClear      -> HybridRetrieveNode
 after retrieve:    {..., "candidates": [...10]}
 after rerank:      {..., "reranked": [top1.score=0.81, ...]}
 decide()        -> EvidenceAboveFloor  -> SelectFewshotsNode -> InferNode
 after infer:       {..., "proposal": None}                       # unparseable JSON
-after validate:    {..., "schema_valid": False, ..., "iteration": 1}
-decide()        -> RetryInference      -> InferNode              # loops back once
-after infer:       {..., "proposal": <AutoReplyProposal>}
-after validate:    {..., "schema_valid": True, ...}
-decide()        -> SchemaValid         -> EmitSignalsNode -> Terminal -> END
+after validate:    {..., "schema_valid": False, ...}
+                   -> EmitSignalsNode -> Terminal -> END          # no retry: to HITL
 ```
-
 ---
 
 ## 7. Alternatives considered and rejected
@@ -407,15 +379,15 @@ class could appear only once in the whole table. Replaced by `GraphBuilder`,
 which routes instances directly.
 
 **Choosing the successor while a ticket runs (`Command(goto=...)`).** No
-startup validation, and refuse-before-LLM and the bounded retry would rest on
+startup validation, and refuse-before-LLM would rest on
 whatever `decide()` returns rather than on the graph's structure.
 
 ---
 
 ## 8. Accepted tradeoff
 
-Routing is no longer local to the node. Reading `ValidateNode` does not tell
-you where `RetryInference` goes — you look it up in `wire_triage`. We accept
+Routing is no longer local to the node. Reading `RerankNode` does not tell
+you where `EvidenceBelowFloor` goes — you look it up in `wire_triage`. We accept
 this: the function fits on one screen, it is what you would draw on a
 whiteboard anyway, and it is what makes whole-graph validation possible. If it
 ever grows past comfortable reading, split it into one wiring function per
@@ -444,10 +416,6 @@ runtime.
 **List-valued state fields replace rather than append** unless the schema
 declares a reducer — which is what we want today (§4.1).
 
-**Never fold `budget.py` into `build.py`** (or a shared `utils.py`). Nodes
-import `BudgetGuardMixin`, and `build.py` imports the nodes — a circular import.
-`budget.py` imports only `node.py` and `state.py`, which keeps it safe.
-
 **Fan-out.** A router may return a list of node names to run several nodes in
 parallel. Not used; if added, the compiler's target conversion must handle
 sequences.
@@ -461,7 +429,7 @@ Assert it rather than eyeballing it:
 - `tests/test_build.py::test_compiled_edges_match_wiring` — the production
   graph's edge set equals the set derived from `wire_triage`'s routes.
 - `tests/test_build.py::test_safety_critical_routes` — pins
-  refuse-before-LLM and the bounded retry to their routes.
+  refuse-before-LLM to its route and asserts there is no `validate → infer` cycle.
 - `tests/test_compiler.py` — every validation rule in §4.4 raises.
 
 To look at it:

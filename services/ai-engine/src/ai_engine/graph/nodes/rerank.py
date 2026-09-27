@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from ai_engine.core.budget import BudgetGuardMixin
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode
 from ai_engine.core.providers.reranker import Reranker
@@ -25,7 +24,7 @@ class RerankOutcome(StrEnum):
     EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
 
-class RerankNode(BudgetGuardMixin, BaseNode):
+class RerankNode(BaseNode):
     Outcome = RerankOutcome
 
     def __init__(self, *, reranker: Reranker) -> None:

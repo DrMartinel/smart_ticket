@@ -51,18 +51,12 @@ fewshot:
   require_user_confirmed: true
 
 budget:
-  max_tokens_per_ticket: 8000
-  max_llm_calls: 4
-  # 🔧 Must stay comfortably above the per-call model ceiling
-  # (MODEL_TIMEOUT_SEC in core-api and ai-engine, both 120s by
-  # default), otherwise the graph's budget guard aborts the run before a
-  # single cold-start inference can finish and every ticket degrades to
-  # HITL for a reason that is really just "the model was loading".
-  # 300 leaves room for one 120s attempt plus a fallback within budget.
-  # core-api's HTTP call to ai-engine derives its own timeout from this
-  # (max_latency_sec + 5), so raising this raises that automatically.
+  # 🔧 How long core-api waits on ai-engine (its HTTP timeout is
+  # max_latency_sec + 5). ai-engine enforces no budget of its own, so this
+  # must stay comfortably above the per-call model ceiling
+  # (MODEL_TIMEOUT_SEC, 120s by default) plus the embedding and rerank
+  # calls, or a cold-start inference times out as ai_engine_unavailable.
   max_latency_sec: 300
-  max_graph_iterations: 5
   daily_cost_ceiling_usd: 50   # 🔧 exceed → AI off, everything to HITL
 
 alerts:

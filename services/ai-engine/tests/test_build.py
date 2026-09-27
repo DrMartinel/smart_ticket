@@ -1,6 +1,5 @@
 """
-Graph routing — spec §6.2's refuse-before-LLM and a retry loop capped at
-iteration < 2. Each node's `decide()` and the routes its outcomes map to are
+Graph routing — spec §6.2's refuse-before-LLM, in an acyclic graph. Each node's `decide()` and the routes its outcomes map to are
 tested separately, with no DB, LLM or network.
 """
 
@@ -12,7 +11,7 @@ from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome
 from ai_engine.core.state import RankedChunk
 from ai_engine.graph.nodes.rerank import RerankNode, RerankOutcome
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
-from ai_engine.graph.nodes.validate import ValidateNode, ValidateOutcome
+from ai_engine.graph.nodes.validate import ValidateNode
 
 
 def _chunk(score: float) -> RankedChunk:
@@ -47,24 +46,6 @@ def test_above_floor_is_above_floor(fake_reranker, make_state):
     assert node.decide(state) is RerankOutcome.EVIDENCE_ABOVE_FLOOR
 
 
-def test_schema_invalid_retries_once(make_state):
-    state = make_state(schema_valid=False, iteration=0)
-    node = ValidateNode()
-    assert node.decide(state) is ValidateOutcome.RETRY_INFERENCE
-
-
-def test_schema_invalid_stops_retrying_after_iteration_cap(make_state):
-    state = make_state(schema_valid=False, iteration=2)
-    node = ValidateNode()
-    assert node.decide(state) is ValidateOutcome.RETRIES_EXHAUSTED
-
-
-def test_schema_valid_decides_valid(make_state):
-    state = make_state(schema_valid=True, iteration=0)
-    node = ValidateNode()
-    assert node.decide(state) is ValidateOutcome.SCHEMA_VALID
-
-
 def _edges() -> dict[tuple[str, str], str | None]:
     """The production graph's edges as (source, target) -> outcome label.
     Unconditional edges have no label."""
@@ -76,16 +57,15 @@ def _edges() -> dict[tuple[str, str], str | None]:
 
 def test_safety_critical_routes():
     """The outcomes above are only half the routing decision; these are the
-    routes that make them mean refuse-before-LLM and a bounded retry."""
+    routes that make them mean refuse-before-LLM, and a schema failure goes
+    to a human rather than back to the model."""
 
     edges = _edges()
 
     assert ("__start__", "injection") in edges
     assert edges[("injection", "emit_signals")] == InjectionOutcome.INJECTION_DETECTED
     assert edges[("rerank", "emit_signals")] == RerankOutcome.EVIDENCE_BELOW_FLOOR
-    assert edges[("validate", "infer")] == ValidateOutcome.RETRY_INFERENCE
-    # SCHEMA_VALID and RETRIES_EXHAUSTED share this edge, so it carries only
-    # one label; that both outcomes are routed is enforced by compile().
+    assert ("validate", "infer") not in edges
     assert ("validate", "emit_signals") in edges
     assert ("emit_signals", "terminal") in edges
 
@@ -133,7 +113,6 @@ def test_compiled_edges_are_exactly_the_triage_topology():
         ("rerank", "select_fewshots"),
         ("select_fewshots", "infer"),
         ("infer", "validate"),
-        ("validate", "infer"),
         ("validate", "emit_signals"),
         ("emit_signals", "terminal"),
         ("terminal", "__end__"),

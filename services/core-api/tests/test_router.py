@@ -42,10 +42,7 @@ def make_thresholds(**overrides) -> Thresholds:
             max_per_category=5, ttl_days=90, min_diversity=0.3, require_user_confirmed=True
         ),
         budget=BudgetThresholds(
-            max_tokens_per_ticket=8000,
-            max_llm_calls=4,
             max_latency_sec=30,
-            max_graph_iterations=5,
             daily_cost_ceiling_usd=50,
         ),
         alerts=AlertThresholds(

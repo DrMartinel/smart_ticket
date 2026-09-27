@@ -19,7 +19,7 @@ def test_state_is_frozen(make_state):
     be silently discarded. It must raise instead."""
 
     with pytest.raises(ValidationError, match="frozen"):
-        make_state().iteration = 1
+        make_state().retrieval_floor = 0.9
 
 
 def test_state_rejects_unknown_fields(make_state):

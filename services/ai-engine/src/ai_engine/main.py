@@ -61,14 +61,6 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
         ticket=req.ticket,
         request_id=req.request_id,
         retrieval_floor=req.retrieval_floor,
-        max_tokens=req.max_tokens,
-        max_llm_calls=req.max_llm_calls,
-        max_latency_sec=req.max_latency_sec,
-        max_graph_iterations=req.max_graph_iterations,
-        tokens_used=0,
-        llm_calls=0,
-        started_at=started_at,
-        iteration=0,
     )
 
     # invoke() returns a plain dict; re-validating gives typed access and the

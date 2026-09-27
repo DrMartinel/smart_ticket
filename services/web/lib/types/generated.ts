@@ -126,10 +126,6 @@ export interface AIRunRequest {
   request_id: string;
   ticket: TicketMasked;
   retrieval_floor: number;
-  max_tokens: number;
-  max_llm_calls: number;
-  max_latency_sec: number;
-  max_graph_iterations: number;
   prompt_version?: string;
 }
 

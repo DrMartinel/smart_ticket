@@ -3,13 +3,12 @@ Fakes for the provider seams, plus state and node builders.
 
 Plain classes rather than unittest.mock, so a fake's behaviour reads in one
 place. Injected through node `__init__`, they make the failure paths (DB
-outage, embedder down, circuit open, budget exhausted) testable.
+outage, embedder down, LLM down) testable.
 """
 
 from __future__ import annotations
 
 import importlib
-import time
 from contextlib import contextmanager
 
 import pytest
@@ -65,7 +64,7 @@ def reload_reranker():
 
 class FakeEmbedder(Embedder):
     """Records every string it was asked to embed, so a test can assert a
-    budget-exhausted node bought no round-trip at all."""
+    node bought no round-trip at all."""
 
     def __init__(self, vector: list[float] | None = None, error: Exception | None = None):
         self.calls: list[str] = []
@@ -98,20 +97,17 @@ class FakeReranker(Reranker):
 
 
 class FakeLLM(LLMClient):
-    """Records the timeout it was handed, which is the only way to assert
-    the infer node leaves headroom for the retry."""
+    """Records the prompts it was handed."""
 
     def __init__(self, result=None, error: Exception | None = None):
-        self.timeouts: list[float | None] = []
         self.prompts: list[tuple[str, str]] = []
         self._result = result
         self._error = error
 
-    def _build(self, timeout: float):
+    def _build(self):
         raise AssertionError("FakeLLM overrides complete(); no chat model is built")
 
-    def complete(self, system_prompt: str, user_prompt: str, *, timeout: float):
-        self.timeouts.append(timeout)
+    def complete(self, system_prompt: str, user_prompt: str):
         self.prompts.append((system_prompt, user_prompt))
         if self._error is not None:
             raise self._error
@@ -197,32 +193,15 @@ def _make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = 
 
 
 def _make_state(**overrides) -> dict:
-    """A valid TriageState with generous budgets; tests override only the key
-    they care about.
-    """
+    """A valid TriageState; tests override only the key they care about."""
 
     state = {
         "ticket": _make_ticket(),
         "request_id": "req-1",
         "retrieval_floor": 0.5,
-        "max_tokens": 100_000,
-        "max_llm_calls": 5,
-        "max_latency_sec": 600,
-        "max_graph_iterations": 5,
-        "tokens_used": 0,
-        "llm_calls": 0,
-        "started_at": time.time(),
-        "iteration": 0,
     }
     state.update(overrides)
     return TriageState(**state)
-
-
-def _exhausted_budget_state(**overrides) -> dict:
-    """A state that BudgetGuardMixin rejects — the shared precondition for
-    every "degrade before spending anything" test."""
-
-    return _make_state(llm_calls=99, max_llm_calls=1, **overrides)
 
 
 def _triage_nodes(*, db=None, embedder=None, reranker=None, llm=None) -> dict:
@@ -282,11 +261,6 @@ def triage_nodes():
 @pytest.fixture
 def make_state():
     return _make_state
-
-
-@pytest.fixture
-def exhausted_budget_state():
-    return _exhausted_budget_state
 
 
 @pytest.fixture

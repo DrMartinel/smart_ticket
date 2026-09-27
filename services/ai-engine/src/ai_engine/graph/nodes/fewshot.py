@@ -17,10 +17,6 @@ from ai_engine.core.state import TriageState
 
 
 class SelectFewshotsNode(BaseNode):
-    """A plain BaseNode, NOT a BudgetGuardMixin node: the only node that spends an
-    embedding round-trip without checking the budget. See docs/TODO.md.
-    """
-
     def __init__(self, *, db: SqlAlchemySessionSource, embedder: Embedder) -> None:
         self._db = db
         self._embedder = embedder

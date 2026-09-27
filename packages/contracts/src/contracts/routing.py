@@ -60,10 +60,7 @@ class FewshotThresholds(BaseModel):
 
 
 class BudgetThresholds(BaseModel):
-    max_tokens_per_ticket: int
-    max_llm_calls: int
     max_latency_sec: int
-    max_graph_iterations: int
     daily_cost_ceiling_usd: float
 
 

@@ -33,22 +33,6 @@ def test_embedder_failure_propagates_rather_than_returning_empty_candidates(
         node(make_state())
 
 
-def test_budget_exhausted_makes_no_embedding_call(fake_db, fake_embedder, exhausted_budget_state):
-    """A ticket over budget must not buy one more HTTP round-trip on its way
-    to being degraded."""
-
-    embedder = fake_embedder()
-    db = fake_db()
-    node = _node(db, embedder)
-
-    out = node(exhausted_budget_state())
-
-    assert "candidates" not in out
-    assert out["degraded_reason"] == "budget_exceeded"
-    assert embedder.calls == []
-    assert db.events == []
-
-
 def test_bm25_keyword_hit_is_false_when_lexical_finds_nothing(
     fake_db, fake_embedder, kb_row, make_state
 ):

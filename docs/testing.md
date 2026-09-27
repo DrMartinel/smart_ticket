@@ -74,7 +74,7 @@ beats a Mock configured three lines from the assertion.
 
 Each fake records what it was asked for, which is what makes the "degrade
 before spending anything" tests possible — `assert embedder.calls == []`
-proves a budget-exhausted node bought no round-trip. `fake_db(error=...)`
+proves a node bought no round-trip. `fake_db(error=...)`
 raises on connect, which is how the DB-outage paths get exercised.
 
 They are exposed as fixtures rather than imported directly because the root

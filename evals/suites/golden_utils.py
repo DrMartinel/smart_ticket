@@ -80,10 +80,6 @@ def analyze(
             "placeholder_keys": [],
         },
         "retrieval_floor": retrieval_floor,
-        "max_tokens": 8000,
-        "max_llm_calls": 4,
-        "max_latency_sec": 60,
-        "max_graph_iterations": 5,
     }
     resp = client.post("/v1/analyze", json=req)
     resp.raise_for_status()

@@ -13,7 +13,6 @@ Validator — spec §6.4. Four checks, in the spec's order:
 from __future__ import annotations
 
 import re
-from enum import StrEnum
 
 from rapidfuzz import fuzz
 
@@ -63,8 +62,7 @@ def _checks(
     source_chunk_id: int | None,
 ) -> dict:
     """Every check's outcome as a state update. No defaults on purpose: every
-    path must state each check, because a key left out keeps the previous
-    attempt's value on the validate -> infer retry."""
+    path must state each check explicitly."""
 
     return {
         "schema_valid": schema_valid,
@@ -88,25 +86,13 @@ ALL_FAILED = _checks(
 )
 
 
-class ValidateOutcome(StrEnum):
-    SCHEMA_VALID = "SchemaValid"
-    RETRY_INFERENCE = "RetryInference"
-    RETRIES_EXHAUSTED = "RetriesExhausted"
-
-
 class ValidateNode(BaseNode):
-    Outcome = ValidateOutcome
-
     def __call__(self, state: TriageState) -> dict:
         proposal = state.proposal
         reranked = state.reranked
 
         if proposal is None:
-            # `iteration` is bumped ONLY here. TriageState has no reducer on
-            # it, so hoisting this to the top of the method would make every
-            # successful pass increment too and silently shift the
-            # `iteration < 2` retry cap in decide().
-            return {**ALL_FAILED, "iteration": state.iteration + 1}
+            return ALL_FAILED
 
         if not isinstance(proposal.root, AutoReplyProposal):
             return _checks(
@@ -152,12 +138,3 @@ class ValidateNode(BaseNode):
             category_consistent=True,
             source_chunk_id=source,
         )
-
-    def decide(self, state: TriageState) -> ValidateOutcome:
-        if state.schema_valid:
-            return ValidateOutcome.SCHEMA_VALID
-        # Schema failure -> retry AT MOST once. Structurally bounded by
-        # `iteration < 2` — the only cycle in the graph cannot loop forever.
-        if state.iteration < 2:
-            return ValidateOutcome.RETRY_INFERENCE
-        return ValidateOutcome.RETRIES_EXHAUSTED

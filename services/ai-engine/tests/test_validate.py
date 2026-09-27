@@ -29,11 +29,10 @@ def auto_reply(quote: str, kb_slug="KB-0001") -> LLMProposalEnvelope:
     )
 
 
-def test_no_proposal_is_schema_invalid_and_bumps_iteration(make_state):
+def test_no_proposal_is_schema_invalid(make_state):
     state = make_state(proposal=None, reranked=[])
     out = ValidateNode()(state)
     assert out["schema_valid"] is False
-    assert out["iteration"] == 1
 
 
 def test_route_proposal_skips_quote_check(make_state):

@@ -45,21 +45,10 @@ class TriageState(BaseModel):
     ticket: TicketMasked
     request_id: str
     retrieval_floor: float
-    max_tokens: int
-    max_llm_calls: int
-    max_latency_sec: int
-    max_graph_iterations: int
-
-    # Budget tracking — checked at every expensive node
-    tokens_used: int
-    llm_calls: int
-    started_at: float
-    iteration: int
 
     # Progressive output. The defaults are what "this node has not run" reads
     # as. List fields deliberately have NO reducer: each is owned by exactly
-    # one node, and a validate -> infer retry must overwrite the previous
-    # attempt's output, not append to it.
+    # one node.
 
     # InjectionNode
     injection_detected: bool = False

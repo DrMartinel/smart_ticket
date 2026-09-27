@@ -9,8 +9,8 @@ Load-bearing properties:
    ADR-0004) or compute; core-api makes every decision.
 2. Refuse-before-LLM: a top rerank score below `retrieval_floor` routes
    straight to `EmitSignalsNode`, never reaching `InferNode`.
-3. Exactly one loopable edge (`ValidateNode -> InferNode`), capped at
-   `iteration < 2`, so no run can loop more than once — structurally.
+3. The graph is acyclic: every node runs at most once per ticket. A proposal
+   that fails schema validation goes to a human, not back to the model.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from ai_engine.graph.nodes.infer import InferNode
 from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome
 from ai_engine.graph.nodes.rerank import RerankNode, RerankOutcome
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
-from ai_engine.graph.nodes.validate import ValidateNode, ValidateOutcome
+from ai_engine.graph.nodes.validate import ValidateNode
 
 
 def wire_triage(
@@ -48,12 +48,7 @@ def wire_triage(
 
     g.route(fewshots, SingleExit.DONE, infer)
     g.route(infer, SingleExit.DONE, validate)
-
-    # The graph's only cycle — bounded by `iteration < 2` in
-    # ValidateNode.decide, so it cannot loop more than once.
-    g.route(validate, ValidateOutcome.RETRY_INFERENCE, infer)
-    g.route(validate, ValidateOutcome.SCHEMA_VALID, emit)
-    g.route(validate, ValidateOutcome.RETRIES_EXHAUSTED, emit)
+    g.route(validate, SingleExit.DONE, emit)
 
     # Every path through the graph ends here. Terminal has no collaborators,
     # so it is built here rather than passed in.

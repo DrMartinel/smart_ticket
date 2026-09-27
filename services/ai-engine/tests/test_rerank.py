@@ -58,22 +58,6 @@ def test_empty_candidates_returns_empty_without_a_degraded_reason(fake_reranker,
     assert reranker.calls == []
 
 
-def test_budget_exhausted_returns_nothing_and_calls_no_reranker(
-    fake_reranker, make_candidate, exhausted_budget_state
-):
-    """A ticket that has blown its budget must not pay for a cross-encoder
-    batch on the way out."""
-
-    reranker = fake_reranker(scores=[0.9])
-    node = RerankNode(reranker=reranker)
-
-    out = node(exhausted_budget_state(candidates=[make_candidate(1, "a")]))
-
-    assert "reranked" not in out
-    assert out["degraded_reason"] == "budget_exceeded"
-    assert reranker.calls == []
-
-
 def test_scores_are_zipped_to_candidates_positionally(fake_reranker, make_candidate, make_state):
     """The provider contract is one score per passage in input order. This
     pins that the node pairs them positionally — a mismatch would attach the
