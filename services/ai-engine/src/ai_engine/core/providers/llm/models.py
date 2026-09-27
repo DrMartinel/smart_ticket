@@ -20,6 +20,7 @@ from ai_engine.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class AllLLMDownError(Exception):
     """The chat call failed, for any reason → HITL as `all_llm_down`."""
 
@@ -167,6 +168,8 @@ class OpenAILLM(LLMClient):
             timeout=_split_timeout(httpx2),
             max_retries=0,
         )
+
+
 # --- Clients ----
 
 embed = VLLMLLM(model=settings.embed_model, base_url=settings.embed_base_url)
