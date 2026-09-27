@@ -220,7 +220,85 @@ its own commit and its own test.
 
 ---
 
-## 7. Housekeeping
+## 7. Prefix every table with its owning module
+
+**Priority:** Low · **Blocks:** nothing · **Touches:** the spec-DDL naming convention
+
+### Problem
+
+Browsing the database in a client (Beekeeper, pgAdmin), 20-odd tables sit in
+one flat `public` list with no indication of which Django app owns them. Some
+already carry a module prefix by accident of naming (`kb_*`, `review_*`,
+`fewshot_examples`, `audit_log`, `ticket_embeddings`); the rest do not, so
+`incidents`, `ai_runs` and `pii_quarantine` look unrelated to `tickets` even
+though the `tickets` app owns all three.
+
+The rule to adopt: **a table's name starts with its module's prefix**, e.g.
+everything the authentication module (`apps.accounts`) owns starts with
+`auth_`.
+
+### Proposed mapping
+
+Only the tables in **bold** change; the rest already conform.
+
+| Module (app) | Prefix | Current → proposed |
+|---|---|---|
+| `accounts` | `auth_` | **`accounts_user` → `auth_user`** (Django's own `auth_group` / `auth_permission` then sit alongside it) |
+| `tickets` | `ticket_` | `tickets` (root, unchanged) · `ticket_embeddings` · **`incidents` → `ticket_incidents`** · **`ai_runs` → `ticket_ai_runs`** · **`routing_decisions` → `ticket_routing_decisions`** · **`pii_quarantine` → `ticket_pii_quarantine`** · **`pii_access_log` → `ticket_pii_access_log`** |
+| `kb` | `kb_` | `kb_articles` · `kb_chunks` · `kb_authority_log` |
+| `review` | `review_` | `review_items` · `review_decisions` · **`eval_candidates` → `review_eval_candidates`** |
+| `fewshot` | `fewshot_` | `fewshot_examples` |
+| `audit` | `audit_` | `audit_log` |
+| `itsm_mock` | `itsm_` | **`runbook_executions` → `itsm_runbook_executions`** |
+
+Two things to decide before starting, not during:
+
+- **PII tables:** keep them under `ticket_`, or give PII its own `pii_` module?
+  They are the most security-sensitive tables in the schema, and a separate
+  prefix makes them easy to spot and to target with grants.
+- **Prefixes or Postgres schemas?** Schemas (`auth.user`, `ticket.ai_runs`)
+  group tables natively in every client and allow per-schema `GRANT`s, but
+  Django's schema support is awkward (`search_path` or quoted `db_table`).
+  Prefixes are the low-risk default.
+
+### Work
+
+1. **Write an ADR first.** `CLAUDE.md` and `apps/tickets/models.py` state that
+   table names mirror the spec DDL in `requirement.md`, and
+   `infra/migrations/sql/` is written against those exact names. This change
+   deliberately breaks that alignment, so it needs to be a recorded decision
+   with a spec-name → table-name mapping, not a quiet rename.
+2. Change `db_table` on each model and generate `AlterModelTable` migrations
+   with `makemigrations`. Postgres keeps indexes, CHECKs, triggers and grants
+   attached through `ALTER TABLE … RENAME` (they bind by OID), so existing
+   databases migrate in place.
+3. **Do not edit the historical SQL in `infra/migrations/sql/`.** On a fresh
+   database those files run against the old names before the rename migration
+   runs. Add a comment to each file noting the later rename instead. Make sure
+   the rename migration depends on `dbextras.0002_finalize` so it runs after
+   them.
+4. Update the raw table names outside the ORM: `evals/calibration/*.py`,
+   `evals/suites/*.py`, `apps/metrics/services.py`, and any raw SQL in core-api
+   services. ai-engine (`core/db/tables.py`) reads only `kb_articles`,
+   `kb_chunks` and `fewshot_examples`, which do not change under this mapping.
+   If the mapping changes, ai-engine and `0004_grants_and_audit_lockdown.sql`'s
+   grant list move with it.
+5. Update the table names in `docs/` (architecture, runbooks, glossary) and the
+   Layout section of `CLAUDE.md`.
+
+### Done when
+
+- Every table in `public` except Django's own (`django_*`, `auth_group*`,
+  `auth_permission`) starts with its owning module's prefix.
+- `uv run pytest` passes, and so does a fresh `docker compose up` from an empty
+  `db_data` volume. That proves the historical SQL still applies before the
+  rename.
+- `audit_log` still rejects UPDATE/DELETE and `ai_engine_ro` can still read
+  exactly its three tables after the rename. Both guardrails must survive it.
+
+---
+
+## 8. Housekeeping
 
 - **Golden set is synthetic.** Per spec §12.4, promote real cases into `evals/golden/tickets.jsonl` over time from the three free label sources already being captured: human overrides, technician reroutes, and reopens after auto-reply. `eval_candidates` rows are accumulating for exactly this — they just need a periodic review-and-promote pass.
 
