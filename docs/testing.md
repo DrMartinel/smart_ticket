@@ -16,9 +16,9 @@ Unit tests protect logic. Evals protect behavior. A green unit suite says nothin
 ```bash
 uv sync --all-packages    # once; a bare `uv sync` won't install pytest
 
-uv run pytest                              # everything (111 unit + 8 eval)
-uv run pytest services/core-api/tests -q   # 73
-uv run pytest services/ai-engine/tests -q  # 38
+uv run pytest                              # everything (unit + eval)
+uv run pytest services/core-api/tests -q
+uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # 8 suites
 ```
 
@@ -67,8 +67,11 @@ Vietnamese tickets are typed without tone marks; the KB is written with them. Un
 ### ai-engine node tests — fakes, not mocks
 
 `services/ai-engine/tests/conftest.py` provides a fake for each of the four
-provider Protocols (`fake_embedder`, `fake_reranker`, `fake_llm`, `fake_db`)
-plus a `make_state` builder. They are plain classes rather than
+provider seams (`fake_embedder`, `fake_reranker`, `fake_llm`, `fake_db`) —
+subclasses of the `Embedder` / `Reranker` / `LLMClient` base classes, plus a
+duck-typed session source — and a `make_state` builder. Nodes use the provider
+singletons directly, so the `use_db` / `use_embedder` / `use_reranker` /
+`use_llm` fixtures install a fake in every node module that reads it. They are plain classes rather than
 `unittest.mock` objects: a fake whose behaviour you can read in one place
 beats a Mock configured three lines from the assertion.
 

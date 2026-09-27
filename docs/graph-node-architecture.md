@@ -91,9 +91,10 @@ threadpool. All per-call data belongs in state.
 ## 4. The architecture
 
 `ai_engine/core/` is everything the nodes are built on: `config.py`
-(settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `providers/` (the embedding and reranking seams as ABCs in
-`base.py`; the embedders and rerankers; and `llm/`, the
-`LLMClient` seam and its client, chat-model factories), `prompts/` (the
+(settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `providers/`
+(`embeddings.py` and `reranker.py`, each holding its seam as an ABC, the real
+and offline implementations, and the singleton selected at import; and
+`llm/models.py`, the `LLMClient` seam and the chat/embed/rerank clients), `prompts/` (the
 versioned system prompts and their loader), `db/` (the SQLAlchemy client and
 table declarations) and `retrieval/` (BM25, vector, RRF). Outside it are only
 `graph/` (builder, wiring, nodes) and `main.py`. The graph imports from
@@ -261,14 +262,14 @@ silently. (A non-dict update is rejected by LangGraph itself, with
 `builder.end` gets `add_edge(name, END)`, and the entry is
 `add_edge(START, entry.name)`.
 
-`builder.entry` and `builder.routes` (a read-only mapping) let tests pin
-individual routes without compiling.
+Tests pin routes on the compiled graph (`triage_graph.get_graph().edges`, see
+`tests/test_build.py`); the builder exposes no route mapping of its own.
 
 ### 4.5 Assembly — `triage_graph` in `graph/build.py`
 
 Each node module ends with its production instance. Nodes take no
-dependencies: they use the providers built at the bottom of their own modules
-(`db`, `embedder`, `reranker`, `models.chat`) directly.
+dependencies: they use the provider singletons built at the bottom of the
+provider modules (`db`, `embedder`, `reranker`, `models.chat`) directly.
 
 ```python
 # nodes/rerank.py
@@ -307,10 +308,9 @@ class RerankOutcome(StrEnum):
 class RerankNode(BaseNode):
     Outcome = RerankOutcome
 
-    def __init__(self, *, reranker: CrossEncoderReranker) -> None:
-        self._reranker = reranker  # read-only after construction
-
-    def __call__(self, state: TriageState) -> dict:
+    def __call__(self, state: TriageState) -> StateUpdate:
+        ...
+        scores = reranker.score(query, [c.content for c in candidates])  # the module singleton
         ...
         return {"reranked": ranked[: settings.rerank_top_n]}
 
@@ -325,14 +325,18 @@ A single-exit node needs neither an `Outcome` nor a `decide()` — it inherits
 `SingleExit` and is routed with `SingleExit.DONE` (`HybridRetrieveNode`,
 `InferNode`, `ValidateNode`, …).
 
-Checklist when adding one: define a module-level `<Name>Outcome` enum in domain
-language and assign it to `Outcome`; put
-use the provider singletons directly, and add the module to the matching
-`use_*` fixture in `tests/conftest.py`; keep `__call__` free of writes to `self`; return only
-changed keys; end the module with its production instance, named after the
-node's `name`; route every outcome at the bottom of `graph/build.py`; add it
-to the literal node and edge sets in `tests/test_build.py`; test `decide()`
-directly (see `tests/test_build.py`).
+Checklist when adding one (the full recipe is
+`.claude/skills/ai-engine-feature/references/recipes/node.md`):
+
+- If it branches, define a module-level `<Name>Outcome` enum in domain language,
+  assign it to `Outcome`, and annotate `decide()` with it.
+- Use the provider singletons directly, and add the module to the matching
+  `use_*` fixture in `tests/conftest.py`.
+- Keep `__call__` free of writes to `self`; return only changed keys.
+- End the module with its production instance, named after the node's `name`.
+- Route every outcome at the bottom of `graph/build.py`.
+- Add it to the literal node and edge sets in `tests/test_build.py`, and test
+  `decide()` directly there.
 
 ---
 
