@@ -10,8 +10,7 @@ import pytest
 
 from contracts.enums import PIILevel, ReviewAction, ReviewQueue
 
-from apps.review.models import EvalCandidate, ReviewDecision, ReviewItem
-from apps.review.services import ReviewError, claim, decide
+from apps.review.models import EvalCandidate, ReviewDecision, ReviewError, ReviewItem
 from apps.tickets.models import AiRun, Ticket
 
 AI_DRAFT = {"proposed_intent": "auto_reply", "proposed_category": "network"}
@@ -40,8 +39,7 @@ def review_item(reporter) -> ReviewItem:
 
 
 def decide_as(item, reviewer, action: ReviewAction, reason: str | None):
-    return decide(
-        item,
+    return item.decide(
         reviewer,
         action_taken=action.value,
         kb_verdict=None,
@@ -98,10 +96,10 @@ def test_an_approval_resolves_the_item_without_an_eval_candidate(employee_user, 
 @pytest.mark.django_db
 def test_an_item_can_only_be_claimed_while_pending(employee_user, technician_user, manager_user):
     item = review_item(employee_user)
-    claim(item, technician_user)
+    item.claim(technician_user)
 
     with pytest.raises(ReviewError, match="not pending"):
-        claim(item, manager_user)
+        item.claim(manager_user)
 
     item.refresh_from_db()
     assert item.claimed_by == technician_user

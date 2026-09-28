@@ -5,11 +5,10 @@ from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
-from apps.review.models import ReviewDecision, ReviewItem
+from apps.review.models import ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
 from apps.review.selectors import review_item_list
-from apps.review.services import ReviewError, claim, decide
 from common.permissions import AuthedRequest
 
 router = Router(tags=["review"])
@@ -31,7 +30,7 @@ def get_item(request: AuthedRequest, item_id: int) -> ReviewItem:
 def claim_item(request: AuthedRequest, item_id: int) -> ReviewItem:
     item = _get_or_404(item_id)
     try:
-        claim(item, request.auth)
+        item.claim(request.auth)
     except ReviewError as e:
         raise HttpError(409, str(e)) from e
     return item
@@ -41,8 +40,7 @@ def claim_item(request: AuthedRequest, item_id: int) -> ReviewItem:
 def decide_item(request: AuthedRequest, item_id: int, payload: DecisionIn) -> ReviewDecision:
     item = _get_or_404(item_id)
     try:
-        return decide(
-            item,
+        return item.decide(
             request.auth,
             action_taken=payload.action_taken,
             kb_verdict=payload.kb_verdict,
