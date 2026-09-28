@@ -54,8 +54,10 @@ def weekly_drift_check() -> dict[str, Any]:
 
     if len(this_scores) >= 2:
         std = statistics.stdev(map(float, this_scores))
-        if std < 0.08:
-            alerts.append({"alert": "trust_score_collapsed", "std": std})
+        if std < th.trust_score_std_min:
+            alerts.append(
+                {"alert": "trust_score_collapsed", "std": std, "threshold": th.trust_score_std_min}
+            )
 
     this_decisions = ReviewDecision.objects.filter(decided_at__gte=now - timedelta(days=7))
     last_decisions = ReviewDecision.objects.filter(

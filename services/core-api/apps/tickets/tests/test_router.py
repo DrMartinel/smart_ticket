@@ -53,6 +53,7 @@ def make_thresholds(**overrides) -> Thresholds:
             reviewer_median_time_min_sec=10,
             override_rate_delta_max=0.05,
             trust_score_drift_max=0.10,
+            trust_score_std_min=0.08,
         ),
     )
     base.update(overrides)

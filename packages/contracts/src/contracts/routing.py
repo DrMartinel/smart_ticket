@@ -71,6 +71,11 @@ class AlertThresholds(BaseModel):
     reviewer_median_time_min_sec: int
     override_rate_delta_max: float
     trust_score_drift_max: float
+    # No default, unlike new fields on other persisted contracts: Thresholds is
+    # only ever parsed from thresholds.yaml at boot (the `thresholds_used`
+    # snapshots are never read back into it), and a default here would be a
+    # tunable living outside that file.
+    trust_score_std_min: float
 
 
 class Thresholds(BaseModel):

@@ -124,6 +124,12 @@ that moves a failure path is more significant here than a new feature.
   approved articles get a log row and `version` 2. Databases seeded before
   this keep their unlogged approvals, because the seed skips existing
   articles. Re-seed an empty database to get the logged ones.
+- **The "trust score collapsed" drift alert reads its threshold from
+  `thresholds.yaml`.** The new key is `alerts.trust_score_std_min`, set to
+  0.08 as in spec §7.2 (the value was hard-coded in `metrics/tasks.py`
+  before). The field is required on `AlertThresholds`, so a
+  `thresholds.yaml` without it fails the boot. The alert now records its
+  `threshold`, like the other drift alerts do.
 
 ### Added
 
