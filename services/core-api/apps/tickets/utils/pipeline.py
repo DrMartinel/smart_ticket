@@ -37,7 +37,6 @@ from apps.review.models import ReviewItem
 from apps.tickets.models import AiRun, RoutingDecision, Ticket
 from apps.tickets.selectors import ai_cost_today_usd
 from apps.tickets.utils import router as router_service
-from apps.tickets.services.incident import classify_similarity, store_embedding
 from apps.tickets.utils.trust_scorer import score as compute_trust
 from infrastructure.ai_engine import AIEngineUnavailable, analyze
 from infrastructure.embeddings import embed_text
@@ -249,8 +248,8 @@ def ticket_process(ticket_id: int) -> TaskResult:
     combined_text = f"{ticket.subject_masked}\n{ticket.body_masked}"
     try:
         embedding = embed_text(combined_text)
-        store_embedding(ticket, embedding, settings.EMBED_MODEL)
-        verdict = classify_similarity(ticket, embedding)
+        ticket.store_embedding(embedding, settings.EMBED_MODEL)
+        verdict = ticket.classify_similarity(embedding)
     except (httpx.HTTPError, ValueError) as e:
         # Same fail-open-to-human principle as the AIEngineUnavailable
         # branch below (spec §10.3: "khi degrade, luôn đẩy về con người").

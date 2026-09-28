@@ -91,14 +91,13 @@ class TestLlmFailureKeepsItsReasonCode:
 
     def test_llm_failure_reaches_hitl_as_all_llm_down(self, employee_user, monkeypatch):
         reason = ReasonCode.ALL_LLM_DOWN
-        from apps.tickets.services.incident import IncidentVerdict
+        from apps.tickets.models import IncidentVerdict
 
         ticket = make_ticket(employee_user)
         monkeypatch.setattr("apps.tickets.utils.pipeline.embed_text", lambda text: [0.0])
-        monkeypatch.setattr("apps.tickets.utils.pipeline.store_embedding", lambda *a: None)
+        monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
         monkeypatch.setattr(
-            "apps.tickets.utils.pipeline.classify_similarity",
-            lambda *a: IncidentVerdict(kind="unique"),
+            Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique")
         )
         monkeypatch.setattr(
             "apps.tickets.utils.pipeline.analyze",

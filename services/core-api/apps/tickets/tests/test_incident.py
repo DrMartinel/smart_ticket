@@ -1,7 +1,8 @@
 # pyright: standard
 """
-Incident Detector — spec §9. `_get_or_create_incident` is the one piece of
-this service with real DB reuse logic (everything else is retrieval +
+Incident Detector — spec §9.
+`Incident.objects.get_or_create_for_mass_incident` is the one piece of the
+detector with real DB reuse logic (everything else is retrieval +
 adaptive-threshold arithmetic), so this is where a bug hides: an incident
 detected across several tickets in the same batch must resolve to ONE
 `Incident` row, not one per ticket that independently trips the
@@ -13,7 +14,6 @@ import pytest
 from contracts.enums import PIILevel
 
 from apps.tickets.models import Incident, Ticket, TicketEmbedding
-from apps.tickets.services.incident import _get_or_create_incident
 
 
 def make_ticket(reporter, n: int, category=None) -> Ticket:
@@ -43,8 +43,12 @@ class TestGetOrCreateIncident:
         # notification with an ETA, not a fragmented picture.
         tickets = [make_ticket(employee_user, n) for n in range(1, 6)]
 
-        first = _get_or_create_incident(tickets[0], similar=tickets, baseline_rate=0.1)
-        second = _get_or_create_incident(tickets[1], similar=tickets, baseline_rate=0.1)
+        first = Incident.objects.get_or_create_for_mass_incident(
+            tickets[0], similar=tickets, baseline_rate=0.1
+        )
+        second = Incident.objects.get_or_create_for_mass_incident(
+            tickets[1], similar=tickets, baseline_rate=0.1
+        )
 
         assert first.id == second.id
         assert Incident.objects.count() == 1
@@ -52,18 +56,24 @@ class TestGetOrCreateIncident:
     def test_ticket_count_updates_on_reuse(self, employee_user):
         tickets = [make_ticket(employee_user, n) for n in range(10, 14)]
 
-        # ticket_count is stored as len(similar) + 1 (see _get_or_create_incident).
-        first = _get_or_create_incident(tickets[0], similar=tickets[:3], baseline_rate=0.1)
+        # ticket_count is stored as len(similar) + 1 (see get_or_create_for_mass_incident).
+        first = Incident.objects.get_or_create_for_mass_incident(
+            tickets[0], similar=tickets[:3], baseline_rate=0.1
+        )
         assert first.ticket_count == 4
 
-        _get_or_create_incident(tickets[1], similar=tickets, baseline_rate=0.1)
+        Incident.objects.get_or_create_for_mass_incident(
+            tickets[1], similar=tickets, baseline_rate=0.1
+        )
         first.refresh_from_db()
         assert first.ticket_count == 5
 
     def test_all_similar_tickets_get_linked_to_the_incident(self, employee_user):
         tickets = [make_ticket(employee_user, n) for n in range(20, 25)]
 
-        incident = _get_or_create_incident(tickets[0], similar=tickets, baseline_rate=0.1)
+        incident = Incident.objects.get_or_create_for_mass_incident(
+            tickets[0], similar=tickets, baseline_rate=0.1
+        )
 
         for t in tickets:
             t.refresh_from_db()
@@ -75,10 +85,10 @@ class TestGetOrCreateIncident:
             make_ticket(employee_user, n, category="hardware") for n in range(40, 43)
         ]
 
-        network_incident = _get_or_create_incident(
+        network_incident = Incident.objects.get_or_create_for_mass_incident(
             network_tickets[0], similar=network_tickets, baseline_rate=0.1
         )
-        hardware_incident = _get_or_create_incident(
+        hardware_incident = Incident.objects.get_or_create_for_mass_incident(
             hardware_tickets[0], similar=hardware_tickets, baseline_rate=0.1
         )
 
