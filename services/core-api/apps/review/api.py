@@ -10,6 +10,7 @@ from contracts.trust import TrustSignals
 
 from apps.accounts.rbac import AuthedRequest
 from apps.review.models import ReviewItem
+from apps.review.selectors import review_item_list
 from apps.review.services import ReviewError, claim, decide
 from apps.tickets.services.trust_scorer import score as compute_trust
 
@@ -73,11 +74,7 @@ def _serialize_item(item: ReviewItem) -> dict[str, Any]:
 def list_queue(
     request: AuthedRequest, queue: str | None = None, state: str = "pending"
 ) -> list[dict[str, Any]]:
-    qs = ReviewItem.objects.select_related("ticket", "ai_run").filter(state=state)
-    if queue:
-        qs = qs.filter(queue=queue)
-    qs = qs.order_by("priority", "created_at")
-    return [_serialize_item(i) for i in qs]
+    return [_serialize_item(i) for i in review_item_list(queue=queue, state=state)]
 
 
 @router.get("/items/{item_id}", auth=JWTAuth())

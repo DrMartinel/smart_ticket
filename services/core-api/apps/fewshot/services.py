@@ -52,11 +52,3 @@ def retract_for_reopened_ticket(ticket: Ticket, reason: str = "source ticket reo
     return FewshotExample.objects.filter(source_ticket=ticket, retracted_at__isnull=True).update(
         retracted_at=timezone.now(), retract_reason=reason
     )
-
-
-def active_examples_for_category(category: str, limit: int | None = None):
-    th = settings.THRESHOLDS.fewshot
-    qs = FewshotExample.objects.filter(
-        category=category, retracted_at__isnull=True, expires_at__gt=timezone.now()
-    ).order_by("-approved_at")
-    return qs[: limit or th.max_per_category]

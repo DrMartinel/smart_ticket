@@ -33,6 +33,7 @@ from apps.fewshot.services import retract_for_reopened_ticket
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
 from apps.tickets.models import AiRun, PiiQuarantine, RoutingDecision, Ticket
+from apps.tickets.selectors import ai_cost_today_usd
 from apps.tickets.services import router as router_service
 from apps.tickets.services.incident import classify_similarity, store_embedding
 from apps.tickets.services.trust_scorer import score as compute_trust
@@ -42,12 +43,6 @@ from integrations.embeddings import embed_text
 logger = logging.getLogger(__name__)
 
 type TaskResult = dict[str, str | bool]
-
-
-def _today_ai_cost_usd() -> float:
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    total = AiRun.objects.filter(created_at__gte=today_start).values_list("cost_usd", flat=True)
-    return float(sum(c or 0 for c in total))
 
 
 def _degraded_signals() -> TrustSignals:
@@ -128,7 +123,7 @@ def process_ticket(self: Task[[int], TaskResult], ticket_id: int) -> TaskResult:
     # side with write access to ai_runs, so it's the only side that can
     # actually see total daily spend) ──
     ceiling = settings.THRESHOLDS.budget.daily_cost_ceiling_usd
-    if _today_ai_cost_usd() >= ceiling:
+    if ai_cost_today_usd() >= ceiling:
         signals = _degraded_signals()
         decision = _degraded_decision(
             ReasonCode.BUDGET_EXCEEDED, ReviewQueue.LOW_CONFIDENCE, priority=2

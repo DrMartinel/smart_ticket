@@ -5,6 +5,9 @@ point: quality metrics matter more than everything else, and the two
 approval-fatigue metrics exist specifically to check whether HITL is doing
 real work or just rubber-stamping (spec: "một HITL bị bấm approve theo
 phản xạ còn tệ hơn không có HITL").
+
+Read-only: nothing here writes, so a dashboard request can never change what
+it is measuring.
 """
 
 from __future__ import annotations

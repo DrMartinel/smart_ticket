@@ -278,7 +278,7 @@ Two things to decide before starting, not during:
    the rename migration depends on `dbextras.0002_finalize` so it runs after
    them.
 4. Update the raw table names outside the ORM: `evals/calibration/*.py`,
-   `evals/suites/*.py`, `apps/metrics/services.py`, and any raw SQL in core-api
+   `evals/suites/*.py`, `apps/metrics/selectors.py`, and any raw SQL in core-api
    services. ai-engine (`core/db/tables.py`) reads only `kb_articles`,
    `kb_chunks` and `fewshot_examples`, which do not change under this mapping.
    If the mapping changes, ai-engine and `0004_grants_and_audit_lockdown.sql`'s

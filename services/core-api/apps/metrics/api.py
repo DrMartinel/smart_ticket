@@ -4,7 +4,7 @@ from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
 from apps.accounts.rbac import AuthedRequest
-from apps.metrics.services import dashboard_summary
+from apps.metrics.selectors import dashboard_summary
 
 router = Router(tags=["metrics"])
 
