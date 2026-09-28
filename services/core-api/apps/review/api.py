@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
-
+from django.db.models import QuerySet
 from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
-from apps.review.models import ReviewItem
-from apps.review.schemas import DecisionIn, serialize_review_item
+from apps.review.models import ReviewDecision, ReviewItem
+from apps.review.schemas import DecisionIn, DecisionOut, ReviewItemOut
 from apps.review.selectors import review_item_list
 from apps.review.services import ReviewError, claim, decide
 from common.permissions import AuthedRequest
@@ -15,34 +14,33 @@ from common.permissions import AuthedRequest
 router = Router(tags=["review"])
 
 
-@router.get("/queue", auth=JWTAuth())
+@router.get("/queue", auth=JWTAuth(), response=list[ReviewItemOut])
 def list_queue(
     request: AuthedRequest, queue: str | None = None, state: str = "pending"
-) -> list[dict[str, Any]]:
-    return [serialize_review_item(i) for i in review_item_list(queue=queue, state=state)]
+) -> QuerySet[ReviewItem]:
+    return review_item_list(queue=queue, state=state)
 
 
-@router.get("/items/{item_id}", auth=JWTAuth())
-def get_item(request: AuthedRequest, item_id: int) -> dict[str, Any]:
-    item = _get_or_404(item_id)
-    return serialize_review_item(item)
+@router.get("/items/{item_id}", auth=JWTAuth(), response=ReviewItemOut)
+def get_item(request: AuthedRequest, item_id: int) -> ReviewItem:
+    return _get_or_404(item_id)
 
 
-@router.post("/items/{item_id}/claim", auth=JWTAuth())
-def claim_item(request: AuthedRequest, item_id: int) -> dict[str, Any]:
+@router.post("/items/{item_id}/claim", auth=JWTAuth(), response=ReviewItemOut)
+def claim_item(request: AuthedRequest, item_id: int) -> ReviewItem:
     item = _get_or_404(item_id)
     try:
         claim(item, request.auth)
     except ReviewError as e:
         raise HttpError(409, str(e)) from e
-    return serialize_review_item(item)
+    return item
 
 
-@router.post("/items/{item_id}/decide", auth=JWTAuth())
-def decide_item(request: AuthedRequest, item_id: int, payload: DecisionIn) -> dict[str, Any]:
+@router.post("/items/{item_id}/decide", auth=JWTAuth(), response=DecisionOut)
+def decide_item(request: AuthedRequest, item_id: int, payload: DecisionIn) -> ReviewDecision:
     item = _get_or_404(item_id)
     try:
-        decision = decide(
+        return decide(
             item,
             request.auth,
             action_taken=payload.action_taken,
@@ -55,7 +53,6 @@ def decide_item(request: AuthedRequest, item_id: int, payload: DecisionIn) -> di
         )
     except ReviewError as e:
         raise HttpError(422, str(e)) from e
-    return {"id": decision.id, "action_taken": decision.action_taken}
 
 
 def _get_or_404(item_id: int) -> ReviewItem:

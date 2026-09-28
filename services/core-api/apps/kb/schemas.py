@@ -4,11 +4,7 @@ Request and response shapes for the KB endpoints (spec §3.2).
 
 from __future__ import annotations
 
-from typing import Any
-
-from ninja import Schema
-
-from apps.kb.models import KbArticle
+from ninja import Field, Schema
 
 
 class ArticleIn(Schema):
@@ -29,15 +25,18 @@ class RiskTierIn(Schema):
     reason: str
 
 
-def serialize_article(a: KbArticle) -> dict[str, Any]:
-    return {
-        "id": a.id,
-        "slug": a.slug,
-        "title": a.title,
-        "category": a.category,
-        "auto_reply_allowed": a.auto_reply_allowed,
-        "risk_tier": a.risk_tier,
-        "approved_by": a.approved_by_id,
-        "is_active": a.is_active,
-        "version": a.version,
-    }
+class ArticleOut(Schema):
+    id: int
+    slug: str
+    title: str
+    category: str
+    auto_reply_allowed: bool
+    risk_tier: str
+    approved_by: int | None = Field(alias="approved_by_id")
+    is_active: bool
+    version: int
+
+
+class ReingestOut(Schema):
+    slug: str
+    chunks: int

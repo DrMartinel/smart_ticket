@@ -1,24 +1,15 @@
-from typing import Any
-
+from django.db.models import QuerySet
 from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
+from apps.fewshot.models import FewshotExample
+from apps.fewshot.schemas import FewshotExampleOut
 from apps.fewshot.selectors import active_examples_for_category
 from common.permissions import AuthedRequest
 
 router = Router(tags=["fewshot"])
 
 
-@router.get("/category/{category}", auth=JWTAuth())
-def list_active(request: AuthedRequest, category: str) -> list[dict[str, Any]]:
-    examples = active_examples_for_category(category)
-    return [
-        {
-            "id": e.id,
-            "category": e.category,
-            "input_text": e.input_text,
-            "output_json": e.output_json,
-            "expires_at": e.expires_at.isoformat(),
-        }
-        for e in examples
-    ]
+@router.get("/category/{category}", auth=JWTAuth(), response=list[FewshotExampleOut])
+def list_active(request: AuthedRequest, category: str) -> QuerySet[FewshotExample]:
+    return active_examples_for_category(category)

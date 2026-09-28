@@ -10,39 +10,31 @@ so it should fail here and be decided on purpose, not slip in with a
 refactor.
 """
 
-from typing import cast
-
 import httpx
 import pytest
-from django.test import RequestFactory
 
-from apps.kb.api import create_article
 from apps.kb.models import KbArticle, KbChunk
-from apps.kb.schemas import ArticleIn
-from common.permissions import AuthedRequest
 
-ARTICLE = ArticleIn(
-    slug="KB-TEST-001",
-    title="Reset VPN password",
-    body="Open the portal.\n\nChoose 'Reset VPN password'.\n\nSign in again.",
-    category="network",
-)
+ARTICLE = {
+    "slug": "KB-TEST-001",
+    "title": "Reset VPN password",
+    "body": "Open the portal.\n\nChoose 'Reset VPN password'.\n\nSign in again.",
+    "category": "network",
+}
 
 
-def create(user) -> dict:
-    request = cast(AuthedRequest, RequestFactory().post("/api/kb"))
-    request.auth = user
-    return create_article(request, ARTICLE)
+def create(client):
+    return client.post("/api/kb", ARTICLE, content_type="application/json")
 
 
 @pytest.mark.django_db
-def test_created_article_is_chunked_and_embedded(manager_user, settings):
+def test_created_article_is_chunked_and_embedded(manager_user, settings, api_as):
     settings.EMBEDDING_PROVIDER = "stub"
 
-    response = create(manager_user)
+    response = create(api_as(manager_user))
 
     article = KbArticle.objects.get(slug="KB-TEST-001")
-    assert response["id"] == article.id
+    assert response.json()["id"] == article.id
     chunks = KbChunk.objects.filter(article=article)
     assert chunks.count() >= 1
     assert all(len(c.embedding) == 1024 for c in chunks)
@@ -53,14 +45,14 @@ def test_created_article_is_chunked_and_embedded(manager_user, settings):
 
 
 @pytest.mark.django_db
-def test_embedding_failure_keeps_the_article_without_chunks(manager_user, monkeypatch):
+def test_embedding_failure_keeps_the_article_without_chunks(manager_user, monkeypatch, api_as):
     def unreachable(text):
         raise httpx.ConnectError("vllm-embed unreachable")
 
     monkeypatch.setattr("apps.kb.services.embed_text", unreachable)
 
     with pytest.raises(httpx.ConnectError):
-        create(manager_user)
+        create(api_as(manager_user))
 
     article = KbArticle.objects.get(slug="KB-TEST-001")
     assert not KbChunk.objects.filter(article=article).exists()
