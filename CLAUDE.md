@@ -73,8 +73,8 @@ cd services/web && npm install
 ```
 
 ```bash
-uv run pytest                              # everything (246 unit + 8 eval)
-uv run pytest services/core-api -q         # 97 (DB tests need DATABASE_URL, see below)
+uv run pytest                              # everything (248 unit + 8 eval)
+uv run pytest services/core-api -q         # 99 (DB tests need DATABASE_URL, see below)
 uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```

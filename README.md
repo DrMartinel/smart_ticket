@@ -346,8 +346,8 @@ curl -s -X POST http://localhost:8000/api/tickets/submit \
 
 ```bash
 uv sync --all-packages                     # once — installs every workspace member
-uv run pytest                              # everything (246 unit + 8 eval)
-uv run pytest services/core-api -q         # 97
+uv run pytest                              # everything (248 unit + 8 eval)
+uv run pytest services/core-api -q         # 99
 uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 eval suites
 ```

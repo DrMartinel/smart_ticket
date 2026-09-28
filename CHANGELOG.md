@@ -115,6 +115,16 @@ that moves a failure path is more significant here than a new feature.
   `CLOUD_MAX_OUTPUT_TOKENS` now caps OpenAI generations — it was only wired
   to the removed providers before.
 
+### Fixed
+
+- **`seed_demo` approves auto-reply through KB governance.** It used to set
+  `auto_reply_allowed` directly, so the 5 pre-approved demo articles had no
+  `KbAuthorityLog` row. It now calls `set_auto_reply_allowed` with
+  `manager1` and a reason (ADR-0002). Behaviour change for seeded data only:
+  approved articles get a log row and `version` 2. Databases seeded before
+  this keep their unlogged approvals, because the seed skips existing
+  articles. Re-seed an empty database to get the logged ones.
+
 ### Added
 
 - **`all_llm_down` is a `ReasonCode`.** Behaviour change: a failed chat call

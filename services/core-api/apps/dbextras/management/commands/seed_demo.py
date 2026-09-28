@@ -1,5 +1,5 @@
 """
-Seed demo data: one user per role, ~12 Vietnamese KB articles (3 of them
+Seed demo data: one user per role, ~12 Vietnamese KB articles (5 of them
 pre-approved for auto-reply at risk_tier=low, per spec §14 P4's rollout
 shape), so the system is exercisable end to end immediately after
 `docker compose up`.
@@ -9,13 +9,14 @@ from typing import Any
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
-from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.kb.models import KbArticle
-from apps.kb.services import ingest_article
+from apps.kb.services import ingest_article, set_auto_reply_allowed
 
 DEMO_PASSWORD = "demo12345"
+
+SEED_APPROVAL_REASON = "Demo seed: low-risk article pre-approved for auto-reply (spec §14 P4)"
 
 USERS = [
     {"username": "employee1", "role": "employee", "email": "employee1@example.com"},
@@ -214,10 +215,12 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS(f"created + ingested {slug}"))
 
             if auto_reply_allowed:
-                article.auto_reply_allowed = True
-                article.approved_by = manager
-                article.approved_at = timezone.now()
-                article.save(update_fields=["auto_reply_allowed", "approved_by", "approved_at"])
+                # The same governance path a manager uses (ADR-0002), so every
+                # seeded approval has a KbAuthorityLog row. Raises, and rolls
+                # the whole seed back, if manager1 is not a manager.
+                set_auto_reply_allowed(
+                    article=article, allowed=True, actor=manager, reason=SEED_APPROVAL_REASON
+                )
                 self.stdout.write(
                     self.style.SUCCESS(
                         f"  -> auto_reply_allowed=True (approved by {manager.username})"

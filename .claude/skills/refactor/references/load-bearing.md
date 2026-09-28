@@ -60,7 +60,7 @@ Format: **what** — why it exists — *what guards it*.
   *`test_router.py::test_refuse_before_llm_reports_retrieval_floor_not_schema_invalid`.*
 - **The KB governance path for `auto_reply_allowed`**: manager role, a non-empty
   reason, and a `KbAuthorityLog` row. Seed data takes the same path. *ADR-0002;
-  `apps/kb/services.py`.*
+  `apps/kb/services.py`; `apps/dbextras/tests/test_seed_demo.py`.*
 - **The deny-by-default `_degraded_signals()` in `apps/tickets/services/pipeline.py`**: every check failed,
   `kb_auto_reply_allowed=False`, `kb_risk_tier="high"`.
 - **No `decrypt()` call without a `PiiAccessLog` row** in the same transaction, with
