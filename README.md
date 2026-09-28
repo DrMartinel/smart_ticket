@@ -99,7 +99,7 @@ smart_ticket/
 │   └── scripts/gen_typescript.py#   generates web/lib/types/generated.ts
 ├── services/
 │   ├── core-api/                # Django + Django Ninja + Celery
-│   │   ├── apps/                #   each: api · models · services · selectors · tasks · tests/
+│   │   ├── apps/                #   each: api · schemas · models · services · selectors · tasks · tests/
 │   │   │   ├── accounts/        #   RBAC: employee · technician · manager · security
 │   │   │   ├── tickets/         #   models, API, Celery entry points, services/*
 │   │   │   │   └── services/    #     submission · pipeline · masking · router · trust_scorer · incident · crypto
@@ -110,8 +110,9 @@ smart_ticket/
 │   │   │   ├── itsm_mock/       #   mock ITSM runbook execution
 │   │   │   ├── metrics/         #   dashboard aggregation
 │   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants), seed_demo
+│   │   ├── common/              #   shared by every app: permissions (role gate)
 │   │   ├── infrastructure/      #   clients for ai-engine and the vLLM embedder
-│   │   └── config/              #   settings · celery · thresholds.yaml
+│   │   └── config/              #   settings/{base,development,production,test} · celery · thresholds.yaml
 │   ├── ai-engine/               # FastAPI + LangGraph
 │   │   └── src/ai_engine/
 │   │       ├── graph/nodes/     #   injection · retrieve · rerank · fewshot · infer · validate
@@ -346,8 +347,8 @@ curl -s -X POST http://localhost:8000/api/tickets/submit \
 
 ```bash
 uv sync --all-packages                     # once — installs every workspace member
-uv run pytest                              # everything (251 unit + 8 eval)
-uv run pytest services/core-api -q         # 102
+uv run pytest                              # everything (279 unit + 8 eval)
+uv run pytest services/core-api -q         # 130
 uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 eval suites
 ```

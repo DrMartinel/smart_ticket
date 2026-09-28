@@ -29,10 +29,24 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
-- **core-api uses a services / selectors / integrations layout** (after the
-  HackSoft Django styleguide). The details:
+- **core-api follows a standard Django project layout** (after the HackSoft
+  Django styleguide and "Django Project Structure Best Practices"). The
+  details:
+  - **Breaking for deployments:** the settings modules are renamed.
+    `config.settings.dev` is now `config.settings.development`, and
+    `config.settings.prod` is now `config.settings.production`. An
+    environment that sets `DJANGO_SETTINGS_MODULE` to an old name fails at
+    boot with `ModuleNotFoundError`. The new `config.settings.test` is used
+    by `pytest services/core-api`. It forces the stub embedder, as CI
+    already did, and uses a fast password hasher.
   - The ai-engine and vLLM embeddings clients moved from
-    `apps/tickets/services/` to a top-level `integrations/` package.
+    `apps/tickets/services/` to a top-level `infrastructure/` package.
+  - The role gate (`AuthedRequest`, `require_role`, `has_any_role`) moved
+    from `apps/accounts/rbac.py` to `common/permissions.py`.
+  - In kb, review and tickets, the request Schemas and the model→dict
+    helpers that several handlers share moved from `api.py` to
+    `schemas.py`. The OpenAPI schema is unchanged, apart from the
+    `TicketSubmitIn` description, whose docstring was reworded.
   - Submission is `tickets/services/submission.py::ticket_submit`.
   - The per-ticket pipeline moved out of `tickets/tasks.py` into
     `tickets/services/pipeline.py::ticket_process`. `tasks.py` keeps thin
@@ -41,17 +55,23 @@ that moves a failure path is more significant here than a new feature.
     few-shot, review and tickets each gained one.
   - `seed_demo` and `wait_for_db` moved to `dbextras`.
   - KB article creation goes through `kb.services.article_create`.
-  - Tests moved next to their code, in `apps/<app>/tests/` and
-    `integrations/tests/`, with `conftest.py` at the core-api root. CI runs
-    `pytest services/core-api`.
-  - New tests pin ticket submission and KB article creation. For submission:
-    only masked text is persisted, raw values are quarantined, the
-    submission is audited, the task is enqueued after commit, and
-    mask_failed is handled.
+  - Tests moved next to their code, in a `tests/` package in each app, in
+    `common/` and in `infrastructure/`, with `conftest.py` at the core-api
+    root. CI runs `pytest services/core-api`.
+  - New tests cover:
+    - ticket submission: only masked text is persisted, raw values are
+      quarantined, the submission is audited, the task is enqueued after
+      commit, and mask_failed is handled;
+    - KB article creation;
+    - runbook execution refusals (ADR-0006);
+    - review decisions and eval candidates;
+    - few-shot TTL, retraction and the per-category cap;
+    - the least-privileged default role;
+    - the `require_role` gate.
 
-  No behaviour change. The one visible difference: pipeline log records now
-  come from the `apps.tickets.services.pipeline` logger instead of
-  `apps.tickets.tasks`.
+  No behaviour change beyond the settings rename. One other visible
+  difference: pipeline log records now come from the
+  `apps.tickets.services.pipeline` logger instead of `apps.tickets.tasks`.
 - **Pyright covers the whole repo.** Strict for all source code (ai-engine,
   core-api, contracts, the eval scripts), standard for tests; Django
   migrations are excluded. core-api is typed with `django-types` and

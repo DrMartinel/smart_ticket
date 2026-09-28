@@ -73,8 +73,8 @@ cd services/web && npm install
 ```
 
 ```bash
-uv run pytest                              # everything (251 unit + 8 eval)
-uv run pytest services/core-api -q         # 102 (DB tests need DATABASE_URL, see below)
+uv run pytest                              # everything (279 unit + 8 eval)
+uv run pytest services/core-api -q         # 130 (DB tests need DATABASE_URL, see below)
 uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
@@ -148,11 +148,19 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 
 **If you are adding a feature that decides something, it belongs in core-api.**
 
-Inside core-api, an app is `api.py` (thin: bind, validate, call) over
-`services.py` or `services/` (writes and decisions) and `selectors.py` (reads
-shared by several callers). `tasks.py` holds only Celery entry points: a task's
-name is its module path, so the work lives in services and the task stays put.
-Tests live in `apps/<app>/tests/`.
+Inside core-api, each app has these modules:
+- `api.py`: thin. It binds and validates the request, then calls a service or
+  selector.
+- `services.py` or `services/`: writes and decisions.
+- `selectors.py`: reads shared by several callers.
+- `schemas.py`: request and response shapes.
+- `tasks.py`: Celery entry points only. A task's name is its module path, so
+  the work lives in services and the task stays put.
+
+Beside `apps/` sit `common/` (code every app shares, such as `permissions.py`),
+`infrastructure/` (clients for other processes) and
+`config/settings/{base,development,production,test}.py`. Tests live in a
+`tests/` package next to the code they test.
 
 ## Where to make a change
 
@@ -211,12 +219,13 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
-| pyright strict errors in a new core-api test file | Tests sit under the strict `apps/` path; start the file with `# pyright: standard`, as the others do |
+| pyright strict errors in a new core-api test file | Tests sit under strict source paths (`apps/`, `common/`, `infrastructure/`); start the file with `# pyright: standard`, as the others do |
+| `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
 | pyright: unknown `id` / `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime: declare it on the model (`id: int`, `ticket_id: int`, `ai_runs: RelatedManager[AiRun]`), and give a FK to a string target its model (`models.ForeignKey[User](settings.AUTH_USER_MODEL, …)`) |
 
 ## Testing conventions
 
-Unit tests (core-api: `apps/<app>/tests/`; ai-engine: `tests/`) protect logic; evals (`evals/suites/`) protect
+Unit tests (core-api: a `tests/` package beside the code; ai-engine: `tests/`) protect logic; evals (`evals/suites/`) protect
 behavior. A green unit suite says nothing about whether the model got worse.
 
 - **Test the failure paths.** This system's correctness is mostly about what it

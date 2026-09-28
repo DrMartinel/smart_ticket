@@ -4,7 +4,7 @@ Two distinct layers with different purposes. Confusing them is the usual source 
 
 | Layer | Answers | Deterministic | Runs on |
 |---|---|---|---|
-| **Unit** (core-api `apps/<app>/tests/`, ai-engine `tests/`) | Does the code do what it says? | Yes | Every commit |
+| **Unit** (core-api: a `tests/` package beside the code; ai-engine `tests/`) | Does the code do what it says? | Yes | Every commit |
 | **Eval** (`evals/suites/`) | Does the *system* still behave acceptably? | No — model output varies | Every PR, gated |
 
 Unit tests protect logic. Evals protect behavior. A green unit suite says nothing about whether the model got worse, and a green eval run says nothing about whether your refactor broke an edge case.
@@ -21,6 +21,8 @@ uv run pytest services/core-api -q
 uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # 8 suites
 ```
+
+`pytest services/core-api` runs with `config.settings.test`: the stub embedder, whatever the environment says, and a fast password hasher. Its database tests still need `DATABASE_URL` (the Dockerized Postgres is on port 5434).
 
 Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn't reachable, so unit tests stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies at all.
 

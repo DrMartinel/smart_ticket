@@ -25,7 +25,7 @@ This currently **fails safe** (nobody can read raw PII at all, which is stricter
 ### Work
 
 1. Reveal endpoint in `apps/tickets/api.py`, e.g. `POST /api/tickets/{public_id}/quarantine/{ref}/reveal`, with a mandatory non-empty `reason` in the body.
-2. RBAC: `security` role, and/or a technician who has claimed the related `pii_verify` review item. Follow the manager-only pattern already used for `auto_reply_allowed` in `apps/kb/api.py`.
+2. RBAC: `security` role, and/or a technician who has claimed the related `pii_verify` review item. Gate the endpoint with `@require_role(...)` from `common/permissions.py`; `auto_reply_allowed` makes its manager-only check in `apps/kb/services.py`, which no router enforces yet.
 3. Write the `PiiAccessLog` row in the **same transaction** as the decrypt — a successful read must be structurally incapable of happening without its log line.
 4. Reject reads past `expires_at`.
 5. Consider an `audit()` event as well (`apps/audit/services.py`) for the business-level trail.

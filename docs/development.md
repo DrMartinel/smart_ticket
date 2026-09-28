@@ -87,7 +87,7 @@ For things the ORM can't express (partial indexes, HNSW, CHECK constraints tied 
 
 ### Add an API endpoint
 
-Routers live in `apps/<app>/api.py` (Django Ninja). Keep the handler thin: bind and validate the input, call a function in `services.py` (writes, decisions) or `selectors.py` (reads), and serialize the result. Follow the RBAC decorator pattern already used for the manager-only KB governance endpoint in `apps/kb/api.py`. Roles: `employee`, `technician`, `manager`, `security`.
+Routers live in `apps/<app>/api.py` (Django Ninja). Keep the handler thin: bind and validate the input, call a function in `services.py` (writes, decisions) or `selectors.py` (reads), and serialize the result. Request Schemas and shared model→dict helpers go in the app's `schemas.py`. Gate a handler by role with `@require_role(...)` from `common/permissions.py`. Roles: `employee`, `technician`, `manager`, `security`. No router applies it yet: KB governance is enforced inside `apps/kb/services.py`, not at the endpoint.
 
 ### Change a prompt
 
