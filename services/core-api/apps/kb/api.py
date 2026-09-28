@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from ninja import Router, Schema
+from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
 from apps.kb.models import KbArticle
+from apps.kb.schemas import ArticleIn, AutoReplyFlagIn, RiskTierIn, serialize_article
 from apps.kb.services import (
     KBGovernanceError,
     article_create,
@@ -19,41 +20,9 @@ from common.permissions import AuthedRequest
 router = Router(tags=["kb"])
 
 
-class ArticleIn(Schema):
-    slug: str
-    title: str
-    body: str
-    category: str
-    risk_tier: str = "high"
-
-
-class AutoReplyFlagIn(Schema):
-    allowed: bool
-    reason: str
-
-
-class RiskTierIn(Schema):
-    risk_tier: str
-    reason: str
-
-
-def _serialize(a: KbArticle) -> dict[str, Any]:
-    return {
-        "id": a.id,
-        "slug": a.slug,
-        "title": a.title,
-        "category": a.category,
-        "auto_reply_allowed": a.auto_reply_allowed,
-        "risk_tier": a.risk_tier,
-        "approved_by": a.approved_by_id,
-        "is_active": a.is_active,
-        "version": a.version,
-    }
-
-
 @router.get("", auth=JWTAuth())
 def list_articles(request: AuthedRequest) -> list[dict[str, Any]]:
-    return [_serialize(a) for a in KbArticle.objects.filter(is_active=True).order_by("slug")]
+    return [serialize_article(a) for a in KbArticle.objects.filter(is_active=True).order_by("slug")]
 
 
 @router.post("", auth=JWTAuth())
@@ -65,7 +34,7 @@ def create_article(request: AuthedRequest, payload: ArticleIn) -> dict[str, Any]
         category=payload.category,
         risk_tier=payload.risk_tier,
     )
-    return _serialize(article)
+    return serialize_article(article)
 
 
 @router.post("/{slug}/reingest", auth=JWTAuth())
@@ -86,7 +55,7 @@ def toggle_auto_reply(
         )
     except KBGovernanceError as e:
         raise HttpError(403, str(e)) from e
-    return _serialize(article)
+    return serialize_article(article)
 
 
 @router.post("/{slug}/risk-tier", auth=JWTAuth())
@@ -98,7 +67,7 @@ def change_risk_tier(request: AuthedRequest, slug: str, payload: RiskTierIn) -> 
         )
     except KBGovernanceError as e:
         raise HttpError(403, str(e)) from e
-    return _serialize(article)
+    return serialize_article(article)
 
 
 def _get_or_404(slug: str) -> KbArticle:

@@ -22,8 +22,9 @@ from ninja.errors import HttpError
 from contracts.enums import PIILevel
 
 from apps.audit.models import AuditLog
-from apps.tickets.api import TicketSubmitIn, submit_ticket
+from apps.tickets.api import submit_ticket
 from apps.tickets.models import PiiQuarantine, Ticket
+from apps.tickets.schemas import TicketSubmitIn
 from apps.tickets.services.crypto import decrypt
 from common.permissions import AuthedRequest
 

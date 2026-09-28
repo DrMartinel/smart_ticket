@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ninja import Router, Schema
+from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 from pydantic import ValidationError as PydanticValidationError
@@ -16,23 +16,11 @@ from pydantic import ValidationError as PydanticValidationError
 from contracts.ticket import TicketIn
 
 from apps.tickets.models import Ticket
+from apps.tickets.schemas import TicketSubmitIn
 from apps.tickets.services.submission import ticket_submit
 from common.permissions import AuthedRequest
 
 router = Router(tags=["tickets"])
-
-
-class TicketSubmitIn(Schema):
-    """Django Ninja's own input schema for body binding — a plain `dict`
-    parameter doesn't bind the JSON request body the way a Schema/pydantic
-    model does. `contracts.ticket.TicketIn` (the real domain contract,
-    with its length constraints) is still what actually validates the
-    submission below; this class only exists to get the raw JSON off the
-    wire correctly."""
-
-    subject: str
-    body: str
-    attachments: list[str] = []
 
 
 @router.post("/submit", auth=JWTAuth())
