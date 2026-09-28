@@ -51,6 +51,7 @@ select = ["E4", "E7", "E9", "F"]
 [tool.pytest.ini_options]
 testpaths = [
     "services/core-api/apps",
+    "services/core-api/common",
     "services/core-api/infrastructure",
     "services/ai-engine/tests",
     "evals/suites",
