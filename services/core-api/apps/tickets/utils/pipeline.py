@@ -35,7 +35,6 @@ from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
 from apps.tickets.models import AiRun, RoutingDecision, Ticket
-from apps.tickets.selectors import ai_cost_today_usd
 from apps.tickets.utils import router as router_service
 from apps.tickets.utils.trust_scorer import score as compute_trust
 from infrastructure.ai_engine import AIEngineUnavailable, analyze
@@ -292,7 +291,7 @@ def ticket_process(ticket_id: int) -> TaskResult:
     # side with write access to ai_runs, so it's the only side that can
     # actually see total daily spend) ──
     ceiling = settings.THRESHOLDS.budget.daily_cost_ceiling_usd
-    if ai_cost_today_usd() >= ceiling:
+    if AiRun.objects.cost_today_usd() >= ceiling:
         signals = _degraded_signals()
         decision = _degraded_decision(
             ReasonCode.BUDGET_EXCEEDED, ReviewQueue.LOW_CONFIDENCE, priority=2

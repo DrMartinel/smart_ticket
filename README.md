@@ -99,7 +99,7 @@ smart_ticket/
 │   └── scripts/gen_typescript.py#   generates web/lib/types/generated.ts
 ├── services/
 │   ├── core-api/                # Django + Django Ninja + Celery
-│   │   ├── apps/                #   each: views · request/response_schema · models (fat) · utils · selectors · tasks · tests/
+│   │   ├── apps/                #   each: views · request/response_schema · models (fat) · utils · tasks · tests/
 │   │   │   ├── accounts/        #   RBAC: employee · technician · manager · security
 │   │   │   ├── tickets/         #   models, views, Celery entry points, utils/*
 │   │   │   │   └── utils/       #     router · trust_scorer · masking · patterns · crypto · pipeline

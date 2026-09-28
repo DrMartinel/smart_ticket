@@ -150,17 +150,17 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 
 Inside core-api, each app has these modules:
 - `views.py`: thin Ninja handlers. Each binds and validates the request,
-  calls a model method, manager method or selector, and declares its output
-  with `response=`.
-- `models.py`: fat models. Writes and decisions that belong to one entity are
-  methods on it (`article.set_auto_reply_allowed(...)`, `item.decide(...)`)
-  or on its manager (`Ticket.objects.submit(...)`,
-  `AuditLog.objects.record(...)`).
+  calls a model method, manager method or util, and declares its output with
+  `response=`.
+- `models.py`: fat models. Writes, decisions and reads that belong to one
+  entity are methods on it (`article.set_auto_reply_allowed(...)`,
+  `item.decide(...)`) or on its manager (`Ticket.objects.submit(...)`,
+  `ReviewItem.objects.for_queue(...)`, `AuditLog.objects.record(...)`).
 - `utils.py` or `utils/`: logic that is no single model's behaviour: pure
   decisions and text processing (`router.py`, `trust_scorer.py`,
   `masking.py`), and the per-ticket `pipeline.py` that coordinates several
-  models. `router.py` stays a pure function (rule 1), whatever its module.
-- `selectors.py`: reads shared by several callers.
+  models, plus reads that span several models with no owner of their own
+  (`apps/metrics/utils.py`). `router.py` stays a pure function (rule 1).
 - `request_schema.py` / `response_schema.py`: request bodies and response
   shapes. Every handler declares `response=`; none builds a response dict.
 - `tasks.py`: Celery entry points only. A task's name is its module path, so

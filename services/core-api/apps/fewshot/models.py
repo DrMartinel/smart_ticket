@@ -8,6 +8,7 @@ from typing import Any, ClassVar
 
 from django.conf import settings
 from django.db import models, transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 from pgvector.django import VectorField
 
@@ -56,6 +57,19 @@ class FewshotExampleManager(models.Manager["FewshotExample"]):
         return self.filter(source_ticket=ticket, retracted_at__isnull=True).update(
             retracted_at=timezone.now(), retract_reason=reason
         )
+
+    def active_for_category(
+        self, category: str, limit: int | None = None
+    ) -> QuerySet[FewshotExample]:
+        """The pool for one category (spec §3.5). TTL and retraction are
+        enforced here, at query time, so an expired or retracted example is out
+        of the pool the moment it qualifies, whether or not the hourly expiry
+        task has run yet."""
+        th = settings.THRESHOLDS.fewshot
+        qs = self.filter(
+            category=category, retracted_at__isnull=True, expires_at__gt=timezone.now()
+        ).order_by("-approved_at")
+        return qs[: limit or th.max_per_category]
 
 
 class FewshotExample(models.Model):

@@ -379,6 +379,15 @@ class PiiAccessLog(models.Model):
         db_table = "pii_access_log"
 
 
+class AiRunManager(models.Manager["AiRun"]):
+    def cost_today_usd(self) -> float:
+        """Total AI spend since 00:00 UTC — what `budget.daily_cost_ceiling_usd`
+        is compared against."""
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        total = self.filter(created_at__gte=today_start).values_list("cost_usd", flat=True)
+        return float(sum(c or 0 for c in total))
+
+
 class AiRun(models.Model):
     """§3.3. One row per ai-engine invocation. `proposed_draft` is the raw,
     not-yet-trusted LLM output; `trust_signals`/`trust_score` are what the
@@ -414,6 +423,10 @@ class AiRun(models.Model):
 
     class Meta:
         db_table = "ai_runs"
+
+    # django-types types Model.objects as BaseManager[Model], so any custom manager
+    # reads as an incompatible override.
+    objects: ClassVar[AiRunManager] = AiRunManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
 
 class RoutingDecision(models.Model):

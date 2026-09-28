@@ -42,6 +42,14 @@ that moves a failure path is more significant here than a new feature.
     `ticket.store_embedding()` and `ticket.classify_similarity()`;
   - `Incident.objects.get_or_create_for_mass_incident()`.
 
+  Reads moved the same way, and `selectors.py` is gone:
+  - `FewshotExample.objects.active_for_category()`;
+  - `ReviewItem.objects.for_queue()`;
+  - `AiRun.objects.cost_today_usd()`.
+
+  The metrics dashboard aggregates across five models and has no model of
+  its own, so it moved to `apps/metrics/utils.py`.
+
   Logic that is no single model's behaviour moved from
   `apps/tickets/services/` to `apps/tickets/utils/`: router, trust_scorer,
   masking, patterns, crypto and pipeline. KB chunking moved to

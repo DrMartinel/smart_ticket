@@ -8,7 +8,6 @@ from ninja_jwt.authentication import JWTAuth
 from apps.review.models import ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
-from apps.review.selectors import review_item_list
 from common.permissions import AuthedRequest
 
 router = Router(tags=["review"])
@@ -18,7 +17,7 @@ router = Router(tags=["review"])
 def list_queue(
     request: AuthedRequest, queue: str | None = None, state: str = "pending"
 ) -> QuerySet[ReviewItem]:
-    return review_item_list(queue=queue, state=state)
+    return ReviewItem.objects.for_queue(queue=queue, state=state)
 
 
 @router.get("/items/{item_id}", auth=JWTAuth(), response=ReviewItemOut)

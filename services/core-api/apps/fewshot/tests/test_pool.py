@@ -17,7 +17,6 @@ from django.utils import timezone
 from contracts.enums import PIILevel
 
 from apps.fewshot.models import FewshotError, FewshotExample
-from apps.fewshot.selectors import active_examples_for_category
 from apps.fewshot.tasks import expire_fewshot_examples
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import reopen_ticket
@@ -92,7 +91,7 @@ def test_expired_examples_are_out_of_the_pool_before_the_expiry_task_runs(
     live = example(source, manager_user)
     example(source, manager_user, expires_in_days=-1)
 
-    assert list(active_examples_for_category("network")) == [live]
+    assert list(FewshotExample.objects.active_for_category("network")) == [live]
 
 
 @pytest.mark.django_db
@@ -119,7 +118,7 @@ def test_reopening_a_ticket_retracts_only_its_examples(employee_user, manager_us
 
     retracted.refresh_from_db()
     assert retracted.retracted_at is not None
-    assert list(active_examples_for_category("network")) == [kept]
+    assert list(FewshotExample.objects.active_for_category("network")) == [kept]
 
 
 @pytest.mark.django_db
@@ -129,4 +128,4 @@ def test_the_pool_is_capped_per_category_by_thresholds(employee_user, manager_us
     for _ in range(3):
         example(source, manager_user)
 
-    assert len(active_examples_for_category("network")) == 2
+    assert len(FewshotExample.objects.active_for_category("network")) == 2

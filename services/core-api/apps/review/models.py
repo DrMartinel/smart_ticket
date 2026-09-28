@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.conf import settings
 from django.db import models, transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from contracts.enums import ReviewAction, ReviewQueue, Verdict
@@ -19,6 +20,17 @@ if TYPE_CHECKING:
 
 class ReviewError(Exception):
     pass
+
+
+class ReviewItemManager(models.Manager["ReviewItem"]):
+    def for_queue(self, *, queue: str | None, state: str) -> QuerySet[ReviewItem]:
+        """The HITL queue (spec §3.4): most urgent first (priority 1 = blocked,
+        escalated or mask-failed), then longest-waiting first within a
+        priority."""
+        qs = self.select_related("ticket", "ai_run").filter(state=state)
+        if queue:
+            qs = qs.filter(queue=queue)
+        return qs.order_by("priority", "created_at")
 
 
 class ReviewItem(models.Model):
@@ -43,6 +55,10 @@ class ReviewItem(models.Model):
 
     class Meta:
         db_table = "review_items"
+
+    # django-types types Model.objects as BaseManager[Model], so any custom manager
+    # reads as an incompatible override.
+    objects: ClassVar[ReviewItemManager] = ReviewItemManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     @transaction.atomic
     def claim(self, actor: User) -> ReviewItem:
