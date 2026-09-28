@@ -73,8 +73,8 @@ cd services/web && npm install
 ```
 
 ```bash
-uv run pytest                              # everything (244 unit + 8 eval)
-uv run pytest services/core-api -q         # 95 (DB tests need DATABASE_URL, see below)
+uv run pytest                              # everything (246 unit + 8 eval)
+uv run pytest services/core-api -q         # 97 (DB tests need DATABASE_URL, see below)
 uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
@@ -131,6 +131,8 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | The routing decision (pure function, only place a `Branch` is chosen) | [router.py](services/core-api/apps/tickets/services/router.py) |
 | PII masking (inline, two-tier; 100% branch coverage is a release gate) | [masking.py](services/core-api/apps/tickets/services/masking.py) |
 | Trust score (in core-api, so the LLM can't score itself) | [trust_scorer.py](services/core-api/apps/tickets/services/trust_scorer.py) |
+| What happens to a ticket after submit (embed → incident check → ai-engine → score → route → act) | [pipeline.py](services/core-api/apps/tickets/services/pipeline.py) |
+| Clients for ai-engine and the vLLM servers (transport only, never judgement) | [integrations/](services/core-api/integrations/) |
 | PII regex patterns | [patterns.py](services/core-api/apps/tickets/services/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Shared schemas (single source of truth) | [packages/contracts/](packages/contracts/src/contracts/) |
@@ -146,12 +148,19 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 
 **If you are adding a feature that decides something, it belongs in core-api.**
 
+Inside core-api, an app is `api.py` (thin: bind, validate, call) over
+`services.py` or `services/` (writes and decisions) and `selectors.py` (reads
+shared by several callers). `tasks.py` holds only Celery entry points: a task's
+name is its module path, so the work lives in services and the task stays put.
+Tests live in `apps/<app>/tests/`.
+
 ## Where to make a change
 
 | To change… | Go to |
 |---|---|
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
+| What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/services/pipeline.py` — not `tasks.py`, which is only the entry point |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `core/config.py` |
 | What counts as PII | `patterns.py` (regex) or the NER prompt in `masking.py` |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
@@ -202,6 +211,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
+| pyright strict errors in a new core-api test file | Tests sit under the strict `apps/` path; start the file with `# pyright: standard`, as the others do |
 | pyright: unknown `id` / `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime: declare it on the model (`id: int`, `ticket_id: int`, `ai_runs: RelatedManager[AiRun]`), and give a FK to a string target its model (`models.ForeignKey[User](settings.AUTH_USER_MODEL, …)`) |
 
 ## Testing conventions

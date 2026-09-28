@@ -29,6 +29,29 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **core-api uses a services / selectors / integrations layout** (after the
+  HackSoft Django styleguide). The details:
+  - The ai-engine and vLLM embeddings clients moved from
+    `apps/tickets/services/` to a top-level `integrations/` package.
+  - Submission is `tickets/services/submission.py::ticket_submit`.
+  - The per-ticket pipeline moved out of `tickets/tasks.py` into
+    `tickets/services/pipeline.py::ticket_process`. `tasks.py` keeps thin
+    Celery entry points, so task names and the beat schedule are unchanged.
+  - Reads live in `selectors.py`: metrics' `services.py` is renamed, and
+    few-shot, review and tickets each gained one.
+  - `seed_demo` and `wait_for_db` moved to `dbextras`.
+  - KB article creation goes through `kb.services.article_create`.
+  - Tests moved next to their code, in `apps/<app>/tests/` and
+    `integrations/tests/`, with `conftest.py` at the core-api root. CI runs
+    `pytest services/core-api`.
+  - New tests pin ticket submission and KB article creation. For submission:
+    only masked text is persisted, raw values are quarantined, the
+    submission is audited, the task is enqueued after commit, and
+    mask_failed is handled.
+
+  No behaviour change. The one visible difference: pipeline log records now
+  come from the `apps.tickets.services.pipeline` logger instead of
+  `apps.tickets.tasks`.
 - **Pyright covers the whole repo.** Strict for all source code (ai-engine,
   core-api, contracts, the eval scripts), standard for tests; Django
   migrations are excluded. core-api is typed with `django-types` and

@@ -99,19 +99,19 @@ smart_ticket/
 │   └── scripts/gen_typescript.py#   generates web/lib/types/generated.ts
 ├── services/
 │   ├── core-api/                # Django + Django Ninja + Celery
-│   │   ├── apps/
+│   │   ├── apps/                #   each: api · models · services · selectors · tasks · tests/
 │   │   │   ├── accounts/        #   RBAC: employee · technician · manager · security
-│   │   │   ├── tickets/         #   models, API, Celery tasks, services/*
-│   │   │   │   └── services/    #     masking · router · trust_scorer · incident · crypto
+│   │   │   ├── tickets/         #   models, API, Celery entry points, services/*
+│   │   │   │   └── services/    #     submission · pipeline · masking · router · trust_scorer · incident · crypto
 │   │   │   ├── kb/              #   KB CRUD + auto_reply_allowed governance
 │   │   │   ├── review/          #   HITL queue, decisions, eval candidates
 │   │   │   ├── fewshot/         #   few-shot pool (TTL, retraction)
 │   │   │   ├── audit/           #   append-only audit log + trace_id middleware
 │   │   │   ├── itsm_mock/       #   mock ITSM runbook execution
 │   │   │   ├── metrics/         #   dashboard aggregation
-│   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants)
-│   │   ├── config/              #   settings · celery · thresholds.yaml
-│   │   └── tests/
+│   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants), seed_demo
+│   │   ├── integrations/        #   clients for ai-engine and the vLLM embedder
+│   │   └── config/              #   settings · celery · thresholds.yaml
 │   ├── ai-engine/               # FastAPI + LangGraph
 │   │   └── src/ai_engine/
 │   │       ├── graph/nodes/     #   injection · retrieve · rerank · fewshot · infer · validate
@@ -346,8 +346,8 @@ curl -s -X POST http://localhost:8000/api/tickets/submit \
 
 ```bash
 uv sync --all-packages                     # once — installs every workspace member
-uv run pytest                              # everything (244 unit + 8 eval)
-uv run pytest services/core-api -q         # 95
+uv run pytest                              # everything (246 unit + 8 eval)
+uv run pytest services/core-api -q         # 97
 uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 eval suites
 ```
