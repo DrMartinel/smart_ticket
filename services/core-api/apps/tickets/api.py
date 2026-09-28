@@ -1,17 +1,13 @@
 """
-Ticket submission endpoint. This is the one HTTP-facing place masking runs
-inline and synchronously (spec §5) — by the time this handler returns, the
-`tickets` row committed to the database contains ONLY masked content;
-`pii_quarantine` holds the encrypted raw values, and the AI pipeline is
-handed off to Celery for everything downstream (retrieval, LLM, routing).
+Ticket endpoints. `submit_ticket` is the one HTTP-facing place masking runs
+inline and synchronously (spec §5); the contract for what is written before
+it returns lives in services/submission.py.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from asgiref.sync import async_to_sync
-from django.db import transaction
 from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
@@ -20,11 +16,8 @@ from pydantic import ValidationError as PydanticValidationError
 from contracts.ticket import TicketIn
 
 from apps.accounts.rbac import AuthedRequest
-from apps.audit.services import audit
-from apps.tickets.models import PiiQuarantine, Ticket
-from apps.tickets.services.crypto import build_quarantine_entries
-from apps.tickets.services.ids import next_ticket_public_id
-from apps.tickets.services.masking import mask
+from apps.tickets.models import Ticket
+from apps.tickets.services.submission import ticket_submit
 
 router = Router(tags=["tickets"])
 
@@ -49,47 +42,9 @@ def submit_ticket(request: AuthedRequest, payload: TicketSubmitIn) -> dict[str, 
     except PydanticValidationError as e:
         raise HttpError(422, e.json()) from e
 
-    result = async_to_sync(mask)(ticket_in)
-    quarantine_entries = build_quarantine_entries(result.placeholder_map)
-
-    with transaction.atomic():
-        ticket = Ticket.objects.create(
-            public_id=next_ticket_public_id(),
-            reporter=request.auth,
-            subject_masked=result.subject_masked,
-            body_masked=result.body_masked,
-            pii_level=result.pii_level.value,
-            pii_map={ph: str(entry.ref) for ph, entry in quarantine_entries.items()},
-        )
-        PiiQuarantine.objects.bulk_create(
-            [
-                PiiQuarantine(
-                    ref=entry.ref,
-                    ticket=ticket,
-                    ciphertext=entry.ciphertext,
-                    nonce=entry.nonce,
-                    expires_at=entry.expires_at,
-                )
-                for entry in quarantine_entries.values()
-            ]
-        )
-        audit(
-            "ticket_submitted",
-            actor_type="human",
-            actor_id=request.auth.id,
-            ticket_id=ticket.id,
-            payload={
-                "ticket_public_id": ticket.public_id,
-                "pii_level": ticket.pii_level,
-                "trace_id": getattr(request, "trace_id", None),
-            },
-            trace_id=getattr(request, "trace_id", None),
-        )
-
-    from apps.tickets.tasks import process_ticket
-
-    process_ticket.delay(ticket.id)
-
+    ticket = ticket_submit(
+        reporter=request.auth, ticket_in=ticket_in, trace_id=getattr(request, "trace_id", None)
+    )
     return {
         "ticket_public_id": ticket.public_id,
         "status": ticket.status,
