@@ -6,7 +6,8 @@ from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
 from apps.kb.models import KbArticle
-from apps.kb.schemas import ArticleIn, ArticleOut, AutoReplyFlagIn, ReingestOut, RiskTierIn
+from apps.kb.request_schema import ArticleIn, AutoReplyFlagIn, RiskTierIn
+from apps.kb.response_schema import ArticleOut, ReingestOut
 from apps.kb.services import (
     KBGovernanceError,
     article_create,

@@ -3,7 +3,7 @@ from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
 from apps.itsm_mock.models import RunbookExecution
-from apps.itsm_mock.schemas import RunbookExecutionOut, RunbookOut
+from apps.itsm_mock.response_schema import RunbookExecutionOut, RunbookOut
 from apps.itsm_mock.services import RUNBOOK_REGISTRY, Runbook, RunbookError, execute_runbook
 from apps.review.models import ReviewItem
 from common.permissions import AuthedRequest

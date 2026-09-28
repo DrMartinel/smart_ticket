@@ -2,7 +2,7 @@ from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
 from apps.accounts.models import User
-from apps.accounts.schemas import UserOut
+from apps.accounts.response_schema import UserOut
 from common.permissions import AuthedRequest
 
 router = Router(tags=["accounts"])

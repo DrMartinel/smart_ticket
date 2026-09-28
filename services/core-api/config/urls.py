@@ -8,13 +8,13 @@ from django.urls import path
 from ninja_jwt.controller import NinjaJWTDefaultController
 from ninja_extra import NinjaExtraAPI
 
-from apps.accounts.api import router as accounts_router
-from apps.tickets.api import router as tickets_router
-from apps.kb.api import router as kb_router
-from apps.review.api import router as review_router
-from apps.fewshot.api import router as fewshot_router
-from apps.itsm_mock.api import router as itsm_router
-from apps.metrics.api import router as metrics_router
+from apps.accounts.views import router as accounts_router
+from apps.tickets.views import router as tickets_router
+from apps.kb.views import router as kb_router
+from apps.review.views import router as review_router
+from apps.fewshot.views import router as fewshot_router
+from apps.itsm_mock.views import router as itsm_router
+from apps.metrics.views import router as metrics_router
 
 api = NinjaExtraAPI(title="Smart Ticket Triage — core-api", version="1.0.0")
 api.register_controllers(NinjaJWTDefaultController)  # pyright: ignore[reportUnknownMemberType]

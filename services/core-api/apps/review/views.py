@@ -6,7 +6,8 @@ from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
 from apps.review.models import ReviewDecision, ReviewItem
-from apps.review.schemas import DecisionIn, DecisionOut, ReviewItemOut
+from apps.review.request_schema import DecisionIn
+from apps.review.response_schema import DecisionOut, ReviewItemOut
 from apps.review.selectors import review_item_list
 from apps.review.services import ReviewError, claim, decide
 from common.permissions import AuthedRequest

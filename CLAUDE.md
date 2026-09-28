@@ -149,11 +149,12 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 **If you are adding a feature that decides something, it belongs in core-api.**
 
 Inside core-api, each app has these modules:
-- `api.py`: thin. It binds and validates the request, then calls a service or
-  selector.
+- `views.py`: thin Ninja handlers. Each binds and validates the request,
+  calls a service or selector, and declares its output with `response=`.
 - `services.py` or `services/`: writes and decisions.
 - `selectors.py`: reads shared by several callers.
-- `schemas.py`: request and response shapes.
+- `request_schema.py` / `response_schema.py`: request bodies and response
+  shapes. Every handler declares `response=`; none builds a response dict.
 - `tasks.py`: Celery entry points only. A task's name is its module path, so
   the work lives in services and the task stays put.
 

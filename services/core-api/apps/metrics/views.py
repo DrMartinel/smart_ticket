@@ -3,7 +3,7 @@ from typing import Any
 from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
-from apps.metrics.schemas import DashboardOut
+from apps.metrics.response_schema import DashboardOut
 from apps.metrics.selectors import dashboard_summary
 from common.permissions import AuthedRequest
 

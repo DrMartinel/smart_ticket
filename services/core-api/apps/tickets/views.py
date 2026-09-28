@@ -14,7 +14,8 @@ from pydantic import ValidationError as PydanticValidationError
 from contracts.ticket import TicketIn
 
 from apps.tickets.models import Ticket
-from apps.tickets.schemas import TicketOut, TicketSubmitIn, TicketSubmitOut
+from apps.tickets.request_schema import TicketSubmitIn
+from apps.tickets.response_schema import TicketOut, TicketSubmitOut
 from apps.tickets.services.submission import ticket_submit
 from common.permissions import AuthedRequest
 
