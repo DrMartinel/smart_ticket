@@ -4,10 +4,14 @@ matching alone scores "được cấp quyền" vs "không được cấp quyền
 despite opposite meanings.
 """
 
-from contracts.enums import TicketCategory
-from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope, RouteProposal
+from ai_engine.core.state import (
+    AutoReplyProposal,
+    LLMProposalEnvelope,
+    RankedChunk,
+    RouteProposal,
+    TicketCategory,
+)
 
-from ai_engine.core.state import RankedChunk
 from ai_engine.graph.nodes.validate import validate
 
 

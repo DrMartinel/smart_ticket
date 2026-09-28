@@ -68,7 +68,7 @@ def record_metric(name: str, value: float, **extra) -> None:
 def analyze(
     client: httpx.Client, subject: str, body: str, *, retrieval_floor: float = 0.45
 ) -> dict:
-    from contracts.enums import PIILevel
+    from apps.tickets.utils.patterns import PIILevel
 
     req = {
         "request_id": f"eval-{hash((subject, body)) & 0xFFFFFFFF}",

@@ -15,11 +15,11 @@ from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import connection, models, transaction
 from django.utils import timezone
-from pgvector.django import CosineDistance
-from pgvector.django import VectorField
+from pgvector.django import CosineDistance, VectorField
 
-from contracts.enums import PIILevel, TicketCategory
-from contracts.ticket import TicketIn
+from apps.tickets.utils.patterns import PIILevel
+from infrastructure.ai_engine import TicketCategory
+from apps.tickets.request_schema import TicketIn
 
 from apps.accounts.models import User
 from apps.audit.models import AuditLog

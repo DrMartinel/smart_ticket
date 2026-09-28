@@ -8,9 +8,7 @@ to every new account without any visible change.
 
 import pytest
 
-from contracts.enums import UserRole
-
-from apps.accounts.models import User
+from apps.accounts.models import User, UserRole
 
 
 @pytest.mark.django_db

@@ -15,7 +15,7 @@ from django.conf import settings
 from django.db import connection
 from django.utils import timezone
 
-from contracts.enums import PIILevel
+from apps.tickets.utils.patterns import PIILevel
 
 from apps.audit.models import AuditLog
 from apps.tickets.models import PiiQuarantine, Ticket

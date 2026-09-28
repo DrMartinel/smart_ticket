@@ -11,7 +11,7 @@ mass-incident condition.
 
 import pytest
 
-from contracts.enums import PIILevel
+from apps.tickets.utils.patterns import PIILevel
 
 from apps.tickets.models import Incident, Ticket, TicketEmbedding
 

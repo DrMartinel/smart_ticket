@@ -9,6 +9,8 @@ absent: `llm_self_confidence`. That's not an oversight — see ADR-0003.
 
 from __future__ import annotations
 
+from pydantic import BaseModel, Field
+
 import json
 import math
 from functools import lru_cache
@@ -17,7 +19,14 @@ from typing import TypedDict
 
 from django.conf import settings
 
-from contracts.trust import TrustScore, TrustSignals
+from infrastructure.ai_engine import TrustSignals
+
+
+class TrustScore(BaseModel):
+    value: float = Field(ge=0, le=1)
+    model_version: str  # e.g. "logreg-v2-2026-07"
+    contributions: dict[str, float] = Field(default_factory=dict)  # UI explainability
+
 
 FEATURES = [
     "rerank_top1",

@@ -1,5 +1,5 @@
-# Build context is the repo root (see infra/docker-compose.yml) because
-# this service depends on the sibling packages/contracts workspace member.
+# Build context is the repo root (see infra/docker-compose.yml) because the
+# uv workspace lockfile lives there.
 FROM python:3.13-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -16,7 +16,6 @@ WORKDIR /workspace
 # Manifests only, before the sources below: dependency resolution depends on
 # none of our code, so it gets its own layer and survives every source edit.
 COPY pyproject.toml uv.lock* /workspace/
-COPY packages/contracts/pyproject.toml /workspace/packages/contracts/
 COPY services/ai-engine/pyproject.toml /workspace/services/ai-engine/
 
 WORKDIR /workspace/services/ai-engine
@@ -27,7 +26,6 @@ ENV PATH="/workspace/services/ai-engine/.venv/bin:/workspace/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
 # Sources last: this is the layer that actually changes between builds.
-COPY packages/contracts /workspace/packages/contracts
 COPY services/ai-engine /workspace/services/ai-engine
 RUN uv sync --frozen --no-dev --package ai-engine || uv sync --no-dev --package ai-engine
 

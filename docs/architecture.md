@@ -56,22 +56,23 @@ The third is the strongest, and it is why splitting `ai-engine` into its own ser
 
 **ai-engine has no authority.** It returns `TrustSignals` plus a proposal and nothing else. It was split out for four reasons, in ascending order of importance: dependency isolation (LangChain/LangGraph churn badly), differing scale profiles (RAM for models vs. I/O for API), independent deploys (change a prompt without restarting the gateway), and — the one that actually justifies the cost — **structural permission separation**.
 
-**web is a thin client.** No business logic. Its TypeScript types are generated from the shared contracts, so a schema change that breaks the frontend fails at build rather than in production.
+**web is a thin client.** No business logic. Its TypeScript types are generated from core-api's schemas, so a schema change that breaks the frontend fails at build rather than in production.
 
 ---
 
-## 3. Shared contracts
+## 3. Contracts
 
-`packages/contracts` is the single source of schema truth. Both Python services import it; the frontend's types are generated from it. There is no second definition of these shapes anywhere.
+There is no shared schema package (ADR-0010). Each type is defined in the module that uses it, and the frontend's types are generated from core-api's. The ai-engine wire shapes exist once per service and must be changed in both.
 
-| Module | Contains |
-|---|---|
-| `enums.py` | `TicketCategory`, `PIILevel`, `Branch`, `ReasonCode`, `ReviewQueue`, `UserRole` |
-| `ticket.py` | `TicketIn` (`extra="forbid"`), `TicketMasked` (`frozen=True`) |
-| `llm_draft.py` | The proposal union: auto-reply / route / runbook / insufficient-context |
-| `trust.py` | `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `TrustScore` |
-| `routing.py` | `RoutingDecision`, `KBArticleMeta`, `Thresholds` |
-| `ai_request.py` | The core-api ↔ ai-engine wire contract |
+| Types | core-api | ai-engine |
+|---|---|---|
+| `TicketIn` (`extra="forbid"`) | `apps/tickets/request_schema.py` | — |
+| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `TrustSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory` | `infrastructure/ai_engine.py` | `core/state.py` |
+| `PIILevel` | `apps/tickets/utils/patterns.py` | `core/state.py` |
+| `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `RoutingDecision` | `apps/tickets/utils/router.py` | — |
+| `Thresholds` | `config/settings/base.py` | — |
+| `TrustScore` | `apps/tickets/utils/trust_scorer.py` | — |
+| `ReviewAction`, `Verdict` · `UserRole` | `apps/review/models.py` · `apps/accounts/models.py` | — |
 
 Two details worth understanding rather than just accepting:
 

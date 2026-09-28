@@ -46,10 +46,16 @@ usually cite the ADR or spec section that explains what breaks without it.
    enum, free text is invisible to it). Never toward "assume it's fine."
    `mask_failed` resolving toward "no PII found" is the single worst regression
    possible here.
-4. **`packages/contracts` is the only schema definition.** Change a shape there,
-   then regenerate TS types. Never hand-edit `services/web/lib/types/generated.ts`.
-   New fields on persisted contracts need a **default** so old rows still
-   deserialize.
+4. **No shared contracts package (ADR-0010).** Each schema is defined in the
+   module that uses it (the ADR has the table). The ai-engine wire shapes exist
+   in both services — core-api `infrastructure/ai_engine.py`, ai-engine
+   `core/state.py` — so change **both in the same PR**; until the cross-service
+   integration tests exist, nothing else catches drift. Never define routing or
+   scoring types (`Branch`, `ReasonCode`, `TrustScore`, …) in ai-engine, and
+   never put a type `router.py` needs in a Django `models.py`. After a core-api
+   schema change, regenerate TS types; never hand-edit
+   `services/web/lib/types/generated.ts`. New fields on persisted schemas need
+   a **default** so old rows still deserialize.
 5. **`proposed_` prefixes are load-bearing.** Don't strip them "for consistency."
    The asymmetry between `draft.proposed_category` and `ticket.category` is the point.
 6. **`llm_self_confidence` never enters the trust score or routing** (ADR-0003).
@@ -118,7 +124,7 @@ uv run --project services/ai-engine uvicorn ai_engine.main:app --app-dir service
 Regenerate frontend types after any contract change:
 
 ```bash
-uv run --package contracts python packages/contracts/scripts/gen_typescript.py
+uv run --package core-api python services/core-api/scripts/gen_typescript.py
 ```
 
 Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380**
@@ -135,7 +141,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Clients for ai-engine and the vLLM servers (transport only, never judgement) | [infrastructure/](services/core-api/infrastructure/) |
 | PII regex patterns | [patterns.py](services/core-api/apps/tickets/utils/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
-| Shared schemas (single source of truth) | [packages/contracts/](packages/contracts/src/contracts/) |
+| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals) | core-api [ai_engine.py](services/core-api/infrastructure/ai_engine.py) · ai-engine [state.py](services/ai-engine/src/ai_engine/core/state.py) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
 | Prompts (versioned, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
@@ -257,7 +263,7 @@ behavior. A green unit suite says nothing about whether the model got worse.
 - [ ] `uvx pyright@1.1.414` is clean
 - [ ] New behavior has a test; new *failure* paths do too
 - [ ] No new magic numbers — did it go in `thresholds.yaml`?
-- [ ] Contract change → types regenerated, new fields defaulted
+- [ ] Schema change → both services if it's on the ai-engine wire, types regenerated, new fields defaulted
 - [ ] New failure path → HITL with a specific `reason_code`
 - [ ] Prompt change → evals run, and you can explain any metric movement
 - [ ] Comments explain **why**, especially for anything that looks like removable indirection
@@ -275,5 +281,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (nine
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (ten
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

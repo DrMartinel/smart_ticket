@@ -16,11 +16,10 @@ import re
 
 from rapidfuzz import fuzz
 
-from contracts.llm_draft import AutoReplyProposal
+from ai_engine.core.state import AutoReplyProposal, TriageState
 
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode, StateUpdate
-from ai_engine.core.state import TriageState
 
 # A Vietnamese linguistic lexicon, not a tunable number — it belongs in code
 # for the same reason patterns.py holds the PII regexes.

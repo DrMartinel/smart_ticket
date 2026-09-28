@@ -8,7 +8,7 @@
 # Two tiers, because the offline and live-pipeline suites have genuinely
 # different infrastructure requirements:
 #
-#   1. ALWAYS runs, on every PR: contracts, masking, router (100% branch
+#   1. ALWAYS runs, on every PR: masking, router (100% branch
 #      coverage, no external deps) + the eval suites that are pure
 #      functions (injection regex, quote validator, graph routing edges).
 #      No GPU, no LLM, no network — this tier alone catches most
@@ -30,7 +30,6 @@ name: eval-gate
 on:
   pull_request:
     paths: &code_paths
-      - "packages/contracts/**"
       - "services/core-api/**"
       - "services/ai-engine/**"
       - "evals/**"

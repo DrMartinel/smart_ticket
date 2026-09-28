@@ -31,7 +31,7 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
   needs the user's explicit sign-off, and the commit says
   `Deliberately relaxes spec §X`. Update the ADR it touches. Keep any `ReasonCode`
   member it produced — persisted rows still deserialize it (`CIRCUIT_OPEN` is the
-  worked example in `contracts/enums.py`).
+  worked example in `router.py`).
 
 ### 4. Replace DI plumbing with module singletons — 55e853b
 

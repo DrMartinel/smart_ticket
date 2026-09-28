@@ -7,9 +7,8 @@ too strictly turns an empty dashboard into a 500.
 
 import pytest
 
-from contracts.enums import ReviewAction
+from apps.review.models import ReviewAction, ReviewDecision
 
-from apps.review.models import ReviewDecision
 from apps.review.tests.test_decide import review_item
 
 GROUPS = {

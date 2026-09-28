@@ -1,6 +1,6 @@
 ---
 name: ai-engine-review
-description: Review a branch or diff that touches services/ai-engine (and any packages/contracts or core-api glue it drags in) against this repo's safety invariants and house conventions — node contract, degrade-to-HITL failure paths, read-only DB boundary, ADR-0003/0004/0005, test conventions, and style. Produces a categorised report (Regression / Convention / Nit) with file:line links and suggested fixes; does not edit code unless asked. Use this whenever the user asks to review, check, audit or sanity-check ai-engine changes, asks "is this ready for a PR?", "did I break any conventions?", or has just finished an ai-engine feature.
+description: Review a branch or diff that touches services/ai-engine (and any core-api glue it drags in) against this repo's safety invariants and house conventions — node contract, degrade-to-HITL failure paths, read-only DB boundary, ADR-0003/0004/0005, test conventions, and style. Produces a categorised report (Regression / Convention / Nit) with file:line links and suggested fixes; does not edit code unless asked. Use this whenever the user asks to review, check, audit or sanity-check ai-engine changes, asks "is this ready for a PR?", "did I break any conventions?", or has just finished an ai-engine feature.
 argument-hint: "[base-ref, default: main]"
 ---
 
@@ -19,7 +19,7 @@ fine, and don't invent findings to fill the report.
 1. **Scope the diff.**
    ```bash
    git diff <base>...HEAD --stat
-   git diff <base>...HEAD -- services/ai-engine packages/contracts services/core-api/apps/tickets
+   git diff <base>...HEAD -- services/ai-engine services/core-api/infrastructure/ai_engine.py services/core-api/apps/tickets
    ```
    If there are uncommitted changes, include `git diff` and `git diff --staged` too,
    and say that you did.
@@ -38,7 +38,7 @@ fine, and don't invent findings to fill the report.
    uvx ruff@0.16.7 check . --exclude .venv
    uvx ruff@0.16.7 format --check . --exclude .venv
    ```
-   If the diff touches contracts or core-api, run the whole workspace with
+   If the diff touches the wire schema or core-api, run the whole workspace with
    `uv run pytest`. If it touches a prompt or retrieval, check whether eval results
    are mentioned. If they aren't, that is a finding.
 5. **Spot-check the key tests.** For any new safety test, reason about whether it

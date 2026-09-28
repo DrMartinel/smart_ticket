@@ -25,8 +25,8 @@ from dataclasses import dataclass
 import httpx
 from django.conf import settings
 
-from contracts.enums import PIILevel
-from contracts.ticket import TicketIn
+from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.request_schema import TicketIn
 
 from .patterns import ALL_GROUPS, LEVEL_BY_GROUP
 

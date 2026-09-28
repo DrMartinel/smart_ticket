@@ -116,7 +116,7 @@ Then add whichever of these apply:
   uv run --package ai-engine python -c \
     "from ai_engine.graph.build import triage_graph; print(triage_graph.get_graph().draw_mermaid())"
   ```
-- `packages/contracts` or core-api changed: also run the whole workspace with `uv run pytest`.
+- The wire schema or core-api changed: also run the whole workspace with `uv run pytest`.
 - A prompt or retrieval change: run `uv run pytest evals/suites -q` against a live
   stack. Live suites **skip** when ai-engine is down, so a skip is not a pass. Say
   which it was.
@@ -136,7 +136,7 @@ Go through `references/checklist.md`. Fix every **[regression]** item. Fix every
   `docs/graph-node-architecture.md` (§4.3) and `docs/architecture.md`. If you touch
   `docs/status.md`, update `docs/TODO.md` along with it.
 - Propose commits as small, single-concern `type(scope): summary`, for example
-  `feat(ai-engine): …`, `test(ai-engine): …`, `feat(contracts): …`, `feat(prompts): …`.
+  `feat(ai-engine): …`, `test(ai-engine): …`, `feat(prompts): …`.
   The body says why. A commit that relaxes a guardrail says so explicitly.
 - **Don't commit unless the user asks.**
 - Suggest running `/ai-engine-review` before opening the PR.

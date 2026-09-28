@@ -6,8 +6,8 @@ noticing. The eval gate is the test that catches it.
 
 Open these before writing: the current prompt in `core/prompts/` (the file
 `settings.prompt_version` points at), `core/prompts/__init__.py`, `core/config.py`,
-`packages/contracts/src/contracts/ai_request.py` and
-`packages/contracts/src/contracts/llm_draft.py`.
+and the wire schema in both services: `core/state.py` here and
+`services/core-api/infrastructure/ai_engine.py`.
 
 ## Steps
 
@@ -17,8 +17,9 @@ Open these before writing: the current prompt in `core/prompts/` (the file
 2. **Bump both version pointers** so they stay equal:
    - `prompt_version` in `services/ai-engine/src/ai_engine/core/config.py`, which is
      the prompt that **runs**;
-   - the `AIRunRequest.prompt_version` default in `packages/contracts/.../ai_request.py`,
-     which is what core-api sends.
+   - the `AIRunRequest.prompt_version` default, which is what core-api sends. It
+     is defined in both services (`core/state.py` and core-api's
+     `infrastructure/ai_engine.py`); change both.
 
    ⚠️ `main.py` reports `req.prompt_version` in the response, but `InferNode` loads
    `settings.prompt_version`. If the two differ, `ai_runs` records the wrong prompt.

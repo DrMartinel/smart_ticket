@@ -12,7 +12,8 @@ queue and dashboard. This is the regression test for that fix.
 import httpx
 import pytest
 
-from contracts.enums import Branch, PIILevel, ReasonCode
+from apps.tickets.utils.router import Branch, ReasonCode
+from apps.tickets.utils.patterns import PIILevel
 
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import process_ticket
@@ -68,7 +69,7 @@ def _llm_failed_response(reason: str, request_id: str):
     """What ai-engine returns when its chat LLM call failed: no proposal,
     and `reason` as the degraded_reason."""
 
-    from contracts.ai_request import AIRunResponse
+    from infrastructure.ai_engine import AIRunResponse
 
     from apps.tickets.utils.pipeline import _degraded_signals
 

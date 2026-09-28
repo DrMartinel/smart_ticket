@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from django.conf import settings
@@ -9,13 +11,28 @@ from django.db import models, transaction
 from django.db.models import QuerySet
 from django.utils import timezone
 
-from contracts.enums import ReviewAction, ReviewQueue, Verdict
+from apps.tickets.utils.router import ReviewQueue
 from apps.accounts.models import User
 from apps.kb.models import KbArticle
 from apps.tickets.models import AiRun, Ticket
 
 if TYPE_CHECKING:
     from django.db.models.manager import RelatedManager
+
+
+class ReviewAction(StrEnum):
+    APPROVE = "approve"
+    EDIT_AND_SEND = "edit_and_send"
+    REJECT = "reject"
+    REROUTE = "reroute"
+    ESCALATE = "escalate"
+
+
+class Verdict(StrEnum):
+    CORRECT = "correct"
+    WRONG = "wrong"
+    PARTIAL = "partial"
+    NOT_APPLICABLE = "not_applicable"
 
 
 class ReviewError(Exception):

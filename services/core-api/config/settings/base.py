@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from contracts.routing import Thresholds
+from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -157,6 +157,87 @@ PII_ENCRYPTION_KEY = os.environ.get(
 PII_QUARANTINE_TTL_HOURS = int(os.environ.get("PII_QUARANTINE_TTL_HOURS", "72"))
 AI_ENGINE_RO_PASSWORD = os.environ.get("POSTGRES_AI_RO_PASSWORD", "ai_engine_ro_password")
 DB_APP_ROLE = DATABASES["default"]["USER"]
+
+# The schema of thresholds.yaml (spec §8, §13). Parsed at boot, so a missing
+# or malformed file stops core-api starting instead of surfacing mid-routing.
+
+
+class RoutingThresholds(BaseModel):
+    t_auto: float = Field(ge=0, le=1)
+    t_route: float = Field(ge=0, le=1)
+    quote_match: float = Field(ge=0, le=1)
+
+
+class RetrievalThresholds(BaseModel):
+    floor: float = Field(ge=0, le=1)
+    margin: float = Field(ge=0, le=1)
+    bm25_top_k: int
+    vector_top_k: int
+    rrf_k: int
+    rerank_top_n: int
+
+
+class IncidentThresholds(BaseModel):
+    similarity: float = Field(ge=0, le=1)
+    window_minutes: int
+    min_count: int
+    sigma_multiplier: float
+
+
+class FewshotThresholds(BaseModel):
+    max_per_category: int
+    ttl_days: int
+    min_diversity: float
+    require_user_confirmed: bool
+
+
+class BudgetThresholds(BaseModel):
+    max_latency_sec: int
+    daily_cost_ceiling_usd: float
+
+
+class AlertThresholds(BaseModel):
+    reviewer_approve_rate_max: float
+    reviewer_median_time_min_sec: int
+    override_rate_delta_max: float
+    trust_score_drift_max: float
+    # No default, unlike new fields on other persisted schemas: Thresholds is
+    # only ever parsed from thresholds.yaml at boot (the `thresholds_used`
+    # snapshots are never read back into it), and a default here would be a
+    # tunable living outside that file.
+    trust_score_std_min: float
+
+
+class Thresholds(BaseModel):
+    """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
+    it's used — never imported as a global — so it can be varied in tests
+    and snapshotted verbatim into `routing_decisions.thresholds_used`."""
+
+    version: str
+    calibration_source: str
+    routing: RoutingThresholds
+    retrieval: RetrievalThresholds
+    incident: IncidentThresholds
+    fewshot: FewshotThresholds
+    budget: BudgetThresholds
+    alerts: AlertThresholds
+
+    @property
+    def retrieval_floor(self) -> float:
+        return self.retrieval.floor
+
+    @property
+    def t_auto(self) -> float:
+        return self.routing.t_auto
+
+    @property
+    def t_route(self) -> float:
+        return self.routing.t_route
+
+    @property
+    def quote_match(self) -> float:
+        return self.routing.quote_match
+
 
 THRESHOLDS_PATH = os.environ.get("THRESHOLDS_PATH", str(BASE_DIR / "config" / "thresholds.yaml"))
 

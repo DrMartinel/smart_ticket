@@ -9,7 +9,7 @@ Start here. The documents below are ordered — reading them in sequence takes a
 | 1 | [`onboarding.md`](onboarding.md) | Get it running, submit a ticket, watch it get triaged. Concrete before abstract. | 30 min |
 | 2 | [`glossary.md`](glossary.md) | The vocabulary. The original spec is in Vietnamese and the codebase is dense with domain terms — skipping this makes everything else harder than it needs to be. | 10 min |
 | 3 | [`architecture.md`](architecture.md) | How the pieces fit, who is allowed to do what, and the path a single ticket takes. | 20 min |
-| 4 | [`adr/`](adr/) | Nine decisions that shaped the system, each written to survive being re-litigated. Read 0001 and 0003 at minimum. | 15 min |
+| 4 | [`adr/`](adr/) | Ten decisions that shaped the system, each written to survive being re-litigated. Read 0001 and 0003 at minimum. | 15 min |
 | 5 | [`development.md`](development.md) | Conventions, how to make common changes, and the setup gotchas that will otherwise cost you an afternoon. | 15 min |
 
 Then keep these nearby:
@@ -34,7 +34,7 @@ If you remember nothing else, remember that split. Nearly every design decision 
 |---|---|---|
 | The routing decision | [`router.py`](../services/core-api/apps/tickets/utils/router.py) | Pure function. The only place a `Branch` is chosen. |
 | PII masking | [`masking.py`](../services/core-api/apps/tickets/utils/masking.py) | Runs inline before any DB write. 100% branch coverage is a release gate. |
-| Shared schemas | [`packages/contracts/`](../packages/contracts/) | Single source of truth. Both Python services import it; the frontend's types are generated from it. |
+| ai-engine wire schema | core-api [`ai_engine.py`](../services/core-api/infrastructure/ai_engine.py) · ai-engine [`state.py`](../services/ai-engine/src/ai_engine/core/state.py) | No shared package: each schema lives in the module that uses it (ADR-0010). The frontend's types are generated from core-api's. |
 | The AI pipeline | [`graph/triage.py`](../services/ai-engine/src/ai_engine/graph/triage.py) | The topology and the compiled graph; the generic `Edge`, `Graph` and LangGraph builder are in `core/build/`. Refuses before calling the LLM when retrieval is weak. |
 | Every tunable number | [`thresholds.yaml`](../services/core-api/config/thresholds.yaml) | No magic numbers anywhere else. |
 | Why a ticket is in the queue | [`TrustSignalsPanel.tsx`](../services/web/components/TrustSignalsPanel.tsx) | The reviewer-facing explanation. |

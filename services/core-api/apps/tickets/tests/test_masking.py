@@ -12,8 +12,8 @@ import httpx
 import pytest
 from asgiref.sync import async_to_sync
 
-from contracts.enums import PIILevel
-from contracts.ticket import TicketIn
+from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.request_schema import TicketIn
 
 from apps.tickets.utils.masking import (
     NERError,

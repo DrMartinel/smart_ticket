@@ -11,9 +11,7 @@ from typing import Concatenate
 from django.http import HttpRequest
 from ninja.errors import HttpError
 
-from contracts.enums import UserRole
-
-from apps.accounts.models import User
+from apps.accounts.models import User, UserRole
 
 
 class AuthedRequest(HttpRequest):

@@ -5,8 +5,13 @@ matter how the underlying model is recalibrated: llm_self_confidence is
 never part of the feature set.
 """
 
-from contracts.enums import PIILevel
-from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
+from apps.tickets.utils.patterns import PIILevel
+from infrastructure.ai_engine import (
+    GenerationSignals,
+    PolicySignals,
+    RetrievalSignals,
+    TrustSignals,
+)
 
 from apps.tickets.utils.trust_scorer import (
     FEATURES,

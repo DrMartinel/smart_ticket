@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import pytest
 from django.utils import timezone
 
-from contracts.enums import PIILevel
+from apps.tickets.utils.patterns import PIILevel
 
 from apps.fewshot.models import FewshotExample
 from apps.tickets.models import Ticket

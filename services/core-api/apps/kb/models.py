@@ -14,7 +14,8 @@ from django.db import models, transaction
 from django.utils import timezone
 from pgvector.django import VectorField
 
-from contracts.enums import RiskTier, TicketCategory
+from apps.tickets.utils.router import RiskTier
+from infrastructure.ai_engine import TicketCategory
 
 from apps.accounts.models import User
 from apps.kb.utils import chunk_body, rough_token_count
