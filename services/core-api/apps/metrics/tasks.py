@@ -16,7 +16,7 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 
-from apps.audit.services import audit
+from apps.audit.models import AuditLog
 from apps.review.models import ReviewDecision
 from apps.tickets.models import AiRun
 
@@ -77,7 +77,7 @@ def weekly_drift_check() -> dict[str, Any]:
                 }
             )
 
-    audit(
+    AuditLog.objects.record(
         "weekly_drift_check",
         actor_type="system",
         payload={"alerts": alerts, "checked_at": now.isoformat()},

@@ -14,7 +14,7 @@ from django.db import transaction
 from contracts.ticket import TicketIn
 
 from apps.accounts.models import User
-from apps.audit.services import audit
+from apps.audit.models import AuditLog
 from apps.tickets import tasks
 from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.utils.crypto import build_quarantine_entries
@@ -53,7 +53,7 @@ def ticket_submit(*, reporter: User, ticket_in: TicketIn, trace_id: str | None) 
                 for entry in quarantine_entries.values()
             ]
         )
-        audit(
+        AuditLog.objects.record(
             "ticket_submitted",
             actor_type="human",
             actor_id=reporter.id,

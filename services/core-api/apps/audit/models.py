@@ -8,9 +8,36 @@ convention).
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from django.db import models
+
+
+class AuditLogManager(models.Manager["AuditLog"]):
+    def record(
+        self,
+        event: str,
+        *,
+        actor_type: str,
+        actor_id: int | None = None,
+        ticket_id: int | None = None,
+        payload: dict[str, Any] | None = None,
+        trace_id: str | None = None,
+    ) -> AuditLog:
+        """The one way anything in core-api writes an audit trail entry.
+
+        Every span/log field the spec asks for (§11.2) — ticket_public_id,
+        prompt_version, graph_version, thresholds_version, shadow_mode —
+        should be present in `payload` for AI-related events.
+        """
+        return self.create(
+            ticket_id=ticket_id,
+            actor_type=actor_type,
+            actor_id=actor_id,
+            event=event,
+            payload=payload or {},
+            trace_id=trace_id,
+        )
 
 
 class AuditLog(models.Model):
@@ -23,6 +50,10 @@ class AuditLog(models.Model):
     payload: models.JSONField[dict[str, Any]] = models.JSONField(default=dict)
     trace_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
+
+    # django-types types Model.objects as BaseManager[Model], so any custom manager
+    # reads as an incompatible override.
+    objects: ClassVar[AuditLogManager] = AuditLogManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     class Meta:
         db_table = "audit_log"

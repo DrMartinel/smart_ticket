@@ -28,7 +28,7 @@ This currently **fails safe** (nobody can read raw PII at all, which is stricter
 2. RBAC: `security` role, and/or a technician who has claimed the related `pii_verify` review item. Gate the endpoint with `@require_role(...)` from `common/permissions.py`; `auto_reply_allowed` makes its manager-only check in `apps/kb/services.py`, which no router enforces yet.
 3. Write the `PiiAccessLog` row in the **same transaction** as the decrypt — a successful read must be structurally incapable of happening without its log line.
 4. Reject reads past `expires_at`.
-5. Consider an `audit()` event as well (`apps/audit/services.py`) for the business-level trail.
+5. Consider an audit event as well (`AuditLog.objects.record()` in `apps/audit/models.py`) for the business-level trail.
 
 ### Done when
 

@@ -17,7 +17,7 @@ from __future__ import annotations
 from celery import Task, shared_task
 from django.utils import timezone
 
-from apps.audit.services import audit
+from apps.audit.models import AuditLog
 from apps.fewshot.services import retract_for_reopened_ticket
 from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.utils.pipeline import TaskResult, ticket_process
@@ -38,7 +38,7 @@ def reopen_ticket(ticket_id: int) -> None:
     ticket.status = "reopened"
     ticket.save(update_fields=["reopened_count", "status"])
     retract_for_reopened_ticket(ticket)
-    audit(
+    AuditLog.objects.record(
         "ticket_reopened",
         actor_type="human",
         ticket_id=ticket.id,
@@ -54,5 +54,7 @@ def expire_pii_quarantine() -> int:
     count = expired.count()
     expired.delete()
     if count:
-        audit("pii_quarantine_expired", actor_type="system", payload={"count": count})
+        AuditLog.objects.record(
+            "pii_quarantine_expired", actor_type="system", payload={"count": count}
+        )
     return count

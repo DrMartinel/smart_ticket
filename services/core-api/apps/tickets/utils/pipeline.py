@@ -31,7 +31,7 @@ from contracts.routing import RoutingDecision as Decision
 from contracts.ticket import TicketMasked
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
-from apps.audit.services import audit
+from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
 from apps.tickets.models import AiRun, RoutingDecision, Ticket
@@ -141,7 +141,7 @@ def _finalize(
             shadow_mode=shadow,
         )
 
-        audit(
+        AuditLog.objects.record(
             "routing_decided",
             actor_type="system",
             ticket_id=ticket.id,
@@ -156,7 +156,7 @@ def _finalize(
         )
 
         if decision.alert_security:
-            audit(
+            AuditLog.objects.record(
                 "security_alert",
                 actor_type="system",
                 ticket_id=ticket.id,
