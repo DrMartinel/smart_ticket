@@ -13,20 +13,111 @@ that can skip it (ADR-0006).
 
 from __future__ import annotations
 
-from typing import Any
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
-from contracts.enums import Branch, PIILevel, ReasonCode, ReviewQueue
-from contracts.llm_draft import (
+from pydantic import BaseModel
+
+from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.utils.trust_scorer import score as compute_trust
+from infrastructure.ai_engine import (
     AutoReplyProposal,
     InsufficientContext,
     LLMProposalEnvelope,
     RouteProposal,
     RunbookProposal,
+    TicketCategory,
+    TrustSignals,
 )
-from contracts.routing import KBArticleMeta, RoutingDecision, Thresholds
-from contracts.trust import TrustSignals
 
-from apps.tickets.utils.trust_scorer import score as compute_trust
+if TYPE_CHECKING:
+    # Type only: thresholds always arrive as a parameter, never read from
+    # settings here (rule 1). Importing the settings module at runtime would
+    # also be an import cycle, since settings loads before the apps.
+    from config.settings.base import Thresholds
+
+
+# --- The router's input and output types (spec §4.1, §8, §13) ------------
+#
+# Plain Pydantic and enums, no Django models, so router tests need no database.
+# `ReasonCode` is a closed enum, never free text: that is what lets the
+# dashboard answer "which reason sent the most tickets to HITL this week"
+# with a GROUP BY instead of NLP over log lines.
+
+
+class Branch(StrEnum):
+    AUTO_REPLY = "auto_reply"
+    AUTO_ROUTE = "auto_route"
+    HITL = "hitl"
+    BLOCK = "block"
+    ESCALATE = "escalate"
+
+
+class ReasonCode(StrEnum):
+    # hard gates
+    INJECTION_DETECTED = "injection_detected"
+    PII_CRITICAL = "pii_critical"
+    PII_MASK_FAILED = "pii_mask_failed"
+    SCHEMA_INVALID = "schema_invalid"
+    MASS_INCIDENT = "mass_incident"
+    RETRIEVAL_FLOOR = "retrieval_below_floor"
+    # trust-based
+    KB_NOT_AUTHORIZED = "kb_not_authorized"
+    QUOTE_INVALID = "quote_invalid"
+    QUOTE_SOURCE_MISMATCH = "quote_source_not_in_topk"
+    NEGATION_MISMATCH = "negation_mismatch"
+    TRUST_BELOW_AUTO = "trust_below_auto_threshold"
+    TRUST_BELOW_ROUTE = "trust_below_route_threshold"
+    CATEGORY_INCONSISTENT = "category_inconsistent"
+    # degraded
+    AI_ENGINE_UNAVAILABLE = "ai_engine_unavailable"
+    EMBEDDING_UNAVAILABLE = "embedding_unavailable"
+    BUDGET_EXCEEDED = "budget_exceeded"
+    ALL_LLM_DOWN = "all_llm_down"  # the chat LLM call failed, for any reason
+    # No longer produced — the circuit breaker was removed. Kept so review
+    # items persisted before that still deserialize.
+    CIRCUIT_OPEN = "circuit_open"
+    # ok
+    ALL_CHECKS_PASSED = "all_checks_passed"
+
+
+class ReviewQueue(StrEnum):
+    PII_VERIFY = "pii_verify"
+    LOW_CONFIDENCE = "low_confidence"
+    INJECTION = "injection"
+    MASK_FAILED = "mask_failed"
+    RUNBOOK_APPROVAL = "runbook_approval"
+
+
+class RiskTier(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+
+class KBArticleMeta(BaseModel):
+    """The slice of a KB article the router needs. Authority lives here,
+    not in anything the LLM says (ADR-0002)."""
+
+    id: int
+    slug: str
+    category: TicketCategory
+    auto_reply_allowed: bool
+    risk_tier: RiskTier
+
+
+class RoutingDecision(BaseModel):
+    branch: Branch
+    reason_code: ReasonCode
+    reason_detail: str = ""
+    gate_failed: str | None = None
+    trust: float | None = None
+    category: TicketCategory | None = None
+    kb_slug: str | None = None
+    queue: ReviewQueue | None = None
+    priority: int = 3
+    draft_payload: dict[str, Any] | None = None
+    alert_security: bool = False
 
 
 def _block(

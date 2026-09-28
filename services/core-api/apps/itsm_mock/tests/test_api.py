@@ -7,7 +7,7 @@ caller as a 422, not a 500.
 
 import pytest
 
-from contracts.enums import ReviewAction
+from apps.review.models import ReviewAction
 
 from apps.itsm_mock.models import RUNBOOK_REGISTRY
 from apps.itsm_mock.tests.test_execute_runbook import record_decision, runbook_item

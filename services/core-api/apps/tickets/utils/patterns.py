@@ -8,9 +8,20 @@ the whole pipeline (spec §5.2 — "critical phải bị chặn trước khi b�
 gì được gọi").
 """
 
+from enum import StrEnum
+
 import re
 
-from contracts.enums import PIILevel
+
+# The PII level masking assigns to a ticket (spec §4.1). Decided here, by
+# the patterns below and the NER tier in masking.py; everything downstream
+# only reads it.
+class PIILevel(StrEnum):
+    ROUTINE = "routine"  # name, internal email, employee code → proceeds
+    SENSITIVE = "sensitive"  # national ID, bank account, health → proceeds, flagged
+    CRITICAL = "critical"  # password / token / API key → BLOCK
+    MASK_FAILED = "mask_failed"  # masker errored / uncertain → HITL
+
 
 # label -> (compiled pattern, PIILevel)
 CRITICAL_PATTERNS: dict[str, re.Pattern[str]] = {

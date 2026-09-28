@@ -7,7 +7,7 @@ cannot be opened. The submit response is pinned in test_submit_ticket.py.
 
 import pytest
 
-from contracts.enums import PIILevel
+from apps.tickets.utils.patterns import PIILevel
 
 from apps.tickets.models import Ticket
 

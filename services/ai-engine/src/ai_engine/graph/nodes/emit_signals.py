@@ -6,12 +6,13 @@ writes to a database, only reads best-effort for the log-only `policy` fields.
 
 from __future__ import annotations
 
-from ai_engine.contracts.enums import PIILevel
-from ai_engine.contracts.llm_draft import AutoReplyProposal
-from ai_engine.contracts.trust import (
+from ai_engine.core.state import (
+    AutoReplyProposal,
     GenerationSignals,
+    PIILevel,
     PolicySignals,
     RetrievalSignals,
+    TriageState,
     TrustSignals,
 )
 
@@ -20,7 +21,6 @@ from sqlalchemy import select
 from ai_engine.core.db.tables import KbArticle
 from ai_engine.core.node import BaseNode, StateUpdate
 from ai_engine.core.db.client import db
-from ai_engine.core.state import TriageState
 
 # Deny-by-default when the policy lookup can't answer. NOT a constructor
 # parameter and NOT a Settings field: "degrade toward humans" means there

@@ -15,15 +15,23 @@ that moves a failure path is more significant here than a new feature.
 
 ### Added
 
-- **Each service owns its contracts; `packages/contracts` is removed**
-  (ADR-0010). core-api's full copy is `services/core-api/contracts/` (imports
-  unchanged); ai-engine keeps only the wire types in `ai_engine/contracts/`,
-  without `Branch`, `ReasonCode`, `RoutingDecision`, `Thresholds` or
-  `TrustScore`. The TS generator moved to
-  `services/core-api/scripts/gen_typescript.py`. New offline eval suite
-  `test_contract_parity.py` compares the JSON schemas of the two copies'
-  wire types and fails on drift. No behaviour change: the wire JSON is
-  identical.
+- **`packages/contracts` is removed; each schema lives in the module that
+  uses it** (ADR-0010 has the table). core-api: the ai-engine wire shapes in
+  `infrastructure/ai_engine.py`, the router's types in `router.py`,
+  `Thresholds` in `config/settings/base.py`, `TicketIn` in
+  `tickets/request_schema.py`. ai-engine: the wire shapes in `core/state.py`,
+  without `Branch`, `ReasonCode`, `RoutingDecision` or `TrustScore`. The TS
+  generator moved to `services/core-api/scripts/gen_typescript.py`;
+  `generated.ts` is unchanged. The wire JSON is unchanged. Cross-service
+  drift will be caught by integration tests, which don't exist yet.
+
+### Changed
+
+- **Invalid ticket submissions are rejected by Ninja's body validation.**
+  `TicketIn` replaces `TicketSubmitIn` as the submit endpoint's body, so the
+  length and `extra="forbid"` checks run during binding. Still a 422 before
+  masking, but the body is now Ninja's `{"detail": [...]}` rather than a
+  JSON-encoded string under `detail`. The web client shows either.
 
 - **Pyright in CI, strict mode, scoped to ai-engine.** A pinned `pyright` job
   in `lint.yml` and a step in `publish-images.yml`'s `verify`; config in root

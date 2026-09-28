@@ -14,7 +14,7 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from contracts.enums import PIILevel
+from apps.tickets.utils.patterns import PIILevel
 
 from apps.fewshot.models import FewshotError, FewshotExample
 from apps.fewshot.tasks import expire_fewshot_examples

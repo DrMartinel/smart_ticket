@@ -24,12 +24,14 @@ Format: **what** — why it exists — *what guards it*.
 - **`thresholds.yaml` parsed into a Pydantic model at boot.** A malformed file must
   stop core-api starting, not surface at routing time. *CLAUDE.md Gotchas.*
 - **No cross-service imports.** ai-engine and core-api never import each other's
-  code, contracts included: each holds its own copy. *ADR-0004, ADR-0010.*
-- **The two `contracts/` copies.** They look like duplication to dedupe. They are
-  one per deployable on purpose; `test_contract_parity.py` keeps the wire types
-  equal. *ADR-0010.*
+  code, schemas included. *ADR-0004, ADR-0010.*
+- **The wire schema defined in both services.** It looks like duplication to
+  dedupe into a shared module. It is one per deployable on purpose. *ADR-0010.*
+- **Router types outside `models.py`.** `Branch`, `ReviewQueue`, `RiskTier` sit in
+  `router.py`, not beside the models that store them, so the router never imports
+  the ORM. *CLAUDE.md rule 1.*
 - **Old `ReasonCode` members** (`CIRCUIT_OPEN`). Persisted review items still
-  deserialize them. *Comment in `contracts/enums.py`.*
+  deserialize them. *Comment on `ReasonCode` in `router.py`.*
 - **Defaults on persisted contract fields** (`GenerationSignals.quote_applicable = True`).
   Rows written before the field existed must still load. *CLAUDE.md rule 4.*
 - **`services/web/lib/types/generated.ts`.** It is generated, so never hand-edit it.

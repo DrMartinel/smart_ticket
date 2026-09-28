@@ -23,13 +23,27 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from contracts.ai_request import AIRunResponse
-from contracts.enums import Branch, PIILevel, ReasonCode, ReviewQueue, RiskTier, TicketCategory
-from contracts.llm_draft import LLMProposalEnvelope
-from contracts.routing import KBArticleMeta
-from contracts.routing import RoutingDecision as Decision
-from contracts.ticket import TicketMasked
-from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
+from infrastructure.ai_engine import (
+    AIEngineUnavailable,
+    AIRunResponse,
+    GenerationSignals,
+    LLMProposalEnvelope,
+    PolicySignals,
+    RetrievalSignals,
+    TicketCategory,
+    TicketMasked,
+    TrustSignals,
+    analyze,
+)
+from apps.tickets.utils.router import (
+    Branch,
+    KBArticleMeta,
+    ReasonCode,
+    ReviewQueue,
+    RiskTier,
+    RoutingDecision as Decision,
+)
+from apps.tickets.utils.patterns import PIILevel
 
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
@@ -37,7 +51,6 @@ from apps.review.models import ReviewItem
 from apps.tickets.models import AiRun, RoutingDecision, Ticket
 from apps.tickets.utils import router as router_service
 from apps.tickets.utils.trust_scorer import score as compute_trust
-from infrastructure.ai_engine import AIEngineUnavailable, analyze
 from infrastructure.embeddings import embed_text
 
 logger = logging.getLogger(__name__)

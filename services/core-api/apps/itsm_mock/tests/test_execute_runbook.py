@@ -12,10 +12,11 @@ runbook simply runs.
 
 import pytest
 
-from contracts.enums import PIILevel, ReviewAction, ReviewQueue
+from apps.tickets.utils.patterns import PIILevel
+from apps.review.models import ReviewAction, ReviewDecision, ReviewItem
+from apps.tickets.utils.router import ReviewQueue
 
 from apps.itsm_mock.models import RunbookError, RunbookExecution
-from apps.review.models import ReviewDecision, ReviewItem
 from apps.tickets.models import AiRun, Ticket
 
 RESET_PASSWORD = {

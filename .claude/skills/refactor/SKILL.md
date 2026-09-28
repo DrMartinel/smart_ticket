@@ -126,9 +126,9 @@ After the last move:
 - `grep -rn` the old names across `docs/`, `CLAUDE.md`, `.claude/skills/`, and
   `infra/` for any env var. Update what describes the code you changed. A doc update
   belongs in the same commit as the change it describes.
-- If core-api's `contracts/` changed, run
+- If a core-api schema the web uses changed, run
   `uv run --package core-api python services/core-api/scripts/gen_typescript.py`.
-  If a wire type changed, make the same change in ai-engine's copy.
+  If an ai-engine wire shape changed, make the same change in the other service.
 - If a move set a new precedent, offer to add it to `references/moves.md`.
 - Run the full check: `uv run pytest` plus pyright plus ruff. Report the result
   honestly, including anything still failing.

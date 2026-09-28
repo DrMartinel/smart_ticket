@@ -8,7 +8,7 @@
 # Two tiers, because the offline and live-pipeline suites have genuinely
 # different infrastructure requirements:
 #
-#   1. ALWAYS runs, on every PR: contracts, masking, router (100% branch
+#   1. ALWAYS runs, on every PR: masking, router (100% branch
 #      coverage, no external deps) + the eval suites that are pure
 #      functions (injection regex, quote validator, graph routing edges).
 #      No GPU, no LLM, no network — this tier alone catches most
@@ -86,12 +86,11 @@ jobs:
       # Graph-structure tests live in services/ai-engine/tests/test_build.py and
       # run in the ai-engine step above — this step previously also listed
       # evals/suites/test_build.py, which does not exist, so pytest exited 4.
-      - name: Offline eval suites (injection recall, quote validation, contract parity)
+      - name: Offline eval suites (injection recall, quote validation)
         run: |
           uv run --package evals pytest \
             evals/suites/test_injection.py \
             evals/suites/test_quote_validation.py \
-            evals/suites/test_contract_parity.py \
             -q
 
       - name: Report (offline metrics only)

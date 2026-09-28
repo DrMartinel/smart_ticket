@@ -30,7 +30,7 @@ Every module reads top-down in the same order:
      is decided, and which score thresholds may compare against.
 2. `from __future__ import annotations`
 3. **Imports in three groups**, blank line between:
-   stdlib + third-party → `contracts.*` → first-party (`apps.*` or `ai_engine.*`).
+   stdlib → third-party → first-party (`apps.*`, `config.*`, `infrastructure.*` or `ai_engine.*`).
    See `services/ai-engine/src/ai_engine/graph/nodes/infer.py`,
    `services/core-api/apps/tickets/utils/pipeline.py`.
 4. Module constants, then private helpers (`_name`), then the public class/functions.
@@ -180,7 +180,7 @@ something, splitting the decision out is usually the best refactor available.
 |---|---|---|
 | ai-engine | `core/` (settings, state, node base, providers, retrieval, db, prompts) · `graph/` (build + nodes) · `main.py` | `core/` never imports `graph/`. No writes, ever (ADR-0004). Details: `.claude/skills/ai-engine-feature/references/ai-engine-conventions.md` |
 | core-api | `apps/<app>/{views.py, request_schema.py, response_schema.py, models.py, utils.py or utils/, tasks.py, tests/}` · `common/` · `infrastructure/` · `config/settings/{base,development,production,test}.py` | `views.py` is thin (bind, validate, call a model method, manager method or util). Request bodies go in `request_schema.py`; every handler declares `response=` with an output Schema from `response_schema.py` (aliases for renamed fields, `resolve_<field>` for computed ones) and returns models, never hand-built dicts. `common/` holds only what several apps share. Fat models: a write, decision or query that belongs to one entity is a method on it or its manager (`article.set_auto_reply_allowed`, `Ticket.objects.submit`, `ReviewItem.objects.for_queue`); logic that is no single model's behaviour goes in `utils` (pure decisions, text processing, the pipeline, cross-model aggregations like the metrics dashboard). `tasks.py` is only Celery entry points, because task names are module paths. `infrastructure/` is transport to other processes, never judgement. `router.py` is the only `Branch` chooser. `db_table` names mirror `infra/migrations/sql/`. |
-| contracts | `services/core-api/contracts/*.py`, `services/ai-engine/src/ai_engine/contracts/*.py` | One copy per service; wire types identical in both (parity suite). New persisted fields get a default. Regenerate TS after any change; never hand-edit `generated.ts`. |
+| wire schema | `services/core-api/infrastructure/ai_engine.py`, `services/ai-engine/src/ai_engine/core/state.py` | Defined once per service, kept identical by hand (ADR-0010). New persisted fields get a default. Regenerate TS after any change; never hand-edit `generated.ts`. |
 | evals | `evals/suites`, `evals/golden`, `evals/baselines` | Never lower a floor, average per-category F1, or drop a category. |
 
 ## 12. Tests

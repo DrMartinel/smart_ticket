@@ -6,7 +6,7 @@
 # that let the system run from day one; they are meant to be replaced by
 # the §7.1 shadow-mode calibration output, not treated as ground truth.
 #
-# This file is loaded into `contracts.routing.Thresholds` at boot — a
+# This file is loaded into `config.settings.base.Thresholds` at boot — a
 # malformed file fails fast at startup, not mid-request. Whatever version
 # is active is snapshotted verbatim into `routing_decisions.thresholds_used`
 # so a decision made months ago can always be explained with the numbers

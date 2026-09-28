@@ -16,21 +16,20 @@ from typing import Any
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from ai_engine.contracts.enums import PIILevel
-from ai_engine.contracts.ticket import TicketMasked
+from ai_engine.core.state import PIILevel, TicketMasked, TriageState
 
-from ai_engine.core.providers import embeddings
-from ai_engine.core.providers import reranker as reranker_module
+from ai_engine.core.providers import embeddings, reranker as reranker_module
 from ai_engine.core.providers.llm import models
 from ai_engine.core.providers.llm.models import LLMClient
 from ai_engine.core.providers.embeddings import Embedder
 from ai_engine.core.providers.reranker import Reranker
 from ai_engine.core.retrieval.fusion import Candidate
-from ai_engine.core.state import TriageState
-from ai_engine.graph.nodes import emit_signals as emit_signals_node
-from ai_engine.graph.nodes import fewshot as fewshot_node
-from ai_engine.graph.nodes import rerank as rerank_node
-from ai_engine.graph.nodes import retrieve as retrieve_node
+from ai_engine.graph.nodes import (
+    emit_signals as emit_signals_node,
+    fewshot as fewshot_node,
+    rerank as rerank_node,
+    retrieve as retrieve_node,
+)
 
 
 def _reloader(module):

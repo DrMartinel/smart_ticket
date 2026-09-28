@@ -9,7 +9,7 @@ from typing import Any
 
 from ninja import Field, Schema
 
-from contracts.trust import TrustSignals
+from infrastructure.ai_engine import TrustSignals
 
 from apps.review.models import ReviewItem
 from apps.tickets.models import RoutingDecision

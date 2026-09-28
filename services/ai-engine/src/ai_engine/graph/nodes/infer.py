@@ -13,14 +13,13 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from ai_engine.contracts.llm_draft import LLMProposalEnvelope
+from ai_engine.core.state import LLMProposalEnvelope, RankedChunk, TriageState
 
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode, StateUpdate
 from ai_engine.core.providers.llm import models
 from ai_engine.core.providers.llm.models import AllLLMDownError
 from ai_engine.core.prompts import load_system_prompt
-from ai_engine.core.state import RankedChunk, TriageState
 
 logger = logging.getLogger(__name__)
 

@@ -8,9 +8,10 @@ data with no teachable case, and it would still close the item.
 
 import pytest
 
-from contracts.enums import PIILevel, ReviewAction, ReviewQueue
+from apps.tickets.utils.patterns import PIILevel
+from apps.review.models import EvalCandidate, ReviewAction, ReviewDecision, ReviewError, ReviewItem
+from apps.tickets.utils.router import ReviewQueue
 
-from apps.review.models import EvalCandidate, ReviewDecision, ReviewError, ReviewItem
 from apps.tickets.models import AiRun, Ticket
 
 AI_DRAFT = {"proposed_intent": "auto_reply", "proposed_category": "network"}

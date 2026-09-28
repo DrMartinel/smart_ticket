@@ -11,10 +11,9 @@ import time
 
 from fastapi import FastAPI
 
-from ai_engine.contracts.ai_request import AIRunRequest, AIRunResponse
+from ai_engine.core.state import AIRunRequest, AIRunResponse, TriageState
 
 from ai_engine.core.config import settings
-from ai_engine.core.state import TriageState
 from ai_engine.graph.triage import triage_graph
 
 logging.basicConfig(level=logging.INFO)

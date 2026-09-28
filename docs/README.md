@@ -34,7 +34,7 @@ If you remember nothing else, remember that split. Nearly every design decision 
 |---|---|---|
 | The routing decision | [`router.py`](../services/core-api/apps/tickets/utils/router.py) | Pure function. The only place a `Branch` is chosen. |
 | PII masking | [`masking.py`](../services/core-api/apps/tickets/utils/masking.py) | Runs inline before any DB write. 100% branch coverage is a release gate. |
-| Schemas | [`core-api/contracts/`](../services/core-api/contracts/) · [`ai_engine/contracts/`](../services/ai-engine/src/ai_engine/contracts/) | One copy per service (ADR-0010). The wire types are checked for parity in `evals/suites/test_contract_parity.py`; the frontend's types are generated from core-api's copy. |
+| ai-engine wire schema | core-api [`ai_engine.py`](../services/core-api/infrastructure/ai_engine.py) · ai-engine [`state.py`](../services/ai-engine/src/ai_engine/core/state.py) | No shared package: each schema lives in the module that uses it (ADR-0010). The frontend's types are generated from core-api's. |
 | The AI pipeline | [`graph/triage.py`](../services/ai-engine/src/ai_engine/graph/triage.py) | The topology and the compiled graph; the generic `Edge`, `Graph` and LangGraph builder are in `core/build/`. Refuses before calling the LLM when retrieval is weak. |
 | Every tunable number | [`thresholds.yaml`](../services/core-api/config/thresholds.yaml) | No magic numbers anywhere else. |
 | Why a ticket is in the queue | [`TrustSignalsPanel.tsx`](../services/web/components/TrustSignalsPanel.tsx) | The reviewer-facing explanation. |

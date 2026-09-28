@@ -1,6 +1,5 @@
 # Build context is the repo root (see infra/docker-compose.yml) because the
-# uv workspace lockfile lives there. The schema contracts are this service's
-# own (src/ai_engine/contracts, ADR-0010), not a sibling package.
+# uv workspace lockfile lives there.
 FROM python:3.13-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

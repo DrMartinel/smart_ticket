@@ -13,7 +13,7 @@ and never override them.
 |---|---|---|---|
 | **`/ai-engine-feature`** | build or change anything in `services/ai-engine`: a node, provider, state field, signal, retrieval change, prompt bump, or setting | `/ai-engine-feature add a node that flags duplicate-ticket language before retrieval` | a plan for you to approve, then the implementation, tests, verification and docs |
 | **`/ai-engine-review`** | check a branch before you open a PR | `/ai-engine-review` (base defaults to `main`) or `/ai-engine-review HEAD~3` | a report sorted into Regression / Convention / Nit, with `file:line` links and fixes. It doesn't edit anything |
-| **`/refactor`** | clean up Python in any service (ai-engine, core-api, contracts, evals) without changing what it does | `/refactor services/core-api/apps/tickets/utils/pipeline.py` | an audit table of proposed moves. You pick the ones you want, and they're applied one at a time |
+| **`/refactor`** | clean up Python in any service (ai-engine, core-api, evals) without changing what it does | `/refactor services/core-api/apps/tickets/utils/pipeline.py` | an audit table of proposed moves. You pick the ones you want, and they're applied one at a time |
 
 ## How to invoke
 

@@ -46,16 +46,16 @@ usually cite the ADR or spec section that explains what breaks without it.
    enum, free text is invisible to it). Never toward "assume it's fine."
    `mask_failed` resolving toward "no PII found" is the single worst regression
    possible here.
-4. **Each service owns its contracts (ADR-0010).** core-api's full set is in
-   `services/core-api/contracts/`; ai-engine keeps a trimmed copy of the wire
-   types in `services/ai-engine/src/ai_engine/contracts/`. A change to a wire
-   type (`AIRunRequest`, `AIRunResponse` or anything nested in them) goes into
-   **both copies in the same PR** — `evals/suites/test_contract_parity.py`
-   fails on drift. Don't add routing or scoring types (`Branch`, `ReasonCode`,
-   `TrustScore`, …) to ai-engine's copy. After a core-api contract change,
-   regenerate TS types; never hand-edit `services/web/lib/types/generated.ts`.
-   New fields on persisted contracts need a **default** so old rows still
-   deserialize.
+4. **No shared contracts package (ADR-0010).** Each schema is defined in the
+   module that uses it (the ADR has the table). The ai-engine wire shapes exist
+   in both services — core-api `infrastructure/ai_engine.py`, ai-engine
+   `core/state.py` — so change **both in the same PR**; until the cross-service
+   integration tests exist, nothing else catches drift. Never define routing or
+   scoring types (`Branch`, `ReasonCode`, `TrustScore`, …) in ai-engine, and
+   never put a type `router.py` needs in a Django `models.py`. After a core-api
+   schema change, regenerate TS types; never hand-edit
+   `services/web/lib/types/generated.ts`. New fields on persisted schemas need
+   a **default** so old rows still deserialize.
 5. **`proposed_` prefixes are load-bearing.** Don't strip them "for consistency."
    The asymmetry between `draft.proposed_category` and `ticket.category` is the point.
 6. **`llm_self_confidence` never enters the trust score or routing** (ADR-0003).
@@ -141,7 +141,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Clients for ai-engine and the vLLM servers (transport only, never judgement) | [infrastructure/](services/core-api/infrastructure/) |
 | PII regex patterns | [patterns.py](services/core-api/apps/tickets/utils/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
-| Schemas (one copy per service, wire types checked for parity) | [core-api/contracts/](services/core-api/contracts/) · [ai_engine/contracts/](services/ai-engine/src/ai_engine/contracts/) |
+| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals) | core-api [ai_engine.py](services/core-api/infrastructure/ai_engine.py) · ai-engine [state.py](services/ai-engine/src/ai_engine/core/state.py) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
 | Prompts (versioned, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
@@ -234,7 +234,6 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
-| `test_contract_parity` fails | A wire type was changed in one service's `contracts/` but not the other. Make the same change in both |
 | pyright: custom manager "overrides symbol of same name in class Model" | django-types types `Model.objects` as `BaseManager[Model]`. Annotate `objects: ClassVar[XManager] = XManager()` with `# pyright: ignore[reportIncompatibleVariableOverride]`, as the existing models do |
 | pyright strict errors in a new core-api test file | Tests sit under strict source paths (`apps/`, `common/`, `infrastructure/`); start the file with `# pyright: standard`, as the others do |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
@@ -264,7 +263,7 @@ behavior. A green unit suite says nothing about whether the model got worse.
 - [ ] `uvx pyright@1.1.414` is clean
 - [ ] New behavior has a test; new *failure* paths do too
 - [ ] No new magic numbers — did it go in `thresholds.yaml`?
-- [ ] Contract change → both copies if it's a wire type, types regenerated, new fields defaulted
+- [ ] Schema change → both services if it's on the ai-engine wire, types regenerated, new fields defaulted
 - [ ] New failure path → HITL with a specific `reason_code`
 - [ ] Prompt change → evals run, and you can explain any metric movement
 - [ ] Comments explain **why**, especially for anything that looks like removable indirection

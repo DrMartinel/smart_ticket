@@ -53,9 +53,9 @@ No I/O, no imports of global config, thresholds passed in. This is what makes ev
 
 If you need data to make a routing decision, fetch it *before* the call and pass it in.
 
-### 4. Each service owns its contracts
+### 4. Schemas live where they are used
 
-core-api's schemas are in `services/core-api/contracts/`; ai-engine keeps a trimmed copy of the wire types in `services/ai-engine/src/ai_engine/contracts/` (ADR-0010). A change to `AIRunRequest`, `AIRunResponse` or anything nested in them goes into **both** copies in the same PR — `evals/suites/test_contract_parity.py` fails otherwise. After a core-api contract change, regenerate the frontend types:
+There is no shared contracts package (ADR-0010). A schema is defined in the module that uses it; `docs/architecture.md` §3 has the table. The ai-engine wire shapes (`AIRunRequest`, `AIRunResponse` and everything in them) exist in both services — core-api `infrastructure/ai_engine.py`, ai-engine `core/state.py` — so change **both** in the same PR. After a core-api schema change, regenerate the frontend types:
 
 ```bash
 uv run --package core-api python services/core-api/scripts/gen_typescript.py
@@ -63,7 +63,7 @@ uv run --package core-api python services/core-api/scripts/gen_typescript.py
 
 Never hand-edit `services/web/lib/types/generated.ts`.
 
-Adding a field to a persisted contract? Give it a **default**, so rows written before the change still deserialize. `GenerationSignals.quote_applicable` is the worked example.
+Adding a field to a persisted schema? Give it a **default**, so rows written before the change still deserialize. `GenerationSignals.quote_applicable` is the worked example.
 
 ### 5. Degrade toward humans
 

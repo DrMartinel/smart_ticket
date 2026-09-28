@@ -5,16 +5,18 @@ Request bodies for the tickets endpoints.
 from __future__ import annotations
 
 from ninja import Schema
+from pydantic import ConfigDict, Field
 
 
-class TicketSubmitIn(Schema):
-    """Django Ninja's own input schema for body binding — a plain `dict`
-    parameter doesn't bind the JSON request body the way a Schema/pydantic
-    model does. `contracts.ticket.TicketIn` (the real domain contract,
-    with its length constraints) is still what actually validates the
-    submission, in `views.submit_ticket`; this class only exists to get the
-    raw JSON off the wire correctly."""
+class TicketIn(Schema):
+    """Raw submission from the employee. Never persisted as-is.
 
-    subject: str
-    body: str
-    attachments: list[str] = []
+    The submit endpoint's request body, bound and validated by Ninja, so a
+    submission that breaks these limits is rejected with a 422 before
+    masking runs."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    subject: str = Field(min_length=3, max_length=200)
+    body: str = Field(min_length=10, max_length=10_000)
+    attachments: list[str] = Field(default_factory=list[str], max_length=5)

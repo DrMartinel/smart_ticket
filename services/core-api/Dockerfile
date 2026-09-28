@@ -1,6 +1,5 @@
 # Build context is the repo root (see infra/docker-compose.yml) because the
-# uv workspace lockfile and infra/migrations/sql live there. The schema
-# contracts are this service's own (./contracts, ADR-0010), not a sibling.
+# uv workspace lockfile and infra/migrations/sql live there.
 FROM python:3.13-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \

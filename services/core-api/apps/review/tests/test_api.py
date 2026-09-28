@@ -9,9 +9,10 @@ wrong, the item cannot be opened at all.
 
 import pytest
 
-from contracts.enums import PIILevel, ReviewAction, ReviewQueue
+from apps.tickets.utils.patterns import PIILevel
+from apps.review.models import ReviewAction, ReviewItem
+from apps.tickets.utils.router import ReviewQueue
 
-from apps.review.models import ReviewItem
 from apps.review.tests.test_decide import review_item
 from apps.tickets.models import AiRun, RoutingDecision, Ticket
 

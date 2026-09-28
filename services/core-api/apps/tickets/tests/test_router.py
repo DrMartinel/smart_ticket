@@ -7,27 +7,29 @@ hold that promise: no django_db marker needed anywhere in this file.
 
 from typing import Any
 
-from contracts.enums import Branch, PIILevel, ReasonCode, TicketCategory
-from contracts.llm_draft import (
-    AutoReplyProposal,
-    InsufficientContext,
-    LLMProposalEnvelope,
-    RouteProposal,
-    RunbookProposal,
-)
-from contracts.routing import (
+from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, route
+from config.settings.base import (
     AlertThresholds,
     BudgetThresholds,
     FewshotThresholds,
     IncidentThresholds,
-    KBArticleMeta,
     RetrievalThresholds,
     RoutingThresholds,
     Thresholds,
 )
-from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
-
-from apps.tickets.utils.router import route
+from apps.tickets.utils.patterns import PIILevel
+from infrastructure.ai_engine import (
+    AutoReplyProposal,
+    GenerationSignals,
+    InsufficientContext,
+    LLMProposalEnvelope,
+    PolicySignals,
+    RetrievalSignals,
+    RouteProposal,
+    RunbookProposal,
+    TicketCategory,
+    TrustSignals,
+)
 
 
 def make_thresholds(**overrides) -> Thresholds:
@@ -356,7 +358,7 @@ def test_unhandled_proposal_type_degrades_to_hitl_rather_than_falling_through():
 
     Unreachable today — LLMProposal's discriminated union has exactly four
     members and each has its own branch above. It exists for the moment a
-    fifth is added to the contracts and someone forgets to extend this
+    fifth is added to the proposal union and someone forgets to extend this
     function. Without the fallthrough, route() would return None and
     core-api would crash on `.branch`; with it, the ticket degrades to a
     human with SCHEMA_INVALID.

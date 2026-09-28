@@ -35,7 +35,7 @@ os.environ.setdefault(
 os.environ.setdefault("SECRET_KEY", "calibration-script-key")
 django.setup()
 
-from contracts.trust import TrustSignals  # noqa: E402
+from infrastructure.ai_engine import TrustSignals  # noqa: E402
 
 from apps.review.models import ReviewDecision  # noqa: E402
 from apps.tickets.utils.trust_scorer import TrustModel, extract_features  # noqa: E402

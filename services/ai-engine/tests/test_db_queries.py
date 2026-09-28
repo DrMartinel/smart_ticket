@@ -6,14 +6,13 @@ target each query's purpose, not the full SQL text.
 
 from __future__ import annotations
 
-from ai_engine.contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
+from ai_engine.core.state import AutoReplyProposal, LLMProposalEnvelope, RankedChunk
 
 from ai_engine.core.config import settings
 from ai_engine.core.retrieval.bm25 import bm25_search
 from ai_engine.core.retrieval.vector import vector_search
 from ai_engine.graph.nodes.emit_signals import emit_signals
 from ai_engine.graph.nodes.fewshot import select_fewshots
-from ai_engine.core.state import RankedChunk
 
 
 def _only_statement(db) -> tuple[str, dict]:

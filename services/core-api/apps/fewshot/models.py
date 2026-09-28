@@ -12,7 +12,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 from pgvector.django import VectorField
 
-from contracts.enums import TicketCategory
+from infrastructure.ai_engine import TicketCategory
 from apps.accounts.models import User
 from apps.tickets.models import Ticket
 from infrastructure.embeddings import embed_text

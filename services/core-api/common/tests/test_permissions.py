@@ -12,9 +12,8 @@ import pytest
 from django.test import RequestFactory
 from ninja.errors import HttpError
 
-from contracts.enums import UserRole
+from apps.accounts.models import User, UserRole
 
-from apps.accounts.models import User
 from common.permissions import AuthedRequest, has_any_role, require_role
 
 

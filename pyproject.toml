@@ -85,7 +85,6 @@ strict = [
     "services/core-api/common",
     "services/core-api/config",
     "services/core-api/infrastructure",
-    "services/core-api/contracts",
     "services/core-api/scripts",
     "evals/report.py",
     "evals/calibration",
@@ -102,5 +101,5 @@ pythonVersion = "3.13"
 # The workspace packages are editable installs with no py.typed marker, so
 # through the venv pyright treats them as untyped third-party code. Resolving
 # them from source makes them first-party. The last two are the import roots
-# core-api (`apps.*`, `config.*`, `contracts.*`) and evals (`suites.*`) run from.
+# core-api (`apps.*`, `config.*`) and evals (`suites.*`) run from.
 extraPaths = ["services/ai-engine/src", "services/core-api", "evals"]

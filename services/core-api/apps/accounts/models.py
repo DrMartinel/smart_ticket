@@ -5,10 +5,17 @@ the roles here map directly onto spec concepts (Employee / Technician /
 Manager / Security) rather than a general-purpose permission matrix.
 """
 
+from enum import StrEnum
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-from contracts.enums import UserRole
+
+class UserRole(StrEnum):
+    EMPLOYEE = "employee"
+    TECHNICIAN = "technician"
+    MANAGER = "manager"
+    SECURITY = "security"
 
 
 class User(AbstractUser):
