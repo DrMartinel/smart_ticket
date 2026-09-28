@@ -9,8 +9,8 @@ leaves the ticket stuck at status="new", invisible to every queue.
 import httpx
 import pytest
 
-from integrations import embeddings
-from integrations.embeddings import EMBED_DIM, embed_text
+from infrastructure import embeddings
+from infrastructure.embeddings import EMBED_DIM, embed_text
 
 
 def _mock_post(monkeypatch, handler):

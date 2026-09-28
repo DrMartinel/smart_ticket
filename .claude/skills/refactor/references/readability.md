@@ -22,7 +22,7 @@ Every module reads top-down in the same order:
 1. **Module docstring.** What this module is, the spec section / ADR it implements,
    and the *one* invariant a reader would not guess from the code. Not a table of
    contents.
-   - `services/core-api/integrations/ai_engine.py` — who calls it, and that a
+   - `services/core-api/infrastructure/ai_engine.py` — who calls it, and that a
      transport failure must be treated as fail-open-to-human.
    - `services/core-api/apps/tickets/services/router.py` — the only module allowed to
      choose a `Branch`, and why the gate order is load-bearing.
@@ -75,7 +75,7 @@ needs and cannot see from the signature.
 - `Embedder.embed` (`core/providers/embeddings.py`): "Raises on provider failure —
   never a zero or empty vector", and *why* (it would read as "KB has nothing relevant"
   instead of "embedder down", which reach HITL under different reason codes).
-- `AIEngineUnavailable` (`core-api/integrations/ai_engine.py`): "Callers MUST treat this as
+- `AIEngineUnavailable` (`core-api/infrastructure/ai_engine.py`): "Callers MUST treat this as
   fail-open-to-human … never as skip the AI step and auto-approve."
 - A class that is shared across threads says so and what that forbids
   (`BaseNode`: "`__call__` must never write to `self`").
@@ -179,7 +179,7 @@ something, splitting the decision out is usually the best refactor available.
 | Service | Shape | Notes |
 |---|---|---|
 | ai-engine | `core/` (settings, state, node base, providers, retrieval, db, prompts) · `graph/` (build + nodes) · `main.py` | `core/` never imports `graph/`. No writes, ever (ADR-0004). Details: `.claude/skills/ai-engine-feature/references/ai-engine-conventions.md` |
-| core-api | `apps/<app>/{api.py, models.py, services.py or services/, selectors.py, tasks.py, tests/}` · `integrations/` · `config/` | `api.py` is thin (bind, validate, call a service or selector). Writes and decisions live in services, reads shared by several callers in selectors; new functions are named `<entity>_<action>` (`ticket_submit`, `review_item_list`). `tasks.py` is only Celery entry points, because task names are module paths. `integrations/` is transport to other processes, never judgement. `router.py` is the only `Branch` chooser. `db_table` names mirror `infra/migrations/sql/`. |
+| core-api | `apps/<app>/{api.py, models.py, services.py or services/, selectors.py, tasks.py, tests/}` · `infrastructure/` · `config/` | `api.py` is thin (bind, validate, call a service or selector). Writes and decisions live in services, reads shared by several callers in selectors; new functions are named `<entity>_<action>` (`ticket_submit`, `review_item_list`). `tasks.py` is only Celery entry points, because task names are module paths. `infrastructure/` is transport to other processes, never judgement. `router.py` is the only `Branch` chooser. `db_table` names mirror `infra/migrations/sql/`. |
 | contracts | `packages/contracts/src/contracts/*.py` | The only schema definition. New persisted fields get a default. Regenerate TS after any change; never hand-edit `generated.ts`. |
 | evals | `evals/suites`, `evals/golden`, `evals/baselines` | Never lower a floor, average per-category F1, or drop a category. |
 

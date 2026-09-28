@@ -11,7 +11,7 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.fewshot.models import FewshotExample
 from apps.tickets.models import Ticket
-from integrations.embeddings import embed_text
+from infrastructure.embeddings import embed_text
 
 
 class FewshotError(Exception):

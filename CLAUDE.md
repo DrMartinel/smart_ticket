@@ -132,7 +132,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | PII masking (inline, two-tier; 100% branch coverage is a release gate) | [masking.py](services/core-api/apps/tickets/services/masking.py) |
 | Trust score (in core-api, so the LLM can't score itself) | [trust_scorer.py](services/core-api/apps/tickets/services/trust_scorer.py) |
 | What happens to a ticket after submit (embed → incident check → ai-engine → score → route → act) | [pipeline.py](services/core-api/apps/tickets/services/pipeline.py) |
-| Clients for ai-engine and the vLLM servers (transport only, never judgement) | [integrations/](services/core-api/integrations/) |
+| Clients for ai-engine and the vLLM servers (transport only, never judgement) | [infrastructure/](services/core-api/infrastructure/) |
 | PII regex patterns | [patterns.py](services/core-api/apps/tickets/services/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Shared schemas (single source of truth) | [packages/contracts/](packages/contracts/src/contracts/) |

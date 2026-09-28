@@ -51,7 +51,7 @@ select = ["E4", "E7", "E9", "F"]
 [tool.pytest.ini_options]
 testpaths = [
     "services/core-api/apps",
-    "services/core-api/integrations",
+    "services/core-api/infrastructure",
     "services/ai-engine/tests",
     "evals/suites",
 ]
@@ -86,7 +86,7 @@ strict = [
     "services/ai-engine/src",
     "services/core-api/apps",
     "services/core-api/config",
-    "services/core-api/integrations",
+    "services/core-api/infrastructure",
     "packages/contracts",
     "evals/report.py",
     "evals/calibration",

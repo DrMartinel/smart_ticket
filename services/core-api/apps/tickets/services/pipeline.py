@@ -39,8 +39,8 @@ from apps.tickets.selectors import ai_cost_today_usd
 from apps.tickets.services import router as router_service
 from apps.tickets.services.incident import classify_similarity, store_embedding
 from apps.tickets.services.trust_scorer import score as compute_trust
-from integrations.ai_engine import AIEngineUnavailable, analyze
-from integrations.embeddings import embed_text
+from infrastructure.ai_engine import AIEngineUnavailable, analyze
+from infrastructure.embeddings import embed_text
 
 logger = logging.getLogger(__name__)
 

@@ -110,7 +110,7 @@ smart_ticket/
 │   │   │   ├── itsm_mock/       #   mock ITSM runbook execution
 │   │   │   ├── metrics/         #   dashboard aggregation
 │   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants), seed_demo
-│   │   ├── integrations/        #   clients for ai-engine and the vLLM embedder
+│   │   ├── infrastructure/      #   clients for ai-engine and the vLLM embedder
 │   │   └── config/              #   settings · celery · thresholds.yaml
 │   ├── ai-engine/               # FastAPI + LangGraph
 │   │   └── src/ai_engine/
