@@ -156,10 +156,10 @@ singletons (`db`, `embedder`, `reranker`, `models.chat`) directly and reads
 tunables from `core/config.py`. Its node name is derived from the class
 name (`HybridRetrieveNode` → `hybrid_retrieve`), and a branching node reports
 where it ended up as a domain `Outcome` from `decide()` — it never names its
-successor. Everything that makes the graph lives in `graph/build.py`: the
-generic `GraphBuilder`, the topology (a list of routes from each outcome of a
-node instance to the next instance), and `triage_graph`, compiled once at
-import time from the instances each node module builds. `GraphBuilder.compile`
+successor. The generic `Edge`, `Graph` and `GraphBuilder` live in
+`core/build/`. `graph/triage.py` holds the topology (a list of routes from
+each outcome of a node instance to the next instance) and `triage_graph`,
+compiled once at import time from the instances each node module builds. `GraphBuilder.compile`
 validates the routes at startup (every outcome routed, nothing unreachable)
 and is the only place a node becomes a LangGraph string. `main.py` only
 invokes `triage_graph`. See

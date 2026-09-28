@@ -49,7 +49,7 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
 
 - **Smell:** the shape of a system (routes, registrations, handlers) spread across
   several files, so no single place shows the whole.
-- **Move:** one list, one file, top to bottom (`graph/build.py`'s route list).
+- **Move:** one list, one file, top to bottom (`graph/triage.py`'s route list).
 - **Guard:** if it stops fitting on a screen, split by sub-pipeline — don't push it back
   into the parts.
 

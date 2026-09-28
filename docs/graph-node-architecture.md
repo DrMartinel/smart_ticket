@@ -31,7 +31,7 @@ node identity is persisted and has to survive a process restart:
 
 A class object cannot round-trip through a database row; a name can. So the
 goal is not to remove strings from LangGraph. It is to **push them into a
-single conversion function** (`GraphBuilder.compile` in `graph/build.py`) and
+single conversion function** (`GraphBuilder.compile` in `core/build/builder.py`) and
 keep application code referencing node instances and typed enums.
 
 ---
@@ -73,8 +73,9 @@ one-time setup that must fail at boot, like `InferNode` loading its prompt.
 
 **A node never knows what comes after it.** Successors are declared on a
 `GraphBuilder`, which maps each outcome of a node *instance* to the next
-instance, all in one route list at the bottom of `graph/build.py`. That makes nodes reusable, makes cycles
-expressible, and removes any definition-order constraint between node classes.
+instance, all in one route list in `graph/triage.py`. That makes nodes reusable
+and removes any definition-order constraint between node classes. (A cycle could
+be expressed, but `compile()` rejects it: every node runs at most once.)
 
 **Everything is validated at startup.** Bad routes raise as they are declared;
 unrouted outcomes and unreachable nodes raise inside `GraphBuilder.compile()` —
@@ -82,7 +83,9 @@ which `main.py` calls at uvicorn import time — never when the first ticket
 takes an unusual branch.
 
 **A node instance is a singleton and must stay stateless per call.** It is
-built once, at import. `__call__` runs per request and must never write to `self`:
+built once, at import, at the bottom of its module; `BaseNode.__new__` raises
+`TypeError` on a second construction of the same class, so tests import that
+instance too. `__call__` runs per request and must never write to `self`:
 `analyze` is a sync `def`, so FastAPI shares one instance across its
 threadpool. All per-call data belongs in state.
 
@@ -157,6 +160,12 @@ class BaseNode(ABC):
         if not name:
             raise TypeError("a node class cannot be named exactly 'Node'")
         cls.name = name
+        if cls.Outcome is not SingleExit and cls.decide is BaseNode.decide:
+            raise TypeError("... defines its own Outcome but does not override decide()")
+
+    @classmethod
+    def produces(cls, outcome: StrEnum) -> bool:
+        return any(outcome is member for member in cls.Outcome)  # identity, see §4.4
 
     @abstractmethod
     def __call__(self, state: TriageState) -> dict: ...
@@ -181,13 +190,17 @@ the value — edge labels in `draw_mermaid()` read `EvidenceBelowFloor`, not
 class Terminal(BaseNode):
     def __call__(self, state: TriageState) -> StateUpdate:
         return {}
+
+
+terminal = Terminal()
 ```
 
-App code never builds one. Each `GraphBuilder` owns exactly one, `builder.end`,
-and a path finishes by routing to it:
-`g.route(emit_signals, SingleExit.DONE, g.end)`. The builder recognises its
-own instance by identity, so a graph cannot gain a second end, and a stray
-`Terminal()` is just an ordinary node that ends nothing.
+Like every node it has one instance, `terminal`, and app code reaches it as
+`builder.end`: every `GraphBuilder` shares it, and a path finishes by routing
+to it: `g.route(emit_signals, SingleExit.DONE, g.end)`. Sharing is safe
+because routes live on each builder. The builder recognises it by identity,
+so a graph cannot gain a second end, and a `Terminal` subclass is just an
+ordinary node that ends nothing.
 
 It is a real node — registered as `terminal`, visible in traces and
 `draw_mermaid()` — so every route targets a node instance and the builder
@@ -196,7 +209,7 @@ outside `TriageState` (such as `END`) would make LangGraph reject the update
 and abort the run. It keeps LangGraph's `END` out of app code, because
 `compile()` gives it the graph's only edge to `END`.
 
-### 4.3 Wiring — the bottom of `graph/build.py`
+### 4.3 Wiring — `graph/triage.py`
 
 The entire topology, as routes on the production node instances (safety
 comments trimmed here):
@@ -218,36 +231,48 @@ triage_graph = _triage.compile(TriageState)
 
 `main.py` only imports and invokes `triage_graph`.
 
-### 4.4 Builder — `GraphBuilder` in `graph/build.py`
+### 4.4 Builder — `core/build/`
 
 `GraphBuilder(entry=node)` is generic — it knows nothing about triage — and
 its `compile(state_schema)` is the only place a node
-becomes a string. Routes are stored on the builder, keyed by node **instance**,
-never on node classes or `Outcome` members (§7 says why).
+becomes a string. Routes are stored on the builder's `Graph`, keyed by node
+**instance**, never on node classes or `Outcome` members (§7 says why).
+
+The `core/build/` package — generic, it knows nothing about triage — splits the work three ways, none of it but the
+builder importing LangGraph:
+
+| Module | Object | Job |
+|---|---|---|
+| `edge.py` | `Edge(source, outcome, target)` | One route; valid on its own |
+| `graph.py` | `Graph` | Holds the edges; finds the reachable nodes and proves the wiring sound |
+| `builder.py` | `GraphBuilder` | `route()` adds an `Edge`; `compile()` asks the `Graph` for the validated nodes, then only translates them to LangGraph |
+
+Nodes stay plain `BaseNode` instances; there is no separate node wrapper.
 
 `route(source, outcome, target)` raises immediately on:
 
-- an outcome the source's class cannot produce — checked by **identity**,
-  because `Outcome` is a `StrEnum` and a member of another enum with the same
-  value compares equal;
-- an outcome that is already routed;
-- a route out of `builder.end` (its only exit is `END`).
+- an outcome the source's class cannot produce (`BaseNode.produces`, checked
+  when the `Edge` is built) — by **identity**, because `Outcome` is a `StrEnum`
+  and a member of another enum with the same value compares equal;
+- an outcome that is already routed (`Graph.add`);
+- a route out of `builder.end`, whose only exit is `END` (`Graph.add`).
 
 A node *class* passed where an instance belongs is not checked at runtime:
 pyright (strict, in CI) rejects it at the call site.
 
-`compile()` finds the nodes by walking routes from the entry, then, before
-registering anything, raises `ValueError` on:
+`compile()` calls `Graph.validate()`, which finds the nodes by walking routes
+from the entry, then, before anything is registered, raises `ValueError` on:
 
-- two reachable instances with the same node name (LangGraph would collide);
+- two reachable node classes with the same name (LangGraph would collide);
 - `builder.end` not reachable from the entry (with every outcome routed, every run
   would cycle until LangGraph's recursion limit aborts it);
-- a class that sets its own `Outcome` but does not override `decide()`
-  (the default would return `SingleExit.DONE`, which it cannot produce);
 - a reachable node with an unrouted outcome — including a target whose own
   routes were never declared;
 - a node that has routes but is unreachable from the entry — which is what a
-  route aimed at the wrong target leaves behind.
+  route aimed at the wrong target leaves behind;
+- a cycle, even one with a way out to the end (via stdlib
+  `graphlib.TopologicalSorter`). Every node runs at most once per ticket, so a
+  proposal that fails validation reaches a human rather than the model again.
 
 Each instance registers under its own class's `name`, so a test double shows
 up under its own name: a `FakeInferNode(...)` (a subclass of `InferNode`)
@@ -264,8 +289,9 @@ silently. (A non-dict update is rejected by LangGraph itself, with
 
 Tests pin routes on the compiled graph (`triage_graph.get_graph().edges`, see
 `tests/test_build.py`); the builder exposes no route mapping of its own.
+`Graph.edges_from(node)` returns a tuple, so edges change only through `route()`.
 
-### 4.5 Assembly — `triage_graph` in `graph/build.py`
+### 4.5 Assembly — `triage_graph` in `graph/triage.py`
 
 Each node module ends with its production instance. Nodes take no
 dependencies: they use the provider singletons built at the bottom of the
@@ -276,7 +302,7 @@ provider modules (`db`, `embedder`, `reranker`, `models.chat`) directly.
 rerank = RerankNode()
 ```
 
-`graph/build.py` imports those seven instances and routes them (§4.3). Each
+`graph/triage.py` imports those seven instances and routes them (§4.3). Each
 instance is named after its node's `name`, so the variable, the
 LangGraph node and the trace entry all read the same.
 
@@ -289,7 +315,8 @@ non-default value `monkeypatch.setattr(settings, ...)`.
 Tests that exercise a node swap its providers for the fakes in
 `tests/conftest.py` with the `use_db`, `use_embedder`, `use_reranker` and
 `use_llm` fixtures, which patch every node module that reads that provider:
-`use_db(fake_db()); EmitSignalsNode()(state)`. Tests that exercise the builder wire a small graph of
+`use_db(fake_db()); emit_signals(state)` — the module's instance, never a
+fresh `EmitSignalsNode()`, which raises. Tests that exercise the builder wire a small graph of
 their own (`tests/test_compiler.py`). The production topology is pinned
 literally by `tests/test_build.py`.
 
@@ -334,7 +361,7 @@ Checklist when adding one (the full recipe is
   `use_*` fixture in `tests/conftest.py`.
 - Keep `__call__` free of writes to `self`; return only changed keys.
 - End the module with its production instance, named after the node's `name`.
-- Route every outcome at the bottom of `graph/build.py`.
+- Route every outcome in `graph/triage.py`.
 - Add it to the literal node and edge sets in `tests/test_build.py`, and test
   `decide()` directly there.
 
@@ -406,7 +433,7 @@ whatever `decide()` returns rather than on the graph's structure.
 
 Routing is no longer local to the node. Reading `RerankNode` does not tell
 you where `EvidenceBelowFloor` goes — you look it up at the bottom of
-`graph/build.py`. We accept this: the route list fits on one screen, it is what you would draw on a
+`graph/triage.py`. We accept this: the route list fits on one screen, it is what you would draw on a
 whiteboard anyway, and it is what makes whole-graph validation possible. If it
 ever grows past comfortable reading, split it into one wiring function per
 sub-pipeline (routes are per instance, so a class can appear in several)
@@ -417,7 +444,10 @@ rather than pushing wiring back into the nodes.
 ## 9. Gotchas
 
 **Do not name a node class exactly `Node`** — `BaseNode.__init_subclass__`
-raises `TypeError`.
+raises `TypeError`. It also raises `TypeError` for a class that sets its own
+`Outcome` without overriding `decide()` (the default returns
+`SingleExit.DONE`, which such a class cannot produce) — at class definition,
+before the class is wired into any graph.
 
 **Renaming a node class renames the node.** Today that is safe — there is no
 checkpointer, so no persisted run refers to a node name — but traces, streamed

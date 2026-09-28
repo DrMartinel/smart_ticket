@@ -108,7 +108,7 @@ One line is fine when there is no contract beyond the name.
   wraps one call gets inlined (commit e6d55c9). A helper that names an idea used in
   several places, or isolates a boundary, stays.
 - **One concept lives in one place.** The whole triage topology is one route list at
-  the bottom of `graph/build.py` (commit 55e853b deleted `flow.py`). `TriageState`
+  `graph/triage.py` (commit 55e853b deleted `flow.py`). `TriageState`
   fields are grouped under the node that writes them (commit 9ac1f46).
 
 ## 6. Simplicity
@@ -134,7 +134,7 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
 - Value objects are frozen pydantic models: `model_config = ConfigDict(frozen=True)`
   (`RankedChunk`, `LexicalHit`, `LLMResult`).
 - Suppressions: one line, **name the rule**, only at an untyped library boundary:
-  `# pyright: ignore[reportUnknownMemberType]` (see `graph/build.py`).
+  `# pyright: ignore[reportUnknownMemberType]` (see `core/build/builder.py`).
 - Django: declare what Django adds at runtime (`id: int`, `ticket_id: int`,
   reverse managers) — see the pyright row in CLAUDE.md's Gotchas.
 

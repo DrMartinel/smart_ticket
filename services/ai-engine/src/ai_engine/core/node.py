@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from enum import StrEnum
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Self
 
 from ai_engine.core.state import TriageState
 
@@ -33,15 +33,26 @@ class BaseNode(ABC):
     Read-only after __init__: one instance is shared across FastAPI's
     threadpool, so `__call__` must never write to `self`. All per-call data
     belongs in state.
+
+    One instance per class, created at the bottom of the node's module.
+    Everything else, tests included, imports that instance: a second
+    construction raises TypeError.
     """
 
     name: ClassVar[str]
 
-    # Business meanings this node can end in. A node with more than one exit
-    # assigns its own module-level enum here, not a nested class: an enum with
-    # members can't be subclassed, so a nested override is an unrelated class
-    # that type checkers reject.
     Outcome: ClassVar[type[StrEnum]] = SingleExit
+
+    _instantiated: ClassVar[bool] = False
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> Self:
+        if cls._instantiated:
+            raise TypeError(
+                f"{cls.__qualname__} already has an instance; import it instead of "
+                f"constructing another"
+            )
+        cls._instantiated = True
+        return super().__new__(cls)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -50,6 +61,16 @@ class BaseNode(ABC):
         if not name:
             raise TypeError(f"{cls.__qualname__}: a node class cannot be named exactly 'Node'")
         cls.name = name
+        cls._instantiated = False
+        if cls.Outcome is not SingleExit and cls.decide is BaseNode.decide:
+            raise TypeError(
+                f"{cls.__qualname__} defines its own Outcome but does not override decide()"
+            )
+
+    @classmethod
+    def produces(cls, outcome: StrEnum) -> bool:
+        """Is `outcome` a member of this class's Outcome?"""
+        return any(outcome is member for member in cls.Outcome)
 
     @abstractmethod
     def __call__(self, state: TriageState) -> StateUpdate:
@@ -62,9 +83,11 @@ class BaseNode(ABC):
 
 
 class Terminal(BaseNode):
-    """The node every path ends on. Built by `GraphBuilder` (`builder.end`),
-    never by app code: the builder recognises its own instance by identity and
-    gives it the only edge to END, keeping END out of app code.
+    """The node every path ends on. Its one instance, `terminal`, is shared by
+    every `GraphBuilder` as `builder.end`: the builder recognises it by
+    identity and gives it the only edge to END, keeping END out of app code.
+    Routes live on each builder, so sharing it cannot leak one graph's wiring
+    into another.
 
     It returns no update: LangGraph silently drops keys outside
     TriageState, so returning END would look like it worked while doing
@@ -73,3 +96,6 @@ class Terminal(BaseNode):
 
     def __call__(self, state: TriageState) -> StateUpdate:
         return {}
+
+
+terminal = Terminal()

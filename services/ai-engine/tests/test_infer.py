@@ -12,7 +12,7 @@ import pytest
 
 from ai_engine.core.providers.llm.models import AllLLMDownError, LLMResult
 from ai_engine.core.prompts import load_system_prompt
-from ai_engine.graph.nodes.infer import InferNode
+from ai_engine.graph.nodes.infer import infer
 
 _VALID_OUTPUT = json.dumps(
     {
@@ -39,7 +39,7 @@ def _result(text: str = _VALID_OUTPUT, **kw) -> LLMResult:
 def make_node(use_llm):
     def make(llm):
         use_llm(llm)
-        return InferNode()
+        return infer
 
     return make
 

@@ -22,8 +22,12 @@ src/ai_engine/
     retrieval/     bm25.py, vector.py, fusion.py: pure (session, …) -> list[FrozenHit]
     db/            client.py (the `db` singleton), tables.py (3 read-only tables)
     prompts/       <name>.v<N>.md + load_system_prompt
+    build/         generic, triage-agnostic graph machinery:
+      edge.py      Edge: one route (source, outcome, target)
+      graph.py     Graph: the edges; reachability + validation
+      builder.py   GraphBuilder: Graph -> LangGraph
   graph/
-    build.py       GraphBuilder + the triage route list + `triage_graph`
+    triage.py      the triage route list + `triage_graph`
     nodes/         one module per node, each ending in its production instance
   main.py          POST /v1/analyze: invoke the graph, shape the response
 ```
@@ -37,11 +41,12 @@ because `core` can't import from `graph/`.
 A node owns exactly four things: its **name** (derived from the class), its
 **`__call__`** (the work), its **`decide()`** (which outcome it reached), and its
 **`Outcome`** enum. It never knows what runs after it. Routing lives in
-`graph/build.py`.
+`graph/triage.py`.
 
 - **Class name `<Something>Node`** gives `name = "something"` (snake_case), which is
   what shows up in traces. The module's production instance is a variable with that
-  same name: `rerank = RerankNode()`.
+  same name: `rerank = RerankNode()`. It is the only instance: `BaseNode` raises
+  `TypeError` on a second construction, so tests import it too.
 - **`__call__(self, state: TriageState) -> StateUpdate`** returns only the keys it
   changed. It **never writes to `self`**: one instance is shared across FastAPI's
   threadpool.

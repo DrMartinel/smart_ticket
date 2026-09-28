@@ -11,8 +11,8 @@ from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
 from ai_engine.core.config import settings
 from ai_engine.core.retrieval.bm25 import bm25_search
 from ai_engine.core.retrieval.vector import vector_search
-from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
-from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
+from ai_engine.graph.nodes.emit_signals import emit_signals
+from ai_engine.graph.nodes.fewshot import select_fewshots
 from ai_engine.core.state import RankedChunk
 
 
@@ -70,7 +70,7 @@ def test_fewshot_selection_excludes_retracted_and_expired_examples(
     db = fake_db()
     use_db(db)
     use_embedder(fake_embedder(vector=[0.3]))
-    SelectFewshotsNode()(make_state())
+    select_fewshots(make_state())
     sql, params = _only_statement(db)
 
     assert "fewshot_examples.retracted_at IS NULL" in sql
@@ -101,7 +101,7 @@ def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state
 
     db = fake_db()
     use_db(db)
-    EmitSignalsNode()(make_state(reranked=[chunk], proposal=proposal))
+    emit_signals(make_state(reranked=[chunk], proposal=proposal))
     sql, params = _only_statement(db)
 
     assert sql.startswith("SELECT kb_articles.auto_reply_allowed, kb_articles.risk_tier")

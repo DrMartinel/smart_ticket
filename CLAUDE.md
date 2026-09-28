@@ -134,7 +134,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | PII regex patterns | [patterns.py](services/core-api/apps/tickets/services/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Shared schemas (single source of truth) | [packages/contracts/](packages/contracts/src/contracts/) |
-| The AI pipeline (LangGraph) | [graph/build.py](services/ai-engine/src/ai_engine/graph/build.py) |
+| The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
 | Prompts (versioned, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |

@@ -12,11 +12,11 @@ from contracts.ticket import TicketMasked
 
 from ai_engine.core.state import TriageState
 from ai_engine.core.state import RankedChunk
-from ai_engine.graph.nodes.validate import ValidateNode
+from ai_engine.graph.nodes.validate import validate
 
 # The production-configured validator — zero I/O at construction, so the
 # eval measures exactly what the graph runs.
-_NODE = ValidateNode()
+_NODE = validate
 
 PRECISION_THRESHOLD = 0.95
 

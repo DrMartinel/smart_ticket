@@ -11,8 +11,8 @@ from typing import Any, TypedDict
 
 import pytest
 
-from ai_engine.core.node import BaseNode, SingleExit, Terminal
-from ai_engine.graph.build import GraphBuilder
+from ai_engine.core.node import BaseNode, SingleExit, Terminal, terminal
+from ai_engine.core.build.builder import GraphBuilder
 
 
 class _State(TypedDict, total=False):
@@ -50,8 +50,12 @@ class StrayNode(BaseNode):
         return {}
 
 
-def _wire(gate=None, work=None, stop=None) -> GraphBuilder:
-    gate, work, stop = gate or GateNode(), work or WorkNode(), stop or StopNode()
+# One instance per class, shared by every test: routes live on each builder,
+# so wiring one test's graph does not rewire another's.
+gate, work, stop, stray = GateNode(), WorkNode(), StopNode(), StrayNode()
+
+
+def _wire(work: BaseNode = work) -> GraphBuilder:
     g = GraphBuilder(entry=gate)
     g.route(gate, GateOutcome.OPEN, work)
     g.route(gate, GateOutcome.SHUT, stop)
@@ -84,7 +88,6 @@ def test_class_named_exactly_node_is_rejected():
 
 
 def test_unrouted_outcome_raises():
-    gate, stop = GateNode(), StopNode()
     g = GraphBuilder(entry=gate)
     g.route(gate, GateOutcome.OPEN, stop)
     g.route(stop, SingleExit.DONE, g.end)
@@ -97,9 +100,8 @@ def test_target_with_no_routes_raises():
     """A node reached only as a target, whose own outcomes were never
     routed, would have no outgoing edge — LangGraph would stop there."""
 
-    gate, stop = GateNode(), StopNode()
     g = GraphBuilder(entry=gate)
-    g.route(gate, GateOutcome.OPEN, StrayNode())
+    g.route(gate, GateOutcome.OPEN, stray)
     g.route(gate, GateOutcome.SHUT, stop)
     g.route(stop, SingleExit.DONE, g.end)
 
@@ -112,7 +114,6 @@ def test_misrouted_target_leaves_node_unreachable():
     its own declared routes give it away.
     """
 
-    gate, work, stop = GateNode(), WorkNode(), StopNode()
     g = GraphBuilder(entry=gate)
     g.route(gate, GateOutcome.OPEN, stop)  # meant: work
     g.route(gate, GateOutcome.SHUT, stop)
@@ -127,33 +128,52 @@ def test_terminal_cannot_be_routed_onward():
     """Terminal's only exit is the END edge compile() adds; a second route
     out of it would let a run continue past the point it claims to stop."""
 
-    g = GraphBuilder(entry=WorkNode())
+    g = GraphBuilder(entry=work)
 
     with pytest.raises(ValueError, match="cannot be routed onward"):
-        g.route(g.end, SingleExit.DONE, StopNode())
+        g.route(g.end, SingleExit.DONE, stop)
 
 
 def test_graph_without_reachable_terminal_raises():
     """Every outcome routed and no route to the end means every run cycles until
     LangGraph's recursion limit aborts it — a 500, not a degrade-to-human."""
 
-    a, b = WorkNode(), StopNode()
-    g = GraphBuilder(entry=a)
-    g.route(a, SingleExit.DONE, b)
-    g.route(b, SingleExit.DONE, a)
+    g = GraphBuilder(entry=work)
+    g.route(work, SingleExit.DONE, stop)
+    g.route(stop, SingleExit.DONE, work)
 
     with pytest.raises(ValueError, match="no route reaches the end"):
         g.compile(_State)
 
 
-def test_a_terminal_the_builder_does_not_own_is_not_an_end():
-    """Only `builder.end` finishes a path. A stray `Terminal()` is an ordinary
-    node, so a graph routed into one has no end — rather than silently gaining
-    a second one."""
+def test_cycle_raises_even_when_the_end_is_reachable():
+    """Every node runs at most once per run. A loop back — the shape of
+    "retry the model on a bad proposal" — must fail at build time, so a
+    failure reaches a human instead of the model getting another attempt."""
 
-    work = WorkNode()
+    g = GraphBuilder(entry=gate)
+    g.route(gate, GateOutcome.OPEN, work)
+    g.route(gate, GateOutcome.SHUT, stop)
+    g.route(work, SingleExit.DONE, gate)  # loops back
+    g.route(stop, SingleExit.DONE, g.end)
+
+    with pytest.raises(
+        ValueError,
+        match=r"cycle: (GateNode -> WorkNode -> GateNode|WorkNode -> GateNode -> WorkNode)$",
+    ):
+        g.compile(_State)
+
+
+def test_a_terminal_subclass_is_not_an_end():
+    """Only `builder.end` finishes a path: it is recognised by identity, not
+    type. A Terminal subclass is an ordinary node, so a graph routed into one
+    has no end — rather than silently gaining a second one."""
+
+    class StrayTerminal(Terminal):
+        pass
+
     g = GraphBuilder(entry=work)
-    g.route(work, SingleExit.DONE, Terminal())
+    g.route(work, SingleExit.DONE, StrayTerminal())
 
     with pytest.raises(ValueError, match="no route reaches the end"):
         g.compile(_State)
@@ -169,36 +189,56 @@ def test_terminal_is_a_real_step_before_end():
 
 
 def test_duplicate_route_raises():
-    work = WorkNode()
     g = GraphBuilder(entry=work)
     g.route(work, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match="already routed"):
-        g.route(work, SingleExit.DONE, StopNode())
+        g.route(work, SingleExit.DONE, stop)
 
 
-def test_two_instances_of_one_node_raise():
-    """LangGraph identifies nodes by name, so two instances of one class in
-    one graph would collide."""
+def test_second_instance_of_a_node_class_raises():
+    """Production wires the instance each node module creates. A second one,
+    built by hand and routed in its place, would be a different object that
+    the rest of the code never sees."""
 
-    gate, stop, first, second = GateNode(), StopNode(), WorkNode(), WorkNode()
+    with pytest.raises(TypeError, match="WorkNode already has an instance"):
+        WorkNode()
+
+
+def test_every_builder_ends_on_the_one_terminal():
+    """Terminal follows one-instance-per-class like every node. Builders share
+    it; routes live on each builder, so sharing it rewires nothing."""
+
+    assert GraphBuilder(entry=work).end is GraphBuilder(entry=gate).end is terminal
+    with pytest.raises(TypeError, match="Terminal already has an instance"):
+        Terminal()
+
+
+def test_two_classes_with_one_name_raise():
+    """The node name comes from the class name alone, so two classes both
+    called WorkNode collide as one LangGraph node."""
+
+    class WorkNode(BaseNode):  # same name as the module-level WorkNode
+        def __call__(self, state):
+            return {}
+
+    impostor = WorkNode()
     g = GraphBuilder(entry=gate)
-    g.route(gate, GateOutcome.OPEN, first)
-    g.route(gate, GateOutcome.SHUT, second)
-    g.route(first, SingleExit.DONE, stop)
-    g.route(second, SingleExit.DONE, stop)
+    g.route(gate, GateOutcome.OPEN, work)
+    g.route(gate, GateOutcome.SHUT, impostor)
+    g.route(work, SingleExit.DONE, stop)
+    g.route(impostor, SingleExit.DONE, stop)
     g.route(stop, SingleExit.DONE, g.end)
 
-    with pytest.raises(ValueError, match="WorkNode was given more than one instance"):
+    with pytest.raises(ValueError, match="'work' is claimed by two node classes"):
         g.compile(_State)
 
 
 def test_outcome_from_another_node_raises():
-    work = WorkNode()
     g = GraphBuilder(entry=work)
 
     with pytest.raises(ValueError, match="cannot produce"):
-        g.route(work, GateOutcome.OPEN, StopNode())
+        g.route(work, GateOutcome.OPEN, stop)
 
 
 def test_equal_valued_outcome_from_another_enum_raises():
@@ -209,7 +249,6 @@ def test_equal_valued_outcome_from_another_enum_raises():
     class Other(StrEnum):
         DONE = "Done"
 
-    work = WorkNode()
     g = GraphBuilder(entry=work)
 
     with pytest.raises(ValueError, match="cannot produce"):
@@ -217,24 +256,21 @@ def test_equal_valued_outcome_from_another_enum_raises():
 
 
 def test_custom_outcome_without_decide_raises():
+    """The inherited decide() returns SingleExit.DONE, which ForkOutcome does
+    not contain, so every run would end on an unrouted outcome. BaseNode
+    rejects the class when it is defined, before it can be wired anywhere."""
+
     class ForkOutcome(StrEnum):
         LEFT = "Left"
         RIGHT = "Right"
 
-    class ForkNode(BaseNode):
-        Outcome = ForkOutcome
+    with pytest.raises(TypeError, match="does not override decide"):
 
-        def __call__(self, state):
-            return {}
+        class ForkNode(BaseNode):
+            Outcome = ForkOutcome
 
-    fork, stop = ForkNode(), StopNode()
-    g = GraphBuilder(entry=fork)
-    g.route(fork, ForkOutcome.LEFT, stop)
-    g.route(fork, ForkOutcome.RIGHT, stop)
-    g.route(stop, SingleExit.DONE, g.end)
-
-    with pytest.raises(ValueError, match="does not override decide"):
-        g.compile(_State)
+            def __call__(self, state):
+                return {}
 
 
 def test_one_node_class_serves_two_graphs_with_different_routes():
@@ -242,12 +278,10 @@ def test_one_node_class_serves_two_graphs_with_different_routes():
     wiring one graph must not rewire another. Both share
     SingleExit.DONE, the member every single-exit node inherits."""
 
-    gate, work, stop = GateNode(), WorkNode(), StopNode()
-    first = _wire(gate, work, stop).compile(_State)
+    first = _wire().compile(_State)
 
-    solo = WorkNode()
-    g = GraphBuilder(entry=solo)
-    g.route(solo, SingleExit.DONE, g.end)
+    g = GraphBuilder(entry=work)
+    g.route(work, SingleExit.DONE, g.end)
     second = g.compile(_State)
 
     assert first.invoke({"flag": True})["seen"] == ["work"]

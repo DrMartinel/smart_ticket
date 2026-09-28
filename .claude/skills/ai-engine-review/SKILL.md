@@ -24,7 +24,7 @@ fine, and don't invent findings to fill the report.
    If there are uncommitted changes, include `git diff` and `git diff --staged` too,
    and say that you did.
 2. **Read in full**, not just the hunks. Read every changed source file, its test
-   file, and any file it wires into (`graph/build.py`, `tests/conftest.py`,
+   file, and any file it wires into (`graph/triage.py`, `tests/conftest.py`,
    `core/state.py`). Many findings only show up in the surrounding code, such as a
    new node missing from a `use_*` fixture or an outcome with no route.
 3. **Walk the checklist:** `.claude/skills/ai-engine-feature/references/checklist.md`.

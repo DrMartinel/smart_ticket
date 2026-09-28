@@ -72,12 +72,12 @@ Format: **what** — why it exists — *what guards it*.
 
 - **`TriageState` is frozen with `extra="forbid"`.** Without that, an in-place
   mutation is silently discarded. *`tests/test_state.py`.*
-- **The `_reject_unknown_keys` adapter in `graph/build.py`.** LangGraph drops unknown
+- **The `_reject_unknown_keys` adapter in `core/build/builder.py`.** LangGraph drops unknown
   update keys silently, so a typo'd key would look like it worked.
   *`test_compiler.py::test_update_key_missing_from_the_schema_raises`.*
 - **`input_schema=state_schema` pinned in `GraphBuilder.compile`.**
   *`test_state.py::test_node_annotation_does_not_override_the_graph_schema`.*
-- **Outcome membership checked by identity (`is`), not `in`.** A `StrEnum` from
+- **Outcome membership checked by identity (`is`), not `in`** (`BaseNode.produces`). A `StrEnum` from
   another node with the same value compares equal.
   *`test_compiler.py::test_equal_valued_outcome_from_another_enum_raises`.*
 - **Validation-field defaults read "failed"**, and **`_checks(*, …)` has no
@@ -102,7 +102,7 @@ Format: **what** — why it exists — *what guards it*.
   `test_provider_selection.py` tests on "without … sdk retries".*
 - **No provider fallback, and an unknown provider name raises at import.** The wrong
   calibration would otherwise look healthy. *`test_provider_selection.py`.*
-- **Provider construction opens no socket.** Importing `graph/build.py` has to work
+- **Provider construction opens no socket.** Importing `graph/triage.py` has to work
   without a database. *`test_provider_selection.py::test_building_providers_opens_no_connections`.*
 - **`_JSON_OBJECT` response_format on chat clients.** Without it the output turns to
   prose and the HITL rate climbs silently. *Its comment in

@@ -43,7 +43,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [convention] No reducer unless several nodes truly accumulate into the field.
 - [convention] Any new value type lives in `core/` and is frozen.
 
-## Wiring (`graph/build.py`)
+## Wiring (`graph/triage.py`)
 
 - [regression] Every outcome is routed and the graph compiles on import.
 - [regression] Every path still ends at `emit_signals`, then the builder's end. The graph stays acyclic.

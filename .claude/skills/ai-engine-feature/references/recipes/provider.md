@@ -61,7 +61,7 @@ match settings.<thing>_provider:
         raise ValueError(f"unknown <thing>_provider: {other!r} (expected 'vllm' or '<offline>')")
 ```
 
-Construction **opens no socket**, so importing `graph/build.py` must work with no
+Construction **opens no socket**, so importing `graph/triage.py` must work with no
 server running. Put any lazy HTTP client behind `cached_property`, the way
 `VLLMLLM._http` does.
 

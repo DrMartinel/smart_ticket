@@ -15,7 +15,7 @@ from contracts.ai_request import AIRunRequest, AIRunResponse
 
 from ai_engine.core.config import settings
 from ai_engine.core.state import TriageState
-from ai_engine.graph.build import triage_graph
+from ai_engine.graph.triage import triage_graph
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

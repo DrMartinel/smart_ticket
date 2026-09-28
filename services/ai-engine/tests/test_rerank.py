@@ -8,7 +8,7 @@ silently changes how often the LLM is called at all.
 from __future__ import annotations
 
 from ai_engine.core.config import settings
-from ai_engine.graph.nodes.rerank import RerankNode
+from ai_engine.graph.nodes.rerank import rerank
 
 
 def test_output_order_follows_the_reranker_not_the_rrf_order(
@@ -23,7 +23,7 @@ def test_output_order_follows_the_reranker_not_the_rrf_order(
     candidates = [make_candidate(1, "a"), make_candidate(2, "b"), make_candidate(3, "c")]
     # Scores INVERT the incoming RRF order.
     use_reranker(fake_reranker(scores=[0.1, 0.5, 0.9]))
-    node = RerankNode()
+    node = rerank
 
     reranked = node(make_state(candidates=candidates))["reranked"]
 
@@ -37,7 +37,7 @@ def test_truncation_uses_the_configured_top_n(
     monkeypatch.setattr(settings, "rerank_top_n", 2)
     candidates = [make_candidate(i, f"c{i}") for i in (1, 2, 3, 4)]
     use_reranker(fake_reranker(scores=[0.1, 0.9, 0.5, 0.7]))
-    node = RerankNode()
+    node = rerank
 
     reranked = node(make_state(candidates=candidates))["reranked"]
 
@@ -54,7 +54,7 @@ def test_empty_candidates_returns_empty_without_a_degraded_reason(
 
     reranker = fake_reranker(scores=[0.9])
     use_reranker(reranker)
-    node = RerankNode()
+    node = rerank
 
     out = node(make_state(candidates=[]))
 
@@ -72,7 +72,7 @@ def test_scores_are_zipped_to_candidates_positionally(
 
     candidates = [make_candidate(7, "seven"), make_candidate(8, "eight")]
     use_reranker(fake_reranker(scores=[0.2, 0.8]))
-    node = RerankNode()
+    node = rerank
 
     reranked = node(make_state(candidates=candidates))["reranked"]
 
@@ -88,7 +88,7 @@ def test_query_sent_to_the_reranker_is_the_masked_ticket(
 
     reranker = fake_reranker(scores=[0.5])
     use_reranker(reranker)
-    node = RerankNode()
+    node = rerank
 
     node(make_state(candidates=[make_candidate(1, "a")], ticket=make_ticket("subj", "body")))
 

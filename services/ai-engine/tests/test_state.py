@@ -10,7 +10,7 @@ from pydantic import BaseModel, ValidationError
 
 from ai_engine.core.node import BaseNode, SingleExit
 from ai_engine.core.state import TriageState
-from ai_engine.graph.build import GraphBuilder
+from ai_engine.core.build.builder import GraphBuilder
 
 
 def test_state_is_frozen(make_state):

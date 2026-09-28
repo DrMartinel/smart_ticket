@@ -10,7 +10,7 @@ import pytest
 from contracts.enums import PIILevel
 from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
 
-from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
+from ai_engine.graph.nodes.emit_signals import emit_signals
 from ai_engine.core.state import RankedChunk
 
 
@@ -47,7 +47,7 @@ def test_kb_policy_lookup_failure_denies_auto_reply(fake_db, make_state, use_db)
 
     db = fake_db(error=RuntimeError("connection refused"))
     use_db(db)
-    node = EmitSignalsNode()
+    node = emit_signals
 
     out = node(make_state(reranked=[_chunk(1, 0.9)], proposal=_auto_reply()))
 
@@ -61,7 +61,7 @@ def test_missing_kb_slug_denies_without_touching_the_database(fake_db, make_stat
 
     db = fake_db(rows=[(True, "low")])
     use_db(db)
-    node = EmitSignalsNode()
+    node = emit_signals
 
     out = node(make_state(reranked=[_chunk(1, 0.9)]))
 
@@ -77,7 +77,7 @@ def test_docs_above_floor_uses_the_per_request_floor_from_state(fake_db, make_st
 
     use_db(fake_db())
 
-    node = EmitSignalsNode()
+    node = emit_signals
     chunks = [_chunk(1, 0.9), _chunk(2, 0.6), _chunk(3, 0.2)]
 
     high = node(make_state(reranked=chunks, retrieval_floor=0.8))
@@ -94,7 +94,7 @@ def test_rerank_margin_is_zero_for_a_single_chunk(fake_db, make_state, use_db):
 
     use_db(fake_db())
 
-    node = EmitSignalsNode()
+    node = emit_signals
 
     out = node(make_state(reranked=[_chunk(1, 0.9)]))
 
@@ -108,7 +108,7 @@ def test_no_reranked_chunks_yields_zeroed_retrieval_signals(fake_db, make_state,
 
     use_db(fake_db())
 
-    node = EmitSignalsNode()
+    node = emit_signals
 
     out = node(make_state())
 
@@ -124,7 +124,7 @@ def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, u
 
     use_db(fake_db())
 
-    node = EmitSignalsNode()
+    node = emit_signals
 
     generation = node(make_state())["signals"].generation
 
@@ -136,7 +136,7 @@ def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, u
 
 def test_injection_verdict_is_forwarded_to_policy_signals(fake_db, make_state, use_db):
     use_db(fake_db())
-    node = EmitSignalsNode()
+    node = emit_signals
 
     out = node(make_state(injection_detected=True))
 
@@ -146,7 +146,7 @@ def test_injection_verdict_is_forwarded_to_policy_signals(fake_db, make_state, u
 @pytest.mark.parametrize("level", [PIILevel.ROUTINE, PIILevel.SENSITIVE, PIILevel.CRITICAL])
 def test_pii_level_is_carried_from_the_ticket(level, fake_db, make_state, make_ticket, use_db):
     use_db(fake_db())
-    node = EmitSignalsNode()
+    node = emit_signals
     ticket = make_ticket()
     ticket = ticket.model_copy(update={"pii_level": level})
 
@@ -162,7 +162,7 @@ def test_policy_is_read_from_the_database_when_a_kb_slug_is_present(fake_db, mak
 
     db = fake_db(rows=[(True, "low")])
     use_db(db)
-    node = EmitSignalsNode()
+    node = emit_signals
 
     out = node(make_state(reranked=[_chunk(1, 0.9)], proposal=_auto_reply()))
 

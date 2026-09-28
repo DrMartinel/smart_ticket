@@ -7,9 +7,9 @@ from ai_engine.core.node import Terminal
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
-from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome
+from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome, injection
 from ai_engine.core.state import RankedChunk
-from ai_engine.graph.nodes.rerank import RerankNode, RerankOutcome
+from ai_engine.graph.nodes.rerank import RerankNode, RerankOutcome, rerank
 from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode
 
@@ -20,29 +20,29 @@ def _chunk(score: float) -> RankedChunk:
 
 def test_injection_detected_decides_detected(make_state):
     state = make_state(injection_detected=True)
-    assert InjectionNode().decide(state) is InjectionOutcome.INJECTION_DETECTED
+    assert injection.decide(state) is InjectionOutcome.INJECTION_DETECTED
 
 
 def test_no_injection_decides_clear(make_state):
     state = make_state(injection_detected=False)
-    assert InjectionNode().decide(state) is InjectionOutcome.INJECTION_CLEAR
+    assert injection.decide(state) is InjectionOutcome.INJECTION_CLEAR
 
 
 def test_empty_reranked_is_below_floor(make_state):
     state = make_state(reranked=[], retrieval_floor=0.45)
-    node = RerankNode()
+    node = rerank
     assert node.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_below_floor_is_below_floor(make_state):
     state = make_state(reranked=[_chunk(0.1)], retrieval_floor=0.45)
-    node = RerankNode()
+    node = rerank
     assert node.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_above_floor_is_above_floor(make_state):
     state = make_state(reranked=[_chunk(0.9)], retrieval_floor=0.45)
-    node = RerankNode()
+    node = rerank
     assert node.decide(state) is RerankOutcome.EVIDENCE_ABOVE_FLOOR
 
 
@@ -50,7 +50,7 @@ def _edges() -> dict[tuple[str, str], object]:
     """The production graph's edges as (source, target) -> outcome label.
     Unconditional edges have no label."""
 
-    from ai_engine.graph.build import triage_graph
+    from ai_engine.graph.triage import triage_graph
 
     return {(e.source, e.target): e.data for e in triage_graph.get_graph().edges}
 
@@ -71,7 +71,7 @@ def test_safety_critical_routes():
 
 
 def test_graph_has_exactly_the_expected_nodes():
-    from ai_engine.graph.build import triage_graph
+    from ai_engine.graph.triage import triage_graph
 
     nodes = {n for n in triage_graph.get_graph().nodes if not n.startswith("__")}
 
@@ -127,7 +127,7 @@ def test_main_wires_the_prompt_for_settings_prompt_version():
 
     from ai_engine.core.config import settings
     from ai_engine.core.prompts import load_system_prompt
-    from ai_engine.graph.build import triage_graph
+    from ai_engine.graph.triage import triage_graph
 
     # LangGraph internals: PregelNode.bound is the RunnableCallable wrapping
     # GraphBuilder's adapter, which keeps the node instance on `.node`.

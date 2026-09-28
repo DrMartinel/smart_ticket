@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.graph.nodes.retrieve import HybridRetrieveNode
+from ai_engine.graph.nodes.retrieve import hybrid_retrieve
 
 
 @pytest.fixture
@@ -18,7 +18,7 @@ def make_node(use_db, use_embedder):
     def make(db, embedder):
         use_db(db)
         use_embedder(embedder)
-        return HybridRetrieveNode()
+        return hybrid_retrieve
 
     return make
 

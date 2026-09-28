@@ -1,7 +1,7 @@
 # Recipe: add a graph node
 
 Open these before writing: `graph/nodes/rerank.py` (branching), `graph/nodes/retrieve.py`
-(single-exit, providers), `graph/build.py` (the route list at the bottom),
+(single-exit, providers), `graph/triage.py` (the route list at the bottom),
 `core/state.py`, `tests/conftest.py`, `tests/test_build.py`.
 
 ## 1. State fields: `core/state.py`
@@ -79,7 +79,7 @@ If the node reads `db`, `embedder` or `reranker`, import the singleton by name a
 **add the new module to the tuple in the matching `use_*` fixture**. If it calls the
 chat LLM, go through `models.chat`. `use_llm` already patches that.
 
-## 4. Wiring: bottom of `graph/build.py`
+## 4. Wiring: `graph/triage.py`
 
 - Import the instance, and its `Outcome` enum if it has one.
 - Route **every** outcome. An unrouted outcome raises in `compile()` at import.
