@@ -34,10 +34,10 @@ from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
 from apps.tickets.models import AiRun, PiiQuarantine, RoutingDecision, Ticket
 from apps.tickets.services import router as router_service
-from apps.tickets.services.ai_client import AIEngineUnavailable, analyze
-from apps.tickets.services.embeddings import embed_text
 from apps.tickets.services.incident import classify_similarity, store_embedding
 from apps.tickets.services.trust_scorer import score as compute_trust
+from integrations.ai_engine import AIEngineUnavailable, analyze
+from integrations.embeddings import embed_text
 
 logger = logging.getLogger(__name__)
 

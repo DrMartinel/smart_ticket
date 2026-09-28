@@ -127,7 +127,7 @@ The cross-encoder is the default: `RERANKER_PROVIDER=vllm` serves `bge-reranker-
 
 Note the shape of this: it is not "the wrong number", it is "a number from a different measurement compared against this one". Fixing it by nudging `0.45` would be the worst outcome, because it would make the mismatch invisible rather than absent.
 
-There is also a structural blocker. core-api owns `thresholds.yaml` and sends `retrieval_floor` in `AIRunRequest` ([ai_client.py](../services/core-api/apps/tickets/services/ai_client.py)), but `RERANKER_PROVIDER` is read only by ai-engine. **core-api cannot see which provider scored**, so it cannot select a matching floor, and a mismatch cannot currently be detected at all.
+There is also a structural blocker. core-api owns `thresholds.yaml` and sends `retrieval_floor` in `AIRunRequest` ([ai_engine.py](../services/core-api/integrations/ai_engine.py)), but `RERANKER_PROVIDER` is read only by ai-engine. **core-api cannot see which provider scored**, so it cannot select a matching floor, and a mismatch cannot currently be detected at all.
 
 ### Work
 

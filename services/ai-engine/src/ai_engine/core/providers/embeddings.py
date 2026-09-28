@@ -4,7 +4,7 @@ request, parses the reply and checks the vector is fit for pgvector.
 `models.embed`, built from config at import time, only carries the
 request to the model server.
 
-core-api embeds tickets separately (apps/tickets/services/embeddings.py); the
+core-api embeds tickets separately (integrations/embeddings.py); the
 two services never import each other's code (ADR-0004), so they must be kept on
 the same model by config.
 """

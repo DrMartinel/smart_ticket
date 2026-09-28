@@ -8,8 +8,8 @@ leaves the ticket stuck at status="new", invisible to every queue.
 import httpx
 import pytest
 
-from apps.tickets.services import embeddings
-from apps.tickets.services.embeddings import EMBED_DIM, embed_text
+from integrations import embeddings
+from integrations.embeddings import EMBED_DIM, embed_text
 
 
 def _mock_post(monkeypatch, handler):

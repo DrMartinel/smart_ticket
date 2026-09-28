@@ -83,7 +83,7 @@ This is the expected P1 state, not a defect. `evals/calibration/fit_trust_score.
 Two things have to happen to close it, and neither is a config edit:
 
 1. **Measure.** Nobody has observed real `bge-reranker-v2-m3` scores on this KB, so `0.45` is a hand-set prior (🔧) even for the provider it was written for.
-2. **Make the pairing knowable.** core-api reads `retrieval.floor` and sends it in `AIRunRequest` ([ai_client.py](../services/core-api/apps/tickets/services/ai_client.py)), but `RERANKER_PROVIDER` is an ai-engine-only variable — core-api cannot see which provider scored, so it cannot pick the matching floor or detect a mismatch. A per-provider floor needs that coupling to exist first.
+2. **Make the pairing knowable.** core-api reads `retrieval.floor` and sends it in `AIRunRequest` ([ai_engine.py](../services/core-api/integrations/ai_engine.py)), but `RERANKER_PROVIDER` is an ai-engine-only variable — core-api cannot see which provider scored, so it cannot pick the matching floor or detect a mismatch. A per-provider floor needs that coupling to exist first.
 
 See [TODO.md](TODO.md) item 4.
 

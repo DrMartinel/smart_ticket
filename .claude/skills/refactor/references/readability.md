@@ -22,7 +22,7 @@ Every module reads top-down in the same order:
 1. **Module docstring.** What this module is, the spec section / ADR it implements,
    and the *one* invariant a reader would not guess from the code. Not a table of
    contents.
-   - `services/core-api/apps/tickets/services/ai_client.py` — who calls it, and that a
+   - `services/core-api/integrations/ai_engine.py` — who calls it, and that a
      transport failure must be treated as fail-open-to-human.
    - `services/core-api/apps/tickets/services/router.py` — the only module allowed to
      choose a `Branch`, and why the gate order is load-bearing.
@@ -75,7 +75,7 @@ needs and cannot see from the signature.
 - `Embedder.embed` (`core/providers/embeddings.py`): "Raises on provider failure —
   never a zero or empty vector", and *why* (it would read as "KB has nothing relevant"
   instead of "embedder down", which reach HITL under different reason codes).
-- `AIEngineUnavailable` (`core-api/.../ai_client.py`): "Callers MUST treat this as
+- `AIEngineUnavailable` (`core-api/integrations/ai_engine.py`): "Callers MUST treat this as
   fail-open-to-human … never as skip the AI step and auto-approve."
 - A class that is shared across threads says so and what that forbids
   (`BaseNode`: "`__call__` must never write to `self`").

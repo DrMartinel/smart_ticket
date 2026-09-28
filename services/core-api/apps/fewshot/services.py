@@ -11,6 +11,7 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.fewshot.models import FewshotExample
 from apps.tickets.models import Ticket
+from integrations.embeddings import embed_text
 
 
 class FewshotError(Exception):
@@ -32,8 +33,6 @@ def add_example(
 
     th = settings.THRESHOLDS.fewshot
     now = timezone.now()
-    from apps.tickets.services.embeddings import embed_text
-
     return FewshotExample.objects.create(
         source_ticket=ticket,
         category=category,

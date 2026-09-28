@@ -78,6 +78,7 @@ strict = [
     "services/ai-engine/src",
     "services/core-api/apps",
     "services/core-api/config",
+    "services/core-api/integrations",
     "packages/contracts",
     "evals/report.py",
     "evals/calibration",

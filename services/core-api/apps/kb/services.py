@@ -11,7 +11,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.kb.models import KbArticle, KbAuthorityLog, KbChunk
-from apps.tickets.services.embeddings import embed_text
+from integrations.embeddings import embed_text
 
 CHUNK_TARGET_TOKENS = 250
 
