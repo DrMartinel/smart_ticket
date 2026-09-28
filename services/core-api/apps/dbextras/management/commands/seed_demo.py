@@ -12,7 +12,6 @@ from django.db import transaction
 
 from apps.accounts.models import User
 from apps.kb.models import KbArticle
-from apps.kb.services import ingest_article, set_auto_reply_allowed
 
 DEMO_PASSWORD = "demo12345"
 
@@ -211,15 +210,15 @@ class Command(BaseCommand):
                 self.stdout.write(f"article {slug} already exists")
                 continue
 
-            ingest_article(article)
+            article.ingest()
             self.stdout.write(self.style.SUCCESS(f"created + ingested {slug}"))
 
             if auto_reply_allowed:
                 # The same governance path a manager uses (ADR-0002), so every
                 # seeded approval has a KbAuthorityLog row. Raises, and rolls
                 # the whole seed back, if manager1 is not a manager.
-                set_auto_reply_allowed(
-                    article=article, allowed=True, actor=manager, reason=SEED_APPROVAL_REASON
+                article.set_auto_reply_allowed(
+                    allowed=True, actor=manager, reason=SEED_APPROVAL_REASON
                 )
                 self.stdout.write(
                     self.style.SUCCESS(

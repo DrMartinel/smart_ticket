@@ -49,7 +49,7 @@ def test_embedding_failure_keeps_the_article_without_chunks(manager_user, monkey
     def unreachable(text):
         raise httpx.ConnectError("vllm-embed unreachable")
 
-    monkeypatch.setattr("apps.kb.services.embed_text", unreachable)
+    monkeypatch.setattr("apps.kb.models.embed_text", unreachable)
 
     with pytest.raises(httpx.ConnectError):
         create(api_as(manager_user))

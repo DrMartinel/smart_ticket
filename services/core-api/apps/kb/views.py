@@ -5,16 +5,9 @@ from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
-from apps.kb.models import KbArticle
+from apps.kb.models import KBGovernanceError, KbArticle
 from apps.kb.request_schema import ArticleIn, AutoReplyFlagIn, RiskTierIn
 from apps.kb.response_schema import ArticleOut, ReingestOut
-from apps.kb.services import (
-    KBGovernanceError,
-    article_create,
-    ingest_article,
-    set_auto_reply_allowed,
-    set_risk_tier,
-)
 from common.permissions import AuthedRequest
 
 router = Router(tags=["kb"])
@@ -27,7 +20,7 @@ def list_articles(request: AuthedRequest) -> QuerySet[KbArticle]:
 
 @router.post("", auth=JWTAuth(), response=ArticleOut)
 def create_article(request: AuthedRequest, payload: ArticleIn) -> KbArticle:
-    return article_create(
+    return KbArticle.objects.create_and_ingest(
         slug=payload.slug,
         title=payload.title,
         body=payload.body,
@@ -39,7 +32,7 @@ def create_article(request: AuthedRequest, payload: ArticleIn) -> KbArticle:
 @router.post("/{slug}/reingest", auth=JWTAuth(), response=ReingestOut)
 def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
     article = _get_or_404(slug)
-    chunks = ingest_article(article)
+    chunks = article.ingest()
     return ReingestOut(slug=slug, chunks=len(chunks))
 
 
@@ -47,8 +40,8 @@ def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
 def toggle_auto_reply(request: AuthedRequest, slug: str, payload: AutoReplyFlagIn) -> KbArticle:
     article = _get_or_404(slug)
     try:
-        set_auto_reply_allowed(
-            article=article, allowed=payload.allowed, actor=request.auth, reason=payload.reason
+        article.set_auto_reply_allowed(
+            allowed=payload.allowed, actor=request.auth, reason=payload.reason
         )
     except KBGovernanceError as e:
         raise HttpError(403, str(e)) from e
@@ -59,8 +52,8 @@ def toggle_auto_reply(request: AuthedRequest, slug: str, payload: AutoReplyFlagI
 def change_risk_tier(request: AuthedRequest, slug: str, payload: RiskTierIn) -> KbArticle:
     article = _get_or_404(slug)
     try:
-        set_risk_tier(
-            article=article, risk_tier=payload.risk_tier, actor=request.auth, reason=payload.reason
+        article.set_risk_tier(
+            risk_tier=payload.risk_tier, actor=request.auth, reason=payload.reason
         )
     except KBGovernanceError as e:
         raise HttpError(403, str(e)) from e
