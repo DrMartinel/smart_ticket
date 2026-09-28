@@ -3,8 +3,8 @@ from typing import Any
 from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
-from apps.accounts.rbac import AuthedRequest
 from apps.fewshot.selectors import active_examples_for_category
+from common.permissions import AuthedRequest
 
 router = Router(tags=["fewshot"])
 

@@ -6,7 +6,6 @@ from ninja import Router, Schema
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
-from apps.accounts.rbac import AuthedRequest
 from apps.kb.models import KbArticle
 from apps.kb.services import (
     KBGovernanceError,
@@ -15,6 +14,7 @@ from apps.kb.services import (
     set_auto_reply_allowed,
     set_risk_tier,
 )
+from common.permissions import AuthedRequest
 
 router = Router(tags=["kb"])
 

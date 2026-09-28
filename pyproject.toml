@@ -85,6 +85,7 @@ include = ["services/ai-engine", "services/core-api", "packages/contracts", "eva
 strict = [
     "services/ai-engine/src",
     "services/core-api/apps",
+    "services/core-api/common",
     "services/core-api/config",
     "services/core-api/infrastructure",
     "packages/contracts",

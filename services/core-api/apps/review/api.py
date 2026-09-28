@@ -8,11 +8,11 @@ from ninja_jwt.authentication import JWTAuth
 
 from contracts.trust import TrustSignals
 
-from apps.accounts.rbac import AuthedRequest
 from apps.review.models import ReviewItem
 from apps.review.selectors import review_item_list
 from apps.review.services import ReviewError, claim, decide
 from apps.tickets.services.trust_scorer import score as compute_trust
+from common.permissions import AuthedRequest
 
 router = Router(tags=["review"])
 

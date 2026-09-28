@@ -4,9 +4,9 @@ from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
-from apps.accounts.rbac import AuthedRequest
 from apps.itsm_mock.services import RUNBOOK_REGISTRY, Runbook, RunbookError, execute_runbook
 from apps.review.models import ReviewItem
+from common.permissions import AuthedRequest
 
 router = Router(tags=["itsm"])
 

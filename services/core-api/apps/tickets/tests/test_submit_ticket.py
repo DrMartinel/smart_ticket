@@ -21,11 +21,11 @@ from ninja.errors import HttpError
 
 from contracts.enums import PIILevel
 
-from apps.accounts.rbac import AuthedRequest
 from apps.audit.models import AuditLog
 from apps.tickets.api import TicketSubmitIn, submit_ticket
 from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.services.crypto import decrypt
+from common.permissions import AuthedRequest
 
 EMAIL = "an.nguyen@example.com"
 PHONE = "0912345678"

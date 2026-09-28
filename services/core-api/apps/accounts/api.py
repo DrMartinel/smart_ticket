@@ -1,7 +1,7 @@
 from ninja import Router
 from ninja_jwt.authentication import JWTAuth
 
-from apps.accounts.rbac import AuthedRequest
+from common.permissions import AuthedRequest
 
 router = Router(tags=["accounts"])
 

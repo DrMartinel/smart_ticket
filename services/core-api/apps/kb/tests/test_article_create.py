@@ -16,9 +16,9 @@ import httpx
 import pytest
 from django.test import RequestFactory
 
-from apps.accounts.rbac import AuthedRequest
 from apps.kb.api import ArticleIn, create_article
 from apps.kb.models import KbArticle, KbChunk
+from common.permissions import AuthedRequest
 
 ARTICLE = ArticleIn(
     slug="KB-TEST-001",

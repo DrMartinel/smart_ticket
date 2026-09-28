@@ -15,9 +15,9 @@ from pydantic import ValidationError as PydanticValidationError
 
 from contracts.ticket import TicketIn
 
-from apps.accounts.rbac import AuthedRequest
 from apps.tickets.models import Ticket
 from apps.tickets.services.submission import ticket_submit
+from common.permissions import AuthedRequest
 
 router = Router(tags=["tickets"])
 
