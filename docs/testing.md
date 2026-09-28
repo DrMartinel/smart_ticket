@@ -4,7 +4,7 @@ Two distinct layers with different purposes. Confusing them is the usual source 
 
 | Layer | Answers | Deterministic | Runs on |
 |---|---|---|---|
-| **Unit** (`services/*/tests/`) | Does the code do what it says? | Yes | Every commit |
+| **Unit** (core-api `apps/<app>/tests/`, ai-engine `tests/`) | Does the code do what it says? | Yes | Every commit |
 | **Eval** (`evals/suites/`) | Does the *system* still behave acceptably? | No — model output varies | Every PR, gated |
 
 Unit tests protect logic. Evals protect behavior. A green unit suite says nothing about whether the model got worse, and a green eval run says nothing about whether your refactor broke an edge case.
@@ -17,7 +17,7 @@ Unit tests protect logic. Evals protect behavior. A green unit suite says nothin
 uv sync --all-packages    # once; a bare `uv sync` won't install pytest
 
 uv run pytest                              # everything (unit + eval)
-uv run pytest services/core-api/tests -q
+uv run pytest services/core-api -q
 uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # 8 suites
 ```
@@ -27,7 +27,7 @@ Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn'
 Coverage on the two modules where it is contractual:
 
 ```bash
-uv run pytest services/core-api/tests -q \
+uv run pytest services/core-api -q \
   --cov=apps.tickets.services.masking --cov=apps.tickets.services.router \
   --cov-report=term-missing
 ```

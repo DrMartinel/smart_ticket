@@ -32,7 +32,7 @@ This currently **fails safe** (nobody can read raw PII at all, which is stricter
 
 ### Done when
 
-Tests in `services/core-api/tests/` cover:
+Tests in `services/core-api/apps/tickets/tests/` cover:
 
 - successful reveal writes exactly one `pii_access_log` row carrying actor and reason;
 - empty or missing `reason` → rejected;

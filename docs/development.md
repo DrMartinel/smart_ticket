@@ -109,7 +109,7 @@ Short version — full detail in [`testing.md`](testing.md):
 
 ```bash
 uv run pytest                              # everything (unit + eval)
-uv run pytest services/core-api/tests -q
+uv run pytest services/core-api -q
 uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # skips live suites if ai-engine is down
 ```

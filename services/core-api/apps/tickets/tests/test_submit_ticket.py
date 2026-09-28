@@ -1,3 +1,4 @@
+# pyright: standard
 """
 Ticket submission — spec §5's inline-masking contract, end to end through
 the handler. By the time submit returns, the `tickets` row holds ONLY masked

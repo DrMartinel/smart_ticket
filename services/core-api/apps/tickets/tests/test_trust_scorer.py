@@ -1,3 +1,4 @@
+# pyright: standard
 """
 Trust scorer — spec §7 / ADR-0003. The one property that MUST hold no
 matter how the underlying model is recalibrated: llm_self_confidence is

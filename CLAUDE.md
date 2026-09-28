@@ -73,9 +73,9 @@ cd services/web && npm install
 ```
 
 ```bash
-uv run pytest                              # everything (242 unit + 8 eval)
-uv run pytest services/core-api/tests -q   # 74
-uv run pytest services/ai-engine/tests -q  # 168
+uv run pytest                              # everything (244 unit + 8 eval)
+uv run pytest services/core-api -q         # 95 (DB tests need DATABASE_URL, see below)
+uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
 
@@ -88,7 +88,7 @@ uvx pyright@1.1.414
 Coverage on the two modules where it is contractual:
 
 ```bash
-uv run pytest services/core-api/tests -q --cov=apps.tickets.services.masking --cov=apps.tickets.services.router --cov-report=term-missing
+uv run pytest services/core-api -q --cov=apps.tickets.services.masking --cov=apps.tickets.services.router --cov-report=term-missing
 ```
 
 Full stack (7 containers + the `vllm` profile for models). Migrations run automatically on `core-api` start:
@@ -206,7 +206,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 
 ## Testing conventions
 
-Unit tests (`services/*/tests/`) protect logic; evals (`evals/suites/`) protect
+Unit tests (core-api: `apps/<app>/tests/`; ai-engine: `tests/`) protect logic; evals (`evals/suites/`) protect
 behavior. A green unit suite says nothing about whether the model got worse.
 
 - **Test the failure paths.** This system's correctness is mostly about what it

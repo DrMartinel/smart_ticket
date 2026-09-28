@@ -1,3 +1,4 @@
+# pyright: standard
 """
 Incident Detector — spec §9. `_get_or_create_incident` is the one piece of
 this service with real DB reuse logic (everything else is retrieval +

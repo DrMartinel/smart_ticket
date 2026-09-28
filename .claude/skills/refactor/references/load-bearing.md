@@ -19,7 +19,7 @@ Format: **what** — why it exists — *what guards it*.
 - **`proposed_` prefixes on LLM-authored fields.** The asymmetry between
   `draft.proposed_category` and `ticket.category` is the point. *CLAUDE.md rule 5.*
 - **`router.py` pure, with thresholds passed in as a parameter.** No I/O, no global
-  config, no default arguments. *ADR-0001; `services/core-api/tests/test_router.py`
+  config, no default arguments. *ADR-0001; `services/core-api/apps/tickets/tests/test_router.py`
   (`test_route_is_deterministic_pure_function`).*
 - **`thresholds.yaml` parsed into a Pydantic model at boot.** A malformed file must
   stop core-api starting, not surface at routing time. *CLAUDE.md Gotchas.*
@@ -47,7 +47,7 @@ Format: **what** — why it exists — *what guards it*.
 - **100% branch coverage of `masking.py`.** It is the P0 release gate. *The coverage
   command in CLAUDE.md.*
 - **An NER failure resolves to `MASK_FAILED`, never to "no PII found".** This is the
-  single worst regression possible. *`services/core-api/tests/test_masking.py`;
+  single worst regression possible. *`services/core-api/apps/tickets/tests/test_masking.py`;
   comments in `masking.py`.*
 - **`llm_self_confidence` stays out of the trust score.** *ADR-0003;
   `test_trust_scorer.py::test_llm_self_confidence_does_not_change_score` and

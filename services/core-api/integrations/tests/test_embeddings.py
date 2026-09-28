@@ -1,3 +1,4 @@
+# pyright: standard
 """
 core-api's embedder (ADR-0009). Every failure must surface as httpx.HTTPError
 or ValueError: those are the two types process_ticket turns into an

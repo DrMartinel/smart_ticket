@@ -78,7 +78,7 @@ jobs:
 
       - name: Router + masking unit tests (100% branch coverage gate)
         run: |
-          uv run pytest services/core-api/tests -q --cov=apps.tickets.services.router \
+          uv run pytest services/core-api -q --cov=apps.tickets.services.router \
             --cov=apps.tickets.services.masking --cov-report=term-missing --cov-fail-under=100
 
       - name: ai-engine unit tests

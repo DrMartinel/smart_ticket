@@ -49,20 +49,25 @@ target-version = "py313"
 select = ["E4", "E7", "E9", "F"]
 
 [tool.pytest.ini_options]
-testpaths = ["services/core-api/tests", "services/ai-engine/tests", "evals/suites"]
-# core-api and ai-engine both have a test package literally named `tests`.
-# Under the default "prepend" import mode the first one collected wins and
-# the second's modules resolve to `tests.<name>` in the wrong package —
-# so a whole-workspace `pytest` run died with ModuleNotFoundError even
-# though each suite passed when run on its own. importlib mode imports by
-# file location instead of by assembled module name, which makes the
-# duplicate package name (and the two different test_injection.py files in
-# ai-engine/tests and evals/suites) a non-issue.
+testpaths = [
+    "services/core-api/apps",
+    "services/core-api/integrations",
+    "services/ai-engine/tests",
+    "evals/suites",
+]
+# The suites share module names — two different test_injection.py files in
+# ai-engine/tests and evals/suites, and a directory named `tests` in more than
+# one service. Under the default "prepend" import mode the first one collected
+# wins and the others resolve to the wrong file, so a whole-workspace `pytest`
+# run died at collection even though each suite passed when run on its own.
+# importlib mode imports by file location instead of by assembled module
+# name, which makes the duplicate names a non-issue.
 #
 # That fix covers test MODULES but not conftest.py, which pytest registers as
-# a plugin keyed by module name: with a `tests/__init__.py` present in both
-# services, both conftests resolve to `tests.conftest` and the second one
-# collected raises "Plugin already registered under a different name".
+# a plugin keyed by module name: if two services each have a
+# `tests/__init__.py`, both conftests resolve to `tests.conftest` and the
+# second one collected raises "Plugin already registered under a different
+# name".
 # services/ai-engine/tests therefore deliberately has NO __init__.py, so its
 # conftest gets a path-derived name. Do not add one back — a whole-workspace
 # run dies at collection, while each suite still passes on its own.
@@ -71,6 +76,9 @@ addopts = "--import-mode=importlib"
 [tool.pyright]
 # Strict for all source code; tests run in standard mode, where strict would
 # mostly mean annotating every pytest fixture. New code starts strict.
+# core-api's tests live inside its strict packages (apps/<app>/tests/), so each
+# test file opts back down with a `# pyright: standard` first line — forget it
+# and the file fails loudly under strict, never the other way round.
 # Suppressions are per line and name their rule; most sit on untyped library
 # boundaries (LangGraph's generics are partly unparameterized).
 include = ["services/ai-engine", "services/core-api", "packages/contracts", "evals"]

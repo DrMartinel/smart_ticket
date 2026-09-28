@@ -346,9 +346,9 @@ curl -s -X POST http://localhost:8000/api/tickets/submit \
 
 ```bash
 uv sync --all-packages                     # once — installs every workspace member
-uv run pytest                              # everything (119 tests)
-uv run pytest services/core-api/tests -q   # 73
-uv run pytest services/ai-engine/tests -q  # 38
+uv run pytest                              # everything (244 unit + 8 eval)
+uv run pytest services/core-api -q         # 95
+uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 eval suites
 ```
 
@@ -361,7 +361,7 @@ The eval suites that exercise the live pipeline **skip automatically** when `ai-
 Coverage on the two modules where it matters:
 
 ```bash
-uv run pytest services/core-api/tests -q \
+uv run pytest services/core-api -q \
   --cov=apps.tickets.services.masking --cov=apps.tickets.services.router \
   --cov-report=term-missing
 ```

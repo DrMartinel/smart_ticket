@@ -75,7 +75,7 @@ jobs:
         run: uv run python manage.py migrate
 
       - name: core-api unit tests
-        run: uv run pytest services/core-api/tests -q
+        run: uv run pytest services/core-api -q
 
       - name: ai-engine unit tests
         run: uv run pytest services/ai-engine/tests -q
