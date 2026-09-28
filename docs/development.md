@@ -87,7 +87,7 @@ For things the ORM can't express (partial indexes, HNSW, CHECK constraints tied 
 
 ### Add an API endpoint
 
-Routers live in `apps/<app>/views.py` (Django Ninja). Keep the handler thin: bind and validate the input, call a function in `services.py` (writes, decisions) or `selectors.py` (reads), and return the model. Request bodies go in the app's `request_schema.py`; declare the output with `response=` and an output Schema in `response_schema.py`, so the shape is validated and documented in OpenAPI. Gate a handler by role with `@require_role(...)` from `common/permissions.py`. Roles: `employee`, `technician`, `manager`, `security`. No router applies it yet: KB governance is enforced inside `apps/kb/services.py`, not at the endpoint.
+Routers live in `apps/<app>/views.py` (Django Ninja). Keep the handler thin: bind and validate the input, call a model method or manager method (writes and decisions belong on the model they change), a function in the app's `utils` (logic no single model owns), or `selectors.py` (reads), and return the model. Request bodies go in the app's `request_schema.py`; declare the output with `response=` and an output Schema in `response_schema.py`, so the shape is validated and documented in OpenAPI. Gate a handler by role with `@require_role(...)` from `common/permissions.py`. Roles: `employee`, `technician`, `manager`, `security`. No router applies it yet: KB governance is enforced inside `KbArticle.set_auto_reply_allowed` (`apps/kb/models.py`), not at the endpoint.
 
 ### Change a prompt
 

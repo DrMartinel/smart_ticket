@@ -7,8 +7,8 @@ any environment without a GPU.
 
 core-api needs its own embedder (not just ai-engine's) for: KB ingestion
 (apps/kb/models.py), ticket embeddings for incident/duplicate detection
-(apps/tickets/services/incident.py), and few-shot pool embeddings
-(apps/fewshot/services.py). It must use the same model and runtime as
+(apps/tickets/utils/pipeline.py), and few-shot pool embeddings
+(apps/fewshot/models.py). It must use the same model and runtime as
 ai-engine's query embeddings, or retrieval degrades silently.
 """
 

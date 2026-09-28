@@ -29,6 +29,39 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **core-api uses fat models and thin views; the service layer is gone.**
+  Each write or decision that belongs to one entity is now a method on its
+  model or manager:
+  - `article.ingest()`, `set_auto_reply_allowed()`, `set_risk_tier()` and
+    `KbArticle.objects.create_and_ingest()`;
+  - `item.claim()` and `item.decide()`;
+  - `FewshotExample.objects.add_confirmed()` and `retract_for_ticket()`;
+  - `RunbookExecution.objects.execute()`;
+  - `AuditLog.objects.record()`, which replaces `audit()`;
+  - `Ticket.objects.submit()` and `next_public_id()`, and
+    `ticket.store_embedding()` and `ticket.classify_similarity()`;
+  - `Incident.objects.get_or_create_for_mass_incident()`.
+
+  Logic that is no single model's behaviour moved from
+  `apps/tickets/services/` to `apps/tickets/utils/`: router, trust_scorer,
+  masking, patterns, crypto and pipeline. KB chunking moved to
+  `apps/kb/utils.py`. The CI coverage gate now measures
+  `apps.tickets.utils.masking` and `apps.tickets.utils.router`.
+
+  No behaviour change: the bodies moved unchanged, the recorded API
+  responses are identical, and the ADR-0006 approval check, KB governance,
+  enqueue-after-commit, incident reuse and the embedding-failure path were
+  each mutation-checked at their new location.
+- **Every core-api endpoint declares a response schema.** Handlers return
+  models, and `response_schema.py` decides the JSON; request bodies live in
+  `request_schema.py`, and `api.py` is renamed `views.py`. Behaviour change,
+  wire format only:
+  - timestamps have millisecond precision and a `Z` suffix instead of
+    microseconds and `+00:00`;
+  - dashboard latencies render as `1200.0` instead of `1200`.
+
+  Every key and null is otherwise unchanged, and all 19 operations now
+  document a response body in OpenAPI.
 - **core-api follows a standard Django project layout** (after the HackSoft
   Django styleguide and "Django Project Structure Best Practices"). The
   details:

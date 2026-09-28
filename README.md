@@ -99,10 +99,10 @@ smart_ticket/
 │   └── scripts/gen_typescript.py#   generates web/lib/types/generated.ts
 ├── services/
 │   ├── core-api/                # Django + Django Ninja + Celery
-│   │   ├── apps/                #   each: views · request/response_schema · models · services · selectors · tasks · tests/
+│   │   ├── apps/                #   each: views · request/response_schema · models (fat) · utils · selectors · tasks · tests/
 │   │   │   ├── accounts/        #   RBAC: employee · technician · manager · security
-│   │   │   ├── tickets/         #   models, API, Celery entry points, services/*
-│   │   │   │   └── services/    #     submission · pipeline · masking · router · trust_scorer · incident · crypto
+│   │   │   ├── tickets/         #   models, views, Celery entry points, utils/*
+│   │   │   │   └── utils/       #     router · trust_scorer · masking · patterns · crypto · pipeline
 │   │   │   ├── kb/              #   KB CRUD + auto_reply_allowed governance
 │   │   │   ├── review/          #   HITL queue, decisions, eval candidates
 │   │   │   ├── fewshot/         #   few-shot pool (TTL, retraction)
@@ -347,8 +347,8 @@ curl -s -X POST http://localhost:8000/api/tickets/submit \
 
 ```bash
 uv sync --all-packages                     # once — installs every workspace member
-uv run pytest                              # everything (279 unit + 8 eval)
-uv run pytest services/core-api -q         # 130
+uv run pytest                              # everything (298 unit + 8 eval)
+uv run pytest services/core-api -q         # 149
 uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 eval suites
 ```

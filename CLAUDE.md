@@ -73,8 +73,8 @@ cd services/web && npm install
 ```
 
 ```bash
-uv run pytest                              # everything (279 unit + 8 eval)
-uv run pytest services/core-api -q         # 130 (DB tests need DATABASE_URL, see below)
+uv run pytest                              # everything (298 unit + 8 eval)
+uv run pytest services/core-api -q         # 149 (DB tests need DATABASE_URL, see below)
 uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
@@ -150,13 +150,21 @@ proposal only · `web` (Next.js) is a thin client with no business logic.
 
 Inside core-api, each app has these modules:
 - `views.py`: thin Ninja handlers. Each binds and validates the request,
-  calls a service or selector, and declares its output with `response=`.
-- `services.py` or `services/`: writes and decisions.
+  calls a model method, manager method or selector, and declares its output
+  with `response=`.
+- `models.py`: fat models. Writes and decisions that belong to one entity are
+  methods on it (`article.set_auto_reply_allowed(...)`, `item.decide(...)`)
+  or on its manager (`Ticket.objects.submit(...)`,
+  `AuditLog.objects.record(...)`).
+- `utils.py` or `utils/`: logic that is no single model's behaviour: pure
+  decisions and text processing (`router.py`, `trust_scorer.py`,
+  `masking.py`), and the per-ticket `pipeline.py` that coordinates several
+  models. `router.py` stays a pure function (rule 1), whatever its module.
 - `selectors.py`: reads shared by several callers.
 - `request_schema.py` / `response_schema.py`: request bodies and response
   shapes. Every handler declares `response=`; none builds a response dict.
 - `tasks.py`: Celery entry points only. A task's name is its module path, so
-  the work lives in services and the task stays put.
+  the work lives in models and utils and the task stays put.
 
 Beside `apps/` sit `common/` (code every app shares, such as `permissions.py`),
 `infrastructure/` (clients for other processes) and
@@ -220,6 +228,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
+| pyright: custom manager "overrides symbol of same name in class Model" | django-types types `Model.objects` as `BaseManager[Model]`. Annotate `objects: ClassVar[XManager] = XManager()` with `# pyright: ignore[reportIncompatibleVariableOverride]`, as the existing models do |
 | pyright strict errors in a new core-api test file | Tests sit under strict source paths (`apps/`, `common/`, `infrastructure/`); start the file with `# pyright: standard`, as the others do |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
 | pyright: unknown `id` / `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime: declare it on the model (`id: int`, `ticket_id: int`, `ai_runs: RelatedManager[AiRun]`), and give a FK to a string target its model (`models.ForeignKey[User](settings.AUTH_USER_MODEL, …)`) |

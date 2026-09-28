@@ -4,7 +4,7 @@ fewshot) — CREATE EXTENSION vector must exist before those columns can be
 created. Executes infra/migrations/sql/0001_extensions_and_roles.sql
 verbatim, then a RunPython step gives ai_engine_ro a real password (kept
 out of the committed .sql file — see that file's header comment) and
-creates the two public-ID sequences used by apps/tickets/services/ids.py.
+creates the two public-ID sequences used by `next_public_id()` on the Ticket and Incident managers.
 
 `manage.py migrate` stays the single entry point (spec §2 rule 1
 extended to infra), which is why this reads the checked-in .sql file
