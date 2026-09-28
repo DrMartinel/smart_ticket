@@ -1,9 +1,10 @@
 """
-Base Django settings. Environment-specific overrides live in dev.py / prod.py.
+Base Django settings. Environment-specific overrides live in development.py,
+production.py and test.py.
 
 Everything that varies between environments is read from os.environ here,
 with dev-safe defaults — those defaults are NOT meant to be used in prod
-(see prod.py, which fails loudly if left unset).
+(see production.py, which fails loudly if left unset).
 """
 
 import os

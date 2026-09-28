@@ -20,7 +20,7 @@ Point at the Dockerized Postgres and Redis so you only run what you're editing:
 ```bash
 export DATABASE_URL=postgresql://app_user:app_password@localhost:5434/smart_triage
 export CELERY_BROKER_URL=redis://localhost:6380/0
-export DJANGO_SETTINGS_MODULE=config.settings.dev
+export DJANGO_SETTINGS_MODULE=config.settings.development
 
 uv run --project services/core-api python services/core-api/manage.py runserver
 uv run --project services/core-api celery -A config worker -l info

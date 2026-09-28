@@ -6,7 +6,7 @@ volumes:
   db_data:
 
 x-core-api-env: &core-api-env
-  DJANGO_SETTINGS_MODULE: config.settings.dev
+  DJANGO_SETTINGS_MODULE: config.settings.development
   SECRET_KEY: ${SECRET_KEY:-dev-only-insecure-secret-key-change-me}
   DEBUG: ${DEBUG:-true}
   SHADOW_MODE: ${SHADOW_MODE:-true}

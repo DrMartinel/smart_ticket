@@ -104,7 +104,7 @@ docker compose exec core-api python manage.py seed_demo
 Individual services against the Dockerized Postgres/Redis:
 
 ```bash
-export DATABASE_URL=postgresql://app_user:app_password@localhost:5434/smart_triage CELERY_BROKER_URL=redis://localhost:6380/0 DJANGO_SETTINGS_MODULE=config.settings.dev
+export DATABASE_URL=postgresql://app_user:app_password@localhost:5434/smart_triage CELERY_BROKER_URL=redis://localhost:6380/0 DJANGO_SETTINGS_MODULE=config.settings.development
 ```
 
 ```bash

@@ -35,7 +35,7 @@ from typing import Any, cast
 import django
 import numpy as np
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
 os.environ.setdefault(
     "DATABASE_URL", "postgresql://app_user:app_password@localhost:5434/smart_triage"
 )
