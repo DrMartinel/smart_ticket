@@ -4,7 +4,8 @@ precision). This is the one suite that exercises the REAL decision path:
 live ai-engine for signals/proposal, then core-api's actual
 `router.route()` — the identical function used in production, imported
 directly rather than reimplemented here — with a real `KBArticleMeta`
-looked up from the database exactly as `apps/tickets/tasks.py` does.
+looked up from the database exactly as `apps/tickets/services/pipeline.py`
+does.
 
 Auto-reply precision is checked against spec §12.3's absolute (not
 relative-to-baseline) gate: >= 0.95, no exceptions, because a false

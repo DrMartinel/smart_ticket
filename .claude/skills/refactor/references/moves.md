@@ -92,7 +92,7 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
 ### 11. Extract a pure decision from an I/O function — the `router.py` pattern
 
 - **Smell:** a function that fetches, decides and writes, so its decision logic can only
-  be tested with a DB (likely candidate: `services/core-api/apps/tickets/tasks.py`).
+  be tested with a DB (likely candidate: `services/core-api/apps/tickets/services/pipeline.py`).
 - **Move:** fetch first, pass the data into a pure function that returns the decision,
   then act on it. Test the pure function with no I/O.
 - **Guard:** do **not** move a `Branch` choice anywhere except `router.py` (CLAUDE.md
@@ -100,7 +100,7 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
 
 ### 12. Use the contract enum member instead of its string literal
 
-- **Smell:** `degraded_reason="embedding_unavailable"` (`tasks.py`),
+- **Smell:** `degraded_reason="embedding_unavailable"` (`pipeline.py`),
   `"all_llm_down"` (`graph/nodes/infer.py`) where a `ReasonCode` member exists.
 - **Move:** `ReasonCode.EMBEDDING_UNAVAILABLE.value`, etc. A typo then fails at import
   instead of producing a reason the dashboard can't see.

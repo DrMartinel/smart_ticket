@@ -104,7 +104,7 @@ dashboard can count. There are three shapes, and new code picks one on purpose:
 | Situation | Shape | Where it ends | Example |
 |---|---|---|---|
 | Infrastructure the node needs is down (DB, embedder, reranker) | **let it raise** | graph aborts → 500 → core-api `ai_engine_unavailable` → HITL | `HybridRetrieveNode`, `RerankNode` |
-| A failure the graph should carry forward and name | return `degraded_reason="<ReasonCode value>"`, leave outputs at safe defaults | `emit_signals` still runs; core-api maps the reason in `apps/tickets/tasks.py` | `InferNode` on `AllLLMDownError` → `"all_llm_down"` |
+| A failure the graph should carry forward and name | return `degraded_reason="<ReasonCode value>"`, leave outputs at safe defaults | `emit_signals` still runs; core-api maps the reason in `apps/tickets/services/pipeline.py` | `InferNode` on `AllLLMDownError` → `"all_llm_down"` |
 | Bad model output | not an exception: `proposal=None` | `validate` records `schema_valid=False` → HITL | `InferNode` JSON/schema failure |
 | A best-effort, log-only lookup | catch broadly, return the **deny** value | signals are still emitted | `EmitSignalsNode._lookup_kb_policy` |
 

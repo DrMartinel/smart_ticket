@@ -36,7 +36,7 @@ class TestEmbeddingFailureFailsOpenToHitl:
         def raise_timeout(text):
             raise httpx.ConnectTimeout("simulated: embedding service unreachable")
 
-        monkeypatch.setattr("apps.tickets.tasks.embed_text", raise_timeout)
+        monkeypatch.setattr("apps.tickets.services.pipeline.embed_text", raise_timeout)
 
         result = process_ticket.apply(args=(ticket.id,)).get()
 
@@ -54,7 +54,7 @@ class TestEmbeddingFailureFailsOpenToHitl:
     def test_ticket_never_left_stuck_at_new_status(self, employee_user, monkeypatch):
         ticket = make_ticket(employee_user)
         monkeypatch.setattr(
-            "apps.tickets.tasks.embed_text",
+            "apps.tickets.services.pipeline.embed_text",
             lambda text: (_ for _ in ()).throw(httpx.ConnectTimeout("simulated")),
         )
 
@@ -70,7 +70,7 @@ def _llm_failed_response(reason: str, request_id: str):
 
     from contracts.ai_request import AIRunResponse
 
-    from apps.tickets.tasks import _degraded_signals
+    from apps.tickets.services.pipeline import _degraded_signals
 
     return AIRunResponse(
         request_id=request_id,
@@ -94,13 +94,14 @@ class TestLlmFailureKeepsItsReasonCode:
         from apps.tickets.services.incident import IncidentVerdict
 
         ticket = make_ticket(employee_user)
-        monkeypatch.setattr("apps.tickets.tasks.embed_text", lambda text: [0.0])
-        monkeypatch.setattr("apps.tickets.tasks.store_embedding", lambda *a: None)
+        monkeypatch.setattr("apps.tickets.services.pipeline.embed_text", lambda text: [0.0])
+        monkeypatch.setattr("apps.tickets.services.pipeline.store_embedding", lambda *a: None)
         monkeypatch.setattr(
-            "apps.tickets.tasks.classify_similarity", lambda *a: IncidentVerdict(kind="unique")
+            "apps.tickets.services.pipeline.classify_similarity",
+            lambda *a: IncidentVerdict(kind="unique"),
         )
         monkeypatch.setattr(
-            "apps.tickets.tasks.analyze",
+            "apps.tickets.services.pipeline.analyze",
             lambda masked, request_id: _llm_failed_response(reason.value, request_id),
         )
 

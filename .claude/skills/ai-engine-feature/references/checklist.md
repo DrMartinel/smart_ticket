@@ -69,7 +69,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 
 - [regression] New persisted fields have defaults.
 - [regression] TS types are regenerated, and `generated.ts` is not hand-edited.
-- [regression] A new failure reason is a `ReasonCode` member, and core-api `tasks.py` maps it.
+- [regression] A new failure reason is a `ReasonCode` member, and core-api `apps/tickets/services/pipeline.py` maps it.
 
 ## Tests
 
