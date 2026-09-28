@@ -8,7 +8,12 @@ from __future__ import annotations
 
 from ai_engine.contracts.enums import PIILevel
 from ai_engine.contracts.llm_draft import AutoReplyProposal
-from ai_engine.contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
+from ai_engine.contracts.trust import (
+    GenerationSignals,
+    PolicySignals,
+    RetrievalSignals,
+    TrustSignals,
+)
 
 from sqlalchemy import select
 
