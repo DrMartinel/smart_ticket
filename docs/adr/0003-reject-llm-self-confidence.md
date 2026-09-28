@@ -18,7 +18,7 @@ asks "why aren't we using the confidence score the model gives us?".
 **excluded** from:
 
 1. `trust_scorer.FEATURES` (see the comment in
-   `services/core-api/apps/tickets/services/trust_scorer.py`), and
+   `services/core-api/apps/tickets/utils/trust_scorer.py`), and
 2. `router.route()` — no branch decision reads it.
 
 `TrustScore` is instead built entirely from *externally verifiable*

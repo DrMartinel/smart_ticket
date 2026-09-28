@@ -6,8 +6,8 @@ it reaches core-api through `packages/contracts`. This recipe is for a new
 
 Open these before writing: `packages/contracts/src/contracts/trust.py`, `ai_request.py`,
 `enums.py` (`ReasonCode`), `graph/nodes/emit_signals.py`, `main.py`,
-`services/core-api/apps/tickets/services/pipeline.py`,
-`services/core-api/apps/tickets/services/trust_scorer.py`, and `router.py`.
+`services/core-api/apps/tickets/utils/pipeline.py`,
+`services/core-api/apps/tickets/utils/trust_scorer.py`, and `router.py`.
 
 ## Order of work
 
@@ -44,7 +44,7 @@ Do the steps in this order. Each one compiles on top of the one before.
 2. In ai-engine, return `degraded_reason=` with **exactly** that member's value and
    keep outputs at their safe defaults. `infer.py`'s `"all_llm_down"` is the precedent.
    Using `ReasonCode.X.value` is better still (refactor move #12).
-3. In core-api, map it in `apps/tickets/services/pipeline.py` next to the
+3. In core-api, map it in `apps/tickets/utils/pipeline.py` next to the
    `resp.degraded_reason == ReasonCode.ALL_LLM_DOWN.value` branch, so the ticket
    reaches HITL under that code rather than a generic one.
 4. Add a test on the ai-engine side that pins the exact string (see

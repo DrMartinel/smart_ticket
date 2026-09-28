@@ -26,7 +26,7 @@ from contracts.llm_draft import (
 from contracts.routing import KBArticleMeta, RoutingDecision, Thresholds
 from contracts.trust import TrustSignals
 
-from apps.tickets.services.trust_scorer import score as compute_trust
+from apps.tickets.utils.trust_scorer import score as compute_trust
 
 
 def _block(

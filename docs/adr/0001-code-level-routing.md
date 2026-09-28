@@ -12,7 +12,7 @@ has all the context, and a routing prompt is simpler than a rule engine."
 
 ## Decision
 
-`services/core-api/apps/tickets/services/router.py::route()` is the only
+`services/core-api/apps/tickets/utils/router.py::route()` is the only
 place in the system allowed to decide `Branch`. It is a pure function: no
 I/O, no LLM call, thresholds passed as an explicit parameter. The LLM never
 sees `Branch`, never sees thresholds, and has no field in its output schema

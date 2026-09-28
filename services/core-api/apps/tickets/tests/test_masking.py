@@ -15,7 +15,7 @@ from asgiref.sync import async_to_sync
 from contracts.enums import PIILevel
 from contracts.ticket import TicketIn
 
-from apps.tickets.services.masking import (
+from apps.tickets.utils.masking import (
     NERError,
     _spans_to_hits,
     mask,
@@ -51,7 +51,7 @@ def _mock_llm_client(monkeypatch, generate_response: str):
             kw["transport"] = httpx.MockTransport(handler)
             super().__init__(*a, **kw)
 
-    monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+    monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
 
 
 class TestRegexTier:
@@ -97,7 +97,7 @@ class TestMaskCriticalShortCircuit:
             called = True
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
         raw = TicketIn(subject="quen mat khau", body="password: hunter2 can ho tro gap")
         result = run_mask(raw)
 
@@ -111,7 +111,7 @@ class TestMaskLlmTier:
         async def raise_timeout(*a, **kw):
             raise TimeoutError("simulated timeout")
 
-        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", raise_timeout)
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", raise_timeout)
         raw = TicketIn(
             subject="Van de ky thuat", body="Toi can ho tro voi thiet bi cua minh, xin cam on"
         )
@@ -126,7 +126,7 @@ class TestMaskLlmTier:
         async def raise_error(*a, **kw):
             raise NERError("simulated 500")
 
-        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", raise_error)
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", raise_error)
         raw = TicketIn(
             subject="Van de ky thuat", body="May tinh cua toi bi loi man hinh xanh sang nay"
         )
@@ -138,7 +138,7 @@ class TestMaskLlmTier:
         async def fake_ner(text, timeout=None):
             return ["anh Tuan phong ke toan"] if "Tuan" in text else []
 
-        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
         raw = TicketIn(
             subject="Ho tro", body="Lien he anh Tuan phong ke toan de biet them chi tiet nhe"
         )
@@ -151,7 +151,7 @@ class TestMaskLlmTier:
         async def fake_ner(*a, **kw):
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
         raw = TicketIn(
             subject="May in bi ket giay", body="May in tren tang 3 bi ket giay tu sang nay"
         )
@@ -164,7 +164,7 @@ class TestMaskLlmTier:
         async def fake_ner(*a, **kw):
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
         raw = TicketIn(
             subject="Xac minh danh tinh", body="So CCCD cua toi la 012345678901, can xac minh gap"
         )
@@ -214,7 +214,7 @@ class TestLlmNerResponseParsing:
                 kw["transport"] = httpx.MockTransport(handler)
                 super().__init__(*a, **kw)
 
-        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
         run_ner("some ticket text")
 
         fmt = seen["payload"]["response_format"]
@@ -267,7 +267,7 @@ class TestLlmNerResponseParsing:
                 )
                 super().__init__(*a, **kw)
 
-        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
         with pytest.raises(NERError):
             run_ner("...")
 
@@ -288,7 +288,7 @@ class TestLlmNerResponseParsing:
                 kw["transport"] = httpx.MockTransport(handler)
                 super().__init__(*a, **kw)
 
-        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
         with pytest.raises(TimeoutError):
             run_ner("...")
 
@@ -318,7 +318,7 @@ class TestNerTimeoutIsConfigurable:
                 )
                 super().__init__(*a, **kw)
 
-        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", RecordingAsyncClient)
+        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", RecordingAsyncClient)
         run_ner("...")
 
         t = seen["timeout"]
@@ -341,7 +341,7 @@ class TestNerTimeoutIsConfigurable:
                 kw["transport"] = httpx.MockTransport(handler)
                 super().__init__(*a, **kw)
 
-        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", MockAsyncClient)
+        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
         raw = TicketIn(subject="May in bi ket giay", body="May in tang 3 bi ket giay tu sang nay")
         assert run_mask(raw).pii_level is PIILevel.MASK_FAILED
 
@@ -356,7 +356,7 @@ class TestNerTimeoutIsConfigurable:
                 )
                 super().__init__(*a, **kw)
 
-        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", RecordingAsyncClient)
+        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", RecordingAsyncClient)
 
         settings.MODEL_TIMEOUT_SEC = 45.0
         run_ner("...")
@@ -373,7 +373,7 @@ class TestNerTimeoutIsConfigurable:
                 )
                 super().__init__(*a, **kw)
 
-        monkeypatch.setattr("apps.tickets.services.masking.httpx.AsyncClient", RecordingAsyncClient)
+        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", RecordingAsyncClient)
         async_to_sync(llm_ner)("...", 7.5)
         assert seen["timeout"] == 7.5
 
@@ -402,7 +402,7 @@ class TestPlaceholderNumbering:
         async def fake_ner(*a, **kw):
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
         raw = TicketIn(
             subject="lien he an@x.com",
             body="Neu khong lien lac duoc qua an@x.com thi goi dt gium toi voi",
@@ -416,7 +416,7 @@ class TestPlaceholderNumbering:
         async def fake_ner(*a, **kw):
             return []
 
-        monkeypatch.setattr("apps.tickets.services.masking.llm_ner", fake_ner)
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
         raw = TicketIn(subject="lien he", body="email 1 la a@x.com, email 2 la b@x.com nhe ban oi")
         result = run_mask(raw)
         assert "[EMAIL_1]" in result.body_masked

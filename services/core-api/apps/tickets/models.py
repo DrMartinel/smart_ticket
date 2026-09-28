@@ -48,7 +48,7 @@ class Incident(models.Model):
 
 class Ticket(models.Model):
     """§3.1. The main table holds ONLY masked data — raw PII never lands
-    here (see PiiQuarantine below and apps/tickets/services/masking.py)."""
+    here (see PiiQuarantine below and apps/tickets/utils/masking.py)."""
 
     id: int
     reporter_id: int
@@ -121,7 +121,7 @@ class TicketEmbedding(models.Model):
 
 class PiiQuarantine(models.Model):
     """§3.1. Raw PII, encrypted at the application layer (AES-GCM, key
-    outside the DB — see services/crypto.py), with a hard TTL."""
+    outside the DB — see utils/crypto.py), with a hard TTL."""
 
     ticket_id: int
 

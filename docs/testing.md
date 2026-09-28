@@ -30,7 +30,7 @@ Coverage on the two modules where it is contractual:
 
 ```bash
 uv run pytest services/core-api -q \
-  --cov=apps.tickets.services.masking --cov=apps.tickets.services.router \
+  --cov=apps.tickets.utils.masking --cov=apps.tickets.utils.router \
   --cov-report=term-missing
 ```
 

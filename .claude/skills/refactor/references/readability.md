@@ -24,7 +24,7 @@ Every module reads top-down in the same order:
    contents.
    - `services/core-api/infrastructure/ai_engine.py` — who calls it, and that a
      transport failure must be treated as fail-open-to-human.
-   - `services/core-api/apps/tickets/services/router.py` — the only module allowed to
+   - `services/core-api/apps/tickets/utils/router.py` — the only module allowed to
      choose a `Branch`, and why the gate order is load-bearing.
    - `services/ai-engine/src/ai_engine/graph/nodes/rerank.py` — where refuse-before-LLM
      is decided, and which score thresholds may compare against.
@@ -32,7 +32,7 @@ Every module reads top-down in the same order:
 3. **Imports in three groups**, blank line between:
    stdlib + third-party → `contracts.*` → first-party (`apps.*` or `ai_engine.*`).
    See `services/ai-engine/src/ai_engine/graph/nodes/infer.py`,
-   `services/core-api/apps/tickets/services/pipeline.py`.
+   `services/core-api/apps/tickets/utils/pipeline.py`.
 4. Module constants, then private helpers (`_name`), then the public class/functions.
 5. Import-time wiring (a singleton, a provider selected from settings) at the
    **bottom**, under a `# --- <what> ---` divider with a comment saying why it is

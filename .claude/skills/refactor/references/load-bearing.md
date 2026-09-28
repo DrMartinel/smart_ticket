@@ -61,12 +61,12 @@ Format: **what** — why it exists — *what guards it*.
 - **The KB governance path for `auto_reply_allowed`**: manager role, a non-empty
   reason, and a `KbAuthorityLog` row. Seed data takes the same path. *ADR-0002;
   `apps/kb/services.py`; `apps/dbextras/tests/test_seed_demo.py`.*
-- **The deny-by-default `_degraded_signals()` in `apps/tickets/services/pipeline.py`**: every check failed,
+- **The deny-by-default `_degraded_signals()` in `apps/tickets/utils/pipeline.py`**: every check failed,
   `kb_auto_reply_allowed=False`, `kb_risk_tier="high"`.
 - **No `decrypt()` call without a `PiiAccessLog` row** in the same transaction, with
   a mandatory non-empty reason. *CLAUDE.md "Current state".*
 - **Idempotency key `{ticket_id}:{attempt}` plus `acks_late`.** A redelivered task
-  must not send a second auto-reply. *The `tasks.py` and `services/pipeline.py` module
+  must not send a second auto-reply. *The `tasks.py` and `utils/pipeline.py` module
   docstrings.*
 
 ## ai-engine

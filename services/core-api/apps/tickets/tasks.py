@@ -2,14 +2,14 @@
 Celery entry points for tickets. Each task stays here because Celery names
 it after this module's path — `apps.tickets.tasks.<name>` is what the beat
 schedule and any message already in the broker refer to. The work itself
-lives in `services/`.
+lives in `utils/pipeline.py` and on the models.
 
 `acks_late=True` (settings) + an idempotency key of `{ticket_id}:{attempt}`
 on `AiRun` mean a worker dying mid-task and Celery redelivering the
 message results in, at worst, a second AiRun row for the same attempt
 number being rejected by the unique constraint — not a double auto-reply
 sent to the user (spec §10.3). The key and the collision handling are in
-`services/pipeline.py`.
+`utils/pipeline.py`.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from django.utils import timezone
 from apps.audit.services import audit
 from apps.fewshot.services import retract_for_reopened_ticket
 from apps.tickets.models import PiiQuarantine, Ticket
-from apps.tickets.services.pipeline import TaskResult, ticket_process
+from apps.tickets.utils.pipeline import TaskResult, ticket_process
 
 
 @shared_task(bind=True, max_retries=0)

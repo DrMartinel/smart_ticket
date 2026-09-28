@@ -81,7 +81,7 @@ Three services with **structurally enforced** permission boundaries:
 
 ## Key design principles
 
-- **LLM proposes, code decides.** [`router.py::route()`](services/core-api/apps/tickets/services/router.py) is the *only* place a `Branch` is chosen. It is a pure function — no I/O, thresholds passed as a parameter — so every branch is exhaustively unit-testable without a model or a network (ADR-0001).
+- **LLM proposes, code decides.** [`router.py::route()`](services/core-api/apps/tickets/utils/router.py) is the *only* place a `Branch` is chosen. It is a pure function — no I/O, thresholds passed as a parameter — so every branch is exhaustively unit-testable without a model or a network (ADR-0001).
 - **Trust score over self-confidence.** `llm_self_confidence` is logged but **never** routed on. Trust comes from externally verifiable signals: rerank scores, whether the quoted text actually exists in the retrieved chunk, whether a negation got flipped (ADR-0003).
 - **Fail toward humans.** Every degradation — LLM timeout, embedding outage, masking failure, weak retrieval, daily cost ceiling — routes to HITL. Never to auto-reply. A user waiting longer is acceptable; a user receiving a confident wrong answer is not.
 - **Authority lives on the KB, not in the model.** `kb_articles.auto_reply_allowed` defaults to `false`, is settable only by a manager with a logged reason, and is enforced by a DB `CHECK` constraint requiring a named approver (ADR-0002).
@@ -363,7 +363,7 @@ Coverage on the two modules where it matters:
 
 ```bash
 uv run pytest services/core-api -q \
-  --cov=apps.tickets.services.masking --cov=apps.tickets.services.router \
+  --cov=apps.tickets.utils.masking --cov=apps.tickets.utils.router \
   --cov-report=term-missing
 ```
 

@@ -17,9 +17,9 @@ from apps.accounts.models import User
 from apps.audit.services import audit
 from apps.tickets import tasks
 from apps.tickets.models import PiiQuarantine, Ticket
-from apps.tickets.services.crypto import build_quarantine_entries
+from apps.tickets.utils.crypto import build_quarantine_entries
 from apps.tickets.services.ids import next_ticket_public_id
-from apps.tickets.services.masking import mask
+from apps.tickets.utils.masking import mask
 
 
 def ticket_submit(*, reporter: User, ticket_in: TicketIn, trace_id: str | None) -> Ticket:

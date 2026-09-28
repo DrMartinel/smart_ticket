@@ -27,7 +27,7 @@ from contracts.routing import (
 )
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
-from apps.tickets.services.router import route
+from apps.tickets.utils.router import route
 
 
 def make_thresholds(**overrides) -> Thresholds:

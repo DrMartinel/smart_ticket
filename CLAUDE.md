@@ -88,7 +88,7 @@ uvx pyright@1.1.414
 Coverage on the two modules where it is contractual:
 
 ```bash
-uv run pytest services/core-api -q --cov=apps.tickets.services.masking --cov=apps.tickets.services.router --cov-report=term-missing
+uv run pytest services/core-api -q --cov=apps.tickets.utils.masking --cov=apps.tickets.utils.router --cov-report=term-missing
 ```
 
 Full stack (7 containers + the `vllm` profile for models). Migrations run automatically on `core-api` start:
@@ -128,12 +128,12 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 
 | Concern | Path |
 |---|---|
-| The routing decision (pure function, only place a `Branch` is chosen) | [router.py](services/core-api/apps/tickets/services/router.py) |
-| PII masking (inline, two-tier; 100% branch coverage is a release gate) | [masking.py](services/core-api/apps/tickets/services/masking.py) |
-| Trust score (in core-api, so the LLM can't score itself) | [trust_scorer.py](services/core-api/apps/tickets/services/trust_scorer.py) |
-| What happens to a ticket after submit (embed → incident check → ai-engine → score → route → act) | [pipeline.py](services/core-api/apps/tickets/services/pipeline.py) |
+| The routing decision (pure function, only place a `Branch` is chosen) | [router.py](services/core-api/apps/tickets/utils/router.py) |
+| PII masking (inline, two-tier; 100% branch coverage is a release gate) | [masking.py](services/core-api/apps/tickets/utils/masking.py) |
+| Trust score (in core-api, so the LLM can't score itself) | [trust_scorer.py](services/core-api/apps/tickets/utils/trust_scorer.py) |
+| What happens to a ticket after submit (embed → incident check → ai-engine → score → route → act) | [pipeline.py](services/core-api/apps/tickets/utils/pipeline.py) |
 | Clients for ai-engine and the vLLM servers (transport only, never judgement) | [infrastructure/](services/core-api/infrastructure/) |
-| PII regex patterns | [patterns.py](services/core-api/apps/tickets/services/patterns.py) |
+| PII regex patterns | [patterns.py](services/core-api/apps/tickets/utils/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Shared schemas (single source of truth) | [packages/contracts/](packages/contracts/src/contracts/) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
@@ -169,7 +169,7 @@ Beside `apps/` sit `common/` (code every app shares, such as `permissions.py`),
 |---|---|
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
-| What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/services/pipeline.py` — not `tasks.py`, which is only the entry point |
+| What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/utils/pipeline.py` — not `tasks.py`, which is only the entry point |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `core/config.py` |
 | What counts as PII | `patterns.py` (regex) or the NER prompt in `masking.py` |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |

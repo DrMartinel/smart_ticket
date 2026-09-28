@@ -8,7 +8,7 @@ never part of the feature set.
 from contracts.enums import PIILevel
 from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
-from apps.tickets.services.trust_scorer import (
+from apps.tickets.utils.trust_scorer import (
     FEATURES,
     QUOTE_FEATURES,
     extract_features,

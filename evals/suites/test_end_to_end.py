@@ -4,7 +4,7 @@ precision). This is the one suite that exercises the REAL decision path:
 live ai-engine for signals/proposal, then core-api's actual
 `router.route()` — the identical function used in production, imported
 directly rather than reimplemented here — with a real `KBArticleMeta`
-looked up from the database exactly as `apps/tickets/services/pipeline.py`
+looked up from the database exactly as `apps/tickets/utils/pipeline.py`
 does.
 
 Auto-reply precision is checked against spec §12.3's absolute (not
@@ -31,7 +31,7 @@ from contracts.trust import TrustSignals
 from django.conf import settings
 
 from apps.kb.models import KbArticle
-from apps.tickets.services.router import route
+from apps.tickets.utils.router import route
 from suites.golden_utils import analyze, load_golden, record_metric, sample
 
 AUTO_REPLY_PRECISION_FLOOR = 0.95  # spec §12.3 — hard threshold, not relative

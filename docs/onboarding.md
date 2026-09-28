@@ -146,7 +146,7 @@ One eval currently fails on purpose: `other` category F1 is 0.75 against a 0.85 
 
 You are ready to work on this when you can answer:
 
-1. **Where is the routing decision made, and why is it a pure function?** → [`router.py`](../services/core-api/apps/tickets/services/router.py), [ADR-0001](adr/0001-code-level-routing.md)
+1. **Where is the routing decision made, and why is it a pure function?** → [`router.py`](../services/core-api/apps/tickets/utils/router.py), [ADR-0001](adr/0001-code-level-routing.md)
 2. **The model says it is 95% confident. Where does that number enter the routing decision?** → It doesn't. [ADR-0003](adr/0003-reject-llm-self-confidence.md)
 3. **What has to be true before a ticket can be auto-replied?** → The **KB article** must be flagged `auto_reply_allowed` by a manager. The model cannot grant itself that. [ADR-0002](adr/0002-kb-level-autoreply-authority.md)
 4. **Retrieval finds nothing relevant. What happens?** → The LLM is never called. Cheaper and safer: a model with no source has nothing to do but invent one.

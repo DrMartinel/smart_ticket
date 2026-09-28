@@ -38,14 +38,14 @@ django.setup()
 from contracts.trust import TrustSignals  # noqa: E402
 
 from apps.review.models import ReviewDecision  # noqa: E402
-from apps.tickets.services.trust_scorer import TrustModel, extract_features  # noqa: E402
+from apps.tickets.utils.trust_scorer import TrustModel, extract_features  # noqa: E402
 
 T_AUTO_PRECISION_FLOOR = 0.95
 T_ROUTE_PRECISION_FLOOR = 0.85
 
 
 def _score_with_model(signals: TrustSignals, model: TrustModel) -> float:
-    from apps.tickets.services.trust_scorer import FEATURES
+    from apps.tickets.utils.trust_scorer import FEATURES
 
     x = extract_features(signals)
     z = model["intercept"] + sum(model["weights"][f] * x[f] for f in FEATURES)

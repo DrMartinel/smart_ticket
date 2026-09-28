@@ -305,7 +305,7 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What the model is asked | `ai-engine/core/prompts/*.md` — versioned, and eval-gated like code |
-| What counts as PII | `tickets/services/patterns.py` (regex) or the NER prompt in `masking.py` |
+| What counts as PII | `tickets/utils/patterns.py` (regex) or the NER prompt in `masking.py` |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | What a reviewer sees | `TrustSignalsPanel.tsx`, `ReviewForm.tsx` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
