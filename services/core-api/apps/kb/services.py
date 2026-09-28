@@ -68,6 +68,21 @@ def ingest_article(article: KbArticle) -> list[KbChunk]:
     return chunks
 
 
+def article_create(*, slug: str, title: str, body: str, category: str, risk_tier: str) -> KbArticle:
+    """Creates a KB article and ingests it so retrieval can find it.
+
+    Grants no auto-reply authority: `auto_reply_allowed` keeps its False
+    default, and only `set_auto_reply_allowed` may change it (ADR-0002).
+    """
+    article = KbArticle.objects.create(
+        slug=slug, title=title, body=body, category=category, risk_tier=risk_tier
+    )
+    # Committed before ingestion, not with it: if embedding fails, the article
+    # is kept with no chunks (invisible to retrieval) and `/reingest` retries.
+    ingest_article(article)
+    return article
+
+
 class KBGovernanceError(Exception):
     pass
 

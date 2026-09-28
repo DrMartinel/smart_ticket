@@ -10,6 +10,7 @@ from apps.accounts.rbac import AuthedRequest
 from apps.kb.models import KbArticle
 from apps.kb.services import (
     KBGovernanceError,
+    article_create,
     ingest_article,
     set_auto_reply_allowed,
     set_risk_tier,
@@ -57,8 +58,13 @@ def list_articles(request: AuthedRequest) -> list[dict[str, Any]]:
 
 @router.post("", auth=JWTAuth())
 def create_article(request: AuthedRequest, payload: ArticleIn) -> dict[str, Any]:
-    article = KbArticle.objects.create(**payload.dict())
-    ingest_article(article)
+    article = article_create(
+        slug=payload.slug,
+        title=payload.title,
+        body=payload.body,
+        category=payload.category,
+        risk_tier=payload.risk_tier,
+    )
     return _serialize(article)
 
 
