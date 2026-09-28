@@ -14,7 +14,7 @@ from typing import Any
 
 OUT_PATH = Path(__file__).parent / "tickets.jsonl"
 
-# Mirrors services/core-api/apps/tickets/management/commands/seed_demo.py's
+# Mirrors services/core-api/apps/dbextras/management/commands/seed_demo.py's
 # ARTICLES table: (slug, category, auto_reply_allowed).
 KB_ARTICLES = [
     ("KB-0001", "access", True),
