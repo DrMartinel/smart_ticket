@@ -1,9 +1,10 @@
 # pyright: standard
 """
 Runbook execution — ADR-0006. The router sends every RunbookProposal to a
-human; `execute_runbook` is the second, independent check, so a bug upstream
-(an item in the wrong queue, a rejection mistaken for an approval, a draft
-the LLM filled in wrongly) still cannot reach a live system.
+human; `RunbookExecution.objects.execute` is the second, independent check,
+so a bug upstream (an item in the wrong queue, a rejection mistaken for an
+approval, a draft the LLM filled in wrongly) still cannot reach a live
+system.
 
 Each refusal below would otherwise fail in the worst way available: the
 runbook simply runs.
@@ -13,8 +14,7 @@ import pytest
 
 from contracts.enums import PIILevel, ReviewAction, ReviewQueue
 
-from apps.itsm_mock.models import RunbookExecution
-from apps.itsm_mock.services import RunbookError, execute_runbook
+from apps.itsm_mock.models import RunbookError, RunbookExecution
 from apps.review.models import ReviewDecision, ReviewItem
 from apps.tickets.models import AiRun, Ticket
 
@@ -56,7 +56,7 @@ def record_decision(item, reviewer, action: ReviewAction) -> None:
 
 def assert_refused(item, executor, match: str) -> None:
     with pytest.raises(RunbookError, match=match):
-        execute_runbook(review_item=item, executed_by=executor)
+        RunbookExecution.objects.execute(review_item=item, executed_by=executor)
     assert not RunbookExecution.objects.exists()
 
 
@@ -100,7 +100,7 @@ def test_an_approved_runbook_is_recorded_as_a_simulated_run(employee_user, techn
     item = runbook_item(employee_user)
     record_decision(item, technician_user, ReviewAction.APPROVE)
 
-    execution = execute_runbook(review_item=item, executed_by=technician_user)
+    execution = RunbookExecution.objects.execute(review_item=item, executed_by=technician_user)
 
     assert execution.runbook_id == "RB-RESET-PASSWORD"
     assert execution.payload == {"target_username": "an.nguyen"}

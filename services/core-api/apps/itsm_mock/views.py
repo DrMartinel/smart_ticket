@@ -2,9 +2,8 @@ from ninja import Router
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
-from apps.itsm_mock.models import RunbookExecution
+from apps.itsm_mock.models import RUNBOOK_REGISTRY, Runbook, RunbookError, RunbookExecution
 from apps.itsm_mock.response_schema import RunbookExecutionOut, RunbookOut
-from apps.itsm_mock.services import RUNBOOK_REGISTRY, Runbook, RunbookError, execute_runbook
 from apps.review.models import ReviewItem
 from common.permissions import AuthedRequest
 
@@ -24,6 +23,6 @@ def execute(request: AuthedRequest, item_id: int) -> RunbookExecution:
         raise HttpError(404, "review item not found") from e
 
     try:
-        return execute_runbook(review_item=review_item, executed_by=request.auth)
+        return RunbookExecution.objects.execute(review_item=review_item, executed_by=request.auth)
     except RunbookError as e:
         raise HttpError(422, str(e)) from e
