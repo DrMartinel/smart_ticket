@@ -16,9 +16,8 @@ from django.utils import timezone
 
 from contracts.enums import PIILevel
 
-from apps.fewshot.models import FewshotExample
+from apps.fewshot.models import FewshotError, FewshotExample
 from apps.fewshot.selectors import active_examples_for_category
-from apps.fewshot.services import FewshotError, add_example
 from apps.fewshot.tasks import expire_fewshot_examples
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import reopen_ticket
@@ -57,7 +56,7 @@ def with_fewshot_thresholds(settings, **values) -> None:
 @pytest.mark.django_db
 def test_an_unconfirmed_example_is_refused(employee_user, manager_user):
     with pytest.raises(FewshotError, match="user_confirmed"):
-        add_example(
+        FewshotExample.objects.add_confirmed(
             ticket=ticket(employee_user),
             category="network",
             input_text="masked input",
@@ -73,7 +72,7 @@ def test_an_unconfirmed_example_is_refused(employee_user, manager_user):
 def test_a_new_example_expires_after_the_configured_ttl(employee_user, manager_user, settings):
     with_fewshot_thresholds(settings, ttl_days=7)
 
-    added = add_example(
+    added = FewshotExample.objects.add_confirmed(
         ticket=ticket(employee_user),
         category="network",
         input_text="masked input",

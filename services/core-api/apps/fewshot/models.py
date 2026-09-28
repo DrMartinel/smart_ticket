@@ -1,17 +1,61 @@
 """Few-shot pool — spec §3.5. Governance rules enforced at both the DB
-level (`chk_fewshot_confirmed`) and in services.py (TTL, retraction)."""
+level (`chk_fewshot_confirmed`) and on `FewshotExampleManager` (TTL,
+retraction)."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 from django.conf import settings
-from django.db import models
+from django.db import models, transaction
+from django.utils import timezone
 from pgvector.django import VectorField
 
 from contracts.enums import TicketCategory
 from apps.accounts.models import User
 from apps.tickets.models import Ticket
+from infrastructure.embeddings import embed_text
+
+
+class FewshotError(Exception):
+    pass
+
+
+class FewshotExampleManager(models.Manager["FewshotExample"]):
+    @transaction.atomic
+    def add_confirmed(
+        self,
+        *,
+        ticket: Ticket,
+        category: str,
+        input_text: str,
+        output_json: dict[str, Any],
+        approver: User,
+        user_confirmed: bool,
+    ) -> FewshotExample:
+        if not user_confirmed:
+            raise FewshotError("cannot add a few-shot example without user_confirmed=True")
+
+        th = settings.THRESHOLDS.fewshot
+        now = timezone.now()
+        return self.create(
+            source_ticket=ticket,
+            category=category,
+            input_text=input_text,
+            output_json=output_json,
+            embedding=embed_text(input_text),
+            approver=approver,
+            approved_at=now,
+            user_confirmed=True,
+            expires_at=now + timezone.timedelta(days=th.ttl_days),
+        )
+
+    def retract_for_ticket(self, ticket: Ticket, reason: str = "source ticket reopened") -> int:
+        """Called when a ticket's `reopened_count` increments — a resolved
+        ticket coming back means whatever example it produced is suspect."""
+        return self.filter(source_ticket=ticket, retracted_at__isnull=True).update(
+            retracted_at=timezone.now(), retract_reason=reason
+        )
 
 
 class FewshotExample(models.Model):
@@ -34,6 +78,10 @@ class FewshotExample(models.Model):
     retracted_at = models.DateTimeField(null=True, blank=True)  # set when source ticket reopens
     retract_reason = models.TextField(null=True, blank=True)
     version = models.IntegerField(default=1)
+
+    # django-types types Model.objects as BaseManager[Model], so any custom manager
+    # reads as an incompatible override.
+    objects: ClassVar[FewshotExampleManager] = FewshotExampleManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     class Meta:
         db_table = "fewshot_examples"

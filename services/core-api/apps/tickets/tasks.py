@@ -18,7 +18,7 @@ from celery import Task, shared_task
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
-from apps.fewshot.services import retract_for_reopened_ticket
+from apps.fewshot.models import FewshotExample
 from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.utils.pipeline import TaskResult, ticket_process
 
@@ -37,7 +37,7 @@ def reopen_ticket(ticket_id: int) -> None:
     ticket.reopened_count += 1
     ticket.status = "reopened"
     ticket.save(update_fields=["reopened_count", "status"])
-    retract_for_reopened_ticket(ticket)
+    FewshotExample.objects.retract_for_ticket(ticket)
     AuditLog.objects.record(
         "ticket_reopened",
         actor_type="human",
