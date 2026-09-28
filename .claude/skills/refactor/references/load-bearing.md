@@ -23,14 +23,17 @@ Format: **what** — why it exists — *what guards it*.
   (`test_route_is_deterministic_pure_function`).*
 - **`thresholds.yaml` parsed into a Pydantic model at boot.** A malformed file must
   stop core-api starting, not surface at routing time. *CLAUDE.md Gotchas.*
-- **No cross-service imports except `contracts`.** ai-engine and core-api never
-  import each other's code. *ADR-0004.*
+- **No cross-service imports.** ai-engine and core-api never import each other's
+  code, contracts included: each holds its own copy. *ADR-0004, ADR-0010.*
+- **The two `contracts/` copies.** They look like duplication to dedupe. They are
+  one per deployable on purpose; `test_contract_parity.py` keeps the wire types
+  equal. *ADR-0010.*
 - **Old `ReasonCode` members** (`CIRCUIT_OPEN`). Persisted review items still
   deserialize them. *Comment in `contracts/enums.py`.*
 - **Defaults on persisted contract fields** (`GenerationSignals.quote_applicable = True`).
   Rows written before the field existed must still load. *CLAUDE.md rule 4.*
 - **`services/web/lib/types/generated.ts`.** It is generated, so never hand-edit it.
-  *`packages/contracts/scripts/gen_typescript.py`.*
+  *`services/core-api/scripts/gen_typescript.py`.*
 - **`db_table` names mirroring the spec DDL.** `infra/migrations/sql/` is written
   against those exact names.
 - **`--import-mode=importlib`, and no `services/ai-engine/tests/__init__.py`.** A

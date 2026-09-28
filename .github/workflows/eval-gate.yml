@@ -30,7 +30,6 @@ name: eval-gate
 on:
   pull_request:
     paths: &code_paths
-      - "packages/contracts/**"
       - "services/core-api/**"
       - "services/ai-engine/**"
       - "evals/**"
@@ -87,11 +86,12 @@ jobs:
       # Graph-structure tests live in services/ai-engine/tests/test_build.py and
       # run in the ai-engine step above — this step previously also listed
       # evals/suites/test_build.py, which does not exist, so pytest exited 4.
-      - name: Offline eval suites (injection recall, quote validation)
+      - name: Offline eval suites (injection recall, quote validation, contract parity)
         run: |
           uv run --package evals pytest \
             evals/suites/test_injection.py \
             evals/suites/test_quote_validation.py \
+            evals/suites/test_contract_parity.py \
             -q
 
       - name: Report (offline metrics only)

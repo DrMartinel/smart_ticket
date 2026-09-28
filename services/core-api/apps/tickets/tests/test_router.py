@@ -356,7 +356,7 @@ def test_unhandled_proposal_type_degrades_to_hitl_rather_than_falling_through():
 
     Unreachable today — LLMProposal's discriminated union has exactly four
     members and each has its own branch above. It exists for the moment a
-    fifth is added to packages/contracts and someone forgets to extend this
+    fifth is added to the contracts and someone forgets to extend this
     function. Without the fallthrough, route() would return None and
     core-api would crash on `.branch`; with it, the ticket degrades to a
     human with SCHEMA_INVALID.

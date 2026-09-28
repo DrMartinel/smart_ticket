@@ -116,7 +116,7 @@ Then add whichever of these apply:
   uv run --package ai-engine python -c \
     "from ai_engine.graph.build import triage_graph; print(triage_graph.get_graph().draw_mermaid())"
   ```
-- `packages/contracts` or core-api changed: also run the whole workspace with `uv run pytest`.
+- A `contracts/` copy or core-api changed: also run the whole workspace with `uv run pytest`.
 - A prompt or retrieval change: run `uv run pytest evals/suites -q` against a live
   stack. Live suites **skip** when ai-engine is down, so a skip is not a pass. Say
   which it was.

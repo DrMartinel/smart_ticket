@@ -94,11 +94,10 @@ Three services with **structurally enforced** permission boundaries:
 
 ```
 smart_ticket/
-├── packages/contracts/          # Shared Pydantic schemas — single source of truth
-│   ├── src/contracts/           #   enums · ticket · llm_draft · trust · routing · ai_request
-│   └── scripts/gen_typescript.py#   generates web/lib/types/generated.ts
 ├── services/
 │   ├── core-api/                # Django + Django Ninja + Celery
+│   │   ├── contracts/           #   Pydantic schemas: enums · ticket · llm_draft · trust · routing · ai_request
+│   │   ├── scripts/gen_typescript.py # generates web/lib/types/generated.ts
 │   │   ├── apps/                #   each: views · request/response_schema · models (fat) · utils · tasks · tests/
 │   │   │   ├── accounts/        #   RBAC: employee · technician · manager · security
 │   │   │   ├── tickets/         #   models, views, Celery entry points, utils/*

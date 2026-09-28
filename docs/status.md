@@ -24,7 +24,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 
 | § | Component | Status | Notes |
 |---|---|---|---|
-| §2 | `packages/contracts` as single schema source | ✅ | Both Python services import it; TS types generated for web |
+| §2 | Schema contracts | ✅ | Replaced by one copy per service (ADR-0010); wire types checked by `test_contract_parity`; TS types generated from core-api's copy |
 | §3.1 | Ticket / embedding / quarantine schema | ✅ | Table + column names mirror the spec DDL exactly via `db_table` |
 | §3.1 | PII quarantine **write** path | ✅ | AES-GCM, key from env, 72 h TTL, expiry task on Celery beat |
 | §3.1 | PII quarantine **read** path + access log | ❌ **Gap** | See [Gap 1](#gap-1-pii-quarantine-read-path) |

@@ -1,5 +1,6 @@
-# Build context is the repo root (see infra/docker-compose.yml) because
-# this service depends on the sibling packages/contracts workspace member.
+# Build context is the repo root (see infra/docker-compose.yml) because the
+# uv workspace lockfile and infra/migrations/sql live there. The schema
+# contracts are this service's own (./contracts, ADR-0010), not a sibling.
 FROM python:3.13-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -11,7 +12,6 @@ COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /uvx /usr/local/bin/
 WORKDIR /workspace
 
 COPY pyproject.toml uv.lock* /workspace/
-COPY packages/contracts /workspace/packages/contracts
 COPY services/core-api /workspace/services/core-api
 # apps/dbextras/migrations/0002_finalize.py reads raw SQL from here at
 # migrate time (spec §2: infra/migrations/sql/ is the canonical location

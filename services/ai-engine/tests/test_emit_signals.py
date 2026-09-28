@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import pytest
 
-from contracts.enums import PIILevel
-from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
+from ai_engine.contracts.enums import PIILevel
+from ai_engine.contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
 
 from ai_engine.graph.nodes.emit_signals import emit_signals
 from ai_engine.core.state import RankedChunk

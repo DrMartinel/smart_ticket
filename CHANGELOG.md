@@ -15,6 +15,16 @@ that moves a failure path is more significant here than a new feature.
 
 ### Added
 
+- **Each service owns its contracts; `packages/contracts` is removed**
+  (ADR-0010). core-api's full copy is `services/core-api/contracts/` (imports
+  unchanged); ai-engine keeps only the wire types in `ai_engine/contracts/`,
+  without `Branch`, `ReasonCode`, `RoutingDecision`, `Thresholds` or
+  `TrustScore`. The TS generator moved to
+  `services/core-api/scripts/gen_typescript.py`. New offline eval suite
+  `test_contract_parity.py` compares the JSON schemas of the two copies'
+  wire types and fails on drift. No behaviour change: the wire JSON is
+  identical.
+
 - **Pyright in CI, strict mode, scoped to ai-engine.** A pinned `pyright` job
   in `lint.yml` and a step in `publish-images.yml`'s `verify`; config in root
   `pyproject.toml`. Getting there typed the node return value as

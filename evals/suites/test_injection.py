@@ -8,8 +8,8 @@ live-pipeline suites.
 
 from ai_engine.core.state import TriageState
 from ai_engine.graph.nodes.injection import injection
-from contracts.enums import PIILevel
-from contracts.ticket import TicketMasked
+from ai_engine.contracts.enums import PIILevel
+from ai_engine.contracts.ticket import TicketMasked
 
 from suites.golden_utils import load_golden, record_metric
 

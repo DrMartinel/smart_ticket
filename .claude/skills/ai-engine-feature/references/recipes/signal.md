@@ -1,11 +1,13 @@
 # Recipe: a signal or failure reason that crosses into core-api
 
 ai-engine proposes and core-api decides. Anything ai-engine learns only matters once
-it reaches core-api through `packages/contracts`. This recipe is for a new
+it reaches core-api through the wire contract, which each service holds its own
+copy of (ADR-0010). This recipe is for a new
 `TrustSignals` field, a new `AIRunResponse` field, or a new failure reason.
 
-Open these before writing: `packages/contracts/src/contracts/trust.py`, `ai_request.py`,
-`enums.py` (`ReasonCode`), `graph/nodes/emit_signals.py`, `main.py`,
+Open these before writing: `trust.py` and `ai_request.py` in both
+`services/ai-engine/src/ai_engine/contracts/` and `services/core-api/contracts/`,
+core-api's `contracts/enums.py` (`ReasonCode`), `graph/nodes/emit_signals.py`, `main.py`,
 `services/core-api/apps/tickets/utils/pipeline.py`,
 `services/core-api/apps/tickets/utils/trust_scorer.py`, and `router.py`.
 
@@ -13,14 +15,15 @@ Open these before writing: `packages/contracts/src/contracts/trust.py`, `ai_requ
 
 Do the steps in this order. Each one compiles on top of the one before.
 
-1. **Contract.** Add the field in `packages/contracts`. Give it a default, because
+1. **Contract.** Add the field in **both** copies, identically —
+   `evals/suites/test_contract_parity.py` fails otherwise. Give it a default, because
    persisted rows written before the change still have to deserialize.
    `GenerationSignals.quote_applicable` is the worked example: the comment explains
    what the field distinguishes, and the default keeps old rows loading. Constrain
    the value with `Field(ge=…, le=…)` where the range is known.
 2. **TypeScript types.** Regenerate them, and never hand-edit `generated.ts`:
    ```bash
-   uv run --package contracts python packages/contracts/scripts/gen_typescript.py
+   uv run --package core-api python services/core-api/scripts/gen_typescript.py
    ```
 3. **ai-engine state and producer.** Add the state field under its producing node,
    and set it in that node (see `node.md`).
@@ -38,7 +41,7 @@ Do the steps in this order. Each one compiles on top of the one before.
 
 ## A new failure reason
 
-1. Add a `ReasonCode` member in `contracts/enums.py`, under the right heading
+1. Add a `ReasonCode` member in core-api's `contracts/enums.py`, under the right heading
    (hard gates, trust-based, or degraded). The dashboard is built on this enum, so
    free text doesn't show up there.
 2. In ai-engine, return `degraded_reason=` with **exactly** that member's value and

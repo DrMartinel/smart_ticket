@@ -20,9 +20,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from contracts.llm_draft import LLMProposalEnvelope
-from contracts.ticket import TicketMasked
-from contracts.trust import TrustSignals
+from ai_engine.contracts.llm_draft import LLMProposalEnvelope
+from ai_engine.contracts.ticket import TicketMasked
+from ai_engine.contracts.trust import TrustSignals
 
 from ai_engine.core.retrieval.fusion import Candidate
 

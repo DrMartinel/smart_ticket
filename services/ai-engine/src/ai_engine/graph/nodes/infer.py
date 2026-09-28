@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from contracts.llm_draft import LLMProposalEnvelope
+from ai_engine.contracts.llm_draft import LLMProposalEnvelope
 
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode, StateUpdate

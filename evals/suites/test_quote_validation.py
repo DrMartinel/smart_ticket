@@ -6,9 +6,9 @@ directly against hand-crafted (quote, source, should_pass) triples,
 including the negation-flip case that's the whole reason §6.4 exists.
 """
 
-from contracts.enums import PIILevel
-from contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
-from contracts.ticket import TicketMasked
+from ai_engine.contracts.enums import PIILevel
+from ai_engine.contracts.llm_draft import AutoReplyProposal, LLMProposalEnvelope
+from ai_engine.contracts.ticket import TicketMasked
 
 from ai_engine.core.state import TriageState
 from ai_engine.core.state import RankedChunk

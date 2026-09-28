@@ -1,6 +1,6 @@
 ---
 name: ai-engine-review
-description: Review a branch or diff that touches services/ai-engine (and any packages/contracts or core-api glue it drags in) against this repo's safety invariants and house conventions — node contract, degrade-to-HITL failure paths, read-only DB boundary, ADR-0003/0004/0005, test conventions, and style. Produces a categorised report (Regression / Convention / Nit) with file:line links and suggested fixes; does not edit code unless asked. Use this whenever the user asks to review, check, audit or sanity-check ai-engine changes, asks "is this ready for a PR?", "did I break any conventions?", or has just finished an ai-engine feature.
+description: Review a branch or diff that touches services/ai-engine (and any contracts or core-api glue it drags in) against this repo's safety invariants and house conventions — node contract, degrade-to-HITL failure paths, read-only DB boundary, ADR-0003/0004/0005, test conventions, and style. Produces a categorised report (Regression / Convention / Nit) with file:line links and suggested fixes; does not edit code unless asked. Use this whenever the user asks to review, check, audit or sanity-check ai-engine changes, asks "is this ready for a PR?", "did I break any conventions?", or has just finished an ai-engine feature.
 argument-hint: "[base-ref, default: main]"
 ---
 
@@ -19,7 +19,7 @@ fine, and don't invent findings to fill the report.
 1. **Scope the diff.**
    ```bash
    git diff <base>...HEAD --stat
-   git diff <base>...HEAD -- services/ai-engine packages/contracts services/core-api/apps/tickets
+   git diff <base>...HEAD -- services/ai-engine services/core-api/contracts services/core-api/apps/tickets evals/suites/test_contract_parity.py
    ```
    If there are uncommitted changes, include `git diff` and `git diff --staged` too,
    and say that you did.

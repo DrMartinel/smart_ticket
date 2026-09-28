@@ -60,9 +60,9 @@ The third is the strongest, and it is why splitting `ai-engine` into its own ser
 
 ---
 
-## 3. Shared contracts
+## 3. Contracts
 
-`packages/contracts` is the single source of schema truth. Both Python services import it; the frontend's types are generated from it. There is no second definition of these shapes anywhere.
+Each service holds its own copy of the schemas it needs (ADR-0010). core-api's copy, `services/core-api/contracts/`, is the full set below, and the frontend's types are generated from it. ai-engine's copy, `ai_engine/contracts/`, holds only the wire types (`ai_request.py` and what it contains) — no `Branch`, `ReasonCode`, `RoutingDecision` or `TrustScore`, because ai-engine decides nothing. The wire types exist in both copies; `evals/suites/test_contract_parity.py` compares their JSON schemas and fails on any drift.
 
 | Module | Contains |
 |---|---|

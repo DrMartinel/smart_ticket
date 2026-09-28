@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Behaviour-preserving refactor workflow for this repo's Python code (services/ai-engine, services/core-api, packages/contracts, evals) — audit a file, module or concern, propose ranked refactor moves, wait for approval, then apply one move at a time with tests green before and after. Holds the repo's readability and maintainability conventions and the list of load-bearing code that must not be "simplified". Use this whenever the user asks to refactor, clean up, simplify, tidy, restructure, dedupe, rename, improve readability or maintainability, reduce complexity, or bring code "up to the ai-engine style" — even if they just say "this file is messy" or "can you make this nicer".
+description: Behaviour-preserving refactor workflow for this repo's Python code (services/ai-engine, services/core-api, evals) — audit a file, module or concern, propose ranked refactor moves, wait for approval, then apply one move at a time with tests green before and after. Holds the repo's readability and maintainability conventions and the list of load-bearing code that must not be "simplified". Use this whenever the user asks to refactor, clean up, simplify, tidy, restructure, dedupe, rename, improve readability or maintainability, reduce complexity, or bring code "up to the ai-engine style" — even if they just say "this file is messy" or "can you make this nicer".
 argument-hint: <path | module | concern>
 ---
 
@@ -126,8 +126,9 @@ After the last move:
 - `grep -rn` the old names across `docs/`, `CLAUDE.md`, `.claude/skills/`, and
   `infra/` for any env var. Update what describes the code you changed. A doc update
   belongs in the same commit as the change it describes.
-- If `packages/contracts` changed, run
-  `uv run --package contracts python packages/contracts/scripts/gen_typescript.py`.
+- If core-api's `contracts/` changed, run
+  `uv run --package core-api python services/core-api/scripts/gen_typescript.py`.
+  If a wire type changed, make the same change in ai-engine's copy.
 - If a move set a new precedent, offer to add it to `references/moves.md`.
 - Run the full check: `uv run pytest` plus pyright plus ruff. Report the result
   honestly, including anything still failing.

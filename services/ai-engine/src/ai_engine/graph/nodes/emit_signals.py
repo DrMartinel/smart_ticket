@@ -6,9 +6,9 @@ writes to a database, only reads best-effort for the log-only `policy` fields.
 
 from __future__ import annotations
 
-from contracts.enums import PIILevel
-from contracts.llm_draft import AutoReplyProposal
-from contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
+from ai_engine.contracts.enums import PIILevel
+from ai_engine.contracts.llm_draft import AutoReplyProposal
+from ai_engine.contracts.trust import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
 from sqlalchemy import select
 

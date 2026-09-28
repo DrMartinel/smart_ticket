@@ -16,8 +16,8 @@ from typing import Any
 import pytest
 from sqlalchemy.dialects import postgresql
 
-from contracts.enums import PIILevel
-from contracts.ticket import TicketMasked
+from ai_engine.contracts.enums import PIILevel
+from ai_engine.contracts.ticket import TicketMasked
 
 from ai_engine.core.providers import embeddings
 from ai_engine.core.providers import reranker as reranker_module

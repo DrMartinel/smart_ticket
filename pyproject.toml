@@ -7,14 +7,10 @@ dependencies = []
 
 [tool.uv.workspace]
 members = [
-    "packages/contracts",
     "services/core-api",
     "services/ai-engine",
     "evals",
 ]
-
-[tool.uv.sources]
-contracts = { workspace = true }
 
 # Test tooling for whole-workspace runs. `uv sync` installs only the ROOT
 # project's dev group, not each member's, so without this a plain
@@ -82,14 +78,15 @@ addopts = "--import-mode=importlib"
 # and the file fails loudly under strict, never the other way round.
 # Suppressions are per line and name their rule; most sit on untyped library
 # boundaries (LangGraph's generics are partly unparameterized).
-include = ["services/ai-engine", "services/core-api", "packages/contracts", "evals"]
+include = ["services/ai-engine", "services/core-api", "evals"]
 strict = [
     "services/ai-engine/src",
     "services/core-api/apps",
     "services/core-api/common",
     "services/core-api/config",
     "services/core-api/infrastructure",
-    "packages/contracts",
+    "services/core-api/contracts",
+    "services/core-api/scripts",
     "evals/report.py",
     "evals/calibration",
     "evals/golden",
@@ -105,5 +102,5 @@ pythonVersion = "3.13"
 # The workspace packages are editable installs with no py.typed marker, so
 # through the venv pyright treats them as untyped third-party code. Resolving
 # them from source makes them first-party. The last two are the import roots
-# core-api (`apps.*`, `config.*`) and evals (`suites.*`) run from.
-extraPaths = ["services/ai-engine/src", "packages/contracts/src", "services/core-api", "evals"]
+# core-api (`apps.*`, `config.*`, `contracts.*`) and evals (`suites.*`) run from.
+extraPaths = ["services/ai-engine/src", "services/core-api", "evals"]

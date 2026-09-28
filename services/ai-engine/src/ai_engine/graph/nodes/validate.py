@@ -16,7 +16,7 @@ import re
 
 from rapidfuzz import fuzz
 
-from contracts.llm_draft import AutoReplyProposal
+from ai_engine.contracts.llm_draft import AutoReplyProposal
 
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode, StateUpdate

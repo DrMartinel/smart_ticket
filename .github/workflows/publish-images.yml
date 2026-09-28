@@ -10,8 +10,8 @@
 # `command`, so publishing core-api covers all three.
 #
 # Note the two build-context shapes. core-api and ai-engine build from the
-# REPO ROOT because they depend on the sibling packages/contracts workspace
-# member; web builds from services/web. This mirrors docker-compose.yml —
+# REPO ROOT because the uv workspace lockfile (and, for core-api,
+# infra/migrations/sql) live there; web builds from services/web. This mirrors docker-compose.yml —
 # if you change one, change the other.
 
 name: publish-images
