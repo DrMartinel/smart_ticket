@@ -185,3 +185,40 @@ def test_an_article_left_without_chunks_is_re_embedded_on_reload(snapshot):
     load(snapshot)
 
     assert KbChunk.objects.filter(article__slug="ec2.ssh").exists()
+
+
+@pytest.mark.django_db
+def test_chunks_from_an_older_chunker_are_replaced_on_reload(snapshot):
+    """An interrupted first load left client-vpn-admin articles chunked by
+    the chunker of that time. The body hadn't changed, so a reload called
+    them unchanged and retrieval kept searching the old chunks."""
+    load(snapshot)
+    stale = KbChunk.objects.get(article__slug="ec2.ssh", chunk_index=0)
+    stale.content = "text an older chunker produced"
+    stale.save(update_fields=["content"])
+
+    load(snapshot)
+
+    contents = KbChunk.objects.filter(article__slug="ec2.ssh").values_list("content", flat=True)
+    assert "text an older chunker produced" not in contents
+    assert KbArticle.objects.get(slug="ec2.ssh").chunks_are_current()
+
+
+@pytest.mark.django_db
+def test_a_new_title_re_embeds_an_unchanged_body():
+    """The title is part of each chunk's embedding input, so vectors made
+    under the old title no longer describe the article."""
+    fields = dict(
+        slug="ec2.ssh",
+        body="Check port 22.",
+        category="hardware",
+        risk_tier="medium",
+        source_url="https://docs.aws.amazon.com/ec2.ssh.html",
+    )
+    KbArticle.objects.upsert_from_source(title="Resolve SSH errors", **fields)
+    before = set(KbChunk.objects.values_list("id", flat=True))
+
+    _, changed = KbArticle.objects.upsert_from_source(title="Fix SSH connection errors", **fields)
+
+    after = set(KbChunk.objects.values_list("id", flat=True))
+    assert changed and after and not after & before
