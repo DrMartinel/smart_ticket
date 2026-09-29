@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
                 ("payload", models.JSONField(default=dict)),
                 (
                     "trace_id",
-                    models.CharField(blank=True, db_index=True, max_length=64, null=True),
+                    models.CharField(blank=True, max_length=64, null=True),
                 ),
                 ("occurred_at", models.DateTimeField(auto_now_add=True)),
             ],

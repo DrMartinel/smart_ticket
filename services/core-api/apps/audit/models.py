@@ -50,7 +50,7 @@ class AuditLog(BaseModel):
     actor_id = models.UUIDField(null=True, blank=True)
     event = models.CharField(max_length=100)
     payload = models.JSONField(default=dict)
-    trace_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    trace_id = models.CharField(max_length=64, null=True, blank=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
 
     # django-types types Model.objects as BaseManager[Model], so any custom manager
@@ -59,9 +59,11 @@ class AuditLog(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "audit_log"
-        # Indexes are created by infra/migrations/sql/0002_indexes.sql, not
-        # here, to keep index ownership in one place (see apps/tickets's
-        # migration 0002 which runs that file).
+        # Indexes (idx_audit_ticket, idx_audit_trace) are created by
+        # infra/migrations/sql/0002_indexes.sql, not here, to keep index
+        # ownership in one place; apps/dbextras/migrations/0002_finalize.py
+        # runs that file. No db_index=True on fields either — it would add a
+        # second, duplicate index beside the SQL one.
 
     def __str__(self) -> str:
         return f"{self.event} @ {self.occurred_at}"
