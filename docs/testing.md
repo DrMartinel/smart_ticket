@@ -17,21 +17,21 @@ Unit tests protect logic. Evals protect behavior. A green unit suite says nothin
 uv sync --all-packages    # once; a bare `uv sync` won't install pytest
 
 uv run pytest                              # everything (unit + eval)
-uv run pytest services/core-api -q
+cd services/core-api && make test          # core-api
 uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # 8 suites
 ```
 
-`pytest services/core-api` runs with `config.settings.test`: the stub embedder, whatever the environment says, and a fast password hasher. Its database tests still need `DATABASE_URL` (the Dockerized Postgres is on port 5434).
+Pass pytest arguments to core-api's target with `ARGS=`: `make test ARGS="-k router -x"`.
+
+core-api's tests run with `config.settings.test` (from its `pytest.ini`): the stub embedder, whatever the environment says, and a fast password hasher. Its database tests still need `DATABASE_URL`; `make test` exports it, pointing at the Dockerized Postgres on port 5434. Running pytest directly, export it yourself.
 
 Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn't reachable, so unit tests stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies at all.
 
 Coverage on the two modules where it is contractual:
 
 ```bash
-uv run pytest services/core-api -q \
-  --cov=apps.tickets.utils.masking --cov=apps.tickets.utils.router \
-  --cov-report=term-missing
+cd services/core-api && make coverage    # fails under 100%, like the eval-gate.yml step
 ```
 
 ---

@@ -11,19 +11,20 @@ uv sync --all-packages          # NOT plain `uv sync`
 cd services/web && npm install
 ```
 
+core-api's commands are targets in [`services/core-api/Makefile`](../services/core-api/Makefile); run `make` in that directory to list them.
+
 > **Always `--all-packages`.** The root project has no dependencies of its own, so a bare `uv sync` installs neither the workspace members nor Django, and `uv run pytest` then fails with `Failed to spawn: pytest`. This has bitten people; it looks like a broken checkout.
 
 ### Running services individually
 
-Point at the Dockerized Postgres and Redis so you only run what you're editing:
+Point at the Dockerized Postgres and Redis so you only run what you're editing. core-api's Makefile exports `DATABASE_URL` and `CELERY_BROKER_URL` for them (host ports 5434 / 6380); override on the command line, e.g. `make runserver DATABASE_URL=...`.
 
 ```bash
-export DATABASE_URL=postgresql://app_user:app_password@localhost:5434/smart_triage
-export CELERY_BROKER_URL=redis://localhost:6380/0
-export DJANGO_SETTINGS_MODULE=config.settings.development
+cd services/core-api
+make runserver   # :8000
+make worker      # celery worker (and `make beat`)
 
-uv run --project services/core-api python services/core-api/manage.py runserver
-uv run --project services/core-api celery -A config worker -l info
+# from the repo root
 uv run --project services/ai-engine uvicorn ai_engine.main:app \
     --app-dir services/ai-engine/src --port 8001 --reload
 cd services/web && npm run dev
@@ -58,7 +59,7 @@ If you need data to make a routing decision, fetch it *before* the call and pass
 There is no shared contracts package (ADR-0010). A schema is defined in the module that uses it; `docs/architecture.md` §3 has the table. The ai-engine wire shapes (`AIRunRequest`, `AIRunResponse` and everything in them) exist in both services — core-api `infrastructure/dtos.py`, ai-engine `core/state.py` — so change **both** in the same PR. After a core-api schema change, regenerate the frontend types:
 
 ```bash
-uv run --package core-api python services/core-api/scripts/gen_typescript.py
+cd services/core-api && make types
 ```
 
 Never hand-edit `services/web/lib/types/generated.ts`.
@@ -77,8 +78,9 @@ Any new failure path routes to HITL with a specific `reason_code`. Never toward 
 
 ```bash
 # 1. edit the model in services/core-api/apps/<app>/models.py
-uv run --project services/core-api python services/core-api/manage.py makemigrations
-uv run --project services/core-api python services/core-api/manage.py migrate
+cd services/core-api
+make makemigrations
+make migrate
 ```
 
 Table and column names mirror the spec's DDL via `db_table` — keep that alignment, because `infra/migrations/sql/` is written against those exact names.
@@ -109,7 +111,7 @@ Short version — full detail in [`testing.md`](testing.md):
 
 ```bash
 uv run pytest                              # everything (unit + eval)
-uv run pytest services/core-api -q
+cd services/core-api && make test          # core-api; `make check` adds ruff + mypy
 uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # skips live suites if ai-engine is down
 ```

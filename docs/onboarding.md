@@ -135,9 +135,10 @@ Then override a decision on the review page. Check that an `eval_candidates` row
 
 ```bash
 uv sync --all-packages    # NOT plain `uv sync` — see below
-uv run pytest             # 111 unit tests
-uv run pytest evals/suites -q
+uv run pytest             # unit tests + eval suites
 ```
+
+For core-api alone, `cd services/core-api && make` lists its targets (`make test`, `make check`, …).
 
 > `uv sync` alone installs only the root project's dependency group. The root has no dependencies of its own, so neither the workspace members nor Django get installed and pytest won't even start. Always `--all-packages`.
 

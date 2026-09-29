@@ -13,6 +13,15 @@ that moves a failure path is more significant here than a new feature.
 
 ## [Unreleased]
 
+### Added
+
+- **`services/core-api/Makefile`** with a target for each core-api command
+  (`make` lists them): tests, the 100% coverage gate, mypy, ruff, runserver,
+  celery worker/beat, shell, migrations, `seed_demo`, TS type generation.
+  It exports `DATABASE_URL` / `CELERY_BROKER_URL` for the Dockerized Postgres
+  and Redis, so `make test` needs no setup, but not `DJANGO_SETTINGS_MODULE`,
+  which would override `pytest.ini`. CI still spells out its own commands.
+
 ### Changed
 
 - **`common/` removed; the role gate moved to `apps/accounts/permissions.py`.**

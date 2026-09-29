@@ -78,23 +78,31 @@ uv sync --all-packages            # NOT plain `uv sync` — see Gotchas
 cd services/web && npm install
 ```
 
+core-api's commands are targets in [`services/core-api/Makefile`](services/core-api/Makefile);
+run `make` there to list them. Its recipes are the canonical spelling. It exports
+`DATABASE_URL` / `CELERY_BROKER_URL` for the Dockerized Postgres/Redis, but not
+`DJANGO_SETTINGS_MODULE` (exporting it would override `pytest.ini`'s test settings).
+Extra arguments go in `ARGS=`, e.g. `make test ARGS="-k router -x"`.
+
 ```bash
-uv run pytest                              # everything (298 unit + 8 eval)
-uv run pytest services/core-api -q         # 149 (DB tests need DATABASE_URL, see below)
-uv run pytest services/ai-engine/tests -q  # 149
+cd services/core-api
+make test           # unit tests (DB tests use the Dockerized Postgres)
+make coverage       # masking + router at 100%, the contractual gate
+make typecheck      # mypy + django-stubs; config in root pyproject.toml, version pinned by uv.lock
+make lint           # ruff check + format --check, pinned to match lint.yml
+make check          # lint + typecheck + test
+make runserver      # :8000; also: worker, beat, shell
+make makemigrations / make migrate / make seed
+make types          # regenerate web TS types after any contract change
+```
+
+Whole workspace, from the repo root:
+
+```bash
+uv run pytest                              # everything (unit + eval)
+uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
-```
-
-Type check (mypy with the django-stubs plugin; scope and settings in root `pyproject.toml`, version pinned by `uv.lock`):
-
-```bash
-uv run mypy
-```
-
-Coverage on the two modules where it is contractual:
-
-```bash
-uv run pytest services/core-api -q --cov=apps.tickets.utils.masking --cov=apps.tickets.utils.router --cov-report=term-missing
+uv run mypy                                # all three packages
 ```
 
 Full stack (7 containers + the `vllm` profile for models). Migrations run automatically on `core-api` start:
@@ -107,25 +115,14 @@ cp infra/.env.example infra/.env && cd infra && docker compose up -d --build
 docker compose exec core-api python manage.py seed_demo
 ```
 
-Individual services against the Dockerized Postgres/Redis:
-
-```bash
-export DATABASE_URL=postgresql://app_user:app_password@localhost:5434/smart_triage CELERY_BROKER_URL=redis://localhost:6380/0 DJANGO_SETTINGS_MODULE=config.settings.development
-```
-
-```bash
-uv run --project services/core-api python services/core-api/manage.py runserver
-```
+ai-engine against the Dockerized stack:
 
 ```bash
 uv run --project services/ai-engine uvicorn ai_engine.main:app --app-dir services/ai-engine/src --port 8001 --reload
 ```
 
-Regenerate frontend types after any contract change:
-
-```bash
-uv run --package core-api python services/core-api/scripts/gen_typescript.py
-```
+CI (`.github/workflows/`) spells its commands out instead of calling the
+Makefile, so keep the two in step when you change one.
 
 Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380**
 (host-published to avoid collisions; internally still `db:5432` / `redis:6379`).
@@ -241,7 +238,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
-| mypy: `ImproperlyConfigured` / plugin can't load settings | The django-stubs plugin imports `config.settings.test` (set in `[tool.django-stubs]`). Run `uv run mypy` from the repo root after `uv sync --all-packages`, not `uvx mypy`, which has no Django |
+| mypy: `ImproperlyConfigured` / plugin can't load settings | The django-stubs plugin imports `config.settings.test` (set in `[tool.django-stubs]`). Run `uv run mypy` from the repo root (or `make typecheck` in core-api) after `uv sync --all-packages`, not `uvx mypy`, which has no Django |
 | Tempted to annotate `objects`, `<fk>_id` or a reverse manager on a model | Don't: the django-stubs plugin infers managers, `_id` fields and related managers. Those declarations were pyright-era workarounds |
 | New model has a bigint `id`; `test_every_model_has_a_uuid_primary_key` fails | Inherit `apps.core.models.BaseModel`, which declares `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)` (ADR-0011). `DEFAULT_AUTO_FIELD` is still `BigAutoField`, for Django's own tables |
 

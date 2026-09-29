@@ -96,10 +96,11 @@ Three services with **structurally enforced** permission boundaries:
 smart_ticket/
 ├── services/
 │   ├── core-api/                # Django + Django Ninja + Celery
+│   │   ├── Makefile             #   core-api dev commands: `make` lists them
 │   │   ├── scripts/gen_typescript.py # generates web/lib/types/generated.ts
 │   │   ├── apps/                #   each: views · request/response_schema · models (fat) · utils · tasks · tests/
-│   │   │   ├── accounts/        #   RBAC: employee · technician · manager · security
 │   │   │   ├── core/            #   shared foundation, imports no app: BaseModel · trace_id middleware · wait_for_db · test helpers
+│   │   │   ├── accounts/        #   RBAC: employee · technician · manager · security
 │   │   │   ├── tickets/         #   models, views, Celery entry points, utils/*
 │   │   │   │   └── utils/       #     router · trust_scorer · masking · patterns · crypto · pipeline
 │   │   │   ├── kb/              #   KB CRUD + auto_reply_allowed governance
@@ -226,13 +227,13 @@ Password for all: `demo12345`. Set `DJANGO_AUTO_SEED_DEMO=true` to seed on conta
 ```bash
 uv sync --all-packages                     # install every workspace member
 
-uv run --project services/core-api python services/core-api/manage.py migrate
-uv run --project services/core-api python services/core-api/manage.py runserver
+cd services/core-api && make migrate runserver   # :8000; `make worker` for celery
 uv run --project services/ai-engine uvicorn ai_engine.main:app \
     --app-dir services/ai-engine/src --port 8001 --reload
 cd services/web && npm install && npm run dev
-uv run --project services/core-api celery -A config worker -l info
 ```
+
+core-api's commands live in [`services/core-api/Makefile`](services/core-api/Makefile); `make` there lists them.
 
 Point `DATABASE_URL` at `localhost:5434` and `CELERY_BROKER_URL` at `localhost:6380` to reuse the Dockerized Postgres and Redis.
 
@@ -345,9 +346,9 @@ curl -s -X POST http://localhost:8000/api/tickets/submit \
 
 ```bash
 uv sync --all-packages                     # once — installs every workspace member
-uv run pytest                              # everything (298 unit + 8 eval)
-uv run pytest services/core-api -q         # 149
-uv run pytest services/ai-engine/tests -q  # 149
+uv run pytest                              # everything (unit + eval)
+cd services/core-api && make test          # core-api only
+uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # 8 eval suites
 ```
 
@@ -360,12 +361,10 @@ The eval suites that exercise the live pipeline **skip automatically** when `ai-
 Coverage on the two modules where it matters:
 
 ```bash
-uv run pytest services/core-api -q \
-  --cov=apps.tickets.utils.masking --cov=apps.tickets.utils.router \
-  --cov-report=term-missing
+cd services/core-api && make coverage
 ```
 
-Masking sits at **100%** — spec §14 makes that the P0 exit condition. The router's single uncovered line is a defensive exhaustiveness fallback unreachable through any valid discriminated-union value.
+Both sit at **100%**, and `make coverage` fails below that, as CI does. For masking, spec §14 makes it the P0 exit condition.
 
 ### Eval harness & CI gate
 
