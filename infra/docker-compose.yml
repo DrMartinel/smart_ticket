@@ -200,7 +200,11 @@ services:
     profiles: ["vllm"]
     command:
       - --model=${EMBED_MODEL:-BAAI/bge-m3}
-      - --gpu-memory-utilization=${VLLM_EMBED_GPU_UTIL:-0.1}
+      - --gpu-memory-utilization=${VLLM_EMBED_GPU_UTIL:-0.12}
+      # No CUDA-graph capture: it is the startup step that runs out of
+      # memory when three servers share a 12 GiB card, and it buys
+      # little for a small encoder.
+      - --enforce-eager
     volumes:
       - ${HF_CACHE_DIR:-./.hf-cache}:/root/.cache/huggingface
     ports:
@@ -217,7 +221,11 @@ services:
       # (ADR-0005).
       - --model=${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
       - --revision=${RERANKER_REVISION:-main}
-      - --gpu-memory-utilization=${VLLM_RERANK_GPU_UTIL:-0.1}
+      - --gpu-memory-utilization=${VLLM_RERANK_GPU_UTIL:-0.12}
+      # No CUDA-graph capture: it is the startup step that runs out of
+      # memory when three servers share a 12 GiB card, and it buys
+      # little for a small encoder.
+      - --enforce-eager
     volumes:
       - ${HF_CACHE_DIR:-./.hf-cache}:/root/.cache/huggingface
     ports:
