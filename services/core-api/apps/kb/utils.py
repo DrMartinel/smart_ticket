@@ -55,7 +55,9 @@ def chunk_sections(body: str) -> list[Chunk]:
 
     Lines inside fenced code blocks are never treated as headings or
     paragraph breaks: a shell comment (`# restart the agent`) is not a
-    section, and a code sample split in half is useless as a quote."""
+    section, and a code sample split in half is useless as a quote. The one
+    exception is a block over the chunk target by itself, split at line
+    breaks by `_split_long` so it can be embedded at all."""
 
     sections: list[tuple[str | None, list[str]]] = [(None, [])]
     in_fence = False
@@ -96,17 +98,37 @@ def _blocks(lines: list[str]) -> list[str]:
     return [b for b in blocks if b]
 
 
-def _pack(paragraphs: list[str]) -> list[str]:
+def _pack(paragraphs: list[str], sep: str = "\n\n") -> list[str]:
     chunks: list[str] = []
     current: list[str] = []
     current_tokens = 0
-    for p in paragraphs:
+    for p in (piece for paragraph in paragraphs for piece in _split_long(paragraph)):
         p_tokens = rough_token_count(p)
         if current and current_tokens + p_tokens > CHUNK_TARGET_TOKENS:
-            chunks.append("\n\n".join(current))
+            chunks.append(sep.join(current))
             current, current_tokens = [], 0
         current.append(p)
         current_tokens += p_tokens
     if current:
-        chunks.append("\n\n".join(current))
+        chunks.append(sep.join(current))
     return chunks
+
+
+def _split_long(block: str) -> list[str]:
+    """A block over the target, split at line breaks, and a line still over
+    it into word windows. A Markdown table has no blank lines, so without
+    this a whole table becomes one chunk: the AWS docs have tables of
+    300,000+ characters, far past the embedder's context, and one of them
+    stops `load_demo_kb` with a 502 from `/v1/embed`. Table rows, list items
+    and code lines stay whole wherever one fits in the target."""
+
+    if rough_token_count(block) <= CHUNK_TARGET_TOKENS:
+        return [block]
+    lines = block.splitlines()
+    if len(lines) > 1:
+        return _pack(lines, sep="\n")
+    words = block.split()
+    return [
+        " ".join(words[i : i + CHUNK_TARGET_TOKENS])
+        for i in range(0, len(words), CHUNK_TARGET_TOKENS)
+    ]

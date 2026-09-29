@@ -64,3 +64,31 @@ def test_clean_markdown_drops_anchor_lines_and_keeps_the_rest_verbatim():
     raw = '\n\n# What is IAM?\n<a name="introduction"></a>\n\nIAM is a *web service*.\n'
 
     assert clean_markdown(raw) == "# What is IAM?\n\nIAM is a *web service*."
+
+
+def test_a_table_longer_than_the_target_is_split_between_rows():
+    """A Markdown table has no blank lines, so it used to become one chunk
+    however long it was. AWS reference tables run past 300,000 characters,
+    beyond the embedder's context, and `load_demo_kb` stopped on the first
+    one with a 502 from `/v1/embed`. Rows must stay whole and in order."""
+    rows = [f"| iam:Action{i} | " + "description " * 20 + "|" for i in range(60)]
+    table = "\n".join(["| Action | Description |", "| --- | --- |", *rows])
+
+    chunks = chunk_sections(f"# Actions\n\n{table}")
+
+    assert len(chunks) > 1
+    assert all(len(c.content.split()) <= CHUNK_TARGET_TOKENS for c in chunks)
+    kept = [line for c in chunks for line in c.content.splitlines() if line.startswith("| iam:")]
+    assert kept == rows
+
+
+def test_a_single_line_longer_than_the_target_is_split_into_word_windows():
+    """One line of the IAM docs is 27,000+ characters. With no line break to
+    split at, it is cut into windows of at most the target, losing no word."""
+    words = [f"word{i}" for i in range(CHUNK_TARGET_TOKENS * 3 + 7)]
+
+    chunks = chunk_body(" ".join(words))
+
+    assert len(chunks) == 4
+    assert all(len(c.split()) <= CHUNK_TARGET_TOKENS for c in chunks)
+    assert " ".join(chunks).split() == words
