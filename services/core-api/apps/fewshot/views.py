@@ -4,7 +4,7 @@ from ninja_jwt.authentication import JWTAuth
 
 from apps.fewshot.models import FewshotExample
 from apps.fewshot.response_schema import FewshotExampleOut
-from common.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest
 
 router = Router(tags=["fewshot"])
 

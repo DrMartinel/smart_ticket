@@ -5,7 +5,7 @@ from ninja_jwt.authentication import JWTAuth
 
 from apps.metrics.response_schema import DashboardOut
 from apps.metrics.utils import dashboard_summary
-from common.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest
 
 router = Router(tags=["metrics"])
 

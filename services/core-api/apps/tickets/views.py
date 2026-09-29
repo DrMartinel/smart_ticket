@@ -13,7 +13,7 @@ from ninja_jwt.authentication import JWTAuth
 from apps.tickets.models import Ticket
 from apps.tickets.request_schema import TicketIn
 from apps.tickets.response_schema import TicketOut, TicketSubmitOut
-from common.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest
 
 router = Router(tags=["tickets"])
 

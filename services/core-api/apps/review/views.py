@@ -10,7 +10,7 @@ from ninja_jwt.authentication import JWTAuth
 from apps.review.models import ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
-from common.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest
 
 router = Router(tags=["review"])
 

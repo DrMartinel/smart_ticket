@@ -8,7 +8,7 @@ from ninja_jwt.authentication import JWTAuth
 from apps.kb.models import KBGovernanceError, KbArticle
 from apps.kb.request_schema import ArticleIn, AutoReplyFlagIn, RiskTierIn
 from apps.kb.response_schema import ArticleOut, ReingestOut
-from common.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest
 
 router = Router(tags=["kb"])
 

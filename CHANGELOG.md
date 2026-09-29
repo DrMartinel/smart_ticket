@@ -15,6 +15,10 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **`common/` removed; the role gate moved to `apps/accounts/permissions.py`.**
+  It was `common/`'s only module and depends on `User`/`UserRole`, so it
+  belongs with them; it can't go in `apps/core`, which imports no app.
+  Import `require_role` / `AuthedRequest` from `apps.accounts.permissions`.
 - **Type checker: pyright → mypy with the django-stubs plugin.** `uv run mypy`
   from the repo root (not `uvx`: the plugin imports Django and
   `config.settings.test`); version pinned by `uv.lock`, scope in

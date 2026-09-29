@@ -176,7 +176,9 @@ Inside core-api, each app has these modules:
 `apps/core` is the shared foundation: abstract `BaseModel`, middleware,
 ops commands (`wait_for_db`), generic test helpers. Every app may import
 from it; it imports from no app (`apps/core/tests/test_boundary.py`).
-Beside `apps/` sit `common/` (code every app shares, such as `permissions.py`),
+The role gate (`require_role`, `AuthedRequest`) lives in
+`apps/accounts/permissions.py`, beside the `User` and `UserRole` it checks;
+it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 `infrastructure/` (the ai-engine client, with its wire schema in `dtos.py`) and
 `config/settings/{base,development,production,test}.py`. Tests live in a
 `tests/` package next to the code they test.

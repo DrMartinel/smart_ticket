@@ -109,7 +109,6 @@ smart_ticket/
 │   │   │   ├── itsm_mock/       #   mock ITSM runbook execution
 │   │   │   ├── metrics/         #   dashboard aggregation
 │   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants), seed_demo
-│   │   ├── common/              #   shared by every app: permissions (role gate)
 │   │   ├── infrastructure/      #   the ai-engine client (every model call) + wire schema (dtos.py)
 │   │   └── config/              #   settings/{base,development,production,test} · celery · thresholds.yaml
 │   ├── ai-engine/               # FastAPI + LangGraph

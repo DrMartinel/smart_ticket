@@ -16,7 +16,7 @@ _CORE = Path(__file__).resolve().parents[1]
 
 # Top-level packages of core-api that are not `core`. `config` is allowed
 # (settings are the environment, not an app), and so is Django.
-_FORBIDDEN = ("apps.", "common", "infrastructure")
+_FORBIDDEN = ("apps.", "infrastructure")
 
 
 def _core_modules() -> list[Path]:
@@ -63,7 +63,7 @@ def test_the_scan_sees_a_wrong_way_import():
 
     assert _is_forbidden("apps.tickets.models")
     assert _is_forbidden("infrastructure.dtos")
-    assert _is_forbidden("common.permissions")
+    assert _is_forbidden("apps.accounts.permissions")
     assert not _is_forbidden("apps.core.models")
     assert not _is_forbidden("django.db")
     assert len(_core_modules()) >= 5

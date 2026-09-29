@@ -7,7 +7,7 @@ from ninja_jwt.authentication import JWTAuth
 from apps.itsm_mock.models import RUNBOOK_REGISTRY, Runbook, RunbookError, RunbookExecution
 from apps.itsm_mock.response_schema import RunbookExecutionOut, RunbookOut
 from apps.review.models import ReviewItem
-from common.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest
 
 router = Router(tags=["itsm"])
 

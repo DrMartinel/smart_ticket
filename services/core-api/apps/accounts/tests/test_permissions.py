@@ -13,7 +13,7 @@ from ninja.errors import HttpError
 
 from apps.accounts.models import User, UserRole
 
-from common.permissions import AuthedRequest, has_any_role, require_role
+from apps.accounts.permissions import AuthedRequest, has_any_role, require_role
 
 
 class Handler:
