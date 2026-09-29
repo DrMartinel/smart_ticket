@@ -65,7 +65,7 @@ def sample(cases: list[dict], n: int = DEFAULT_SAMPLE) -> list[dict]:
 def record_metric(name: str, value: float, **extra) -> None:
     """Appends one metric to .results.json for report.py to read. Each
     suite calls this with its headline number(s) — e.g.
-    `record_metric("retrieval_recall_at_5", 0.92, n=60)`. Not a
+    `record_metric("retrieval_recall_at_3", 0.92, n=60)`. Not a
     replacement for the suite's own assert; report.py's job is comparing
     THIS run's numbers against the committed baseline (spec §12.3), which
     needs them recorded somewhere a plain pytest exit code can't carry."""
