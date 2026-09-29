@@ -6,6 +6,8 @@ to require an approver, never something the LLM can grant itself.
 
 from __future__ import annotations
 
+import uuid
+
 from typing import ClassVar
 
 from django.conf import settings
@@ -45,8 +47,8 @@ class KbArticleManager(models.Manager["KbArticle"]):
 
 
 class KbArticle(models.Model):
-    id: int
-    approved_by_id: int | None
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    approved_by_id: uuid.UUID | None
 
     slug = models.CharField(max_length=32, unique=True)  # KB-0142
     title = models.CharField(max_length=255)
@@ -173,8 +175,8 @@ class KbArticle(models.Model):
 
 
 class KbChunk(models.Model):
-    id: int
-    article_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    article_id: uuid.UUID
 
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
@@ -201,9 +203,9 @@ class KbAuthorityLog(models.Model):
     reason (enforced in `KbArticle.set_auto_reply_allowed` / `set_risk_tier`, not
     just here)."""
 
-    id: int
-    article_id: int
-    actor_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    article_id: uuid.UUID
+    actor_id: uuid.UUID
 
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="authority_log")
     field = models.CharField(max_length=40)  # auto_reply_allowed | risk_tier

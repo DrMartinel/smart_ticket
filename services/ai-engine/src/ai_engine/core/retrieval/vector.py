@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,8 +15,8 @@ from ai_engine.core.db.tables import KbArticle, KbChunk
 class VectorHit(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    chunk_id: int
-    article_id: int
+    chunk_id: uuid.UUID
+    article_id: uuid.UUID
     article_slug: str
     content: str
     score: float  # cosine similarity, [-1, 1] in theory, [0, 1] in practice for text embeddings

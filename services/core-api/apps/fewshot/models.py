@@ -4,6 +4,8 @@ retraction)."""
 
 from __future__ import annotations
 
+import uuid
+
 from typing import Any, ClassVar
 
 from django.conf import settings
@@ -73,9 +75,9 @@ class FewshotExampleManager(models.Manager["FewshotExample"]):
 
 
 class FewshotExample(models.Model):
-    id: int
-    source_ticket_id: int
-    approver_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source_ticket_id: uuid.UUID
+    approver_id: uuid.UUID
 
     source_ticket = models.ForeignKey(
         Ticket, on_delete=models.CASCADE, related_name="fewshot_examples"

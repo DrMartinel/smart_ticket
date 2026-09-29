@@ -12,6 +12,8 @@ Validator — spec §6.4. Four checks, in the spec's order:
 
 from __future__ import annotations
 
+import uuid
+
 import re
 
 from rapidfuzz import fuzz
@@ -35,7 +37,7 @@ def _negations_in(text: str, negations: set[str]) -> frozenset[str]:
     return frozenset(neg for neg in negations if neg in lowered)
 
 
-def _best_fuzzy(quote: str, topk: dict[int, str]) -> tuple[int | None, float]:
+def _best_fuzzy(quote: str, topk: dict[uuid.UUID, str]) -> tuple[uuid.UUID | None, float]:
     best_id, best_ratio = None, 0.0
     for chunk_id, content in topk.items():
         ratio = fuzz.ratio(quote, content) / 100.0
@@ -58,7 +60,7 @@ def _checks(
     quote_source_in_topk: bool,
     negation_consistent: bool,
     category_consistent: bool,
-    source_chunk_id: int | None,
+    source_chunk_id: uuid.UUID | None,
 ) -> StateUpdate:
     """Every check's outcome as a state update. No defaults on purpose: every
     path must state each check explicitly."""

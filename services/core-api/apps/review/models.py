@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from enum import StrEnum
 
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -51,10 +53,10 @@ class ReviewItemManager(models.Manager["ReviewItem"]):
 
 
 class ReviewItem(models.Model):
-    id: int
-    ticket_id: int
-    ai_run_id: int | None
-    claimed_by_id: int | None
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_id: uuid.UUID
+    ai_run_id: uuid.UUID | None
+    claimed_by_id: uuid.UUID | None
     decisions: RelatedManager[ReviewDecision]
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="review_items")
@@ -96,7 +98,7 @@ class ReviewItem(models.Model):
         kb_verdict: str | None,
         category_verdict: str | None,
         corrected_category: str | None,
-        corrected_kb_id: int | None,
+        corrected_kb_id: uuid.UUID | None,
         override_reason: str | None,
         time_spent_sec: int,
     ) -> ReviewDecision:
@@ -148,10 +150,10 @@ class ReviewDecision(models.Model):
     thể, không phải nút Approve" — this is why the fields below are
     specific verdicts, not a single approve/reject boolean."""
 
-    id: int
-    review_item_id: int
-    reviewer_id: int
-    corrected_kb_id: int | None
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    review_item_id: uuid.UUID
+    reviewer_id: uuid.UUID
+    corrected_kb_id: uuid.UUID | None
 
     review_item = models.ForeignKey(ReviewItem, on_delete=models.CASCADE, related_name="decisions")
     reviewer = models.ForeignKey[User](settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
@@ -180,8 +182,8 @@ class EvalCandidate(models.Model):
     """Auto-generated golden-set candidate from any human override — spec
     §12.4's free-label loop."""
 
-    id: int
-    ticket_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_id: uuid.UUID
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="eval_candidates")
     source = models.CharField(max_length=30)  # human_override|reroute|reopen|refusal_spike

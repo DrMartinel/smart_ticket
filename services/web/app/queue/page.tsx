@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { priorityClasses } from "@/lib/badges";
 
 interface QueueItem {
-  id: number;
+  id: string;
   ticket_public_id: string;
   subject_masked: string;
   queue: string;

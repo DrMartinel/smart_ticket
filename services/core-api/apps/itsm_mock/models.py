@@ -7,6 +7,8 @@ if a caller somehow bypassed the router.
 
 from __future__ import annotations
 
+import uuid
+
 from typing import Any, ClassVar, TypedDict
 
 from django.conf import settings
@@ -89,10 +91,10 @@ class RunbookExecutionManager(models.Manager["RunbookExecution"]):
 
 
 class RunbookExecution(models.Model):
-    id: int
-    ticket_id: int
-    review_item_id: int
-    executed_by_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_id: uuid.UUID
+    review_item_id: uuid.UUID
+    executed_by_id: uuid.UUID
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="runbook_executions")
     review_item = models.ForeignKey(

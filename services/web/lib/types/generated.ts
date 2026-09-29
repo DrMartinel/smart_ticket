@@ -67,7 +67,7 @@ export interface RetrievalSignals {
   rerank_margin: number;
   bm25_keyword_hit: boolean;
   docs_above_floor: number;
-  topk_chunk_ids?: number[];
+  topk_chunk_ids?: string[];
 }
 
 export interface GenerationSignals {
@@ -101,7 +101,7 @@ export interface TrustScore {
 }
 
 export interface KBArticleMeta {
-  id: number;
+  id: string;
   slug: string;
   category: TicketCategory;
   auto_reply_allowed: boolean;

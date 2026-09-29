@@ -6,6 +6,7 @@ directly against hand-crafted (quote, source, should_pass) triples,
 including the negation-flip case that's the whole reason §6.4 exists.
 """
 
+from uuid import UUID
 from ai_engine.core.state import (
     AutoReplyProposal,
     LLMProposalEnvelope,
@@ -80,7 +81,13 @@ CASES: list[tuple[str, list[str], bool]] = [
 
 def _is_flagged(quote: str, sources: list[str]) -> bool:
     reranked = [
-        RankedChunk(chunk_id=i, article_id=1, article_slug="KB-TEST", content=content, score=0.9)
+        RankedChunk(
+            chunk_id=UUID(int=i),
+            article_id=UUID(int=1),
+            article_slug="KB-TEST",
+            content=content,
+            score=0.9,
+        )
         for i, content in enumerate(sources)
     ]
     proposal = LLMProposalEnvelope(

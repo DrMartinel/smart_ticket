@@ -7,6 +7,8 @@ those exact names) apply cleanly after these migrations run.
 
 from __future__ import annotations
 
+import uuid
+
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
@@ -95,7 +97,7 @@ class Incident(models.Model):
     """§3.5. A mass-incident parent: created when the incident detector
     (§9) finds ticket volume far above its adaptive baseline."""
 
-    id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     public_id = models.CharField(max_length=32, unique=True)  # INC-2026-0007
     title = models.CharField(max_length=255)
@@ -122,7 +124,7 @@ class Incident(models.Model):
 @dataclass(frozen=True)
 class IncidentVerdict:
     kind: Literal["unique", "duplicate", "mass_incident"]
-    of: int | None = None  # ticket id, for duplicates
+    of: uuid.UUID | None = None  # ticket id, for duplicates
     parent: Incident | None = None
     baseline_rate: float | None = None
 
@@ -237,7 +239,8 @@ class TicketManager(models.Manager["Ticket"]):
         # Imported here: tasks imports the pipeline, which imports this module.
         from apps.tickets import tasks
 
-        tasks.process_ticket.delay(ticket.id)
+        # As a string: task arguments go through Celery's JSON serializer.
+        tasks.process_ticket.delay(str(ticket.id))
         return ticket
 
 
@@ -245,11 +248,11 @@ class Ticket(models.Model):
     """§3.1. The main table holds ONLY masked data — raw PII never lands
     here (see PiiQuarantine below and apps/tickets/utils/masking.py)."""
 
-    id: int
-    reporter_id: int
-    assigned_to_id: int | None
-    incident_id: int | None
-    duplicate_of_id: int | None
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    reporter_id: uuid.UUID
+    assigned_to_id: uuid.UUID | None
+    incident_id: uuid.UUID | None
+    duplicate_of_id: uuid.UUID | None
     ai_runs: RelatedManager[AiRun]
     routing_decisions: RelatedManager[RoutingDecision]
     review_items: RelatedManager[ReviewItem]
@@ -350,7 +353,7 @@ class PiiQuarantine(models.Model):
     """§3.1. Raw PII, encrypted at the application layer (AES-GCM, key
     outside the DB — see utils/crypto.py), with a hard TTL."""
 
-    ticket_id: int
+    ticket_id: uuid.UUID
 
     ref = models.UUIDField(primary_key=True, editable=False)
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="quarantine_entries")
@@ -367,8 +370,8 @@ class PiiAccessLog(models.Model):
     """Every raw-PII read is a row here. No exceptions — enforced by
     routing every quarantine read through one service function."""
 
-    id: int
-    actor_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    actor_id: uuid.UUID
 
     ref = models.UUIDField()
     actor = models.ForeignKey[User](settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
@@ -393,8 +396,8 @@ class AiRun(models.Model):
     not-yet-trusted LLM output; `trust_signals`/`trust_score` are what the
     router actually acts on."""
 
-    id: int
-    ticket_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_id: uuid.UUID
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="ai_runs")
     idempotency_key = models.CharField(max_length=100, unique=True)  # ticket_id + attempt
@@ -434,9 +437,9 @@ class RoutingDecision(models.Model):
     months from now, "what were the thresholds at the time" must be
     answerable without knowing when thresholds.yaml last changed."""
 
-    id: int
-    ticket_id: int
-    ai_run_id: int | None
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    ticket_id: uuid.UUID
+    ai_run_id: uuid.UUID | None
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="routing_decisions")
     ai_run = models.ForeignKey(

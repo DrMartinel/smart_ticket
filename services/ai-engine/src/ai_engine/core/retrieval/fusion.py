@@ -10,6 +10,8 @@ carried on `Candidate`, so nothing can threshold against it (ADR-0005).
 
 from __future__ import annotations
 
+import uuid
+
 from pydantic import BaseModel, ConfigDict
 
 from ai_engine.core.config import settings
@@ -20,8 +22,8 @@ from ai_engine.core.retrieval.vector import VectorHit
 class Candidate(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    chunk_id: int
-    article_id: int
+    chunk_id: uuid.UUID
+    article_id: uuid.UUID
     article_slug: str
     content: str
 
@@ -30,8 +32,8 @@ def reciprocal_rank_fusion(
     bm25_hits: list[LexicalHit], vector_hits: list[VectorHit]
 ) -> list[Candidate]:
     k = settings.rrf_k
-    scores: dict[int, float] = {}
-    meta: dict[int, tuple[int, str, str]] = {}
+    scores: dict[uuid.UUID, float] = {}
+    meta: dict[uuid.UUID, tuple[uuid.UUID, str, str]] = {}
 
     for rank, hit in enumerate(bm25_hits, start=1):
         scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + 1.0 / (k + rank)

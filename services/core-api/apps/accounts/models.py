@@ -5,6 +5,7 @@ the roles here map directly onto spec concepts (Employee / Technician /
 Manager / Security) rather than a general-purpose permission matrix.
 """
 
+import uuid
 from enum import StrEnum
 
 from django.contrib.auth.models import AbstractUser
@@ -19,7 +20,7 @@ class UserRole(StrEnum):
 
 
 class User(AbstractUser):
-    id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     role = models.CharField(
         max_length=20,

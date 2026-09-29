@@ -5,6 +5,7 @@ hold that promise: no django_db marker needed anywhere in this file.
 """
 
 from typing import Any
+from uuid import UUID
 
 from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, route
 from config.settings.base import (
@@ -92,7 +93,7 @@ def good_signals(**overrides) -> TrustSignals:
 
 def kb(**overrides) -> KBArticleMeta:
     base: dict[str, Any] = dict(
-        id=1,
+        id=UUID(int=1),
         slug="KB-0001",
         category=TicketCategory.ACCESS,
         auto_reply_allowed=True,

@@ -138,7 +138,7 @@ def test_claim_returns_the_item_with_its_claimant(employee_user, technician_user
     response = api_as(technician_user).post(f"/api/review/items/{item.id}/claim")
 
     assert response.status_code == 200
-    assert response.json()["claimed_by"] == technician_user.id
+    assert response.json()["claimed_by"] == str(technician_user.id)
 
 
 @pytest.mark.django_db

@@ -4,6 +4,8 @@ Response shapes for the mock ITSM endpoints.
 
 from __future__ import annotations
 
+import uuid
+
 from typing import Any
 
 from ninja import Schema
@@ -15,7 +17,7 @@ class RunbookOut(Schema):
 
 
 class RunbookExecutionOut(Schema):
-    id: int
+    id: uuid.UUID
     runbook_id: str
     status: str
     result: dict[str, Any]

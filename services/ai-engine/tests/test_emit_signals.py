@@ -5,6 +5,8 @@ failing is not a degraded answer — it is no answer at all.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import pytest
 
 from ai_engine.core.state import AutoReplyProposal, LLMProposalEnvelope, PIILevel, RankedChunk
@@ -29,8 +31,8 @@ def _auto_reply(kb_slug: str = "kb-a") -> LLMProposalEnvelope:
 
 def _chunk(chunk_id: int, score: float, slug: str = "kb-a") -> RankedChunk:
     return RankedChunk(
-        chunk_id=chunk_id,
-        article_id=chunk_id * 10,
+        chunk_id=UUID(int=chunk_id),
+        article_id=UUID(int=chunk_id * 10),
         article_slug=slug,
         content="nội dung",
         score=score,

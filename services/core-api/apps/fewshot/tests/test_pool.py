@@ -113,7 +113,7 @@ def test_reopening_a_ticket_retracts_only_its_examples(employee_user, manager_us
     retracted = example(reopened, manager_user)
     kept = example(other, manager_user)
 
-    reopen_ticket(reopened.id)
+    reopen_ticket(str(reopened.id))
 
     retracted.refresh_from_db()
     assert retracted.retracted_at is not None

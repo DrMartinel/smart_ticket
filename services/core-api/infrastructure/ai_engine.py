@@ -6,6 +6,8 @@ no DB credentials to write business tables and no routing authority).
 
 from __future__ import annotations
 
+import uuid
+
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
@@ -109,7 +111,7 @@ class RetrievalSignals(BaseModel):
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
     bm25_keyword_hit: bool
     docs_above_floor: int = Field(ge=0)
-    topk_chunk_ids: list[int] = Field(default_factory=list[int])
+    topk_chunk_ids: list[uuid.UUID] = Field(default_factory=list[uuid.UUID])
 
 
 class GenerationSignals(BaseModel):

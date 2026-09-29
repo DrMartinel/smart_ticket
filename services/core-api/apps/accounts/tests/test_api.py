@@ -13,7 +13,7 @@ def test_me_returns_the_authenticated_user(employee_user, api_as):
 
     assert response.status_code == 200
     assert response.json() == {
-        "id": employee_user.id,
+        "id": str(employee_user.id),
         "username": "emp",
         "email": "",
         "role": "employee",

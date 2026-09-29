@@ -134,9 +134,9 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
 - Value objects are frozen pydantic models: `model_config = ConfigDict(frozen=True)`
   (`RankedChunk`, `LexicalHit`, `LLMResult`).
 - Suppressions: one line, **name the rule**, only at an untyped library boundary:
-  `# pyright: ignore[reportUnknownMemberType]` (see `core/build/builder.py`).
-- Django: declare what Django adds at runtime (`id: int`, `ticket_id: int`,
-  reverse managers) — see the pyright row in CLAUDE.md's Gotchas.
+  `# pyright: ignore[reportPrivateImportUsage]` (see `core/build/builder.py`).
+- Django: every model declares `id = models.UUIDField(primary_key=True, …)` (ADR-0011);
+  declare what Django adds at runtime (`ticket_id: uuid.UUID`, reverse managers) — see the pyright row in CLAUDE.md's Gotchas.
 
 ## 8. Errors
 

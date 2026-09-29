@@ -6,6 +6,8 @@ exact codes are part of the contract.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import json
 
 import pytest
@@ -94,7 +96,11 @@ def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate, mak
     from ai_engine.core.state import RankedChunk
 
     chunk = RankedChunk(
-        chunk_id=1, article_id=10, article_slug="vpn-reset", content="nội dung", score=0.9
+        chunk_id=UUID(int=1),
+        article_id=UUID(int=10),
+        article_slug="vpn-reset",
+        content="nội dung",
+        score=0.9,
     )
     llm = fake_llm(result=_result())
 

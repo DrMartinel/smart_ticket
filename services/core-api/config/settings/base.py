@@ -90,6 +90,9 @@ def _parse_database_url(url: str) -> dict[str, Any]:
 
 
 DATABASES = {"default": _parse_database_url(_db_url)}
+# Only for Django's own auto-created tables (the user-to-group link table).
+# Every model of ours declares a UUID primary key instead (ADR-0011), and
+# apps/dbextras/tests/test_primary_keys.py fails if one forgets.
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ── Celery ───────────────────────────────────────────────────────────────

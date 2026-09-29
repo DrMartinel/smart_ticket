@@ -111,7 +111,7 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
 ### 13. Type for strict pyright — f04445f, 894f950
 
 - **Smell:** `reportUnknown*` noise, untyped Django attributes, `Any` leaking from a boundary.
-- **Move:** declare runtime-added attributes on the model (`id: int`, `<fk>_id: int`,
+- **Move:** declare runtime-added attributes on the model (`<fk>_id: uuid.UUID`,
   `RelatedManager[...]`), give FKs to string targets their model, type JSON-shaped
   fields. Suppress only at a genuinely untyped library boundary, one line, rule named.
 - **Guard:** a type change that changes runtime behaviour is not a typing refactor.

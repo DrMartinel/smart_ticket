@@ -142,7 +142,7 @@ def test_processing_is_enqueued_only_after_the_ticket_commits(
     )
 
     ticket = Ticket.objects.get(public_id=response.json()["ticket_public_id"])
-    assert process_ticket.enqueued == [ticket.id]
+    assert process_ticket.enqueued == [str(ticket.id)]
     assert process_ticket.enqueued_inside_transaction == [False]
 
 
@@ -165,7 +165,7 @@ def test_ner_failure_still_files_the_ticket_as_mask_failed(
     ticket = Ticket.objects.get(public_id=response.json()["ticket_public_id"])
     assert ticket.pii_level == PIILevel.MASK_FAILED.value
     assert EMAIL not in ticket.subject_masked
-    assert process_ticket.enqueued == [ticket.id]
+    assert process_ticket.enqueued == [str(ticket.id)]
 
 
 @pytest.mark.django_db

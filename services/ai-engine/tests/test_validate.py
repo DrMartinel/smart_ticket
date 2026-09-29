@@ -4,6 +4,7 @@ matching alone scores "được cấp quyền" vs "không được cấp quyền
 despite opposite meanings.
 """
 
+from uuid import UUID
 from ai_engine.core.state import (
     AutoReplyProposal,
     LLMProposalEnvelope,
@@ -17,7 +18,11 @@ from ai_engine.graph.nodes.validate import validate
 
 def chunk(chunk_id: int, content: str) -> RankedChunk:
     return RankedChunk(
-        chunk_id=chunk_id, article_id=1, article_slug="KB-0001", content=content, score=0.9
+        chunk_id=UUID(int=chunk_id),
+        article_id=UUID(int=1),
+        article_slug="KB-0001",
+        content=content,
+        score=0.9,
     )
 
 
@@ -61,7 +66,7 @@ def test_exact_substring_match(make_state):
     out = validate(state)
     assert out["quote_match_ratio"] == 1.0
     assert out["quote_source_in_topk"] is True
-    assert out["source_chunk_id"] == 1
+    assert out["source_chunk_id"] == UUID(int=1)
 
 
 def test_quote_not_found_anywhere_fails_source_check(make_state):
@@ -87,7 +92,7 @@ def test_quote_found_verbatim_in_a_later_chunk_is_in_topk(make_state):
     )
     out = validate(state)
     assert out["quote_source_in_topk"] is True
-    assert out["source_chunk_id"] == 2
+    assert out["source_chunk_id"] == UUID(int=2)
 
 
 def test_negation_mismatch_detected(make_state):

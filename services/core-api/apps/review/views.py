@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from django.db.models import QuerySet
 from ninja import Router
 from ninja.errors import HttpError
@@ -21,12 +23,12 @@ def list_queue(
 
 
 @router.get("/items/{item_id}", auth=JWTAuth(), response=ReviewItemOut)
-def get_item(request: AuthedRequest, item_id: int) -> ReviewItem:
+def get_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     return _get_or_404(item_id)
 
 
 @router.post("/items/{item_id}/claim", auth=JWTAuth(), response=ReviewItemOut)
-def claim_item(request: AuthedRequest, item_id: int) -> ReviewItem:
+def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     item = _get_or_404(item_id)
     try:
         item.claim(request.auth)
@@ -36,7 +38,7 @@ def claim_item(request: AuthedRequest, item_id: int) -> ReviewItem:
 
 
 @router.post("/items/{item_id}/decide", auth=JWTAuth(), response=DecisionOut)
-def decide_item(request: AuthedRequest, item_id: int, payload: DecisionIn) -> ReviewDecision:
+def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn) -> ReviewDecision:
     item = _get_or_404(item_id)
     try:
         return item.decide(
@@ -53,7 +55,7 @@ def decide_item(request: AuthedRequest, item_id: int, payload: DecisionIn) -> Re
         raise HttpError(422, str(e)) from e
 
 
-def _get_or_404(item_id: int) -> ReviewItem:
+def _get_or_404(item_id: uuid.UUID) -> ReviewItem:
     try:
         return ReviewItem.objects.select_related("ticket", "ai_run").get(id=item_id)
     except ReviewItem.DoesNotExist as e:

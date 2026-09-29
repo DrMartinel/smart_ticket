@@ -8,6 +8,8 @@ make the failure paths (DB outage, embedder down, LLM down) testable.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import importlib
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
@@ -186,8 +188,8 @@ def _make_ticket(
 
 def _make_candidate(chunk_id: int = 1, content: str = "nội dung", slug: str = "kb-a") -> Candidate:
     return Candidate(
-        chunk_id=chunk_id,
-        article_id=chunk_id * 10,
+        chunk_id=UUID(int=chunk_id),
+        article_id=UUID(int=chunk_id * 10),
         article_slug=slug,
         content=content,
     )
@@ -297,7 +299,7 @@ def _kb_row(chunk_id: int, content: str, score: float, slug: str = "kb-a") -> tu
     """A row shaped like the SELECT in bm25_search / vector_search:
     (chunk_id, article_id, slug, content, score)."""
 
-    return (chunk_id, chunk_id * 10, slug, content, score)
+    return (UUID(int=chunk_id), UUID(int=chunk_id * 10), slug, content, score)
 
 
 @pytest.fixture

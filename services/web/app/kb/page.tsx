@@ -6,13 +6,13 @@ import { api, ApiError } from "@/lib/api";
 import { riskTierClasses } from "@/lib/badges";
 
 interface KbArticle {
-  id: number;
+  id: string;
   slug: string;
   title: string;
   category: string;
   auto_reply_allowed: boolean;
   risk_tier: string;
-  approved_by: number | null;
+  approved_by: string | null;
   is_active: boolean;
   version: number;
 }
