@@ -1,10 +1,18 @@
 """
-BM25-style lexical retrieval over `kb_chunks.tsv` — spec §6.3.
+BM25 lexical retrieval over `kb_chunks` — spec §6.3, via ParadeDB pg_search
+(ADR-0013).
 
-Uses `ts_rank_cd` (cover density), which rewards query terms appearing close
-together — good for short, error-code-heavy queries. Error codes
-(`0x1A2B3C4D`, `ERR-4042`) get an explicit boost, since `ts_rank_cd` treats
-them like any other token.
+Real BM25: IDF means a rare token ("GuardDuty", an error code) outweighs
+filler that appears on every page. `|||` is match-disjunction, so a chunk
+needs only some of the ticket's words, not all of them. The spec's
+`plainto_tsquery` + `ts_rank_cd` required every word in one chunk and matched
+nothing on the English golden set, and `ts_rank_cd` has no IDF at all.
+
+`pdb.score` only ORDERS hits here. It is query-dependent and means nothing
+across tickets, so nothing may compare it with a number (ADR-0005's rule,
+applied to BM25 too). Only ranks leave this channel.
+
+Error codes (`0x1A2B3C4D`, `ERR-4042`) still get an explicit boost on top.
 """
 
 from __future__ import annotations
@@ -14,14 +22,13 @@ import uuid
 import re
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ai_engine.core.config import settings
 from ai_engine.core.db.tables import KbArticle, KbChunk
 
 _ERROR_CODE_RE = re.compile(r"0x[0-9A-Fa-f]{8}|ERR-\d+")
-ERROR_CODE_BOOST = 0.5
 
 
 class LexicalHit(BaseModel):
@@ -37,13 +44,18 @@ class LexicalHit(BaseModel):
 def bm25_search(session: Session, query_text: str) -> list[LexicalHit]:
     error_codes = _ERROR_CODE_RE.findall(query_text)
 
-    tsquery = func.plainto_tsquery("simple", query_text)
-    score = func.ts_rank_cd(KbChunk.tsv, tsquery).label("score")
+    score = func.pdb.score(KbChunk.id).label("score")
     statement = (
         select(KbChunk.id, KbChunk.article_id, KbArticle.slug, KbChunk.content, score)
         .join(KbArticle, KbArticle.id == KbChunk.article_id)
-        # `@@` has no SQLAlchemy operator; bool_op keeps it a boolean predicate.
-        .where(KbChunk.tsv.bool_op("@@")(tsquery))
+        # `|||` has no SQLAlchemy operator; is_comparison keeps it a boolean
+        # predicate. Both columns are in the one BM25 index (idx_chunk_bm25).
+        .where(
+            or_(
+                KbChunk.content.op("|||", is_comparison=True)(query_text),
+                KbChunk.section_title.op("|||", is_comparison=True)(query_text),
+            )
+        )
         .order_by(score.desc())
         .limit(settings.bm25_top_k)
     )
@@ -53,7 +65,7 @@ def bm25_search(session: Session, query_text: str) -> list[LexicalHit]:
     for chunk_id, article_id, article_slug, content, score in rows:
         boosted = float(score)
         if error_codes and any(code in content for code in error_codes):
-            boosted += ERROR_CODE_BOOST
+            boosted += settings.bm25_error_code_boost
         hits.append(
             LexicalHit(
                 chunk_id=chunk_id,

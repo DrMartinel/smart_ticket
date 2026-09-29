@@ -21,7 +21,7 @@ from typing import Any
 
 from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from ai_engine.core.providers.embeddings import EMBED_DIM
@@ -50,9 +50,8 @@ class KbChunk(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
     content: Mapped[str]
+    section_title: Mapped[str | None]
     embedding: Mapped[Any] = mapped_column(VECTOR(EMBED_DIM), nullable=True)
-    # Maintained by a Postgres trigger (0003_constraints_and_triggers.sql).
-    tsv: Mapped[Any] = mapped_column(TSVECTOR, nullable=True)
 
 
 class FewshotExample(Base):

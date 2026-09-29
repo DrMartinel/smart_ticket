@@ -25,7 +25,9 @@ class HybridRetrieveNode(BaseNode):
         candidates = reciprocal_rank_fusion(bm25_hits, vector_hits)
         return {
             "candidates": candidates[: settings.fusion_candidate_limit],
-            "bm25_keyword_hit": len(bm25_hits) > 0,
+            # Article level: an article with three matching chunks is one
+            # answer, not three, so it must not push the next article to 4th.
+            "bm25_article_ids": list(dict.fromkeys(h.article_id for h in bm25_hits)),
         }
 
 
