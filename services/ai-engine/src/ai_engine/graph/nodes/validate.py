@@ -11,14 +11,20 @@ Validator — spec §6.4. Four checks, in the spec's order:
    in runbook-style KB content. The quote is compared with the sentence(s) it
    was cut from, not the whole chunk: a 250-word AWS chunk nearly always has
    a "not" somewhere, and comparing against all of it would flag every
-   English quote.
+   English quote. Negations are counted, not just collected: "Do not X if
+   you do not have Y" quoted as "X if you do not have Y" keeps one "not"
+   and drops the one that governs it.
+
+   Known gap: a list item is its own sentence, so "Don't do any of the
+   following:" does not reach a quote cut from an item below it
+   (test_validate.py pins this as an xfail).
 """
 
 from __future__ import annotations
 
-import uuid
-
 import re
+import uuid
+from collections import Counter
 
 from rapidfuzz import fuzz
 
@@ -37,19 +43,32 @@ ENGLISH_NEGATION = re.compile(
     r"\b(?:not|no|never|cannot|none|nor|without|except|unless)\b|\b\w+n['’]t\b",
     re.IGNORECASE,
 )
+# A period after one of these doesn't end a sentence. Without this, "Do not
+# use root credentials, e.g. the root user access keys" splits after "e.g."
+# and the quote after it loses its "not". Missing an abbreviation here makes
+# the check weaker; treating a real sentence end as an abbreviation only
+# makes it stricter.
+_ABBREVIATIONS = ("e.g", "i.e", "etc", "vs")
 # End of a sentence, or a line break (a Markdown list item or heading).
-_SENTENCE_BREAK = re.compile(r"[.!?](?=\s)|\n")
+_SENTENCE_BREAK = re.compile(
+    "".join(rf"(?<!\b{re.escape(abbr)})" for abbr in _ABBREVIATIONS) + r"[.!?](?=\s)|\n",
+    re.IGNORECASE,
+)
 
 
 def normalize_ws(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _negations_in(text: str, negations: set[str]) -> frozenset[str]:
+def _negations_in(text: str) -> Counter[str]:
+    """Each negation in `text` with how many times it occurs. A count, not a
+    set: a set can't tell a quote that kept one of two "not"s from the
+    sentence that had both."""
+
     lowered = text.lower()
-    vietnamese = {neg for neg in negations if neg in lowered}
-    english = {m.group(0).lower().replace("’", "'") for m in ENGLISH_NEGATION.finditer(text)}
-    return frozenset(vietnamese | english)
+    found = Counter({neg: lowered.count(neg) for neg in NEGATIONS if neg in lowered})
+    found.update(m.group(0).lower().replace("’", "'") for m in ENGLISH_NEGATION.finditer(text))
+    return found
 
 
 def _enclosing_sentences(quote: str, content: str) -> str:
@@ -163,14 +182,12 @@ class ValidateNode(BaseNode):
         # 3. Source must be in the retrieved top-k.
         in_topk = source is not None
 
-        # 4. Negation check — fuzzy match cannot catch this.
-        raw = {c.chunk_id: c.content for c in reranked}
-        neg_ok = (
-            _negations_in(quote, NEGATIONS)
-            == _negations_in(_enclosing_sentences(quote, raw[source]), NEGATIONS)
-            if source is not None
-            else False
-        )
+        # 4. Negation check — fuzzy match cannot catch this. Against the raw
+        # chunk, whose line breaks still mark list items.
+        neg_ok = False
+        if source is not None:
+            content = next(c.content for c in reranked if c.chunk_id == source)
+            neg_ok = _negations_in(quote) == _negations_in(_enclosing_sentences(quote, content))
 
         return _checks(
             schema_valid=True,

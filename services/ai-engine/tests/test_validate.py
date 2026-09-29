@@ -5,6 +5,9 @@ despite opposite meanings.
 """
 
 from uuid import UUID
+
+import pytest
+
 from ai_engine.core.state import (
     AutoReplyProposal,
     LLMProposalEnvelope,
@@ -142,6 +145,8 @@ def test_english_negation_dropped_from_the_quote_is_detected(make_state):
 
 
 def test_english_contraction_dropped_from_the_quote_is_detected(make_state):
+    """Contractions are matched as their own form ("can't"), so a quote that
+    drops "You can't" is caught even though "not" never appears."""
     source = "You can't attach an Elastic IP address to a stopped instance in a VPC."
     quote = "attach an Elastic IP address to a stopped instance in a VPC."
     state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
@@ -164,6 +169,9 @@ def test_a_negation_in_another_sentence_of_the_chunk_does_not_flag_the_quote(mak
 
 
 def test_a_quote_ending_in_a_period_does_not_absorb_the_next_sentence(make_state):
+    """The search for the sentence end starts at the quote's last character,
+    so the period that ends the quote ends its sentence. Starting one past it
+    would run on into "Do not open port 22…" and flag a clean quote."""
     source = "Check the security group rules. Do not open port 22 to 0.0.0.0/0."
     quote = "Check the security group rules."
     state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
@@ -171,7 +179,73 @@ def test_a_quote_ending_in_a_period_does_not_absorb_the_next_sentence(make_state
 
 
 def test_words_containing_not_or_no_are_not_negations(make_state):
+    """English is matched on word boundaries. As substrings, "notification"
+    and "node" would each count as a negation, and the extra count would
+    flag any quote that happens to share a sentence with them."""
     source = "Configure an SNS notification for the node group. Then save."
     quote = "Configure an SNS notification for the node group."
     state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
     assert validate(state)["negation_consistent"] is True
+
+
+def test_one_of_two_negations_dropped_from_the_quote_is_detected(make_state):
+    """Both the quote and its sentence contain "not", so comparing which
+    negations appear would pass. The quote dropped the "Do not" that governs
+    it, so the counts differ."""
+    source = "Do not disable MFA if you do not have a backup device."
+    quote = "disable MFA if you do not have a backup device."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    assert validate(state)["negation_consistent"] is False
+
+
+def test_an_abbreviation_does_not_split_the_sentence_away_from_its_negation(make_state):
+    """ "e.g. " looks like a sentence end. Splitting there would compare the
+    quote with the text after "e.g." alone, which has no "not"."""
+    source = "Do not use root credentials, e.g. the root user access keys, for daily tasks."
+    quote = "the root user access keys, for daily tasks."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    assert validate(state)["negation_consistent"] is False
+
+
+def test_fuzzy_matched_quote_that_dropped_a_negation_is_detected(make_state):
+    """A quote with punctuation drift isn't an exact substring, so its
+    sentence is located by fuzzy alignment rather than by search. That path
+    must still find the governing "Do not"."""
+    source = "Do not delete the root user access keys, rotate them instead."
+    quote = "delete the root user access keys rotate them instead."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    out = validate(state)
+    assert out["quote_source_in_topk"] is True
+    assert out["quote_match_ratio"] < 1.0
+    assert out["negation_consistent"] is False
+
+
+def test_fuzzy_matched_quote_is_compared_with_its_own_sentence_only(make_state):
+    """The alignment must narrow the comparison to the quote's own sentence.
+    If it fell back to the whole chunk, the "not" in the first sentence would
+    flag this clean quote."""
+    source = "If the key is not rotated, rotate it.\nChoose Instances, then select the instance."
+    quote = "Choose Instances then select the instance."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    out = validate(state)
+    assert out["quote_source_in_topk"] is True
+    assert out["quote_match_ratio"] < 1.0
+    assert out["negation_consistent"] is True
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Known gap: a list item is its own sentence, so a negated lead-in line doesn't reach it",
+)
+def test_a_negated_list_lead_in_governs_its_items(make_state):
+    """A quote from a list item is checked against that item alone, so the
+    "Don't" on the lead-in line is missed and the quote passes. This is the
+    cost of splitting on line breaks, which keeps the check from flagging
+    every quote in a chunk. strict=True makes this fail when the gap is
+    closed, so the marker can't outlive the fix."""
+    source = (
+        "Don't do any of the following:\n+ Delete the root user access keys.\n+ Share passwords."
+    )
+    quote = "Delete the root user access keys."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    assert validate(state)["negation_consistent"] is False
