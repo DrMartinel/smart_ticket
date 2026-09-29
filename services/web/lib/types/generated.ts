@@ -65,7 +65,8 @@ export interface InsufficientContext {
 export interface RetrievalSignals {
   rerank_top1: number;
   rerank_margin: number;
-  bm25_keyword_hit: boolean;
+  bm25_rank_of_top1?: number | null;
+  bm25_keyword_hit?: boolean;
   docs_above_floor: number;
   topk_chunk_ids?: string[];
 }

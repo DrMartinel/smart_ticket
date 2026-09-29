@@ -14,7 +14,10 @@ interface TrustSignals {
   retrieval: {
     rerank_top1: number;
     rerank_margin: number;
-    bm25_keyword_hit: boolean;
+    /** Rank of the reranker's top article in BM25's own list (ADR-0013); null = absent. */
+    bm25_rank_of_top1?: number | null;
+    /** Legacy: only set on signals stored before ADR-0013. */
+    bm25_keyword_hit?: boolean;
     docs_above_floor: number;
   };
   generation: {
@@ -48,6 +51,30 @@ function Bar({ value, max = 1 }: { value: number; max?: number }) {
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
       <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
     </div>
+  );
+}
+
+/**
+ * Where keyword search (BM25) ranked the article the reranker chose. Neutral
+ * on purpose, no ✓/✗: whether that rank counts as agreement is core-api's
+ * decision (`rank <= k`, k in thresholds.yaml), shown in the trust
+ * contributions above. Deciding it here too would copy a threshold into the
+ * browser, where it would drift from the one that scored the ticket.
+ */
+function KeywordRankChip({ rank, legacyHit }: { rank?: number | null; legacyHit?: boolean }) {
+  const text =
+    rank != null
+      ? `keyword search ranked it #${rank}`
+      : legacyHit
+        ? "keyword hit (legacy signal)"
+        : "keyword search didn't find it";
+  return (
+    <span
+      className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+      title="Position of the reranker's top article in the keyword (BM25) results. Agreement is scored in the trust contributions."
+    >
+      {text}
+    </span>
   );
 }
 
@@ -182,7 +209,7 @@ export default function TrustSignalsPanel({
             <span className="w-10 shrink-0 text-right tabular-nums">{retrieval.rerank_margin.toFixed(2)}</span>
           </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
-            <BoolChip ok={retrieval.bm25_keyword_hit} label="keyword hit" />
+            <KeywordRankChip rank={retrieval.bm25_rank_of_top1} legacyHit={retrieval.bm25_keyword_hit} />
             <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
               {retrieval.docs_above_floor} docs above floor
             </span>
