@@ -1,4 +1,3 @@
-# pyright: standard
 """
 router.route() branch coverage — spec §8.1's first requirement is that
 this function is testable end to end without DB/LLM/network. These tests

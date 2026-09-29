@@ -85,7 +85,7 @@ uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
 
-Type check (strict for all source code, standard for tests; scope and settings in root `pyproject.toml`, version pinned in `lint.yml`):
+Type check (standard mode everywhere; scope and settings in root `pyproject.toml`, version pinned in `lint.yml`):
 
 ```bash
 uvx pyright@1.1.414
@@ -235,7 +235,6 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
 | pyright: custom manager "overrides symbol of same name in class Model" | django-types types `Model.objects` as `BaseManager[Model]`. Annotate `objects: ClassVar[XManager] = XManager()` with `# pyright: ignore[reportIncompatibleVariableOverride]`, as the existing models do |
-| pyright strict errors in a new core-api test file | Tests sit under strict source paths (`apps/`, `common/`, `infrastructure/`); start the file with `# pyright: standard`, as the others do |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
 | pyright: unknown `id` / `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime: declare it on the model (`id: int`, `ticket_id: int`, `ai_runs: RelatedManager[AiRun]`), and give a FK to a string target its model (`models.ForeignKey[User](settings.AUTH_USER_MODEL, …)`) |
 

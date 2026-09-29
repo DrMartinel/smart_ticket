@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Masking engine — spec §5. This is the P0 exit condition (spec §14:
 "masking test coverage 100%"), so every branch of the two-tier pipeline is

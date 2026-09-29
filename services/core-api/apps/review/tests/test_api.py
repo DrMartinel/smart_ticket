@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Review endpoints over HTTP. The review item is the richest response: fields
 from the ticket, from the AI run, and a trust breakdown computed at read

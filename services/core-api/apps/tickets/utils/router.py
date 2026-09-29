@@ -246,7 +246,7 @@ def route(
         )
 
     # ── Branch B: auto-route ──
-    if isinstance(proposal.root, RouteProposal):  # pyright: ignore[reportUnnecessaryIsInstance]
+    if isinstance(proposal.root, RouteProposal):
         if not g.category_consistent:
             return _hitl(ReasonCode.CATEGORY_INCONSISTENT, queue=ReviewQueue.LOW_CONFIDENCE.value)
         if trust < th.t_route:

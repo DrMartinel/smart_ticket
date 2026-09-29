@@ -111,8 +111,8 @@ def main() -> None:
         print("REFUSING to fit: all labels are the same class — need both approvals and overrides.")
         sys.exit(1)
 
-    from sklearn.linear_model import LogisticRegression  # pyright: ignore[reportMissingTypeStubs]
-    from sklearn.model_selection import train_test_split  # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import train_test_split
 
     X_train, X_test, y_train, y_test = cast(
         list[np.ndarray],

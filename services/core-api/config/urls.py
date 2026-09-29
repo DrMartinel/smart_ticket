@@ -17,7 +17,7 @@ from apps.itsm_mock.views import router as itsm_router
 from apps.metrics.views import router as metrics_router
 
 api = NinjaExtraAPI(title="Smart Ticket Triage — core-api", version="1.0.0")
-api.register_controllers(NinjaJWTDefaultController)  # pyright: ignore[reportUnknownMemberType]
+api.register_controllers(NinjaJWTDefaultController)
 
 api.add_router("/accounts", accounts_router)
 api.add_router("/tickets", tickets_router)

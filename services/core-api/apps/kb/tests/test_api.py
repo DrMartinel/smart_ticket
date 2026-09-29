@@ -1,4 +1,3 @@
-# pyright: standard
 """
 KB endpoints over HTTP. The response schema decides what the web receives,
 so the article's keys are pinned here. `approved_by` is read from the

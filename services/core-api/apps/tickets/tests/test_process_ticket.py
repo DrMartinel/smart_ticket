@@ -1,4 +1,3 @@
-# pyright: standard
 """
 process_ticket — spec §10.3's overarching rule: any degradation must fail
 open to a human, never fail silent. AIEngineUnavailable already had that

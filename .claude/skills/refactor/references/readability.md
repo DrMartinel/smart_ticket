@@ -127,7 +127,7 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
 
 ## 7. Types
 
-- Pyright **strict** for source, **standard** for tests (root `pyproject.toml`).
+- Pyright **standard** mode everywhere (root `pyproject.toml`).
   `uvx pyright@1.1.414` must be clean.
 - Modern syntax: PEP 695 `type StateUpdate = dict[str, Any]`, generic methods
   `def compile[S: StateLike](…)`, `X | None`, `StrEnum`.

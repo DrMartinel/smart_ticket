@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Ticket reads over HTTP. `category` is null until the ticket is classified,
 and the response schema must allow that: typed too strictly, a new ticket

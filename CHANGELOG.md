@@ -13,6 +13,15 @@ that moves a failure path is more significant here than a new feature.
 
 ## [Unreleased]
 
+### Changed
+
+- **Pyright runs in standard mode everywhere.** The strict path list in root
+  `pyproject.toml` is gone, and so are the 23 `# pyright: standard` opt-down
+  lines at the top of test files, plus 18 `# pyright: ignore[...]` rules that
+  only strict mode raised (`reportUnknown*`, `reportMissingTypeStubs`,
+  `reportConstantRedefinition`, `reportUnnecessaryIsInstance`). Standard mode
+  no longer flags untyped values (`Any`) spreading from library boundaries.
+
 ### Added
 
 - **`packages/contracts` is removed; each schema lives in the module that

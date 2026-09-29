@@ -1,4 +1,3 @@
-# pyright: standard
 """
 KB article creation through the handler: the article row is created, then
 chunked and embedded so retrieval can find it.

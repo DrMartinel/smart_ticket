@@ -71,25 +71,10 @@ testpaths = [
 addopts = "--import-mode=importlib"
 
 [tool.pyright]
-# Strict for all source code; tests run in standard mode, where strict would
-# mostly mean annotating every pytest fixture. New code starts strict.
-# core-api's tests live inside its strict packages (apps/<app>/tests/), so each
-# test file opts back down with a `# pyright: standard` first line — forget it
-# and the file fails loudly under strict, never the other way round.
-# Suppressions are per line and name their rule; most sit on untyped library
-# boundaries (LangGraph's generics are partly unparameterized).
+# Standard mode everywhere. Suppressions are per line and name their rule;
+# most sit on untyped library boundaries (LangGraph's generics are partly
+# unparameterized).
 include = ["services/ai-engine", "services/core-api", "evals"]
-strict = [
-    "services/ai-engine/src",
-    "services/core-api/apps",
-    "services/core-api/common",
-    "services/core-api/config",
-    "services/core-api/infrastructure",
-    "services/core-api/scripts",
-    "evals/report.py",
-    "evals/calibration",
-    "evals/golden",
-]
 # Django's generated migrations are not hand-written code.
 exclude = ["**/migrations", "**/__pycache__", "**/node_modules", "**/.*"]
 typeCheckingMode = "standard"

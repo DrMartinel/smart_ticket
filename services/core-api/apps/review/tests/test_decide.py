@@ -1,4 +1,3 @@
-# pyright: standard
 """
 HITL decisions — spec §12.4's free-label loop. Every decision other than a
 clean approve becomes an `EvalCandidate` carrying the reviewer's correction

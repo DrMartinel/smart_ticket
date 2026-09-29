@@ -10,9 +10,9 @@ from collections.abc import Hashable
 from enum import StrEnum
 from typing import Any
 
-from langgraph.graph import END, START, StateGraph  # pyright: ignore[reportMissingTypeStubs]
-from langgraph.graph.state import CompiledStateGraph  # pyright: ignore[reportMissingTypeStubs]
-from langgraph.typing import StateLike  # pyright: ignore[reportMissingTypeStubs, reportPrivateImportUsage]
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.typing import StateLike  # pyright: ignore[reportPrivateImportUsage]
 
 from ai_engine.core.node import BaseNode, StateUpdate, terminal
 from ai_engine.core.build.edge import Edge
@@ -48,10 +48,10 @@ class GraphBuilder:
         nodes = self._graph.validate()
 
         state_graph: StateGraph[S, None, S, S] = StateGraph(state_schema)
-        state_keys: set[str] = set(state_graph.channels)  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
+        state_keys: set[str] = set(state_graph.channels)
 
         for node in nodes:
-            state_graph.add_node(  # pyright: ignore[reportUnknownMemberType]
+            state_graph.add_node(
                 node.name, _reject_unknown_keys(node, state_keys), input_schema=state_schema
             )
 
@@ -68,7 +68,7 @@ class GraphBuilder:
             else:
                 state_graph.add_conditional_edges(node.name, node.decide, targets)
 
-        return state_graph.compile()  # pyright: ignore[reportUnknownMemberType]
+        return state_graph.compile()
 
 
 # A function, not inlined into compile()'s loop: each wrapper must capture its

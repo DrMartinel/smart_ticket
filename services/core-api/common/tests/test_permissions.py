@@ -1,4 +1,3 @@
-# pyright: standard
 """
 The role gate for Ninja handlers, `require_role`. It must refuse a request
 with no authenticated user (401) and a user outside the allowed roles (403)

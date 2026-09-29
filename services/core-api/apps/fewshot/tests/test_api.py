@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Few-shot endpoints over HTTP. The response schema decides what the web
 receives, so the keys are pinned here.

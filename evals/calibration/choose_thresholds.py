@@ -93,7 +93,7 @@ def _smallest_threshold_for_precision(
 ) -> float | None:
     if not scores or len(set(labels)) < 2:
         return None
-    from sklearn.metrics import precision_recall_curve  # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
+    from sklearn.metrics import precision_recall_curve
 
     precision, _recall, thresholds = precision_recall_curve(labels, scores)
     # precision_recall_curve returns len(thresholds) = len(precision) - 1

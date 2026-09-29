@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Few-shot pool — spec §3.5. An example enters the pool only with the
 reporter's confirmation, and leaves it when its TTL passes or its source

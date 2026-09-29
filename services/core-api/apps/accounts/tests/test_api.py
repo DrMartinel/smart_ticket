@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Account endpoints over HTTP. The response schema decides what the web
 receives, so a field renamed or dropped there changes the JSON with no error

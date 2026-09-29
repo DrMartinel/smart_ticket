@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Weekly drift check — spec §7.2. The "trust score collapsed" alert fires when
 this week's scores cluster so tightly that the scorer can no longer tell
