@@ -14,6 +14,7 @@ class ArticleOut(Schema):
     slug: str
     title: str
     category: str
+    source_url: str
     auto_reply_allowed: bool
     risk_tier: str
     approved_by: uuid.UUID | None = Field(alias="approved_by_id")

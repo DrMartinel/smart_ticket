@@ -95,7 +95,7 @@ See [TODO.md](TODO.md) item 4.
 
 `test_per_category_f1_meets_threshold` fails: `other` scores **0.75** against the 0.85 absolute floor.
 
-This is a genuine, reproducible model finding, recorded in `evals/baselines/baseline.json` rather than smoothed into the baseline. The `other` category maps to a single KB article (KB-0010, long-term leave requests — an HR matter that arrives through the IT ticket system), and classification is inconsistent on it. Fix the KB content or the prompt. **Do not lower the floor or drop the category to make CI green** — per-category F1 exists precisely so a rare category cannot hide behind a healthy average.
+This is a genuine, reproducible model finding, recorded in `evals/baselines/baseline.json` rather than smoothed into the baseline. It was measured on the old 12-article Vietnamese KB, where `other` mapped to a single HR article (KB-0010). **The KB and golden set are now the English AWS demo KB (`demo_kb/`), so this number needs re-measuring**. `other` stays gated: with no `other` article in an AWS KB, the classification suite now also scores the out-of-KB cases, which are all `other`. **Do not lower the floor or drop the category to make CI green** — per-category F1 exists precisely so a rare category cannot hide behind a healthy average.
 
 ---
 

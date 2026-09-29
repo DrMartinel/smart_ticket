@@ -57,7 +57,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
     # installed (it is, as a core-api dependency). We don't want the `db`
     # fixture itself: that provisions and migrates a separate
     # pytest-django-managed test database, wrapped in a rolled-back
-    # transaction. This suite wants the REAL, already-seeded dev database
+    # transaction. This suite wants the REAL dev database with the demo KB loaded
     # — `django_db_blocker.unblock()` is pytest-django's documented escape
     # hatch for exactly that: raw DB access outside its test-DB machinery.
     cases = sample(load_golden(), n=15)

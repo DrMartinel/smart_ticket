@@ -10,11 +10,6 @@ python manage.py wait_for_db
 echo "core-api: applying migrations..."
 python manage.py migrate --noinput
 
-if [ "${DJANGO_AUTO_SEED_DEMO:-false}" = "true" ]; then
-    echo "core-api: seeding demo data (DJANGO_AUTO_SEED_DEMO=true)..."
-    python manage.py seed_demo || true
-fi
-
 echo "core-api: starting gunicorn..."
 # --timeout must exceed MODEL_TIMEOUT_SEC (120s default): PII masking runs
 # INLINE inside the submit request (spec §5 — masking may never be async,

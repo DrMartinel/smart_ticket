@@ -92,7 +92,8 @@ make typecheck      # mypy + django-stubs; config in root pyproject.toml, versio
 make lint           # ruff check + format --check, pinned to match lint.yml
 make check          # lint + typecheck + test
 make runserver      # :8000; also: worker, beat, shell
-make makemigrations / make migrate / make seed
+make makemigrations / make migrate
+make load-demo-kb ARGS="--approver manager1"   # demo KB, see demo_kb/README.md
 make types          # regenerate web TS types after any contract change
 ```
 
@@ -109,10 +110,6 @@ Full stack (7 containers + the `vllm` profile for models). Migrations run automa
 
 ```bash
 cp infra/.env.example infra/.env && cd infra && docker compose up -d --build
-```
-
-```bash
-docker compose exec core-api python manage.py seed_demo
 ```
 
 ai-engine against the Dockerized stack:
@@ -144,6 +141,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
+| KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |
 
 Services: `core-api` (Django + Ninja) owns **every write and every decision** ·
 `ai-engine` (FastAPI + LangGraph) has **no authority**, returns signals and a
@@ -189,6 +187,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/utils/pipeline.py` — not `tasks.py`, which is only the entry point |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `core/config.py` |
 | What counts as PII | `patterns.py` (regex) or the NER prompt `ai-engine/core/prompts/pii_ner.v*.md` |
+| What is in the demo KB | `demo_kb/sources.json` (then `fetch.py`), approvals and risk tiers in `demo_kb/curation.json` — never by editing fetched pages |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
@@ -208,9 +207,15 @@ copies that directory — a new SQL file that isn't copied fails at container st
 
 - `SHADOW_MODE=true` is the default: the router decides and records, humans still
   handle every ticket. This is spec §14's P1 phase, by design.
-- **Known CI failure:** `other` category F1 is **0.75** against a 0.85 floor
-  (precision 1.00, recall 0.60). Real, documented in
-  `evals/baselines/baseline.json`, not a broken checkout. See TODO item 3.
+- **Demo KB is English AWS documentation** (`demo_kb/`: every page of 12 AWS
+  guides, 3,542 pages), loaded by `manage.py load_demo_kb`.
+  Demo tickets and the golden set are English. The snapshot is frozen: pages
+  are checked against `manifest.json`, and each auto-reply approval in
+  `curation.json` is pinned to the SHA-256 of the reviewed text.
+- **Known CI failure (needs re-measuring):** `other` category F1 was **0.75**
+  against a 0.85 floor on the old Vietnamese KB. `other` now has no KB
+  article, so the classification suite also scores out-of-KB cases (all
+  `other`). See TODO item 3.
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.

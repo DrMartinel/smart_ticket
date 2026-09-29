@@ -90,8 +90,8 @@ def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state
     proposal = LLMProposalEnvelope(
         root=AutoReplyProposal(
             proposed_intent="auto_reply",
-            kb_slug="KB-0142",
-            verbatim_quote="một đoạn trích đủ dài để hợp lệ",
+            kb_slug="iam.id_credentials_mfa_lost-or-broken",
+            verbatim_quote="a quote long enough to be valid",
             answer_draft="draft",
             self_confidence=80.0,
         )
@@ -99,8 +99,8 @@ def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state
     chunk = RankedChunk(
         chunk_id=UUID(int=1),
         article_id=UUID(int=10),
-        article_slug="KB-0142",
-        content="nội dung",
+        article_slug="iam.id_credentials_mfa_lost-or-broken",
+        content="content",
         score=0.9,
     )
 
@@ -112,4 +112,4 @@ def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state
     assert sql.startswith("SELECT kb_articles.auto_reply_allowed, kb_articles.risk_tier")
     assert "kb_articles.slug = %(slug_1)s" in sql
     assert "kb_articles.is_active IS true" in sql
-    assert params == {"slug_1": "KB-0142"}
+    assert params == {"slug_1": "iam.id_credentials_mfa_lost-or-broken"}

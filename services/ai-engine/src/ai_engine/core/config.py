@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     cloud_max_output_tokens: int = 4096
 
     graph_version: str = "v2.1"
-    prompt_version: str = "classify.v4"
+    prompt_version: str = "classify.v5"
     # Tier-2 PII NER, on `chat_model` through the self-hosted `ner` client
     # (ADR-0012). Eval-gated like the classify prompt.
     pii_ner_prompt_version: str = "pii_ner.v1"

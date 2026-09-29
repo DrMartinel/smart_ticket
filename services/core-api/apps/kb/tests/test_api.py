@@ -14,6 +14,7 @@ ARTICLE_KEYS = {
     "slug",
     "title",
     "category",
+    "source_url",
     "auto_reply_allowed",
     "risk_tier",
     "approved_by",
@@ -34,10 +35,31 @@ def test_articles_are_listed(article, technician_user, api_as):
     response = api_as(technician_user).get("/api/kb")
 
     assert response.status_code == 200
-    [row] = response.json()
+    body = response.json()
+    assert body["count"] == 1
+    [row] = body["items"]
     assert set(row) == ARTICLE_KEYS
     assert row["slug"] == "KB-API-001"
     assert row["approved_by"] is None
+
+
+@pytest.mark.django_db
+def test_articles_are_searched_filtered_and_paginated(technician_user, api_as):
+    """The demo KB has thousands of articles; the list must narrow them on
+    the server, not ship every row to the browser."""
+    for slug, title, category in [
+        ("iam.mfa", "Using MFA", "access"),
+        ("iam.roles", "IAM roles", "access"),
+        ("vpc.nat", "NAT gateways", "network"),
+    ]:
+        KbArticle.objects.create(slug=slug, title=title, body="x", category=category)
+    client = api_as(technician_user)
+
+    assert client.get("/api/kb?q=mfa").json()["count"] == 1
+    assert client.get("/api/kb?category=access").json()["count"] == 2
+    page = client.get("/api/kb?limit=2&offset=0").json()
+    assert page["count"] == 3
+    assert [a["slug"] for a in page["items"]] == ["iam.mfa", "iam.roles"]
 
 
 @pytest.mark.django_db

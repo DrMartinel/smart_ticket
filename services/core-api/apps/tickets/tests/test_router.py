@@ -94,7 +94,7 @@ def good_signals(**overrides) -> TrustSignals:
 def kb(**overrides) -> KBArticleMeta:
     base: dict[str, Any] = dict(
         id=UUID(int=1),
-        slug="KB-0001",
+        slug="identity-center.resetpassword-accessportal",
         category=TicketCategory.ACCESS,
         auto_reply_allowed=True,
         risk_tier="low",
@@ -106,7 +106,7 @@ def kb(**overrides) -> KBArticleMeta:
 def auto_reply_proposal(**overrides) -> LLMProposalEnvelope:
     base: dict[str, Any] = dict(
         proposed_intent="auto_reply",
-        kb_slug="KB-0001",
+        kb_slug="identity-center.resetpassword-accessportal",
         verbatim_quote="0123456789 verbatim quote text",
         answer_draft="draft",
         self_confidence=90,
@@ -259,7 +259,7 @@ def test_auto_reply_all_checks_pass():
     d = route(good_signals(), auto_reply_proposal(), kb(), TH)
     assert d.branch is Branch.AUTO_REPLY
     assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
-    assert d.kb_slug == "KB-0001"
+    assert d.kb_slug == "identity-center.resetpassword-accessportal"
     assert d.trust is not None
 
 

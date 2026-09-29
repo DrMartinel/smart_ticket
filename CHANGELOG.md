@@ -17,10 +17,68 @@ that moves a failure path is more significant here than a new feature.
 
 - **`services/core-api/Makefile`** with a target for each core-api command
   (`make` lists them): tests, the 100% coverage gate, mypy, ruff, runserver,
-  celery worker/beat, shell, migrations, `seed_demo`, TS type generation.
+  celery worker/beat, shell, migrations, TS type generation.
   It exports `DATABASE_URL` / `CELERY_BROKER_URL` for the Dockerized Postgres
   and Redis, so `make test` needs no setup, but not `DJANGO_SETTINGS_MODULE`,
   which would override `pytest.ini`. CI still spells out its own commands.
+- **The demo KB is now English AWS documentation (`demo_kb/`)**, replacing the
+  12 Vietnamese seed articles. `fetch.py` builds a frozen snapshot: every page
+  of 12 guides (IAM, IAM Identity Center, VPC, Client VPN admin/user, EC2,
+  WorkSpaces admin/user, SES, Lambda, GuardDuty, Security Hub; ~3,500 pages)
+  via their sitemaps. `manifest.json` (tracked) pins each page's hash; the
+  fetched Markdown is git-ignored.
+- **`manage.py load_demo_kb`** (`make load-demo-kb`) loads the snapshot,
+  skipping any page whose hash doesn't match the manifest. It applies the
+  auto-reply approvals in `demo_kb/curation.json` through
+  `set_auto_reply_allowed` as a named manager. Each approval is pinned to the
+  SHA-256 of the reviewed text: if the page changes, the approval is not
+  applied and an existing one is revoked. Approving anything above `low`
+  risk is refused.
+- **`demo_kb/curation.json`** approves 5 low-risk, user-facing troubleshooting
+  articles for auto-reply (access portal password reset, Client VPN on
+  Windows, EC2 SSH connection, WorkSpaces client, Lambda invocation errors).
+  Every other article defaults by category: `medium`, and `high` for
+  `security`.
+- **`kb_articles.source_url`** (attribution for CC BY-SA docs). `slug` widened
+  to 128 characters for demo slugs such as `iam.id_credentials_mfa`.
+- **`GET /api/kb` is searched and paginated** (`q`, `category`,
+  `auto_reply_allowed`, `limit`/`offset`; the response is `{items, count}`).
+  The web KB page has search, a category filter, paging and source links.
+
+### Changed
+
+- **Chunking follows Markdown headings.** Each chunk records its
+  `section_title`; fenced code blocks are never split or read as headings.
+  Plain-text bodies chunk exactly as before. The embedding input is prefixed
+  with the article and section titles; the stored `content` (what the model
+  may quote) is unchanged.
+- **`classify.v5`**: the desk is an internal cloud-platform help desk, and
+  each category names the AWS services it covers. Output contract unchanged.
+- **The negation check now works for English quotes** (behaviour change,
+  safety). The lexicon was Vietnamese-only, so against the English KB the
+  check passed every quote, including a "delete the root user access keys"
+  quote cut from "Do not delete…". English negations are matched on word
+  boundaries. The comparison is now against the sentence(s) the quote was cut
+  from rather than the whole chunk, since a 250-word chunk almost always
+  contains a "not" and would otherwise flag every English quote.
+- **`BANK_ACCOUNT` detects English keywords** ("bank account", "account
+  number", "acct no"). It only matched Vietnamese keywords, so an English
+  ticket's bank account reached the NER tier alone. Masking widened, never
+  narrowed.
+- **Golden set regenerated in English against the demo KB.** Categories and
+  expected branches come from `demo_kb/manifest.json` and `curation.json`.
+  Out-of-KB cases now carry `category: other`, and the classification suite
+  scores them too: no AWS article is `other`, and scoring only `kb_covered`
+  would have silently dropped the category from the per-category gate. The
+  live eval job caches the snapshot per manifest and loads it before the
+  suites.
+
+### Removed
+
+- **`seed_demo`** (the 5 demo users and 12 Vietnamese KB articles), its test,
+  the `make seed` target, `DJANGO_AUTO_SEED_DEMO`, and the CI eval-gate
+  seed step. Replaced by the demo KB (`demo_kb/`, `load_demo_kb`); users are
+  created by hand (see README).
 
 ### Changed
 

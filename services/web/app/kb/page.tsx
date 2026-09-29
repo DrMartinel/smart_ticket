@@ -10,12 +10,21 @@ interface KbArticle {
   slug: string;
   title: string;
   category: string;
+  source_url: string;
   auto_reply_allowed: boolean;
   risk_tier: string;
   approved_by: string | null;
   is_active: boolean;
   version: number;
 }
+
+interface ArticlePage {
+  items: KbArticle[];
+  count: number;
+}
+
+const PAGE_SIZE = 50;
+const CATEGORIES = ["", "access", "network", "hardware", "software", "security", "other"];
 
 /**
  * Auto-reply authority lives here, on the KB article, not on anything the
@@ -25,21 +34,31 @@ interface KbArticle {
 export default function KbPage() {
   const user = useRequireAuth();
   const [articles, setArticles] = useState<KbArticle[] | null>(null);
+  const [count, setCount] = useState(0);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("");
+  const [offset, setOffset] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
   const load = () => {
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+    if (query.trim()) params.set("q", query.trim());
+    if (category) params.set("category", category);
     api
-      .get<KbArticle[]>("/api/kb")
-      .then(setArticles)
+      .get<ArticlePage>(`/api/kb?${params}`)
+      .then((page) => {
+        setArticles(page.items);
+        setCount(page.count);
+      })
       .catch(() => setError("Failed to load the knowledge base."));
   };
 
   useEffect(() => {
     if (user) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, query, category, offset]);
 
   if (!user) return null;
 
@@ -73,6 +92,53 @@ export default function KbPage() {
           : "Only manager-role users can change auto-reply authority."}
       </p>
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input
+          className="min-w-0 flex-1 rounded border px-2 py-1.5 text-sm"
+          style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+          placeholder="Search slug or title"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOffset(0);
+          }}
+        />
+        <select
+          className="rounded border px-2 py-1.5 text-sm"
+          style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+          value={category}
+          onChange={(e) => {
+            setCategory(e.target.value);
+            setOffset(0);
+          }}
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c || "all categories"}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-[var(--text-muted)]">
+          {count === 0 ? "0" : `${offset + 1}–${Math.min(offset + PAGE_SIZE, count)}`} of {count}
+        </span>
+        <button
+          disabled={offset === 0}
+          onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+          className="rounded border px-2 py-1.5 text-xs disabled:opacity-50"
+          style={{ borderColor: "var(--border)" }}
+        >
+          Prev
+        </button>
+        <button
+          disabled={offset + PAGE_SIZE >= count}
+          onClick={() => setOffset(offset + PAGE_SIZE)}
+          className="rounded border px-2 py-1.5 text-xs disabled:opacity-50"
+          style={{ borderColor: "var(--border)" }}
+        >
+          Next
+        </button>
+      </div>
+
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       {articles === null && !error && <p className="text-sm text-[var(--text-muted)]">Loading…</p>}
 
@@ -84,6 +150,16 @@ export default function KbPage() {
                 <div className="text-sm font-medium">
                   {a.slug} — {a.title}
                 </div>
+                {a.source_url && (
+                  <a
+                    href={a.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-[var(--accent)] underline"
+                  >
+                    source
+                  </a>
+                )}
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{a.category}</span>
                   <span className={`badge ${riskTierClasses(a.risk_tier)}`}>risk: {a.risk_tier}</span>

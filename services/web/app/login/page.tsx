@@ -66,10 +66,6 @@ export default function LoginPage() {
             {submitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
-        <p className="mt-4 text-xs text-[var(--text-muted)]">
-          Demo users seeded by <code>seed_demo</code>: employee1 / tech1 / manager1 / security1, password{" "}
-          <code>demo12345</code>.
-        </p>
       </div>
     </div>
   );

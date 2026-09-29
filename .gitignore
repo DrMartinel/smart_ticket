@@ -45,3 +45,8 @@ infra/.hf-cache/
 # Per-machine compose tuning (e.g. GPU flags), merged automatically by
 # `docker compose` — not shared config.
 infra/docker-compose.override.yml
+
+# Fetched AWS documentation (large, re-fetchable by demo_kb/fetch.py).
+# The script, sources.json and manifest.json are tracked; manifest.json
+# pins the exact snapshot.
+demo_kb/guides/

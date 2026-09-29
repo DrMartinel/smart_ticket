@@ -35,8 +35,13 @@ CRITICAL_PATTERNS: dict[str, re.Pattern[str]] = {
 
 SENSITIVE_PATTERNS: dict[str, re.Pattern[str]] = {
     "CCCD": re.compile(r"\b\d{12}\b"),  # Vietnamese national ID, 12 digits
+    # Keyword-anchored, in Vietnamese and English (demo tickets are English):
+    # a bare 8-16 digit run is too common (order numbers, ticket ids) to mask.
     "BANK_ACCOUNT": re.compile(
-        r"\b(?:STK|so\s*tai\s*khoan|số\s*tài\s*khoản)\s*[:.]?\s*\d{8,16}\b", re.I
+        r"\b(?:STK|so\s*tai\s*khoan|số\s*tài\s*khoản"
+        r"|bank\s*account(?:\s*(?:number|no\.?))?|account\s*(?:number|no\.?)|acct\.?(?:\s*no\.?)?)"
+        r"\s*[:.]?\s*\d{8,16}\b",
+        re.I,
     ),
 }
 

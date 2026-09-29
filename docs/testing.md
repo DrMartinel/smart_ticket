@@ -128,7 +128,7 @@ Two of these are deliberately not negotiable:
 
 ### Known failure
 
-`other` scores **F1 0.75** against the 0.85 floor — precision 1.00, recall 0.60, so the model *under*-assigns rather than over-assigns. The category maps to a single KB article (KB-0010, long-term leave — an HR matter arriving through IT), and classification on it is inconsistent.
+`other` scored **F1 0.75** against the 0.85 floor — precision 1.00, recall 0.60, so the model *under*-assigned rather than over-assigned. That was measured on the old Vietnamese KB (single `other` article, KB-0010). The golden set now targets the English AWS demo KB (`demo_kb/`), where no article is `other`, so the classification suite also scores the out-of-KB cases (all `other`). Re-measure before relying on the old number.
 
 This is recorded in `evals/baselines/baseline.json` as a known issue rather than smoothed into the baseline. **Do not** lower the floor, average the F1, or drop the category to make CI green. Fix the KB content or the prompt — see [`TODO.md`](TODO.md) item 3.
 

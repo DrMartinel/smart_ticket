@@ -124,13 +124,30 @@ jobs:
       - run: docker compose -f infra/docker-compose.yml up -d db redis
       - working-directory: services/core-api
         run: uv run python manage.py migrate
-      # Before seed_demo: core-api embeds the KB through ai-engine (ADR-0012).
       - name: Start ai-engine
         run: |
           uv run --package ai-engine uvicorn ai_engine.main:app --port 8001 --app-dir services/ai-engine/src &
           for _ in $(seq 1 30); do curl -sf http://localhost:8001/healthz && break; sleep 1; done
-      - working-directory: services/core-api
-        run: uv run python manage.py seed_demo
+      # The demo KB pages are git-ignored; only manifest.json is tracked.
+      # Cached per manifest so only the first run for a snapshot fetches
+      # (~30 min). fetch.py fetches only what is missing.
+      - uses: actions/cache@v4
+        with:
+          path: demo_kb/guides
+          key: demo-kb-${{ hashFiles('demo_kb/manifest.json') }}
+      - name: Fetch missing demo KB pages
+        run: python3 demo_kb/fetch.py
+      # AWS edits its docs; a re-fetched page changes the manifest. That is
+      # reported, not failed: the loader applies an approval only to the
+      # exact text that was reviewed, so drift can move metrics but never
+      # grant auto-reply authority.
+      - name: Report demo KB drift from the committed snapshot
+        run: git diff --stat --exit-code demo_kb/manifest.json || echo "::warning::demo KB differs from the committed snapshot"
+      - name: Load the demo KB
+        working-directory: services/core-api
+        run: |
+          uv run python manage.py shell -c "from apps.accounts.models import User; User.objects.filter(username='kb-approver').exists() or User.objects.create_user('kb-approver', role='manager')"
+          uv run python manage.py load_demo_kb --approver kb-approver
       - name: Full-golden-set eval suites
         run: uv run --package evals pytest evals/suites -q
       - name: Report + regression gate

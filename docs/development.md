@@ -97,7 +97,7 @@ Prompts are versioned files in `services/ai-engine/src/ai_engine/core/prompts/`.
 
 ### Add a KB article
 
-Via the API/UI, or extend `seed_demo.py`. Note that `auto_reply_allowed` cannot be set directly — it goes through the governance path (manager role, mandatory reason, `kb_authority_log` entry). The seed command follows that same path rather than bypassing it, which is why the DB `CHECK` constraint holds even for seeded data.
+Via the API/UI, or for the demo KB: add a guide to `demo_kb/sources.json`, run `python3 demo_kb/fetch.py`, commit the updated `manifest.json`, and run `make load-demo-kb`. Articles are split into chunks at Markdown headings (`apps/kb/utils.py`), and each chunk records its section title. Note that `auto_reply_allowed` cannot be set directly — it goes through the governance path (manager role, mandatory reason, `kb_authority_log` entry). `load_demo_kb` follows that same path for the approvals in `demo_kb/curation.json`, each pinned to the SHA-256 of the reviewed text, which is why the DB `CHECK` constraint holds for every row.
 
 ### Add a golden eval case
 

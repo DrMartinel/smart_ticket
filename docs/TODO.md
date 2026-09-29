@@ -97,13 +97,13 @@ Auto-reply precision ≥ 0.95 on holdout, and `thresholds.yaml` no longer carrie
 
 `evals/suites/test_classification.py::test_per_category_f1_meets_threshold` fails: `other` scores **F1 0.75** against the 0.85 absolute floor. Precision is 1.00, recall 0.60 — the model under-assigns the category rather than over-assigning it.
 
-The category maps to a single KB article (KB-0010, long-term leave requests — an HR matter that happens to arrive through the IT ticket system), and classification on it is inconsistent.
+Measured on the old Vietnamese KB, where the category mapped to a single KB article (KB-0010, long-term leave requests). The demo KB is now English AWS documentation (`demo_kb/`) with no `other` articles, and the classification suite scores `other` on the out-of-KB golden cases instead (all `other`: HR, facilities). **Re-measure first**; the finding may have moved either way with classify.v5 and the new golden set.
 
 This is recorded in `evals/baselines/baseline.json` as a known issue rather than smoothed into the baseline.
 
 ### Work
 
-Investigate whether the fix belongs in the KB content (KB-0010 is thin and semantically distant from the tickets that should match it) or in the classification prompt (`services/ai-engine/src/ai_engine/core/prompts/classify.v3.md`). Prompt changes go through the eval gate like code changes.
+If it still fails, the fix belongs in the classification prompt (`services/ai-engine/src/ai_engine/core/prompts/classify.v5.md`, whose `other` definition now covers HR, facilities and office equipment). Prompt changes go through the eval gate like code changes.
 
 ### Done when
 

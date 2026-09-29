@@ -20,13 +20,13 @@ def chunk(chunk_id: int, content: str) -> RankedChunk:
     return RankedChunk(
         chunk_id=UUID(int=chunk_id),
         article_id=UUID(int=1),
-        article_slug="KB-0001",
+        article_slug="ec2.TroubleshootingInstancesConnecting",
         content=content,
         score=0.9,
     )
 
 
-def auto_reply(quote: str, kb_slug="KB-0001") -> LLMProposalEnvelope:
+def auto_reply(quote: str, kb_slug="ec2.TroubleshootingInstancesConnecting") -> LLMProposalEnvelope:
     return LLMProposalEnvelope(
         root=AutoReplyProposal(
             proposed_intent="auto_reply",
@@ -125,3 +125,53 @@ def test_fuzzy_match_catches_whitespace_drift(make_state):
     out = validate(state)
     assert out["quote_source_in_topk"] is True
     assert out["quote_match_ratio"] >= 0.95
+
+
+# ── English (the demo KB is English AWS documentation) ──
+
+
+def test_english_negation_dropped_from_the_quote_is_detected(make_state):
+    """The §6.4 case in English: the quote is a verbatim substring, but the
+    "Do not" that governs it was left out, reversing the instruction."""
+    source = "Do not delete the root user access keys. Rotate them instead."
+    quote = "delete the root user access keys."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    out = validate(state)
+    assert out["quote_source_in_topk"] is True
+    assert out["negation_consistent"] is False
+
+
+def test_english_contraction_dropped_from_the_quote_is_detected(make_state):
+    source = "You can't attach an Elastic IP address to a stopped instance in a VPC."
+    quote = "attach an Elastic IP address to a stopped instance in a VPC."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    assert validate(state)["negation_consistent"] is False
+
+
+def test_a_negation_in_another_sentence_of_the_chunk_does_not_flag_the_quote(make_state):
+    """Chunks run to ~250 words and almost always contain a "not" somewhere.
+    Comparing against the whole chunk would send every English auto-reply
+    to review as NEGATION_MISMATCH."""
+    source = (
+        "Open the Amazon EC2 console.\n"
+        "+ Choose Instances, then select the instance.\n"
+        "+ If the instance is not running, start it first.\n"
+        "Choose Connect."
+    )
+    quote = "Choose Instances, then select the instance."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    assert validate(state)["negation_consistent"] is True
+
+
+def test_a_quote_ending_in_a_period_does_not_absorb_the_next_sentence(make_state):
+    source = "Check the security group rules. Do not open port 22 to 0.0.0.0/0."
+    quote = "Check the security group rules."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    assert validate(state)["negation_consistent"] is True
+
+
+def test_words_containing_not_or_no_are_not_negations(make_state):
+    source = "Configure an SNS notification for the node group. Then save."
+    quote = "Configure an SNS notification for the node group."
+    state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
+    assert validate(state)["negation_consistent"] is True

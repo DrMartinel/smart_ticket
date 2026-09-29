@@ -71,6 +71,10 @@ services:
     command: ["./docker-entrypoint.sh"]
     environment:
       <<: *core-api-env
+    # The demo KB snapshot, read by `manage.py load_demo_kb` (DEMO_KB_DIR
+    # defaults to this path). Read-only: the container never writes to it.
+    volumes:
+      - ../demo_kb:/workspace/demo_kb:ro
     ports:
       - "8000:8000"
     depends_on:

@@ -1,21 +1,24 @@
-from __future__ import annotations
-
 from django.db.models import QuerySet
-from ninja import Router
+from ninja import Query, Router
 from ninja.errors import HttpError
+from ninja.pagination import LimitOffsetPagination, paginate
 from ninja_jwt.authentication import JWTAuth
 
 from apps.kb.models import KBGovernanceError, KbArticle
-from apps.kb.request_schema import ArticleIn, AutoReplyFlagIn, RiskTierIn
+from apps.kb.request_schema import ArticleFilter, ArticleIn, AutoReplyFlagIn, RiskTierIn
 from apps.kb.response_schema import ArticleOut, ReingestOut
 from apps.accounts.permissions import AuthedRequest
 
 router = Router(tags=["kb"])
 
 
+# No `from __future__ import annotations` in this module: @paginate makes
+# ninja resolve the handler's annotations from its own module, where string
+# annotations like "ArticleFilter" are undefined.
 @router.get("", auth=JWTAuth(), response=list[ArticleOut])
-def list_articles(request: AuthedRequest) -> QuerySet[KbArticle]:
-    return KbArticle.objects.filter(is_active=True).order_by("slug")
+@paginate(LimitOffsetPagination)
+def list_articles(request: AuthedRequest, filters: Query[ArticleFilter]) -> QuerySet[KbArticle]:
+    return filters.filter(KbArticle.objects.filter(is_active=True)).order_by("slug")
 
 
 @router.post("", auth=JWTAuth(), response=ArticleOut)

@@ -7,8 +7,8 @@ class DbExtrasConfig(AppConfig):
     any app with a vector column (extensions/roles) and (b) must run AFTER
     every business app's tables exist (indexes/constraints/triggers/grants) —
     see migrations/ for why this needed its own app rather than living inside
-    e.g. `tickets` — plus the `seed_demo` command. (`wait_for_db` knows no
-    domain, so it lives in `apps.core`.)"""
+    e.g. `tickets`. (`wait_for_db` knows no domain, so it lives in
+    `apps.core`.)"""
 
     default_auto_field = "django.db.models.BigAutoField"
     name = "apps.dbextras"
