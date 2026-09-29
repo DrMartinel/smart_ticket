@@ -209,7 +209,7 @@ def route(
         return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
 
     # ═══════════════ TRUST-BASED ROUTING ═══════════════
-    trust = compute_trust(signals).value
+    trust = compute_trust(signals, th.retrieval.keyword_agreement_k).value
     g = signals.generation
 
     # ── Branch A: auto-reply ──

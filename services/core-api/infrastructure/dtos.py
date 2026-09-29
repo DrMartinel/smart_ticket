@@ -111,7 +111,17 @@ class LLMProposalEnvelope(RootModel[LLMProposal]):
 class RetrievalSignals(BaseModel):
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
-    bm25_keyword_hit: bool
+    # Where the cross-encoder's top article sits in BM25's own article
+    # ranking (1 = BM25's best), or None: not in BM25's list, nothing was
+    # reranked, or the row predates this field. A RANK, not a BM25 score:
+    # BM25 scores are query-dependent and mean nothing across tickets
+    # (ADR-0013). The trust scorer turns it into agreement with
+    # `retrieval.keyword_agreement_k` from thresholds.yaml.
+    bm25_rank_of_top1: int | None = Field(default=None, ge=1)
+    # Legacy. The old "BM25 matched anything" flag, which ai-engine no longer
+    # sets. It stays, defaulted, so signals stored before ADR-0013 still
+    # deserialize and score as they did.
+    bm25_keyword_hit: bool = False
     docs_above_floor: int = Field(ge=0)
     topk_chunk_ids: list[uuid.UUID] = Field(default_factory=list[uuid.UUID])
 

@@ -35,6 +35,7 @@ os.environ.setdefault(
 os.environ.setdefault("SECRET_KEY", "calibration-script-key")
 django.setup()
 
+from django.conf import settings  # noqa: E402
 from infrastructure.dtos import TrustSignals  # noqa: E402
 
 from apps.review.models import ReviewDecision  # noqa: E402
@@ -47,7 +48,7 @@ T_ROUTE_PRECISION_FLOOR = 0.85
 def _score_with_model(signals: TrustSignals, model: TrustModel) -> float:
     from apps.tickets.utils.trust_scorer import FEATURES
 
-    x = extract_features(signals)
+    x = extract_features(signals, settings.THRESHOLDS.retrieval.keyword_agreement_k)
     z = model["intercept"] + sum(model["weights"][f] * x[f] for f in FEATURES)
     return 1.0 / (1.0 + np.exp(-z))
 

@@ -58,9 +58,8 @@ type TaskResult = dict[str, str | bool]
 
 def _degraded_signals() -> TrustSignals:
     return TrustSignals(
-        retrieval=RetrievalSignals(
-            rerank_top1=0.0, rerank_margin=0.0, bm25_keyword_hit=False, docs_above_floor=0
-        ),
+        # No rank: a degraded run has no retrieval, so no keyword agreement.
+        retrieval=RetrievalSignals(rerank_top1=0.0, rerank_margin=0.0, docs_above_floor=0),
         generation=GenerationSignals(
             schema_valid=False,
             quote_match_ratio=0.0,
@@ -100,7 +99,11 @@ def _persist_ai_run(
     resp: AIRunResponse | None = None,
     degraded_reason: str | None = None,
 ) -> AiRun:
-    trust = compute_trust(signals) if signals.generation.schema_valid or proposal else None
+    trust = (
+        compute_trust(signals, settings.THRESHOLDS.retrieval.keyword_agreement_k)
+        if signals.generation.schema_valid or proposal
+        else None
+    )
     try:
         with transaction.atomic():
             return AiRun.objects.create(

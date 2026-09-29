@@ -9,6 +9,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
+from django.conf import settings
 from ninja import Field, Schema
 
 from infrastructure.dtos import TrustSignals
@@ -70,7 +71,10 @@ class ReviewItemOut(Schema):
         ai_run = item.ai_run
         if ai_run is None or not ai_run.trust_signals:
             return None
-        return compute_trust(TrustSignals(**ai_run.trust_signals)).contributions
+        return compute_trust(
+            TrustSignals(**ai_run.trust_signals),
+            settings.THRESHOLDS.retrieval.keyword_agreement_k,
+        ).contributions
 
     @staticmethod
     def resolve_proposed_draft(item: ReviewItem) -> dict[str, Any] | None:
