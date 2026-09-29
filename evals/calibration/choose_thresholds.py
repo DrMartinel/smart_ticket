@@ -59,8 +59,8 @@ def _collect(intent: str, verdict_field: str, model: TrustModel) -> tuple[list[f
     which would make the resulting PR curve a mix of models rather than a
     curve for the specific model these thresholds are being chosen for."""
 
-    scores: list[float] = []
-    labels: list[int] = []
+    scores = []
+    labels = []
     decisions = (
         ReviewDecision.objects.select_related("review_item__ai_run")
         .exclude(review_item__ai_run__isnull=True)

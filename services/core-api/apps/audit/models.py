@@ -49,7 +49,7 @@ class AuditLog(models.Model):
     actor_type = models.CharField(max_length=20)  # system|ai|human
     actor_id = models.UUIDField(null=True, blank=True)
     event = models.CharField(max_length=100)
-    payload: models.JSONField[dict[str, Any]] = models.JSONField(default=dict)
+    payload = models.JSONField(default=dict)
     trace_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
 

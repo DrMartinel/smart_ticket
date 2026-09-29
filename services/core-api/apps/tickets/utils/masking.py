@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import cast
 from dataclasses import dataclass
 
 import httpx
@@ -98,7 +97,7 @@ class NERError(Exception):
 
 
 def regex_scan(text: str) -> list[PIIHit]:
-    hits: list[PIIHit] = []
+    hits = []
     for group, patterns in ALL_GROUPS.items():
         level = LEVEL_BY_GROUP[group]
         for label, pattern in patterns.items():
@@ -158,7 +157,7 @@ async def llm_ner(text: str, timeout: float | httpx.Timeout | None = None) -> li
             # No default: a reply without content is a broken reply, not
             # "nothing found". Defaulting it to [] would resolve toward clean.
             raw_out = data["choices"][0]["message"]["content"]
-            parsed: object = json.loads(raw_out)
+            parsed = json.loads(raw_out)
             # JSON mode guarantees valid JSON, not a top-level
             # array — models routinely wrap the array in an object (e.g.
             # {"found": [...]}) despite the prompt asking for a bare array.
@@ -170,11 +169,10 @@ async def llm_ner(text: str, timeout: float | httpx.Timeout | None = None) -> li
             # backend entirely) still degrades gracefully rather than
             # sending every ticket to a human.
             if isinstance(parsed, dict):
-                values = cast(dict[str, object], parsed).values()
-                parsed = next(filter(lambda v: isinstance(v, list), values), None)
+                parsed = next(filter(lambda v: isinstance(v, list), parsed.values()), None)
             if not isinstance(parsed, list):
                 raise NERError(f"unexpected NER response shape: {raw_out!r}")
-            return [str(x) for x in cast(list[object], parsed)]
+            return [str(x) for x in parsed]
     except httpx.TimeoutException as e:
         raise TimeoutError(str(e)) from e
     except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
@@ -283,7 +281,7 @@ async def mask(raw: TicketIn) -> MaskResult:
 
 
 def _spans_to_hits(text: str, spans: list[str]) -> list[PIIHit]:
-    hits: list[PIIHit] = []
+    hits = []
     for span in spans:
         idx = text.find(span)
         if idx == -1 or not span.strip():

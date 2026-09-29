@@ -49,7 +49,7 @@ def bm25_search(session: Session, query_text: str) -> list[LexicalHit]:
     )
     rows = session.execute(statement).all()
 
-    hits: list[LexicalHit] = []
+    hits = []
     for chunk_id, article_id, article_slug, content, score in rows:
         boosted = float(score)
         if error_codes and any(code in content for code in error_codes):

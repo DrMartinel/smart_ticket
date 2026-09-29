@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 RESULTS_PATH = Path(__file__).parent / ".results.json"
 REPORT_PATH = Path(__file__).parent / "report.md"
@@ -39,7 +39,7 @@ def _get(results: dict[str, Any], name: str) -> float | None:
     entry = results.get(name)
     if entry is None:
         return None
-    return cast(dict[str, float], entry)["value"] if isinstance(entry, dict) else entry
+    return entry["value"] if isinstance(entry, dict) else entry
 
 
 def evaluate(results: dict[str, Any], baseline: dict[str, Any]) -> tuple[list[str], list[str]]:

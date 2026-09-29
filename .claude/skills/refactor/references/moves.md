@@ -108,12 +108,16 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
   matches **no** enum member (e.g. `"mass_incident_short_circuit"`) is a *finding*, not a
   mechanical swap — changing it alters persisted values, so raise it with the user.
 
-### 13. Type for strict pyright — f04445f, 894f950
+### 13. Type only what pyright (standard mode) asks for — f04445f, 894f950
 
-- **Smell:** `reportUnknown*` noise, untyped Django attributes, `Any` leaking from a boundary.
-- **Move:** declare runtime-added attributes on the model (`<fk>_id: uuid.UUID`,
-  `RelatedManager[...]`), give FKs to string targets their model, type JSON-shaped
-  fields. Suppress only at a genuinely untyped library boundary, one line, rule named.
+- **Smell:** a pyright error on a Django attribute added at runtime, or at an untyped
+  library boundary.
+- **Move:** declare the runtime-added attribute on the model (`<fk>_id: uuid.UUID`,
+  `RelatedManager[...]`) or name the model on a FK to a string target, only where
+  code reads it. Suppress only at a genuinely untyped library boundary, one line,
+  rule named. Casts, `JSONField[...]` generics and annotations on empty locals that
+  standard mode doesn't need were removed after the move off strict mode; don't
+  re-add them.
 - **Guard:** a type change that changes runtime behaviour is not a typing refactor.
 
 ---

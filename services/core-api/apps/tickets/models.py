@@ -11,7 +11,7 @@ import uuid
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
+from typing import TYPE_CHECKING, ClassVar, Literal, cast
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
@@ -250,24 +250,20 @@ class Ticket(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     reporter_id: uuid.UUID
-    assigned_to_id: uuid.UUID | None
     incident_id: uuid.UUID | None
-    duplicate_of_id: uuid.UUID | None
     ai_runs: RelatedManager[AiRun]
     routing_decisions: RelatedManager[RoutingDecision]
     review_items: RelatedManager[ReviewItem]
 
     public_id = models.CharField(max_length=32, unique=True)  # TKT-2026-000123
-    reporter = models.ForeignKey[User](
+    reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="reported_tickets"
     )
 
     subject_masked = models.TextField()
     body_masked = models.TextField()
     pii_level = models.CharField(max_length=20, choices=[(p.value, p.value) for p in PIILevel])
-    pii_map: models.JSONField[dict[str, str]] = models.JSONField(
-        default=dict
-    )  # {"[EMAIL_1]": "<quarantine ref uuid>"}
+    pii_map = models.JSONField(default=dict)  # {"[EMAIL_1]": "<quarantine ref uuid>"}
 
     status = models.CharField(max_length=20, default="new")
     # Set ONLY by router.py, never directly from an LLM proposal (ADR-0001).
@@ -275,7 +271,7 @@ class Ticket(models.Model):
         max_length=20, choices=[(c.value, c.value) for c in TicketCategory], null=True, blank=True
     )
     assigned_team = models.CharField(max_length=50, null=True, blank=True)
-    assigned_to = models.ForeignKey[User](
+    assigned_to = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
@@ -353,8 +349,6 @@ class PiiQuarantine(models.Model):
     """§3.1. Raw PII, encrypted at the application layer (AES-GCM, key
     outside the DB — see utils/crypto.py), with a hard TTL."""
 
-    ticket_id: uuid.UUID
-
     ref = models.UUIDField(primary_key=True, editable=False)
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="quarantine_entries")
     ciphertext = models.BinaryField()
@@ -371,10 +365,9 @@ class PiiAccessLog(models.Model):
     routing every quarantine read through one service function."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    actor_id: uuid.UUID
 
     ref = models.UUIDField()
-    actor = models.ForeignKey[User](settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     reason = models.TextField()  # required, non-empty (enforced in service)
     accessed_at = models.DateTimeField(auto_now_add=True)
 
@@ -397,7 +390,6 @@ class AiRun(models.Model):
     router actually acts on."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    ticket_id: uuid.UUID
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="ai_runs")
     idempotency_key = models.CharField(max_length=100, unique=True)  # ticket_id + attempt
@@ -406,17 +398,15 @@ class AiRun(models.Model):
     model = models.CharField(max_length=100)
     graph_version = models.CharField(max_length=50)
 
-    proposed_draft: models.JSONField[dict[str, Any] | None] = models.JSONField(
-        null=True, blank=True
-    )
+    proposed_draft = models.JSONField(null=True, blank=True)
     llm_self_confidence = models.DecimalField(
         max_digits=5, decimal_places=2, null=True, blank=True
     )  # log-only — see ADR-0003
 
-    trust_signals: models.JSONField[dict[str, Any]] = models.JSONField()
+    trust_signals = models.JSONField()
     trust_score = models.DecimalField(max_digits=5, decimal_places=4, null=True, blank=True)
 
-    retrieved_chunks: models.JSONField[list[dict[str, Any]]] = models.JSONField(default=list)
+    retrieved_chunks = models.JSONField(default=list)
     tokens_in = models.IntegerField(null=True, blank=True)
     tokens_out = models.IntegerField(null=True, blank=True)
     cost_usd = models.DecimalField(max_digits=10, decimal_places=6, null=True, blank=True)
@@ -438,8 +428,6 @@ class RoutingDecision(models.Model):
     answerable without knowing when thresholds.yaml last changed."""
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    ticket_id: uuid.UUID
-    ai_run_id: uuid.UUID | None
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="routing_decisions")
     ai_run = models.ForeignKey(
@@ -450,7 +438,7 @@ class RoutingDecision(models.Model):
     reason_code = models.CharField(max_length=50)
     reason_detail = models.TextField()
     gate_failed = models.CharField(max_length=100, null=True, blank=True)
-    thresholds_used: models.JSONField[dict[str, Any]] = models.JSONField()
+    thresholds_used = models.JSONField()
     shadow_mode = models.BooleanField(default=True)
     decided_at = models.DateTimeField(auto_now_add=True)
 

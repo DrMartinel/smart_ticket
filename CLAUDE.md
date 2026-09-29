@@ -236,7 +236,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Frontend types out of sync | Re-run `gen_typescript.py` |
 | pyright: custom manager "overrides symbol of same name in class Model" | django-types types `Model.objects` as `BaseManager[Model]`. Annotate `objects: ClassVar[XManager] = XManager()` with `# pyright: ignore[reportIncompatibleVariableOverride]`, as the existing models do |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
-| pyright: unknown `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime: declare it on the model (`ticket_id: uuid.UUID`, `ai_runs: RelatedManager[AiRun]`), and give a FK to a string target its model (`models.ForeignKey[User](settings.AUTH_USER_MODEL, …)`) |
+| pyright: unknown `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime. Declare it on the model only once code reads it (`ticket_id: uuid.UUID`, `ai_runs: RelatedManager[AiRun]`); the same goes for naming the model on a FK to a string target (`models.ForeignKey["Ticket"]("self", …)`). Don't add these pre-emptively |
 | New model has a bigint `id`; `test_every_model_has_a_uuid_primary_key` fails | Every model declares `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)` (ADR-0011). `DEFAULT_AUTO_FIELD` is still `BigAutoField`, for Django's own tables |
 
 ## Testing conventions

@@ -15,7 +15,6 @@ ai-engine's query embeddings, or retrieval degrades silently.
 from __future__ import annotations
 
 import hashlib
-from typing import cast
 
 import httpx
 import numpy as np
@@ -59,15 +58,14 @@ def _vllm_embed(text: str) -> list[float]:
     )
     resp.raise_for_status()
     try:
-        embedding: object = resp.json()["data"][0]["embedding"]
+        vector = resp.json()["data"][0]["embedding"]
     except (KeyError, IndexError, TypeError) as e:
         raise ValueError(f"unexpected embeddings response shape: {resp.text[:200]!r}") from e
-    if not isinstance(embedding, list):
+    if not isinstance(vector, list):
         raise ValueError(
-            f"embedding model {settings.EMBED_MODEL!r} returned {type(embedding).__name__}, "
+            f"embedding model {settings.EMBED_MODEL!r} returned {type(vector).__name__}, "
             f"expected {EMBED_DIM} dims — check EMBED_MODEL"
         )
-    vector = cast(list[float], embedding)
     if len(vector) != EMBED_DIM:
         raise ValueError(
             f"embedding model {settings.EMBED_MODEL!r} returned {len(vector)}, "

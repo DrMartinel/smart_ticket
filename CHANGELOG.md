@@ -27,6 +27,16 @@ that moves a failure path is more significant here than a new feature.
   chunks as `chunk_id=<uuid>`, so the live evals should be re-run. New test
   `test_every_model_has_a_uuid_primary_key` fails if a model falls back to
   `DEFAULT_AUTO_FIELD`.
+- **Code written only for strict pyright is removed.** 21 unused
+  `<fk>_id` / reverse-manager declarations on models, the `JSONField[...]` and
+  `ForeignKey[User]` generics, six `cast(...)` calls, and annotations on empty
+  local lists. What standard mode still needs stays: six model declarations
+  that code reads, the `ForeignKey["Ticket"]` on `duplicate_of`, the
+  `fetchone()` casts, `AuthedRequest`, the `objects: ClassVar[...]` managers,
+  and the narrowing asserts in tests. Runtime checks that arrived with the
+  strict work (embedding dimension, `isinstance` guards on parsed JSON) are
+  kept: they change behaviour on bad input. No schema change.
+
 - **Pyright runs in standard mode everywhere.** The strict path list in root
   `pyproject.toml` is gone, and so are the 23 `# pyright: standard` opt-down
   lines at the top of test files, plus 18 `# pyright: ignore[...]` rules that

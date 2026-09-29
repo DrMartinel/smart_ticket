@@ -30,7 +30,7 @@ import os
 import sys
 from datetime import date
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import django
 import numpy as np
@@ -54,8 +54,8 @@ def load_shadow_pairs() -> tuple[np.ndarray, np.ndarray, list[str]]:
     """Returns (X, y, case_ids). y=1 means the human approved outright."""
 
     X: list[list[float]] = []
-    y: list[int] = []
-    ids: list[str] = []
+    y = []
+    ids = []
     decisions = (
         ReviewDecision.objects.select_related("review_item", "review_item__ai_run")
         .exclude(review_item__ai_run__isnull=True)
@@ -114,11 +114,8 @@ def main() -> None:
     from sklearn.linear_model import LogisticRegression
     from sklearn.model_selection import train_test_split
 
-    X_train, X_test, y_train, y_test = cast(
-        list[np.ndarray],
-        train_test_split(
-            X, y, test_size=0.2, random_state=42, stratify=y if min(np.bincount(y)) >= 2 else None
-        ),
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y if min(np.bincount(y)) >= 2 else None
     )
 
     model: Any = LogisticRegression(max_iter=1000)
