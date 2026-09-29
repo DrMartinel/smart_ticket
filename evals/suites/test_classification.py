@@ -16,6 +16,17 @@ Scoring only `kb_covered` would silently drop `other` from the
 per-category gate, which CLAUDE.md rule 9 forbids. Out-of-KB tickets still
 have a right category. The pipeline would refuse them before the LLM, but
 this suite runs with `retrieval_floor=0.0`, so the model always answers.
+
+On an out-of-KB case, `insufficient_context` counts as correct (decided
+2026-09-29, evals/HISTORY.md). It names no category, but it is the answer
+spec §12.2 asks for when the KB has nothing on the topic, and
+test_refusal.py scores it correct on these same cases. Scoring it wrong
+here would demand the opposite of the refusal suite, and push the prompt
+towards confident routing on exactly the tickets an HR request that slips
+over the floor would be. What the `other` gate protects is that such a
+ticket is never claimed as an IT category or auto-replied: those still
+count against `other` and as a false positive for the category claimed.
+On a KB-covered case, a refusal is still a miss.
 """
 
 from collections import defaultdict
@@ -46,6 +57,18 @@ def _predicted_category(result: dict[str, Any]) -> str | None:
     return None
 
 
+def _scored_category(case: dict[str, Any], result: dict[str, Any]) -> str | None:
+    """The category this answer is credited with. A refusal on an
+    out-of-KB case is credited with the truth (module docstring). Only an
+    explicit `insufficient_context` counts: a run with no proposal at all
+    (schema invalid, degraded) is a failure, not a refusal."""
+
+    proposal = result.get("proposal") or {}
+    if "out_of_kb" in case["tags"] and proposal.get("proposed_intent") == "insufficient_context":
+        return str(case["truth"]["category"])
+    return _predicted_category(result)
+
+
 def _stratified_sample(cases: list[dict], per_category: int) -> list[dict]:
     """A flat `cases[:n]` slice risks missing entire categories (the
     golden set is grouped by KB article, i.e. by category) — exactly the
@@ -74,7 +97,7 @@ def test_per_category_f1_meets_threshold(ai_engine_client):
     for case in cases:
         truth = case["truth"]["category"]
         result = analyze(ai_engine_client, case["subject"], case["body"], retrieval_floor=0.0)
-        predicted = _predicted_category(result)
+        predicted = _scored_category(case, result)
 
         if predicted == truth:
             tp[truth] += 1
