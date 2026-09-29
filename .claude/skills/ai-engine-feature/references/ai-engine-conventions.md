@@ -18,6 +18,7 @@ src/ai_engine/
     state.py       TriageState + value types stored in state
     node.py        BaseNode, SingleExit, Terminal, StateUpdate
     providers/     embeddings.py, reranker.py (ABC + impls + import-time selection),
+                   pii.py (Tier-2 PII NER, the only code that sees raw text),
                    llm/models.py (LLMClient, VLLMLLM, OpenAILLM, and the chat/embed/rerank clients)
     retrieval/     bm25.py, vector.py, fusion.py: pure (session, …) -> list[FrozenHit]
     db/            client.py (the `db` singleton), tables.py (3 read-only tables)
@@ -29,7 +30,8 @@ src/ai_engine/
   graph/
     triage.py      the triage route list + `triage_graph`
     nodes/         one module per node, each ending in its production instance
-  main.py          POST /v1/analyze: invoke the graph, shape the response
+  main.py          POST /v1/analyze: invoke the graph, shape the response;
+                   POST /v1/embed, /v1/pii/detect: core-api's model calls (ADR-0012)
 ```
 
 A value type that sits in `TriageState` lives in `core/`, even if only one node
@@ -140,7 +142,9 @@ gets no signals at all.
   the validator, and `emit_signals` must not report checks that nobody ran as passing.
 - List fields have **no reducer**. Add `Annotated[list, operator.add]` only if
   several nodes genuinely accumulate into the same list.
-- Only masked text leaves core-api. Nodes read `ticket.subject_masked` and
+- Only masked text reaches the graph. The one exception is `/v1/pii/detect`
+  (ADR-0012), which never enters the graph and never logs its input or the
+  model's reply. Nodes read `ticket.subject_masked` and
   `ticket.body_masked`. Nothing else about a ticket is available here, and it should
   stay that way.
 

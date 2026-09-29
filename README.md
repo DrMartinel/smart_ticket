@@ -110,7 +110,7 @@ smart_ticket/
 │   │   │   ├── metrics/         #   dashboard aggregation
 │   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants), seed_demo
 │   │   ├── common/              #   shared by every app: permissions (role gate)
-│   │   ├── infrastructure/      #   clients for ai-engine and the vLLM embedder
+│   │   ├── infrastructure/      #   the ai-engine client (every model call) + wire schema (dtos.py)
 │   │   └── config/              #   settings/{base,development,production,test} · celery · thresholds.yaml
 │   ├── ai-engine/               # FastAPI + LangGraph
 │   │   └── src/ai_engine/
@@ -268,11 +268,11 @@ Full list in [`infra/.env.example`](infra/.env.example). The ones that change be
 | Variable | Default | Effect |
 |---|---|---|
 | `SHADOW_MODE` | `true` | Router records decisions without acting; everything still goes to HITL |
-| `EMBEDDING_PROVIDER` | `vllm` | `stub` = deterministic hash embeddings, no network (used by CI) |
+| `EMBEDDING_PROVIDER` | `vllm` | ai-engine's embedder, which also embeds for core-api. `stub` = deterministic hash embeddings, no network (used by CI) |
 | `RERANKER_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |
-| `MODEL_TIMEOUT_SEC` | `120` | Ceiling for one model call (NER, embeddings, inference) |
+| `MODEL_TIMEOUT_SEC` | `120` | Ceiling for one model call (NER, embeddings, inference); core-api's read timeout on NER and embedding calls to ai-engine |
 | `DJANGO_AUTO_SEED_DEMO` | `false` | Seed demo data on container start |
 
 ---

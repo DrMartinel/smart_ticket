@@ -67,7 +67,7 @@ There is no shared schema package (ADR-0010). Each type is defined in the module
 | Types | core-api | ai-engine |
 |---|---|---|
 | `TicketIn` (`extra="forbid"`) | `apps/tickets/request_schema.py` | — |
-| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `TrustSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory` | `infrastructure/ai_engine.py` | `core/state.py` |
+| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `TrustSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `core/state.py` |
 | `PIILevel` | `apps/tickets/utils/patterns.py` | `core/state.py` |
 | `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `RoutingDecision` | `apps/tickets/utils/router.py` | — |
 | `Thresholds` | `config/settings/base.py` | — |
@@ -93,7 +93,7 @@ POST /api/tickets/submit
    │    └─ password / token / API key found?
    │         └─► BLOCK, alert security. No model is called. Stop.
    │
-   ├─ Tier 2: local LLM NER (free-form PII regex can't catch)
+   ├─ Tier 2: LLM NER via ai-engine /v1/pii/detect (free-form PII regex can't catch)
    │    └─ timeout or error?
    │         └─► pii_level = mask_failed  (never "assume clean")
    │
@@ -105,6 +105,8 @@ POST /api/tickets/submit
 Masking is inline **on purpose**. Async masking would create a window where raw PII exists in the database or on the broker. Numbering is per-label so that "the same email appears twice" survives masking — that relationship is a real classification signal.
 
 The two NER calls (subject, body) run concurrently: they are independent, and sequential calls would make the worst case two full timeouts deep inside a request a user is waiting on.
+
+Tier 2 runs in ai-engine (ADR-0012), on the self-hosted chat model through its own `models.ner` client, never the possibly-cloud `models.chat`. This is the **one** place raw text enters ai-engine: `/v1/pii/detect` logs neither the text nor the model's reply, and a failure comes back as a 502 that core-api resolves to `mask_failed`.
 
 ### Stage 2 — Embedding and incident detection (Celery)
 
@@ -184,8 +186,10 @@ The bottoms of `core/providers/embeddings.py` and `reranker.py` are the only
 places `EMBEDDING_PROVIDER` and `RERANKER_PROVIDER` are read, and
 `core/db/client.py` builds the single `db`. ai-engine's self-hosted models run
 on vLLM — embeddings and rerank always, chat by default —
-over its OpenAI-compatible APIs (ADR-0009). core-api uses the same vLLM servers
-for PII detection and embeddings. Selection happens once at startup and an
+over its OpenAI-compatible APIs (ADR-0009). ai-engine is the only vLLM client
+(ADR-0012): core-api gets its PII detection and embeddings from ai-engine's
+`/v1/pii/detect` and `/v1/embed`, through `infrastructure.ai_engine.AIEngineClient`.
+Selection happens once at startup and an
 unrecognized value is fatal — a typo used to fall through to the lexical
 reranker, whose scores are a different calibration from the cross-encoder
 distribution `retrieval.floor` is fitted against (ADR-0005).
@@ -306,7 +310,7 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What the model is asked | `ai-engine/core/prompts/*.md` — versioned, and eval-gated like code |
-| What counts as PII | `tickets/utils/patterns.py` (regex) or the NER prompt in `masking.py` |
+| What counts as PII | `tickets/utils/patterns.py` (regex) or ai-engine's NER prompt `core/prompts/pii_ner.v*.md` |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | What a reviewer sees | `TrustSignalsPanel.tsx`, `ReviewForm.tsx` |
 | Any tunable number | `thresholds.yaml`, nowhere else |

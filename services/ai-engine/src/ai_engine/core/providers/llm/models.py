@@ -1,7 +1,8 @@
 """
 LLM clients (ADR-0007, ADR-0009): `LLMClient` for chat, one subclass per
 provider. No retries anywhere, SDK ones included (`max_retries=0`): a failed
-call goes straight to HITL. `chat`, `embed` and `rerank` are built at import.
+call goes straight to HITL. `chat`, `embed`, `rerank` and `ner` are built at
+import.
 """
 
 from __future__ import annotations
@@ -174,6 +175,10 @@ class OpenAILLM(LLMClient):
 
 embed = VLLMLLM(model=settings.embed_model, base_url=settings.embed_base_url)
 rerank = VLLMLLM(model=settings.reranker_model, base_url=settings.rerank_base_url)
+# PII NER sees RAW ticket text (ADR-0012), so it has its own client on the
+# self-hosted chat server and never goes through `chat`, which may be a
+# cloud provider. Raw PII must not leave the deployment.
+ner = VLLMLLM(model=settings.chat_model, base_url=settings.chat_base_url)
 
 match settings.chat_client_provider:
     case "openai":

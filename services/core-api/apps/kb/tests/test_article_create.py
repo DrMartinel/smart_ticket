@@ -27,9 +27,7 @@ def create(client):
 
 
 @pytest.mark.django_db
-def test_created_article_is_chunked_and_embedded(manager_user, settings, api_as):
-    settings.EMBEDDING_PROVIDER = "stub"
-
+def test_created_article_is_chunked_and_embedded(manager_user, api_as):
     response = create(api_as(manager_user))
 
     article = KbArticle.objects.get(slug="KB-TEST-001")
@@ -44,11 +42,11 @@ def test_created_article_is_chunked_and_embedded(manager_user, settings, api_as)
 
 
 @pytest.mark.django_db
-def test_embedding_failure_keeps_the_article_without_chunks(manager_user, monkeypatch, api_as):
-    def unreachable(text):
-        raise httpx.ConnectError("vllm-embed unreachable")
+def test_embedding_failure_keeps_the_article_without_chunks(manager_user, serve_ai_engine, api_as):
+    def unreachable(request):
+        raise httpx.ConnectError("ai-engine unreachable")
 
-    monkeypatch.setattr("apps.kb.models.embed_text", unreachable)
+    serve_ai_engine(unreachable)
 
     with pytest.raises(httpx.ConnectError):
         create(api_as(manager_user))

@@ -61,6 +61,9 @@ class Settings(BaseSettings):
 
     graph_version: str = "v2.1"
     prompt_version: str = "classify.v4"
+    # Tier-2 PII NER, on `chat_model` through the self-hosted `ner` client
+    # (ADR-0012). Eval-gated like the classify prompt.
+    pii_ner_prompt_version: str = "pii_ner.v1"
 
     rrf_k: int = 60
     bm25_top_k: int = 20

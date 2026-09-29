@@ -19,7 +19,7 @@ fine, and don't invent findings to fill the report.
 1. **Scope the diff.**
    ```bash
    git diff <base>...HEAD --stat
-   git diff <base>...HEAD -- services/ai-engine services/core-api/infrastructure/ai_engine.py services/core-api/apps/tickets
+   git diff <base>...HEAD -- services/ai-engine services/core-api/infrastructure/ai_engine.py services/core-api/infrastructure/dtos.py services/core-api/apps/tickets
    ```
    If there are uncommitted changes, include `git diff` and `git diff --staged` too,
    and say that you did.

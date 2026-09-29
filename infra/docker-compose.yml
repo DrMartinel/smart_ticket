@@ -14,16 +14,11 @@ x-core-api-env: &core-api-env
   REDIS_URL: redis://redis:6379/0
   CELERY_BROKER_URL: redis://redis:6379/0
   CELERY_RESULT_BACKEND: redis://redis:6379/1
+  # core-api's only route to a model: ai-engine is the only vLLM client
+  # (ADR-0012), so PII detection and embeddings go through it too.
   AI_ENGINE_URL: http://ai-engine:8001
-  # Self-hosted vLLM (ADR-0009) — the `vllm` profile below. PII detection runs
-  # on the chat server's model; embeddings must match ai-engine's.
-  CHAT_BASE_URL: ${CHAT_BASE_URL:-http://vllm-chat:8000/v1}
-  CHAT_MODEL: ${CHAT_MODEL:-Qwen/Qwen3-8B-AWQ}
-  EMBED_BASE_URL: ${EMBED_BASE_URL:-http://vllm-embed:8000/v1}
-  EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
-  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-vllm}
-  # Ceiling for a single model call (NER, embeddings). Must stay below the
-  # gunicorn --timeout in docker-entrypoint.sh, since masking runs inline.
+  # Read timeout for one NER or embedding call to ai-engine. Must stay below
+  # the gunicorn --timeout in docker-entrypoint.sh, since masking runs inline.
   MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:-120}
   MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:-3}
   PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:-Zm9yLWRldi1vbmx5LTMyLWJ5dGUta2V5LWhlcmUhISE=}
@@ -128,8 +123,9 @@ services:
       # kb_articles / kb_chunks / fewshot_examples (see infra/migrations/sql).
       # This is a structural permission boundary, not a convention (ADR-0004).
       DATABASE_URL: postgresql://ai_engine_ro:${POSTGRES_AI_RO_PASSWORD:-ai_engine_ro_password}@db:5432/${POSTGRES_DB:-smart_triage}
-      # CHAT_CLIENT_PROVIDER picks where chat runs ("vllm" | "openai");
-      # embeddings and reranking always run on vLLM.
+      # CHAT_CLIENT_PROVIDER picks where triage chat runs ("vllm" | "openai");
+      # embeddings, reranking and core-api's PII NER always run on vLLM
+      # (PII NER on CHAT_MODEL, even under "openai" — ADR-0012).
       # Defaults are the `vllm` profile below (ADR-0009).
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-vllm}
       CHAT_CLIENT_PROVIDER: ${CHAT_CLIENT_PROVIDER:-vllm}
@@ -144,7 +140,7 @@ services:
       # See docs/TODO.md item 4.
       RERANKER_PROVIDER: ${RERANKER_PROVIDER:-vllm}
       RERANKER_MODEL: ${RERANKER_MODEL:-BAAI/bge-reranker-v2-m3}
-      # Ceiling for a single model call, shared with core-api.
+      # Ceiling for a single model call.
       MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:-120}
       MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:-3}
       # Used when CHAT_CLIENT_PROVIDER=openai; key and model are then required
@@ -163,9 +159,9 @@ services:
       - "host.docker.internal:host-gateway"
     networks: [smart-triage]
 
-  # Self-hosted vLLM for every model in the system (ADR-0009): ai-engine's
-  # inference, embeddings and reranking, and core-api's PII detection and
-  # embeddings. Required for real masking — without it every ticket is
+  # Self-hosted vLLM for every model in the system (ADR-0009). Only ai-engine
+  # talks to it (ADR-0012): inference, embeddings and reranking, plus the PII
+  # detection and embeddings it serves to core-api. Required for real masking — without it every ticket is
   # MASK_FAILED and goes to a human, by design.
   #
   #   docker compose --profile vllm up -d

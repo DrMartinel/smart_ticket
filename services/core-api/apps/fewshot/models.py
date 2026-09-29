@@ -14,10 +14,10 @@ from django.utils import timezone
 from pgvector.django import VectorField
 
 from apps.core.models import BaseModel
-from infrastructure.ai_engine import TicketCategory
+from infrastructure.dtos import TicketCategory
+from infrastructure.ai_engine import ai_engine
 from apps.accounts.models import User
 from apps.tickets.models import Ticket
-from infrastructure.embeddings import embed_text
 
 
 class FewshotError(Exception):
@@ -46,7 +46,7 @@ class FewshotExampleManager(models.Manager["FewshotExample"]):
             category=category,
             input_text=input_text,
             output_json=output_json,
-            embedding=embed_text(input_text),
+            embedding=ai_engine.embed(input_text).vector,
             approver=approver,
             approved_at=now,
             user_confirmed=True,

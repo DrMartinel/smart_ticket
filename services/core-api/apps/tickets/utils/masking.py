@@ -8,7 +8,8 @@ Two-tier pipeline:
   Tier 1 — regex: fast, high-confidence, structured patterns. CRITICAL
            hits (password/token/API key) short-circuit before the LLM is
            even called.
-  Tier 2 — self-hosted LLM (vLLM, ADR-0009): catches free-form PII regex misses, e.g.
+  Tier 2 — self-hosted LLM, via ai-engine's `/v1/pii/detect` (ADR-0012):
+           catches free-form PII regex misses, e.g.
            "anh Tuấn phòng kế toán tầng 3". A timeout or error here becomes
            PIILevel.MASK_FAILED, never "treat as clean" — uncertainty must
            cost a human's time, not risk a leak (spec §5.2).
@@ -17,61 +18,18 @@ Two-tier pipeline:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass
 
 import httpx
-from django.conf import settings
 
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.request_schema import TicketIn
+from infrastructure.ai_engine import ai_engine
 
 from .patterns import ALL_GROUPS, LEVEL_BY_GROUP
 
 logger = logging.getLogger(__name__)
-
-
-def _ner_timeout() -> httpx.Timeout:
-    """Read at call time, not import time, so tests and `override_settings`
-    can adjust it without reloading the module.
-
-    Connect and read are budgeted separately on purpose — see
-    MODEL_CONNECT_TIMEOUT_SEC in settings. An unreachable provider is
-    knowable in seconds; only a *reachable but busy* one deserves the
-    full read budget.
-    """
-    read = float(settings.MODEL_TIMEOUT_SEC)
-    connect = float(settings.MODEL_CONNECT_TIMEOUT_SEC)
-    return httpx.Timeout(read, connect=connect)
-
-
-_NER_SYSTEM_PROMPT = """\
-You detect personally-identifiable free-form mentions in IT support tickets
-written in Vietnamese and/or English: full names, specific desk/room/floor
-locations, department + person combinations, and similar identifying
-details that a regex pattern would miss (NOT emails, phone numbers, IDs,
-IPs, or account numbers — those are already handled separately).
-
-Return ONLY a JSON array of exact substrings found in the text, e.g.:
-["anh Tuấn phòng kế toán tầng 3", "chị Lan bàn cạnh cửa sổ"]
-
-Rules:
-- Return [] if you find nothing. An empty array is a valid, expected answer.
-- Return [] for short, terse, or seemingly incomplete input too. Never ask
-  for more input and never return an error object — the user message is
-  always the text to analyze, exactly as given.
-- Output the array and nothing else.
-"""
-
-# Grammar-constrains the response so the parser never has to guess (vLLM
-# structured outputs). The wrapper object exists because structured output is
-# most reliable for objects; `spans` is the array we actually want.
-_NER_RESPONSE_SCHEMA = {
-    "type": "object",
-    "properties": {"spans": {"type": "array", "items": {"type": "string"}}},
-    "required": ["spans"],
-}
 
 
 @dataclass(frozen=True)
@@ -115,68 +73,22 @@ def regex_scan_ticket(raw: TicketIn) -> ScanResult:
     return ScanResult(hits=regex_scan(raw.subject) + regex_scan(raw.body))
 
 
-async def llm_ner(text: str, timeout: float | httpx.Timeout | None = None) -> list[str]:
-    """Tier 2. Raises NERError/TimeoutError on any failure — callers
-    MUST treat that as MASK_FAILED, never as "no PII found"."""
+async def llm_ner(text: str) -> list[str]:
+    """Tier 2, run by ai-engine on the self-hosted chat model (ADR-0012), which
+    owns the prompt and the reply parsing. Raises NERError/TimeoutError on any
+    failure — callers MUST treat that as MASK_FAILED, never as "no PII found".
 
-    if timeout is None:
-        timeout = _ner_timeout()
-    url = f"{settings.CHAT_BASE_URL.rstrip('/')}/chat/completions"
-    payload = {
-        "model": settings.CHAT_MODEL,
-        # Instructions go in the system message, data in the user message.
-        # Concatenating both into one string let the model read the
-        # instructions as part of the conversation and *reply* to them — on
-        # short subjects it would answer {"error": "please provide the text
-        # to analyze"}, which the parser then rightly rejected, producing a
-        # spurious MASK_FAILED for a ticket that simply had no free-form PII.
-        "messages": [
-            {"role": "system", "content": _NER_SYSTEM_PROMPT},
-            {"role": "user", "content": text},
-        ],
-        # A JSON *Schema*, not the bare json_object mode. That only
-        # guarantees syntactically valid JSON and lets the model invent the
-        # shape — in practice it returned {"found": [...]}, {"result": [...]},
-        # a bare {}, an {"error": ...} object, and occasionally truncated
-        # output. Every one of those became a spurious MASK_FAILED.
-        # Constraining the grammar makes the shape a guarantee instead of a
-        # hope.
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {"name": "ner_spans", "schema": _NER_RESPONSE_SCHEMA},
-        },
-        # qwen3 is a hybrid-thinking model; the reasoning trace is wasted
-        # latency here and can crowd out the JSON we asked for.
-        "chat_template_kwargs": {"enable_thinking": False},
-    }
+    The error message carries the exception class only: an error about the
+    request or the reply can quote the text, which is raw PII, and the
+    caller logs it.
+    """
+
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            # No default: a reply without content is a broken reply, not
-            # "nothing found". Defaulting it to [] would resolve toward clean.
-            raw_out = data["choices"][0]["message"]["content"]
-            parsed = json.loads(raw_out)
-            # JSON mode guarantees valid JSON, not a top-level
-            # array — models routinely wrap the array in an object (e.g.
-            # {"found": [...]}) despite the prompt asking for a bare array.
-            # Unwrap the first list value found rather than treating that
-            # shape as an error, which would otherwise flag every ticket as
-            # MASK_FAILED regardless of whether any PII was actually found.
-            # With the schema above this is `spans`; the generic fallback
-            # stays so a provider that ignores the schema (or a different
-            # backend entirely) still degrades gracefully rather than
-            # sending every ticket to a human.
-            if isinstance(parsed, dict):
-                parsed = next(filter(lambda v: isinstance(v, list), parsed.values()), None)
-            if not isinstance(parsed, list):
-                raise NERError(f"unexpected NER response shape: {raw_out!r}")
-            return [str(x) for x in parsed]
+        return await ai_engine.detect_pii(text)
     except httpx.TimeoutException as e:
-        raise TimeoutError(str(e)) from e
-    except (httpx.HTTPError, json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
-        raise NERError(str(e)) from e
+        raise TimeoutError(type(e).__name__) from e
+    except (httpx.HTTPError, ValueError) as e:
+        raise NERError(type(e).__name__) from e
 
 
 def _mask_field(

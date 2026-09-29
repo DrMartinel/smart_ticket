@@ -99,9 +99,9 @@ def _models() -> dict[str, type[BaseModel]]:
     """Each schema lives in the module that uses it, so gather them by name."""
     from apps.tickets import request_schema
     from apps.tickets.utils import router, trust_scorer
-    from infrastructure import ai_engine
+    from infrastructure import dtos
 
-    modules = (request_schema, router, trust_scorer, ai_engine)
+    modules = (request_schema, router, trust_scorer, dtos)
     return {name: getattr(m, name) for name in MODELS for m in modules if hasattr(m, name)}
 
 
@@ -164,7 +164,7 @@ def main() -> None:
     for model_name in MODELS:
         chunks.append(emit_json_schema(model_name))
 
-    # The discriminated union itself (infrastructure.ai_engine.LLMProposal /
+    # The discriminated union itself (infrastructure.dtos.LLMProposal /
     # LLMProposalEnvelope) isn't one of MODELS above — model_json_schema()
     # on the RootModel wrapper doesn't flatten into a plain interface the
     # way the four concrete variants do. Emit it directly instead of

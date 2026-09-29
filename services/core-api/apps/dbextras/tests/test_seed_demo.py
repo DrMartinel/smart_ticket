@@ -19,8 +19,7 @@ from apps.kb.models import KbArticle, KbAuthorityLog
 
 
 @pytest.fixture
-def seeded(settings):
-    settings.EMBEDDING_PROVIDER = "stub"
+def seeded():
     call_command("seed_demo", stdout=StringIO())
 
 

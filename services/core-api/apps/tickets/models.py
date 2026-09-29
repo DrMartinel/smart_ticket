@@ -21,7 +21,7 @@ from pgvector.django import CosineDistance, VectorField
 
 from apps.core.models import BaseModel
 from apps.tickets.utils.patterns import PIILevel
-from infrastructure.ai_engine import TicketCategory
+from infrastructure.dtos import TicketCategory
 from apps.tickets.request_schema import TicketIn
 
 from apps.accounts.models import User

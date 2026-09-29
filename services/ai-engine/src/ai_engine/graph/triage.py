@@ -39,13 +39,12 @@ _triage.route(injection, InjectionOutcome.INJECTION_CLEAR, hybrid_retrieve)
 
 _triage.route(hybrid_retrieve, SingleExit.DONE, rerank)
 
-_triage.route(rerank, RerankOutcome.EVIDENCE_BELOW_FLOOR, emit_signals)  # refuse-before-LLM
+_triage.route(rerank, RerankOutcome.EVIDENCE_BELOW_FLOOR, emit_signals)
 _triage.route(rerank, RerankOutcome.EVIDENCE_ABOVE_FLOOR, select_fewshots)
 
 _triage.route(select_fewshots, SingleExit.DONE, infer)
 _triage.route(infer, SingleExit.DONE, validate)
-_triage.route(validate, SingleExit.DONE, emit_signals)  # no cycle: schema failure goes to HITL
+_triage.route(validate, SingleExit.DONE, emit_signals)
 
-_triage.route(emit_signals, SingleExit.DONE, _triage.end)  # every path ends here
-
+_triage.route(emit_signals, SingleExit.DONE, _triage.end)
 triage_graph = _triage.compile(TriageState)

@@ -14,7 +14,8 @@ LangGraph module bolted on.
 `ai-engine` (FastAPI + LangGraph) is deployed independently from
 `core-api` (Django + Django Ninja). They communicate over HTTP
 (`POST /v1/analyze`), not via shared Python imports, aside from the
-`contracts` package.
+`contracts` package. (ADR-0012 adds `/v1/embed` and `/v1/pii/detect`, and
+makes the latter the one endpoint that receives unmasked text.)
 
 ## Reasons, in order of weight
 

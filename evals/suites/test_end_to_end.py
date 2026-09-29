@@ -26,7 +26,7 @@ pre-calibration threshold should gate.
 from __future__ import annotations
 
 from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier, route
-from infrastructure.ai_engine import TicketCategory, TrustSignals
+from infrastructure.dtos import TicketCategory, TrustSignals
 from django.conf import settings
 
 from apps.kb.models import KbArticle
@@ -78,7 +78,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
 
         proposal = None
         if proposal_dict is not None:
-            from infrastructure.ai_engine import LLMProposalEnvelope
+            from infrastructure.dtos import LLMProposalEnvelope
 
             proposal = LLMProposalEnvelope(root=proposal_dict)
 

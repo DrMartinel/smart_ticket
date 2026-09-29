@@ -127,34 +127,34 @@ CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = os.environ.get("SHADOW_MODE", "true").lower() == "true"
 AI_ENGINE_URL = os.environ.get("AI_ENGINE_URL", "http://localhost:8001")
-# Self-hosted vLLM (ADR-0009), the same servers ai-engine uses. vLLM serves
-# one model per server, so PII detection runs on the chat server's model.
-CHAT_BASE_URL = os.environ.get("CHAT_BASE_URL", "http://localhost:8100/v1")
-CHAT_MODEL = os.environ.get("CHAT_MODEL", "Qwen/Qwen3-8B-AWQ")
-EMBED_BASE_URL = os.environ.get("EMBED_BASE_URL", "http://localhost:8101/v1")
-# Must match ai-engine's EMBED_MODEL: ticket, KB and query vectors are
-# compared against each other, so they must come from one model and runtime.
-EMBED_MODEL = os.environ.get("EMBED_MODEL", "BAAI/bge-m3")
-# Timeout for any single model call (NER, embeddings). Generous by design:
+# ai-engine is the only vLLM client (ADR-0012): core-api's embeddings and PII
+# NER go through AI_ENGINE_URL, so core-api has no model URL, model name or
+# embedding provider. EMBEDDING_PROVIDER=stub is set on ai-engine.
+#
+# Read timeout for one embed or PII NER call to ai-engine, which in turn
+# waits on a model. Generous by design:
 # a cold model load alone can take 15-20s, and the old 3s NER budget
 # meant essentially every ticket timed out into PIILevel.MASK_FAILED before
 # the model had even finished loading. Failing to MASK_FAILED is the
 # correct behavior when we genuinely can't verify (spec §5.2) — but it
 # should signal "the model is down", not "the model was still warming up".
 MODEL_TIMEOUT_SEC = float(os.environ.get("MODEL_TIMEOUT_SEC", "120"))
-# Connect timeout is deliberately SHORT and separate from the read budget
-# above. The two describe different failures:
-#   - can't open a TCP connection  -> provider unreachable (down, wrong
+# Connect timeout for every call to ai-engine, deliberately SHORT and
+# separate from the read budgets. The two describe different failures:
+#   - can't open a TCP connection  -> ai-engine unreachable (down, wrong
 #     host, firewall dropping the Docker subnet). Waiting longer cannot
 #     help; a dropped packet just burns the full budget in silence.
-#   - connected but slow to respond -> model is loading or generating.
-#     That legitimately needs the full 120s.
+#   - connected but slow to respond -> a model is loading or generating.
+#     That legitimately needs the full read budget.
 # Collapsing both into one number means an unreachable server makes the
 # user stare at a spinner for two minutes before an error that was
 # knowable in three seconds — masking runs inline in the submit request,
 # so this delay is felt directly by whoever filed the ticket.
 MODEL_CONNECT_TIMEOUT_SEC = float(os.environ.get("MODEL_CONNECT_TIMEOUT_SEC", "3"))
-EMBEDDING_PROVIDER = os.environ.get("EMBEDDING_PROVIDER", "vllm")  # "vllm" | "stub"
+# Slack on top of thresholds.yaml's budget.max_latency_sec for the
+# /v1/analyze read timeout, so a run that finishes right at the budget
+# still delivers its response.
+AI_ENGINE_ANALYZE_GRACE_SEC = float(os.environ.get("AI_ENGINE_ANALYZE_GRACE_SEC", "5"))
 PII_ENCRYPTION_KEY = os.environ.get(
     "PII_ENCRYPTION_KEY", "Zm9yLWRldi1vbmx5LTMyLWJ5dGUta2V5LWhlcmUhISE="
 )

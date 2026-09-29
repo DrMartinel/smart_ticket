@@ -23,8 +23,7 @@ from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from infrastructure.ai_engine import (
-    AIEngineUnavailable,
+from infrastructure.dtos import (
     AIRunResponse,
     GenerationSignals,
     LLMProposalEnvelope,
@@ -33,8 +32,8 @@ from infrastructure.ai_engine import (
     TicketCategory,
     TicketMasked,
     TrustSignals,
-    analyze,
 )
+from infrastructure.ai_engine import AIEngineUnavailable, ai_engine
 from apps.tickets.utils.router import (
     Branch,
     KBArticleMeta,
@@ -51,7 +50,6 @@ from apps.review.models import ReviewItem
 from apps.tickets.models import AiRun, RoutingDecision, Ticket
 from apps.tickets.utils import router as router_service
 from apps.tickets.utils.trust_scorer import score as compute_trust
-from infrastructure.embeddings import embed_text
 
 logger = logging.getLogger(__name__)
 
@@ -259,9 +257,9 @@ def ticket_process(ticket_id: str) -> TaskResult:
     # ── Embedding + incident detection (core-api owns this, spec §1 map) ──
     combined_text = f"{ticket.subject_masked}\n{ticket.body_masked}"
     try:
-        embedding = embed_text(combined_text)
-        ticket.store_embedding(embedding, settings.EMBED_MODEL)
-        verdict = ticket.classify_similarity(embedding)
+        embedding = ai_engine.embed(combined_text)
+        ticket.store_embedding(embedding.vector, embedding.model)
+        verdict = ticket.classify_similarity(embedding.vector)
     except (httpx.HTTPError, ValueError) as e:
         # Same fail-open-to-human principle as the AIEngineUnavailable
         # branch below (spec §10.3: "khi degrade, luôn đẩy về con người").
@@ -324,7 +322,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
     )
 
     try:
-        resp = analyze(masked, request_id=idempotency_key)
+        resp = ai_engine.analyze(masked, request_id=idempotency_key)
     except AIEngineUnavailable as e:
         logger.warning(
             "ai-engine unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e

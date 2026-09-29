@@ -4,9 +4,9 @@ request, parses the reply and checks the vector is fit for pgvector.
 `models.embed`, built from config at import time, only carries the
 request to the model server.
 
-core-api embeds tickets separately (infrastructure/embeddings.py); the
-two services never import each other's code (ADR-0004), so they must be kept on
-the same model by config.
+core-api embeds tickets, KB articles and few-shot examples through
+`POST /v1/embed` (ADR-0012), so every vector in the system comes from this
+`embedder`, stub included.
 """
 
 from __future__ import annotations
@@ -25,7 +25,13 @@ EMBED_DIM = 1024
 
 
 class Embedder(ABC):
-    """What the retrieve and few-shot nodes depend on."""
+    """What the retrieve and few-shot nodes, and `POST /v1/embed`, depend on."""
+
+    @property
+    @abstractmethod
+    def model(self) -> str:
+        """The model that produces the vectors. core-api stores it with each
+        ticket embedding (ADR-0012)."""
 
     @abstractmethod
     def embed(self, text: str) -> list[float]:
@@ -40,6 +46,10 @@ class LexicalEmbedder(Embedder):
     `models.embed`, against an OpenAI-compatible `/embeddings`
     endpoint. Stateless.
     """
+
+    @property
+    def model(self) -> str:
+        return settings.embed_model
 
     def embed(self, text: str) -> list[float]:
         model = settings.embed_model
@@ -61,6 +71,10 @@ class StubEmbedder(Embedder):
     """Deterministic sha256-seeded unit vectors for CI/no-GPU runs. Talks to
     no server. Exercises the pipeline shape, not retrieval quality.
     Stateless."""
+
+    @property
+    def model(self) -> str:
+        return "stub"
 
     def embed(self, text: str) -> list[float]:
         seed = int.from_bytes(hashlib.sha256(text.encode("utf-8")).digest()[:8], "big")

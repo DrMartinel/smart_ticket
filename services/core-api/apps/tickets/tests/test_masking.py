@@ -32,25 +32,9 @@ def run_ner(text: str):
     return async_to_sync(llm_ner)(text)
 
 
-def _chat_reply(content):
-    """A vLLM `/v1/chat/completions` body carrying `content` as the reply."""
-    return {"choices": [{"message": {"role": "assistant", "content": content}}]}
-
-
-def _mock_llm_client(monkeypatch, generate_response: str):
-    """JSON mode guarantees valid JSON, not any particular top-level shape —
-    this stubs the chat completions call to return a given `content` string,
-    exactly as vLLM's OpenAI-compatible API wraps it."""
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=_chat_reply(generate_response))
-
-    class MockAsyncClient(httpx.AsyncClient):
-        def __init__(self, *a, **kw):
-            kw["transport"] = httpx.MockTransport(handler)
-            super().__init__(*a, **kw)
-
-    monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
+def _serve_spans(serve_ai_engine, spans):
+    """ai-engine's `/v1/pii/detect` answering with `spans`."""
+    return serve_ai_engine(lambda request: httpx.Response(200, json={"spans": spans}))
 
 
 class TestRegexTier:
@@ -173,208 +157,76 @@ class TestMaskLlmTier:
         assert "012345678901" not in result.body_masked
 
 
-class TestLlmNerResponseParsing:
-    """Regression coverage for a real failure mode hit against a live
-    qwen3:8b (on Ollama, before ADR-0009): despite the prompt asking for a
-    bare JSON array, plain JSON mode only guarantees valid JSON — the model routinely wraps
-    the array in an object, e.g. {"found": []} instead of []. Before the
-    fix, that shape was treated as an unrecoverable parse error, which
-    flagged every single ticket as MASK_FAILED regardless of content."""
+class TestLlmNer:
+    """`llm_ner` asks ai-engine (ADR-0012), which owns the prompt and the
+    reply parsing (ai-engine `tests/test_pii.py`). What stays here is the
+    contract masking relies on: every failure becomes NERError or
+    TimeoutError, which `mask` resolves to MASK_FAILED, never to "no PII
+    found"."""
 
-    def test_bare_array_response(self, monkeypatch):
-        _mock_llm_client(monkeypatch, json.dumps(["anh Tuan phong ke toan"]))
-        assert run_ner("...") == ["anh Tuan phong ke toan"]
+    def test_spans_come_from_ai_engine(self, serve_ai_engine):
+        calls = _serve_spans(serve_ai_engine, ["anh Tuan phong ke toan"])
 
-    def test_object_wrapped_array_response(self, monkeypatch):
-        _mock_llm_client(monkeypatch, json.dumps({"found": ["anh Tuan phong ke toan"]}))
-        assert run_ner("...") == ["anh Tuan phong ke toan"]
+        assert run_ner("Lien he anh Tuan phong ke toan") == ["anh Tuan phong ke toan"]
+        [request] = calls.requests
+        assert request.url.path == "/v1/pii/detect"
+        assert json.loads(request.content) == {"text": "Lien he anh Tuan phong ke toan"}
 
-    def test_schema_constrained_spans_key(self, monkeypatch):
-        """The request pins a JSON Schema requiring `spans`, so this is the
-        shape the provider is grammar-constrained to return."""
-        _mock_llm_client(monkeypatch, json.dumps({"spans": ["anh Tuan phong ke toan"]}))
-        assert run_ner("...") == ["anh Tuan phong ke toan"]
-
-    def test_request_pins_a_json_schema_not_bare_json_mode(self, monkeypatch):
-        """Regression guard. With `format: "json"` the model only had to
-        emit *some* valid JSON and picked a different shape almost every
-        call — {"found": []}, {"result": []}, {}, even
-        {"error": "please provide the text"} — each of which became a
-        spurious MASK_FAILED. Pinning the schema is what makes the shape a
-        guarantee; if someone reverts it to "json", this fails loudly."""
-        seen = {}
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            seen["payload"] = json.loads(request.content)
-            return httpx.Response(200, json=_chat_reply(json.dumps({"spans": []})))
-
-        class MockAsyncClient(httpx.AsyncClient):
-            def __init__(self, *a, **kw):
-                kw["transport"] = httpx.MockTransport(handler)
-                super().__init__(*a, **kw)
-
-        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
-        run_ner("some ticket text")
-
-        fmt = seen["payload"]["response_format"]
-        assert fmt["type"] == "json_schema", f"expected a JSON Schema, got {fmt!r}"
-        assert fmt["json_schema"]["schema"]["required"] == ["spans"]
-        # Instructions must travel in the system message, data in the user
-        # message — merging them let the model reply to the instructions
-        # instead of obeying.
-        system, user = seen["payload"]["messages"]
-        assert system["role"] == "system"
-        assert user == {"role": "user", "content": "some ticket text"}
-
-    def test_object_with_no_list_still_fails_closed(self, monkeypatch):
-        """A bare {} is ambiguous — it could mean "nothing found" or a
-        confused model. Masking must never resolve ambiguity toward
-        "clean" (spec §5.2), so this stays an error and the ticket goes
-        to a human."""
-        _mock_llm_client(monkeypatch, "{}")
-        with pytest.raises(NERError):
-            run_ner("...")
-
-    def test_object_wrapped_empty_array_response(self, monkeypatch):
-        _mock_llm_client(monkeypatch, json.dumps({"result": []}))
+    def test_an_empty_answer_is_passed_through(self, serve_ai_engine):
+        _serve_spans(serve_ai_engine, [])
         assert run_ner("...") == []
 
-    def test_object_with_no_list_value_raises(self, monkeypatch):
-        _mock_llm_client(monkeypatch, json.dumps({"found": "not a list"}))
-        with pytest.raises(NERError):
-            run_ner("...")
-
     @pytest.mark.parametrize(
-        "body",
+        "response",
         [
-            _chat_reply(None),
-            {"choices": []},
-            {"choices": [{"message": {}}]},
-            {"error": "model not loaded"},
+            httpx.Response(502, json={"detail": "PII NER failed"}),
+            httpx.Response(200, json={}),
+            httpx.Response(200, json={"spans": None}),
+            httpx.Response(200, text="not json at all"),
         ],
-        ids=["null content", "no choices", "no content key", "error body"],
+        ids=["ai-engine 502", "no spans key", "null spans", "not json"],
     )
-    def test_reply_without_content_fails_closed(self, monkeypatch, body):
-        """A reply with no content is a broken reply, not "nothing found".
-        Reading it as [] would resolve toward clean — the one direction
-        masking may never fail (spec §5.2)."""
-
-        class MockAsyncClient(httpx.AsyncClient):
-            def __init__(self, *a, **kw):
-                kw["transport"] = httpx.MockTransport(
-                    lambda request: httpx.Response(200, json=body)
-                )
-                super().__init__(*a, **kw)
-
-        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
+    def test_unusable_answer_fails_closed(self, serve_ai_engine, response):
+        """A broken answer is not "nothing found". Reading it as [] would
+        resolve toward clean — the one direction masking may never fail
+        (spec §5.2)."""
+        serve_ai_engine(lambda request: response)
         with pytest.raises(NERError):
             run_ner("...")
 
-    def test_non_json_response_raises(self, monkeypatch):
-        _mock_llm_client(monkeypatch, "not json at all")
-        with pytest.raises(NERError):
-            run_ner("...")
-
-    def test_transport_timeout_becomes_timeout_error(self, monkeypatch):
+    def test_transport_timeout_becomes_timeout_error(self, serve_ai_engine):
         # Exercises llm_ner's own httpx.TimeoutException -> TimeoutError
         # conversion — the other timeout test in TestMaskLlmTier mocks
         # llm_ner() wholesale, so it never runs this branch.
         def handler(request: httpx.Request) -> httpx.Response:
-            raise httpx.TimeoutException("simulated network timeout")
+            raise httpx.ReadTimeout("simulated network timeout")
 
-        class MockAsyncClient(httpx.AsyncClient):
-            def __init__(self, *a, **kw):
-                kw["transport"] = httpx.MockTransport(handler)
-                super().__init__(*a, **kw)
-
-        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
+        serve_ai_engine(handler)
         with pytest.raises(TimeoutError):
             run_ner("...")
 
-
-class TestNerTimeoutIsConfigurable:
-    """The NER budget used to be a hardcoded 3.0s module constant, which is
-    shorter than a cold model load (15-20s) — so in practice every
-    ticket timed out into MASK_FAILED before the model finished warming up.
-    It now reads settings.MODEL_TIMEOUT_SEC at call time."""
-
-    def test_default_timeout_is_two_minutes(self, settings):
-        assert settings.MODEL_TIMEOUT_SEC == 120.0
-
-    def test_connect_budget_is_short_and_separate_from_read(self, settings, monkeypatch):
-        """The two describe different failures. A blocked/dropped route
-        never completes the TCP handshake, so a single combined budget
-        makes the caller wait the FULL read window for an error that was
-        knowable in seconds — and masking is inline in the submit request,
-        so that wait is a user staring at a spinner."""
-        seen = {}
-
-        class RecordingAsyncClient(httpx.AsyncClient):
-            def __init__(self, *a, **kw):
-                seen["timeout"] = kw.get("timeout")
-                kw["transport"] = httpx.MockTransport(
-                    lambda request: httpx.Response(200, json=_chat_reply("[]"))
-                )
-                super().__init__(*a, **kw)
-
-        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", RecordingAsyncClient)
-        run_ner("...")
-
-        t = seen["timeout"]
-        assert isinstance(t, httpx.Timeout)
-        assert t.connect == settings.MODEL_CONNECT_TIMEOUT_SEC == 3.0
-        assert t.read == settings.MODEL_TIMEOUT_SEC == 120.0
-        assert t.connect is not None and t.read is not None
-        assert t.connect < t.read, "connect must fail fast; only reads get the long budget"
-
-    def test_connect_timeout_still_becomes_mask_failed(self, monkeypatch):
+    def test_connect_timeout_still_becomes_mask_failed(self, serve_ai_engine):
         """Failing fast must not change the safety property: an
-        unreachable NER provider is still 'we could not verify', never
+        unreachable ai-engine is still 'we could not verify', never
         'there was no PII'."""
 
         def handler(request: httpx.Request) -> httpx.Response:
             raise httpx.ConnectTimeout("simulated: route blocked, handshake never completes")
 
-        class MockAsyncClient(httpx.AsyncClient):
-            def __init__(self, *a, **kw):
-                kw["transport"] = httpx.MockTransport(handler)
-                super().__init__(*a, **kw)
-
-        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", MockAsyncClient)
+        serve_ai_engine(handler)
         raw = TicketIn(subject="May in bi ket giay", body="May in tang 3 bi ket giay tu sang nay")
         assert run_mask(raw).pii_level is PIILevel.MASK_FAILED
 
-    def test_timeout_is_read_at_call_time_not_import_time(self, settings, monkeypatch):
-        seen = {}
+    def test_error_message_never_carries_the_text(self, serve_ai_engine):
+        """`mask` logs the error. The request and reply are raw PII, and a
+        pydantic or httpx error can quote them."""
+        text = "Lien he anh Tuan phong ke toan"
+        serve_ai_engine(lambda request: httpx.Response(200, json={"spans": [{"v": text}]}))
 
-        class RecordingAsyncClient(httpx.AsyncClient):
-            def __init__(self, *a, **kw):
-                seen["timeout"] = kw.get("timeout")
-                kw["transport"] = httpx.MockTransport(
-                    lambda request: httpx.Response(200, json=_chat_reply("[]"))
-                )
-                super().__init__(*a, **kw)
+        with pytest.raises(NERError) as caught:
+            run_ner(text)
 
-        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", RecordingAsyncClient)
-
-        settings.MODEL_TIMEOUT_SEC = 45.0
-        run_ner("...")
-        assert seen["timeout"].read == 45.0
-
-    def test_explicit_timeout_argument_still_wins(self, monkeypatch):
-        seen = {}
-
-        class RecordingAsyncClient(httpx.AsyncClient):
-            def __init__(self, *a, **kw):
-                seen["timeout"] = kw.get("timeout")
-                kw["transport"] = httpx.MockTransport(
-                    lambda request: httpx.Response(200, json=_chat_reply("[]"))
-                )
-                super().__init__(*a, **kw)
-
-        monkeypatch.setattr("apps.tickets.utils.masking.httpx.AsyncClient", RecordingAsyncClient)
-        async_to_sync(llm_ner)("...", 7.5)
-        assert seen["timeout"] == 7.5
+        assert text not in str(caught.value)
 
 
 class TestSpansToHits:

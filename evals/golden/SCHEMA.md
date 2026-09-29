@@ -17,7 +17,7 @@
 }
 ```
 
-- `truth.category` — one of `TicketCategory` (core-api `infrastructure/ai_engine.py`), or omitted if not determinable (e.g. pure injection cases).
+- `truth.category` — one of `TicketCategory` (core-api `infrastructure/dtos.py`), or omitted if not determinable (e.g. pure injection cases).
 - `truth.kb_slug` — the KB article slug that should answer this ticket, if any.
 - `truth.expected_branch` — one of `Branch` (core-api `apps/tickets/utils/router.py`): `auto_reply | auto_route | hitl | block | escalate`.
 - `truth.reason_code` — one of `ReasonCode` (core-api `apps/tickets/utils/router.py`), when the specific gate/reason matters to the test (e.g. `injection_detected`, `kb_not_authorized`, `retrieval_below_floor`). Omitted when any HITL reason is acceptable.

@@ -48,7 +48,7 @@ usually cite the ADR or spec section that explains what breaks without it.
    possible here.
 4. **No shared contracts package (ADR-0010).** Each schema is defined in the
    module that uses it (the ADR has the table). The ai-engine wire shapes exist
-   in both services — core-api `infrastructure/ai_engine.py`, ai-engine
+   in both services — core-api `infrastructure/dtos.py`, ai-engine
    `core/state.py` — so change **both in the same PR**; until the cross-service
    integration tests exist, nothing else catches drift. Never define routing or
    scoring types (`Branch`, `ReasonCode`, `TrustScore`, …) in ai-engine, and
@@ -138,10 +138,10 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | PII masking (inline, two-tier; 100% branch coverage is a release gate) | [masking.py](services/core-api/apps/tickets/utils/masking.py) |
 | Trust score (in core-api, so the LLM can't score itself) | [trust_scorer.py](services/core-api/apps/tickets/utils/trust_scorer.py) |
 | What happens to a ticket after submit (embed → incident check → ai-engine → score → route → act) | [pipeline.py](services/core-api/apps/tickets/utils/pipeline.py) |
-| Clients for ai-engine and the vLLM servers (transport only, never judgement) | [infrastructure/](services/core-api/infrastructure/) |
+| `AIEngineClient`, core-api's only route to ai-engine and, through it, to every model (ADR-0012; transport only, never judgement) | [infrastructure/](services/core-api/infrastructure/) |
 | PII regex patterns | [patterns.py](services/core-api/apps/tickets/utils/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
-| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals) | core-api [ai_engine.py](services/core-api/infrastructure/ai_engine.py) · ai-engine [state.py](services/ai-engine/src/ai_engine/core/state.py) |
+| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [state.py](services/ai-engine/src/ai_engine/core/state.py) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
 | Prompts (versioned, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
@@ -150,7 +150,8 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 
 Services: `core-api` (Django + Ninja) owns **every write and every decision** ·
 `ai-engine` (FastAPI + LangGraph) has **no authority**, returns signals and a
-proposal only · `web` (Next.js) is a thin client with no business logic.
+proposal only, and is the **only vLLM client** (ADR-0012: core-api's embeddings
+and PII NER go through its `/v1/embed` and `/v1/pii/detect`) · `web` (Next.js) is a thin client with no business logic.
 
 **If you are adding a feature that decides something, it belongs in core-api.**
 
@@ -176,7 +177,7 @@ Inside core-api, each app has these modules:
 ops commands (`wait_for_db`), generic test helpers. Every app may import
 from it; it imports from no app (`apps/core/tests/test_boundary.py`).
 Beside `apps/` sit `common/` (code every app shares, such as `permissions.py`),
-`infrastructure/` (clients for other processes) and
+`infrastructure/` (the ai-engine client, with its wire schema in `dtos.py`) and
 `config/settings/{base,development,production,test}.py`. Tests live in a
 `tests/` package next to the code they test.
 
@@ -188,7 +189,7 @@ Beside `apps/` sit `common/` (code every app shares, such as `permissions.py`),
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/utils/pipeline.py` — not `tasks.py`, which is only the entry point |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `core/config.py` |
-| What counts as PII | `patterns.py` (regex) or the NER prompt in `masking.py` |
+| What counts as PII | `patterns.py` (regex) or the NER prompt `ai-engine/core/prompts/pii_ner.v*.md` |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
@@ -230,7 +231,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 |---|---|
 | `Failed to spawn: pytest` | `uv sync` instead of `uv sync --all-packages` — the root project has no deps of its own |
 | `ModuleNotFoundError: tests.*` on a whole-workspace run | core-api and ai-engine both have a package named `tests`. Handled by `--import-mode=importlib` in root `pyproject.toml` — don't remove it |
-| Every ticket `mask_failed` | vllm-chat isn't running or reachable, or `CHAT_MODEL` doesn't match what it serves. **Never "fix" this by treating NER failure as no-PII-found** |
+| Every ticket `mask_failed` | ai-engine is down, or vllm-chat isn't reachable from it, or ai-engine's `CHAT_MODEL` doesn't match what it serves. **Never "fix" this by treating NER failure as no-PII-found** |
 | Submit hangs ~120s | Connect and read timeouts collapsed into one. Deliberately separate: 3s connect, 120s read (a cold model load legitimately takes 15–20s) |
 | All four generation checks ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
 | Unaccented Vietnamese matches nothing | Diacritic folding (`_strip_diacritics`) in `LexicalReranker` regressed; `đ`/`Đ` need special handling |
@@ -284,5 +285,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (eleven
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twelve
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

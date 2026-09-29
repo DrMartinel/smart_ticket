@@ -15,7 +15,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [regression] ai-engine chooses no `Branch`, computes no trust score, and doesn't check auto-reply authority. Those are core-api's job (ADR-0001, ADR-0002).
 - [regression] `llm_self_confidence` is only forwarded, never used (ADR-0003).
 - [regression] Any retrieval threshold compares against the cross-encoder score, never an RRF score. `Candidate` has no score field (ADR-0005).
-- [regression] Only masked ticket text (`subject_masked`, `body_masked`) reaches a provider or prompt.
+- [regression] Only masked ticket text (`subject_masked`, `body_masked`) reaches a provider or prompt. The sole exception is `core/providers/pii.py` behind `/v1/pii/detect` (ADR-0012): raw text only to `models.ner`, never `models.chat`, and never into a log or error message.
 - [regression] Nothing in a prompt grants authority, such as permission to auto-reply or to skip review.
 - [regression] Nothing from `load-bearing.md` was simplified away.
 

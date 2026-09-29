@@ -7,7 +7,7 @@ noticing. The eval gate is the test that catches it.
 Open these before writing: the current prompt in `core/prompts/` (the file
 `settings.prompt_version` points at), `core/prompts/__init__.py`, `core/config.py`,
 and the wire schema in both services: `core/state.py` here and
-`services/core-api/infrastructure/ai_engine.py`.
+`services/core-api/infrastructure/dtos.py`.
 
 ## Steps
 
@@ -19,7 +19,7 @@ and the wire schema in both services: `core/state.py` here and
      the prompt that **runs**;
    - the `AIRunRequest.prompt_version` default, which is what core-api sends. It
      is defined in both services (`core/state.py` and core-api's
-     `infrastructure/ai_engine.py`); change both.
+     `infrastructure/dtos.py`); change both.
 
    ⚠️ `main.py` reports `req.prompt_version` in the response, but `InferNode` loads
    `settings.prompt_version`. If the two differ, `ai_runs` records the wrong prompt.

@@ -23,8 +23,7 @@ ARTICLE_KEYS = {
 
 
 @pytest.fixture
-def article(settings):
-    settings.EMBEDDING_PROVIDER = "stub"
+def article():
     return KbArticle.objects.create(
         slug="KB-API-001", title="VPN", body="Step one.\n\nStep two.", category="network"
     )

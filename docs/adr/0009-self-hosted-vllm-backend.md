@@ -37,7 +37,8 @@ ai-engine (`OllamaLLM`, `OllamaEmbedder` and `langchain-ollama` are removed):
 the `/embeddings` and `/rerank` payloads and replies. One `VLLMLLM` instance
 per vLLM server.
 
-core-api:
+core-api (**superseded by ADR-0012**: core-api now reaches these through
+ai-engine's `/v1/pii/detect` and `/v1/embed`, and calls no vLLM server itself):
 
 | Capability | vLLM endpoint | Code |
 |---|---|---|

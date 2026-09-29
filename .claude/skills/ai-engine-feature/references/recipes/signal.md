@@ -6,7 +6,7 @@ it reaches core-api through the wire schema, which each service defines itself
 `TrustSignals` field, a new `AIRunResponse` field, or a new failure reason.
 
 Open these before writing: `core/state.py` (ai-engine's wire schema),
-`services/core-api/infrastructure/ai_engine.py` (core-api's),
+`services/core-api/infrastructure/dtos.py` (core-api's),
 `services/core-api/apps/tickets/utils/router.py` (`ReasonCode`), `graph/nodes/emit_signals.py`, `main.py`,
 `services/core-api/apps/tickets/utils/pipeline.py`,
 `services/core-api/apps/tickets/utils/trust_scorer.py`, and `router.py`.

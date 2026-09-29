@@ -51,8 +51,9 @@ fewshot:
   require_user_confirmed: true
 
 budget:
-  # 🔧 How long core-api waits on ai-engine (its HTTP timeout is
-  # max_latency_sec + 5). ai-engine enforces no budget of its own, so this
+  # 🔧 How long core-api waits on ai-engine's /v1/analyze (its HTTP read
+  # timeout is max_latency_sec + AI_ENGINE_ANALYZE_GRACE_SEC; connect is
+  # MODEL_CONNECT_TIMEOUT_SEC). ai-engine enforces no budget of its own, so this
   # must stay comfortably above the per-call model ceiling
   # (MODEL_TIMEOUT_SEC, 120s by default) plus the embedding and rerank
   # calls, or a cold-start inference times out as ai_engine_unavailable.

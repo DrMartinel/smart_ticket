@@ -22,7 +22,7 @@ from pydantic import BaseModel
 
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.trust_scorer import score as compute_trust
-from infrastructure.ai_engine import (
+from infrastructure.dtos import (
     AutoReplyProposal,
     InsufficientContext,
     LLMProposalEnvelope,

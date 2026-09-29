@@ -28,7 +28,7 @@ uses it:
 | Types | Module | Why there |
 |---|---|---|
 | `TicketIn` | `apps/tickets/request_schema.py` | The submit endpoint's request body. It replaces the old `TicketSubmitIn`, so Ninja validates the limits directly |
-| `AIRunRequest`, `AIRunResponse`, `TicketMasked`, `TicketCategory`, the proposal union, the four signal models | `infrastructure/ai_engine.py` | The schema of the call to ai-engine |
+| `AIRunRequest`, `AIRunResponse`, `TicketMasked`, `TicketCategory`, the proposal union, the four signal models, the `/v1/embed` and `/v1/pii/detect` bodies (ADR-0012) | `infrastructure/dtos.py` | The schema of the calls to ai-engine, which `infrastructure/ai_engine.py` makes |
 | `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `RoutingDecision` | `apps/tickets/utils/router.py` | The router's input and output |
 | `Thresholds` and its parts | `config/settings/base.py` | The schema `thresholds.yaml` is parsed into at boot |
 | `TrustScore` | `apps/tickets/utils/trust_scorer.py` | The scorer's output |

@@ -127,7 +127,7 @@ The cross-encoder is the default: `RERANKER_PROVIDER=vllm` serves `bge-reranker-
 
 Note the shape of this: it is not "the wrong number", it is "a number from a different measurement compared against this one". Fixing it by nudging `0.45` would be the worst outcome, because it would make the mismatch invisible rather than absent.
 
-There is also a structural blocker. core-api owns `thresholds.yaml` and sends `retrieval_floor` in `AIRunRequest` ([ai_engine.py](../services/core-api/infrastructure/ai_engine.py)), but `RERANKER_PROVIDER` is read only by ai-engine. **core-api cannot see which provider scored**, so it cannot select a matching floor, and a mismatch cannot currently be detected at all.
+There is also a structural blocker. core-api owns `thresholds.yaml` and sends `retrieval_floor` in `AIRunRequest` ([dtos.py](../services/core-api/infrastructure/dtos.py)), but `RERANKER_PROVIDER` is read only by ai-engine. **core-api cannot see which provider scored**, so it cannot select a matching floor, and a mismatch cannot currently be detected at all.
 
 ### Work
 
@@ -143,9 +143,9 @@ There is also a structural blocker. core-api owns `thresholds.yaml` and sends `r
 ### vLLM (ADR-0009)
 
 The in-process FlagEmbedding reranker is removed, so there is no local score
-to compare against: step 2 above is the check. Both services now embed through vLLM, so the KB chunks, ticket
+to compare against: step 2 above is the check. Every embedding now comes from vLLM through ai-engine (ADR-0012), so the KB chunks, ticket
 embeddings and few-shot examples already in pgvector must be re-embedded
-through it. Masking's tier-2 NER moved to `CHAT_MODEL` and needs its
+through it. Masking's tier-2 NER runs in ai-engine on `CHAT_MODEL` and needs its
 detection quality re-checked on real tickets. None of the vLLM path has run
 against real hardware yet.
 

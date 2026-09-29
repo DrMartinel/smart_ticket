@@ -59,33 +59,40 @@ to every queue and dashboard. If you ever see tickets stuck at `new` with
 no routing row, look here first.
 
 **Actions:**
-1. Check the embedding server: `docker compose --profile vllm ps vllm-embed`
-   and `docker compose logs vllm-embed`.
-2. From the worker, confirm it answers:
-   `docker compose exec worker sh -c 'curl -s -m 5 $EMBED_BASE_URL/models'`
-   — the served model must be `EMBED_MODEL`.
+core-api embeds through ai-engine (ADR-0012), so either can be the cause.
+
+1. Check ai-engine is reachable from the worker:
+   `docker compose exec worker sh -c 'curl -s -m 5 $AI_ENGINE_URL/healthz'`.
+2. Check the embedding server behind it: `docker compose --profile vllm ps vllm-embed`,
+   `docker compose logs vllm-embed`, and `docker compose logs ai-engine`
+   for `embedder failed`.
 3. A wrong-width vector raises `ValueError` and lands here too — check that
-   `EMBED_MODEL` is a 1024-dim model (`bge-m3`).
-4. `EMBEDDING_PROVIDER=stub` is a legitimate emergency lever: it keeps the
+   ai-engine's `EMBED_MODEL` is a 1024-dim model (`bge-m3`).
+4. `EMBEDDING_PROVIDER=stub` **on ai-engine** is a legitimate emergency
+   lever (core-api has no embedder of its own, ADR-0012): it keeps the
    pipeline flowing with deterministic hash embeddings. Retrieval quality
    collapses, so *everything* lands in HITL — acceptable for a short
    outage, not as a standing configuration.
 
 ## `MASK_FAILED` flood — every ticket lands in the mask_failed queue
 
-**What this means:** tier-2 NER (vLLM) is failing for every ticket, and
+**What this means:** tier-2 NER (ai-engine's `/v1/pii/detect`, on vLLM) is failing for every ticket, and
 masking is correctly refusing to treat "I couldn't check" as "it's clean"
 (spec §5.2). The system is behaving as designed; the queue is the symptom,
 not the bug.
 
 **Known causes, in order of likelihood:**
-1. **vllm-chat down or out of memory.** It shares the GPU with vllm-embed and
+1. **ai-engine down or unreachable from core-api.** Check
+   `docker compose exec core-api sh -c 'curl -s -m 5 $AI_ENGINE_URL/healthz'`.
+   `docker compose logs ai-engine` shows `PII NER failed: <ErrorClass>` when
+   it is up but the model call fails. The text is never logged, by design.
+2. **vllm-chat down or out of memory.** It shares the GPU with vllm-embed and
    vllm-rerank through fixed `*_GPU_UTIL` fractions. Check
    `docker compose logs vllm-chat` for OOM or 5xx. Mitigation is capacity,
    not code.
-2. **Model unavailable.** `CHAT_MODEL` in core-api does not match the
+3. **Model unavailable.** ai-engine's `CHAT_MODEL` does not match the
    model vllm-chat is serving — the server rejects the request.
-3. **Timeout too short for a cold start.** The per-call ceiling is
+4. **Timeout too short for a cold start.** The per-call ceiling is
    `MODEL_TIMEOUT_SEC` (120s default). A cold model load alone can
    take 15–20s, so a low value here reports "provider down" for what is
    really "provider still warming up" — this was the original cause of a

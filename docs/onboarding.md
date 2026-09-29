@@ -56,9 +56,12 @@ share one GPU through `VLLM_CHAT_GPU_UTIL` / `VLLM_EMBED_GPU_UTIL` /
 inside the network:
 
 ```bash
-docker compose exec core-api sh -c \
+docker compose exec ai-engine sh -c \
   'curl -s -m 5 -o /dev/null -w "%{http_code}\n" $CHAT_BASE_URL/models'
 ```
+
+Only ai-engine talks to vLLM (ADR-0012). core-api's PII detection and
+embeddings go through ai-engine, so it needs ai-engine up, not the vLLM URLs.
 
 `200` is good. Anything else means masking will fail closed to `MASK_FAILED`
 for every ticket.
@@ -159,7 +162,7 @@ You are ready to work on this when you can answer:
 | Symptom | Cause | Fix |
 |---|---|---|
 | `Failed to spawn: pytest` | Used `uv sync` | `uv sync --all-packages` |
-| Every ticket is `mask_failed` | vllm-chat is not running or not reachable | Step 2 |
+| Every ticket is `mask_failed` | ai-engine is down, or vllm-chat is not running or not reachable from it | Step 2 |
 | Submit hangs ~120s | Connect and read timeouts collapsed into one | Step 2; confirm `MODEL_CONNECT_TIMEOUT_SEC=3` |
 | All four generation checks show ✗ | No LLM ran — read the reason code above the panel | Usually vLLM not running |
 | Vietnamese ticket matches nothing | Was a real bug (diacritics); fixed. If it recurs, check `_strip_diacritics` in the reranker | — |

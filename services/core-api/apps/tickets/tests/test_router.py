@@ -18,7 +18,7 @@ from config.settings.base import (
     Thresholds,
 )
 from apps.tickets.utils.patterns import PIILevel
-from infrastructure.ai_engine import (
+from infrastructure.dtos import (
     AutoReplyProposal,
     GenerationSignals,
     InsufficientContext,

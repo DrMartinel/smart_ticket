@@ -16,11 +16,11 @@ from django.utils import timezone
 from pgvector.django import VectorField
 
 from apps.tickets.utils.router import RiskTier
-from infrastructure.ai_engine import TicketCategory
+from infrastructure.dtos import TicketCategory
+from infrastructure.ai_engine import ai_engine
 
 from apps.accounts.models import User
 from apps.kb.utils import chunk_body, rough_token_count
-from infrastructure.embeddings import embed_text
 
 
 class KBGovernanceError(Exception):
@@ -97,7 +97,7 @@ class KbArticle(BaseModel):
         pieces = chunk_body(self.body)
         chunks: list[KbChunk] = []
         for i, content in enumerate(pieces):
-            embedding = embed_text(content)
+            embedding = ai_engine.embed(content).vector
             chunk = KbChunk.objects.create(
                 article=self,
                 chunk_index=i,

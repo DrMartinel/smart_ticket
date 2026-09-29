@@ -16,6 +16,7 @@ from apps.tickets.utils.patterns import PIILevel
 
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import process_ticket
+from infrastructure.ai_engine import ai_engine
 
 
 def make_ticket(reporter) -> Ticket:
@@ -30,13 +31,13 @@ def make_ticket(reporter) -> Ticket:
 
 @pytest.mark.django_db
 class TestEmbeddingFailureFailsOpenToHitl:
-    def test_connect_timeout_produces_hitl_routing_decision(self, employee_user, monkeypatch):
+    def test_connect_timeout_produces_hitl_routing_decision(self, employee_user, serve_ai_engine):
         ticket = make_ticket(employee_user)
 
-        def raise_timeout(text):
-            raise httpx.ConnectTimeout("simulated: embedding service unreachable")
+        def raise_timeout(request):
+            raise httpx.ConnectTimeout("simulated: ai-engine unreachable")
 
-        monkeypatch.setattr("apps.tickets.utils.pipeline.embed_text", raise_timeout)
+        serve_ai_engine(raise_timeout)
 
         result = process_ticket.apply(args=(ticket.id,)).get()
 
@@ -51,12 +52,9 @@ class TestEmbeddingFailureFailsOpenToHitl:
         review_item = ticket.review_items.order_by("-id").first()
         assert review_item is not None, "ticket must land in a review queue, not vanish silently"
 
-    def test_ticket_never_left_stuck_at_new_status(self, employee_user, monkeypatch):
+    def test_ticket_never_left_stuck_at_new_status(self, employee_user, serve_ai_engine):
         ticket = make_ticket(employee_user)
-        monkeypatch.setattr(
-            "apps.tickets.utils.pipeline.embed_text",
-            lambda text: (_ for _ in ()).throw(httpx.ConnectTimeout("simulated")),
-        )
+        serve_ai_engine(lambda request: httpx.Response(502, json={"detail": "embedder failed"}))
 
         process_ticket.apply(args=(ticket.id,)).get()
 
@@ -68,7 +66,7 @@ def _llm_failed_response(reason: str, request_id: str):
     """What ai-engine returns when its chat LLM call failed: no proposal,
     and `reason` as the degraded_reason."""
 
-    from infrastructure.ai_engine import AIRunResponse
+    from infrastructure.dtos import AIRunResponse
 
     from apps.tickets.utils.pipeline import _degraded_signals
 
@@ -94,13 +92,13 @@ class TestLlmFailureKeepsItsReasonCode:
         from apps.tickets.models import IncidentVerdict
 
         ticket = make_ticket(employee_user)
-        monkeypatch.setattr("apps.tickets.utils.pipeline.embed_text", lambda text: [0.0])
         monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
         monkeypatch.setattr(
             Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique")
         )
         monkeypatch.setattr(
-            "apps.tickets.utils.pipeline.analyze",
+            ai_engine,
+            "analyze",
             lambda masked, request_id: _llm_failed_response(reason.value, request_id),
         )
 

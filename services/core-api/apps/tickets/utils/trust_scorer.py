@@ -19,7 +19,7 @@ from typing import TypedDict
 
 from django.conf import settings
 
-from infrastructure.ai_engine import TrustSignals
+from infrastructure.dtos import TrustSignals
 
 
 class TrustScore(BaseModel):

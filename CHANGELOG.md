@@ -23,6 +23,35 @@ that moves a failure path is more significant here than a new feature.
   declared once on the abstract `apps.core.models.BaseModel`, which all 16
   business models inherit; `makemigrations --check` reports no change.
 
+- **ai-engine is the only vLLM client** (ADR-0012, supersedes ADR-0009's
+  core-api table). core-api's PII NER and embeddings now go through two new
+  ai-engine endpoints, `POST /v1/pii/detect` and `POST /v1/embed`, via one
+  `AIEngineClient` (`infrastructure/ai_engine.py`) that builds every URL and
+  request. `analyze()` is now `ai_engine.analyze()`.
+  - **Deliberately relaxes "only masked text enters ai-engine"** (ADR-0004,
+    `TicketMasked`) for `/v1/pii/detect` alone. NER uses a dedicated
+    self-hosted `models.ner` client, never `models.chat` (which may be
+    OpenAI). Neither the text nor the model's reply is logged or put in an
+    error message, and 422 bodies no longer echo `input`.
+  - The NER prompt moved to `ai-engine/core/prompts/pii_ner.v1.md`
+    (`PII_NER_PROMPT_VERSION`), and reply parsing moved with it.
+  - Failure contracts unchanged: any `/v1/pii/detect` failure → `mask_failed`;
+    any `/v1/embed` failure, ai-engine unreachable included →
+    `embedding_unavailable`.
+  - core-api drops `CHAT_BASE_URL`, `CHAT_MODEL`, `EMBED_BASE_URL`,
+    `EMBED_MODEL` and `EMBEDDING_PROVIDER`, and `infrastructure/embeddings.py`
+    with its stub: `ai_engine.embed()` is the only embedder, and
+    `EMBEDDING_PROVIDER=stub` is now set on ai-engine alone.
+    `ticket_embeddings.model` records the model ai-engine reports.
+  - `seed_demo` needs ai-engine running; the live eval-gate job now starts
+    ai-engine first. core-api's unit tests use an autouse offline ai-engine
+    (`conftest.py`) instead of the stub setting.
+- **The `/v1/analyze` call has a short connect timeout.** It used one
+  number (`budget.max_latency_sec + 5`) for connect and read, so an
+  unreachable ai-engine held the Celery task for five minutes. Connect is now
+  `MODEL_CONNECT_TIMEOUT_SEC` (3s); read is unchanged, with the `+ 5` now
+  `AI_ENGINE_ANALYZE_GRACE_SEC`.
+
 - **Every business table is keyed by a UUID (v4) instead of a bigint**
   (ADR-0011, departs from the spec's `BIGSERIAL` DDL). Each model declares
   `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)`,

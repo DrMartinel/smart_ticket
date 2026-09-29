@@ -83,7 +83,7 @@ This is the expected P1 state, not a defect. `evals/calibration/fit_trust_score.
 Two things have to happen to close it, and neither is a config edit:
 
 1. **Measure.** Nobody has observed real `bge-reranker-v2-m3` scores on this KB, so `0.45` is a hand-set prior (🔧) even for the provider it was written for.
-2. **Make the pairing knowable.** core-api reads `retrieval.floor` and sends it in `AIRunRequest` ([ai_engine.py](../services/core-api/infrastructure/ai_engine.py)), but `RERANKER_PROVIDER` is an ai-engine-only variable — core-api cannot see which provider scored, so it cannot pick the matching floor or detect a mismatch. A per-provider floor needs that coupling to exist first.
+2. **Make the pairing knowable.** core-api reads `retrieval.floor` and sends it in `AIRunRequest` ([dtos.py](../services/core-api/infrastructure/dtos.py)), but `RERANKER_PROVIDER` is an ai-engine-only variable — core-api cannot see which provider scored, so it cannot pick the matching floor or detect a mismatch. A per-provider floor needs that coupling to exist first.
 
 See [TODO.md](TODO.md) item 4.
 
@@ -101,7 +101,7 @@ This is a genuine, reproducible model finding, recorded in `evals/baselines/base
 
 ## Environment caveat: self-hosted models moved to vLLM, unverified
 
-The verification above ran on Ollama. Both services now use self-hosted vLLM (ADR-0009) — code only, **not yet run against real hardware**. Until it is, treat masking quality, embeddings and inference on vLLM as unverified; stored vectors must also be re-embedded through vLLM.
+The verification above ran on Ollama. The system now uses self-hosted vLLM (ADR-0009), reached only through ai-engine: core-api's PII NER and embeddings go through ai-engine's `/v1/pii/detect` and `/v1/embed` (ADR-0012). All of it is code only, **not yet run against real hardware**. Until it is, treat masking quality, embeddings and inference on vLLM as unverified; stored vectors must also be re-embedded through vLLM.
 
 The connect timeout stays budgeted separately from the read timeout (`MODEL_CONNECT_TIMEOUT_SEC=3` vs `MODEL_TIMEOUT_SEC=120`). An unreachable provider fails in ~3s instead of burning the full read budget — which matters because masking is inline in the submit request, so that delay is a user watching a spinner.
 

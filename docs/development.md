@@ -55,7 +55,7 @@ If you need data to make a routing decision, fetch it *before* the call and pass
 
 ### 4. Schemas live where they are used
 
-There is no shared contracts package (ADR-0010). A schema is defined in the module that uses it; `docs/architecture.md` §3 has the table. The ai-engine wire shapes (`AIRunRequest`, `AIRunResponse` and everything in them) exist in both services — core-api `infrastructure/ai_engine.py`, ai-engine `core/state.py` — so change **both** in the same PR. After a core-api schema change, regenerate the frontend types:
+There is no shared contracts package (ADR-0010). A schema is defined in the module that uses it; `docs/architecture.md` §3 has the table. The ai-engine wire shapes (`AIRunRequest`, `AIRunResponse` and everything in them) exist in both services — core-api `infrastructure/dtos.py`, ai-engine `core/state.py` — so change **both** in the same PR. After a core-api schema change, regenerate the frontend types:
 
 ```bash
 uv run --package core-api python services/core-api/scripts/gen_typescript.py
@@ -129,7 +129,7 @@ Two invariants CI enforces that you should not work around:
 |---|---|
 | `Failed to spawn: pytest` | `uv sync` instead of `uv sync --all-packages` |
 | `ModuleNotFoundError: tests.*` on a whole-workspace run | core-api and ai-engine both have a package named `tests`. Handled by `--import-mode=importlib` in root `pyproject.toml` — don't remove it |
-| Every ticket `mask_failed` | vllm-chat isn't running or reachable (see [`onboarding.md`](onboarding.md) step 2), or `CHAT_MODEL` doesn't match what it serves |
+| Every ticket `mask_failed` | ai-engine is down, or vllm-chat isn't running or reachable from it (see [`onboarding.md`](onboarding.md) step 2), or ai-engine's `CHAT_MODEL` doesn't match what it serves |
 | Submit hangs for a long time | Connect and read timeouts collapsed into one. They're deliberately separate: 3s connect, 120s read |
 | All four generation checks ✗ | No LLM ran. Read the reason code above the panel — usually a degraded run |
 | Unaccented Vietnamese matches nothing | `LexicalReranker` folds diacritics (`_strip_diacritics`). If this regresses, tickets typed without tone marks stop matching an accented KB |

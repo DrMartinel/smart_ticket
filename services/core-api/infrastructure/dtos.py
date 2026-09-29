@@ -1,17 +1,11 @@
 """
-TriageState — spec §6.1, as a Pydantic graph schema. Verified against the
-installed LangGraph:
+The wire schema core-api speaks to ai-engine (spec §6, ADR-0012): request
+and response bodies of `/v1/analyze`, `/v1/embed` and `/v1/pii/detect`.
+`AIEngineClient` in `infrastructure/ai_engine.py` sends and parses these;
+the router, trust scorer and pipeline read them.
 
-- Nodes receive a `TriageState` and return a PARTIAL dict of changed fields.
-- The merged state is validated when building the next node's input, so a
-  wrong-typed update fails one step later as a 500, which core-api sends to a
-  human.
-- Update keys that are not fields are silently dropped before validation;
-  `extra="forbid"` only guards direct construction, so `GraphBuilder` raises
-  on them instead.
-- `graph.invoke` returns a plain dict.
-
-Frozen, so an in-place mutation — which would be silently discarded — raises.
+Data only: no I/O, no settings, no decisions. `Branch`, `ReasonCode` and
+the other routing types stay in `router.py` (CLAUDE.md rule 4).
 """
 
 from __future__ import annotations
@@ -23,28 +17,22 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
-from ai_engine.core.retrieval.fusion import Candidate
+from apps.tickets.utils.patterns import PIILevel
 
 
 # --- Wire schema of POST /v1/analyze (spec §6) --------------------------
 #
-# core-api defines the same shapes in infrastructure/dtos.py. There is
-# no shared package: each service is deployed on its own, so change both
-# sides in the same PR. Cross-service integration tests are meant to catch
-# drift; until they exist, nothing does (ADR-0010).
-# Only what crosses the wire lives here: no Branch, ReasonCode or TrustScore,
-# because ai-engine decides nothing and does not score itself (ADR-0001,
-# ADR-0003).
+# ai-engine defines the same shapes in ai_engine/core/state.py. There is no
+# shared package: each service is deployed on its own, so change both sides
+# in the same PR. Cross-service integration tests are meant to catch drift;
+# until they exist, nothing does (ADR-0010).
 #
-# Every LLM-authored field carries a `proposed_` (or `self_`) prefix: the
-# name is the reminder that the value is a suggestion, not a decision.
-
-
-class PIILevel(StrEnum):
-    ROUTINE = "routine"  # name, internal email, employee code → proceeds
-    SENSITIVE = "sensitive"  # national ID, bank account, health → proceeds, flagged
-    CRITICAL = "critical"  # password / token / API key → BLOCK
-    MASK_FAILED = "mask_failed"  # masker errored / uncertain → HITL
+# Every LLM-authored field carries a `proposed_` (or `self_`) prefix. When the
+# router reads `draft.proposed_category`, the name itself is the reminder
+# that it is a suggestion, not a decision (ADR-0001, ADR-0003). Only
+# router.py may write the non-prefixed `category` column on `tickets`.
+# `InsufficientContext` is a legitimate variant, not an error path: the
+# model needs a lawful way to say "I don't know", or it fabricates.
 
 
 class TicketCategory(StrEnum):
@@ -190,10 +178,10 @@ class AIRunResponse(BaseModel):
 
 
 # --- Wire schema of POST /v1/embed and POST /v1/pii/detect (ADR-0012) ---
-#
-# ai-engine is the only vLLM client, so core-api's own embeddings and its
-# Tier-2 PII NER come through here. Same rule as above: core-api defines
-# the same shapes in infrastructure/dtos.py.
+
+# The width of every `vector(1024)` column (bge-m3; ADR-0009). A property of
+# the schema, so not configuration: changing it needs a migration.
+EMBED_DIM = 1024
 
 
 class EmbedRequest(BaseModel):
@@ -201,8 +189,8 @@ class EmbedRequest(BaseModel):
 
 
 class EmbedResponse(BaseModel):
-    """`model` is what produced the vector. core-api stores it with the
-    embedding, so no second copy of `EMBED_MODEL` has to be kept equal."""
+    """`model` is what produced the vector, stored with each ticket
+    embedding, so core-api keeps no copy of the embedding model name."""
 
     vector: list[float]
     model: str
@@ -210,73 +198,10 @@ class EmbedResponse(BaseModel):
 
 class PiiDetectRequest(BaseModel):
     """RAW, unmasked text: the one exception to "only masked text enters
-    ai-engine" (ADR-0012). Never logged, stored or passed into the graph."""
+    ai-engine" (ADR-0012)."""
 
     text: str
 
 
 class PiiDetectResponse(BaseModel):
-    """Exact substrings of the request text that are free-form PII. An empty
-    list is a real answer ("nothing found"); a failure is a 502, never []."""
-
     spans: list[str]
-
-
-class RankedChunk(BaseModel):
-    """A reranked chunk — spec §6.3. `score` is the cross-encoder score, the
-    only one retrieval thresholds may compare against (ADR-0005)."""
-
-    model_config = ConfigDict(frozen=True)
-
-    chunk_id: uuid.UUID
-    article_id: uuid.UUID
-    article_slug: str
-    content: str
-    score: float
-
-
-class TriageState(BaseModel):
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    # Input (immutable)
-    ticket: TicketMasked
-    request_id: str
-    retrieval_floor: float
-
-    # Progressive output. The defaults are what "this node has not run" reads
-    # as. List fields deliberately have NO reducer: each is owned by exactly
-    # one node.
-
-    # InjectionNode
-    injection_detected: bool = False
-    injection_matched_patterns: list[str] = []
-
-    # HybridRetrieveNode
-    bm25_keyword_hit: bool = False
-    candidates: list[Candidate] = []  # post-RRF
-
-    # RerankNode
-    reranked: list[RankedChunk] = []
-
-    # SelectFewshotsNode
-    fewshots: list[dict[str, Any]] = []
-
-    # InferNode
-    proposal: LLMProposalEnvelope | None = None
-    tokens_in: int = 0
-    tokens_out: int = 0
-    cost_usd: float = 0.0
-    model_used: str | None = None
-    degraded_reason: str | None = None
-
-    # ValidateNode
-    schema_valid: bool = False
-    quote_applicable: bool = False
-    quote_match_ratio: float = 0.0
-    quote_source_in_topk: bool = False
-    negation_consistent: bool = False
-    category_consistent: bool = False
-    source_chunk_id: uuid.UUID | None = None
-
-    # EmitSignalsNode
-    signals: TrustSignals | None = None

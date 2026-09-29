@@ -5,12 +5,7 @@ never part of the feature set.
 """
 
 from apps.tickets.utils.patterns import PIILevel
-from infrastructure.ai_engine import (
-    GenerationSignals,
-    PolicySignals,
-    RetrievalSignals,
-    TrustSignals,
-)
+from infrastructure.dtos import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
 
 from apps.tickets.utils.trust_scorer import (
     FEATURES,

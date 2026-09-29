@@ -24,8 +24,10 @@ from ai_engine.core.providers import embeddings, reranker as reranker_module
 from ai_engine.core.providers.llm import models
 from ai_engine.core.providers.llm.models import LLMClient
 from ai_engine.core.providers.embeddings import Embedder
+from ai_engine.core.providers.pii import PiiDetector
 from ai_engine.core.providers.reranker import Reranker
 from ai_engine.core.retrieval.fusion import Candidate
+from ai_engine import main
 from ai_engine.graph.nodes import (
     emit_signals as emit_signals_node,
     fewshot as fewshot_node,
@@ -71,11 +73,31 @@ class FakeEmbedder(Embedder):
         self._vector = vector if vector is not None else [0.1] * 8
         self._error = error
 
+    @property
+    def model(self) -> str:
+        return "fake-embed"
+
     def embed(self, text: str) -> list[float]:
         self.calls.append(text)
         if self._error is not None:
             raise self._error
         return self._vector
+
+
+class FakePiiDetector(PiiDetector):
+    """Records the raw texts it was handed. `error` makes detect() raise, which
+    is how the fail-to-MASK_FAILED path gets exercised."""
+
+    def __init__(self, spans: list[str] | None = None, error: Exception | None = None):
+        self.calls: list[str] = []
+        self._spans = spans if spans is not None else []
+        self._error = error
+
+    def detect(self, text: str) -> list[str]:
+        self.calls.append(text)
+        if self._error is not None:
+            raise self._error
+        return list(self._spans)
 
 
 class FakeReranker(Reranker):
@@ -221,6 +243,11 @@ def fake_embedder():
 
 
 @pytest.fixture
+def fake_pii_detector():
+    return FakePiiDetector
+
+
+@pytest.fixture
 def fake_reranker():
     return FakeReranker
 
@@ -235,8 +262,8 @@ def fake_db():
     return FakeSessionSource
 
 
-# Nodes use the provider singletons directly (`db`, `embedder`, `reranker`,
-# `models.chat`). These fixtures swap one in for a fake in every node module
+# Nodes and endpoints use the provider singletons directly (`db`, `embedder`,
+# `reranker`, `pii_detector`, `models.chat`). These fixtures swap one in for a fake in every node module
 # that reads it, and return the fake. The modules are listed here once, so a
 # test cannot miss one; monkeypatch raises on a misspelled attribute and
 # restores everything after the test.
@@ -255,8 +282,17 @@ def use_db(monkeypatch):
 @pytest.fixture
 def use_embedder(monkeypatch):
     def use(fake):
-        for module in (retrieve_node, fewshot_node):
+        for module in (retrieve_node, fewshot_node, main):
             monkeypatch.setattr(module, "embedder", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
+def use_pii_detector(monkeypatch):
+    def use(fake):
+        monkeypatch.setattr(main, "pii_detector", fake)
         return fake
 
     return use
