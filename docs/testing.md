@@ -126,11 +126,17 @@ Two of these are deliberately not negotiable:
 
 **Auto-reply precision is an absolute floor, not relative to baseline.** A relative gate ratchets downward one acceptable-looking regression at a time.
 
-### Known failure
+### Known failures
 
-`other` scored **F1 0.75** against the 0.85 floor — precision 1.00, recall 0.60, so the model *under*-assigned rather than over-assigned. That was measured on the old Vietnamese KB (single `other` article, KB-0010). The golden set now targets the English AWS demo KB (`demo_kb/`), where no article is `other`, so the classification suite also scores the out-of-KB cases (all `other`). Re-measure before relying on the old number.
+On the full runs of 2026-09-29, the first on the English AWS demo KB, one gate fails: retrieval recall **0.72** ([`TODO.md`](TODO.md) item 9). Auto-reply precision is 1.00.
 
-This is recorded in `evals/baselines/baseline.json` as a known issue rather than smoothed into the baseline. **Do not** lower the floor, average the F1, or drop the category to make CI green. Fix the KB content or the prompt — see [`TODO.md`](TODO.md) item 3.
+**On an out-of-KB case, a refusal counts as a correct `other`.** Scored strictly, the classification suite demanded the opposite of the refusal suite on the same tickets. An IT category or an auto-reply on such a ticket still fails. See [`evals/HISTORY.md`](../evals/HISTORY.md) for the decision.
+
+**Do not** lower the floor, average the F1, or drop the category to make CI green.
+
+### Run history
+
+[`evals/HISTORY.md`](../evals/HISTORY.md) records every full run (`EVAL_FULL_RUN=1`), newest first, with its configuration (code, prompt, models, KB snapshot, golden set, thresholds), its metrics, and what they meant. `baseline.json` is what the gate compares against; the history is where each number's context lives. Add an entry for every full run, passing or not.
 
 ### Baselines
 

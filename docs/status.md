@@ -13,7 +13,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | Spec phases complete | **P0, P1** |
 | Phase in progress | **P2** — calibration scripts ready, awaiting ≥500 shadow pairs |
 | Unit tests | **242 passing** (74 core-api, 168 ai-engine) |
-| Eval suites | 8 collected; **7 pass, 1 known failure** (`other` category F1) |
+| Eval suites | 8 collected; **7 pass, 1 fails** (retrieval recall) on the full runs of 2026-09-29; see [`evals/HISTORY.md`](../evals/HISTORY.md) |
 | Masking branch coverage | **100%** — the spec §14 P0 exit condition |
 | Router branch coverage | 98% — the one uncovered line is unreachable by construction |
 | Operating mode | `SHADOW_MODE=true` — router decides, humans still handle everything |
@@ -91,11 +91,14 @@ See [TODO.md](TODO.md) item 4.
 
 `trace_id` is minted per request, propagated through core-api → Celery → ai-engine, and stored on `audit_log.trace_id`, so a ticket's history is reconstructable from the database. The spec §11.2 idea of jumping from a business log line into a full LLM trace needs a LangSmith/Langfuse exporter, which is not wired up.
 
-### Gap 5 — `other` category F1 below the CI floor
+### Gap 5 — Retrieval recall below the CI floor
 
-`test_per_category_f1_meets_threshold` fails: `other` scores **0.75** against the 0.85 absolute floor.
+Measured on the full golden set on 2026-09-29, the first run on the English AWS demo KB. Every run, with its configuration and per-case findings, is in [`evals/HISTORY.md`](../evals/HISTORY.md).
 
-This is a genuine, reproducible model finding, recorded in `evals/baselines/baseline.json` rather than smoothed into the baseline. It was measured on the old 12-article Vietnamese KB, where `other` mapped to a single HR article (KB-0010). **The KB and golden set are now the English AWS demo KB (`demo_kb/`), so this number needs re-measuring**. `other` stays gated: with no `other` article in an AWS KB, the classification suite now also scores the out-of-KB cases, which are all `other`. **Do not lower the floor or drop the category to make CI green** — per-category F1 exists precisely so a rare category cannot hide behind a healthy average.
+- **`other` F1** failed at 0.36 under strict scoring, which counted a refusal on an out-of-KB ticket as a miss, the opposite of the refusal suite. Rescored so that refusal counts (a reviewed decision, [`TODO.md`](TODO.md) item 3), it is **0.98**.
+- **Retrieval recall 0.72** against the baseline's 1.00, which was measured on 12 one-chunk articles and isn't comparable. Mostly several chunks of one article filling all three `rerank_top_n` slots ([`TODO.md`](TODO.md) item 9).
+
+Auto-reply precision on the same run is 1.00 (n=19). **Do not lower a floor or drop a category to make CI green** — per-category F1 exists precisely so a rare category cannot hide behind a healthy average.
 
 ---
 

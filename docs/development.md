@@ -121,7 +121,7 @@ Two invariants CI enforces that you should not work around:
 - **Masking keeps 100% branch coverage.** It is the P0 release gate.
 - **Per-category F1 ≥ 0.85, never averaged.** Averaging hides the rare-but-serious category.
 
-`other` currently fails at F1 0.75. That is a documented model weakness, not a broken checkout — see [`TODO.md`](TODO.md) item 3.
+Retrieval recall currently fails on a full run. That is a documented finding, not a broken checkout — see [`../evals/HISTORY.md`](../evals/HISTORY.md) and [`TODO.md`](TODO.md) item 9.
 
 ---
 
@@ -136,6 +136,7 @@ Two invariants CI enforces that you should not work around:
 | All four generation checks ✗ | No LLM ran. Read the reason code above the panel — usually a degraded run |
 | Unaccented Vietnamese matches nothing | `LexicalReranker` folds diacritics (`_strip_diacritics`). If this regresses, tickets typed without tone marks stop matching an accented KB |
 | Connecting to port 5432 / 6379 fails | Host ports are **5434** and **6380**; `db:5432` / `redis:6379` are internal only |
+| `column "id" is of type bigint but expression is of type uuid` | Your dev DB volume predates a `0001_initial` migration that was rewritten in place. Reset it: [`onboarding.md`](onboarding.md) step 7 |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — it's parsed into a Pydantic model at startup on purpose, so bad config fails loudly rather than at routing time |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
 

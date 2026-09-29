@@ -186,10 +186,13 @@ python -c "import os,base64;print('PII_ENCRYPTION_KEY='+base64.b64encode(os.uran
 cd infra && docker compose up -d --build
 ```
 
-Self-hosted models run in the `vllm` profile (ADR-0009):
+Self-hosted models run in the `vllm` profile (ADR-0009). The three servers
+share one GPU, so start them one at a time and size their memory fractions to
+your card first: [`docs/onboarding.md`](docs/onboarding.md) step 2 has the
+numbers (on a 12 GiB card they only just fit).
 
 ```bash
-docker compose --profile vllm up -d
+docker compose --profile vllm up -d vllm-chat    # then vllm-embed, then vllm-rerank
 ```
 
 | Service | Port | |
@@ -214,7 +217,7 @@ python3 demo_kb/fetch.py     # first time: download the snapshot's pages (~30 mi
 
 docker compose exec core-api python manage.py shell -c "
 from apps.accounts.models import User
-for name, role in [('employee1','employee'), ('tech1','technician'), ('manager1','manager'), ('security1','security')]:
+for name, role in [('employee1','employee'), ('tech1','technician'), ('tech2','technician'), ('manager1','manager'), ('security1','security')]:
     User.objects.create_user(name, password='change-me', role=role)"
 
 docker compose exec core-api python manage.py load_demo_kb --approver manager1
@@ -385,7 +388,7 @@ uv run python evals/report.py --compare evals/baselines/baseline.json
 
 Per-category F1 is deliberately not averaged — a rare-but-serious category like `security` can sit at 0.4 while the mean still looks healthy.
 
-> **Known failing gate:** `other` currently scores **F1 0.75** against the 0.85 floor. This is a real, reproducible finding, not a harness bug — the category maps to a single KB article (leave requests, genuinely an HR matter arriving through IT) that the model classifies inconsistently. It is recorded in `baselines/baseline.json` rather than smoothed away. Fix the prompt/KB content; do not lower the floor.
+> **Known failing gate:** retrieval recall is **0.72** on the full runs of 2026-09-29, while auto-reply precision is 1.00. What each means, and every run since, is in [`evals/HISTORY.md`](evals/HISTORY.md). Do not lower a floor to make CI green.
 
 ---
 

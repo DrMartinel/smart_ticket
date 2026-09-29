@@ -51,7 +51,16 @@ that moves a failure path is more significant here than a new feature.
   `section_title`; fenced code blocks are never split or read as headings.
   Plain-text bodies chunk exactly as before. The embedding input is prefixed
   with the article and section titles; the stored `content` (what the model
-  may quote) is unchanged.
+  may quote) is unchanged. A block longer than the chunk target by itself
+  (a Markdown table, which has no blank lines, or a long code block) is split
+  at line breaks, and a single over-long line into word windows. Without
+  this, 141 chunks of the AWS snapshot were past bge-m3's 8,192-token
+  context (the largest a 361,000-character IAM table), and `load_demo_kb`
+  stopped on the first with a 502 from `/v1/embed`.
+- **vLLM memory defaults fit a 12 GiB card.** `vllm-embed` and `vllm-rerank`
+  default to 0.12 of the GPU (was 0.1, less than bge-m3's weights leave room
+  for) and run with `--enforce-eager`, skipping the CUDA-graph capture that
+  ran out of memory at startup.
 - **`classify.v5`**: the desk is an internal cloud-platform help desk, and
   each category names the AWS services it covers. Output contract unchanged.
 - **The negation check now works for English quotes** (behaviour change,
@@ -60,7 +69,11 @@ that moves a failure path is more significant here than a new feature.
   quote cut from "Do not delete…". English negations are matched on word
   boundaries. The comparison is now against the sentence(s) the quote was cut
   from rather than the whole chunk, since a 250-word chunk almost always
-  contains a "not" and would otherwise flag every English quote.
+  contains a "not" and would otherwise flag every English quote. Negations
+  are counted, so a quote that keeps one of two "not"s is still caught, and
+  "e.g."/"i.e."/"etc."/"vs." don't end a sentence. Known gap, pinned as a
+  strict xfail: a negated list lead-in ("Don't do any of the following:")
+  doesn't reach a quote cut from an item below it.
 - **`BANK_ACCOUNT` detects English keywords** ("bank account", "account
   number", "acct no"). It only matched Vietnamese keywords, so an English
   ticket's bank account reached the NER tier alone. Masking widened, never

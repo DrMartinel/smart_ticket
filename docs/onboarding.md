@@ -38,61 +38,107 @@ Without a GPU the pipeline still *runs*: masking fails closed to `MASK_FAILED` a
 
 ---
 
----
-
 ## 2. Start the self-hosted models
 
 Every model — inference, PII detection, embeddings, reranking — is served by
 vLLM in the `vllm` compose profile (ADR-0009). It needs an NVIDIA GPU; on
 Windows, Docker Desktop with the WSL2 backend.
 
-```bash
-cd infra && docker compose --profile vllm up -d vllm-chat vllm-embed vllm-rerank
-```
-
-The first start downloads the models into `HF_CACHE_DIR`. The three servers
-share one GPU through `VLLM_CHAT_GPU_UTIL` / `VLLM_EMBED_GPU_UTIL` /
-`VLLM_RERANK_GPU_UTIL` in `infra/.env` — tune them to your VRAM. Verify from
-inside the network:
+Create `infra/.env` first: the GPU settings below are read from it.
 
 ```bash
-docker compose exec ai-engine sh -c \
-  'curl -s -m 5 -o /dev/null -w "%{http_code}\n" $CHAT_BASE_URL/models'
+cp infra/.env.example infra/.env
 ```
 
-Only ai-engine talks to vLLM (ADR-0012). core-api's PII detection and
-embeddings go through ai-engine, so it needs ai-engine up, not the vLLM URLs.
+The three servers share one GPU. vLLM reserves memory up front, and each
+server gets a fixed fraction of the card:
 
-`200` is good. Anything else means masking will fail closed to `MASK_FAILED`
-for every ticket.
+| Server | Setting in `infra/.env` | Default | Holds |
+|---|---|---|---|
+| `vllm-chat` | `VLLM_CHAT_GPU_UTIL` | 0.6 | Qwen3-8B-AWQ, ~5.7 GiB of weights plus its KV cache |
+| `vllm-embed` | `VLLM_EMBED_GPU_UTIL` | 0.12 | bge-m3, ~1.1 GiB of weights |
+| `vllm-rerank` | `VLLM_RERANK_GPU_UTIL` | 0.12 | bge-reranker-v2-m3, ~1.1 GiB of weights |
+
+On a 12 GiB card this is a tight fit: about 11 GiB in use with all three up.
+Don't set the embed or rerank fraction below 0.12 there, or their weights
+leave no room to run and the server dies at startup with `CUDA error: out of
+memory`. If you need memory back, lower `VLLM_CHAT_GPU_UTIL` (0.55 still fits
+with `VLLM_CHAT_MAX_MODEL_LEN=4096`).
+
+Start them **one at a time**. Each measures free memory when it starts, so
+starting all three together can leave two of them fighting over the same
+free memory:
+
+```bash
+cd infra
+docker compose --profile vllm up -d vllm-chat
+docker compose logs -f vllm-chat      # Ctrl-C at "Application startup complete"
+docker compose --profile vllm up -d vllm-embed
+docker compose logs -f vllm-embed
+docker compose --profile vllm up -d vllm-rerank
+docker compose logs -f vllm-rerank
+nvidia-smi                            # all three fit, with a little to spare
+```
+
+The first start downloads the models into `HF_CACHE_DIR`, which is most of
+this guide's 30 minutes. If a server exits, the real cause is higher up its
+log than the final `Engine core initialization failed` line: `docker compose
+logs vllm-embed | grep -i error`.
 
 ---
 
 ## 3. Bring it up
 
+From `infra/`:
+
 ```bash
-cp infra/.env.example infra/.env
-cd infra && docker compose up -d --build
+docker compose up -d --build
 ```
 
-Migrations run automatically on `core-api` start. Then create a user per
-role and load the demo knowledge base, a frozen snapshot of AWS
-documentation kept in [`demo_kb/`](../demo_kb/):
+`--build` matters on every start after a `git pull`: the images have the
+code baked in, and a stale `ai-engine` or `core-api` image talks an older wire
+schema (see step 7). Migrations run automatically on `core-api` start.
+
+Check that ai-engine reaches all three models. Only ai-engine talks to vLLM
+(ADR-0012); core-api's PII detection and embeddings go through it.
 
 ```bash
-python3 demo_kb/fetch.py     # first time only: downloads the snapshot's pages (~30 min)
+docker compose exec ai-engine sh -c \
+  'curl -s -m 5 -o /dev/null -w "%{http_code}\n" $CHAT_BASE_URL/models'
+curl -s -X POST localhost:8001/v1/embed -H 'content-type: application/json' \
+  -d '{"text": "SSH connection timed out"}' | head -c 80
+```
+
+`200` and a vector are good. Anything else means masking will fail closed to
+`MASK_FAILED` for every ticket, and the KB can't be loaded.
+
+Then create a user per role and load the demo knowledge base, a frozen
+snapshot of AWS documentation kept in [`demo_kb/`](../demo_kb/):
+
+```bash
+python3 ../demo_kb/fetch.py  # first time only: downloads the snapshot's pages (~30 min, resumable)
 
 docker compose exec core-api python manage.py shell -c "
 from apps.accounts.models import User
-for name, role in [('employee1','employee'), ('tech1','technician'), ('manager1','manager'), ('security1','security')]:
+for name, role in [('employee1','employee'), ('tech1','technician'), ('tech2','technician'), ('manager1','manager'), ('security1','security')]:
     User.objects.create_user(name, password='change-me', role=role)"
 
 docker compose exec core-api python manage.py load_demo_kb --approver manager1
 ```
 
-`load_demo_kb` loads about 3,500 articles (every page is checked against
+`load_demo_kb` loads 3,542 articles (every page is checked against
 `manifest.json`) and applies the auto-reply approvals in
 `demo_kb/curation.json` through the normal governance path, as `manager1`.
+It embeds every chunk through ai-engine, about 28,500 of them, so expect it
+to take a while. It prints progress every 100 pages and a summary at the end.
+
+It is safe to re-run: unchanged articles are skipped, and an article left
+with no chunks by an interrupted run is embedded again. To check the result:
+
+```bash
+docker compose exec db psql -U app_user -d smart_triage -c \
+  "select count(*) from kb_articles; select count(*) from kb_chunks;"
+```
 
 ---
 
@@ -146,7 +192,16 @@ For core-api alone, `cd services/core-api && make` lists its targets (`make test
 
 > `uv sync` alone installs only the root project's dependency group. The root has no dependencies of its own, so neither the workspace members nor Django get installed and pytest won't even start. Always `--all-packages`.
 
-One eval currently fails on purpose: `other` category F1 is 0.75 against a 0.85 floor. That is a real, documented model weakness recorded in `evals/baselines/baseline.json` — not a broken checkout. See [`TODO.md`](TODO.md) item 3.
+The eval suites that need a live pipeline (classification, end-to-end, refusal, retrieval) **skip** when nothing answers on `localhost:8001`. With the stack from step 3 running, they run for real against it. That needs:
+
+- the models up (step 2) and **fresh images** (`docker compose up -d --build`): an old ai-engine image rejects the evals' requests with `422`, and the suites fail rather than skip;
+- the demo KB loaded (step 3), or retrieval has nothing to find.
+
+```bash
+uv run pytest evals/suites -q
+```
+
+Add `EVAL_FULL_RUN=1` for numbers you can trust: the default runs a small sample that only proves the wiring. Record every full run in [`evals/HISTORY.md`](../evals/HISTORY.md), which has the exact commands and the previous runs to compare against. If a floor fails, record it: never lower a floor to make CI green, and a baseline update needs a reviewer other than its author.
 
 ---
 
@@ -173,6 +228,10 @@ You are ready to work on this when you can answer:
 | Vietnamese ticket matches nothing | Was a real bug (diacritics); fixed. If it recurs, check `_strip_diacritics` in the reranker | — |
 | Port 5432/6379 conflict | You are looking at the wrong ports | Use **5434** / **6380** |
 | `core-api` exits on boot | `thresholds.yaml` unreadable or malformed | It is parsed into a Pydantic model at boot, on purpose — read the traceback |
+| A `vllm-*` container exits with `Engine core initialization failed` | Almost always `CUDA error: out of memory`, further up its log: the three servers don't fit on the card together | Step 2: raise the fraction for the one that died, lower `VLLM_CHAT_GPU_UTIL`, start them one at a time |
+| Any write fails with `column "id" is of type bigint but expression is of type uuid` | Your `db_data` volume was migrated before a `0001_initial` migration was rewritten in place (the UUID change, ADR-0011). Django tracks migrations by name, so it never re-runs the new version | Reset the dev database: `docker compose down`, `docker volume rm infra_db_data`, `docker compose up -d --build`, then redo step 3. This deletes all local data |
+| `load_demo_kb` stops with `502 Bad Gateway` on `/v1/embed` | The embedder rejected an input or is down. `docker compose logs ai-engine \| grep embedder` shows vLLM's reason | Down: step 2. `maximum context length`: a chunk is too long for bge-m3, a chunking bug in `apps/kb/utils.py`. Re-running is safe once fixed |
+| Evals fail with `422` from `/v1/analyze` | The running ai-engine image predates the current wire schema | `docker compose up -d --build ai-engine` |
 
 ---
 

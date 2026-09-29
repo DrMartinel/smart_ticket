@@ -212,10 +212,12 @@ copies that directory — a new SQL file that isn't copied fails at container st
   Demo tickets and the golden set are English. The snapshot is frozen: pages
   are checked against `manifest.json`, and each auto-reply approval in
   `curation.json` is pinned to the SHA-256 of the reviewed text.
-- **Known CI failure (needs re-measuring):** `other` category F1 was **0.75**
-  against a 0.85 floor on the old Vietnamese KB. `other` now has no KB
-  article, so the classification suite also scores out-of-KB cases (all
-  `other`). See TODO item 3.
+- **One eval gate fails** (full runs, 2026-09-29, [`evals/HISTORY.md`](evals/HISTORY.md)):
+  retrieval recall **0.72**, mostly one article's chunks filling the top 3
+  (TODO item 9). Auto-reply precision is 1.00. `other` F1 is 0.98 since a
+  refusal on an out-of-KB ticket counts as correct, as in the refusal
+  suite; that scoring rule is deliberate, don't revert it to "fix" a
+  number. Record every full run in `evals/HISTORY.md`.
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
@@ -245,6 +247,8 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
 | mypy: `ImproperlyConfigured` / plugin can't load settings | The django-stubs plugin imports `config.settings.test` (set in `[tool.django-stubs]`). Run `uv run mypy` from the repo root (or `make typecheck` in core-api) after `uv sync --all-packages`, not `uvx mypy`, which has no Django |
 | Tempted to annotate `objects`, `<fk>_id` or a reverse manager on a model | Don't: the django-stubs plugin infers managers, `_id` fields and related managers. Those declarations were pyright-era workarounds |
+| `column "id" is of type bigint but expression is of type uuid` on a dev DB | The `db_data` volume was migrated before a `0001_initial` was rewritten in place (the UUID change). Django tracks migrations by name and won't re-run it. Reset the volume (`docs/onboarding.md` step 7); don't write a migration to patch a dev DB |
+| A `vllm-*` container dies with `Engine core initialization failed` | CUDA out of memory: the three servers share one GPU. Fractions and start order: `docs/onboarding.md` step 2 |
 | New model has a bigint `id`; `test_every_model_has_a_uuid_primary_key` fails | Inherit `apps.core.models.BaseModel`, which declares `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)` (ADR-0011). `DEFAULT_AUTO_FIELD` is still `BigAutoField`, for Django's own tables |
 
 ## Testing conventions
