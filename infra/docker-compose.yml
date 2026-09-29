@@ -28,7 +28,11 @@ x-core-api-env: &core-api-env
 
 services:
   db:
-    image: pgvector/pgvector:pg17
+    # pgvector + pg_search (ADR-0013). The preload flag is required: without
+    # it `CREATE EXTENSION pg_search` fails and BM25 queries error out.
+    build: ./db
+    image: smart-triage-db:pg17-pg_search-0.25.10
+    command: ["postgres", "-c", "shared_preload_libraries=pg_search"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-smart_triage}
       POSTGRES_USER: ${POSTGRES_APP_USER:-app_user}
