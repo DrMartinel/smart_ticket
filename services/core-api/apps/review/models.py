@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, ClassVar
 from django.conf import settings
 from django.db import models, transaction
 from django.db.models import QuerySet
+from apps.core.models import BaseModel
 from django.utils import timezone
 
 from apps.tickets.utils.router import ReviewQueue
@@ -52,8 +53,7 @@ class ReviewItemManager(models.Manager["ReviewItem"]):
         return qs.order_by("priority", "created_at")
 
 
-class ReviewItem(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+class ReviewItem(BaseModel):
     decisions: RelatedManager[ReviewDecision]
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="review_items")
@@ -69,7 +69,7 @@ class ReviewItem(models.Model):
     claimed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "review_items"
 
     # django-types types Model.objects as BaseManager[Model], so any custom manager
@@ -142,12 +142,10 @@ class ReviewItem(models.Model):
         return decision
 
 
-class ReviewDecision(models.Model):
+class ReviewDecision(BaseModel):
     """One human decision = one training label. Spec §3.4: "câu hỏi cụ
     thể, không phải nút Approve" — this is why the fields below are
     specific verdicts, not a single approve/reject boolean."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     review_item = models.ForeignKey(ReviewItem, on_delete=models.CASCADE, related_name="decisions")
     reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
@@ -168,15 +166,13 @@ class ReviewDecision(models.Model):
     time_spent_sec = models.IntegerField()  # detects approval fatigue
     decided_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "review_decisions"
 
 
-class EvalCandidate(models.Model):
+class EvalCandidate(BaseModel):
     """Auto-generated golden-set candidate from any human override — spec
     §12.4's free-label loop."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="eval_candidates")
     source = models.CharField(max_length=30)  # human_override|reroute|reopen|refusal_spike
@@ -185,5 +181,5 @@ class EvalCandidate(models.Model):
     promoted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "eval_candidates"

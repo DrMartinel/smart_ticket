@@ -22,6 +22,9 @@ Every model in core-api declares its key explicitly:
 id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 ```
 
+(Since then declared once, on the abstract `apps.core.models.BaseModel` that
+every model inherits. Same column, no migration.)
+
 - **Version 4** (random, stdlib `uuid.uuid4`). Version 7 would keep new rows
   in insert order in the primary-key index, but Python 3.13 has no
   `uuid7()` and it was not worth a new dependency yet. Revisit if insert

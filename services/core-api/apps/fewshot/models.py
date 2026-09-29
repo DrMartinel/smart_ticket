@@ -4,7 +4,6 @@ retraction)."""
 
 from __future__ import annotations
 
-import uuid
 
 from typing import Any, ClassVar
 
@@ -14,6 +13,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 from pgvector.django import VectorField
 
+from apps.core.models import BaseModel
 from infrastructure.ai_engine import TicketCategory
 from apps.accounts.models import User
 from apps.tickets.models import Ticket
@@ -74,9 +74,7 @@ class FewshotExampleManager(models.Manager["FewshotExample"]):
         return qs[: limit or th.max_per_category]
 
 
-class FewshotExample(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
+class FewshotExample(BaseModel):
     source_ticket = models.ForeignKey(
         Ticket, on_delete=models.CASCADE, related_name="fewshot_examples"
     )
@@ -97,7 +95,7 @@ class FewshotExample(models.Model):
     # reads as an incompatible override.
     objects: ClassVar[FewshotExampleManager] = FewshotExampleManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "fewshot_examples"
         # chk_fewshot_confirmed CHECK constraint is added by
         # infra/migrations/sql/0003_constraints_and_triggers.sql.

@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     "django.contrib.postgres",
     "corsheaders",
     "ninja_extra",
+    "apps.core",
     "apps.dbextras",
     "apps.accounts",
     "apps.audit",
@@ -42,7 +43,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "apps.audit.middleware.TraceIdMiddleware",
+    "apps.core.middleware.TraceIdMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"

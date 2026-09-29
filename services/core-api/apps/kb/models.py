@@ -6,13 +6,12 @@ to require an approver, never something the LLM can grant itself.
 
 from __future__ import annotations
 
-import uuid
-
 from typing import ClassVar
 
 from django.conf import settings
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models, transaction
+from apps.core.models import BaseModel
 from django.utils import timezone
 from pgvector.django import VectorField
 
@@ -46,9 +45,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
         return article
 
 
-class KbArticle(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
+class KbArticle(BaseModel):
     slug = models.CharField(max_length=32, unique=True)  # KB-0142
     title = models.CharField(max_length=255)
     body = models.TextField()
@@ -78,7 +75,7 @@ class KbArticle(models.Model):
     is_active = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "kb_articles"
         # chk_autoreply_approved CHECK constraint is added by
         # infra/migrations/sql/0003_constraints_and_triggers.sql.
@@ -173,9 +170,7 @@ class KbArticle(models.Model):
         return self
 
 
-class KbChunk(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
+class KbChunk(BaseModel):
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
     content = models.TextField()
@@ -186,7 +181,7 @@ class KbChunk(models.Model):
     # not by Django, so BM25 (ts_rank_cd) stays correct regardless of write path.
     tsv = SearchVectorField(null=True, blank=True, editable=False)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "kb_chunks"
         constraints = [
             models.UniqueConstraint(
@@ -195,13 +190,11 @@ class KbChunk(models.Model):
         ]
 
 
-class KbAuthorityLog(models.Model):
+class KbAuthorityLog(BaseModel):
     """Mandatory audit trail for `auto_reply_allowed` / `risk_tier`
     changes — spec §3.2. Every flip requires a human, a role check, and a
     reason (enforced in `KbArticle.set_auto_reply_allowed` / `set_risk_tier`, not
     just here)."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="authority_log")
     field = models.CharField(max_length=40)  # auto_reply_allowed | risk_tier
@@ -211,5 +204,5 @@ class KbAuthorityLog(models.Model):
     reason = models.TextField()
     changed_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "kb_authority_log"

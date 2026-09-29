@@ -99,12 +99,13 @@ smart_ticket/
 │   │   ├── scripts/gen_typescript.py # generates web/lib/types/generated.ts
 │   │   ├── apps/                #   each: views · request/response_schema · models (fat) · utils · tasks · tests/
 │   │   │   ├── accounts/        #   RBAC: employee · technician · manager · security
+│   │   │   ├── core/            #   shared foundation, imports no app: BaseModel · trace_id middleware · wait_for_db · test helpers
 │   │   │   ├── tickets/         #   models, views, Celery entry points, utils/*
 │   │   │   │   └── utils/       #     router · trust_scorer · masking · patterns · crypto · pipeline
 │   │   │   ├── kb/              #   KB CRUD + auto_reply_allowed governance
 │   │   │   ├── review/          #   HITL queue, decisions, eval candidates
 │   │   │   ├── fewshot/         #   few-shot pool (TTL, retraction)
-│   │   │   ├── audit/           #   append-only audit log + trace_id middleware
+│   │   │   ├── audit/           #   append-only audit log
 │   │   │   ├── itsm_mock/       #   mock ITSM runbook execution
 │   │   │   ├── metrics/         #   dashboard aggregation
 │   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants), seed_demo

@@ -14,6 +14,8 @@ from typing import Any, ClassVar
 
 from django.db import models
 
+from apps.core.models import BaseModel
+
 
 class AuditLogManager(models.Manager["AuditLog"]):
     def record(
@@ -42,9 +44,7 @@ class AuditLogManager(models.Manager["AuditLog"]):
         )
 
 
-class AuditLog(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
+class AuditLog(BaseModel):
     ticket_id = models.UUIDField(null=True, blank=True)
     actor_type = models.CharField(max_length=20)  # system|ai|human
     actor_id = models.UUIDField(null=True, blank=True)
@@ -57,7 +57,7 @@ class AuditLog(models.Model):
     # reads as an incompatible override.
     objects: ClassVar[AuditLogManager] = AuditLogManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "audit_log"
         # Indexes are created by infra/migrations/sql/0002_indexes.sql, not
         # here, to keep index ownership in one place (see apps/tickets's

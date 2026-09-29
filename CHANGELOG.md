@@ -15,6 +15,14 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **`apps/core`, the shared foundation app.** Every app may import from it;
+  it imports from no app, pinned by `apps/core/tests/test_boundary.py`.
+  Moved in: `TraceIdMiddleware` (from `apps/audit`), the `wait_for_db`
+  command (from `apps/dbextras`), and the `api_as` JWT client helper (now
+  `apps.core.testing.api_client_for`). The UUID primary key (ADR-0011) is
+  declared once on the abstract `apps.core.models.BaseModel`, which all 16
+  business models inherit; `makemigrations --check` reports no change.
+
 - **Every business table is keyed by a UUID (v4) instead of a bigint**
   (ADR-0011, departs from the spec's `BIGSERIAL` DDL). Each model declares
   `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)`,

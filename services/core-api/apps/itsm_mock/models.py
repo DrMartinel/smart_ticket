@@ -7,13 +7,13 @@ if a caller somehow bypassed the router.
 
 from __future__ import annotations
 
-import uuid
 
 from typing import ClassVar, TypedDict
 
 from django.conf import settings
 from django.db import models, transaction
 
+from apps.core.models import BaseModel
 from apps.accounts.models import User
 from apps.review.models import ReviewItem
 from apps.tickets.models import Ticket
@@ -90,9 +90,7 @@ class RunbookExecutionManager(models.Manager["RunbookExecution"]):
         )
 
 
-class RunbookExecution(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-
+class RunbookExecution(BaseModel):
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="runbook_executions")
     review_item = models.ForeignKey(
         ReviewItem, on_delete=models.PROTECT, related_name="runbook_executions"
@@ -108,5 +106,5 @@ class RunbookExecution(models.Model):
     # reads as an incompatible override.
     objects: ClassVar[RunbookExecutionManager] = RunbookExecutionManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "runbook_executions"

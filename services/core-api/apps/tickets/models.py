@@ -19,6 +19,7 @@ from django.db import connection, models, transaction
 from django.utils import timezone
 from pgvector.django import CosineDistance, VectorField
 
+from apps.core.models import BaseModel
 from apps.tickets.utils.patterns import PIILevel
 from infrastructure.ai_engine import TicketCategory
 from apps.tickets.request_schema import TicketIn
@@ -93,11 +94,9 @@ class IncidentManager(models.Manager["Incident"]):
         return incident
 
 
-class Incident(models.Model):
+class Incident(BaseModel):
     """§3.5. A mass-incident parent: created when the incident detector
     (§9) finds ticket volume far above its adaptive baseline."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     public_id = models.CharField(max_length=32, unique=True)  # INC-2026-0007
     title = models.CharField(max_length=255)
@@ -110,7 +109,7 @@ class Incident(models.Model):
     status = models.CharField(max_length=20, default="open")
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "incidents"
 
     # django-types types Model.objects as BaseManager[Model], so any custom manager
@@ -244,11 +243,10 @@ class TicketManager(models.Manager["Ticket"]):
         return ticket
 
 
-class Ticket(models.Model):
+class Ticket(BaseModel):
     """§3.1. The main table holds ONLY masked data — raw PII never lands
     here (see PiiQuarantine below and apps/tickets/utils/masking.py)."""
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     reporter_id: uuid.UUID
     incident_id: uuid.UUID | None
     ai_runs: RelatedManager[AiRun]
@@ -291,7 +289,7 @@ class Ticket(models.Model):
     reopened_count = models.SmallIntegerField(default=0)  # the most important metric
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "tickets"
 
     # django-types types Model.objects as BaseManager[Model], so any custom manager
@@ -356,15 +354,13 @@ class PiiQuarantine(models.Model):
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "pii_quarantine"
 
 
-class PiiAccessLog(models.Model):
+class PiiAccessLog(BaseModel):
     """Every raw-PII read is a row here. No exceptions — enforced by
     routing every quarantine read through one service function."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     ref = models.UUIDField()
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
@@ -384,12 +380,10 @@ class AiRunManager(models.Manager["AiRun"]):
         return float(sum(c or 0 for c in total))
 
 
-class AiRun(models.Model):
+class AiRun(BaseModel):
     """§3.3. One row per ai-engine invocation. `proposed_draft` is the raw,
     not-yet-trusted LLM output; `trust_signals`/`trust_score` are what the
     router actually acts on."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="ai_runs")
     idempotency_key = models.CharField(max_length=100, unique=True)  # ticket_id + attempt
@@ -414,7 +408,7 @@ class AiRun(models.Model):
     degraded_reason = models.CharField(max_length=100, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "ai_runs"
 
     # django-types types Model.objects as BaseManager[Model], so any custom manager
@@ -422,12 +416,10 @@ class AiRun(models.Model):
     objects: ClassVar[AiRunManager] = AiRunManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
 
-class RoutingDecision(models.Model):
+class RoutingDecision(BaseModel):
     """§3.3. `thresholds_used` is a snapshot, not a reference — three
     months from now, "what were the thresholds at the time" must be
     answerable without knowing when thresholds.yaml last changed."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="routing_decisions")
     ai_run = models.ForeignKey(
@@ -442,5 +434,5 @@ class RoutingDecision(models.Model):
     shadow_mode = models.BooleanField(default=True)
     decided_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "routing_decisions"

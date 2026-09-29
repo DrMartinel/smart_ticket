@@ -5,11 +5,13 @@ the roles here map directly onto spec concepts (Employee / Technician /
 Manager / Security) rather than a general-purpose permission matrix.
 """
 
-import uuid
 from enum import StrEnum
+from typing import ClassVar
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
+
+from apps.core.models import BaseModel
 
 
 class UserRole(StrEnum):
@@ -19,8 +21,10 @@ class UserRole(StrEnum):
     SECURITY = "security"
 
 
-class User(AbstractUser):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+class User(AbstractUser, BaseModel):
+    # Same manager AbstractUser already sets; declared so pyright can
+    # reconcile it with BaseModel's default `objects`.
+    objects: ClassVar[UserManager["User"]] = UserManager()  # pyright: ignore[reportIncompatibleVariableOverride]
 
     role = models.CharField(
         max_length=20,
@@ -28,7 +32,7 @@ class User(AbstractUser):
         default=UserRole.EMPLOYEE.value,
     )
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "accounts_user"
 
     def __str__(self) -> str:
