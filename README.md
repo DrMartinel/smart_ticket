@@ -379,7 +379,7 @@ uv run python evals/report.py --compare evals/baselines/baseline.json
 
 | Suite | Metric | Gate |
 |---|---|---|
-| Retrieval | Recall@5 | ≥ 0.90 |
+| Retrieval | Recall@3 | ≥ 0.90 |
 | Classification | F1 **per category** | ≥ 0.85 each |
 | Quote validation | Hallucination-catch precision | ≥ 0.95 |
 | Refusal | Out-of-KB refusal rate | ≥ 0.90 |

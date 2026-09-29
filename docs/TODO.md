@@ -135,7 +135,7 @@ against real hardware yet.
 
 ### Done when
 
-`Recall@5 ≥ 0.90` holds under `vllm` with floor and margin derived from observed scores, `RERANKER_REVISION` is a sha, the 🔧 markers are gone from `retrieval` in `thresholds.yaml`, and a provider/floor mismatch is detectable rather than silent.
+`Recall@3 ≥ 0.90` holds under `vllm` with floor and margin derived from observed scores, `RERANKER_REVISION` is a sha, the 🔧 markers are gone from `retrieval` in `thresholds.yaml`, and a provider/floor mismatch is detectable rather than silent.
 
 > Per hard rule 9: do not move the floor to make a suite green. If the numbers disagree, that is the finding.
 
@@ -299,15 +299,16 @@ Two things to decide before starting, not during:
 
 ### Problem
 
-Retrieval recall is **0.72** on the full run of 2026-09-29 (MRR 0.65, 60 KB-covered cases; [`evals/HISTORY.md`](../evals/HISTORY.md)). Articles now split into about 8 chunks each, and nothing stops several chunks of one article filling all three `rerank_top_n` slots: g028, an SSH ticket, got `iam.troubleshoot_saml` three times. The same crowding likely explains g001–g004, the approved password-reset tickets, going to HITL with `quote_source_not_in_topk`. Some other misses are near-misses a single-page gold label rejects.
+Retrieval recall @3 is **0.77** (two full runs, 2026-09-29, entry (3) in [`evals/HISTORY.md`](../evals/HISTORY.md)), up from 0.72 once the lexical channel started working (ADR-0013: the old BM25 matched nothing, silently). Chunk crowding was the earlier explanation; deduplicating chunks per article left recall at 0.72, so it isn't the cause.
 
-The metric is labelled Recall@5, but `rerank_top_n` is 3.
+Of the 14 remaining misses, 9 are GuardDuty and SES tickets (g048, g050–g053, g055, g056, g058, g060) where the ticket describes symptoms and the KB page uses finding or feature names. Neither BM25 nor the vector channel bridges that vocabulary gap. Some other misses are near-misses a single-page gold label rejects.
 
 ### Work
 
-- Keep at most one chunk per article before truncating to `rerank_top_n`. Sort by the cross-encoder score first; never threshold or rank on the RRF score (ADR-0005).
-- Rename the metric, or make it measure @5.
+- Investigate the vocabulary-mismatch misses case by case: why a short remediation page (`guardduty.compromised-ec2`) loses to a long reference page (`guardduty_finding-types-ec2`).
+- Review whether some tickets have more than one correct page. Choose acceptable pages without looking at model output, and have someone other than the author review them, so this doesn't turn into relabelling until the gate passes (rule 9).
 - Pin `RERANKER_REVISION` to a commit sha: at `main`, an upstream push moves the score scale `retrieval.floor` is compared against.
+- Do not tune `retrieval.keyword_agreement_k`, the tokenizer, the candidate limits or RRF k against the golden set; that is shadow-calibration work (item 2).
 - Re-measure, and record the run in `evals/HISTORY.md`.
 
 ### Done when
