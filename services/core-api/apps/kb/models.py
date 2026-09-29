@@ -8,7 +8,6 @@ from __future__ import annotations
 
 
 from django.conf import settings
-from django.contrib.postgres.search import SearchVectorField
 from django.db import models, transaction
 from django.utils import timezone
 from pgvector.django import VectorField
@@ -179,9 +178,8 @@ class KbArticle(BaseModel):
                 embedding=embedding,
             )
             chunks.append(chunk)
-        # tsv is maintained by the Postgres trigger on INSERT/UPDATE OF content
-        # (infra/migrations/sql/0003_constraints_and_triggers.sql), fired by
-        # the .create() calls above — no separate step needed here.
+        # The BM25 index (idx_chunk_bm25, infra/migrations/sql/0005) is
+        # maintained by pg_search on insert, so no separate step is needed.
         return chunks
 
     @transaction.atomic
@@ -256,9 +254,9 @@ class KbChunk(BaseModel):
     section_title = models.CharField(max_length=255, null=True, blank=True)
     token_count = models.IntegerField()
     embedding = VectorField(dimensions=1024, null=True, blank=True)
-    # tsv is maintained by a Postgres trigger (0003_constraints_and_triggers.sql),
-    # not by Django, so BM25 (ts_rank_cd) stays correct regardless of write path.
-    tsv = SearchVectorField(null=True, blank=True, editable=False)
+    # Lexical search runs on a pg_search BM25 index over content and
+    # section_title (ADR-0013), declared in infra/migrations/sql/0005 because
+    # the ORM can't express it. There is deliberately no tsvector column.
 
     class Meta(BaseModel.Meta):
         db_table = "kb_chunks"
