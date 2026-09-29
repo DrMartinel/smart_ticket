@@ -73,7 +73,7 @@ addopts = "--import-mode=importlib"
 # Run from the repo root as `uv run mypy` (see lint.yml). mypy runs from the
 # workspace venv rather than `uvx`, because the django-stubs plugin must import
 # Django and the project's settings; the version is pinned by uv.lock.
-files = ["services/ai-engine/src", "services/core-api", "evals"]
+files = ["services/ai-engine/src", "services/core-api", "evals", "demo_kb"]
 # Django's generated migrations are not hand-written code.
 exclude = ['/migrations/', '/node_modules/']
 python_version = "3.13"

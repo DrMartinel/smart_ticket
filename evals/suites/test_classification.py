@@ -9,12 +9,30 @@ carries it (`RouteProposal.proposed_category`, `RunbookProposal.
 proposed_category`), or — for an `auto_reply` proposal — the retrieved
 KB article's own category via `retrieved_chunks[0].kb_slug`, since
 AutoReplyProposal doesn't carry a category field of its own.
+
+Cases come from `kb_covered` AND `out_of_kb`. The demo KB is AWS
+documentation, so no `other` ticket (HR, facilities) can be KB-covered.
+Scoring only `kb_covered` would silently drop `other` from the
+per-category gate, which CLAUDE.md rule 9 forbids. Out-of-KB tickets still
+have a right category. The pipeline would refuse them before the LLM, but
+this suite runs with `retrieval_floor=0.0`, so the model always answers.
+
+On an out-of-KB case, `insufficient_context` counts as correct (decided
+2026-09-29, evals/HISTORY.md). It names no category, but it is the answer
+spec §12.2 asks for when the KB has nothing on the topic, and
+test_refusal.py scores it correct on these same cases. Scoring it wrong
+here would demand the opposite of the refusal suite, and push the prompt
+towards confident routing on exactly the tickets an HR request that slips
+over the floor would be. What the `other` gate protects is that such a
+ticket is never claimed as an IT category or auto-replied: those still
+count against `other` and as a false positive for the category claimed.
+On a KB-covered case, a refusal is still a miss.
 """
 
 from collections import defaultdict
 from typing import Any
 
-from suites.golden_utils import EVAL_FULL_RUN, analyze, load_golden, record_metric
+from suites.golden_utils import EVAL_FULL_RUN, analyze, kb_category, load_golden, record_metric
 
 F1_THRESHOLD = 0.85
 PER_CATEGORY_SAMPLE = 5  # per category, not a flat slice — see _stratified_sample
@@ -26,23 +44,6 @@ PER_CATEGORY_SAMPLE = 5  # per category, not a flat slice — see _stratified_sa
 # EVAL_FULL_RUN=1 every category has 10 cases, well above this floor.
 MIN_SAMPLES_TO_GATE = 5
 
-# slug -> category, mirrors seed_demo.py — used only to resolve category
-# for auto_reply proposals in this suite, not by the system under test.
-_SLUG_CATEGORY = {
-    "KB-0001": "access",
-    "KB-0002": "hardware",
-    "KB-0003": "network",
-    "KB-0004": "access",
-    "KB-0005": "software",
-    "KB-0006": "access",
-    "KB-0007": "hardware",
-    "KB-0008": "software",
-    "KB-0009": "security",
-    "KB-0010": "other",
-    "KB-0011": "hardware",
-    "KB-0012": "software",
-}
-
 
 def _predicted_category(result: dict[str, Any]) -> str | None:
     proposal = result.get("proposal") or {}
@@ -52,8 +53,20 @@ def _predicted_category(result: dict[str, Any]) -> str | None:
     if intent == "auto_reply":
         chunks = result.get("retrieved_chunks") or []
         slug = chunks[0]["kb_slug"] if chunks else proposal.get("kb_slug")
-        return _SLUG_CATEGORY.get(slug) if isinstance(slug, str) else None
+        return kb_category(slug) if isinstance(slug, str) else None
     return None
+
+
+def _scored_category(case: dict[str, Any], result: dict[str, Any]) -> str | None:
+    """The category this answer is credited with. A refusal on an
+    out-of-KB case is credited with the truth (module docstring). Only an
+    explicit `insufficient_context` counts: a run with no proposal at all
+    (schema invalid, degraded) is a failure, not a refusal."""
+
+    proposal = result.get("proposal") or {}
+    if "out_of_kb" in case["tags"] and proposal.get("proposed_intent") == "insufficient_context":
+        return str(case["truth"]["category"])
+    return _predicted_category(result)
 
 
 def _stratified_sample(cases: list[dict], per_category: int) -> list[dict]:
@@ -72,7 +85,8 @@ def _stratified_sample(cases: list[dict], per_category: int) -> list[dict]:
 
 def test_per_category_f1_meets_threshold(ai_engine_client):
     cases = _stratified_sample(
-        [c for c in load_golden("kb_covered") if "category" in c["truth"]], PER_CATEGORY_SAMPLE
+        [c for c in load_golden("kb_covered", "out_of_kb") if "category" in c["truth"]],
+        PER_CATEGORY_SAMPLE,
     )
     assert cases
 
@@ -83,7 +97,7 @@ def test_per_category_f1_meets_threshold(ai_engine_client):
     for case in cases:
         truth = case["truth"]["category"]
         result = analyze(ai_engine_client, case["subject"], case["body"], retrieval_floor=0.0)
-        predicted = _predicted_category(result)
+        predicted = _scored_category(case, result)
 
         if predicted == truth:
             tp[truth] += 1

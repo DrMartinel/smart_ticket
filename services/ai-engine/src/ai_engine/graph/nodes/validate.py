@@ -5,16 +5,26 @@ Validator — spec §6.4. Four checks, in the spec's order:
 2. Fuzzy match gated at 0.95, only for whitespace/punctuation drift.
 3. The quote's source chunk must be in the retrieved top-k; a verbatim quote
    from the WRONG article is still a wrong answer.
-4. Negation: "được cấp quyền" vs "không được cấp quyền" score ~0.96 similarity
-   with opposite meanings, and negated conditions are common in runbook-style
-   KB content.
+4. Negation: "được cấp quyền" vs "không được cấp quyền" (or "delete the
+   root user access keys" vs "Do not delete the root user access keys") score
+   ~0.96 similarity with opposite meanings, and negated conditions are common
+   in runbook-style KB content. The quote is compared with the sentence(s) it
+   was cut from, not the whole chunk: a 250-word AWS chunk nearly always has
+   a "not" somewhere, and comparing against all of it would flag every
+   English quote. Negations are counted, not just collected: "Do not X if
+   you do not have Y" quoted as "X if you do not have Y" keeps one "not"
+   and drops the one that governs it.
+
+   Known gap: a list item is its own sentence, so "Don't do any of the
+   following:" does not reach a quote cut from an item below it
+   (test_validate.py pins this as an xfail).
 """
 
 from __future__ import annotations
 
-import uuid
-
 import re
+import uuid
+from collections import Counter
 
 from rapidfuzz import fuzz
 
@@ -23,18 +33,67 @@ from ai_engine.core.state import AutoReplyProposal, TriageState
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode, StateUpdate
 
-# A Vietnamese linguistic lexicon, not a tunable number — it belongs in code
-# for the same reason patterns.py holds the PII regexes.
+# Linguistic lexicons, not tunable numbers — they belong in code for the
+# same reason patterns.py holds the PII regexes. Vietnamese phrases are
+# matched as substrings. English is matched on word boundaries, since "not"
+# and "no" are inside "notification" and "node". The demo KB is English
+# (demo_kb/), and tickets may be in either language.
 NEGATIONS = {"không", "chưa", "ngoại trừ", "trừ khi", "không được", "cấm"}
+ENGLISH_NEGATION = re.compile(
+    r"\b(?:not|no|never|cannot|none|nor|without|except|unless)\b|\b\w+n['’]t\b",
+    re.IGNORECASE,
+)
+# A period after one of these doesn't end a sentence. Without this, "Do not
+# use root credentials, e.g. the root user access keys" splits after "e.g."
+# and the quote after it loses its "not". Missing an abbreviation here makes
+# the check weaker; treating a real sentence end as an abbreviation only
+# makes it stricter.
+_ABBREVIATIONS = ("e.g", "i.e", "etc", "vs")
+# End of a sentence, or a line break (a Markdown list item or heading).
+_SENTENCE_BREAK = re.compile(
+    "".join(rf"(?<!\b{re.escape(abbr)})" for abbr in _ABBREVIATIONS) + r"[.!?](?=\s)|\n",
+    re.IGNORECASE,
+)
 
 
 def normalize_ws(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
-def _negations_in(text: str, negations: set[str]) -> frozenset[str]:
+def _negations_in(text: str) -> Counter[str]:
+    """Each negation in `text` with how many times it occurs. A count, not a
+    set: a set can't tell a quote that kept one of two "not"s from the
+    sentence that had both."""
+
     lowered = text.lower()
-    return frozenset(neg for neg in negations if neg in lowered)
+    found = Counter({neg: lowered.count(neg) for neg in NEGATIONS if neg in lowered})
+    found.update(m.group(0).lower().replace("’", "'") for m in ENGLISH_NEGATION.finditer(text))
+    return found
+
+
+def _enclosing_sentences(quote: str, content: str) -> str:
+    """The sentence(s) of `content` the quote was cut from.
+
+    Found in the raw chunk, whitespace-tolerant, so line breaks still mark
+    list items. A fuzzy-only match is located by alignment instead. If the
+    quote can't be located at all, the whole chunk is returned, which only
+    makes the check stricter."""
+
+    words = quote.split()
+    found = re.search(r"\s+".join(map(re.escape, words)), content) if words else None
+    if found:
+        start, end = found.span()
+    else:
+        alignment = fuzz.partial_ratio_alignment(quote, content)
+        if alignment is None:
+            return content
+        start, end = alignment.dest_start, alignment.dest_end
+    breaks_before = [m.end() for m in _SENTENCE_BREAK.finditer(content, 0, start)]
+    # From end - 1, so a period that ends the quote closes its sentence.
+    after = _SENTENCE_BREAK.search(content, max(start, end - 1))
+    return content[
+        breaks_before[-1] if breaks_before else 0 : after.end() if after else len(content)
+    ]
 
 
 def _best_fuzzy(quote: str, topk: dict[uuid.UUID, str]) -> tuple[uuid.UUID | None, float]:
@@ -123,12 +182,12 @@ class ValidateNode(BaseNode):
         # 3. Source must be in the retrieved top-k.
         in_topk = source is not None
 
-        # 4. Negation check — fuzzy match cannot catch this.
-        neg_ok = (
-            _negations_in(quote, NEGATIONS) == _negations_in(topk[source], NEGATIONS)
-            if source is not None
-            else False
-        )
+        # 4. Negation check — fuzzy match cannot catch this. Against the raw
+        # chunk, whose line breaks still mark list items.
+        neg_ok = False
+        if source is not None:
+            content = next(c.content for c in reranked if c.chunk_id == source)
+            neg_ok = _negations_in(quote) == _negations_in(_enclosing_sentences(quote, content))
 
         return _checks(
             schema_valid=True,

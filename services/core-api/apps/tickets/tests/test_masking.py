@@ -50,6 +50,21 @@ class TestRegexTier:
         hits = regex_scan("so CCCD cua toi la 012345678901")
         assert any(h.label == "CCCD" and h.level is PIILevel.SENSITIVE for h in hits)
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "STK: 0123456789012 Vietcombank",
+            "my bank account: 0123456789012 at Vietcombank",
+            "Account number 00123456789 for payroll",
+        ],
+    )
+    def test_bank_account_detected_as_sensitive_in_both_languages(self, text):
+        """The regex tier keys on the word before the number. With only the
+        Vietnamese keywords, an English ticket's bank account number reached
+        the NER tier alone, and would pass unmasked whenever NER missed it."""
+        hits = regex_scan(text)
+        assert any(h.label == "BANK_ACCOUNT" and h.level is PIILevel.SENSITIVE for h in hits)
+
     def test_password_detected_as_critical(self):
         hits = regex_scan("password: hunter2")
         assert any(h.level is PIILevel.CRITICAL for h in hits)

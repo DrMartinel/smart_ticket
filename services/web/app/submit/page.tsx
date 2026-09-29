@@ -56,7 +56,7 @@ export default function SubmitPage() {
             minLength={3}
             maxLength={200}
             required
-            placeholder="Không đăng nhập được máy tính"
+            placeholder="Can't connect to my EC2 instance over SSH"
           />
         </label>
         <label className="text-sm">

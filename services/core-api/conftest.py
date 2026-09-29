@@ -105,7 +105,7 @@ def _offline_handler(request: httpx.Request) -> httpx.Response:
 @pytest.fixture(autouse=True)
 def _offline_ai_engine(serve_ai_engine):
     """No test reaches a real ai-engine, even one running locally.
-    `/v1/embed` answers deterministically, so KB ingestion, seeding and
+    `/v1/embed` answers deterministically, so KB ingestion, demo-KB loading and
     few-shot creation work. Every other call fails as unreachable, which is
     the path core-api must already handle (HITL / MASK_FAILED). A test that
     needs other answers calls `serve_ai_engine` itself, which replaces this."""

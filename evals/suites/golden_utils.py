@@ -10,6 +10,7 @@ twice" bugs). Test files import from here instead:
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,10 @@ from pathlib import Path
 import httpx
 
 GOLDEN_PATH = Path(__file__).parent.parent / "golden" / "tickets.jsonl"
+# The demo KB snapshot's manifest: slug -> proposed category, for resolving
+# the category of an auto_reply proposal. Read by the eval, never by the
+# system under test.
+DEMO_KB_MANIFEST = Path(__file__).parent.parent.parent / "demo_kb" / "manifest.json"
 RESULTS_PATH = (
     Path(__file__).parent.parent / ".results.json"
 )  # gitignored — one run's output, read by report.py
@@ -41,6 +46,16 @@ def load_golden(*tags: str) -> list[dict]:
     if not tags:
         return cases
     return [c for c in cases if any(t in c["tags"] for t in tags)]
+
+
+@functools.cache
+def _kb_categories() -> dict[str, str]:
+    pages = json.loads(DEMO_KB_MANIFEST.read_text(encoding="utf-8"))["pages"]
+    return {p["slug"]: p["category"] for p in pages}
+
+
+def kb_category(slug: str) -> str | None:
+    return _kb_categories().get(slug)
 
 
 def sample(cases: list[dict], n: int = DEFAULT_SAMPLE) -> list[dict]:

@@ -92,7 +92,8 @@ make typecheck      # mypy + django-stubs; config in root pyproject.toml, versio
 make lint           # ruff check + format --check, pinned to match lint.yml
 make check          # lint + typecheck + test
 make runserver      # :8000; also: worker, beat, shell
-make makemigrations / make migrate / make seed
+make makemigrations / make migrate
+make load-demo-kb ARGS="--approver manager1"   # demo KB, see demo_kb/README.md
 make types          # regenerate web TS types after any contract change
 ```
 
@@ -109,10 +110,6 @@ Full stack (7 containers + the `vllm` profile for models). Migrations run automa
 
 ```bash
 cp infra/.env.example infra/.env && cd infra && docker compose up -d --build
-```
-
-```bash
-docker compose exec core-api python manage.py seed_demo
 ```
 
 ai-engine against the Dockerized stack:
@@ -144,6 +141,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
+| KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |
 
 Services: `core-api` (Django + Ninja) owns **every write and every decision** ·
 `ai-engine` (FastAPI + LangGraph) has **no authority**, returns signals and a
@@ -189,6 +187,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/utils/pipeline.py` — not `tasks.py`, which is only the entry point |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `core/config.py` |
 | What counts as PII | `patterns.py` (regex) or the NER prompt `ai-engine/core/prompts/pii_ner.v*.md` |
+| What is in the demo KB | `demo_kb/sources.json` (then `fetch.py`), approvals and risk tiers in `demo_kb/curation.json` — never by editing fetched pages |
 | How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
@@ -208,9 +207,17 @@ copies that directory — a new SQL file that isn't copied fails at container st
 
 - `SHADOW_MODE=true` is the default: the router decides and records, humans still
   handle every ticket. This is spec §14's P1 phase, by design.
-- **Known CI failure:** `other` category F1 is **0.75** against a 0.85 floor
-  (precision 1.00, recall 0.60). Real, documented in
-  `evals/baselines/baseline.json`, not a broken checkout. See TODO item 3.
+- **Demo KB is English AWS documentation** (`demo_kb/`: every page of 12 AWS
+  guides, 3,542 pages), loaded by `manage.py load_demo_kb`.
+  Demo tickets and the golden set are English. The snapshot is frozen: pages
+  are checked against `manifest.json`, and each auto-reply approval in
+  `curation.json` is pinned to the SHA-256 of the reviewed text.
+- **One eval gate fails** (full runs, 2026-09-29, [`evals/HISTORY.md`](evals/HISTORY.md)):
+  retrieval recall **0.72**, mostly one article's chunks filling the top 3
+  (TODO item 9). Auto-reply precision is 1.00. `other` F1 is 0.98 since a
+  refusal on an out-of-KB ticket counts as correct, as in the refusal
+  suite; that scoring rule is deliberate, don't revert it to "fix" a
+  number. Record every full run in `evals/HISTORY.md`.
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
@@ -240,6 +247,8 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
 | mypy: `ImproperlyConfigured` / plugin can't load settings | The django-stubs plugin imports `config.settings.test` (set in `[tool.django-stubs]`). Run `uv run mypy` from the repo root (or `make typecheck` in core-api) after `uv sync --all-packages`, not `uvx mypy`, which has no Django |
 | Tempted to annotate `objects`, `<fk>_id` or a reverse manager on a model | Don't: the django-stubs plugin infers managers, `_id` fields and related managers. Those declarations were pyright-era workarounds |
+| `column "id" is of type bigint but expression is of type uuid` on a dev DB | The `db_data` volume was migrated before a `0001_initial` was rewritten in place (the UUID change). Django tracks migrations by name and won't re-run it. Reset the volume (`docs/onboarding.md` step 7); don't write a migration to patch a dev DB |
+| A `vllm-*` container dies with `Engine core initialization failed` | CUDA out of memory: the three servers share one GPU. Fractions and start order: `docs/onboarding.md` step 2 |
 | New model has a bigint `id`; `test_every_model_has_a_uuid_primary_key` fails | Inherit `apps.core.models.BaseModel`, which declares `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)` (ADR-0011). `DEFAULT_AUTO_FIELD` is still `BigAutoField`, for Django's own tables |
 
 ## Testing conventions

@@ -109,7 +109,7 @@ smart_ticket/
 │   │   │   ├── audit/           #   append-only audit log
 │   │   │   ├── itsm_mock/       #   mock ITSM runbook execution
 │   │   │   ├── metrics/         #   dashboard aggregation
-│   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants), seed_demo
+│   │   │   └── dbextras/        #   raw-SQL migrations (indexes, constraints, grants)
 │   │   ├── infrastructure/      #   the ai-engine client (every model call) + wire schema (dtos.py)
 │   │   └── config/              #   settings/{base,development,production,test} · celery · thresholds.yaml
 │   ├── ai-engine/               # FastAPI + LangGraph
@@ -186,10 +186,13 @@ python -c "import os,base64;print('PII_ENCRYPTION_KEY='+base64.b64encode(os.uran
 cd infra && docker compose up -d --build
 ```
 
-Self-hosted models run in the `vllm` profile (ADR-0009):
+Self-hosted models run in the `vllm` profile (ADR-0009). The three servers
+share one GPU, so start them one at a time and size their memory fractions to
+your card first: [`docs/onboarding.md`](docs/onboarding.md) step 2 has the
+numbers (on a 12 GiB card they only just fit).
 
 ```bash
-docker compose --profile vllm up -d
+docker compose --profile vllm up -d vllm-chat    # then vllm-embed, then vllm-rerank
 ```
 
 | Service | Port | |
@@ -205,22 +208,22 @@ docker compose --profile vllm up -d
 
 Migrations run automatically on `core-api` startup.
 
-### 3. Seed demo data
+### 3. Users and the demo knowledge base
+
+The demo KB is a frozen snapshot of AWS documentation in [`demo_kb/`](demo_kb/): every page of 12 guides (IAM, IAM Identity Center, VPC, Client VPN, EC2, WorkSpaces, SES, Lambda, GuardDuty, Security Hub), 3,542 pages. The scenario is an internal cloud-platform help desk; demo tickets are in English.
 
 ```bash
-docker compose exec core-api python manage.py seed_demo
+python3 demo_kb/fetch.py     # first time: download the snapshot's pages (~30 min, resumable)
+
+docker compose exec core-api python manage.py shell -c "
+from apps.accounts.models import User
+for name, role in [('employee1','employee'), ('tech1','technician'), ('tech2','technician'), ('manager1','manager'), ('security1','security')]:
+    User.objects.create_user(name, password='change-me', role=role)"
+
+docker compose exec core-api python manage.py load_demo_kb --approver manager1
 ```
 
-Creates 5 users and 12 Vietnamese KB articles, of which 5 are pre-approved for auto-reply — all `risk_tier=low`, matching the spec §14 P4 rollout. The seed sets that flag through the same governance path a manager would use (recording `approved_by`/`approved_at`), so the DB `CHECK` constraint requiring a named approver holds even for seeded data.
-
-| User | Role | Can do |
-|---|---|---|
-| `employee1` | employee | Submit tickets |
-| `tech1` | technician | Claim and decide review items |
-| `manager1` | manager | Flip `auto_reply_allowed`, set risk tier |
-| `security1` | security | Security-flagged queues |
-
-Password for all: `demo12345`. Set `DJANGO_AUTO_SEED_DEMO=true` to seed on container start instead.
+`load_demo_kb` checks every page against `demo_kb/manifest.json`, so the database holds exactly the committed snapshot. It then applies the auto-reply approvals in `demo_kb/curation.json` through the same governance path a manager uses (`KbArticle.set_auto_reply_allowed`: manager actor, reason, `kb_authority_log` row). Each approval is pinned to the SHA-256 of the text that was reviewed; if AWS changes that page, the approval is not applied, and an existing one is revoked.
 
 ### 4. Local development (without Docker)
 
@@ -273,7 +276,6 @@ Full list in [`infra/.env.example`](infra/.env.example). The ones that change be
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |
 | `MODEL_TIMEOUT_SEC` | `120` | Ceiling for one model call (NER, embeddings, inference); core-api's read timeout on NER and embedding calls to ai-engine |
-| `DJANGO_AUTO_SEED_DEMO` | `false` | Seed demo data on container start |
 
 ---
 
@@ -333,11 +335,11 @@ Interactive docs at [`/api/docs`](http://localhost:8000/api/docs). All routes ex
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8000/api/token/pair \
   -H 'Content-Type: application/json' \
-  -d '{"username":"employee1","password":"demo12345"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["access"])')
+  -d '{"username":"employee1","password":"change-me"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["access"])')
 
 curl -s -X POST http://localhost:8000/api/tickets/submit \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d '{"subject":"Quên mật khẩu email","body":"Em không đăng nhập được vào Outlook, nhờ anh chị hỗ trợ đặt lại mật khẩu ạ."}'
+  -d '{"subject":"Forgot my AWS access portal password","body":"I can'"'"'t remember my access portal password and I am locked out of all my accounts. How do I reset it?"}'
 ```
 
 ---
@@ -386,7 +388,7 @@ uv run python evals/report.py --compare evals/baselines/baseline.json
 
 Per-category F1 is deliberately not averaged — a rare-but-serious category like `security` can sit at 0.4 while the mean still looks healthy.
 
-> **Known failing gate:** `other` currently scores **F1 0.75** against the 0.85 floor. This is a real, reproducible finding, not a harness bug — the category maps to a single KB article (leave requests, genuinely an HR matter arriving through IT) that the model classifies inconsistently. It is recorded in `baselines/baseline.json` rather than smoothed away. Fix the prompt/KB content; do not lower the floor.
+> **Known failing gate:** retrieval recall is **0.72** on the full runs of 2026-09-29, while auto-reply precision is 1.00. What each means, and every run since, is in [`evals/HISTORY.md`](evals/HISTORY.md). Do not lower a floor to make CI green.
 
 ---
 

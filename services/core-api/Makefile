@@ -87,9 +87,9 @@ makemigrations: ## Generate migrations after a model change
 migrate: ## Apply migrations
 	$(MANAGE) migrate $(ARGS)
 
-.PHONY: seed
-seed: ## Load demo users + KB into the database
-	$(MANAGE) seed_demo
+.PHONY: load-demo-kb
+load-demo-kb: ## Load the demo KB snapshot (demo_kb/); approvals need ARGS="--approver <manager>"
+	$(MANAGE) load_demo_kb $(ARGS)
 
 .PHONY: types
 types: ## Regenerate web TS types after a schema change

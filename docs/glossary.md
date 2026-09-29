@@ -85,7 +85,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **`quote_source_in_topk`** — mandatory: the quote must come from a chunk retrieval actually returned. A perfectly accurate quote pulled from a *different* KB article is a wrong answer in the right words.
 
-**Negation check** — compares negation markers (`không`, `chưa`, `ngoại trừ`, `trừ khi`, `cấm`) between the quote and its source. Fuzzy matching cannot catch this: *"được cấp quyền"* and *"không được cấp quyền"* score ~0.96 similar and mean opposite things. In ITSM, an inverted condition is the most dangerous error class there is.
+**Negation check** — compares negation markers between the quote and the sentence(s) of the source it was cut from: Vietnamese (`không`, `chưa`, `ngoại trừ`, `trừ khi`, `cấm`) and English (`not`, `never`, `cannot`, `without`, `unless`, `-n't`…, matched on word boundaries). Fuzzy matching cannot catch this: *"delete the root user access keys"* and *"Do not delete the root user access keys"* (or *"được cấp quyền"* and *"không được cấp quyền"*) score ~0.96 similar and mean opposite things. In ITSM, an inverted condition is the most dangerous error class there is.
 
 **`quote_applicable`** — whether quote checks apply at all. Route and runbook proposals carry no quote, so their quote signals are reported false; without this flag the UI shows red ✗ for checks that never ran.
 

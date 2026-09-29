@@ -76,6 +76,35 @@ CASES: list[tuple[str, list[str], bool]] = [
         ["Bạn có thể   Đặt lại mật khẩu tại   portal.company.local   để tiếp tục."],
         False,
     ),
+    # English: the demo KB is AWS documentation (demo_kb/).
+    (
+        "Choose Instances, then select the instance.",
+        [
+            "Open the Amazon EC2 console.\n+ Choose Instances, then select the instance.\n"
+            "+ If the instance is not running, start it first."
+        ],
+        False,
+    ),
+    (
+        "Rotate access keys regularly.",
+        ["As a best practice, rotate access keys regularly. Never share them."],
+        False,
+    ),
+    (
+        "Your WorkSpace will be rebuilt automatically every week.",
+        ["You can rebuild a WorkSpace from the Amazon WorkSpaces console."],
+        True,
+    ),
+    (
+        "delete the root user access keys.",
+        ["Do not delete the root user access keys. Rotate them instead."],
+        True,
+    ),
+    (
+        "attach an Elastic IP address to a stopped instance",
+        ["You can't attach an Elastic IP address to a stopped instance in a VPC."],
+        True,
+    ),
 ]
 
 

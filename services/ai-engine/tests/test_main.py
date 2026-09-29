@@ -33,7 +33,7 @@ def test_embedder_failure_is_a_502_not_an_empty_vector(client, fake_embedder, us
 
     use_embedder(fake_embedder(error=RuntimeError("vllm-embed down")))
 
-    resp = client.post("/v1/embed", json={"text": "máy in kẹt giấy"})
+    resp = client.post("/v1/embed", json={"text": "SSH connection timed out"})
 
     assert resp.status_code == 502
     assert "vector" not in resp.json()
@@ -88,11 +88,11 @@ def test_embed_returns_the_vector_and_the_model_that_made_it(client, fake_embedd
 
     embedder = use_embedder(fake_embedder(vector=[0.5] * 8))
 
-    resp = client.post("/v1/embed", json={"text": "máy in kẹt giấy"})
+    resp = client.post("/v1/embed", json={"text": "SSH connection timed out"})
 
     assert resp.status_code == 200
     assert resp.json() == {"vector": [0.5] * 8, "model": "fake-embed"}
-    assert embedder.calls == ["máy in kẹt giấy"]
+    assert embedder.calls == ["SSH connection timed out"]
 
 
 def test_detect_returns_the_detectors_spans(client, fake_pii_detector, use_pii_detector):

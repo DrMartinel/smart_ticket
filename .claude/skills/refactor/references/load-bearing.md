@@ -64,9 +64,9 @@ Format: **what** — why it exists — *what guards it*.
 - **Refuse-before-LLM reports `retrieval_below_floor`, not `schema_invalid`.**
   *`test_router.py::test_refuse_before_llm_reports_retrieval_floor_not_schema_invalid`.*
 - **The KB governance path for `auto_reply_allowed`**: manager role, a non-empty
-  reason, and a `KbAuthorityLog` row. Seed data takes the same path. *ADR-0002;
+  reason, and a `KbAuthorityLog` row. Ingestion scripts take the same path. *ADR-0002;
   `KbArticle.set_auto_reply_allowed` in `apps/kb/models.py`;
-  `apps/dbextras/tests/test_seed_demo.py`.*
+  `apps/kb/tests/test_article_create.py`.*
 - **The deny-by-default `_degraded_signals()` in `apps/tickets/utils/pipeline.py`**: every check failed,
   `kb_auto_reply_allowed=False`, `kb_risk_tier="high"`.
 - **No `decrypt()` call without a `PiiAccessLog` row** in the same transaction, with

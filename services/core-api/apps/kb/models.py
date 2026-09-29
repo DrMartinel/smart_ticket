@@ -19,7 +19,7 @@ from infrastructure.dtos import TicketCategory
 from infrastructure.ai_engine import ai_engine
 
 from apps.accounts.models import User
-from apps.kb.utils import chunk_body, rough_token_count
+from apps.kb.utils import chunk_sections, rough_token_count
 
 
 class KBGovernanceError(Exception):
@@ -43,12 +43,73 @@ class KbArticleManager(models.Manager["KbArticle"]):
         article.ingest()
         return article
 
+    def upsert_from_source(
+        self,
+        *,
+        slug: str,
+        title: str,
+        body: str,
+        category: str,
+        risk_tier: str,
+        source_url: str,
+    ) -> tuple[KbArticle, bool]:
+        """Creates or refreshes an article from an external source such as
+        the demo KB snapshot. Returns `(article, changed)`.
+
+        An unchanged body is not re-embedded, so reloading a snapshot is
+        cheap. `risk_tier` applies only on creation: after that it is a
+        governed field, changed through `set_risk_tier` with a logged reason,
+        so a reload can't quietly undo a manager's decision. Never touches
+        `auto_reply_allowed` (ADR-0002).
+        """
+        article = self.filter(slug=slug).first()
+        if article is None:
+            article = self.create(
+                slug=slug,
+                title=title,
+                body=body,
+                category=category,
+                risk_tier=risk_tier,
+                source_url=source_url,
+            )
+            article.ingest()
+            return article, True
+        unchanged = (article.title, article.body, article.category, article.source_url) == (
+            title,
+            body,
+            category,
+            source_url,
+        )
+        # No chunks means an earlier ingest failed after the row was
+        # committed (see create_and_ingest); retry it rather than report
+        # "unchanged" for an article retrieval can never find.
+        if unchanged and article.chunks.exists():
+            return article, False
+        if unchanged:
+            article.ingest()
+            return article, True
+        body_changed = article.body != body
+        article.title, article.body = title, body
+        article.category, article.source_url = category, source_url
+        article.version += 1
+        article.save(
+            update_fields=["title", "body", "category", "source_url", "version", "updated_at"]
+        )
+        if body_changed:
+            article.ingest()
+        return article, True
+
 
 class KbArticle(BaseModel):
-    slug = models.CharField(max_length=32, unique=True)  # KB-0142
+    # KB-0142, or `iam.id_credentials_mfa` for the demo KB.
+    # Used in API paths, so never contains "/".
+    slug = models.CharField(max_length=128, unique=True)
     title = models.CharField(max_length=255)
     body = models.TextField()
     category = models.CharField(max_length=20, choices=[(c.value, c.value) for c in TicketCategory])
+    # Where the text came from, for articles ingested from external docs.
+    # AWS documentation is CC BY-SA 4.0: attribution travels with the text.
+    source_url = models.URLField(max_length=500, blank=True, default="")
 
     # ══ AUTHORITY: a human decides, not the LLM ══
     auto_reply_allowed = models.BooleanField(default=False)
@@ -91,16 +152,20 @@ class KbArticle(BaseModel):
         cadence is "occasional edits by a KB owner", not high-frequency."""
 
         KbChunk.objects.filter(article=self).delete()
-        pieces = chunk_body(self.body)
         chunks: list[KbChunk] = []
-        for i, content in enumerate(pieces):
-            embedding = ai_engine.embed(content).vector
+        for i, piece in enumerate(chunk_sections(self.body)):
+            # The article and section titles go into the embedding input but
+            # not into `content`: a chunk from the middle of a long page
+            # ("Choose Next, then Save") means nothing without them, while
+            # `content` must stay the exact text the model may quote.
+            context = "\n".join(t for t in (self.title, piece.section_title) if t)
+            embedding = ai_engine.embed(f"{context}\n\n{piece.content}").vector
             chunk = KbChunk.objects.create(
                 article=self,
                 chunk_index=i,
-                content=content,
-                section_title=None,
-                token_count=rough_token_count(content),
+                content=piece.content,
+                section_title=(piece.section_title or "")[:255] or None,
+                token_count=rough_token_count(piece.content),
                 embedding=embedding,
             )
             chunks.append(chunk)

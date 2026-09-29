@@ -159,7 +159,7 @@ class AIRunRequest(BaseModel):
     request_id: str
     ticket: TicketMasked
     retrieval_floor: float
-    prompt_version: str = "classify.v4"
+    prompt_version: str = "classify.v5"
 
 
 class AIRunResponse(BaseModel):

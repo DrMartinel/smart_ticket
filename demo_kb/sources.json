@@ -1,0 +1,23 @@
+{
+  "fetch": {
+    "request_delay_seconds": 0.5,
+    "request_timeout_seconds": 60,
+    "max_retries": 5,
+    "retry_backoff_seconds": 2.0,
+    "user_agent": "smart-ticket-kb-fetch/0.1 (thesis research; polite single-threaded crawl)"
+  },
+  "guides": [
+    {"key": "iam", "base_url": "https://docs.aws.amazon.com/IAM/latest/UserGuide/", "category": "access"},
+    {"key": "identity-center", "base_url": "https://docs.aws.amazon.com/singlesignon/latest/userguide/", "category": "access"},
+    {"key": "vpc", "base_url": "https://docs.aws.amazon.com/vpc/latest/userguide/", "category": "network"},
+    {"key": "client-vpn-admin", "base_url": "https://docs.aws.amazon.com/vpn/latest/clientvpn-admin/", "category": "network"},
+    {"key": "client-vpn-user", "base_url": "https://docs.aws.amazon.com/vpn/latest/clientvpn-user/", "category": "network"},
+    {"key": "ec2", "base_url": "https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/", "category": "hardware"},
+    {"key": "workspaces-admin", "base_url": "https://docs.aws.amazon.com/workspaces/latest/adminguide/", "category": "hardware"},
+    {"key": "workspaces-user", "base_url": "https://docs.aws.amazon.com/workspaces/latest/userguide/", "category": "hardware"},
+    {"key": "ses", "base_url": "https://docs.aws.amazon.com/ses/latest/dg/", "category": "software"},
+    {"key": "lambda", "base_url": "https://docs.aws.amazon.com/lambda/latest/dg/", "category": "software"},
+    {"key": "guardduty", "base_url": "https://docs.aws.amazon.com/guardduty/latest/ug/", "category": "security"},
+    {"key": "security-hub", "base_url": "https://docs.aws.amazon.com/securityhub/latest/userguide/", "category": "security"}
+  ]
+}

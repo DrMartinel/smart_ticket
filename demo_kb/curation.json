@@ -1,0 +1,45 @@
+{
+  "_comment": "People's decisions about the demo KB, applied by `manage.py load_demo_kb`. Risk tiers are set when an article is first created; after that only KbArticle.set_risk_tier changes them. Each auto_reply approval is pinned to the SHA-256 (from manifest.json) of the text that was reviewed: if the page changes, the loader does not apply it and revokes an existing one. Only risk tier 'low' may be approved.",
+  "category_risk_tier": {
+    "access": "medium",
+    "network": "medium",
+    "hardware": "medium",
+    "software": "medium",
+    "security": "high",
+    "other": "high"
+  },
+  "risk_tiers": {
+    "identity-center.resetpassword-accessportal": "low",
+    "client-vpn-user.windows-troubleshooting": "low",
+    "ec2.TroubleshootingInstancesConnecting": "low",
+    "workspaces-user.client_troubleshooting": "low",
+    "lambda.troubleshooting-invocation": "low"
+  },
+  "auto_reply": [
+    {
+      "slug": "identity-center.resetpassword-accessportal",
+      "sha256": "0aca86e409c3ba8739e1b2a3bc6aee5c257546be87aa7c7b8f9476a5ce4d77d3",
+      "reason": "Self-service password reset steps for the AWS access portal; no privileged action, user-facing, low risk."
+    },
+    {
+      "slug": "client-vpn-user.windows-troubleshooting",
+      "sha256": "c9ef1763501afe6b2645747a5011a6b54fdf5e570920f491750bec4cf9605c27",
+      "reason": "End-user AWS VPN Client fixes on Windows (reconnect, adapters, profiles); changes nothing server-side, low risk."
+    },
+    {
+      "slug": "ec2.TroubleshootingInstancesConnecting",
+      "sha256": "84cef36735ad5211e8285d1a9407088886dd21c1ae5d7e2190731d6f9a79332f",
+      "reason": "SSH connection troubleshooting for EC2 Linux; diagnostic steps for the instance owner, no access grant, low risk."
+    },
+    {
+      "slug": "workspaces-user.client_troubleshooting",
+      "sha256": "34aca7c895ab9f9a291f1864fb20e8a9abedef71476014af036b8bae6a225195",
+      "reason": "WorkSpaces client troubleshooting for end users (registration code, login, network errors), low risk."
+    },
+    {
+      "slug": "lambda.troubleshooting-invocation",
+      "sha256": "99f2ccc23326fe5def421926735271c593a8711b4a834937cf7f06baa335942e",
+      "reason": "Lambda invocation error reference for function owners; explains causes, grants no permissions, low risk."
+    }
+  ]
+}

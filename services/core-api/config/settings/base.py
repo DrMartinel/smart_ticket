@@ -245,6 +245,10 @@ class Thresholds(BaseModel):
 
 THRESHOLDS_PATH = os.environ.get("THRESHOLDS_PATH", str(BASE_DIR / "config" / "thresholds.yaml"))
 
+# The demo knowledge base snapshot (repo-root demo_kb/), read by
+# `manage.py load_demo_kb`. docker-compose mounts it at the same place.
+DEMO_KB_DIR = os.environ.get("DEMO_KB_DIR", str(BASE_DIR.parent.parent / "demo_kb"))
+
 
 def load_thresholds() -> Thresholds:
     # encoding is explicit: without it Python uses the locale default, which is
