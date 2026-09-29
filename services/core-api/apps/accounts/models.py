@@ -6,9 +6,8 @@ Manager / Security) rather than a general-purpose permission matrix.
 """
 
 from enum import StrEnum
-from typing import ClassVar
 
-from django.contrib.auth.models import AbstractUser, UserManager
+from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 from apps.core.models import BaseModel
@@ -22,10 +21,6 @@ class UserRole(StrEnum):
 
 
 class User(AbstractUser, BaseModel):
-    # Same manager AbstractUser already sets; declared so pyright can
-    # reconcile it with BaseModel's default `objects`.
-    objects: ClassVar[UserManager["User"]] = UserManager()  # pyright: ignore[reportIncompatibleVariableOverride]
-
     role = models.CharField(
         max_length=20,
         choices=[(r.value, r.value) for r in UserRole],

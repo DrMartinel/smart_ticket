@@ -8,7 +8,7 @@ if a caller somehow bypassed the router.
 from __future__ import annotations
 
 
-from typing import ClassVar, TypedDict
+from typing import TypedDict
 
 from django.conf import settings
 from django.db import models, transaction
@@ -69,9 +69,9 @@ class RunbookExecutionManager(models.Manager["RunbookExecution"]):
         runbook_id = draft.get("runbook_id")
         payload = draft.get("draft_payload", {})
 
-        spec = RUNBOOK_REGISTRY.get(runbook_id) if isinstance(runbook_id, str) else None
-        if spec is None:
+        if not isinstance(runbook_id, str) or runbook_id not in RUNBOOK_REGISTRY:
             raise RunbookError(f"unknown runbook_id: {runbook_id!r}")
+        spec = RUNBOOK_REGISTRY[runbook_id]
 
         missing = [f for f in spec["required_fields"] if f not in payload]
         if missing:
@@ -102,9 +102,7 @@ class RunbookExecution(BaseModel):
     status = models.CharField(max_length=20, default="succeeded")
     executed_at = models.DateTimeField(auto_now_add=True)
 
-    # django-types types Model.objects as BaseManager[Model], so any custom manager
-    # reads as an incompatible override.
-    objects: ClassVar[RunbookExecutionManager] = RunbookExecutionManager()  # pyright: ignore[reportIncompatibleVariableOverride]
+    objects = RunbookExecutionManager()
 
     class Meta(BaseModel.Meta):
         db_table = "runbook_executions"

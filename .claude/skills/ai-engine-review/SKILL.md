@@ -34,7 +34,7 @@ fine, and don't invent findings to fill the report.
 4. **Run the checks** and report what actually happened:
    ```bash
    uv run pytest services/ai-engine/tests -q
-   uvx pyright@1.1.414
+   uv run mypy
    uvx ruff@0.16.7 check . --exclude .venv
    uvx ruff@0.16.7 format --check . --exclude .venv
    ```
@@ -50,7 +50,7 @@ fine, and don't invent findings to fill the report.
 ```markdown
 ## ai-engine review: <base>...HEAD
 
-**Checks:** pytest <pass/fail + counts> · pyright <clean/n> · ruff <clean/n> · evals <run/not run/n.a.>
+**Checks:** pytest <pass/fail + counts> · mypy <clean/n> · ruff <clean/n> · evals <run/not run/n.a.>
 
 ### Regression (must fix before merge)
 1. [file.py:42](services/ai-engine/...#L42) — <what is wrong>. **Rule:** <checklist item / ADR>. **Fix:** <concrete suggestion>.

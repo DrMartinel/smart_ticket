@@ -11,7 +11,7 @@ import uuid
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import TYPE_CHECKING, ClassVar, Literal, cast
+from typing import Literal, cast
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
@@ -28,10 +28,6 @@ from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.tickets.utils.crypto import build_quarantine_entries
 from apps.tickets.utils.masking import mask
-
-if TYPE_CHECKING:
-    from django.db.models.manager import RelatedManager
-    from apps.review.models import ReviewItem
 
 
 class IncidentManager(models.Manager["Incident"]):
@@ -112,9 +108,7 @@ class Incident(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "incidents"
 
-    # django-types types Model.objects as BaseManager[Model], so any custom manager
-    # reads as an incompatible override.
-    objects: ClassVar[IncidentManager] = IncidentManager()  # pyright: ignore[reportIncompatibleVariableOverride]
+    objects = IncidentManager()
 
     def __str__(self) -> str:
         return self.public_id
@@ -247,12 +241,6 @@ class Ticket(BaseModel):
     """§3.1. The main table holds ONLY masked data — raw PII never lands
     here (see PiiQuarantine below and apps/tickets/utils/masking.py)."""
 
-    reporter_id: uuid.UUID
-    incident_id: uuid.UUID | None
-    ai_runs: RelatedManager[AiRun]
-    routing_decisions: RelatedManager[RoutingDecision]
-    review_items: RelatedManager[ReviewItem]
-
     public_id = models.CharField(max_length=32, unique=True)  # TKT-2026-000123
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="reported_tickets"
@@ -280,7 +268,7 @@ class Ticket(BaseModel):
     incident = models.ForeignKey(
         Incident, on_delete=models.SET_NULL, null=True, blank=True, related_name="tickets"
     )
-    duplicate_of = models.ForeignKey["Ticket"](
+    duplicate_of = models.ForeignKey(
         "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="duplicates"
     )
 
@@ -292,9 +280,7 @@ class Ticket(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "tickets"
 
-    # django-types types Model.objects as BaseManager[Model], so any custom manager
-    # reads as an incompatible override.
-    objects: ClassVar[TicketManager] = TicketManager()  # pyright: ignore[reportIncompatibleVariableOverride]
+    objects = TicketManager()
 
     def __str__(self) -> str:
         return self.public_id
@@ -354,7 +340,7 @@ class PiiQuarantine(models.Model):
     expires_at = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta(BaseModel.Meta):
+    class Meta:
         db_table = "pii_quarantine"
 
 
@@ -367,7 +353,7 @@ class PiiAccessLog(BaseModel):
     reason = models.TextField()  # required, non-empty (enforced in service)
     accessed_at = models.DateTimeField(auto_now_add=True)
 
-    class Meta:
+    class Meta(BaseModel.Meta):
         db_table = "pii_access_log"
 
 
@@ -411,9 +397,7 @@ class AiRun(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "ai_runs"
 
-    # django-types types Model.objects as BaseManager[Model], so any custom manager
-    # reads as an incompatible override.
-    objects: ClassVar[AiRunManager] = AiRunManager()  # pyright: ignore[reportIncompatibleVariableOverride]
+    objects = AiRunManager()
 
 
 class RoutingDecision(BaseModel):

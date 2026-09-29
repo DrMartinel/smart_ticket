@@ -6,15 +6,14 @@ to require an approver, never something the LLM can grant itself.
 
 from __future__ import annotations
 
-from typing import ClassVar
 
 from django.conf import settings
 from django.contrib.postgres.search import SearchVectorField
 from django.db import models, transaction
-from apps.core.models import BaseModel
 from django.utils import timezone
 from pgvector.django import VectorField
 
+from apps.core.models import BaseModel
 from apps.tickets.utils.router import RiskTier
 from infrastructure.dtos import TicketCategory
 from infrastructure.ai_engine import ai_engine
@@ -80,9 +79,7 @@ class KbArticle(BaseModel):
         # chk_autoreply_approved CHECK constraint is added by
         # infra/migrations/sql/0003_constraints_and_triggers.sql.
 
-    # django-types types Model.objects as BaseManager[Model], so any custom manager
-    # reads as an incompatible override.
-    objects: ClassVar[KbArticleManager] = KbArticleManager()  # pyright: ignore[reportIncompatibleVariableOverride]
+    objects = KbArticleManager()
 
     def __str__(self) -> str:
         return f"{self.slug}: {self.title}"

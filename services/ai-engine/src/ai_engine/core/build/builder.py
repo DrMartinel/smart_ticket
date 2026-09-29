@@ -12,7 +12,7 @@ from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.typing import StateLike  # pyright: ignore[reportPrivateImportUsage]
+from langgraph.typing import StateLike
 
 from ai_engine.core.node import BaseNode, StateUpdate, terminal
 from ai_engine.core.build.edge import Edge

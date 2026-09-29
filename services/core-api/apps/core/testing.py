@@ -19,6 +19,7 @@ def api_client_for(user: Any) -> Client:
     # evals/suites/conftest.py has configured Django.
     from ninja_jwt.tokens import AccessToken
 
-    # for_user is a classmethod on ninja_jwt's untyped Token base.
-    token = AccessToken.for_user(user)  # pyright: ignore[reportAttributeAccessIssue]
+    # for_user is a classmethod on ninja_jwt's untyped Token base, which mypy
+    # misreads as an instance method.
+    token = AccessToken.for_user(user)  # type: ignore[misc]
     return Client(HTTP_AUTHORIZATION=f"Bearer {token}")

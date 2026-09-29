@@ -39,9 +39,9 @@ def reciprocal_rank_fusion(
         scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + 1.0 / (k + rank)
         meta[hit.chunk_id] = (hit.article_id, hit.article_slug, hit.content)
 
-    for rank, hit in enumerate(vector_hits, start=1):
-        scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + 1.0 / (k + rank)
-        meta[hit.chunk_id] = (hit.article_id, hit.article_slug, hit.content)
+    for rank, vhit in enumerate(vector_hits, start=1):
+        scores[vhit.chunk_id] = scores.get(vhit.chunk_id, 0.0) + 1.0 / (k + rank)
+        meta[vhit.chunk_id] = (vhit.article_id, vhit.article_slug, vhit.content)
 
     ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
     return [

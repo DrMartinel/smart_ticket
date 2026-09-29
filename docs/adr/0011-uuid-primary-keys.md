@@ -50,5 +50,6 @@ not keyed by a UUID.
 - ai-engine's prompt context names each chunk `chunk_id=<uuid>` instead of a
   small integer. That is more tokens per chunk and changes what the model
   sees; the live eval suites should be run before this ships.
-- `<fk>_id` attributes are still invisible to pyright, so a model that reads
-  one declares it (`ticket_id: uuid.UUID`).
+- `<fk>_id` attributes were still invisible to pyright, so a model that read
+  one declared it. (Superseded by the move to mypy + django-stubs, whose plugin
+  infers them; those declarations were removed.)

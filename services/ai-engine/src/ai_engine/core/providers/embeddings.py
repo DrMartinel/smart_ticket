@@ -88,6 +88,7 @@ class StubEmbedder(Embedder):
 # An unknown value is fatal here, at boot: silently embedding with the wrong
 # provider produces plausible-looking vectors and quietly bad recall.
 
+embedder: Embedder
 match settings.embedding_provider:
     case "stub":
         embedder = StubEmbedder()

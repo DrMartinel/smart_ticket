@@ -374,7 +374,7 @@ def test_unhandled_proposal_type_degrades_to_hitl_rather_than_falling_through():
     class _Envelope:
         root = _FutureProposal()
 
-    d = route(good_signals(), _Envelope(), kb(), TH)  # pyright: ignore[reportArgumentType]
+    d = route(good_signals(), _Envelope(), kb(), TH)  # type: ignore[arg-type]
 
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.SCHEMA_INVALID

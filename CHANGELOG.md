@@ -15,6 +15,16 @@ that moves a failure path is more significant here than a new feature.
 
 ### Changed
 
+- **Type checker: pyright → mypy with the django-stubs plugin.** `uv run mypy`
+  from the repo root (not `uvx`: the plugin imports Django and
+  `config.settings.test`); version pinned by `uv.lock`, scope in
+  `[tool.mypy]`. `django-types` is replaced by `django-stubs`. The plugin
+  infers managers, `<fk>_id` fields and reverse managers, so the pyright-era
+  model declarations (`objects: ClassVar[...]` + ignore, `ticket_id: uuid.UUID`,
+  `RelatedManager[...]`, `ForeignKey["Ticket"]`) are removed. No behaviour
+  change; the new errors mypy raised were fixed in types only
+  (`metrics` reviewer ids were annotated `int`, not `UUID`; quarantine
+  `expires_at` was typed `object`).
 - **`apps/core`, the shared foundation app.** Every app may import from it;
   it imports from no app, pinned by `apps/core/tests/test_boundary.py`.
   Moved in: `TraceIdMiddleware` (from `apps/audit`), the `wait_for_db`

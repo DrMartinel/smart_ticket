@@ -45,7 +45,7 @@ Establish what "green" means before anything moves:
 
 ```bash
 uv run pytest <the target's test dir or file> -q
-uvx pyright@1.1.414
+uv run mypy
 ```
 
 - Record any failures that exist before you start. The evals have a known failure
@@ -68,7 +68,7 @@ uvx pyright@1.1.414
 5. Look for these smells: single-use wrappers, unreachable branches, speculative
    machinery, DI plumbing, scattered wiring, decisions mixed into I/O, string literals
    where a contract enum exists, restating comments, missing contract docstrings,
-   nested conditionals, positional arguments that are easy to swap, and pyright noise.
+   nested conditionals, positional arguments that are easy to swap, and type-checker noise.
 
 ## Phase 3: Propose, then STOP
 
@@ -77,7 +77,7 @@ Present the audit in exactly this shape, ranked by value/risk:
 ```markdown
 ## Refactor audit: <target>
 
-Baseline: <tests passed/failed, pyright clean/n issues, known pre-existing failures>
+Baseline: <tests passed/failed, mypy clean/n issues, known pre-existing failures>
 
 | # | Move (moves.md #) | Where | Gain | Risk | Guarded by | Draft commit |
 |---|---|---|---|---|---|---|
@@ -104,7 +104,7 @@ For each approved move, in order:
 2. Verify:
    ```bash
    uv run pytest <target tests> -q
-   uvx pyright@1.1.414
+   uv run mypy
    uvx ruff@0.16.7 check . --exclude .venv
    uvx ruff@0.16.7 format --check . --exclude .venv
    ```
@@ -130,5 +130,5 @@ After the last move:
   `uv run --package core-api python services/core-api/scripts/gen_typescript.py`.
   If an ai-engine wire shape changed, make the same change in the other service.
 - If a move set a new precedent, offer to add it to `references/moves.md`.
-- Run the full check: `uv run pytest` plus pyright plus ruff. Report the result
+- Run the full check: `uv run pytest` plus mypy plus ruff. Report the result
   honestly, including anything still failing.

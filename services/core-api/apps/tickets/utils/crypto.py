@@ -11,7 +11,7 @@ import base64
 import os
 import uuid
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from django.conf import settings
@@ -45,7 +45,7 @@ class QuarantineEntry:
     ref: uuid.UUID
     ciphertext: bytes
     nonce: bytes
-    expires_at: object  # datetime, kept loosely typed to avoid importing models here
+    expires_at: datetime
 
 
 def build_quarantine_entries(placeholder_map: dict[str, str]) -> dict[str, QuarantineEntry]:

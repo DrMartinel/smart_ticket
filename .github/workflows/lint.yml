@@ -7,8 +7,10 @@
 # and reports 104 findings on unchanged code. pyproject.toml pins the rule
 # selection; this pins the binary. Bump both together, deliberately.
 #
-# Pyright is pinned for the same reason: a new release can add checks and
-# turn unchanged code red. Its scope lives in pyproject.toml [tool.pyright].
+# mypy is pinned for the same reason: a new release can add checks and turn
+# unchanged code red. It runs from the workspace venv, not uvx, because the
+# django-stubs plugin must import Django and the settings; uv.lock pins its
+# version. Its scope lives in pyproject.toml [tool.mypy].
 
 name: lint
 
@@ -22,7 +24,6 @@ permissions:
 
 env:
   RUFF_VERSION: "0.16.7"
-  PYRIGHT_VERSION: "1.1.414"
 
 jobs:
   ruff:
@@ -40,7 +41,7 @@ jobs:
       - name: ruff format --check
         run: uvx ruff@${{ env.RUFF_VERSION }} format --check . --exclude .venv
 
-  pyright:
+  mypy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,5 +52,5 @@ jobs:
       # them every third-party import is Unknown and most checks go quiet.
       - run: uv sync --all-packages
 
-      - name: pyright
-        run: uvx pyright@${{ env.PYRIGHT_VERSION }}
+      - name: mypy
+        run: uv run mypy

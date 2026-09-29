@@ -10,6 +10,8 @@ look like a successful submit to the caller.
 """
 
 import pytest
+from datetime import timedelta
+
 from django.conf import settings
 from django.db import connection
 from django.utils import timezone
@@ -103,11 +105,12 @@ class TestSubmitPersistsOnlyMaskedText:
         assert set(ticket.pii_map.values()) == set(rows)
 
         raw = {
-            ph: decrypt(rows[ref].ciphertext, rows[ref].nonce) for ph, ref in ticket.pii_map.items()
+            ph: decrypt(bytes(rows[ref].ciphertext), bytes(rows[ref].nonce))
+            for ph, ref in ticket.pii_map.items()
         }
         assert raw == {"[EMAIL_1]": EMAIL, "[PHONE_VN_1]": PHONE}
 
-        ttl = timezone.timedelta(hours=settings.PII_QUARANTINE_TTL_HOURS)
+        ttl = timedelta(hours=settings.PII_QUARANTINE_TTL_HOURS)
         for row in rows.values():
             assert before + ttl <= row.expires_at <= after + ttl
 

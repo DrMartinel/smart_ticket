@@ -5,7 +5,9 @@ retraction)."""
 from __future__ import annotations
 
 
-from typing import Any, ClassVar
+from typing import Any
+
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models, transaction
@@ -50,7 +52,7 @@ class FewshotExampleManager(models.Manager["FewshotExample"]):
             approver=approver,
             approved_at=now,
             user_confirmed=True,
-            expires_at=now + timezone.timedelta(days=th.ttl_days),
+            expires_at=now + timedelta(days=th.ttl_days),
         )
 
     def retract_for_ticket(self, ticket: Ticket, reason: str = "source ticket reopened") -> int:
@@ -91,9 +93,7 @@ class FewshotExample(BaseModel):
     retract_reason = models.TextField(null=True, blank=True)
     version = models.IntegerField(default=1)
 
-    # django-types types Model.objects as BaseManager[Model], so any custom manager
-    # reads as an incompatible override.
-    objects: ClassVar[FewshotExampleManager] = FewshotExampleManager()  # pyright: ignore[reportIncompatibleVariableOverride]
+    objects = FewshotExampleManager()
 
     class Meta(BaseModel.Meta):
         db_table = "fewshot_examples"

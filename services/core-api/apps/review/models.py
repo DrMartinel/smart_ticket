@@ -6,21 +6,16 @@ import uuid
 
 from enum import StrEnum
 
-from typing import TYPE_CHECKING, ClassVar
-
 from django.conf import settings
 from django.db import models, transaction
 from django.db.models import QuerySet
-from apps.core.models import BaseModel
 from django.utils import timezone
 
+from apps.core.models import BaseModel
 from apps.tickets.utils.router import ReviewQueue
 from apps.accounts.models import User
 from apps.kb.models import KbArticle
 from apps.tickets.models import AiRun, Ticket
-
-if TYPE_CHECKING:
-    from django.db.models.manager import RelatedManager
 
 
 class ReviewAction(StrEnum):
@@ -54,8 +49,6 @@ class ReviewItemManager(models.Manager["ReviewItem"]):
 
 
 class ReviewItem(BaseModel):
-    decisions: RelatedManager[ReviewDecision]
-
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="review_items")
     ai_run = models.ForeignKey(
         AiRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
@@ -72,9 +65,7 @@ class ReviewItem(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "review_items"
 
-    # django-types types Model.objects as BaseManager[Model], so any custom manager
-    # reads as an incompatible override.
-    objects: ClassVar[ReviewItemManager] = ReviewItemManager()  # pyright: ignore[reportIncompatibleVariableOverride]
+    objects = ReviewItemManager()
 
     @transaction.atomic
     def claim(self, actor: User) -> ReviewItem:

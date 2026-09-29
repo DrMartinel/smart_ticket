@@ -25,7 +25,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
     "celery-types>=0.26.0",
-    "django-types>=0.24.0",
+    "django-stubs[compatible-mypy]>=6.1.1",
 ]
 
 [tool.ruff]
@@ -70,21 +70,32 @@ testpaths = [
 # run dies at collection, while each suite still passes on its own.
 addopts = "--import-mode=importlib"
 
-[tool.pyright]
-# Standard mode everywhere. Suppressions are per line and name their rule;
-# most sit on untyped library boundaries (LangGraph's generics are partly
-# unparameterized).
-include = ["services/ai-engine", "services/core-api", "evals"]
+[tool.mypy]
+# Run from the repo root as `uv run mypy` (see lint.yml). mypy runs from the
+# workspace venv rather than `uvx`, because the django-stubs plugin must import
+# Django and the project's settings; the version is pinned by uv.lock.
+files = ["services/ai-engine/src", "services/core-api", "evals"]
 # Django's generated migrations are not hand-written code.
-exclude = ["**/migrations", "**/__pycache__", "**/node_modules", "**/.*"]
-typeCheckingMode = "standard"
-# The workspace venv (`uv sync --all-packages`), so imports resolve to the
-# same packages the tests run against.
-venvPath = "."
-venv = ".venv"
-pythonVersion = "3.13"
-# The workspace packages are editable installs with no py.typed marker, so
-# through the venv pyright treats them as untyped third-party code. Resolving
-# them from source makes them first-party. The last two are the import roots
-# core-api (`apps.*`, `config.*`) and evals (`suites.*`) run from.
-extraPaths = ["services/ai-engine/src", "services/core-api", "evals"]
+exclude = ['/migrations/', '/node_modules/']
+python_version = "3.13"
+# The import roots each service runs from: ai-engine's src layout, core-api's
+# `apps.*` / `config.*`, and evals' `suites.*`.
+mypy_path = ["services/ai-engine/src", "services/core-api", "evals"]
+explicit_package_bases = true
+# Test packages are named `tests` in more than one service (the same clash
+# pytest's --import-mode=importlib handles); namespace them by path.
+namespace_packages = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+plugins = ["mypy_django_plugin.main"]
+
+[tool.django-stubs]
+# Settings that import with no environment: base.py reads everything from
+# os.environ with dev defaults.
+django_settings_module = "config.settings.test"
+
+# scikit-learn ships no type information; only the evals calibration scripts use it.
+[[tool.mypy.overrides]]
+module = ["sklearn", "sklearn.*"]
+ignore_missing_imports = true

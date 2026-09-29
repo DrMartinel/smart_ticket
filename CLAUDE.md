@@ -85,10 +85,10 @@ uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
 
-Type check (standard mode everywhere; scope and settings in root `pyproject.toml`, version pinned in `lint.yml`):
+Type check (mypy with the django-stubs plugin; scope and settings in root `pyproject.toml`, version pinned by `uv.lock`):
 
 ```bash
-uvx pyright@1.1.414
+uv run mypy
 ```
 
 Coverage on the two modules where it is contractual:
@@ -238,9 +238,9 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
-| pyright: custom manager "overrides symbol of same name in class Model" | django-types types `Model.objects` as `BaseManager[Model]`. Annotate `objects: ClassVar[XManager] = XManager()` with `# pyright: ignore[reportIncompatibleVariableOverride]`, as the existing models do |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
-| pyright: unknown `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime. Declare it on the model only once code reads it (`ticket_id: uuid.UUID`, `ai_runs: RelatedManager[AiRun]`); the same goes for naming the model on a FK to a string target (`models.ForeignKey["Ticket"]("self", …)`). Don't add these pre-emptively |
+| mypy: `ImproperlyConfigured` / plugin can't load settings | The django-stubs plugin imports `config.settings.test` (set in `[tool.django-stubs]`). Run `uv run mypy` from the repo root after `uv sync --all-packages`, not `uvx mypy`, which has no Django |
+| Tempted to annotate `objects`, `<fk>_id` or a reverse manager on a model | Don't: the django-stubs plugin infers managers, `_id` fields and related managers. Those declarations were pyright-era workarounds |
 | New model has a bigint `id`; `test_every_model_has_a_uuid_primary_key` fails | Inherit `apps.core.models.BaseModel`, which declares `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)` (ADR-0011). `DEFAULT_AUTO_FIELD` is still `BigAutoField`, for Django's own tables |
 
 ## Testing conventions
@@ -264,7 +264,7 @@ behavior. A green unit suite says nothing about whether the model got worse.
 ## Before opening a PR
 
 - [ ] `uv run pytest` passes
-- [ ] `uvx pyright@1.1.414` is clean
+- [ ] `uv run mypy` is clean
 - [ ] New behavior has a test; new *failure* paths do too
 - [ ] No new magic numbers — did it go in `thresholds.yaml`?
 - [ ] Schema change → both services if it's on the ai-engine wire, types regenerated, new fields defaulted

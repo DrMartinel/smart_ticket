@@ -134,7 +134,7 @@ def test_main_wires_the_prompt_for_settings_prompt_version():
 
     # LangGraph internals: PregelNode.bound is the RunnableCallable wrapping
     # GraphBuilder's adapter, which keeps the node instance on `.node`.
-    infer = triage_graph.nodes[InferNode.name].bound.func.node  # pyright: ignore[reportAttributeAccessIssue]
+    infer = triage_graph.nodes[InferNode.name].bound.func.node
 
     expected = load_system_prompt(settings.prompt_version)
     assert infer._system_prompt == expected

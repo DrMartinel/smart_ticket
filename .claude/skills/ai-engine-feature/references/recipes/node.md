@@ -122,4 +122,4 @@ stage walk-through in `docs/architecture.md` too.
 - [ ] The `use_*` fixture includes the new module, if the node reads a provider.
 - [ ] Failure-path tests exist and pass the mutation check.
 - [ ] The literal sets in `test_build.py` are updated.
-- [ ] pytest, pyright and ruff are all clean.
+- [ ] pytest, mypy and ruff are all clean.

@@ -63,7 +63,7 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
 ### 7. Nested type → module level for type correctness — 27e7ce3
 
 - **Smell:** a nested class overriding a base-class attribute of a different type, with
-  pyright complaining about incompatible overrides.
+  the type checker complaining about incompatible overrides.
 - **Move:** define it at module level and assign it (`Outcome = RerankOutcome`).
 - **Guard:** update every reference that named the nested path.
 
@@ -108,16 +108,15 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
   matches **no** enum member (e.g. `"mass_incident_short_circuit"`) is a *finding*, not a
   mechanical swap — changing it alters persisted values, so raise it with the user.
 
-### 13. Type only what pyright (standard mode) asks for — f04445f, 894f950
+### 13. Type only what mypy asks for — f04445f, 894f950
 
-- **Smell:** a pyright error on a Django attribute added at runtime, or at an untyped
-  library boundary.
-- **Move:** declare the runtime-added attribute on the model (`<fk>_id: uuid.UUID`,
-  `RelatedManager[...]`) or name the model on a FK to a string target, only where
-  code reads it. Suppress only at a genuinely untyped library boundary, one line,
-  rule named. Casts, `JSONField[...]` generics and annotations on empty locals that
-  standard mode doesn't need were removed after the move off strict mode; don't
-  re-add them.
+- **Smell:** a type annotation or suppression that exists only to satisfy a checker,
+  especially on a Django model.
+- **Move:** delete it if `uv run mypy` stays clean. The django-stubs plugin infers
+  managers, `<fk>_id` fields and reverse managers, so the pyright-era declarations
+  (`objects: ClassVar[...]`, `ticket_id: uuid.UUID`, `RelatedManager[...]`) are gone;
+  don't re-add them. Suppress only at a genuinely untyped library boundary, one line,
+  error code named (`# type: ignore[misc]`).
 - **Guard:** a type change that changes runtime behaviour is not a typing refactor.
 
 ---

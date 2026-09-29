@@ -162,4 +162,4 @@ def test_llm_result_rejects_a_null_text():
     """
 
     with pytest.raises(Exception):
-        LLMResult(text=None, tokens_in=0, tokens_out=0, model="m", cost_usd=0.0)  # pyright: ignore[reportArgumentType]
+        LLMResult(text=None, tokens_in=0, tokens_out=0, model="m", cost_usd=0.0)

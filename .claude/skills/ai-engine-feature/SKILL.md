@@ -1,6 +1,6 @@
 ---
 name: ai-engine-feature
-description: Workflow for building or changing anything in services/ai-engine, the FastAPI + LangGraph triage pipeline. Covers new graph nodes, providers (embedder, reranker, LLM client), TriageState fields, trust signals or failure reasons that reach core-api, retrieval (BM25, vector, RRF fusion, rerank), prompt version bumps, and new settings. It classifies the change, reads the matching exemplars, and produces a plan in a fixed shape. It then waits for approval before implementing with the repo's node contract, degrade-to-HITL failure semantics and fakes-based tests, and verifies with pytest, pyright and ruff. Use it for any implementation work under services/ai-engine/src, including small edits, and whenever the user says "add a node", "add a step to the graph", "new signal", "new provider", "change the prompt", "tweak retrieval", or describes a feature for the triage pipeline.
+description: Workflow for building or changing anything in services/ai-engine, the FastAPI + LangGraph triage pipeline. Covers new graph nodes, providers (embedder, reranker, LLM client), TriageState fields, trust signals or failure reasons that reach core-api, retrieval (BM25, vector, RRF fusion, rerank), prompt version bumps, and new settings. It classifies the change, reads the matching exemplars, and produces a plan in a fixed shape. It then waits for approval before implementing with the repo's node contract, degrade-to-HITL failure semantics and fakes-based tests, and verifies with pytest, mypy and ruff. Use it for any implementation work under services/ai-engine/src, including small edits, and whenever the user says "add a node", "add a step to the graph", "new signal", "new provider", "change the prompt", "tweak retrieval", or describes a feature for the triage pipeline.
 argument-hint: <what to build>
 ---
 
@@ -104,7 +104,7 @@ the plan, mention it instead of doing it.
 
 ```bash
 uv run pytest services/ai-engine/tests -q
-uvx pyright@1.1.414
+uv run mypy
 uvx ruff@0.16.7 check . --exclude .venv
 uvx ruff@0.16.7 format --check . --exclude .venv
 ```

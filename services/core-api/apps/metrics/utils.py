@@ -12,6 +12,8 @@ it is measuring.
 
 from __future__ import annotations
 
+import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from datetime import timedelta
@@ -23,7 +25,7 @@ from apps.review.models import ReviewDecision, ReviewItem
 from apps.tickets.models import AiRun, RoutingDecision, Ticket
 
 
-def _percentile(values: list[float], p: float) -> float | None:
+def _percentile(values: Sequence[float], p: float) -> float | None:
     if not values:
         return None
     values = sorted(values)
@@ -110,19 +112,22 @@ def hitl_health_metrics(window_days: int = 30) -> dict[str, Any]:
     # Median needs a per-group percentile, which the ORM can't express
     # portably — computed in Python from the raw (reviewer_id, seconds)
     # pairs instead of a second query per reviewer.
-    times_by_reviewer: dict[int, list[float]] = {}
+    times_by_reviewer: dict[uuid.UUID, list[float]] = {}
     for reviewer_id, seconds in ReviewDecision.objects.filter(decided_at__gte=since).values_list(
         "reviewer_id", "time_spent_sec"
     ):
         times_by_reviewer.setdefault(reviewer_id, []).append(seconds)
 
-    per_reviewer = []
-    for row in per_reviewer_counts:
-        row["approve_rate"] = row["approved"] / row["total"] if row["total"] else None
-        row["median_time_spent_sec"] = _percentile(
-            times_by_reviewer.get(row["reviewer_id"], []), 0.5
-        )
-        per_reviewer.append(row)
+    per_reviewer = [
+        {
+            **row,
+            "approve_rate": row["approved"] / row["total"] if row["total"] else None,
+            "median_time_spent_sec": _percentile(
+                times_by_reviewer.get(row["reviewer_id"], []), 0.5
+            ),
+        }
+        for row in per_reviewer_counts
+    ]
 
     return {
         "queue_depth_by_queue": queue_depth,
@@ -135,7 +140,7 @@ def hitl_health_metrics(window_days: int = 30) -> dict[str, Any]:
 def ops_metrics(window_days: int = 7) -> dict[str, Any]:
     since = timezone.now() - timedelta(days=window_days)
     runs = AiRun.objects.filter(created_at__gte=since)
-    latencies = list(runs.exclude(latency_ms__isnull=True).values_list("latency_ms", flat=True))
+    latencies = [ms for ms in runs.values_list("latency_ms", flat=True) if ms is not None]
     total_runs = runs.count()
     degraded_runs = runs.exclude(degraded_reason__isnull=True).count()
     total_cost = sum((r.cost_usd or 0) for r in runs.only("cost_usd"))

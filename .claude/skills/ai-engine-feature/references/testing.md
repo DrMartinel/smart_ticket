@@ -46,7 +46,7 @@ Rules that follow from how the suite is set up:
   SQLAlchemy can't compile therefore fails in the unit test, and a
   `rows=callable(sql, params)` can answer the BM25 query and the vector query
   differently.
-- Tests run under pyright's **standard** mode. Annotate helpers and return types
+- Tests are type-checked by mypy (`check_untyped_defs`). Annotate helpers and return types
   where it's cheap, but don't annotate every fixture parameter.
 
 ## Which file

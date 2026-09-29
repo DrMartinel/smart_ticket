@@ -79,7 +79,7 @@ def test_node_annotation_does_not_override_the_graph_schema():
         seen: list[str]
 
     class AnnotatedNode(BaseNode):
-        def __call__(self, state: Other) -> dict:  # pyright: ignore[reportIncompatibleMethodOverride]
+        def __call__(self, state: Other) -> dict:
             return {"seen": ["ran"]}
 
     node = AnnotatedNode()

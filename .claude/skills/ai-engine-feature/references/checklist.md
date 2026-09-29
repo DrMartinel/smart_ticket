@@ -82,13 +82,13 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 ## Style (see readability.md)
 
 - [convention] Module docstring (what, spec § or ADR, the non-obvious invariant), then `from __future__ import annotations`, then imports in two groups: stdlib and third-party, then `ai_engine`.
-- [convention] Comments say why and name silent failures. They don't restate code or explain pyright.
+- [convention] Comments say why and name silent failures. They don't restate code or explain the type checker.
 - [convention] Guard clauses, keyword-only parameters where there are several, no single-use wrappers.
-- [convention] pyright is clean. Suppressions are per line, name the rule, and sit only at library boundaries. ruff check and format are clean.
+- [convention] mypy is clean. Suppressions are per line (`# type: ignore[code]`), name the error code, and sit only at library boundaries. ruff check and format are clean.
 
 ## Verification & docs
 
-- [regression] `uv run pytest services/ai-engine/tests -q`, `uvx pyright@1.1.414` and ruff all pass. If the wire schema or core-api changed, the whole-workspace `uv run pytest` passes too.
+- [regression] `uv run pytest services/ai-engine/tests -q`, `uv run mypy` and ruff all pass. If the wire schema or core-api changed, the whole-workspace `uv run pytest` passes too.
 - [regression] Prompt or retrieval changes have live eval results with the deltas explained. No floor was lowered.
 - [convention] `docs/graph-node-architecture.md` and `docs/architecture.md` reflect new topology or behaviour. `status.md` and `TODO.md` are updated together.
 - [convention] Commits are small `type(scope): summary`, and each body says why.

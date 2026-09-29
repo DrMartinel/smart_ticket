@@ -125,8 +125,8 @@ class ValidateNode(BaseNode):
 
         # 4. Negation check — fuzzy match cannot catch this.
         neg_ok = (
-            _negations_in(quote, NEGATIONS) == _negations_in(topk.get(source, ""), NEGATIONS)
-            if in_topk
+            _negations_in(quote, NEGATIONS) == _negations_in(topk[source], NEGATIONS)
+            if source is not None
             else False
         )
 

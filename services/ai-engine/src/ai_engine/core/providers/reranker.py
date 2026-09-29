@@ -103,6 +103,7 @@ class LexicalReranker(Reranker):
 # `retrieval.floor` against the wrong score distribution (ADR-0005) with nothing
 # looking broken.
 
+reranker: Reranker
 match settings.reranker_provider:
     case "lexical":
         reranker = LexicalReranker()

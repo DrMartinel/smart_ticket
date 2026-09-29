@@ -33,16 +33,19 @@ def weekly_drift_check() -> dict[str, Any]:
         trust_score__isnull=False,
     )
 
-    this_scores = list(this_week.values_list("trust_score", flat=True))
-    last_scores = list(last_week.values_list("trust_score", flat=True))
+    # The querysets already exclude NULL; the `is not None` is for the type.
+    this_scores = [
+        float(s) for s in this_week.values_list("trust_score", flat=True) if s is not None
+    ]
+    last_scores = [
+        float(s) for s in last_week.values_list("trust_score", flat=True) if s is not None
+    ]
 
     alerts: list[dict[str, Any]] = []
     th = settings.THRESHOLDS.alerts
 
     if this_scores and last_scores:
-        drift = abs(
-            statistics.mean(map(float, this_scores)) - statistics.mean(map(float, last_scores))
-        )
+        drift = abs(statistics.mean(this_scores) - statistics.mean(last_scores))
         if drift > th.trust_score_drift_max:
             alerts.append(
                 {
@@ -53,7 +56,7 @@ def weekly_drift_check() -> dict[str, Any]:
             )
 
     if len(this_scores) >= 2:
-        std = statistics.stdev(map(float, this_scores))
+        std = statistics.stdev(this_scores)
         if std < th.trust_score_std_min:
             alerts.append(
                 {"alert": "trust_score_collapsed", "std": std, "threshold": th.trust_score_std_min}

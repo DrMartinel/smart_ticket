@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 
-from typing import Any, ClassVar
+from typing import Any
 
 from django.db import models
 
@@ -53,9 +53,7 @@ class AuditLog(BaseModel):
     trace_id = models.CharField(max_length=64, null=True, blank=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
 
-    # django-types types Model.objects as BaseManager[Model], so any custom manager
-    # reads as an incompatible override.
-    objects: ClassVar[AuditLogManager] = AuditLogManager()  # pyright: ignore[reportIncompatibleVariableOverride]
+    objects = AuditLogManager()
 
     class Meta(BaseModel.Meta):
         db_table = "audit_log"

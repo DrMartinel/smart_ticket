@@ -34,7 +34,7 @@ def test_created_article_is_chunked_and_embedded(manager_user, api_as):
     assert response.json()["id"] == str(article.id)
     chunks = KbChunk.objects.filter(article=article)
     assert chunks.count() >= 1
-    assert all(len(c.embedding) == 1024 for c in chunks)
+    assert all(c.embedding is not None and len(c.embedding) == 1024 for c in chunks)
     # Creation never grants auto-reply authority; that goes through
     # set_auto_reply_allowed with a manager, a reason and a log row.
     assert article.auto_reply_allowed is False

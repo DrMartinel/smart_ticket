@@ -68,9 +68,9 @@ class LLMClient:
             if not isinstance(text, str) or not text.strip():
                 raise ValueError(f"LLM returned unusable content: {text!r}")
 
-            usage = message.usage_metadata or {}
-            tokens_in = usage.get("input_tokens", 0)
-            tokens_out = usage.get("output_tokens", 0)
+            usage = message.usage_metadata
+            tokens_in = usage["input_tokens"] if usage else 0
+            tokens_out = usage["output_tokens"] if usage else 0
 
             return LLMResult(
                 text=text,

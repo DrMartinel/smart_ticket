@@ -27,7 +27,7 @@ and never override them.
 **New ai-engine feature**
 ```
 /ai-engine-feature <what>  →  review the plan, answer open questions, approve
-                           →  Claude implements, tests (failure paths first), runs pytest/pyright/ruff
+                           →  Claude implements, tests (failure paths first), runs pytest/mypy/ruff
                            →  /ai-engine-review  →  commit (ask Claude, or do it yourself)  →  PR
 ```
 
