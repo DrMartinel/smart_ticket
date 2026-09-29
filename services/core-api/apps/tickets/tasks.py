@@ -24,12 +24,12 @@ from apps.tickets.utils.pipeline import TaskResult, ticket_process
 
 
 @shared_task(bind=True, max_retries=0)
-def process_ticket(self: Task[[int], TaskResult], ticket_id: int) -> TaskResult:
+def process_ticket(self: Task[[str], TaskResult], ticket_id: str) -> TaskResult:
     return ticket_process(ticket_id)
 
 
 @shared_task
-def reopen_ticket(ticket_id: int) -> None:
+def reopen_ticket(ticket_id: str) -> None:
     """Called by whatever surface lets a reporter reopen a resolved ticket
     (not built out as its own endpoint in this build, but wired here so
     the few-shot retraction rule — spec §3.5 — has a concrete trigger)."""

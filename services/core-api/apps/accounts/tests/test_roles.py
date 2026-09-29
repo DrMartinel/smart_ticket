@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Roles — spec §1. Governance checks key off `User.role` (`is_manager` gates
 auto-reply authority, ADR-0002), so an account created without a role must

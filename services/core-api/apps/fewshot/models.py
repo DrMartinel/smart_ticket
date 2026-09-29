@@ -4,6 +4,8 @@ retraction)."""
 
 from __future__ import annotations
 
+import uuid
+
 from typing import Any, ClassVar
 
 from django.conf import settings
@@ -73,19 +75,17 @@ class FewshotExampleManager(models.Manager["FewshotExample"]):
 
 
 class FewshotExample(models.Model):
-    id: int
-    source_ticket_id: int
-    approver_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     source_ticket = models.ForeignKey(
         Ticket, on_delete=models.CASCADE, related_name="fewshot_examples"
     )
     category = models.CharField(max_length=20, choices=[(c.value, c.value) for c in TicketCategory])
     input_text = models.TextField()  # already masked
-    output_json: models.JSONField[dict[str, Any]] = models.JSONField()
+    output_json = models.JSONField()
     embedding = VectorField(dimensions=1024, null=True, blank=True)
 
-    approver = models.ForeignKey[User](settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    approver = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     approved_at = models.DateTimeField()
     user_confirmed = models.BooleanField(default=False)  # required to enter the pool
     expires_at = models.DateTimeField()  # approved_at + ttl_days

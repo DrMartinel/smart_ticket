@@ -85,7 +85,7 @@ uv run pytest services/ai-engine/tests -q  # 149
 uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
 ```
 
-Type check (strict for all source code, standard for tests; scope and settings in root `pyproject.toml`, version pinned in `lint.yml`):
+Type check (standard mode everywhere; scope and settings in root `pyproject.toml`, version pinned in `lint.yml`):
 
 ```bash
 uvx pyright@1.1.414
@@ -235,9 +235,9 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
 | pyright: custom manager "overrides symbol of same name in class Model" | django-types types `Model.objects` as `BaseManager[Model]`. Annotate `objects: ClassVar[XManager] = XManager()` with `# pyright: ignore[reportIncompatibleVariableOverride]`, as the existing models do |
-| pyright strict errors in a new core-api test file | Tests sit under strict source paths (`apps/`, `common/`, `infrastructure/`); start the file with `# pyright: standard`, as the others do |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
-| pyright: unknown `id` / `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime: declare it on the model (`id: int`, `ticket_id: int`, `ai_runs: RelatedManager[AiRun]`), and give a FK to a string target its model (`models.ForeignKey[User](settings.AUTH_USER_MODEL, …)`) |
+| pyright: unknown `<fk>_id` / reverse manager on a model | django-types can't see what Django adds at runtime. Declare it on the model only once code reads it (`ticket_id: uuid.UUID`, `ai_runs: RelatedManager[AiRun]`); the same goes for naming the model on a FK to a string target (`models.ForeignKey["Ticket"]("self", …)`). Don't add these pre-emptively |
+| New model has a bigint `id`; `test_every_model_has_a_uuid_primary_key` fails | Every model declares `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)` (ADR-0011). `DEFAULT_AUTO_FIELD` is still `BigAutoField`, for Django's own tables |
 
 ## Testing conventions
 
@@ -281,5 +281,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (ten
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (eleven
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

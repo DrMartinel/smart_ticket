@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Mock ITSM endpoints over HTTP. The response schema decides what the web
 receives, so the keys are pinned here, and a refused runbook must reach the

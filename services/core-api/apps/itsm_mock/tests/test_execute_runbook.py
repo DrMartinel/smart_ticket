@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Runbook execution — ADR-0006. The router sends every RunbookProposal to a
 human; `RunbookExecution.objects.execute` is the second, independent check,

@@ -1,4 +1,3 @@
-# pyright: standard
 import pytest
 from django.test import Client
 

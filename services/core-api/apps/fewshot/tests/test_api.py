@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Few-shot endpoints over HTTP. The response schema decides what the web
 receives, so the keys are pinned here.
@@ -40,7 +39,7 @@ def test_active_examples_for_a_category(employee_user, manager_user, technician_
     assert response.status_code == 200
     [row] = response.json()
     assert set(row) == {"id", "category", "input_text", "output_json", "expires_at"}
-    assert row["id"] == example.id
+    assert row["id"] == str(example.id)
     assert row["output_json"] == {"proposed_category": "network"}
     assert datetime.fromisoformat(row["expires_at"]) == example.expires_at.replace(
         microsecond=example.expires_at.microsecond // 1000 * 1000

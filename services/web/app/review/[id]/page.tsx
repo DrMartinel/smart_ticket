@@ -8,14 +8,14 @@ import TrustSignalsPanel, { type TrustSignalsPanelProps } from "@/components/Tru
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
 
 interface ReviewItemDetail {
-  id: number;
+  id: string;
   ticket_public_id: string;
   subject_masked: string;
   body_masked: string;
   queue: string;
   priority: number;
   state: string;
-  claimed_by: number | null;
+  claimed_by: string | null;
   trust_signals: TrustSignalsPanelProps["trustSignals"];
   trust_score: number | null;
   trust_contributions: Record<string, number> | null;

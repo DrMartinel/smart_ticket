@@ -9,6 +9,8 @@ them like any other token.
 
 from __future__ import annotations
 
+import uuid
+
 import re
 
 from pydantic import BaseModel, ConfigDict
@@ -25,8 +27,8 @@ ERROR_CODE_BOOST = 0.5
 class LexicalHit(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    chunk_id: int
-    article_id: int
+    chunk_id: uuid.UUID
+    article_id: uuid.UUID
     article_slug: str
     content: str
     score: float
@@ -47,7 +49,7 @@ def bm25_search(session: Session, query_text: str) -> list[LexicalHit]:
     )
     rows = session.execute(statement).all()
 
-    hits: list[LexicalHit] = []
+    hits = []
     for chunk_id, article_id, article_slug, content, score in rows:
         boosted = float(score)
         if error_codes and any(code in content for code in error_codes):

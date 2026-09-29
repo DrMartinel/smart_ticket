@@ -14,6 +14,8 @@ calls; "never instantiated" is on review.
 
 from __future__ import annotations
 
+import uuid
+
 from datetime import datetime
 from typing import Any
 
@@ -33,7 +35,7 @@ class Base(DeclarativeBase):
 class KbArticle(Base):
     __tablename__ = "kb_articles"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     slug: Mapped[str]
     # Read for the log-only `TrustSignals.policy` block. The authoritative
     # auto-reply check is core-api's (ADR-0002), never this read.
@@ -45,8 +47,8 @@ class KbArticle(Base):
 class KbChunk(Base):
     __tablename__ = "kb_chunks"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
-    article_id: Mapped[int] = mapped_column(ForeignKey("kb_articles.id"))
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
     content: Mapped[str]
     embedding: Mapped[Any] = mapped_column(VECTOR(EMBED_DIM), nullable=True)
     # Maintained by a Postgres trigger (0003_constraints_and_triggers.sql).
@@ -56,7 +58,7 @@ class KbChunk(Base):
 class FewshotExample(Base):
     __tablename__ = "fewshot_examples"
 
-    id: Mapped[int] = mapped_column(primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     category: Mapped[str]
     input_text: Mapped[str]
     output_json: Mapped[Any] = mapped_column(JSONB)

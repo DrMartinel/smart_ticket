@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Few-shot pool — spec §3.5. An example enters the pool only with the
 reporter's confirmation, and leaves it when its TTL passes or its source
@@ -114,7 +113,7 @@ def test_reopening_a_ticket_retracts_only_its_examples(employee_user, manager_us
     retracted = example(reopened, manager_user)
     kept = example(other, manager_user)
 
-    reopen_ticket(reopened.id)
+    reopen_ticket(str(reopened.id))
 
     retracted.refresh_from_db()
     assert retracted.retracted_at is not None

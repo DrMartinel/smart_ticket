@@ -1,4 +1,3 @@
-# pyright: standard
 """
 Incident Detector — spec §9.
 `Incident.objects.get_or_create_for_mass_incident` is the one piece of the

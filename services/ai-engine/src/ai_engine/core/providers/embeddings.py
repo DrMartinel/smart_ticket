@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import hashlib
 from abc import ABC, abstractmethod
-from typing import cast
 
 import numpy as np
 
@@ -53,7 +52,6 @@ class LexicalEmbedder(Embedder):
             raise ValueError(
                 f"{model!r} returned dim {type(vector).__name__}, expected {EMBED_DIM}"
             )
-        vector = cast(list[float], vector)
         if len(vector) != EMBED_DIM:
             raise ValueError(f"{model!r} returned dim {len(vector)}, expected {EMBED_DIM}")
         return vector

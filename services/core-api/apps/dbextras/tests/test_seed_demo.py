@@ -1,4 +1,3 @@
-# pyright: standard
 """
 `seed_demo` pre-approves some KB articles for auto-reply. It must do that
 through the same governance path a manager uses (ADR-0002): a manager

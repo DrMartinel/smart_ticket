@@ -13,6 +13,8 @@ that can skip it (ADR-0006).
 
 from __future__ import annotations
 
+import uuid
+
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -99,7 +101,7 @@ class KBArticleMeta(BaseModel):
     """The slice of a KB article the router needs. Authority lives here,
     not in anything the LLM says (ADR-0002)."""
 
-    id: int
+    id: uuid.UUID
     slug: str
     category: TicketCategory
     auto_reply_allowed: bool
@@ -246,7 +248,7 @@ def route(
         )
 
     # ── Branch B: auto-route ──
-    if isinstance(proposal.root, RouteProposal):  # pyright: ignore[reportUnnecessaryIsInstance]
+    if isinstance(proposal.root, RouteProposal):
         if not g.category_consistent:
             return _hitl(ReasonCode.CATEGORY_INCONSISTENT, queue=ReviewQueue.LOW_CONFIDENCE.value)
         if trust < th.t_route:

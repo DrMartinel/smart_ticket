@@ -243,7 +243,7 @@ def _execute_or_enqueue(
         ticket.save(update_fields=["status", "category", "assigned_team"])
 
 
-def ticket_process(ticket_id: int) -> TaskResult:
+def ticket_process(ticket_id: str) -> TaskResult:
     """Runs one ticket from embedding to a recorded routing decision.
 
     Each call is a new attempt: it creates a new `AiRun` and `RoutingDecision`.

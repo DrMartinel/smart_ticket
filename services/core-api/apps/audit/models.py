@@ -8,6 +8,8 @@ convention).
 
 from __future__ import annotations
 
+import uuid
+
 from typing import Any, ClassVar
 
 from django.db import models
@@ -19,8 +21,8 @@ class AuditLogManager(models.Manager["AuditLog"]):
         event: str,
         *,
         actor_type: str,
-        actor_id: int | None = None,
-        ticket_id: int | None = None,
+        actor_id: uuid.UUID | None = None,
+        ticket_id: uuid.UUID | None = None,
         payload: dict[str, Any] | None = None,
         trace_id: str | None = None,
     ) -> AuditLog:
@@ -41,13 +43,13 @@ class AuditLogManager(models.Manager["AuditLog"]):
 
 
 class AuditLog(models.Model):
-    id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
-    ticket_id = models.BigIntegerField(null=True, blank=True)
+    ticket_id = models.UUIDField(null=True, blank=True)
     actor_type = models.CharField(max_length=20)  # system|ai|human
-    actor_id = models.BigIntegerField(null=True, blank=True)
+    actor_id = models.UUIDField(null=True, blank=True)
     event = models.CharField(max_length=100)
-    payload: models.JSONField[dict[str, Any]] = models.JSONField(default=dict)
+    payload = models.JSONField(default=dict)
     trace_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
     occurred_at = models.DateTimeField(auto_now_add=True)
 

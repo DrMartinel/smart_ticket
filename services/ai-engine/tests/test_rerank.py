@@ -7,6 +7,8 @@ silently changes how often the LLM is called at all.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from ai_engine.core.config import settings
 from ai_engine.graph.nodes.rerank import rerank
 
@@ -27,7 +29,7 @@ def test_output_order_follows_the_reranker_not_the_rrf_order(
 
     reranked = node(make_state(candidates=candidates))["reranked"]
 
-    assert [r.chunk_id for r in reranked] == [3, 2, 1]
+    assert [r.chunk_id for r in reranked] == [UUID(int=3), UUID(int=2), UUID(int=1)]
     assert reranked[0].score == 0.9
 
 
@@ -41,7 +43,7 @@ def test_truncation_uses_the_configured_top_n(
 
     reranked = node(make_state(candidates=candidates))["reranked"]
 
-    assert [r.chunk_id for r in reranked] == [2, 4]
+    assert [r.chunk_id for r in reranked] == [UUID(int=2), UUID(int=4)]
 
 
 def test_empty_candidates_returns_empty_without_a_degraded_reason(
@@ -77,7 +79,7 @@ def test_scores_are_zipped_to_candidates_positionally(
     reranked = node(make_state(candidates=candidates))["reranked"]
 
     by_id = {r.chunk_id: r.score for r in reranked}
-    assert by_id == {7: 0.2, 8: 0.8}
+    assert by_id == {UUID(int=7): 0.2, UUID(int=8): 0.8}
 
 
 def test_query_sent_to_the_reranker_is_the_masked_ticket(

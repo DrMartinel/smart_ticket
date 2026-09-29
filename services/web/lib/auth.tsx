@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { api, getToken, setToken } from "./api";
 
 export interface CurrentUser {
-  id: number;
+  id: string;
   username: string;
   email: string;
   role: "employee" | "technician" | "manager" | "security";

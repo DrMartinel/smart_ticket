@@ -1,4 +1,3 @@
-# pyright: standard
 """
 The dashboard over HTTP. Most of its numbers are None on a quiet window (no
 decisions, no runs), and the response schema must allow that: a field typed

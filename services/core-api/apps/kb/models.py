@@ -6,6 +6,8 @@ to require an approver, never something the LLM can grant itself.
 
 from __future__ import annotations
 
+import uuid
+
 from typing import ClassVar
 
 from django.conf import settings
@@ -45,8 +47,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
 
 
 class KbArticle(models.Model):
-    id: int
-    approved_by_id: int | None
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     slug = models.CharField(max_length=32, unique=True)  # KB-0142
     title = models.CharField(max_length=255)
@@ -61,7 +62,7 @@ class KbArticle(models.Model):
     requires_approval_from = models.CharField(max_length=30, null=True, blank=True)  # role slug
     runbook_id = models.CharField(max_length=64, null=True, blank=True)
 
-    approved_by = models.ForeignKey[User](
+    approved_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
         null=True,
@@ -173,8 +174,7 @@ class KbArticle(models.Model):
 
 
 class KbChunk(models.Model):
-    id: int
-    article_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
@@ -201,15 +201,13 @@ class KbAuthorityLog(models.Model):
     reason (enforced in `KbArticle.set_auto_reply_allowed` / `set_risk_tier`, not
     just here)."""
 
-    id: int
-    article_id: int
-    actor_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="authority_log")
     field = models.CharField(max_length=40)  # auto_reply_allowed | risk_tier
     old_value = models.CharField(max_length=100, null=True, blank=True)
     new_value = models.CharField(max_length=100, null=True, blank=True)
-    actor = models.ForeignKey[User](settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     reason = models.TextField()
     changed_at = models.DateTimeField(auto_now_add=True)
 

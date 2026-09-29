@@ -116,7 +116,7 @@ def hitl_health_metrics(window_days: int = 30) -> dict[str, Any]:
     ):
         times_by_reviewer.setdefault(reviewer_id, []).append(seconds)
 
-    per_reviewer: list[dict[str, Any]] = []
+    per_reviewer = []
     for row in per_reviewer_counts:
         row["approve_rate"] = row["approved"] / row["total"] if row["total"] else None
         row["median_time_spent_sec"] = _percentile(

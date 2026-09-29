@@ -1,4 +1,3 @@
-# pyright: standard
 """
 KB endpoints over HTTP. The response schema decides what the web receives,
 so the article's keys are pinned here. `approved_by` is read from the
@@ -54,7 +53,7 @@ def test_approving_auto_reply_returns_the_approver(article, manager_user, api_as
     body = response.json()
     assert set(body) == ARTICLE_KEYS
     assert body["auto_reply_allowed"] is True
-    assert body["approved_by"] == manager_user.id
+    assert body["approved_by"] == str(manager_user.id)
     assert body["version"] == 2
 
 

@@ -16,6 +16,8 @@ Frozen, so an in-place mutation — which would be silently discarded — raises
 
 from __future__ import annotations
 
+import uuid
+
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
@@ -123,7 +125,7 @@ class RetrievalSignals(BaseModel):
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
     bm25_keyword_hit: bool
     docs_above_floor: int = Field(ge=0)
-    topk_chunk_ids: list[int] = Field(default_factory=list[int])
+    topk_chunk_ids: list[uuid.UUID] = Field(default_factory=list[uuid.UUID])
 
 
 class GenerationSignals(BaseModel):
@@ -193,8 +195,8 @@ class RankedChunk(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    chunk_id: int
-    article_id: int
+    chunk_id: uuid.UUID
+    article_id: uuid.UUID
     article_slug: str
     content: str
     score: float
@@ -241,7 +243,7 @@ class TriageState(BaseModel):
     quote_source_in_topk: bool = False
     negation_consistent: bool = False
     category_consistent: bool = False
-    source_chunk_id: int | None = None
+    source_chunk_id: uuid.UUID | None = None
 
     # EmitSignalsNode
     signals: TrustSignals | None = None

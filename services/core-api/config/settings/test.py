@@ -13,7 +13,7 @@ need the real embedder when the environment asks for it.
 
 from .base import *  # noqa: F403
 
-EMBEDDING_PROVIDER = "stub"  # pyright: ignore[reportConstantRedefinition]
+EMBEDDING_PROVIDER = "stub"
 
 # Fixtures create users with passwords; the default hasher is deliberately
 # slow and tests do not exercise it.

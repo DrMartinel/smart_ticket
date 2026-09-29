@@ -4,6 +4,8 @@ Response shapes for the HITL review endpoints.
 
 from __future__ import annotations
 
+import uuid
+
 from datetime import datetime
 from typing import Any
 
@@ -17,7 +19,7 @@ from apps.tickets.utils.trust_scorer import score as compute_trust
 
 
 class DecisionOut(Schema):
-    id: int
+    id: uuid.UUID
     action_taken: str
 
 
@@ -30,16 +32,16 @@ class RoutingDecisionOut(Schema):
 
 
 class ReviewItemOut(Schema):
-    id: int
+    id: uuid.UUID
     ticket_public_id: str = Field(alias="ticket.public_id")
     subject_masked: str = Field(alias="ticket.subject_masked")
     body_masked: str = Field(alias="ticket.body_masked")
     queue: str
     priority: int
     state: str
-    claimed_by: int | None = Field(alias="claimed_by_id")
+    claimed_by: uuid.UUID | None = Field(alias="claimed_by_id")
     created_at: datetime
-    ai_run_id: int | None
+    ai_run_id: uuid.UUID | None
     trust_signals: dict[str, Any] | None
     trust_score: float | None
     trust_contributions: dict[str, float] | None

@@ -39,9 +39,7 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
 
     # invoke() returns a plain dict; re-validating gives typed access and the
     # field defaults for anything no node set.
-    final_state = TriageState.model_validate(
-        triage_graph.invoke(initial_state)  # pyright: ignore[reportUnknownMemberType]
-    )
+    final_state = TriageState.model_validate(triage_graph.invoke(initial_state))
 
     # EmitSignalsNode is on every path (graph/build.py), so this means miswiring.
     # Raising gives core-api a 500, which it sends to a human.

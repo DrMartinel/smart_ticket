@@ -1,4 +1,3 @@
-# pyright: standard
 """
 KB article creation through the handler: the article row is created, then
 chunked and embedded so retrieval can find it.
@@ -34,7 +33,7 @@ def test_created_article_is_chunked_and_embedded(manager_user, settings, api_as)
     response = create(api_as(manager_user))
 
     article = KbArticle.objects.get(slug="KB-TEST-001")
-    assert response.json()["id"] == article.id
+    assert response.json()["id"] == str(article.id)
     chunks = KbChunk.objects.filter(article=article)
     assert chunks.count() >= 1
     assert all(len(c.embedding) == 1024 for c in chunks)

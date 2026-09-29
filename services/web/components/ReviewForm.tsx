@@ -7,7 +7,7 @@ export interface ReviewDecisionPayload {
   kb_verdict: "correct" | "wrong" | "partial" | "not_applicable" | null;
   category_verdict: "correct" | "wrong" | null;
   corrected_category: string | null;
-  corrected_kb_id: number | null;
+  corrected_kb_id: string | null;
   override_reason: string | null;
   time_spent_sec: number;
 }

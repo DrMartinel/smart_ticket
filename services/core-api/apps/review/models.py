@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import uuid
+
 from enum import StrEnum
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from django.conf import settings
 from django.db import models, transaction
@@ -51,10 +53,7 @@ class ReviewItemManager(models.Manager["ReviewItem"]):
 
 
 class ReviewItem(models.Model):
-    id: int
-    ticket_id: int
-    ai_run_id: int | None
-    claimed_by_id: int | None
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     decisions: RelatedManager[ReviewDecision]
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="review_items")
@@ -64,7 +63,7 @@ class ReviewItem(models.Model):
     queue = models.CharField(max_length=30, choices=[(q.value, q.value) for q in ReviewQueue])
     priority = models.SmallIntegerField(default=3)
     state = models.CharField(max_length=20, default="pending")
-    claimed_by = models.ForeignKey[User](
+    claimed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
     claimed_at = models.DateTimeField(null=True, blank=True)
@@ -96,7 +95,7 @@ class ReviewItem(models.Model):
         kb_verdict: str | None,
         category_verdict: str | None,
         corrected_category: str | None,
-        corrected_kb_id: int | None,
+        corrected_kb_id: uuid.UUID | None,
         override_reason: str | None,
         time_spent_sec: int,
     ) -> ReviewDecision:
@@ -148,13 +147,10 @@ class ReviewDecision(models.Model):
     thể, không phải nút Approve" — this is why the fields below are
     specific verdicts, not a single approve/reject boolean."""
 
-    id: int
-    review_item_id: int
-    reviewer_id: int
-    corrected_kb_id: int | None
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     review_item = models.ForeignKey(ReviewItem, on_delete=models.CASCADE, related_name="decisions")
-    reviewer = models.ForeignKey[User](settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
 
     kb_verdict = models.CharField(
         max_length=20, choices=[(v.value, v.value) for v in Verdict], null=True, blank=True
@@ -180,13 +176,12 @@ class EvalCandidate(models.Model):
     """Auto-generated golden-set candidate from any human override — spec
     §12.4's free-label loop."""
 
-    id: int
-    ticket_id: int
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="eval_candidates")
     source = models.CharField(max_length=30)  # human_override|reroute|reopen|refusal_spike
-    ai_prediction: models.JSONField[dict[str, Any]] = models.JSONField()
-    human_truth: models.JSONField[dict[str, Any]] = models.JSONField()
+    ai_prediction = models.JSONField()
+    human_truth = models.JSONField()
     promoted = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -13,6 +13,37 @@ that moves a failure path is more significant here than a new feature.
 
 ## [Unreleased]
 
+### Changed
+
+- **Every business table is keyed by a UUID (v4) instead of a bigint**
+  (ADR-0011, departs from the spec's `BIGSERIAL` DDL). Each model declares
+  `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)`,
+  which also removes the `id: int` annotations pyright needed.
+  `AuditLog.ticket_id` / `actor_id` are UUID columns too. The `0001_initial`
+  migrations were regenerated: **drop and re-seed any existing database.**
+  Ids are now strings in API responses, the web client, and the ai-engine
+  wire (`topk_chunk_ids`, `source_chunk_id`, `KBArticleMeta.id`). Celery
+  task arguments are passed as `str(ticket.id)`. The prompt context shows
+  chunks as `chunk_id=<uuid>`, so the live evals should be re-run. New test
+  `test_every_model_has_a_uuid_primary_key` fails if a model falls back to
+  `DEFAULT_AUTO_FIELD`.
+- **Code written only for strict pyright is removed.** 21 unused
+  `<fk>_id` / reverse-manager declarations on models, the `JSONField[...]` and
+  `ForeignKey[User]` generics, six `cast(...)` calls, and annotations on empty
+  local lists. What standard mode still needs stays: six model declarations
+  that code reads, the `ForeignKey["Ticket"]` on `duplicate_of`, the
+  `fetchone()` casts, `AuthedRequest`, the `objects: ClassVar[...]` managers,
+  and the narrowing asserts in tests. Runtime checks that arrived with the
+  strict work (embedding dimension, `isinstance` guards on parsed JSON) are
+  kept: they change behaviour on bad input. No schema change.
+
+- **Pyright runs in standard mode everywhere.** The strict path list in root
+  `pyproject.toml` is gone, and so are the 23 `# pyright: standard` opt-down
+  lines at the top of test files, plus 18 `# pyright: ignore[...]` rules that
+  only strict mode raised (`reportUnknown*`, `reportMissingTypeStubs`,
+  `reportConstantRedefinition`, `reportUnnecessaryIsInstance`). Standard mode
+  no longer flags untyped values (`Any`) spreading from library boundaries.
+
 ### Added
 
 - **`packages/contracts` is removed; each schema lives in the module that

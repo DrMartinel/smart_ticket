@@ -8,6 +8,8 @@ already reads.
 
 from __future__ import annotations
 
+import uuid
+
 from ninja import Schema
 
 
@@ -31,7 +33,7 @@ class QueueDepthOut(Schema):
 
 
 class ReviewerStatsOut(Schema):
-    reviewer_id: int
+    reviewer_id: uuid.UUID
     reviewer__username: str
     total: int
     approved: int

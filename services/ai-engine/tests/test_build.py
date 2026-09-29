@@ -3,6 +3,7 @@ Graph routing — spec §6.2's refuse-before-LLM, in an acyclic graph. Each node
 tested separately, with no DB, LLM or network.
 """
 
+from uuid import UUID
 from ai_engine.core.node import Terminal
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
@@ -15,7 +16,9 @@ from ai_engine.graph.nodes.validate import ValidateNode
 
 
 def _chunk(score: float) -> RankedChunk:
-    return RankedChunk(chunk_id=1, article_id=1, article_slug="KB-1", content="x", score=score)
+    return RankedChunk(
+        chunk_id=UUID(int=1), article_id=UUID(int=1), article_slug="KB-1", content="x", score=score
+    )
 
 
 def test_injection_detected_decides_detected(make_state):

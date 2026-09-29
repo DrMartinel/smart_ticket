@@ -258,7 +258,7 @@ Nodes stay plain `BaseNode` instances; there is no separate node wrapper.
 - a route out of `builder.end`, whose only exit is `END` (`Graph.add`).
 
 A node *class* passed where an instance belongs is not checked at runtime:
-pyright (strict, in CI) rejects it at the call site.
+pyright (in CI) rejects it at the call site.
 
 `compile()` calls `Graph.validate()`, which finds the nodes by walking routes
 from the entry, then, before anything is registered, raises `ValueError` on:

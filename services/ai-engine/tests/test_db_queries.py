@@ -6,6 +6,8 @@ target each query's purpose, not the full SQL text.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from ai_engine.core.state import AutoReplyProposal, LLMProposalEnvelope, RankedChunk
 
 from ai_engine.core.config import settings
@@ -95,7 +97,11 @@ def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state
         )
     )
     chunk = RankedChunk(
-        chunk_id=1, article_id=10, article_slug="KB-0142", content="nội dung", score=0.9
+        chunk_id=UUID(int=1),
+        article_id=UUID(int=10),
+        article_slug="KB-0142",
+        content="nội dung",
+        score=0.9,
     )
 
     db = fake_db()

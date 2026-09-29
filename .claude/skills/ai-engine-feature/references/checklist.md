@@ -84,7 +84,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [convention] Module docstring (what, spec § or ADR, the non-obvious invariant), then `from __future__ import annotations`, then imports in two groups: stdlib and third-party, then `ai_engine`.
 - [convention] Comments say why and name silent failures. They don't restate code or explain pyright.
 - [convention] Guard clauses, keyword-only parameters where there are several, no single-use wrappers.
-- [convention] pyright strict is clean. Suppressions are per line, name the rule, and sit only at library boundaries. ruff check and format are clean.
+- [convention] pyright is clean. Suppressions are per line, name the rule, and sit only at library boundaries. ruff check and format are clean.
 
 ## Verification & docs
 
