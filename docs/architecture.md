@@ -134,7 +134,7 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
    hybrid_retrieve   BM25 top-20 ∥ vector top-20 ──► RRF (k=60) ──► top-10
                      (pg_search BM25, ADR-0013; records BM25's article order)
        ▼
-   rerank            cross-encoder ──► top-3
+   rerank            cross-encoder ──► best chunk per article ──► top-3
        │
        ├─ EvidenceBelowFloor (top1 < retrieval_floor) ──► emit_signals   ← REFUSE BEFORE LLM
        │ EvidenceAboveFloor

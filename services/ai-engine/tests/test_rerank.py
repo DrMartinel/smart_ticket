@@ -10,7 +10,20 @@ from __future__ import annotations
 from uuid import UUID
 
 from ai_engine.core.config import settings
+from ai_engine.core.retrieval.fusion import Candidate
 from ai_engine.graph.nodes.rerank import rerank
+
+
+def _chunk(chunk_id: int, article: int) -> Candidate:
+    """A candidate belonging to `article`; `make_candidate` gives every
+    chunk its own article, which can't exercise the per-article dedup."""
+
+    return Candidate(
+        chunk_id=UUID(int=chunk_id),
+        article_id=UUID(int=article),
+        article_slug=f"kb-{article}",
+        content=f"chunk {chunk_id}",
+    )
 
 
 def test_output_order_follows_the_reranker_not_the_rrf_order(
@@ -97,3 +110,63 @@ def test_query_sent_to_the_reranker_is_the_masked_ticket(
     query, passages = reranker.calls[0]
     assert query == "subj\nbody"
     assert passages == ["a"]
+
+
+# --- one chunk per article ------------------------------------------------------
+
+
+def test_dedup_never_changes_the_top_chunk(fake_reranker, make_state, use_reranker):
+    """`decide()` compares `reranked[0].score` with the floor, so dedup must
+    leave the best chunk overall in first place. Candidates arrive with the
+    best chunk LAST in RRF order: keeping each article's first chunk in RRF
+    order instead of by cross-encoder score would put 0.4 on top, and the
+    floor would refuse a ticket with 0.9 evidence (ADR-0005)."""
+
+    candidates = [_chunk(1, article=1), _chunk(2, article=2), _chunk(3, article=1)]
+    use_reranker(fake_reranker(scores=[0.4, 0.6, 0.9]))
+
+    reranked = rerank(make_state(candidates=candidates))["reranked"]
+
+    assert reranked[0].chunk_id == UUID(int=3)
+    assert reranked[0].score == 0.9
+
+
+def test_one_article_cannot_fill_every_slot(fake_reranker, make_state, use_reranker):
+    """Three chunks of one article outscoring another article must not take
+    all three slots: the LLM would see a single source, and a quote from any
+    other page would fail as `quote_source_not_in_topk`."""
+
+    candidates = [_chunk(1, 1), _chunk(2, 1), _chunk(3, 1), _chunk(4, 2), _chunk(5, 3)]
+    use_reranker(fake_reranker(scores=[0.9, 0.8, 0.7, 0.5, 0.3]))
+
+    reranked = rerank(make_state(candidates=candidates))["reranked"]
+
+    assert [r.article_id for r in reranked] == [UUID(int=1), UUID(int=2), UUID(int=3)]
+    assert [r.chunk_id for r in reranked] == [UUID(int=1), UUID(int=4), UUID(int=5)]
+
+
+def test_dedup_keeps_each_articles_highest_scoring_chunk(fake_reranker, make_state, use_reranker):
+    """The chunk kept for an article is its best by cross-encoder score, not
+    the one RRF happened to list first (ADR-0005)."""
+
+    candidates = [_chunk(1, 1), _chunk(2, 2), _chunk(3, 2), _chunk(4, 1)]
+    use_reranker(fake_reranker(scores=[0.2, 0.3, 0.6, 0.8]))
+
+    reranked = rerank(make_state(candidates=candidates))["reranked"]
+
+    assert {r.article_id: r.chunk_id for r in reranked} == {
+        UUID(int=1): UUID(int=4),
+        UUID(int=2): UUID(int=3),
+    }
+
+
+def test_fewer_articles_than_top_n_returns_fewer_chunks(fake_reranker, make_state, use_reranker):
+    """Two articles give two chunks, not three: refilling the last slot with a
+    second chunk of an article already shown would bring the crowding back."""
+
+    candidates = [_chunk(1, 1), _chunk(2, 1), _chunk(3, 2), _chunk(4, 2)]
+    use_reranker(fake_reranker(scores=[0.9, 0.8, 0.7, 0.6]))
+
+    reranked = rerank(make_state(candidates=candidates))["reranked"]
+
+    assert [r.chunk_id for r in reranked] == [UUID(int=1), UUID(int=3)]
