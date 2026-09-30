@@ -65,6 +65,83 @@ grep -E "CHAT_MODEL|EMBED_MODEL|RERANKER_(MODEL|REVISION)" infra/.env
 
 ---
 
+## 2026-09-30: one chunk per article before `rerank_top_n`, measured against its own before-run
+
+**Verdict:** a small, real gain: one more retrieval hit (0.767 → 0.783) and
+fewer quotes missing from the chunks shown (5 → 2), with nothing lost that
+can be traced to the change. Recall still fails its gate; the misses left are
+vocabulary mismatch (entry below), which dedup doesn't touch. Retrieval suite
+only, full set, run twice back to back.
+
+| Configuration | |
+|---|---|
+| Code | `68a0835` + uncommitted dedup in `graph/nodes/rerank.py` and the `gold_use` diagnostic in `test_retrieval.py` (committed right after this entry). The before-run is the same tree with the dedup line reverted |
+| ai-engine | this worktree's code on the host (`uvicorn`, :8011), with the ai-engine container's env and host-published ports, so both runs share one process setup; the container itself runs `feat/pg-search-bm25` without the dedup |
+| Prompt · graph | `classify.v5` · `v2.1` |
+| Models | chat `Qwen/Qwen3-8B-AWQ` (`VLLM_CHAT_MAX_MODEL_LEN=4096`) · embed `BAAI/bge-m3` · reranker `BAAI/bge-reranker-v2-m3` @ `main` (still not pinned) · vLLM `sha256:8a69ffad015f` |
+| KB | demo_kb snapshot `d178ac0496a5`: 3,542 articles / 28,519 chunks, 5 approved |
+| Golden set | `4451ecfac477`, 60 `kb_covered` cases |
+| Thresholds | `retrieval_floor=0.0` (the suite's, so nothing refuses) · `rerank_top_n` 3 · `fusion_candidate_limit` 10 |
+| Durations | 4m14s before · 4m07s after |
+
+| Metric | Before (no dedup) | After (dedup) | Gate | |
+|---|---|---|---|---|
+| Retrieval recall @3 | 0.767 (46/60, MRR 0.692) | **0.783** (47/60, MRR 0.694) | ≥ 0.90 | ❌ |
+| `gold_use` quoted · quote_missed · refused · other | 36 · 5 · 0 · 5 | 38 · **2** · 0 · 7 | reported only | — |
+
+The before-run reproduces the entry below (0.767), so the two are like for like.
+
+**New diagnostic.** `gold_use` sorts each retrieval hit by what the model did
+with the gold article: an auto-reply on it whose quote was found in the chunks
+shown (`quoted`) or not (`quote_missed`), `insufficient_context` despite it
+(`refused`), or anything else (`other`). The golden set has no expected
+quote, so this is a proxy for the risk dedup adds: the one chunk kept per
+article restating the problem without the answer. It uses the same live
+response the suite already reads.
+
+### Findings
+
+**1. Recall: g036 recovered, nothing lost.** Retrieval is deterministic
+(no LLM in it), so this is not run-to-run noise. Without dedup
+`ec2.instance-stop-methods` took two of the three slots; with it the gold
+page gets one. The other 13 misses are the same cases in both runs. This
+refines the entry below's "deduplicating chunks per article left it at
+0.72": on the pg_search baseline it's worth one case, not zero. Crowding is
+still not what holds recall down.
+
+**2. Quote use: two stable wins, one stable loss, two noise.** The chat model
+samples at Qwen3's default temperature, so every case whose `gold_use` changed
+was re-asked 3 times on the dedup build:
+
+| Case | Before | After, 3 re-runs | Reading |
+|---|---|---|---|
+| g006, g027 | quote_missed | quoted ×3 | Dedup gain |
+| g004, g005 | quote_missed | flips between quoted and quote_missed | Noise |
+| g040 | quoted | quote_missed ×3 | Not caused by dedup, see 3 |
+| g013 | quoted | other ×3 | Auto-reply on another page or a route; no quote to check |
+| g036 | miss | other ×3 | Newly retrieved (finding 1) |
+
+`refused` is 0 in both runs. No case showed the kept chunk lacking the
+answer, so expanding it with neighbouring chunks isn't needed yet.
+
+**3. g040: Markdown links break verbatim quotes.** The answer chunk
+(`ec2.TroubleshootingInstancesStopping`, chunk 6) was shown. The model's
+quote splices a phrase from chunk 0 onto chunk 6, and renders the chunk's
+`[system status checks](monitoring-instances-status-check.md) only` as plain
+`system status checks only`. The splice is a model fault the validator rightly
+catches; the link isn't. Any chunk with an inline link can fail a faithful
+quote of its visible text.
+
+### Follow-ups
+
+- [ ] Strip or render Markdown link syntax in chunk text at ingestion
+      (`clean_markdown`), or normalise it in the quote validator, then
+      re-check g040.
+- [ ] The vocabulary-mismatch misses and the multi-gold review (entry
+      below) remain TODO item 9's work.
+
+---
+
 ## 2026-09-29 (3): pg_search BM25 and `bm25_keyword_hit` as channel agreement (ADR-0013)
 
 **Verdict:** the lexical channel works for the first time, and retrieval
