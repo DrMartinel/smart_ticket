@@ -6,6 +6,8 @@ writes to a database, only reads best-effort for the log-only `policy` fields.
 
 from __future__ import annotations
 
+import uuid
+
 from ai_engine.core.state import (
     AutoReplyProposal,
     GenerationSignals,
@@ -28,6 +30,17 @@ from ai_engine.core.db.client import db
 # failure into "auto-reply is allowed". A safety invariant wearing a
 # magic-number costume.
 _POLICY_FALLBACK_DENY: tuple[bool, str] = (False, "high")
+
+
+def _bm25_rank(bm25_article_ids: list[uuid.UUID], article_id: uuid.UUID) -> int | None:
+    """1-based position of `article_id` in BM25's article ranking, or None
+    if BM25 didn't return it. core-api turns this into the agreement feature;
+    the comparison with `k` is its decision, not this node's."""
+
+    try:
+        return bm25_article_ids.index(article_id) + 1
+    except ValueError:
+        return None
 
 
 class EmitSignalsNode(BaseNode):
@@ -65,6 +78,9 @@ class EmitSignalsNode(BaseNode):
         # param: it arrives per-request in AIRunRequest so core-api stays the
         # single owner of calibration (see core/config.py's module docstring).
         docs_above_floor = sum(1 for r in reranked if r.score >= state.retrieval_floor)
+        bm25_rank_of_top1 = (
+            _bm25_rank(state.bm25_article_ids, reranked[0].article_id) if reranked else None
+        )
 
         root = proposal.root if proposal is not None else None
         # Only an auto-reply cites a KB article whose policy can apply.
@@ -78,7 +94,7 @@ class EmitSignalsNode(BaseNode):
             retrieval=RetrievalSignals(
                 rerank_top1=rerank_top1,
                 rerank_margin=rerank_margin,
-                bm25_keyword_hit=state.bm25_keyword_hit,
+                bm25_rank_of_top1=bm25_rank_of_top1,
                 docs_above_floor=docs_above_floor,
                 topk_chunk_ids=[r.chunk_id for r in reranked],
             ),

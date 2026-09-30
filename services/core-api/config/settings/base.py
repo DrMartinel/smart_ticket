@@ -179,6 +179,9 @@ class RetrievalThresholds(BaseModel):
     vector_top_k: int
     rrf_k: int
     rerank_top_n: int
+    # No default on purpose: a thresholds file without it fails at boot
+    # rather than scoring trust with a number nobody chose (hard rule 2).
+    keyword_agreement_k: int = Field(ge=1)
 
 
 class IncidentThresholds(BaseModel):

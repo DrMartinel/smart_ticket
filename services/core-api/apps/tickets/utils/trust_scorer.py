@@ -66,12 +66,26 @@ def _load_model() -> TrustModel:
 QUOTE_FEATURES = ("quote_match_ratio", "quote_source_in_topk")
 
 
-def extract_features(signals: TrustSignals) -> dict[str, float]:
+def keyword_agreement(signals: TrustSignals, keyword_agreement_k: int) -> bool:
+    """The `bm25_keyword_hit` feature (ADR-0013): BM25 put the cross-encoder's
+    top article within its own top `k` articles. Two independent channels
+    choosing the same page corroborates the answer the model will quote.
+
+    The legacy flag is OR-ed in for signals stored before ADR-0013, which
+    carry no rank. ai-engine never sets it any more, so on new signals only
+    the rank counts.
+    """
+    r = signals.retrieval
+    rank = r.bm25_rank_of_top1
+    return r.bm25_keyword_hit or (rank is not None and rank <= keyword_agreement_k)
+
+
+def extract_features(signals: TrustSignals, keyword_agreement_k: int) -> dict[str, float]:
     r, g = signals.retrieval, signals.generation
     return {
         "rerank_top1": r.rerank_top1,
         "rerank_margin": r.rerank_margin,
-        "bm25_keyword_hit": 1.0 if r.bm25_keyword_hit else 0.0,
+        "bm25_keyword_hit": 1.0 if keyword_agreement(signals, keyword_agreement_k) else 0.0,
         "docs_above_floor_capped": min(r.docs_above_floor, 3) / 3.0,
         "quote_match_ratio": g.quote_match_ratio,
         "quote_source_in_topk": 1.0 if g.quote_source_in_topk else 0.0,
@@ -112,9 +126,12 @@ def _sigmoid(z: float) -> float:
     return ez / (1.0 + ez)
 
 
-def score(signals: TrustSignals) -> TrustScore:
+def score(signals: TrustSignals, keyword_agreement_k: int) -> TrustScore:
+    """`keyword_agreement_k` is a parameter, not a settings read, so the
+    router can pass it from the thresholds it was given and stay pure
+    (hard rule 1)."""
     model = _load_model()
-    x = extract_features(signals)
+    x = extract_features(signals, keyword_agreement_k)
 
     z = model["intercept"]
     contributions: dict[str, float] = {}

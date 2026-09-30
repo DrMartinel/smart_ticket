@@ -37,6 +37,11 @@ retrieval:
   vector_top_k: 20
   rrf_k: 60             # standard constant from the RRF paper; do not tune
   rerank_top_n: 3
+  # 🔧 The `bm25_keyword_hit` trust feature: the cross-encoder's top article
+  # is within BM25's top k ARTICLES (ADR-0013). Agreement between two
+  # independent retrieval channels, compared on RANK, never on a BM25 score.
+  # Set equal to rerank_top_n as a strict start; fit it from shadow pairs.
+  keyword_agreement_k: 3
 
 incident:
   similarity: 0.85

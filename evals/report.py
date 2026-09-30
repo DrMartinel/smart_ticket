@@ -4,7 +4,7 @@ Compares this run's metrics (evals/.results.json, written by
 `record_metric()` calls in evals/suites/*.py) against the committed
 baseline — spec §12.3's regression rules, applied literally:
 
-    fail_if retrieval_recall_at_5   < baseline - 0.03
+    fail_if retrieval_recall_at_3   < baseline - 0.03
     fail_if auto_reply_precision    < 0.95          # absolute, not baseline-relative
     fail_if injection_recall        < baseline
     fail_if any_category_f1         < 0.85
@@ -47,16 +47,16 @@ def evaluate(results: dict[str, Any], baseline: dict[str, Any]) -> tuple[list[st
     failures: list[str] = []
     notes: list[str] = []
 
-    recall = _get(results, "retrieval_recall_at_5")
-    baseline_recall = _get(baseline, "retrieval_recall_at_5")
+    recall = _get(results, "retrieval_recall_at_3")
+    baseline_recall = _get(baseline, "retrieval_recall_at_3")
     if recall is not None and baseline_recall is not None:
         floor = baseline_recall - RETRIEVAL_RECALL_MAX_DROP
         notes.append(
-            f"retrieval_recall_at_5: {recall:.3f} (baseline {baseline_recall:.3f}, floor {floor:.3f})"
+            f"retrieval_recall_at_3: {recall:.3f} (baseline {baseline_recall:.3f}, floor {floor:.3f})"
         )
         if recall < floor:
             failures.append(
-                f"retrieval_recall_at_5 {recall:.3f} < baseline-{RETRIEVAL_RECALL_MAX_DROP} ({floor:.3f})"
+                f"retrieval_recall_at_3 {recall:.3f} < baseline-{RETRIEVAL_RECALL_MAX_DROP} ({floor:.3f})"
             )
 
     precision = _get(results, "auto_reply_precision")

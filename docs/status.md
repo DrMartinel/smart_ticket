@@ -35,7 +35,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §4 | Discriminated-union contracts, `proposed_` prefixes | ✅ | `LLMProposalEnvelope` as `RootModel`, `frozen=True` on `TicketMasked` |
 | §5 | Masking engine (inline, two-tier) | ✅ | 100% branch coverage; regex tier-1 short-circuits before any LLM call |
 | §6 | LangGraph pipeline | ✅ | Refuse-before-LLM verified; graph is acyclic (no LLM retry) |
-| §6.3 | Hybrid retrieval BM25 + vector + RRF | ✅ | RRF k=60; no threshold on fused rank (ADR-0005) |
+| §6.3 | Hybrid retrieval BM25 + vector + RRF | ✅ | BM25 is pg_search (ADR-0013), departing from the spec's `ts_rank_cd`, which had no IDF and matched nothing on the English KB. RRF k=60; no threshold on fused rank or on BM25 scores (ADR-0005) |
 | §6.3 | Cross-encoder reranker | ⚠️ Unverified | Served by vLLM (`RERANKER_PROVIDER=vllm`, the default), not yet run against real hardware; `lexical` (for CI) folds Vietnamese diacritics; see [Gap 3](#gap-3--retrievalfloor-is-uncalibrated) |
 | §6.4 | Validator (quote → fuzzy → in-top-k → negation) | ✅ | Negation check verified catching a real `negation_mismatch` live |
 | §7 | Trust scorer, outside ai-engine | ⚠️ Uncalibrated | Works, but coefficients are a hand-set prior — see [Gap 2](#gap-2-trust-score-is-an-uncalibrated-prior) |

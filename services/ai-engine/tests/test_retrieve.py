@@ -7,6 +7,8 @@ carry different reason codes and route differently downstream.
 
 from __future__ import annotations
 
+from uuid import UUID
+
 import pytest
 
 from ai_engine.core.config import settings
@@ -39,30 +41,66 @@ def test_embedder_failure_propagates_rather_than_returning_empty_candidates(
         node(make_state())
 
 
-def test_bm25_keyword_hit_is_false_when_lexical_finds_nothing(
+def test_bm25_query_failure_propagates_rather_than_running_vector_only(
     fake_db, fake_embedder, kb_row, make_state, make_node
 ):
-    """`bm25_keyword_hit` feeds the trust scorer. True on a pure-vector match
-    inflates trust exactly where the evidence is weakest.
+    """A BM25 query that errors (pg_search not installed or not preloaded,
+    a permissions error on its `pdb` schema) must fail the run, not fall back
+    to vector-only retrieval. That silent fallback is the exact bug ADR-0013
+    fixes: hybrid retrieval quietly running on one channel, with nothing
+    reporting it.
     """
 
     def rows(sql, params):
-        return [] if "tsv" in sql else [kb_row(1, "a", 0.8)]
+        if "|||" in sql:
+            raise RuntimeError("pg_search must be loaded via shared_preload_libraries")
+        return [kb_row(1, "a", 0.8)]
+
+    node = make_node(fake_db(rows=rows), fake_embedder())
+
+    with pytest.raises(RuntimeError, match="shared_preload_libraries"):
+        node(make_state())
+
+
+def test_bm25_article_ids_are_empty_when_lexical_finds_nothing(
+    fake_db, fake_embedder, kb_row, make_state, make_node
+):
+    """No lexical match must leave nothing for emit_signals to rank against,
+    so it reports no agreement. Recording the vector hits' articles here
+    would claim the two channels agree when only one of them ran."""
+
+    def rows(sql, params):
+        return [] if "|||" in sql else [kb_row(1, "a", 0.8)]
 
     node = make_node(fake_db(rows=rows), fake_embedder())
 
     out = node(make_state())
 
-    assert out["bm25_keyword_hit"] is False
+    assert out["bm25_article_ids"] == []
     assert len(out["candidates"]) == 1
 
 
-def test_bm25_keyword_hit_is_true_when_lexical_matches(
-    fake_db, fake_embedder, kb_row, make_state, make_node
+def test_bm25_article_ids_are_deduplicated_in_bm25_order(
+    fake_db, fake_embedder, make_state, make_node
 ):
-    node = make_node(fake_db(rows=[kb_row(1, "a", 0.8)]), fake_embedder())
+    """The agreement rank counts ARTICLES. Three chunks of article A ahead of
+    article B must put B second, not fourth; otherwise a long article
+    crowding BM25's list pushes every other article past `k`."""
 
-    assert node(make_state())["bm25_keyword_hit"] is True
+    a, b = UUID(int=100), UUID(int=200)
+    bm25_rows = [
+        (UUID(int=1), a, "kb-a", "a1", 9.0),
+        (UUID(int=2), a, "kb-a", "a2", 8.0),
+        (UUID(int=3), a, "kb-a", "a3", 7.0),
+        (UUID(int=4), b, "kb-b", "b1", 6.0),
+    ]
+
+    def rows(sql, params):
+        return bm25_rows if "|||" in sql else []
+
+    out = make_node(fake_db(rows=rows), fake_embedder())(make_state())
+
+    assert out["bm25_article_ids"] == [a, b]
 
 
 def test_candidates_capped_at_the_configured_limit(
@@ -100,5 +138,5 @@ def test_no_hits_at_all_yields_no_candidates_and_no_degraded_reason(
     out = make_node(fake_db(rows=[]), fake_embedder())(make_state())
 
     assert out["candidates"] == []
-    assert out["bm25_keyword_hit"] is False
+    assert out["bm25_article_ids"] == []
     assert "degraded_reason" not in out

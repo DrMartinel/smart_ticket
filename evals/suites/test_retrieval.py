@@ -1,5 +1,10 @@
 """
-Retrieval quality — spec §12.2 (`test_retrieval`, threshold: Recall@5 >= 0.90).
+Retrieval quality — spec §12.2 (`test_retrieval`, threshold: recall >= 0.90).
+
+The spec calls this Recall@5, but the pipeline returns `rerank_top_n` = 3
+chunks, so what is measured is Recall@3 and the metric is named for that.
+Until 2026-09-29 it was recorded as `retrieval_recall_at_5`; see
+evals/HISTORY.md before comparing numbers across the rename.
 
 Live pipeline: calls ai-engine's /v1/analyze with `retrieval_floor=0.0` so
 the graph never refuses before returning chunks, then checks
@@ -38,7 +43,7 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
     mrr = sum(reciprocal_ranks) / len(cases)
 
     print(f"\nRetrieval: recall={recall:.2%} mrr={mrr:.3f} n={len(cases)} misses={misses}")
-    record_metric("retrieval_recall_at_5", recall, mrr=mrr, n=len(cases))
+    record_metric("retrieval_recall_at_3", recall, mrr=mrr, n=len(cases))
     assert recall >= RECALL_THRESHOLD, (
         f"recall {recall:.2%} < {RECALL_THRESHOLD:.0%}, misses={misses}"
     )

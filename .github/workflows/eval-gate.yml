@@ -44,19 +44,12 @@ on:
 jobs:
   offline-suites:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: pgvector/pgvector:pg17
-        env:
-          POSTGRES_DB: smart_triage
-          POSTGRES_USER: app_user
-          POSTGRES_PASSWORD: app_password
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U app_user -d smart_triage"
-          --health-interval 5s --health-timeout 5s --health-retries 10
+    # Postgres comes from compose, not a `services:` container: pg_search
+    # needs `shared_preload_libraries`, a server start flag that `services:`
+    # has no way to pass (ADR-0013). Compose builds infra/db/Dockerfile and
+    # publishes it on 5434.
     env:
-      DATABASE_URL: postgresql://app_user:app_password@localhost:5432/smart_triage
+      DATABASE_URL: postgresql://app_user:app_password@localhost:5434/smart_triage
       SECRET_KEY: ci-only-key
       EMBEDDING_PROVIDER: stub
       # No vLLM in this job. Note what that means: retrieval.floor is a
@@ -70,6 +63,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --all-packages
+      - name: Postgres (pgvector + pg_search, ADR-0013)
+        run: docker compose -f infra/docker-compose.yml up -d --wait db
 
       - name: Migrate (applies infra/migrations/sql/* via Django RunSQL)
         working-directory: services/core-api

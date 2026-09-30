@@ -213,14 +213,19 @@ copies that directory — a new SQL file that isn't copied fails at container st
   are checked against `manifest.json`, and each auto-reply approval in
   `curation.json` is pinned to the SHA-256 of the reviewed text.
 - **One eval gate fails** (full runs, 2026-09-29, [`evals/HISTORY.md`](evals/HISTORY.md)):
-  retrieval recall **0.72**, mostly one article's chunks filling the top 3
-  (TODO item 9). Auto-reply precision is 1.00. `other` F1 is 0.98 since a
+  retrieval recall @3 **0.77**, mostly GuardDuty/SES tickets whose wording
+  shares nothing with the page that answers them (TODO item 9; not chunk
+  crowding, which was measured and ruled out). Auto-reply precision is 0.95,
+  exactly at its floor: one unlabelled PII case auto-replied. `other` F1 is 0.98 since a
   refusal on an out-of-KB ticket counts as correct, as in the refusal
   suite; that scoring rule is deliberate, don't revert it to "fix" a
   number. Record every full run in `evals/HISTORY.md`.
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
+  Since ADR-0013 the `bm25_keyword_hit` feature (BM25/vector agreement,
+  `retrieval.keyword_agreement_k`) is live for the first time, and it lifts
+  a high-risk access request (g120) over `t_route`. Another reason P3 waits.
 - Reranker defaults to `vllm` (the bge-reranker-v2-m3 cross-encoder on vllm-rerank);
   `lexical` is dependency-free, for CI/offline. `retrieval.floor` is specified as a
   *cross-encoder* score — the two distributions are separate calibrations, never
@@ -242,6 +247,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | All four generation checks ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
 | Unaccented Vietnamese matches nothing | Diacritic folding (`_strip_diacritics`) in `LexicalReranker` regressed; `đ`/`Đ` need special handling |
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
+| `pg_search must be loaded via shared_preload_libraries`, or migrate fails at `dbextras.0003` | Postgres is the stock pgvector image, or started without the preload flag. Use compose's `db` (built from `infra/db/Dockerfile`, ADR-0013). **Never "fix" it by catching the BM25 error**: that silently makes retrieval vector-only again |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
@@ -293,5 +299,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twelve
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirteen
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

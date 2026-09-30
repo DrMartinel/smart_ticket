@@ -8,7 +8,6 @@ from __future__ import annotations
 
 
 from django.conf import settings
-from django.contrib.postgres.search import SearchVectorField
 from django.db import models, transaction
 from django.utils import timezone
 from pgvector.django import VectorField
@@ -74,30 +73,30 @@ class KbArticleManager(models.Manager["KbArticle"]):
             )
             article.ingest()
             return article, True
-        unchanged = (article.title, article.body, article.category, article.source_url) == (
+        fields_changed = (article.title, article.body, article.category, article.source_url) != (
             title,
             body,
             category,
             source_url,
         )
-        # No chunks means an earlier ingest failed after the row was
-        # committed (see create_and_ingest); retry it rather than report
-        # "unchanged" for an article retrieval can never find.
-        if unchanged and article.chunks.exists():
-            return article, False
-        if unchanged:
+        # The title is part of every chunk's embedding input (see ingest),
+        # so a new title needs new vectors even when the body is the same.
+        text_changed = (article.title, article.body) != (title, body)
+        if fields_changed:
+            article.title, article.body = title, body
+            article.category, article.source_url = category, source_url
+            article.version += 1
+            article.save(
+                update_fields=["title", "body", "category", "source_url", "version", "updated_at"]
+            )
+        # Stored chunks that differ from what the current chunker makes mean
+        # an earlier ingest failed after the row was committed (no chunks;
+        # see create_and_ingest) or ran under an older chunker. Either way
+        # retrieval is searching text the article no longer splits into.
+        if text_changed or not article.chunks_are_current():
             article.ingest()
             return article, True
-        body_changed = article.body != body
-        article.title, article.body = title, body
-        article.category, article.source_url = category, source_url
-        article.version += 1
-        article.save(
-            update_fields=["title", "body", "category", "source_url", "version", "updated_at"]
-        )
-        if body_changed:
-            article.ingest()
-        return article, True
+        return article, fields_changed
 
 
 class KbArticle(BaseModel):
@@ -145,6 +144,16 @@ class KbArticle(BaseModel):
     def __str__(self) -> str:
         return f"{self.slug}: {self.title}"
 
+    def chunks_are_current(self) -> bool:
+        """Whether the stored chunks are exactly what `chunk_sections` makes
+        of the body now. Text only, no embedding call, so it is cheap to ask
+        of every article on a reload."""
+        stored = list(self.chunks.order_by("chunk_index").values_list("section_title", "content"))
+        expected = [
+            (_stored_section_title(c.section_title), c.content) for c in chunk_sections(self.body)
+        ]
+        return stored == expected
+
     @transaction.atomic
     def ingest(self) -> list[KbChunk]:
         """(Re)chunks and (re)embeds this article. Existing chunks are
@@ -164,14 +173,13 @@ class KbArticle(BaseModel):
                 article=self,
                 chunk_index=i,
                 content=piece.content,
-                section_title=(piece.section_title or "")[:255] or None,
+                section_title=_stored_section_title(piece.section_title),
                 token_count=rough_token_count(piece.content),
                 embedding=embedding,
             )
             chunks.append(chunk)
-        # tsv is maintained by the Postgres trigger on INSERT/UPDATE OF content
-        # (infra/migrations/sql/0003_constraints_and_triggers.sql), fired by
-        # the .create() calls above — no separate step needed here.
+        # The BM25 index (idx_chunk_bm25, infra/migrations/sql/0005) is
+        # maintained by pg_search on insert, so no separate step is needed.
         return chunks
 
     @transaction.atomic
@@ -232,6 +240,13 @@ class KbArticle(BaseModel):
         return self
 
 
+def _stored_section_title(title: str | None) -> str | None:
+    """As `kb_chunks.section_title` stores it: at most 255 characters, and
+    None for no heading. `ingest` writes it and `chunks_are_current` compares
+    against it, so both must go through here."""
+    return (title or "")[:255] or None
+
+
 class KbChunk(BaseModel):
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
@@ -239,9 +254,9 @@ class KbChunk(BaseModel):
     section_title = models.CharField(max_length=255, null=True, blank=True)
     token_count = models.IntegerField()
     embedding = VectorField(dimensions=1024, null=True, blank=True)
-    # tsv is maintained by a Postgres trigger (0003_constraints_and_triggers.sql),
-    # not by Django, so BM25 (ts_rank_cd) stays correct regardless of write path.
-    tsv = SearchVectorField(null=True, blank=True, editable=False)
+    # Lexical search runs on a pg_search BM25 index over content and
+    # section_title (ADR-0013), declared in infra/migrations/sql/0005 because
+    # the ORM can't express it. There is deliberately no tsvector column.
 
     class Meta(BaseModel.Meta):
         db_table = "kb_chunks"

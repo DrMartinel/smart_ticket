@@ -67,6 +67,10 @@ class Settings(BaseSettings):
 
     rrf_k: int = 60
     bm25_top_k: int = 20
+    # Added to a BM25 hit's score when the chunk contains an error code from
+    # the ticket (`ERR-4042`, `0x1A2B3C4D`). It only reorders BM25's own list;
+    # the fused and reranked order never sees the score (ADR-0005, ADR-0013).
+    bm25_error_code_boost: float = 0.5
     vector_top_k: int = 20
     rerank_top_n: int = 3
     fewshot_k: int = 3

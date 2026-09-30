@@ -41,23 +41,39 @@ def test_vector_search_orders_by_cosine_distance_over_embedded_chunks_only(fake_
     assert settings.vector_top_k in params.values()
 
 
-def test_bm25_search_matches_and_ranks_on_tsv_with_the_simple_config(fake_db):
-    """The query config must be 'simple' to match the tsv trigger
-    (0003_constraints_and_triggers.sql). A mismatch returns no rows rather
-    than an error, which reads as "the KB has nothing relevant".
+def test_bm25_search_uses_match_disjunction_and_ranks_by_bm25_score(fake_db):
+    """`|||` lets a chunk match on SOME of the ticket's words. The old
+    `plainto_tsquery` required all of them in one chunk and matched nothing
+    on the English golden set, silently (ADR-0013). `pdb.score` is real BM25,
+    with the IDF that `ts_rank_cd` lacked.
     """
 
     db = fake_db()
     with db.connect() as session:
-        bm25_search(session, "ERR-4042")
+        bm25_search(session, "ERR-4042 on login")
     sql, params = _only_statement(db)
 
-    assert "kb_chunks.tsv @@ plainto_tsquery(" in sql
-    assert "ts_rank_cd(kb_chunks.tsv, plainto_tsquery(" in sql
+    assert "kb_chunks.content ||| %(content_1)s" in sql
+    assert "kb_chunks.section_title ||| %(section_title_1)s" in sql
+    assert "pdb.score(kb_chunks.id) AS score" in sql
     assert "ORDER BY score DESC" in sql
-    assert "simple" in params.values()
-    assert "ERR-4042" in params.values()
+    assert "plainto_tsquery" not in sql
+    assert "ts_rank" not in sql
+    assert params["content_1"] == params["section_title_1"] == "ERR-4042 on login"
     assert settings.bm25_top_k in params.values()
+
+
+def test_bm25_error_code_boost_is_read_from_settings(fake_db, kb_row, monkeypatch):
+    """The boost is a tunable, so it lives in Settings (hard rule 2), and a
+    chunk containing the ticket's error code moves ahead of one that doesn't."""
+
+    monkeypatch.setattr(settings, "bm25_error_code_boost", 5.0)
+    db = fake_db(rows=[kb_row(1, "generic text", 3.0), kb_row(2, "fix for ERR-4042", 1.0)])
+    with db.connect() as session:
+        hits = bm25_search(session, "ERR-4042")
+
+    assert [h.content for h in hits] == ["fix for ERR-4042", "generic text"]
+    assert hits[0].score == 6.0
 
 
 def test_fewshot_selection_excludes_retracted_and_expired_examples(

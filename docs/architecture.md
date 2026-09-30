@@ -132,6 +132,7 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
        │ InjectionClear
        ▼
    hybrid_retrieve   BM25 top-20 ∥ vector top-20 ──► RRF (k=60) ──► top-10
+                     (pg_search BM25, ADR-0013; records BM25's article order)
        ▼
    rerank            cross-encoder ──► top-3
        │
@@ -261,7 +262,7 @@ Tables mirror the spec's DDL exactly (same names, via `db_table`).
 | `pii_quarantine` | Encrypted real values | AES-GCM, key outside the DB, hard 72h TTL |
 | `pii_access_log` | Every raw-PII read | Mandatory reason. *Read path not yet built — [`status.md`](status.md) Gap 1* |
 | `kb_articles` | KB + **auto-reply authority** | DB `CHECK`: the flag cannot be true without a named approver |
-| `kb_chunks` | Chunks + embedding + tsvector | HNSW and GIN indexes |
+| `kb_chunks` | Chunks + embedding | HNSW index; pg_search BM25 index on content + section title (ADR-0013) |
 | `kb_authority_log` | Every authority change | Append-only, reason required |
 | `ai_runs` | One row per AI attempt | Signals, proposal, cost, `degraded_reason` |
 | `routing_decisions` | One row per decision | Includes `thresholds_used` snapshot |

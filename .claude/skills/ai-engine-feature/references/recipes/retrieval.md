@@ -15,6 +15,8 @@ has to pass this check, and you should say explicitly that it does:
 
 - [ ] Every threshold comparison uses the **cross-encoder** score, which is
       `RankedChunk.score` after `RerankNode`. Nothing else.
+- [ ] Nothing compares a BM25 score (`pdb.score`) with a number either. It is
+      query-dependent; only BM25 *ranks* cross into decisions (ADR-0013).
 - [ ] Nothing compares an RRF-fused score with a number. `Candidate` has no score
       field, and that absence is deliberate. Don't add one.
 - [ ] A slice of the RRF-ordered list (`fusion_candidate_limit`) counts as a
@@ -32,7 +34,6 @@ has to pass this check, and you should say explicitly that it does:
 - Vector search `ORDER BY`s the raw `cosine_distance`, so the HNSW index can serve
   the query. The similarity can be computed in the select list.
 - Top-k values, the RRF k and limits all belong in `Settings`, each with a comment.
-  `ERROR_CODE_BOOST` in `bm25.py` is an older module constant. Don't add more like it.
 - Anything that reaches the embedder or reranker comes from masked ticket text only.
 - If the embedder or reranker fails, the error propagates. Don't return empty
   candidates (see `test_retrieve.py`).
@@ -40,7 +41,7 @@ has to pass this check, and you should say explicitly that it does:
 ## Tests
 
 - Build the DB with `fake_db(rows=callable)`, where the callable tells the queries
-  apart by their SQL: `"tsv" in sql` means the BM25 query. That's how you test a case
+  apart by their SQL: `"|||" in sql` means the BM25 query (pg_search, ADR-0013). That's how you test a case
   like "lexical found nothing but vector did".
 - Add an ordering test that **inverts** the incoming order (see
   `test_rerank.py::test_output_order_follows_the_reranker_not_the_rrf_order`), so a
@@ -50,7 +51,7 @@ has to pass this check, and you should say explicitly that it does:
 
 ## Evals
 
-Retrieval changes need the live evals: `test_retrieval` (Recall@5 ≥ 0.90) and
+Retrieval changes need the live evals: `test_retrieval` (Recall@3 ≥ 0.90) and
 `test_refusal` (out-of-KB refusal ≥ 0.90), plus `test_end_to_end`. Run
 `uv run pytest evals/suites -q` against the stack, and explain any change in the
 numbers. If `RERANKER_PROVIDER=lexical`, refusal behaviour is **uncalibrated**
