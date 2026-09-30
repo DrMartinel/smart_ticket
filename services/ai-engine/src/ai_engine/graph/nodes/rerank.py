@@ -11,6 +11,7 @@ Thresholds apply ONLY to this node's score, never to fusion's RRF score
 from __future__ import annotations
 
 from enum import StrEnum
+from uuid import UUID
 
 from ai_engine.core.config import settings
 from ai_engine.core.node import BaseNode, StateUpdate
@@ -22,6 +23,26 @@ from ai_engine.core.state import RankedChunk, TriageState
 class RerankOutcome(StrEnum):
     EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
     EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
+
+
+def _best_chunk_per_article(ranked: list[RankedChunk]) -> list[RankedChunk]:
+    """Keeps each article's highest-scoring chunk, in `ranked`'s order.
+
+    Articles average ~8 chunks, and without this one article's chunks can
+    fill every `rerank_top_n` slot (evals/HISTORY.md, 2026-09-29): the LLM
+    sees one source and `rerank_margin` compares a page with itself.
+    `ranked` must already be sorted by cross-encoder score (ADR-0005), so
+    the chunk kept is the best-scoring one and `ranked[0]`, which the floor
+    decision reads, is never dropped.
+    """
+
+    seen: set[UUID] = set()
+    best: list[RankedChunk] = []
+    for chunk in ranked:
+        if chunk.article_id not in seen:
+            seen.add(chunk.article_id)
+            best.append(chunk)
+    return best
 
 
 class RerankNode(BaseNode):
@@ -46,7 +67,7 @@ class RerankNode(BaseNode):
             for c, s in zip(candidates, scores)
         ]
         ranked.sort(key=lambda r: r.score, reverse=True)
-        return {"reranked": ranked[: settings.rerank_top_n]}
+        return {"reranked": _best_chunk_per_article(ranked)[: settings.rerank_top_n]}
 
     def decide(self, state: TriageState) -> RerankOutcome:
         reranked = state.reranked
