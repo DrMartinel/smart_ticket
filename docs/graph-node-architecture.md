@@ -339,8 +339,7 @@ class RerankNode(BaseNode):
         ...
         scores = reranker.score(query, [c.content for c in candidates])  # the module singleton
         ...
-        ranked.sort(key=lambda r: r.score, reverse=True)  # cross-encoder order (ADR-0005)
-        return {"reranked": _best_chunk_per_article(ranked)[: settings.rerank_top_n]}
+        return {"reranked": ranked[: settings.rerank_top_n]}
 
     def decide(self, state: TriageState) -> RerankOutcome:
         reranked = state.reranked
