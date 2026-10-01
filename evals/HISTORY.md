@@ -20,6 +20,15 @@ metric's movement can be traced to the change that caused it.
 - **Pin the configuration.** A metric is meaningless without the KB, golden
   set, models and thresholds that produced it. Say when a comparison with the
   previous run isn't like for like.
+- **Every number is also data.** Each entry's numbers are recorded in
+  [`history/`](history/) (`runs.jsonl`, `metrics.jsonl`) with
+  `record_run.py`, under the entry's heading, so charts and reports load them
+  instead of parsing this file. This file says what a number meant; the data
+  holds what it was. `suites/test_history_data.py` fails when an entry has no
+  data, or data points at a heading that doesn't exist. Entries before
+  2026-10-01 were transcribed into the data (`"source": "transcribed"`).
+- **Probes may be recorded**, as `kind: probe`, when they run on the full
+  golden set and decide a design. They are never gate measurements.
 
 ## How to run and record
 
@@ -31,13 +40,28 @@ EVAL_FULL_RUN=1 uv run --package evals pytest evals/suites -q -rA | tee /tmp/eva
 uv run --package evals python evals/report.py --compare evals/baselines/baseline.json
 ```
 
-Configuration for the entry:
+Write the entry below, then record its numbers under the entry's heading.
+The recorder reads `evals/.results.json` and collects the configuration
+(commit, dirty files, golden and KB snapshot hashes, prompt and graph,
+thresholds, models from the compose env file):
 
 ```bash
-git rev-parse --short HEAD; git status --porcelain | wc -l      # code, and whether it's committed
-sha256sum evals/golden/tickets.jsonl | cut -c1-12              # golden set
-python3 -c "import json;print(json.load(open('demo_kb/manifest.json'))['snapshot_sha256'][:12])"
-grep -E "CHAT_MODEL|EMBED_MODEL|RERANKER_(MODEL|REVISION)" infra/.env
+uv run --package evals python evals/record_run.py \
+    --id 2026-10-02-full --kind full_run --title "Full run after <change>" \
+    --entry "2026-10-02: <this entry's heading, without '## '>" \
+    --duration <seconds> --set kb_articles=3542 --set kb_chunks=28519
+```
+
+`--dry-run` prints the rows first. A probe passes its numbers with
+`--metrics probe.json` (a list of `{"metric", "value", "n", "labels",
+"cases"}`); metric names come from the registry in
+[`history/__init__.py`](history/__init__.py), which also holds each
+metric's unit, direction and gate. Add a metric there before recording it.
+
+Configuration for the entry's table is in the recorded run's `config`:
+
+```bash
+tail -1 evals/history/runs.jsonl | python3 -m json.tool
 ```
 
 ## Entry template
@@ -62,6 +86,192 @@ grep -E "CHAT_MODEL|EMBED_MODEL|RERANKER_(MODEL|REVISION)" infra/.env
 ### Findings
 ### Follow-ups
 ```
+
+---
+
+## 2026-10-01 (2): one chunk per article reverted; ADR-0014 re-measured on multi-chunk retrieval
+
+**Verdict:** with several chunks of an article allowed again (`003f7d3`
+reverts `a890eb7`), retrieval recall@3 is back to **0.767**, failing its
+gate as before. ADR-0014's mechanisms still work on this pipeline, at lower
+numbers than with one chunk per article: link expansion **0.800**, plus
+Qwen3-8B re-ordering with both-orders agreement **0.850**. Nothing lost,
+refusal unchanged. Also recorded: raising `rerank_top_n` to 5 (measured
+earlier the same day, with and without a per-article cap) gains nothing.
+
+| Configuration | |
+|---|---|
+| Code | `003f7d3` (`main`, revert) + this branch's uncommitted evals/docs changes, none of which touch ai-engine |
+| ai-engine | this worktree on the host (`uvicorn`, :8011) with the container's env, for the suite run; in-process nodes for the probes |
+| Models | chat `Qwen/Qwen3-8B-AWQ` (`VLLM_CHAT_MAX_MODEL_LEN=4096`) · embed `BAAI/bge-m3` · reranker `BAAI/bge-reranker-v2-m3` @ `main` (still not pinned) · vLLM `sha256:8a69ffad015f` |
+| KB | demo_kb snapshot `d178ac0496a5`: 3,542 articles / 28,519 chunks |
+| Golden set | `4451ecfac477`: 60 `kb_covered`, 23 `out_of_kb` |
+| Thresholds | `retrieval.floor` 0.45 · `rerank_top_n` 3 · `fusion_candidate_limit` 10 · probe: 5 chunks per linked page (by cosine), LLM re-orders top 5 or 8 **chunks** above the floor |
+| Durations | retrieval suite 4m15s · ADR-0014 probe over 10 min (not timed exactly) |
+
+**Retrieval suite, full set** (`test_retrieval.py`, `EVAL_FULL_RUN=1`):
+
+| Metric | Value | Gate | Previous (2026-09-30, one chunk per article) | |
+|---|---|---|---|---|
+| Retrieval recall@3 | **0.767** (46/60, MRR 0.692) | ≥ 0.90 | 0.783 (MRR 0.694) | ❌ |
+| `gold_use` quoted · quote_missed · refused · other | 36 · 5 · 0 · 5 | reported only | 38 · 2 · 0 · 7 | — |
+
+Identical to the 2026-09-30 before-run in every number, including the 14
+misses: g036 is crowded out again by two chunks of
+`ec2.instance-stop-methods`.
+
+**ADR-0014 probe, multi-chunk** (production = the reverted rerank node):
+
+| Candidates | Chunks shown | recall@3 | Recovered (of 14) | Lost |
+|---|---|---|---|---|
+| Production | top 3 by cross-encoder | 0.767 | — | — |
+| + links | top 3 by cross-encoder | **0.800** | 2: g046, g051 | 0 |
+| + links | Qwen3-8B top 5, both orders agree | 0.817 | 3: + g058 | 0 |
+| + links | **Qwen3-8B top 8, both orders agree** | **0.850** | 5: + g036, g060 | **0** |
+| + links | Qwen3-8B top 8, shown in cross-encoder order / reversed | 0.850 / 0.833 | 5 / 5 | 0 / 1 (g009) |
+| Production | Qwen3-8B top 5 or 8, both orders agree | 0.767 | 0 | 0 |
+
+Refusal: 0 of 23 out-of-KB tickets clear the floor, with or without
+expansion (highest top-1 0.098 → 0.101). LLM: 472 calls, 0 invalid; p50
+1.39 s, p95 2.44 s per call; 308 passages cut to fit 4,096 tokens.
+
+### Findings
+
+**1. The dedup was worth more inside ADR-0014 than on its own.** Alone it
+moved recall by one case. With expansion it is worth three cases without
+the re-order (0.800 → 0.850) and two with it (0.850 → 0.883): the reranked top 3 now
+spans a median of **2** distinct articles, not 3, so expansion has fewer seed
+pages to follow links from, and one article's chunks can again fill the slots
+that a linked page needs. The re-order recovers part of it (g036, g060).
+
+**2. Position bias is stronger on chunks.** The LLM's first pick agrees across
+the two presentation orders for 28–34 of 59 tickets (31–35 with one chunk per
+article). Requiring agreement still loses nothing.
+
+**3. More text per call.** Re-ordering chunks rather than pages shows more
+long passages: 308 cut (178 before) and p50 latency 1.39 s (0.87 s). A
+production version needs its token budget sized for chunks, not pages.
+
+**4. `rerank_top_n` = 5 adds no recall** (top-k probe, run before the
+revert, with one chunk per article as production): 0.783 → 0.783 with one
+chunk per article, max 2 per article, or no cap; with link expansion 0.850,
+except no cap, 0.833 (loses g060). The gold pages that miss rank 6th or
+lower, not 4th or 5th. A larger `rerank_top_n` also changes
+`docs_above_floor` for every ticket and lengthens the classify prompt.
+
+### Follow-ups
+
+- [ ] ADR-0014's checks before acceptance stand, now on this pipeline: a full
+      eval run with expansion and re-ordering, the injection tickets through
+      the re-orderer, a KB-agnostic association source.
+- [ ] Decide whether expansion re-applies a per-article cap inside its own
+      pool (finding 1), separately from what production passes to the model.
+
+---
+
+## 2026-10-01: retrieval probes — candidate expansion, Laya, LLM re-ordering (ADR-0014)
+
+**Verdict:** the vocabulary-mismatch misses can be reached. Following the KB's
+own links from the reranked top 3 lifts recall@3 from 0.783 to **0.850**, and
+letting Qwen3-8B re-order the pages above the floor, only where both
+presentation orders agree, lifts it to **0.883**. Neither loses a case, and
+neither moves refusal. Zero-shot Laya and article-first retrieval make recall
+worse. Behind ADR-0014 (Proposed).
+
+**Not eval-suite runs.** These are probes (`.probe/`, uncommitted scripts)
+that call ai-engine's `hybrid_retrieve` and `rerank` nodes in-process on the
+full golden `kb_covered` (60) and `out_of_kb` (23) sets, then change what
+happens after them. They are recorded here because they ran on the full sets
+and decide a design, not as gate measurements. Every probe from the link
+probe on reproduced production's 0.783 and the same 13 misses before changing
+anything. The first two probes ran on 2026-09-30; the machine rebooted
+before the rest, so step A was rebuilt and reproduced exactly on 2026-10-01.
+
+| Configuration | |
+|---|---|
+| Code | `5143347` (`main`, one chunk per article), unchanged; probe logic outside the repo |
+| Models | chat `Qwen/Qwen3-8B-AWQ` (`VLLM_CHAT_MAX_MODEL_LEN=4096`) · embed `BAAI/bge-m3` · reranker `BAAI/bge-reranker-v2-m3` @ `main` (still not pinned) · vLLM `sha256:8a69ffad015f` · Laya `laya-multilingual` from `convaiinnovations/laya` @ `55cf4c4ebb4e`, `laya` 0.3.20, CPU |
+| KB | demo_kb snapshot `d178ac0496a5`: 3,542 articles / 28,519 chunks. Link graph from chunk Markdown: 2,968 articles with links, 14,691 edges, median out-degree 3, max 198 |
+| Golden set | `4451ecfac477`: 60 `kb_covered`, 23 `out_of_kb` |
+| Thresholds | `retrieval.floor` 0.45 · `rerank_top_n` 3 · `fusion_candidate_limit` 10 · probe: 5 chunks per linked page (by cosine), LLM re-orders top 5 or 8 above the floor |
+
+| Probe | recall@3 | Recovered (of 13) | Lost | Cost |
+|---|---|---|---|---|
+| Production | 0.783 | — | — | 10 chunks reranked |
+| Articles first (dense), then chunks in top 3 / 5 / 10 articles | 0.717 / 0.767 / 0.767 | 2 / 3 / 2 | 6 / 4 / 3 | 43 / 63 / 111 chunks (median) |
+| + links of the reranked top 3 | **0.850** | 4: g046, g051, g058, g060 | **0** | 67 chunks median, 237 max |
+| + links of all 10 candidates | 0.850 | same 4 | 0 | 130 median, 401 max |
+| + links, Laya re-orders top 5 / 8 / 10 above floor | 0.717 / 0.667 / 0.633 | 4 / 7 / 8 | 8 / 14 / 17 | 274 ms p50 per page (CPU) |
+| Production, Laya re-orders top 5 / 8 / 10 | 0.717 / 0.700 / 0.700 | 0 | 4 / 5 / 5 | |
+| + links, Qwen3-8B re-orders top 8, shown in cross-encoder order | 0.883 | 6: + g050, g052 | 0 | 0.87 s p50, 1.96 s p95 per call |
+| + links, Qwen3-8B re-orders top 8, shown reversed | 0.817 | 6 | 5 | |
+| **+ links, Qwen3-8B top 8, both orders must agree** | **0.883** | 6 | **0** | 2 calls per ticket |
+| + links, Qwen3-8B top 5 (either order) | 0.850 / 0.800 (reversed) | 4 | 0 / 3 | |
+| Production, Qwen3-8B re-orders top 5 / 8 (cross-encoder order; reversed: 0.767 / 0.783) | 0.783 | 0 | 0 (reversed top 5 loses g021) | |
+
+**Refusal.** Out-of-KB tickets above `retrieval.floor`: 0 of 23 in production,
+with link expansion from the top 3, and from all candidates. Highest top-1
+score 0.098 → 0.101 (0.147 seeding from all candidates). Re-ordering cannot
+move it: the floor reads the cross-encoder's top-1.
+
+### Findings
+
+**1. Article-first retrieval doesn't reach the misses.** Ranking all 3,542
+articles by best chunk, mean chunk, title, title + headings, or a fusion,
+only 3–4 of the 13 misses have the gold article in the top 10; the other 9
+rank 17–1,035 (g055 at best 180). The tickets share no wording with the page
+that answers them. (Dense-only stage 1; BM25 would have kept g005, g010, g039
+and g057, but not the 9.)
+
+**2. Links reach them.** The gold page is one link from production's top 3 for
+9 of the 13 misses under strict resolution (unambiguous page names only).
+Following those links recovers 4 with nothing lost.
+
+**3. Then the cross-encoder is the ceiling.** Of the 6 linked misses not
+recovered, 5 had the gold chunk in the pool, scored 0.40–0.72 against a 3rd
+place of 0.42–0.97: g048 (0.588 vs 0.890), g050 (0.684 vs 0.956), g052
+(0.715 vs 0.935), g053 (0.588 vs 0.970), g056 (0.403 vs 0.422). In every case
+the gold page's best chunk by cross-encoder was also its best by cosine, so
+taking more chunks per linked page changes nothing. g008 is not linked under
+strict resolution.
+
+**4. Laya, zero-shot, cannot tell a fix from a description.** Two-option
+`choice` ("does the passage tell the user how to fix the problem?"; `noul`
+avoided for the label bug in the model card). Among pages above the floor
+it separates the gold page worse than the cross-encoder (AUROC 0.59 / 0.64
+against 0.84 / 0.81, production / links) and puts it first for 20 of 55
+tickets against 38. Its P(fixes) has a median of 0.80 and an IQR of 0.68–0.88:
+nearly everything relevant is "a fix". On g058 the gold remediation page gets
+0.42, the finding-types page 0.81. The model card says the base checkpoints
+are near chance until fine-tuned, and that is what this shows.
+
+**5. Qwen3-8B can, but is position-biased.** Listwise, temperature 0,
+thinking off, output an enum of the passage ids shown: 468 calls, 0 invalid
+orderings. Its first pick is the same in both presentation orders for only
+31–35 of 58–59 tickets, and reversed it loses 3–5 cases. Promoting a page only
+when both orders put it in the top 3 keeps the gain (0.883) with nothing lost.
+It adds nothing without expansion: the fix page has to be in the pool.
+
+**6. The 4,096-token chat context is a real constraint.** Eight passages
+exceeded it for some tickets; capping passages at an equal share of ~12,000
+characters cut 178 of them. vLLM's JSON-schema grammar also rejects
+`uniqueItems`, so the permutation check has to be in code.
+
+### Follow-ups
+
+- [ ] ADR-0014's three checks before acceptance: a full eval run with
+      expansion and re-ordering (auto-reply precision is at its 0.95 floor),
+      the injection tickets through the re-orderer, and a KB-agnostic
+      association source measured against the links with the links withheld
+      (embedding neighbours first, then per-article entity extraction).
+- [ ] Commit the probe scripts (`evals/probes/`?) so these numbers can be
+      reproduced from the repo, not from `.probe/`.
+- [ ] g048 into the multi-gold review: `ses.manage-sending-quotas` may be a
+      correct answer to "sending limit too low".
+
+*Note, 2026-10-01: measured with one chunk per article as production, since
+reverted (`003f7d3`). The same mechanisms on multi-chunk retrieval: entry
+2026-10-01 (2) above.*
 
 ---
 
