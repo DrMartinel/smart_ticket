@@ -14,6 +14,8 @@
   --s1: #2a78d6;
   --s2: #eb6834;
   --s3: #1baf7a;
+  --s4: #eda100;
+  --s5: #e87ba4;
   --good: #0ca30c;
   --good-text: #006300;
   --critical: #d03b3b;
@@ -27,14 +29,14 @@
     color-scheme: dark;
     --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a988f;
     --grid: #2c2c2a; --axis: #45453f; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.05);
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a988f;
   --grid: #2c2c2a; --axis: #45453f; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.05);
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
 }
 * { box-sizing: border-box; }
 body { background: var(--page); color: var(--ink); font: 14px/1.5 var(--sans); }
@@ -166,7 +168,7 @@ footer { color: var(--muted); font-size: 12px; }
         <p class="chart-sub">Cross-encoder score of the gold page’s best chunk vs. the 3rd-place page it must beat</p>
         <div class="legend" id="ceil-legend"></div><div id="c-ceiling"></div></div>
       <div class="panel"><p class="chart-title">Picking the gold page among pages above the floor</p>
-        <p class="chart-sub">AUROC, gold page vs. the rest (0.5 = chance) · cross-encoder against Laya zero-shot</p>
+        <p class="chart-sub">AUROC, gold page vs. the rest (0.5 = chance) · each re-orderer against the cross-encoder on the same chunks</p>
         <div class="legend" id="auc-legend"></div><div id="c-auroc"></div></div>
     </div>
   </section>
@@ -300,8 +302,8 @@ footer { color: var(--muted); font-size: 12px; }
   }
 
   // ---------- dumbbell / paired dots ----------
-  function pairedDots(host, rows, { a, b, domain = [0, 1] }) {
-    const W = 520, rowH = 30, m = { t: 8, r: 24, l: 56, b: 28 };
+  function pairedDots(host, rows, { a, b, domain = [0, 1], labelWidth = 56 }) {
+    const W = 520 + labelWidth - 56, rowH = 30, m = { t: 8, r: 24, l: labelWidth, b: 28 };
     const H = m.t + rows.length * rowH + m.b, iw = W - m.l - m.r;
     const x = (v) => m.l + ((v - domain[0]) / (domain[1] - domain[0])) * iw;
     const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
@@ -313,10 +315,10 @@ footer { color: var(--muted); font-size: 12px; }
       const cy = m.t + i * rowH + rowH / 2;
       text(svg, m.l - 10, cy + 4, r.label, { "text-anchor": "end", class: "lab mono" });
       svgEl("line", { x1: x(Math.min(r.a, r.b)), x2: x(Math.max(r.a, r.b)), y1: cy, y2: cy, stroke: "var(--axis)", "stroke-width": 2 }, svg);
-      svgEl("circle", { cx: x(r.b), cy, r: 5.5, fill: b.color, stroke: "var(--surface)", "stroke-width": 2 }, svg);
+      svgEl("circle", { cx: x(r.b), cy, r: 5.5, fill: r.bColor ?? b.color, stroke: "var(--surface)", "stroke-width": 2 }, svg);
       svgEl("circle", { cx: x(r.a), cy, r: 5.5, fill: a.color, stroke: "var(--surface)", "stroke-width": 2 }, svg);
       const hit = svgEl("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, class: "hit" }, svg);
-      bindTip(hit, `<b>${esc(r.label)}</b><div class="t-row">${esc(a.name)}: ${r.a.toFixed(3)}</div><div class="t-row">${esc(b.name)}: ${r.b.toFixed(3)}</div>${r.note ? `<div class="t-row">${esc(r.note)}</div>` : ""}`);
+      bindTip(hit, `<b>${esc(r.label)}</b><div class="t-row">${esc(a.name)}: ${r.a.toFixed(3)}</div><div class="t-row">${esc(r.bName ?? b.name)}: ${r.b.toFixed(3)}</div>${r.note ? `<div class="t-row">${esc(r.note)}</div>` : ""}`);
     });
     host.replaceChildren(svg);
   }
@@ -388,15 +390,20 @@ footer { color: var(--muted); font-size: 12px; }
     // The latest baseline reference (stored as variant "production"), so the line matches what ships now.
     const baseline = (() => { const m = metrics.filter((x) => x.metric === "retrieval_recall_at_3" && x.labels?.variant === "production").at(-1); return m ? m.value : rec.at(-1)?.v ?? 0; })();
     const runBase = (runId) => metrics.find((x) => x.run === runId && x.metric === "retrieval_recall_at_3" && (x.labels?.variant === "production" || /^production, top3/.test(x.labels?.variant ?? "")))?.value ?? baseline;
-    const COLORS = { cross_encoder: "var(--s1)", laya: "var(--s2)", "qwen3-8b": "var(--s3)" };
-    const NAMES = { cross_encoder: "Cross-encoder order", laya: "Laya zero-shot re-orders", "qwen3-8b": "Qwen3-8B re-orders" };
+    // Fixed slot per scorer, so a colour always means the same re-orderer.
+    const COLORS = { cross_encoder: "var(--s1)", laya: "var(--s2)", "qwen3-8b": "var(--s3)",
+      "qwen3-reranker-4b/relevance": "var(--s4)", "qwen3-reranker-4b/resolves": "var(--s5)" };
+    const NAMES = { cross_encoder: "Cross-encoder order", laya: "Laya zero-shot re-orders", "qwen3-8b": "Qwen3-8B re-orders",
+      "qwen3-reranker-4b/relevance": "Qwen3-Reranker-4B, “relevance”", "qwen3-reranker-4b/resolves": "Qwen3-Reranker-4B, “resolves”" };
     const scorerOf = (m) => m.labels?.scorer ?? "cross_encoder";
-    legend($("#probe-legend"), Object.entries(NAMES).map(([k, v]) => [COLORS[k], v]));
+    const present = new Set(metrics.filter((m) => m.metric === "retrieval_recall_at_3" && runById[m.run]?.kind === "probe").map(scorerOf));
+    legend($("#probe-legend"), Object.entries(NAMES).filter(([k]) => present.has(k)).map(([k, v]) => [COLORS[k], v]));
     const sib = (m, metric) => metrics.find((x) => x.run === m.run && x.metric === metric && JSON.stringify(x.labels) === JSON.stringify(m.labels));
     const SHORT = { "2026-09-30-probe-article-first": "Articles first", "2026-09-30-probe-link-expansion": "Link expansion",
       "2026-10-01-probe-laya": "Laya", "2026-10-01-probe-llm-reorder": "Qwen3-8B re-order",
       "2026-10-01-probe-topk": "Top-5", "2026-10-01-probe-adr14-multichunk": "Multi-chunk (current)",
-      "2026-10-01-probe-laya-baseline": "Laya re-order", "2026-10-01-probe-llm-reorder-baseline": "LLM re-order" };
+      "2026-10-01-probe-laya-baseline": "Laya re-order", "2026-10-01-probe-llm-reorder-baseline": "LLM re-order",
+      "2026-10-02-probe-qwen3-reranker-4b": "Reranker 4B" };
     // A fresh ledger may have no probes yet: hide the section, not an empty chart.
     document.getElementById("probes-section").hidden = probeRuns.length === 0;
     let current = "all";
@@ -409,7 +416,7 @@ footer { color: var(--muted); font-size: 12px; }
         rows: metrics.filter((m) => m.run === r.id && isRecall(m)).map((m) => {
           const recd = sib(m, "misses_recovered"), lost = sib(m, "cases_lost");
           const label = shown((m.labels.variant ?? "").replace(/^production, |^links, /, (s) => s === "links, " ? "+ links, " : ""))
-            .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("cross_encoder", "shown in CE order").replace("both_agree", "both orders agree");
+            .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("Qwen3-Reranker-4B ", "4B ").replace("cross_encoder", "shown in CE order").replace("both_agree", "both orders agree");
           return {
             v: m.value, scorer: scorerOf(m), label: label.length > 38 ? label.slice(0, 37) + "…" : label,
             tip: `<b>${esc(shown(m.labels.variant ?? ""))}: ${m.value.toFixed(3)}</b>`
@@ -438,14 +445,16 @@ footer { color: var(--muted); font-size: 12px; }
     // AUROC
     const auc = metrics.filter((m) => m.metric === "auroc_gold_vs_rest");
     $("#c-auroc").closest(".panel").hidden = auc.length === 0;
-    const pools = [...new Set(auc.map((m) => m.labels.pool))];
-    legend($("#auc-legend"), [["var(--s1)", "Cross-encoder"], ["var(--s2)", "Laya zero-shot"]]);
-    pairedDots($("#c-auroc"), pools.map((p) => {
-      const ce = auc.find((m) => m.labels.pool === p && m.labels.scorer === "cross_encoder");
-      const la = auc.find((m) => m.labels.pool === p && m.labels.scorer === "laya");
-      const f = (s) => metrics.find((m) => m.metric === "gold_ranked_first" && m.labels.pool === p && m.labels.scorer === s);
-      return { label: shown(p), a: ce.value, b: la.value, note: `Gold ranked first: cross-encoder ${f("cross_encoder")?.value}/${ce.n}, Laya ${f("laya")?.value}/${la.n}` };
-    }), { a: { name: "Cross-encoder", color: "var(--s1)" }, b: { name: "Laya zero-shot", color: "var(--s2)" }, domain: [0.4, 1.0] });
+    const others = auc.filter((m) => m.labels.scorer !== "cross_encoder");
+    legend($("#auc-legend"), [["var(--s1)", "Cross-encoder"]].concat(
+      [...new Set(others.map(scorerOf))].map((k) => [COLORS[k] ?? "var(--s2)", NAMES[k] ?? k])));
+    pairedDots($("#c-auroc"), others.map((m) => {
+      const ce = auc.find((x) => x.run === m.run && x.labels.pool === m.labels.pool && x.labels.scorer === "cross_encoder");
+      const f = (s) => metrics.find((x) => x.run === m.run && x.metric === "gold_ranked_first" && x.labels.pool === m.labels.pool && x.labels.scorer === s);
+      const name = (NAMES[m.labels.scorer] ?? m.labels.scorer).replace(" re-orders", "").replace("Qwen3-Reranker-4B, ", "4B ");
+      return { label: `${name} · ${shown(m.labels.pool)}`, a: ce?.value ?? 0, b: m.value, bColor: COLORS[m.labels.scorer] ?? "var(--s2)", bName: name,
+        note: `Gold ranked first: cross-encoder ${f("cross_encoder")?.value}/${ce?.n}, ${name} ${f(m.labels.scorer)?.value}/${m.n}` };
+    }), { a: { name: "Cross-encoder", color: "var(--s1)" }, b: { name: "Re-orderer", color: "var(--s2)" }, domain: [0.4, 1.0], labelWidth: 210 });
 
     // Ledger
     const counts = metrics.reduce((a, m) => ((a[m.run] = (a[m.run] ?? 0) + 1), a), {});

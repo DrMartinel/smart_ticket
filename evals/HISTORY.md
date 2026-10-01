@@ -95,6 +95,74 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-02: Qwen3-Reranker-4B re-ordering, "relevance" and "resolves" instructions, probe on the baseline pipeline
+
+**Verdict:** a reranker trained for the job, asked which passage *resolves*
+the ticket, matches the best result so far in a single pass: with link
+expansion, recall@3 **0.850** at top 8, the same five cases recovered as
+Qwen3-8B with both-orders agreement (entry (3)), **nothing lost**, refusal
+unchanged. Its separation of the gold page is the best measured (AUROC 0.81).
+With its default "relevance" instruction it reaches 0.833 but loses a case.
+Its cost is memory: 11.6 GB of the 12 GB card on its own, in bf16. Probe, not a
+gate measurement.
+
+| Configuration | |
+|---|---|
+| Code | `1679e0f` (`main`); no service code changed since `003f7d3`. Pools reused from entry (2)'s step A (the baseline pipeline's nodes in-process, 565 chunks above the floor) |
+| Reranker | `Qwen/Qwen3-Reranker-4B` @ `22e683669bc0`, Apache-2.0, Transformers 5.18 on the RTX 3060 (stack down), bf16 weights, the yes/no projection of the last hidden state in fp32 (bf16 logits had rounded 0.6B scores into ties) |
+| Scoring | pointwise, the model card's recipe: its system prompt, `<Instruct>/<Query>/<Document>`, score = yes−no log-odds. Query = ticket subject and body; document = article title and chunk |
+| Instructions | **relevance**: the card's default, "Given a web search query, retrieve relevant passages that answer the query" · **resolves**: "Given an IT support ticket, retrieve passages that tell the user how to fix or resolve the problem described in the ticket" |
+| Variants | re-orders the top 5 / 8 / 10 chunks above `retrieval.floor` (0.45); the rest follow cross-encoder order; the floor reads the cross-encoder's top-1 throughout |
+
+| Candidates | Order | recall@3 | Recovered (of 14) | Lost |
+|---|---|---|---|---|
+| Baseline | cross-encoder | 0.767 | — | — |
+| Baseline | 4B "relevance", top 5 / 8 / 10 | 0.767 | 1 (g036) | 1 (g031) |
+| Baseline | 4B "resolves", top 5 / 8 / 10 | 0.783 | 1 (g036) | 0 |
+| + links | cross-encoder | 0.800 | 2: g046, g051 | 0 |
+| + links | 4B "relevance", top 5 / 8 / 10 | 0.817 / 0.833 / 0.833 | 4 / 5 / 5 | 1 (g031) |
+| + links | **4B "resolves", top 5 / 8 / 10** | 0.833 / **0.850** / 0.850 | 4 / **5** / 5: g036, g046, g051, g058, g060 | **0** |
+
+| Separating the gold article's chunks, above the floor | Cross-encoder | 4B "relevance" | 4B "resolves" |
+|---|---|---|---|
+| AUROC, baseline / + links (0.5 = chance) | 0.62 / 0.65 | 0.66 / 0.74 | **0.76 / 0.81** |
+| Gold article's chunk ranked first | 37/47 · 37/51 | 34/47 · 36/51 | **42/47 · 46/51** |
+
+Out-of-KB: 0 of 23 above the floor in both pools (highest top-1 0.098 /
+0.101). Scoring: 565 chunks per instruction in about 100 s, ~0.18 s per
+chunk on average in batches of 16; peak GPU memory 11.6 GB.
+
+### Findings
+
+**1. The instruction decides it.** The same weights rank the gold page first
+for 46 of 51 tickets when asked for the passage that resolves the ticket, 36
+when asked for relevance. "Relevance" is what rerankers are trained on and is
+what the cross-encoder already does; "resolves" is the judgement the misses
+need.
+
+**2. Same recall as Qwen3-8B, a better shape.** It recovers exactly the cases
+the chat model recovers with agreement, but scores each chunk on its own: no
+position bias, one pass, no second call, and no 4,096-token prompt holding
+eight passages (308 were cut in entry (3)).
+
+**3. The 0.6B is not enough.** Its "resolves" variant (scored the same way,
+not recorded as a run) reaches 0.817 and drops g046. Size matters here.
+
+**4. It needs the fix page in the pool**, like every re-orderer measured:
+without link expansion the best it does is 0.783.
+
+### Follow-ups
+
+- [ ] Memory: the 4B in bf16 fills the 12 GB card alone, so it cannot sit
+      beside the three vLLM servers. Measure a quantized 4B (e.g. AWQ, ~3 GB)
+      for the same numbers, or decide which server it replaces.
+- [ ] Latency in context: score the 8 chunks of one ticket as one batch on the
+      shared GPU, against Qwen3-8B's two calls (2 × 1.2 s p50).
+- [ ] ADR-0014: name the re-orderer (this or Qwen3-8B with agreement) once the
+      memory question is answered; its acceptance checks still stand.
+
+---
+
 ## 2026-10-01 (3): LLM re-ordering (Qwen3-8B), probe on the baseline pipeline
 
 **Verdict:** on its own the LLM re-orderer changes nothing (0.767 in every
