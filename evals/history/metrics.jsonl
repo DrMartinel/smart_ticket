@@ -15,3 +15,40 @@
 {"run":"2026-10-01-baseline","metric":"gold_use","value":5.0,"labels":{"outcome":"quote_missed"}}
 {"run":"2026-10-01-baseline","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
 {"run":"2026-10-01-baseline","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production","pool":"production","scorer":"cross_encoder"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"},"cases":["g008","g011","g012","g036","g046","g048","g050","g051","g052","g053","g055","g056","g058","g060"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"retrieval_recall_at_3","value":0.75,"n":60,"labels":{"variant":"production, Laya, top 5 above floor","pool":"production","scorer":"laya","k":"5"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Laya, top 5 above floor","pool":"production","scorer":"laya","k":"5"},"cases":["g036"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"cases_lost","value":2.0,"labels":{"variant":"production, Laya, top 5 above floor","pool":"production","scorer":"laya","k":"5"},"cases":["g010","g037"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"retrieval_recall_at_3","value":0.7,"n":60,"labels":{"variant":"production, Laya, top 8 above floor","pool":"production","scorer":"laya","k":"8"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Laya, top 8 above floor","pool":"production","scorer":"laya","k":"8"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"cases_lost","value":4.0,"labels":{"variant":"production, Laya, top 8 above floor","pool":"production","scorer":"laya","k":"8"},"cases":["g010","g020","g037","g038"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"retrieval_recall_at_3","value":0.7,"n":60,"labels":{"variant":"production, Laya, top 10 above floor","pool":"production","scorer":"laya","k":"10"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Laya, top 10 above floor","pool":"production","scorer":"laya","k":"10"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"cases_lost","value":4.0,"labels":{"variant":"production, Laya, top 10 above floor","pool":"production","scorer":"laya","k":"10"},"cases":["g010","g020","g037","g038"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"retrieval_recall_at_3","value":0.8,"n":60,"labels":{"variant":"links, cross-encoder","pool":"links","scorer":"cross_encoder"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"misses_recovered","value":2.0,"labels":{"variant":"links, cross-encoder","pool":"links","scorer":"cross_encoder"},"cases":["g046","g051"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"cases_lost","value":0.0,"labels":{"variant":"links, cross-encoder","pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"links, Laya, top 5 above floor","pool":"links","scorer":"laya","k":"5"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"misses_recovered","value":3.0,"labels":{"variant":"links, Laya, top 5 above floor","pool":"links","scorer":"laya","k":"5"},"cases":["g036","g046","g051"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"cases_lost","value":3.0,"labels":{"variant":"links, Laya, top 5 above floor","pool":"links","scorer":"laya","k":"5"},"cases":["g010","g033","g037"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"retrieval_recall_at_3","value":0.65,"n":60,"labels":{"variant":"links, Laya, top 8 above floor","pool":"links","scorer":"laya","k":"8"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"misses_recovered","value":2.0,"labels":{"variant":"links, Laya, top 8 above floor","pool":"links","scorer":"laya","k":"8"},"cases":["g046","g051"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"cases_lost","value":9.0,"labels":{"variant":"links, Laya, top 8 above floor","pool":"links","scorer":"laya","k":"8"},"cases":["g010","g016","g020","g026","g030","g033","g034","g037","g038"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"retrieval_recall_at_3","value":0.6333,"n":60,"labels":{"variant":"links, Laya, top 10 above floor","pool":"links","scorer":"laya","k":"10"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"misses_recovered","value":2.0,"labels":{"variant":"links, Laya, top 10 above floor","pool":"links","scorer":"laya","k":"10"},"cases":["g046","g051"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"cases_lost","value":10.0,"labels":{"variant":"links, Laya, top 10 above floor","pool":"links","scorer":"laya","k":"10"},"cases":["g006","g010","g016","g020","g026","g030","g031","g033","g037","g038"]}
+{"run":"2026-10-01-probe-laya-baseline","metric":"auroc_gold_vs_rest","value":0.6213,"n":47,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"gold_ranked_first","value":37.0,"n":47,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"auroc_gold_vs_rest","value":0.5309,"n":47,"labels":{"pool":"production","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"gold_ranked_first","value":30.0,"n":47,"labels":{"pool":"production","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"auroc_gold_vs_rest","value":0.6521,"n":51,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"gold_ranked_first","value":37.0,"n":51,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"auroc_gold_vs_rest","value":0.5426,"n":51,"labels":{"pool":"links","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"gold_ranked_first","value":28.0,"n":51,"labels":{"pool":"links","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"oob_above_floor","value":0.0,"n":23,"labels":{"variant":"production","pool":"production"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"oob_top1_max","value":0.0985,"n":23,"labels":{"variant":"production","pool":"production"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"oob_above_floor","value":0.0,"n":23,"labels":{"variant":"links, cross-encoder","pool":"links"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"oob_top1_max","value":0.1007,"n":23,"labels":{"variant":"links, cross-encoder","pool":"links"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"model_calls","value":565.0,"labels":{"component":"laya"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"latency_p50_s","value":0.2889,"labels":{"component":"laya"}}
+{"run":"2026-10-01-probe-laya-baseline","metric":"latency_p95_s","value":0.5489,"labels":{"component":"laya"}}

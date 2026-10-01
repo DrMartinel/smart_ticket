@@ -95,6 +95,61 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-01 (2): Laya re-ordering, probe on the baseline pipeline
+
+**Verdict:** zero-shot Laya does not help on the shipped pipeline either. Re-ordering the
+chunks above the floor by its "does this passage fix the ticket?" probability
+lowers recall@3 in every variant (0.767 → 0.700–0.750; with link expansion
+0.800 → 0.633–0.767) and loses up to 10 cases the cross-encoder gets right.
+Its chunk-level separation of the gold article is at chance. Refusal is
+unchanged. Probe, not a gate measurement.
+
+| Configuration | |
+|---|---|
+| Code | `7967c55` (`main`, clean); probe scripts in `.probe/` (uncommitted) |
+| Pipeline | production's `hybrid_retrieve` and `rerank` nodes in-process; several chunks per article, as shipped |
+| Laya | `laya-multilingual` from `convaiinnovations/laya` @ `55cf4c4ebb4e`, `laya` 0.3.20, CPU, offline. Two-option `choice` ("Does the passage tell the user how to fix or resolve the problem described in the ticket?"), not `noul` (model card issue #156) |
+| Models, KB, golden set | as in the baseline below |
+| Variants | Laya re-orders the top 5 / 8 / 10 chunks above `retrieval.floor` (0.45); the rest follow cross-encoder order; the floor reads the cross-encoder's top-1 in every variant |
+
+| Candidates | Order | recall@3 | Recovered (of 14) | Lost |
+|---|---|---|---|---|
+| Production | cross-encoder (**the baseline**) | 0.767 | — | — |
+| Production | Laya, top 5 / 8 / 10 | 0.750 / 0.700 / 0.700 | 1 (g036) / 0 / 0 | 2 / 4 / 4 |
+| + links | cross-encoder | 0.800 | 2 (g046, g051) | 0 |
+| + links | Laya, top 5 / 8 / 10 | 0.767 / 0.650 / 0.633 | 3 / 2 / 2 | 3 / 9 / 10 |
+
+| Separating the gold article's chunks from the rest, above the floor | Cross-encoder | Laya |
+|---|---|---|
+| AUROC, production / + links (0.5 = chance) | 0.62 / 0.65 | **0.53 / 0.54** |
+| Gold article's chunk ranked first | 37 / 47 · 37 / 51 | 30 / 47 · 28 / 51 |
+
+Out-of-KB: 0 of 23 above the floor in both pools (highest top-1 0.098 /
+0.101). Laya: 565 chunks scored, 289 ms p50 / 549 ms p95 per chunk on CPU.
+
+### Findings
+
+**1. Laya calls almost every relevant passage a fix.** Its P(fixes) has a
+median of 0.79–0.80 and an interquartile range of 0.69–0.87, so the order it
+imposes is close to noise, and noise above the floor displaces the
+cross-encoder's correct top chunks (g010 and g037 lost in every production
+variant, g020 and g038 too from top 8 up). The model card says the base checkpoints are near
+chance until fine-tuned; this is that, on chunks.
+
+**2. The archived run said the same.** On the reverted one-chunk-per-article
+pipeline (archive, 2026-10-01) Laya scored AUROC 0.59–0.64 at article level
+and lowered recall to 0.633–0.717. Chunk level is harder for both scorers
+(more weak chunks of the gold article count as positives), which is why
+both AUROCs are lower here.
+
+### Follow-ups
+
+- [ ] Do not use zero-shot Laya in the pipeline (ADR-0014 decision 5 stands).
+      Revisit only with a checkpoint fine-tuned on human-confirmed
+      (ticket, passage, resolves?) labels from shadow mode, never the golden set.
+
+---
+
 ## 2026-10-01: baseline, the pipeline on `main` at `5e2c651`
 
 **Verdict:** the starting point for this file. One gate fails, retrieval
