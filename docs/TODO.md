@@ -306,6 +306,7 @@ Of the 14 remaining misses, 9 are GuardDuty and SES tickets (g048, g050–g053, 
 ### Work
 
 - Investigate the vocabulary-mismatch misses case by case: why a short remediation page (`guardduty.compromised-ec2`) loses to a long reference page (`guardduty_finding-types-ec2`).
+- Candidate expansion through article associations, and LLM re-ordering above the floor: proposed in [ADR-0014](adr/0014-candidate-expansion-and-llm-reorder.md). Probes on multi-chunk retrieval as in production (2026-10-01 (2) in `evals/HISTORY.md`): KB links 0.767 → 0.800, plus Qwen3-8B re-ordering with both-orders agreement → 0.850, nothing lost, refusal unchanged (0.850 → 0.883 with one chunk per article, since reverted). Article-first retrieval and zero-shot Laya make recall worse. Open before acceptance: a full eval run, the injection tickets, and an association source for KBs without links.
 - Review whether some tickets have more than one correct page. Choose acceptable pages without looking at model output, and have someone other than the author review them, so this doesn't turn into relabelling until the gate passes (rule 9).
 - Pin `RERANKER_REVISION` to a commit sha: at `main`, an upstream push moves the score scale `retrieval.floor` is compared against.
 - Do not tune `retrieval.keyword_agreement_k`, the tokenizer, the candidate limits or RRF k against the golden set; that is shadow-calibration work (item 2).
