@@ -214,6 +214,27 @@ METRICS: dict[str, MetricSpec] = {
         labels=("case",),
         description="Cross-encoder score of the page in 3rd place, the bar the gold chunk must clear.",
     ),
+    "refusal_separation_auroc": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
+        labels=_PROBE_LABELS,
+        description="How well each ticket's top-1 score separates the out-of-KB tickets from the "
+        "KB-covered ones (1.0 = every KB-covered ticket scores above every out-of-KB one).",
+    ),
+    "kb_refused_at_safe_threshold": MetricSpec(
+        unit="count",
+        higher_is_better=False,
+        labels=_PROBE_LABELS,
+        description="KB-covered tickets a threshold just above the highest out-of-KB top-1 score "
+        "would refuse; `cases` lists them. A measure of the gap, not a chosen floor.",
+    ),
+    "rerank_margin_median": MetricSpec(
+        unit="score",
+        higher_is_better=None,
+        labels=_PROBE_LABELS,
+        description="Median top-1 minus top-2 score on the 0-1 scale the trust signals use "
+        "(sigmoid of log-odds for an LLM reranker).",
+    ),
     "auroc_gold_vs_rest": MetricSpec(
         unit="ratio",
         higher_is_better=True,

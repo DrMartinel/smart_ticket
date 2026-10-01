@@ -403,7 +403,7 @@ footer { color: var(--muted); font-size: 12px; }
       "2026-10-01-probe-laya": "Laya", "2026-10-01-probe-llm-reorder": "Qwen3-8B re-order",
       "2026-10-01-probe-topk": "Top-5", "2026-10-01-probe-adr14-multichunk": "Multi-chunk (current)",
       "2026-10-01-probe-laya-baseline": "Laya re-order", "2026-10-01-probe-llm-reorder-baseline": "LLM re-order",
-      "2026-10-02-probe-qwen3-reranker-4b": "Reranker 4B" };
+      "2026-10-02-probe-qwen3-reranker-4b": "Reranker 4B", "2026-10-02-probe-qwen3-reranker-4b-sole": "4B as only ranker" };
     // A fresh ledger may have no probes yet: hide the section, not an empty chart.
     document.getElementById("probes-section").hidden = probeRuns.length === 0;
     let current = "all";
@@ -416,7 +416,8 @@ footer { color: var(--muted); font-size: 12px; }
         rows: metrics.filter((m) => m.run === r.id && isRecall(m)).map((m) => {
           const recd = sib(m, "misses_recovered"), lost = sib(m, "cases_lost");
           const label = shown((m.labels.variant ?? "").replace(/^production, |^links, /, (s) => s === "links, " ? "+ links, " : ""))
-            .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("Qwen3-Reranker-4B ", "4B ").replace("cross_encoder", "shown in CE order").replace("both_agree", "both orders agree");
+            .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("Qwen3-Reranker-4B ", "4B ")
+            .replace("qwen3-reranker-4b/resolves ranks the whole pool", "4B “resolves” ranks all").replace("cross_encoder ranks the whole pool", "cross-encoder ranks all").replace("cross_encoder", "shown in CE order").replace("both_agree", "both orders agree");
           return {
             v: m.value, scorer: scorerOf(m), label: label.length > 38 ? label.slice(0, 37) + "…" : label,
             tip: `<b>${esc(shown(m.labels.variant ?? ""))}: ${m.value.toFixed(3)}</b>`

@@ -95,6 +95,86 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-02 (2): Qwen3-Reranker-4B as the only reranker, probe on the baseline pipeline
+
+**Verdict:** ranking the whole candidate pool itself, in place of the
+cross-encoder, the 4B with the "resolves" instruction reaches recall@3
+**0.900 with link expansion**, the first time anything meets the 0.90 gate,
+with **nothing lost**. A refusal floor exists on its scale: every out-of-KB
+ticket's top-1 scores below every KB-covered ticket's, with a wide gap. Two
+things block a migration: the trust signals collapse on the 0-1 scale they
+require, and scoring the whole links pool takes 9.5 s per ticket on an idle
+GPU (25 s at p95). Probe, not a gate measurement; whether to migrate is an ADR
+question, not this entry's.
+
+| Configuration | |
+|---|---|
+| Code | `2cd95de` (`main`); no service code changed since `003f7d3`; probe scripts in `.probe/` (uncommitted) |
+| Pools | built fresh with the stack up: production's `hybrid_retrieve` and `rerank` nodes in-process, **every** chunk kept, for all 60 KB-covered and 23 out-of-KB tickets: the 10 candidates (baseline) and + 5 chunks of each page linked from the articles of the cross-encoder's top 3 (links); 5,439 chunks, each with its cross-encoder score |
+| Reranker | `Qwen/Qwen3-Reranker-4B` @ `22e683669bc0`, bf16, yes/no projection in fp32, "resolves" instruction (as in entry 2026-10-02), on the RTX 3060 with the vLLM servers stopped; batches capped at 8,192 tokens (16 long chunks ran out of memory) |
+| Compared | the cross-encoder (`bge-reranker-v2-m3`) ranking the same pools |
+
+**1. Recall@3, each scorer ranking the whole pool**
+
+| Candidates | Ranker | recall@3 | Recovered (of 14) | Lost |
+|---|---|---|---|---|
+| Baseline (10 candidates) | cross-encoder (the baseline) | 0.767 | — | — |
+| Baseline (10 candidates) | 4B "resolves" | 0.800 | 2: g011, g036 | 0 |
+| + links | cross-encoder | 0.800 | 2: g046, g051 | 0 |
+| + links | **4B "resolves"** | **0.900** | **8:** g011, g036, g046, g051, g052, g056, g058, g060 | **0** |
+
+**2. Refusal: each ticket's top-1 score, KB-covered (60) against out-of-KB (23)**
+
+| Pool | Scorer | KB-covered top-1: lowest / 10th pct / median | Out-of-KB top-1: median / highest | Separation | KB refused just above the highest out-of-KB |
+|---|---|---|---|---|---|
+| Baseline | cross-encoder (0-1) | 0.413 / 0.868 / 0.987 | 0.002 / 0.098 | 1.000 | 0 (today's 0.45 floor refuses g056) |
+| Baseline | 4B (log-odds) | 1.37 / 3.99 / 7.39 | −7.27 / −2.02 | 1.000 | 0 |
+| + links | cross-encoder | 0.632 / 0.868 / 0.988 | 0.003 / 0.101 | 1.000 | 0 |
+| + links | 4B | 2.67 / 4.47 / 7.44 | −6.55 / −2.02 | 1.000 | 0 |
+
+**3. Trust signals on the 0-1 wire scale** (KB-covered, baseline pool): the
+cross-encoder's `rerank_margin` has a median of 0.009 (90th pct 0.102), its
+top-1 is ≥ 0.99 for 26 of 60 tickets. The 4B's, as sigmoid(log-odds): median
+margin 0.004 (90th pct 0.033), top-1 ≥ 0.99 for 53 of 60.
+
+**4. Time, idle GPU:** links pool, median 52 chunks per ticket, 9.5 s (p95
+25 s), 183 ms per chunk; the baseline's 10 chunks ≈ 1.8 s per ticket.
+
+### Findings
+
+**1. Ranking beats re-ordering.** As the only ranker the 4B reaches 0.900; re-ordering the
+cross-encoder's top 8 reached 0.850 (entry 2026-10-02). Seeing the whole pool, it promotes
+chunks the cross-encoder ranked 9th or lower: g011 and g052 are recovered by no
+earlier variant.
+
+**2. The floor would move, not vanish.** Out-of-KB tickets score negative (median
+−7.3), KB-covered ones positive (median 7.4), and the closest pair is 3.4 log-odds apart on the
+baseline pool. No floor is chosen here: fitting one to these 83 tickets would
+be tuning on the gate. It needs a reviewed calibration, like today's 0.45, which
+was hand-set and not fitted either.
+
+**3. The trust signals need redefining, not remapping.** On the 0-1 scale the 4B saturates:
+its top-1 is ≥ 0.99 for 53 of 60 tickets and its margin all but disappears.
+`rerank_top1` and `rerank_margin` would have to move to the log-odds scale, a
+wire-schema change in both services (rule 4) with new trust weights.
+
+**4. Latency rules out the whole links pool.** 9.5 s median per ticket with the GPU
+to itself; shared with the chat model, slower. A practical version would have the
+4B rank only part of the pool.
+
+### Follow-ups
+
+- [ ] Capped pool: the 4B ranking only the cross-encoder's top 15-20 chunks of the
+      links pool, to see how much of the 0.900 survives at a practical latency.
+- [ ] Prompt injection through an instruction-following ranker: the 15 injection
+      tickets plus adversarial ones, checked for scores pushed over a floor.
+- [ ] If those hold: an ADR superseding ADR-0005's calibration (the scorer and
+      its floor change, the rule against thresholding the fused score does not),
+      the trust-signal redefinition, an int4 build to fit the 12 GB card, then a
+      full eval run.
+
+---
+
 ## 2026-10-02: Qwen3-Reranker-4B re-ordering, "relevance" and "resolves" instructions, probe on the baseline pipeline
 
 **Verdict:** a reranker trained for the job, asked which passage *resolves*
