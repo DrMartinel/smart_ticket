@@ -154,9 +154,9 @@ footer { color: var(--muted); font-size: 12px; }
       <h2 id="h-probes">Retrieval probes</h2>
       <div class="seg" role="group" aria-label="Probe" id="probe-seg"></div>
     </div>
-    <p class="sec-note">Production retrieval nodes driven by scripts to test a design (ADR-0014). Comparable within a probe,
-      never a gate measurement. The dotted line is production now; probes before 2026-10-01 (2) ran when production kept one chunk
-      per article. Hover a bar for the golden cases it recovers or loses against that probe's production.</p>
+    <p class="sec-note">The pipeline's own retrieval nodes driven by scripts to test a design (ADR-0014). Comparable within a probe,
+      never a gate measurement. The dotted line is the baseline, the pipeline as it ships. Hover a bar for the golden cases it
+      recovers or loses against the baseline.</p>
     <div class="panel">
       <div class="legend" id="probe-legend"></div>
       <div id="c-probes"></div>
@@ -188,6 +188,9 @@ footer { color: var(--muted); font-size: 12px; }
   const $ = (s) => document.querySelector(s);
   const NS = "http://www.w3.org/2000/svg";
   const fmt = (v, unit) => unit === "ratio" || unit === "score" ? v.toFixed(3) : unit === "seconds" ? v.toFixed(2) + " s" : String(Math.round(v * 100) / 100);
+  // The data's stored label for the shipped pipeline is "production" (rows are
+  // append-only, never rewritten); the page calls it the baseline.
+  const shown = (s) => String(s).replace(/\b([Pp])roduction\b/g, (_, p) => (p === "P" ? "Baseline" : "baseline"));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const parse = (txt) => txt.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
   const UNITS = { retrieval_recall_at_3: "ratio", auto_reply_precision: "ratio", injection_recall: "ratio",
@@ -289,7 +292,7 @@ footer { color: var(--muted); font-size: 12px; }
       yy += groupGap;
     });
     const top = m.t - 6, bottom = H - m.b;
-    for (const [v, label, dash] of [[baseline, `production ${baseline.toFixed(3)}`, "2 3"], [gate.value, `gate ${gate.value.toFixed(2)}`, "5 4"]]) {
+    for (const [v, label, dash] of [[baseline, `baseline ${baseline.toFixed(3)}`, "2 3"], [gate.value, `gate ${gate.value.toFixed(2)}`, "5 4"]]) {
       svgEl("line", { x1: x(v), x2: x(v), y1: top, y2: bottom, stroke: "var(--gate)", "stroke-width": 1.5, "stroke-dasharray": dash }, svg);
       text(svg, x(v), top - 4, label, { "text-anchor": v === gate.value ? "start" : "end", class: "gate-lab", dx: v === gate.value ? 4 : -4 });
     }
@@ -382,7 +385,7 @@ footer { color: var(--muted); font-size: 12px; }
     // Probes
     const isRecall = (m) => ["retrieval_recall_at_3", "retrieval_recall_at_k"].includes(m.metric);
     const probeRuns = runs.filter((r) => r.kind === "probe" && metrics.some((m) => m.run === r.id && isRecall(m)));
-    // The latest production reference, so the line matches what ships now.
+    // The latest baseline reference (stored as variant "production"), so the line matches what ships now.
     const baseline = (() => { const m = metrics.filter((x) => x.metric === "retrieval_recall_at_3" && x.labels?.variant === "production").at(-1); return m ? m.value : rec.at(-1)?.v ?? 0; })();
     const runBase = (runId) => metrics.find((x) => x.run === runId && x.metric === "retrieval_recall_at_3" && (x.labels?.variant === "production" || /^production, top3/.test(x.labels?.variant ?? "")))?.value ?? baseline;
     const COLORS = { cross_encoder: "var(--s1)", laya: "var(--s2)", "qwen3-8b": "var(--s3)" };
@@ -392,7 +395,8 @@ footer { color: var(--muted); font-size: 12px; }
     const sib = (m, metric) => metrics.find((x) => x.run === m.run && x.metric === metric && JSON.stringify(x.labels) === JSON.stringify(m.labels));
     const SHORT = { "2026-09-30-probe-article-first": "Articles first", "2026-09-30-probe-link-expansion": "Link expansion",
       "2026-10-01-probe-laya": "Laya", "2026-10-01-probe-llm-reorder": "Qwen3-8B re-order",
-      "2026-10-01-probe-topk": "Top-5", "2026-10-01-probe-adr14-multichunk": "Multi-chunk (current)" };
+      "2026-10-01-probe-topk": "Top-5", "2026-10-01-probe-adr14-multichunk": "Multi-chunk (current)",
+      "2026-10-01-probe-laya-baseline": "Laya re-order" };
     // A fresh ledger may have no probes yet: hide the section, not an empty chart.
     document.getElementById("probes-section").hidden = probeRuns.length === 0;
     let current = "all";
@@ -404,12 +408,12 @@ footer { color: var(--muted); font-size: 12px; }
         title: `${r.title}  ·  ${r.date}`,
         rows: metrics.filter((m) => m.run === r.id && isRecall(m)).map((m) => {
           const recd = sib(m, "misses_recovered"), lost = sib(m, "cases_lost");
-          const label = (m.labels.variant ?? "").replace(/^production, |^links, /, (s) => s === "links, " ? "+ links, " : "")
+          const label = shown((m.labels.variant ?? "").replace(/^production, |^links, /, (s) => s === "links, " ? "+ links, " : ""))
             .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("cross_encoder", "shown in CE order").replace("both_agree", "both orders agree");
           return {
             v: m.value, scorer: scorerOf(m), label: label.length > 38 ? label.slice(0, 37) + "…" : label,
-            tip: `<b>${esc(m.labels.variant ?? "")}: ${m.value.toFixed(3)}</b>`
-              + `<div class="t-row">${Math.round(m.value * (m.n ?? 60))} of ${m.n ?? 60} · this probe's production ${runBase(m.run).toFixed(3)}${m.metric === "retrieval_recall_at_k" ? ` · recall over ${m.labels.k} chunks, not @3` : ""}</div>`
+            tip: `<b>${esc(shown(m.labels.variant ?? ""))}: ${m.value.toFixed(3)}</b>`
+              + `<div class="t-row">${Math.round(m.value * (m.n ?? 60))} of ${m.n ?? 60} · baseline ${runBase(m.run).toFixed(3)}${m.metric === "retrieval_recall_at_k" ? ` · recall over ${m.labels.k} chunks, not @3` : ""}</div>`
               + (recd ? `<div class="t-row">Recovered ${recd.value}: ${recd.cases?.length ? esc(recd.cases.join(", ")) : "none"}</div>` : "")
               + (lost ? `<div class="t-row">Lost ${lost.value}: ${lost.cases?.length ? esc(lost.cases.join(", ")) : "none"}</div>` : ""),
           };
@@ -440,7 +444,7 @@ footer { color: var(--muted); font-size: 12px; }
       const ce = auc.find((m) => m.labels.pool === p && m.labels.scorer === "cross_encoder");
       const la = auc.find((m) => m.labels.pool === p && m.labels.scorer === "laya");
       const f = (s) => metrics.find((m) => m.metric === "gold_ranked_first" && m.labels.pool === p && m.labels.scorer === s);
-      return { label: p, a: ce.value, b: la.value, note: `Gold ranked first: cross-encoder ${f("cross_encoder")?.value}/${ce.n}, Laya ${f("laya")?.value}/${la.n}` };
+      return { label: shown(p), a: ce.value, b: la.value, note: `Gold ranked first: cross-encoder ${f("cross_encoder")?.value}/${ce.n}, Laya ${f("laya")?.value}/${la.n}` };
     }), { a: { name: "Cross-encoder", color: "var(--s1)" }, b: { name: "Laya zero-shot", color: "var(--s2)" }, domain: [0.4, 1.0] });
 
     // Ledger
@@ -451,15 +455,15 @@ footer { color: var(--muted); font-size: 12px; }
       const detail = `<tr class="detail" id="d-${r.id}" hidden><td colspan="7"><div class="detail-grid">
         <dl class="kv">${Object.entries(c).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
         <div class="metric-list">${metrics.filter((m) => m.run === r.id).map((m) => {
-          const lab = m.labels && Object.keys(m.labels).length ? ` <span style="color:var(--muted)">${esc(Object.entries(m.labels).map(([k, v]) => `${k}=${v}`).join(" · "))}</span>` : "";
+          const lab = m.labels && Object.keys(m.labels).length ? ` <span style="color:var(--muted)">${esc(shown(Object.entries(m.labels).map(([k, v]) => `${k}=${v}`).join(" · ")))}</span>` : "";
           const unit = UNITS[m.metric] ?? (m.metric.includes("score") || m.metric.includes("auroc") ? "ratio" : m.metric.startsWith("latency") ? "seconds" : "count");
           return `<div><span class="mono">${esc(m.metric)}</span> <b>${fmt(m.value, unit)}</b>${m.n ? ` <span style="color:var(--muted)">n=${m.n}</span>` : ""}${lab}</div>`;
         }).join("")}</div></div>
-        ${r.notes ? `<p class="notes">${esc(r.notes)}</p>` : ""}
+        ${r.notes ? `<p class="notes">${esc(shown(r.notes))}</p>` : ""}
         <p class="notes">HISTORY.md: “${esc(r.history_entry)}” · source: ${esc(r.source)}</p></td></tr>`;
       return `<tr class="run" tabindex="0" aria-expanded="false" aria-controls="d-${r.id}" data-id="${r.id}">
         <td><span class="chev">▸</span> ${r.date}</td><td><span class="pill kind-${r.kind}">${r.kind.replace("_", " ")}</span></td>
-        <td style="white-space:normal;min-width:220px">${esc(r.title)}</td><td class="mono">${esc(c.code ?? "")}</td>
+        <td style="white-space:normal;min-width:220px">${esc(shown(r.title))}</td><td class="mono">${esc(c.code ?? "")}</td>
         <td class="mono">${esc(c.prompt ?? "")}</td><td class="num">${dur(r.duration_s)}</td><td class="num">${counts[r.id] ?? 0}</td></tr>${detail}`;
     }).join("");
     const ledger = $("#ledger");
