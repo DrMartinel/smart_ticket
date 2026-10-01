@@ -95,6 +95,70 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-01 (3): LLM re-ordering (Qwen3-8B), probe on the baseline pipeline
+
+**Verdict:** on its own the LLM re-orderer changes nothing (0.767 in every
+variant); on top of link expansion it lifts recall@3 from 0.800 to **0.850**,
+kept only where both presentation orders agree, with **nothing lost** and
+refusal unchanged. It reproduces the archived run of the same probe on the
+same code number for number. Probe, not a gate measurement; this is
+ADR-0014's measured path.
+
+| Configuration | |
+|---|---|
+| Code | `6bb717b` (`main`, clean; no service code changed since `003f7d3`); probe scripts in `.probe/` (uncommitted) |
+| Pipeline | production's `hybrid_retrieve` and `rerank` nodes in-process; several chunks per article, as shipped |
+| Re-orderer | `Qwen/Qwen3-8B-AWQ` on `vllm-chat` (`VLLM_CHAT_MAX_MODEL_LEN=4096`), temperature 0, thinking off, output an enum of the passage ids shown, checked to be an exact permutation |
+| Variants | re-orders the top 5 or 8 chunks above `retrieval.floor` (0.45), shown in cross-encoder order and reversed; `both orders agree` promotes a chunk into the top 3 only if both runs put it there, the rest follow cross-encoder order; the floor reads the cross-encoder's top-1 throughout |
+| Models, KB, golden set | as in the baseline below |
+| Stack | restarted after a host reboot, vLLM servers one at a time |
+
+| Candidates | Order | recall@3 | Recovered (of 14) | Lost |
+|---|---|---|---|---|
+| Baseline | cross-encoder | 0.767 | — | — |
+| Baseline | Qwen3-8B top 5 or 8, any order | 0.767 | 0–1 | 0–1 |
+| + links | cross-encoder | 0.800 | 2: g046, g051 | 0 |
+| + links | Qwen3-8B top 5, both orders agree | 0.817 | 3: + g058 | 0 |
+| + links | **Qwen3-8B top 8, both orders agree** | **0.850** | 5: + g036, g060 | **0** |
+| + links | Qwen3-8B top 8, cross-encoder order / reversed | 0.850 / 0.833 | 5 / 5 | 0 / 1 (g009) |
+
+Out-of-KB: 0 of 23 above the floor in both pools (highest top-1 0.098 /
+0.101). LLM: 472 calls, 0 invalid; 1.22 s p50 / 2.15 s p95 per call; 308
+passages cut to fit 4,096 tokens. Link expansion reranks a median of 48
+chunks per ticket (162 at most), against 10.
+
+### Findings
+
+**1. It needs the fix page in the pool.** Without link expansion the
+re-orderer has nothing better to promote: every baseline variant stays at
+0.767. Expansion brings the remediation pages in; the cross-encoder ranks
+them below the pages that describe the symptom; the LLM, asked which
+passage *resolves* the ticket, moves three of them up (g036, g058, g060).
+
+**2. Position bias, removed by agreement.** Its first pick is the same in
+both presentation orders for only 28–34 of 59 tickets, and shown reversed it
+loses a case (g009, g021). Requiring both orders to agree keeps every gain
+and loses nothing, at the cost of two calls per ticket.
+
+**3. Against Laya on the same pipeline (entry (2)):** Laya at top 8 with
+links scores 0.650 and loses 9 cases; Qwen3-8B with agreement scores 0.850
+and loses none. The generative re-orderer is the one worth building.
+
+**4. Reproducible.** Every recall, recovered and lost case equals the
+archived run (archive, 2026-10-01 (2)); only latency differs (1.22 s p50
+against 1.39 s).
+
+### Follow-ups
+
+- [ ] ADR-0014's checks before acceptance: a full eval run with expansion and
+      re-ordering (auto-reply precision, branch accuracy, refusal), the 15
+      injection tickets through the re-orderer, and a KB-agnostic association
+      source.
+- [ ] A token budget for the re-orderer: 308 passages were cut to fit, and a
+      cut can remove the fix text.
+
+---
+
 ## 2026-10-01 (2): Laya re-ordering, probe on the baseline pipeline
 
 **Verdict:** zero-shot Laya does not help on the shipped pipeline either. Re-ordering the
