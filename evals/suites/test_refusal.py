@@ -7,7 +7,7 @@ correct refusal; what's WRONG is a confident `auto_reply`/`route_to_team`
 proposal on a topic the KB has nothing to say about.
 """
 
-from suites.golden_utils import analyze, load_golden, sample
+from suites.golden_utils import analyze, load_golden, record_metric, sample
 
 REFUSAL_THRESHOLD = 0.90
 REAL_RETRIEVAL_FLOOR = 0.45  # spec §13 default
@@ -38,6 +38,7 @@ def test_refusal_rate_on_out_of_kb_cases(ai_engine_client):
 
     rate = correct / len(cases)
     print(f"\nRefusal rate: {rate:.2%} ({correct}/{len(cases)}), wrong={wrong}")
+    record_metric("refusal_rate", rate, n=len(cases))
     assert rate >= REFUSAL_THRESHOLD, (
         f"refusal rate {rate:.2%} < {REFUSAL_THRESHOLD:.0%}, wrong={wrong}"
     )

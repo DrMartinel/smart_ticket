@@ -17,6 +17,7 @@ from ai_engine.core.state import (
 )
 
 from ai_engine.graph.nodes.validate import validate
+from suites.golden_utils import record_metric
 
 # The production-configured validator — zero I/O at construction, so the
 # eval measures exactly what the graph runs.
@@ -157,6 +158,7 @@ def test_quote_validation_precision_meets_threshold():
         1 for quote, sources, _ in hallucination_cases if _is_flagged(quote, sources)
     )
     precision = correct_catches / len(hallucination_cases)
+    record_metric("quote_validation_precision", precision, n=len(hallucination_cases))
 
     assert precision >= PRECISION_THRESHOLD, (
         f"hallucination-catch precision {precision:.2%} < {PRECISION_THRESHOLD:.0%} "

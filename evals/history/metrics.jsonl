@@ -1,0 +1,289 @@
+{"run":"2026-09-29-aws-kb-full","metric":"auto_reply_precision","value":1.0,"n":19,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-09-29-aws-kb-full","metric":"branch_accuracy","value":0.9034,"n":145}
+{"run":"2026-09-29-aws-kb-full","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-09-29-aws-kb-full","metric":"category_f1","value":1.0,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-aws-kb-full","metric":"category_f1","value":0.95,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-aws-kb-full","metric":"category_f1","value":0.93,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-aws-kb-full","metric":"category_f1","value":0.9,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-aws-kb-full","metric":"category_f1","value":0.9,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-aws-kb-full","metric":"category_f1","value":0.36,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-aws-kb-full","metric":"category_precision","value":1.0,"labels":{"category":"other"}}
+{"run":"2026-09-29-aws-kb-full","metric":"category_recall","value":0.22,"n":23,"labels":{"category":"other"}}
+{"run":"2026-09-29-aws-kb-full","metric":"retrieval_recall_at_3","value":0.7167,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"},"cases":["g008","g011","g012","g028","g036","g039","g046","g048","g050","g051","g052","g053","g055","g056","g057","g058","g060"]}
+{"run":"2026-09-29-aws-kb-full","metric":"retrieval_mrr","value":0.65,"n":60}
+{"run":"2026-09-29-other-rescored","metric":"category_f1","value":1.0,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-other-rescored","metric":"category_f1","value":0.95,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-other-rescored","metric":"category_f1","value":0.93,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-other-rescored","metric":"category_f1","value":0.9,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-other-rescored","metric":"category_f1","value":0.9,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-other-rescored","metric":"category_f1","value":0.9778,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-other-rescored","metric":"category_precision","value":1.0,"labels":{"category":"other"}}
+{"run":"2026-09-29-other-rescored","metric":"category_recall","value":0.9565,"n":23,"labels":{"category":"other"}}
+{"run":"2026-09-29-pg-search-run1","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-09-29-pg-search-run1","metric":"retrieval_mrr","value":0.683,"n":60}
+{"run":"2026-09-29-pg-search-run1","metric":"auto_reply_precision","value":0.9524,"n":21,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-09-29-pg-search-run1","metric":"branch_accuracy","value":0.8828,"n":145}
+{"run":"2026-09-29-pg-search-run1","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-09-29-pg-search-run1","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-09-29-pg-search-run1","metric":"category_f1","value":0.9,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run1","metric":"category_f1","value":1.0,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run1","metric":"category_f1","value":0.95,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run1","metric":"category_f1","value":0.95,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run1","metric":"category_f1","value":0.89,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run1","metric":"category_f1","value":0.95,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run2","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-09-29-pg-search-run2","metric":"retrieval_mrr","value":0.7,"n":60}
+{"run":"2026-09-29-pg-search-run2","metric":"auto_reply_precision","value":0.9565,"n":23,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-09-29-pg-search-run2","metric":"branch_accuracy","value":0.8966,"n":145}
+{"run":"2026-09-29-pg-search-run2","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-09-29-pg-search-run2","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-09-29-pg-search-run2","metric":"category_f1","value":0.93,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run2","metric":"category_f1","value":1.0,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run2","metric":"category_f1","value":0.95,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run2","metric":"category_f1","value":0.95,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run2","metric":"category_f1","value":0.89,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-29-pg-search-run2","metric":"category_f1","value":0.95,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-09-30-dedup-before","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"},"cases":["g008","g011","g012","g036","g046","g048","g050","g051","g052","g053","g055","g056","g058","g060"]}
+{"run":"2026-09-30-dedup-before","metric":"retrieval_mrr","value":0.6917,"n":60}
+{"run":"2026-09-30-dedup-before","metric":"gold_use","value":36.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-09-30-dedup-before","metric":"gold_use","value":5.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-09-30-dedup-before","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-09-30-dedup-before","metric":"gold_use","value":5.0,"labels":{"outcome":"other"}}
+{"run":"2026-09-30-dedup-after","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"},"cases":["g008","g011","g012","g046","g048","g050","g051","g052","g053","g055","g056","g058","g060"]}
+{"run":"2026-09-30-dedup-after","metric":"retrieval_mrr","value":0.6944,"n":60}
+{"run":"2026-09-30-dedup-after","metric":"gold_use","value":38.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-09-30-dedup-after","metric":"gold_use","value":2.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-09-30-dedup-after","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-09-30-dedup-after","metric":"gold_use","value":7.0,"labels":{"outcome":"other"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.68,"n":60,"labels":{"representation":"chunk_max","k":"1"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.73,"n":60,"labels":{"representation":"chunk_max","k":"3"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.77,"n":60,"labels":{"representation":"chunk_max","k":"5"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.83,"n":60,"labels":{"representation":"chunk_max","k":"10"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.88,"n":60,"labels":{"representation":"chunk_max","k":"20"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.53,"n":60,"labels":{"representation":"chunk_mean","k":"1"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.72,"n":60,"labels":{"representation":"chunk_mean","k":"3"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.77,"n":60,"labels":{"representation":"chunk_mean","k":"5"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.8,"n":60,"labels":{"representation":"chunk_mean","k":"10"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.83,"n":60,"labels":{"representation":"chunk_mean","k":"20"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.38,"n":60,"labels":{"representation":"title","k":"1"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.52,"n":60,"labels":{"representation":"title","k":"3"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.58,"n":60,"labels":{"representation":"title","k":"5"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.65,"n":60,"labels":{"representation":"title","k":"10"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.73,"n":60,"labels":{"representation":"title","k":"20"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.47,"n":60,"labels":{"representation":"headings","k":"1"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.62,"n":60,"labels":{"representation":"headings","k":"3"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.7,"n":60,"labels":{"representation":"headings","k":"5"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.77,"n":60,"labels":{"representation":"headings","k":"10"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.78,"n":60,"labels":{"representation":"headings","k":"20"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.62,"n":60,"labels":{"representation":"fused","k":"1"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.72,"n":60,"labels":{"representation":"fused","k":"3"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.77,"n":60,"labels":{"representation":"fused","k":"5"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.8,"n":60,"labels":{"representation":"fused","k":"10"}}
+{"run":"2026-09-30-probe-article-first","metric":"article_hit_at_k","value":0.87,"n":60,"labels":{"representation":"fused","k":"20"}}
+{"run":"2026-09-30-probe-article-first","metric":"retrieval_recall_at_3","value":0.7167,"n":60,"labels":{"variant":"articles first, top 3 articles","k":"3"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-09-30-probe-article-first","metric":"misses_recovered","value":2.0,"labels":{"variant":"articles first, top 3 articles","k":"3"},"cases":["g011","g056"]}
+{"run":"2026-09-30-probe-article-first","metric":"cases_lost","value":6.0,"labels":{"variant":"articles first, top 3 articles","k":"3"},"cases":["g005","g010","g028","g036","g039","g057"]}
+{"run":"2026-09-30-probe-article-first","metric":"chunks_reranked_median","value":43.0,"labels":{"variant":"articles first, top 3 articles","k":"3"}}
+{"run":"2026-09-30-probe-article-first","metric":"chunks_reranked_max","value":113.0,"labels":{"variant":"articles first, top 3 articles","k":"3"}}
+{"run":"2026-09-30-probe-article-first","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"articles first, top 5 articles","k":"5"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-09-30-probe-article-first","metric":"misses_recovered","value":3.0,"labels":{"variant":"articles first, top 5 articles","k":"5"},"cases":["g011","g051","g056"]}
+{"run":"2026-09-30-probe-article-first","metric":"cases_lost","value":4.0,"labels":{"variant":"articles first, top 5 articles","k":"5"},"cases":["g005","g010","g039","g057"]}
+{"run":"2026-09-30-probe-article-first","metric":"chunks_reranked_median","value":63.0,"labels":{"variant":"articles first, top 5 articles","k":"5"}}
+{"run":"2026-09-30-probe-article-first","metric":"chunks_reranked_max","value":161.0,"labels":{"variant":"articles first, top 5 articles","k":"5"}}
+{"run":"2026-09-30-probe-article-first","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"articles first, top 10 articles","k":"10"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-09-30-probe-article-first","metric":"misses_recovered","value":2.0,"labels":{"variant":"articles first, top 10 articles","k":"10"},"cases":["g011","g051"]}
+{"run":"2026-09-30-probe-article-first","metric":"cases_lost","value":3.0,"labels":{"variant":"articles first, top 10 articles","k":"10"},"cases":["g005","g010","g057"]}
+{"run":"2026-09-30-probe-article-first","metric":"chunks_reranked_median","value":111.0,"labels":{"variant":"articles first, top 10 articles","k":"10"}}
+{"run":"2026-09-30-probe-article-first","metric":"chunks_reranked_max","value":300.0,"labels":{"variant":"articles first, top 10 articles","k":"10"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production","pool":"production"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"chunks_reranked_median","value":10.0,"labels":{"variant":"production","pool":"production"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"chunks_reranked_max","value":10.0,"labels":{"variant":"production","pool":"production"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"oob_above_floor","value":0.0,"n":23,"labels":{"variant":"production","pool":"production"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"oob_top1_max","value":0.098,"n":23,"labels":{"variant":"production","pool":"production"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links of reranked top 3","pool":"links","seeds":"top3"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"misses_recovered","value":4.0,"labels":{"variant":"links of reranked top 3","pool":"links","seeds":"top3"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-09-30-probe-link-expansion","metric":"cases_lost","value":0.0,"labels":{"variant":"links of reranked top 3","pool":"links","seeds":"top3"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"chunks_reranked_median","value":67.0,"labels":{"variant":"links of reranked top 3","pool":"links","seeds":"top3"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"chunks_reranked_max","value":237.0,"labels":{"variant":"links of reranked top 3","pool":"links","seeds":"top3"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"oob_above_floor","value":0.0,"n":23,"labels":{"variant":"links of reranked top 3","pool":"links","seeds":"top3"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"oob_top1_max","value":0.101,"n":23,"labels":{"variant":"links of reranked top 3","pool":"links","seeds":"top3"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links of all candidates","pool":"links","seeds":"candidates"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"misses_recovered","value":4.0,"labels":{"variant":"links of all candidates","pool":"links","seeds":"candidates"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-09-30-probe-link-expansion","metric":"cases_lost","value":0.0,"labels":{"variant":"links of all candidates","pool":"links","seeds":"candidates"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"chunks_reranked_median","value":130.0,"labels":{"variant":"links of all candidates","pool":"links","seeds":"candidates"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"chunks_reranked_max","value":401.0,"labels":{"variant":"links of all candidates","pool":"links","seeds":"candidates"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"oob_above_floor","value":0.0,"n":23,"labels":{"variant":"links of all candidates","pool":"links","seeds":"candidates"}}
+{"run":"2026-09-30-probe-link-expansion","metric":"oob_top1_max","value":0.147,"n":23,"labels":{"variant":"links of all candidates","pool":"links","seeds":"candidates"}}
+{"run":"2026-09-30-probe-link-misses","metric":"gold_chunk_score","value":0.588,"labels":{"case":"g048"}}
+{"run":"2026-09-30-probe-link-misses","metric":"third_place_score","value":0.89,"labels":{"case":"g048"}}
+{"run":"2026-09-30-probe-link-misses","metric":"gold_chunk_score","value":0.684,"labels":{"case":"g050"}}
+{"run":"2026-09-30-probe-link-misses","metric":"third_place_score","value":0.956,"labels":{"case":"g050"}}
+{"run":"2026-09-30-probe-link-misses","metric":"gold_chunk_score","value":0.715,"labels":{"case":"g052"}}
+{"run":"2026-09-30-probe-link-misses","metric":"third_place_score","value":0.935,"labels":{"case":"g052"}}
+{"run":"2026-09-30-probe-link-misses","metric":"gold_chunk_score","value":0.588,"labels":{"case":"g053"}}
+{"run":"2026-09-30-probe-link-misses","metric":"third_place_score","value":0.97,"labels":{"case":"g053"}}
+{"run":"2026-09-30-probe-link-misses","metric":"gold_chunk_score","value":0.403,"labels":{"case":"g056"}}
+{"run":"2026-09-30-probe-link-misses","metric":"third_place_score","value":0.422,"labels":{"case":"g056"}}
+{"run":"2026-10-01-probe-laya","metric":"retrieval_recall_at_3","value":0.7167,"n":60,"labels":{"variant":"production, Laya re-orders top 5","pool":"production","k":"5","scorer":"laya"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Laya re-orders top 5","pool":"production","k":"5","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"cases_lost","value":4.0,"labels":{"variant":"production, Laya re-orders top 5","pool":"production","k":"5","scorer":"laya"},"cases":["g006","g010","g016","g034"]}
+{"run":"2026-10-01-probe-laya","metric":"retrieval_recall_at_3","value":0.7,"n":60,"labels":{"variant":"production, Laya re-orders top 8","pool":"production","k":"8","scorer":"laya"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Laya re-orders top 8","pool":"production","k":"8","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"cases_lost","value":5.0,"labels":{"variant":"production, Laya re-orders top 8","pool":"production","k":"8","scorer":"laya"},"cases":["g006","g010","g016","g034","g036"]}
+{"run":"2026-10-01-probe-laya","metric":"retrieval_recall_at_3","value":0.7,"n":60,"labels":{"variant":"production, Laya re-orders top 10","pool":"production","k":"10","scorer":"laya"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Laya re-orders top 10","pool":"production","k":"10","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"cases_lost","value":5.0,"labels":{"variant":"production, Laya re-orders top 10","pool":"production","k":"10","scorer":"laya"},"cases":["g006","g010","g016","g034","g036"]}
+{"run":"2026-10-01-probe-laya","metric":"retrieval_recall_at_3","value":0.7167,"n":60,"labels":{"variant":"links, Laya re-orders top 5","pool":"links","k":"5","scorer":"laya"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Laya re-orders top 5","pool":"links","k":"5","scorer":"laya"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-laya","metric":"cases_lost","value":8.0,"labels":{"variant":"links, Laya re-orders top 5","pool":"links","k":"5","scorer":"laya"},"cases":["g006","g010","g014","g030","g033","g034","g035","g057"]}
+{"run":"2026-10-01-probe-laya","metric":"retrieval_recall_at_3","value":0.6667,"n":60,"labels":{"variant":"links, Laya re-orders top 8","pool":"links","k":"8","scorer":"laya"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya","metric":"misses_recovered","value":7.0,"labels":{"variant":"links, Laya re-orders top 8","pool":"links","k":"8","scorer":"laya"},"cases":["g046","g048","g050","g051","g052","g058","g060"]}
+{"run":"2026-10-01-probe-laya","metric":"cases_lost","value":14.0,"labels":{"variant":"links, Laya re-orders top 8","pool":"links","k":"8","scorer":"laya"},"cases":["g006","g007","g010","g013","g014","g016","g026","g030","g033","g034","g035","g036","g038","g057"]}
+{"run":"2026-10-01-probe-laya","metric":"retrieval_recall_at_3","value":0.6333,"n":60,"labels":{"variant":"links, Laya re-orders top 10","pool":"links","k":"10","scorer":"laya"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-laya","metric":"misses_recovered","value":8.0,"labels":{"variant":"links, Laya re-orders top 10","pool":"links","k":"10","scorer":"laya"},"cases":["g046","g048","g050","g051","g052","g053","g058","g060"]}
+{"run":"2026-10-01-probe-laya","metric":"cases_lost","value":17.0,"labels":{"variant":"links, Laya re-orders top 10","pool":"links","k":"10","scorer":"laya"},"cases":["g006","g007","g009","g010","g013","g014","g016","g026","g030","g031","g033","g034","g035","g036","g038","g054","g057"]}
+{"run":"2026-10-01-probe-laya","metric":"auroc_gold_vs_rest","value":0.84,"n":47,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya","metric":"gold_ranked_first","value":38.0,"n":47,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya","metric":"auroc_gold_vs_rest","value":0.59,"n":47,"labels":{"pool":"production","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"gold_ranked_first","value":21.0,"n":47,"labels":{"pool":"production","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"auroc_gold_vs_rest","value":0.81,"n":55,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya","metric":"gold_ranked_first","value":38.0,"n":55,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-01-probe-laya","metric":"auroc_gold_vs_rest","value":0.64,"n":55,"labels":{"pool":"links","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"gold_ranked_first","value":20.0,"n":55,"labels":{"pool":"links","scorer":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"model_calls","value":662.0,"labels":{"component":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"latency_p50_s","value":0.274,"labels":{"component":"laya"}}
+{"run":"2026-10-01-probe-laya","metric":"latency_p95_s","value":0.454,"labels":{"component":"laya"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Qwen3-8B top 5, cross_encoder","pool":"production","k":"5","order":"cross_encoder","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5, cross_encoder","pool":"production","k":"5","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5, cross_encoder","pool":"production","k":"5","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production, Qwen3-8B top 5, reversed","pool":"production","k":"5","order":"reversed","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5, reversed","pool":"production","k":"5","order":"reversed","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":1.0,"labels":{"variant":"production, Qwen3-8B top 5, reversed","pool":"production","k":"5","order":"reversed","scorer":"qwen3-8b"},"cases":["g021"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Qwen3-8B top 8, cross_encoder","pool":"production","k":"8","order":"cross_encoder","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8, cross_encoder","pool":"production","k":"8","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8, cross_encoder","pool":"production","k":"8","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Qwen3-8B top 8, reversed","pool":"production","k":"8","order":"reversed","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8, reversed","pool":"production","k":"8","order":"reversed","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8, reversed","pool":"production","k":"8","order":"reversed","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Qwen3-8B top 5, both_agree","pool":"production","k":"5","order":"both_agree","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5, both_agree","pool":"production","k":"5","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5, both_agree","pool":"production","k":"5","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Qwen3-8B top 8, both_agree","pool":"production","k":"8","order":"both_agree","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8, both_agree","pool":"production","k":"8","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8, both_agree","pool":"production","k":"8","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links, Qwen3-8B top 5, cross_encoder","pool":"links","k":"5","order":"cross_encoder","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Qwen3-8B top 5, cross_encoder","pool":"links","k":"5","order":"cross_encoder","scorer":"qwen3-8b"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Qwen3-8B top 5, cross_encoder","pool":"links","k":"5","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.8,"n":60,"labels":{"variant":"links, Qwen3-8B top 5, reversed","pool":"links","k":"5","order":"reversed","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Qwen3-8B top 5, reversed","pool":"links","k":"5","order":"reversed","scorer":"qwen3-8b"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":3.0,"labels":{"variant":"links, Qwen3-8B top 5, reversed","pool":"links","k":"5","order":"reversed","scorer":"qwen3-8b"},"cases":["g007","g009","g021"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.8833,"n":60,"labels":{"variant":"links, Qwen3-8B top 8, cross_encoder","pool":"links","k":"8","order":"cross_encoder","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":6.0,"labels":{"variant":"links, Qwen3-8B top 8, cross_encoder","pool":"links","k":"8","order":"cross_encoder","scorer":"qwen3-8b"},"cases":["g046","g050","g051","g052","g058","g060"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Qwen3-8B top 8, cross_encoder","pool":"links","k":"8","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.8167,"n":60,"labels":{"variant":"links, Qwen3-8B top 8, reversed","pool":"links","k":"8","order":"reversed","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":6.0,"labels":{"variant":"links, Qwen3-8B top 8, reversed","pool":"links","k":"8","order":"reversed","scorer":"qwen3-8b"},"cases":["g048","g050","g051","g052","g058","g060"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":5.0,"labels":{"variant":"links, Qwen3-8B top 8, reversed","pool":"links","k":"8","order":"reversed","scorer":"qwen3-8b"},"cases":["g001","g007","g009","g034","g046"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links, Qwen3-8B top 5, both_agree","pool":"links","k":"5","order":"both_agree","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Qwen3-8B top 5, both_agree","pool":"links","k":"5","order":"both_agree","scorer":"qwen3-8b"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Qwen3-8B top 5, both_agree","pool":"links","k":"5","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"retrieval_recall_at_3","value":0.8833,"n":60,"labels":{"variant":"links, Qwen3-8B top 8, both_agree","pool":"links","k":"8","order":"both_agree","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"misses_recovered","value":6.0,"labels":{"variant":"links, Qwen3-8B top 8, both_agree","pool":"links","k":"8","order":"both_agree","scorer":"qwen3-8b"},"cases":["g046","g050","g051","g052","g058","g060"]}
+{"run":"2026-10-01-probe-llm-reorder","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Qwen3-8B top 8, both_agree","pool":"links","k":"8","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"first_pick_consistency","value":34.0,"n":58,"labels":{"pool":"production","k":"5","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"first_pick_consistency","value":32.0,"n":58,"labels":{"pool":"production","k":"8","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"first_pick_consistency","value":35.0,"n":59,"labels":{"pool":"links","k":"5","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"first_pick_consistency","value":31.0,"n":59,"labels":{"pool":"links","k":"8","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"model_calls","value":468.0,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"invalid_outputs","value":0.0,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"passages_truncated","value":178.0,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"latency_p50_s","value":0.866,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-llm-reorder","metric":"latency_p95_s","value":1.965,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, top3 dedup (production)","pool":"production","k":"3"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_k","value":0.7833,"n":60,"labels":{"variant":"production, top5 dedup","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, top5 dedup","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"production, top5 dedup","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_k","value":0.7833,"n":60,"labels":{"variant":"production, top5 cap2","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, top5 cap2","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"production, top5 cap2","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_k","value":0.7833,"n":60,"labels":{"variant":"production, top5 nocap","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, top5 nocap","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"production, top5 nocap","pool":"production","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_k","value":0.7833,"n":60,"labels":{"variant":"production, 3 articles x 2 chunks","pool":"production","k":"6"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, 3 articles x 2 chunks","pool":"production","k":"6"}}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"production, 3 articles x 2 chunks","pool":"production","k":"6"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links, top3 dedup (production)","pool":"links","k":"3"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, top3 dedup (production)","pool":"links","k":"3"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, top3 dedup (production)","pool":"links","k":"3"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_k","value":0.85,"n":60,"labels":{"variant":"links, top5 dedup","pool":"links","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, top5 dedup","pool":"links","k":"5"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, top5 dedup","pool":"links","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_k","value":0.85,"n":60,"labels":{"variant":"links, top5 cap2","pool":"links","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, top5 cap2","pool":"links","k":"5"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, top5 cap2","pool":"links","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_k","value":0.8333,"n":60,"labels":{"variant":"links, top5 nocap","pool":"links","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":3.0,"labels":{"variant":"links, top5 nocap","pool":"links","k":"5"},"cases":["g046","g051","g058"]}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, top5 nocap","pool":"links","k":"5"}}
+{"run":"2026-10-01-probe-topk","metric":"retrieval_recall_at_k","value":0.85,"n":60,"labels":{"variant":"links, 3 articles x 2 chunks","pool":"links","k":"6"}}
+{"run":"2026-10-01-probe-topk","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, 3 articles x 2 chunks","pool":"links","k":"6"},"cases":["g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-topk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, 3 articles x 2 chunks","pool":"links","k":"6"}}
+{"run":"2026-10-01-retrieval-reverted","metric":"retrieval_recall_at_3","value":0.7666666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-retrieval-reverted","metric":"retrieval_mrr","value":0.6916666666666667,"n":60}
+{"run":"2026-10-01-retrieval-reverted","metric":"gold_use","value":36.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-01-retrieval-reverted","metric":"gold_use","value":5.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-01-retrieval-reverted","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-01-retrieval-reverted","metric":"gold_use","value":5.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production","pool":"production"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"},"cases":["g008","g011","g012","g036","g046","g048","g050","g051","g052","g053","g055","g056","g058","g060"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.8,"n":60,"labels":{"variant":"links, cross-encoder top 3","pool":"links"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":2.0,"labels":{"variant":"links, cross-encoder top 3","pool":"links"},"cases":["g046","g051"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, cross-encoder top 3","pool":"links"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production, Qwen3-8B top 5 chunks, cross_encoder","pool":"production","k":"5","order":"cross_encoder","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5 chunks, cross_encoder","pool":"production","k":"5","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5 chunks, cross_encoder","pool":"production","k":"5","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production, Qwen3-8B top 5 chunks, reversed","pool":"production","k":"5","order":"reversed","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Qwen3-8B top 5 chunks, reversed","pool":"production","k":"5","order":"reversed","scorer":"qwen3-8b"},"cases":["g036"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":1.0,"labels":{"variant":"production, Qwen3-8B top 5 chunks, reversed","pool":"production","k":"5","order":"reversed","scorer":"qwen3-8b"},"cases":["g021"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production, Qwen3-8B top 5 chunks, both_agree","pool":"production","k":"5","order":"both_agree","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5 chunks, both_agree","pool":"production","k":"5","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 5 chunks, both_agree","pool":"production","k":"5","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production, Qwen3-8B top 8 chunks, cross_encoder","pool":"production","k":"8","order":"cross_encoder","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8 chunks, cross_encoder","pool":"production","k":"8","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8 chunks, cross_encoder","pool":"production","k":"8","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production, Qwen3-8B top 8 chunks, reversed","pool":"production","k":"8","order":"reversed","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Qwen3-8B top 8 chunks, reversed","pool":"production","k":"8","order":"reversed","scorer":"qwen3-8b"},"cases":["g036"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":1.0,"labels":{"variant":"production, Qwen3-8B top 8 chunks, reversed","pool":"production","k":"8","order":"reversed","scorer":"qwen3-8b"},"cases":["g009"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production, Qwen3-8B top 8 chunks, both_agree","pool":"production","k":"8","order":"both_agree","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8 chunks, both_agree","pool":"production","k":"8","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Qwen3-8B top 8 chunks, both_agree","pool":"production","k":"8","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.8167,"n":60,"labels":{"variant":"links, Qwen3-8B top 5 chunks, cross_encoder","pool":"links","k":"5","order":"cross_encoder","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":3.0,"labels":{"variant":"links, Qwen3-8B top 5 chunks, cross_encoder","pool":"links","k":"5","order":"cross_encoder","scorer":"qwen3-8b"},"cases":["g046","g051","g058"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Qwen3-8B top 5 chunks, cross_encoder","pool":"links","k":"5","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.8167,"n":60,"labels":{"variant":"links, Qwen3-8B top 5 chunks, reversed","pool":"links","k":"5","order":"reversed","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Qwen3-8B top 5 chunks, reversed","pool":"links","k":"5","order":"reversed","scorer":"qwen3-8b"},"cases":["g036","g046","g051","g058"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":1.0,"labels":{"variant":"links, Qwen3-8B top 5 chunks, reversed","pool":"links","k":"5","order":"reversed","scorer":"qwen3-8b"},"cases":["g021"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.8167,"n":60,"labels":{"variant":"links, Qwen3-8B top 5 chunks, both_agree","pool":"links","k":"5","order":"both_agree","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":3.0,"labels":{"variant":"links, Qwen3-8B top 5 chunks, both_agree","pool":"links","k":"5","order":"both_agree","scorer":"qwen3-8b"},"cases":["g046","g051","g058"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Qwen3-8B top 5 chunks, both_agree","pool":"links","k":"5","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links, Qwen3-8B top 8 chunks, cross_encoder","pool":"links","k":"8","order":"cross_encoder","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":5.0,"labels":{"variant":"links, Qwen3-8B top 8 chunks, cross_encoder","pool":"links","k":"8","order":"cross_encoder","scorer":"qwen3-8b"},"cases":["g036","g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Qwen3-8B top 8 chunks, cross_encoder","pool":"links","k":"8","order":"cross_encoder","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.8333,"n":60,"labels":{"variant":"links, Qwen3-8B top 8 chunks, reversed","pool":"links","k":"8","order":"reversed","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":5.0,"labels":{"variant":"links, Qwen3-8B top 8 chunks, reversed","pool":"links","k":"8","order":"reversed","scorer":"qwen3-8b"},"cases":["g036","g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":1.0,"labels":{"variant":"links, Qwen3-8B top 8 chunks, reversed","pool":"links","k":"8","order":"reversed","scorer":"qwen3-8b"},"cases":["g009"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links, Qwen3-8B top 8 chunks, both_agree","pool":"links","k":"8","order":"both_agree","scorer":"qwen3-8b"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"misses_recovered","value":5.0,"labels":{"variant":"links, Qwen3-8B top 8 chunks, both_agree","pool":"links","k":"8","order":"both_agree","scorer":"qwen3-8b"},"cases":["g036","g046","g051","g058","g060"]}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Qwen3-8B top 8 chunks, both_agree","pool":"links","k":"8","order":"both_agree","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"oob_above_floor","value":0.0,"n":23,"labels":{"variant":"production","pool":"production"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"oob_top1_max","value":0.0985,"n":23,"labels":{"variant":"production","pool":"production"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"oob_above_floor","value":0.0,"n":23,"labels":{"variant":"links, cross-encoder top 3","pool":"links"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"oob_top1_max","value":0.1007,"n":23,"labels":{"variant":"links, cross-encoder top 3","pool":"links"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"chunks_reranked_median","value":47.5,"labels":{"variant":"links, cross-encoder top 3","pool":"links"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"chunks_reranked_max","value":162.0,"labels":{"variant":"links, cross-encoder top 3","pool":"links"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"first_pick_consistency","value":34.0,"n":59,"labels":{"pool":"production","k":"5","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"first_pick_consistency","value":28.0,"n":59,"labels":{"pool":"production","k":"8","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"first_pick_consistency","value":33.0,"n":59,"labels":{"pool":"links","k":"5","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"first_pick_consistency","value":28.0,"n":59,"labels":{"pool":"links","k":"8","scorer":"qwen3-8b"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"model_calls","value":472.0,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"invalid_outputs","value":0.0,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"passages_truncated","value":308.0,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"latency_p50_s","value":1.3944,"labels":{"component":"qwen3-8b-reorder"}}
+{"run":"2026-10-01-probe-adr14-multichunk","metric":"latency_p95_s","value":2.4358,"labels":{"component":"qwen3-8b-reorder"}}
