@@ -121,7 +121,8 @@ footer { color: var(--muted); font-size: 12px; }
   <header>
     <div class="eyebrow">Smart Ticket Triage · evaluation record</div>
     <h1>Eval history</h1>
-    <p class="lede">Every recorded eval run and design probe, read from <span class="mono">evals/history/</span>.
+    <p class="lede">Every eval run and design probe since the current baseline, read from <span class="mono">evals/history/</span>
+      (earlier runs are in <span class="mono">evals/HISTORY-archive.md</span>).
       Gates are the ones in force when each number was measured. The golden set is synthetic: a passing gate means the
       wiring didn’t regress, not that the model is good.</p>
     <p id="err" hidden></p>
@@ -148,7 +149,7 @@ footer { color: var(--muted); font-size: 12px; }
     </div>
   </section>
 
-  <section aria-labelledby="h-probes">
+  <section aria-labelledby="h-probes" id="probes-section">
     <div class="sec-head">
       <h2 id="h-probes">Retrieval probes</h2>
       <div class="seg" role="group" aria-label="Probe" id="probe-seg"></div>
@@ -392,6 +393,8 @@ footer { color: var(--muted); font-size: 12px; }
     const SHORT = { "2026-09-30-probe-article-first": "Articles first", "2026-09-30-probe-link-expansion": "Link expansion",
       "2026-10-01-probe-laya": "Laya", "2026-10-01-probe-llm-reorder": "Qwen3-8B re-order",
       "2026-10-01-probe-topk": "Top-5", "2026-10-01-probe-adr14-multichunk": "Multi-chunk (current)" };
+    // A fresh ledger may have no probes yet: hide the section, not an empty chart.
+    document.getElementById("probes-section").hidden = probeRuns.length === 0;
     let current = "all";
     const seg = $("#probe-seg");
     const segItems = [["all", "All probes"], ...probeRuns.map((r) => [r.id, SHORT[r.id] ?? r.title])];
@@ -421,6 +424,7 @@ footer { color: var(--muted); font-size: 12px; }
 
     // Cross-encoder ceiling
     const golds = metrics.filter((m) => m.metric === "gold_chunk_score");
+    $("#c-ceiling").closest(".panel").hidden = golds.length === 0;
     legend($("#ceil-legend"), [["var(--s1)", "Gold page’s best chunk"], ["var(--s2)", "3rd place it must beat"]]);
     pairedDots($("#c-ceiling"), golds.map((g) => {
       const t = metrics.find((m) => m.run === g.run && m.metric === "third_place_score" && m.labels.case === g.labels.case);
@@ -429,6 +433,7 @@ footer { color: var(--muted); font-size: 12px; }
 
     // AUROC
     const auc = metrics.filter((m) => m.metric === "auroc_gold_vs_rest");
+    $("#c-auroc").closest(".panel").hidden = auc.length === 0;
     const pools = [...new Set(auc.map((m) => m.labels.pool))];
     legend($("#auc-legend"), [["var(--s1)", "Cross-encoder"], ["var(--s2)", "Laya zero-shot"]]);
     pairedDots($("#c-auroc"), pools.map((p) => {

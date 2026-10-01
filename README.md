@@ -388,7 +388,7 @@ uv run python evals/report.py --compare evals/baselines/baseline.json
 
 Per-category F1 is deliberately not averaged — a rare-but-serious category like `security` can sit at 0.4 while the mean still looks healthy.
 
-> **Known failing gate:** retrieval recall is **0.72** on the full runs of 2026-09-29, while auto-reply precision is 1.00. What each means, and every run since, is in [`evals/HISTORY.md`](evals/HISTORY.md). Do not lower a floor to make CI green.
+> **Known failing gate:** retrieval recall@3 is **0.767** on the 2026-10-01 baseline full run, while auto-reply precision is 1.00. What each means, and every run since, is in [`evals/HISTORY.md`](evals/HISTORY.md); earlier runs are in [`evals/HISTORY-archive.md`](evals/HISTORY-archive.md). Do not lower a floor to make CI green.
 
 ---
 

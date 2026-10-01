@@ -10,6 +10,10 @@ HISTORY.md says what a measurement meant; these two files hold what it was:
                  labels, the gate in force when it was measured, and the
                  golden case ids behind it where they matter
 
+Runs from before the current baseline live in archive/ with the same two
+files, under HISTORY-archive.md's headings. They are read-only: the
+recorder only appends to the current files.
+
 A metric's name must be in `METRICS`, so a chart can rely on its unit,
 direction and gate, and new names can't drift in unnoticed. Rows are
 appended, never edited: a later correction is a new run, like a HISTORY.md
@@ -31,6 +35,9 @@ HERE = Path(__file__).parent
 RUNS_PATH = HERE / "runs.jsonl"
 METRICS_PATH = HERE / "metrics.jsonl"
 HISTORY_MD = HERE.parent / "HISTORY.md"
+ARCHIVE_RUNS_PATH = HERE / "archive" / "runs.jsonl"
+ARCHIVE_METRICS_PATH = HERE / "archive" / "metrics.jsonl"
+HISTORY_ARCHIVE_MD = HERE.parent / "HISTORY-archive.md"
 
 
 class RunKind(StrEnum):

@@ -212,14 +212,15 @@ copies that directory — a new SQL file that isn't copied fails at container st
   Demo tickets and the golden set are English. The snapshot is frozen: pages
   are checked against `manifest.json`, and each auto-reply approval in
   `curation.json` is pinned to the SHA-256 of the reviewed text.
-- **One eval gate fails** (full runs, 2026-09-29, [`evals/HISTORY.md`](evals/HISTORY.md)):
-  retrieval recall @3 **0.77**, mostly GuardDuty/SES tickets whose wording
-  shares nothing with the page that answers them (TODO item 9; not chunk
-  crowding, which was measured and ruled out). Auto-reply precision is 0.95,
-  exactly at its floor: one unlabelled PII case auto-replied. `other` F1 is 0.98 since a
+- **One eval gate fails** (the baseline full run, 2026-10-01, [`evals/HISTORY.md`](evals/HISTORY.md)):
+  retrieval recall @3 **0.767**, mostly GuardDuty/SES tickets whose wording
+  shares nothing with the page that answers them (TODO item 9, ADR-0014;
+  not chunk crowding, which was measured and ruled out). Auto-reply
+  precision is 1.00 (n=18). `other` F1 is 0.95 since a
   refusal on an out-of-KB ticket counts as correct, as in the refusal
   suite; that scoring rule is deliberate, don't revert it to "fix" a
-  number. Record every full run in `evals/HISTORY.md`.
+  number. Record every full run in `evals/HISTORY.md`; runs before the
+  baseline are in `evals/HISTORY-archive.md`, read-only.
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.

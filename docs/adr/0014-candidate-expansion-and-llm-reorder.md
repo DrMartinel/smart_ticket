@@ -29,7 +29,8 @@ chunk per article as production (2026-10-01), then, after the revert, on
 multi-chunk retrieval (2026-10-01 (2)). The article-first and Laya probes
 ran only in the first round; neither result depends on the difference. The
 article-first probe was a dense-only prototype (no BM25), so its losses are
-partly that. Details and configuration: `evals/HISTORY.md`.
+partly that. Details and configuration: `evals/HISTORY-archive.md`
+(entries 2026-10-01 and 2026-10-01 (2)).
 
 | Probe | recall@3, multi-chunk (**production**) | recall@3, one chunk per article | Lost | Verdict |
 |---|---|---|---|---|

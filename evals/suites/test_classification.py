@@ -18,7 +18,7 @@ have a right category. The pipeline would refuse them before the LLM, but
 this suite runs with `retrieval_floor=0.0`, so the model always answers.
 
 On an out-of-KB case, `insufficient_context` counts as correct (decided
-2026-09-29, evals/HISTORY.md). It names no category, but it is the answer
+2026-09-29, evals/HISTORY-archive.md). It names no category, but it is the answer
 spec §12.2 asks for when the KB has nothing on the topic, and
 test_refusal.py scores it correct on these same cases. Scoring it wrong
 here would demand the opposite of the refusal suite, and push the prompt

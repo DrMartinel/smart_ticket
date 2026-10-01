@@ -128,15 +128,15 @@ Two of these are deliberately not negotiable:
 
 ### Known failures
 
-On the full runs of 2026-09-29, the first on the English AWS demo KB, one gate fails: retrieval recall **0.72** ([`TODO.md`](TODO.md) item 9). Auto-reply precision is 1.00.
+On the 2026-10-01 baseline full run, one gate fails: retrieval recall@3 **0.767** ([`TODO.md`](TODO.md) item 9). Auto-reply precision is 1.00.
 
-**On an out-of-KB case, a refusal counts as a correct `other`.** Scored strictly, the classification suite demanded the opposite of the refusal suite on the same tickets. An IT category or an auto-reply on such a ticket still fails. See [`evals/HISTORY.md`](../evals/HISTORY.md) for the decision.
+**On an out-of-KB case, a refusal counts as a correct `other`.** Scored strictly, the classification suite demanded the opposite of the refusal suite on the same tickets. An IT category or an auto-reply on such a ticket still fails. See [`evals/HISTORY-archive.md`](../evals/HISTORY-archive.md), 2026-09-29 (2), for the decision.
 
 **Do not** lower the floor, average the F1, or drop the category to make CI green.
 
 ### Run history
 
-[`evals/HISTORY.md`](../evals/HISTORY.md) records every full run (`EVAL_FULL_RUN=1`), newest first, with its configuration (code, prompt, models, KB snapshot, golden set, thresholds), its metrics, and what they meant. `baseline.json` is what the gate compares against; the history is where each number's context lives. Add an entry for every full run, passing or not.
+[`evals/HISTORY.md`](../evals/HISTORY.md) records every full run (`EVAL_FULL_RUN=1`) since the 2026-10-01 baseline, newest first, with its configuration (code, prompt, models, KB snapshot, golden set, thresholds), its metrics, and what they meant. `baseline.json` is what the gate compares against; the history is where each number's context lives. Add an entry for every full run, passing or not.
 
 ### Baselines
 

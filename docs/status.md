@@ -13,7 +13,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | Spec phases complete | **P0, P1** |
 | Phase in progress | **P2** — calibration scripts ready, awaiting ≥500 shadow pairs |
 | Unit tests | **242 passing** (74 core-api, 168 ai-engine) |
-| Eval suites | 8 collected; **7 pass, 1 fails** (retrieval recall) on the full runs of 2026-09-29; see [`evals/HISTORY.md`](../evals/HISTORY.md) |
+| Eval suites | 15 tests; **14 pass, 1 fails** (retrieval recall) on the 2026-10-01 baseline full run; see [`evals/HISTORY.md`](../evals/HISTORY.md) |
 | Masking branch coverage | **100%** — the spec §14 P0 exit condition |
 | Router branch coverage | 98% — the one uncovered line is unreachable by construction |
 | Operating mode | `SHADOW_MODE=true` — router decides, humans still handle everything |
@@ -93,10 +93,10 @@ See [TODO.md](TODO.md) item 4.
 
 ### Gap 5 — Retrieval recall below the CI floor
 
-Measured on the full golden set on 2026-09-29, the first run on the English AWS demo KB. Every run, with its configuration and per-case findings, is in [`evals/HISTORY.md`](../evals/HISTORY.md).
+Measured on the full golden set in the 2026-10-01 baseline run ([`evals/HISTORY.md`](../evals/HISTORY.md)); earlier runs, with their configuration and per-case findings, are in [`evals/HISTORY-archive.md`](../evals/HISTORY-archive.md).
 
-- **`other` F1** failed at 0.36 under strict scoring, which counted a refusal on an out-of-KB ticket as a miss, the opposite of the refusal suite. Rescored so that refusal counts (a reviewed decision, [`TODO.md`](TODO.md) item 3), it is **0.98**.
-- **Retrieval recall 0.72** against the baseline's 1.00, which was measured on 12 one-chunk articles and isn't comparable. Mostly several chunks of one article filling all three `rerank_top_n` slots ([`TODO.md`](TODO.md) item 9).
+- **`other` F1** failed at 0.36 under strict scoring, which counted a refusal on an out-of-KB ticket as a miss, the opposite of the refusal suite. Rescored so that refusal counts (a reviewed decision, [`TODO.md`](TODO.md) item 3), it is **0.95** on the baseline.
+- **Retrieval recall@3 0.767** against `baseline.json`'s 1.00, which was measured on 12 one-chunk articles and isn't comparable. Mostly tickets that describe a symptom while the answering page is named after the cause or fix; chunk crowding explains one case. Proposed fix: [ADR-0014](adr/0014-candidate-expansion-and-llm-reorder.md) ([`TODO.md`](TODO.md) item 9).
 
 Auto-reply precision on the same run is 1.00 (n=19). **Do not lower a floor or drop a category to make CI green** — per-category F1 exists precisely so a rare category cannot hide behind a healthy average.
 
