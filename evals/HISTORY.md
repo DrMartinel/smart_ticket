@@ -95,6 +95,56 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-02 (3): Qwen3-Reranker-4B on a capped pool, probe on the baseline pipeline
+
+**Verdict:** the 4B does not need the whole links pool. Ranking only the
+cross-encoder's **top 20** chunks, it keeps the full recall@3 **0.900**
+(8 recovered, nothing lost) and the clean refusal gap, at **4.0 s per ticket**
+(p95 6.7 s) on an idle GPU, against 9.5 s (p95 25 s) for the whole pool.
+Retrieval quality and refusal are settled in its favour on this golden set;
+GPU memory, the trust signals, prompt injection and a full eval run are not.
+Probe, not a gate measurement.
+
+| Configuration | |
+|---|---|
+| Code | `f590555` (`main`); no service code changed since `003f7d3`; probe scripts in `.probe/` (uncommitted) |
+| Data | the pools and 4B scores of entry (2) (5,439 chunks, 83 tickets). The 4B scores each chunk on its own, so a cap changes which chunks it sees, never their scores: recall and the refusal gap per cap are exact from that run |
+| Cap | the cross-encoder orders the links pool; the 4B ("resolves", `22e683669bc0`, bf16, fp32 projection) ranks its top N; the top 3 of those go to the model |
+| Latency | measured fresh for N = 15 and 20, all 83 tickets, RTX 3060 alone (vLLM servers stopped), batches capped at 8,192 tokens; N = 10 estimated from the per-chunk rate |
+
+| Cap N | recall@3 | Recovered (of 14) | Lost | KB-covered top-1, lowest | Out-of-KB top-1, highest | Per ticket, median / p95 |
+|---|---|---|---|---|---|---|
+| 10 | 0.867 | 6 | 0 | 1.55 | −2.02 | ≈ 1.8 s (estimated) |
+| 15 | 0.883 | 7 (not g011) | 0 | 2.67 | −2.02 | 3.1 / 5.2 s |
+| **20** | **0.900** | **8:** g011, g036, g046, g051, g052, g056, g058, g060 | **0** | 2.67 | −2.02 | **4.0 / 6.7 s** |
+| 25, 30 | 0.900 | 8 | 0 | 2.67 | −2.02 | not timed |
+| all (median 52) | 0.900 | 8 | 0 | 2.67 | −2.02 | 9.5 / 25 s (entry (2)) |
+
+### Findings
+
+**1. 20 is the knee.** Every gold page the 4B can lift into the top 3 is already in the
+cross-encoder's top 20; caps above it add time and nothing else. Below it, g011
+(cap 15) and g011 and g052 (cap 10) drop out.
+
+**2. The refusal gap does not depend on the cap.** At every cap the out-of-KB tickets
+top out at −2.02 and the KB-covered ones start at 1.55 or above, so a floor between
+them would refuse no KB-covered ticket. None is chosen here (tuning on the gate).
+
+**3. Latency is now in range, not settled.** 4.0 s per ticket runs in the background
+worker, not in front of the user, but it is twice Qwen3-8B's two re-order calls
+(2 × 1.2 s, entry 2026-10-01 (3)) and was measured with the GPU to itself.
+
+### Follow-ups
+
+- [ ] An int4 build of the 4B, measured for quality on this probe and for fit beside
+      the three vLLM servers (bf16 needs 11.6 GB alone).
+- [ ] Prompt injection through the ranker: the 15 injection tickets plus adversarial
+      ones, checked for scores pushed over a floor.
+- [ ] If both hold: the ADR (scorer and floor calibration superseding ADR-0005's,
+      the trust signals on the log-odds scale in both services), then a full eval run.
+
+---
+
 ## 2026-10-02 (2): Qwen3-Reranker-4B as the only reranker, probe on the baseline pipeline
 
 **Verdict:** ranking the whole candidate pool itself, in place of the
