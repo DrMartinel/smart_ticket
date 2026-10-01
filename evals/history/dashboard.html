@@ -1,0 +1,474 @@
+<meta charset="utf-8">
+<title>Smart Ticket Eval History</title>
+<style>
+:root {
+  --page: #f9f9f7;
+  --surface: #fcfcfb;
+  --ink: #0b0b0b;
+  --ink-2: #52514e;
+  --muted: #7d7b75;
+  --grid: #e1e0d9;
+  --axis: #c3c2b7;
+  --ring: rgba(11, 11, 11, 0.10);
+  --wash: rgba(11, 11, 11, 0.04);
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --good: #0ca30c;
+  --good-text: #006300;
+  --critical: #d03b3b;
+  --critical-text: #b42f2f;
+  --gate: #52514e;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a988f;
+    --grid: #2c2c2a; --axis: #45453f; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.05);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a988f;
+  --grid: #2c2c2a; --axis: #45453f; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.05);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
+}
+* { box-sizing: border-box; }
+body { background: var(--page); color: var(--ink); font: 14px/1.5 var(--sans); }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 56px; display: grid; gap: 28px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font: 600 11px/1.2 var(--sans); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-size: 26px; line-height: 1.2; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font-size: 16px; margin: 0; text-wrap: balance; }
+.lede { color: var(--ink-2); max-width: 72ch; margin: 0; }
+.mono { font-family: var(--mono); font-size: 12px; }
+section { display: grid; gap: 12px; }
+.sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 16px; }
+.sec-note { color: var(--ink-2); font-size: 13px; max-width: 70ch; margin: 0; }
+.panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 16px; min-width: 0; }
+
+/* gate tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tile { display: grid; gap: 6px; align-content: start; }
+.tile .name { font-size: 13px; color: var(--ink-2); }
+.tile .value { font-size: 28px; font-weight: 650; line-height: 1.1; letter-spacing: -.01em; }
+.tile .meta { font-size: 12px; color: var(--muted); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 8px 2px 6px; border-radius: 999px; width: fit-content; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill.pass { color: var(--good-text); background: color-mix(in srgb, var(--good) 12%, transparent); }
+.pill.fail { color: var(--critical-text); background: color-mix(in srgb, var(--critical) 12%, transparent); }
+.pill.none { color: var(--ink-2); background: var(--wash); }
+.pill.kind-full_run { color: var(--ink); background: var(--wash); }
+.pill.kind-suite_run { color: var(--ink-2); background: var(--wash); }
+.pill.kind-probe { color: var(--ink-2); background: transparent; box-shadow: inset 0 0 0 1px var(--axis); }
+.pill.kind-full_run::before, .pill.kind-suite_run::before, .pill.kind-probe::before { display: none; }
+
+/* charts */
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+.chart-title { font-weight: 600; font-size: 14px; margin: 0 0 2px; }
+.chart-sub { color: var(--muted); font-size: 12px; margin: 0 0 8px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--muted); font: 11px var(--sans); font-variant-numeric: tabular-nums; }
+svg .val { fill: var(--ink); font-weight: 600; }
+svg .lab { fill: var(--ink-2); }
+svg .gate-lab { fill: var(--gate); font-weight: 600; }
+.hit { fill: transparent; cursor: default; }
+.hit:focus { outline: none; }
+.hit:focus-visible + .focus-ring, .hit:hover + .focus-ring { stroke: var(--ink); }
+
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+.seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.seg button { font: 500 12px var(--sans); color: var(--ink-2); background: transparent; border: 1px solid var(--axis); border-radius: 999px; padding: 4px 12px; cursor: pointer; }
+.seg button[aria-pressed="true"] { color: var(--surface); background: var(--ink); border-color: var(--ink); }
+.seg button:focus-visible, .ledger tr:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+
+/* tables */
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; white-space: nowrap; }
+th { font: 600 11px var(--sans); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+td.num, th.num { text-align: right; }
+.f1 td.cell { text-align: right; }
+.f1 .below { color: var(--critical-text); font-weight: 600; }
+.f1 .below::before { content: "▼ "; font-size: 9px; }
+.ledger tbody tr.run { cursor: pointer; }
+.ledger tbody tr.run:hover { background: var(--wash); }
+.ledger tr.detail td { white-space: normal; background: var(--wash); }
+.detail-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); padding-block: 4px; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; font-size: 12px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+.metric-list { font-size: 12px; display: grid; gap: 2px; }
+.notes { font-size: 12px; color: var(--ink-2); max-width: 80ch; }
+.chev { display: inline-block; transition: transform .15s; color: var(--muted); }
+tr[aria-expanded="true"] .chev { transform: rotate(90deg); }
+
+#tip { position: fixed; z-index: 10; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--ring);
+  box-shadow: 0 6px 24px rgba(0,0,0,.12); border-radius: 8px; padding: 8px 10px; font-size: 12px; max-width: 320px; }
+#tip b { display: block; font-size: 12px; margin-bottom: 2px; }
+#tip .t-row { color: var(--ink-2); }
+#err { color: var(--critical-text); }
+footer { color: var(--muted); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Smart Ticket Triage · evaluation record</div>
+    <h1>Eval history</h1>
+    <p class="lede">Every recorded eval run and design probe, read from <span class="mono">evals/history/</span>.
+      Gates are the ones in force when each number was measured. The golden set is synthetic: a passing gate means the
+      wiring didn’t regress, not that the model is good.</p>
+    <p id="err" hidden></p>
+  </header>
+
+  <section aria-labelledby="h-gates">
+    <div class="sec-head">
+      <h2 id="h-gates">Gates now</h2>
+      <p class="sec-note" id="gates-note">Latest full or suite run that measured each gated metric. Probes never count.</p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section aria-labelledby="h-trend">
+    <div class="sec-head">
+      <h2 id="h-trend">Across runs</h2>
+      <p class="sec-note">Full and suite runs in recording order. Hover a point for the run and its configuration.</p>
+    </div>
+    <div class="grid-2">
+      <div class="panel"><p class="chart-title">Retrieval recall@3</p><p class="chart-sub">Gold article in the 3 pages returned · 60 KB-covered tickets</p><div id="c-recall"></div></div>
+      <div class="panel"><p class="chart-title">Auto-reply precision</p><p class="chart-sub">Auto-replies whose golden branch is auto_reply · absolute gate</p><div id="c-autoreply"></div></div>
+      <div class="panel"><p class="chart-title">Branch accuracy</p><p class="chart-sub">Routed branch matches the golden branch · 145 tickets · reported, not gated</p><div id="c-branch"></div></div>
+      <div class="panel"><p class="chart-title">F1 by category</p><p class="chart-sub">Gate 0.85 for every category, never averaged (rule 9) · ▼ below gate</p><div class="scroll" id="t-f1"></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-probes">
+    <div class="sec-head">
+      <h2 id="h-probes">Retrieval probes</h2>
+      <div class="seg" role="group" aria-label="Probe" id="probe-seg"></div>
+    </div>
+    <p class="sec-note">Production retrieval nodes driven by scripts to test a design (ADR-0014). Comparable within a probe,
+      never a gate measurement. The dotted line is production now; probes before 2026-10-01 (2) ran when production kept one chunk
+      per article. Hover a bar for the golden cases it recovers or loses against that probe's production.</p>
+    <div class="panel">
+      <div class="legend" id="probe-legend"></div>
+      <div id="c-probes"></div>
+    </div>
+    <div class="grid-2">
+      <div class="panel"><p class="chart-title">Why linked misses stay missed</p>
+        <p class="chart-sub">Cross-encoder score of the gold page’s best chunk vs. the 3rd-place page it must beat</p>
+        <div class="legend" id="ceil-legend"></div><div id="c-ceiling"></div></div>
+      <div class="panel"><p class="chart-title">Picking the gold page among pages above the floor</p>
+        <p class="chart-sub">AUROC, gold page vs. the rest (0.5 = chance) · cross-encoder against Laya zero-shot</p>
+        <div class="legend" id="auc-legend"></div><div id="c-auroc"></div></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-runs">
+    <div class="sec-head">
+      <h2 id="h-runs">Runs</h2>
+      <p class="sec-note">Click a run for its pinned configuration and every number recorded under it.</p>
+    </div>
+    <div class="panel scroll"><table class="ledger" id="ledger"></table></div>
+  </section>
+
+  <footer id="foot"></footer>
+</div>
+<div id="tip" role="tooltip" hidden></div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const NS = "http://www.w3.org/2000/svg";
+  const fmt = (v, unit) => unit === "ratio" || unit === "score" ? v.toFixed(3) : unit === "seconds" ? v.toFixed(2) + " s" : String(Math.round(v * 100) / 100);
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+  const parse = (txt) => txt.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
+  const UNITS = { retrieval_recall_at_3: "ratio", auto_reply_precision: "ratio", injection_recall: "ratio",
+    refusal_rate: "ratio", quote_validation_precision: "ratio", category_f1: "ratio", branch_accuracy: "ratio" };
+
+  // ---------- tooltip ----------
+  const tip = $("#tip");
+  function showTip(html, x, y) {
+    tip.innerHTML = html; tip.hidden = false;
+    const r = tip.getBoundingClientRect();
+    const left = Math.min(window.innerWidth - r.width - 8, Math.max(8, x + 14));
+    const top = y + r.height + 20 > window.innerHeight ? y - r.height - 12 : y + 14;
+    tip.style.left = left + "px"; tip.style.top = Math.max(8, top) + "px";
+  }
+  const hideTip = () => { tip.hidden = true; };
+  function bindTip(el, html) {
+    el.setAttribute("tabindex", "0");
+    el.addEventListener("pointermove", (e) => showTip(html, e.clientX, e.clientY));
+    el.addEventListener("pointerleave", hideTip);
+    el.addEventListener("focus", () => { const r = el.getBoundingClientRect(); showTip(html, r.right, r.top); });
+    el.addEventListener("blur", hideTip);
+  }
+
+  function svgEl(tag, attrs = {}, parent) {
+    const el = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (parent) parent.appendChild(el);
+    return el;
+  }
+  function text(parent, x, y, str, attrs = {}) { const t = svgEl("text", { x, y, ...attrs }, parent); t.textContent = str; return t; }
+
+  // ---------- line chart: one series, a gate line, categorical x of runs ----------
+  function lineChart(host, pts, { domain, gate, unit = "ratio" }) {
+    const W = 520, H = 220, m = { t: 18, r: 64, b: 46, l: 40 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+    const [lo, hi] = domain;
+    const y = (v) => m.t + ih - ((v - lo) / (hi - lo)) * ih;
+    const x = (i) => m.l + (pts.length === 1 ? iw / 2 : (i / (pts.length - 1)) * iw);
+    const step = (hi - lo) <= 0.25 ? 0.05 : 0.1;
+    for (let v = lo; v <= hi + 1e-9; v += step) {
+      svgEl("line", { x1: m.l, x2: m.l + iw, y1: y(v), y2: y(v), stroke: "var(--grid)", "stroke-width": 1 }, svg);
+      text(svg, m.l - 6, y(v) + 4, v.toFixed(2), { "text-anchor": "end" });
+    }
+    if (gate) {
+      svgEl("line", { x1: m.l, x2: m.l + iw, y1: y(gate.value), y2: y(gate.value), stroke: "var(--gate)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, svg);
+      text(svg, m.l + iw + 6, y(gate.value) + 4, `gate ${gate.op} ${gate.value.toFixed(2)}`, { class: "gate-lab" });
+    }
+    pts.forEach((p, i) => {
+      const lab = text(svg, x(i), H - m.b + 18, p.tick, { "text-anchor": "middle" });
+      if (p.tick2) text(svg, x(i), H - m.b + 32, p.tick2, { "text-anchor": "middle" });
+      lab.setAttribute("class", "lab");
+    });
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.v)}`).join("");
+    svgEl("path", { d, fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    pts.forEach((p, i) => {
+      const pass = gate ? gate.op === ">=" ? p.v >= gate.value : p.v <= gate.value : null;
+      svgEl("circle", { cx: x(i), cy: y(p.v), r: 4.5, fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+      const last = i === pts.length - 1;
+      if (last || i === 0) text(svg, x(i), y(p.v) - 10, fmt(p.v, unit), { "text-anchor": "middle", class: "val" });
+      const hit = svgEl("rect", { x: x(i) - 18, y: m.t, width: 36, height: ih, class: "hit" }, svg);
+      bindTip(hit, `<b>${fmt(p.v, unit)}${p.n ? ` · n=${p.n}` : ""}</b>`
+        + (pass === null ? "" : `<div class="t-row">${pass ? "✓ meets" : "✕ below"} gate ${gate.op} ${gate.value} (${esc(gate.basis)})</div>`)
+        + `<div class="t-row">${esc(p.run.title)}</div><div class="t-row mono">${esc(p.run.id)} · ${esc(p.run.config.code ?? "")}</div>`);
+    });
+    host.replaceChildren(svg);
+  }
+
+  // ---------- horizontal bars, grouped ----------
+  function barChart(host, groups, { gate, baseline, colorOf }) {
+    const rowH = 26, gap = 4, groupGap = 30;
+    const m = { t: 22, r: 56, l: 248, b: 26 };
+    const W = 860;
+    let h = m.t;
+    groups.forEach((g) => { h += 20 + g.rows.length * (rowH + gap) + groupGap; });
+    const H = h + m.b - groupGap + 6;
+    const iw = W - m.l - m.r;
+    const x = (v) => m.l + v * iw;
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+    for (let v = 0; v <= 1.0001; v += 0.1) {
+      svgEl("line", { x1: x(v), x2: x(v), y1: m.t - 4, y2: H - m.b, stroke: "var(--grid)", "stroke-width": 1 }, svg);
+      text(svg, x(v), H - m.b + 16, v.toFixed(1), { "text-anchor": "middle" });
+    }
+    let yy = m.t;
+    groups.forEach((g) => {
+      text(svg, 0, yy + 12, g.title, { class: "lab", "font-weight": "600" });
+      yy += 20;
+      g.rows.forEach((r) => {
+        text(svg, m.l - 10, yy + rowH / 2 + 4, r.label, { "text-anchor": "end", class: "lab" });
+        const w = Math.max(0, x(r.v) - x(0));
+        // Square at the baseline, 4px round at the data end.
+        const rr = Math.min(4, w / 2), y0 = yy + 3, bh = rowH - 6;
+        svgEl("path", { d: `M${x(0)},${y0}H${x(0) + w - rr}Q${x(0) + w},${y0} ${x(0) + w},${y0 + rr}V${y0 + bh - rr}Q${x(0) + w},${y0 + bh} ${x(0) + w - rr},${y0 + bh}H${x(0)}Z`, fill: colorOf(r) }, svg);
+        text(svg, x(r.v) + 6, yy + rowH / 2 + 4, r.v.toFixed(3), { class: "val" });
+        const hit = svgEl("rect", { x: 0, y: yy, width: W - 8, height: rowH, class: "hit" }, svg);
+        bindTip(hit, r.tip);
+        yy += rowH + gap;
+      });
+      yy += groupGap;
+    });
+    const top = m.t - 6, bottom = H - m.b;
+    for (const [v, label, dash] of [[baseline, `production ${baseline.toFixed(3)}`, "2 3"], [gate.value, `gate ${gate.value.toFixed(2)}`, "5 4"]]) {
+      svgEl("line", { x1: x(v), x2: x(v), y1: top, y2: bottom, stroke: "var(--gate)", "stroke-width": 1.5, "stroke-dasharray": dash }, svg);
+      text(svg, x(v), top - 4, label, { "text-anchor": v === gate.value ? "start" : "end", class: "gate-lab", dx: v === gate.value ? 4 : -4 });
+    }
+    host.replaceChildren(svg);
+  }
+
+  // ---------- dumbbell / paired dots ----------
+  function pairedDots(host, rows, { a, b, domain = [0, 1] }) {
+    const W = 520, rowH = 30, m = { t: 8, r: 24, l: 56, b: 28 };
+    const H = m.t + rows.length * rowH + m.b, iw = W - m.l - m.r;
+    const x = (v) => m.l + ((v - domain[0]) / (domain[1] - domain[0])) * iw;
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+    for (let v = domain[0]; v <= domain[1] + 1e-9; v += 0.2) {
+      svgEl("line", { x1: x(v), x2: x(v), y1: m.t, y2: H - m.b, stroke: "var(--grid)", "stroke-width": 1 }, svg);
+      text(svg, x(v), H - m.b + 16, v.toFixed(1), { "text-anchor": "middle" });
+    }
+    rows.forEach((r, i) => {
+      const cy = m.t + i * rowH + rowH / 2;
+      text(svg, m.l - 10, cy + 4, r.label, { "text-anchor": "end", class: "lab mono" });
+      svgEl("line", { x1: x(Math.min(r.a, r.b)), x2: x(Math.max(r.a, r.b)), y1: cy, y2: cy, stroke: "var(--axis)", "stroke-width": 2 }, svg);
+      svgEl("circle", { cx: x(r.b), cy, r: 5.5, fill: b.color, stroke: "var(--surface)", "stroke-width": 2 }, svg);
+      svgEl("circle", { cx: x(r.a), cy, r: 5.5, fill: a.color, stroke: "var(--surface)", "stroke-width": 2 }, svg);
+      const hit = svgEl("rect", { x: 0, y: cy - rowH / 2, width: W, height: rowH, class: "hit" }, svg);
+      bindTip(hit, `<b>${esc(r.label)}</b><div class="t-row">${esc(a.name)}: ${r.a.toFixed(3)}</div><div class="t-row">${esc(b.name)}: ${r.b.toFixed(3)}</div>${r.note ? `<div class="t-row">${esc(r.note)}</div>` : ""}`);
+    });
+    host.replaceChildren(svg);
+  }
+
+  function legend(host, items) {
+    host.innerHTML = items.map(([c, l]) => `<span><i style="background:${c}"></i>${esc(l)}</span>`).join("");
+  }
+
+  // ---------- render ----------
+  function render(runs, metrics) {
+    const runById = Object.fromEntries(runs.map((r) => [r.id, r]));
+    const order = Object.fromEntries(runs.map((r, i) => [r.id, i]));
+    const official = runs.filter((r) => r.kind !== "probe");
+    const unlabeled = (m) => !m.labels || Object.keys(m.labels).length === 0;
+    const tickOf = (r) => {
+      const d = r.date.slice(5).replace("-", "/");
+      const ids = official.filter((o) => o.date === r.date).map((o) => o.id);
+      return ids.length > 1 ? [d, `run ${ids.indexOf(r.id) + 1}/${ids.length}`] : [d, ""];
+    };
+
+    // Gate tiles
+    const GATED = [["retrieval_recall_at_3", "Retrieval recall@3"], ["auto_reply_precision", "Auto-reply precision"],
+      ["refusal_rate", "Out-of-KB refusal"], ["injection_recall", "Injection recall"], ["quote_validation_precision", "Quote validation"]];
+    const tiles = GATED.map(([key, name]) => {
+      const rows = metrics.filter((m) => m.metric === key && unlabeled(m) && runById[m.run]?.kind !== "probe")
+        .sort((p, q) => order[p.run] - order[q.run]);
+      const m = rows.at(-1);
+      if (!m) return `<div class="panel tile"><div class="name">${name}</div><div class="value" style="color:var(--muted)">—</div>
+        <span class="pill none">No number recorded yet</span><div class="meta">Recorded from the next run on (record_metric added 2026-10-01)</div></div>`;
+      const run = runById[m.run], pass = m.gate ? (m.gate.op === ">=" ? m.value >= m.gate.value : m.value <= m.gate.value) : null;
+      return `<div class="panel tile"><div class="name">${name}</div><div class="value">${m.value.toFixed(3)}</div>
+        <span class="pill ${pass ? "pass" : "fail"}">${pass ? "Meets gate" : "Below gate"} ${m.gate.op} ${m.gate.value}</span>
+        <div class="meta">${run.date} · ${run.kind.replace("_", " ")}${m.n ? ` · n=${m.n}` : ""}</div></div>`;
+    });
+    // Category F1 as one tile: how many categories meet, never an average.
+    const f1Runs = official.filter((r) => metrics.some((m) => m.run === r.id && m.metric === "category_f1"));
+    const lastF1 = f1Runs.at(-1);
+    if (lastF1) {
+      const rows = metrics.filter((m) => m.run === lastF1.id && m.metric === "category_f1");
+      const ok = rows.filter((m) => m.value >= m.gate.value).length;
+      const worst = rows.reduce((a, b) => (b.value < a.value ? b : a));
+      tiles.splice(2, 0, `<div class="panel tile"><div class="name">Category F1</div><div class="value">${ok}<span style="font-size:16px;color:var(--muted)"> / ${rows.length}</span></div>
+        <span class="pill ${ok === rows.length ? "pass" : "fail"}">${ok === rows.length ? "All categories meet" : "Some below"} ≥ 0.85</span>
+        <div class="meta">${lastF1.date} · lowest: ${esc(worst.labels.category)} ${worst.value.toFixed(2)}</div></div>`);
+    }
+    $("#tiles").innerHTML = tiles.join("");
+
+    // Trend charts
+    const series = (key) => metrics.filter((m) => m.metric === key && unlabeled(m) && runById[m.run]?.kind !== "probe")
+      .sort((p, q) => order[p.run] - order[q.run])
+      .map((m) => { const r = runById[m.run]; const [t1, t2] = tickOf(r); return { v: m.value, n: m.n, run: r, tick: t1, tick2: t2, gate: m.gate }; });
+    const rec = series("retrieval_recall_at_3");
+    lineChart($("#c-recall"), rec, { domain: [0.6, 1.0], gate: rec.at(-1)?.gate });
+    const ar = series("auto_reply_precision");
+    lineChart($("#c-autoreply"), ar, { domain: [0.8, 1.0], gate: ar.at(-1)?.gate });
+    lineChart($("#c-branch"), series("branch_accuracy"), { domain: [0.8, 1.0] });
+
+    // F1 table: category x run
+    const cats = [...new Set(metrics.filter((m) => m.metric === "category_f1").map((m) => m.labels.category))].sort();
+    $("#t-f1").innerHTML = `<table class="f1"><thead><tr><th>Category</th>${f1Runs.map((r) => { const [a, b] = tickOf(r); return `<th class="num" title="${esc(r.title)}">${a}${b ? `<br>${b}` : ""}</th>`; }).join("")}</tr></thead><tbody>`
+      + cats.map((c) => `<tr><td>${esc(c)}</td>${f1Runs.map((r) => {
+          const m = metrics.find((x) => x.run === r.id && x.metric === "category_f1" && x.labels.category === c);
+          return m ? `<td class="cell num ${m.value < m.gate.value ? "below" : ""}">${m.value.toFixed(2)}</td>` : `<td class="cell num" style="color:var(--muted)">—</td>`;
+        }).join("")}</tr>`).join("") + `</tbody></table>`;
+
+    // Probes
+    const isRecall = (m) => ["retrieval_recall_at_3", "retrieval_recall_at_k"].includes(m.metric);
+    const probeRuns = runs.filter((r) => r.kind === "probe" && metrics.some((m) => m.run === r.id && isRecall(m)));
+    // The latest production reference, so the line matches what ships now.
+    const baseline = (() => { const m = metrics.filter((x) => x.metric === "retrieval_recall_at_3" && x.labels?.variant === "production").at(-1); return m ? m.value : rec.at(-1)?.v ?? 0; })();
+    const runBase = (runId) => metrics.find((x) => x.run === runId && x.metric === "retrieval_recall_at_3" && (x.labels?.variant === "production" || /^production, top3/.test(x.labels?.variant ?? "")))?.value ?? baseline;
+    const COLORS = { cross_encoder: "var(--s1)", laya: "var(--s2)", "qwen3-8b": "var(--s3)" };
+    const NAMES = { cross_encoder: "Cross-encoder order", laya: "Laya zero-shot re-orders", "qwen3-8b": "Qwen3-8B re-orders" };
+    const scorerOf = (m) => m.labels?.scorer ?? "cross_encoder";
+    legend($("#probe-legend"), Object.entries(NAMES).map(([k, v]) => [COLORS[k], v]));
+    const sib = (m, metric) => metrics.find((x) => x.run === m.run && x.metric === metric && JSON.stringify(x.labels) === JSON.stringify(m.labels));
+    const SHORT = { "2026-09-30-probe-article-first": "Articles first", "2026-09-30-probe-link-expansion": "Link expansion",
+      "2026-10-01-probe-laya": "Laya", "2026-10-01-probe-llm-reorder": "Qwen3-8B re-order",
+      "2026-10-01-probe-topk": "Top-5", "2026-10-01-probe-adr14-multichunk": "Multi-chunk (current)" };
+    let current = "all";
+    const seg = $("#probe-seg");
+    const segItems = [["all", "All probes"], ...probeRuns.map((r) => [r.id, SHORT[r.id] ?? r.title])];
+    seg.innerHTML = segItems.map(([id, l]) => `<button type="button" id="seg-${id}" data-id="${id}" aria-pressed="${id === current}">${esc(l)}</button>`).join("");
+    const drawProbes = () => {
+      const groups = probeRuns.filter((r) => current === "all" || r.id === current).map((r) => ({
+        title: `${r.title}  ·  ${r.date}`,
+        rows: metrics.filter((m) => m.run === r.id && isRecall(m)).map((m) => {
+          const recd = sib(m, "misses_recovered"), lost = sib(m, "cases_lost");
+          const label = (m.labels.variant ?? "").replace(/^production, |^links, /, (s) => s === "links, " ? "+ links, " : "")
+            .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("cross_encoder", "shown in CE order").replace("both_agree", "both orders agree");
+          return {
+            v: m.value, scorer: scorerOf(m), label: label.length > 38 ? label.slice(0, 37) + "…" : label,
+            tip: `<b>${esc(m.labels.variant ?? "")}: ${m.value.toFixed(3)}</b>`
+              + `<div class="t-row">${Math.round(m.value * (m.n ?? 60))} of ${m.n ?? 60} · this probe's production ${runBase(m.run).toFixed(3)}${m.metric === "retrieval_recall_at_k" ? ` · recall over ${m.labels.k} chunks, not @3` : ""}</div>`
+              + (recd ? `<div class="t-row">Recovered ${recd.value}: ${recd.cases?.length ? esc(recd.cases.join(", ")) : "none"}</div>` : "")
+              + (lost ? `<div class="t-row">Lost ${lost.value}: ${lost.cases?.length ? esc(lost.cases.join(", ")) : "none"}</div>` : ""),
+          };
+        }),
+      }));
+      barChart($("#c-probes"), groups, { gate: { value: 0.9 }, baseline, colorOf: (r) => COLORS[r.scorer] ?? "var(--s1)" });
+      seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.id === current)));
+    };
+    seg.addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; current = b.dataset.id; try { localStorage.setItem("probe", current); } catch {} drawProbes(); });
+    try { const saved = localStorage.getItem("probe"); if (saved && segItems.some(([id]) => id === saved)) current = saved; } catch {}
+    drawProbes();
+
+    // Cross-encoder ceiling
+    const golds = metrics.filter((m) => m.metric === "gold_chunk_score");
+    legend($("#ceil-legend"), [["var(--s1)", "Gold page’s best chunk"], ["var(--s2)", "3rd place it must beat"]]);
+    pairedDots($("#c-ceiling"), golds.map((g) => {
+      const t = metrics.find((m) => m.run === g.run && m.metric === "third_place_score" && m.labels.case === g.labels.case);
+      return { label: g.labels.case, a: g.value, b: t?.value ?? 0, note: "Above the 0.45 floor, but loses to a page that describes the symptom" };
+    }), { a: { name: "Gold page’s best chunk", color: "var(--s1)" }, b: { name: "3rd place", color: "var(--s2)" } });
+
+    // AUROC
+    const auc = metrics.filter((m) => m.metric === "auroc_gold_vs_rest");
+    const pools = [...new Set(auc.map((m) => m.labels.pool))];
+    legend($("#auc-legend"), [["var(--s1)", "Cross-encoder"], ["var(--s2)", "Laya zero-shot"]]);
+    pairedDots($("#c-auroc"), pools.map((p) => {
+      const ce = auc.find((m) => m.labels.pool === p && m.labels.scorer === "cross_encoder");
+      const la = auc.find((m) => m.labels.pool === p && m.labels.scorer === "laya");
+      const f = (s) => metrics.find((m) => m.metric === "gold_ranked_first" && m.labels.pool === p && m.labels.scorer === s);
+      return { label: p, a: ce.value, b: la.value, note: `Gold ranked first: cross-encoder ${f("cross_encoder")?.value}/${ce.n}, Laya ${f("laya")?.value}/${la.n}` };
+    }), { a: { name: "Cross-encoder", color: "var(--s1)" }, b: { name: "Laya zero-shot", color: "var(--s2)" }, domain: [0.4, 1.0] });
+
+    // Ledger
+    const counts = metrics.reduce((a, m) => ((a[m.run] = (a[m.run] ?? 0) + 1), a), {});
+    const dur = (s) => (s == null ? "—" : `${Math.floor(s / 60)}m ${String(Math.round(s % 60)).padStart(2, "0")}s`);
+    const rows = [...runs].reverse().map((r) => {
+      const c = r.config;
+      const detail = `<tr class="detail" id="d-${r.id}" hidden><td colspan="7"><div class="detail-grid">
+        <dl class="kv">${Object.entries(c).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        <div class="metric-list">${metrics.filter((m) => m.run === r.id).map((m) => {
+          const lab = m.labels && Object.keys(m.labels).length ? ` <span style="color:var(--muted)">${esc(Object.entries(m.labels).map(([k, v]) => `${k}=${v}`).join(" · "))}</span>` : "";
+          const unit = UNITS[m.metric] ?? (m.metric.includes("score") || m.metric.includes("auroc") ? "ratio" : m.metric.startsWith("latency") ? "seconds" : "count");
+          return `<div><span class="mono">${esc(m.metric)}</span> <b>${fmt(m.value, unit)}</b>${m.n ? ` <span style="color:var(--muted)">n=${m.n}</span>` : ""}${lab}</div>`;
+        }).join("")}</div></div>
+        ${r.notes ? `<p class="notes">${esc(r.notes)}</p>` : ""}
+        <p class="notes">HISTORY.md: “${esc(r.history_entry)}” · source: ${esc(r.source)}</p></td></tr>`;
+      return `<tr class="run" tabindex="0" aria-expanded="false" aria-controls="d-${r.id}" data-id="${r.id}">
+        <td><span class="chev">▸</span> ${r.date}</td><td><span class="pill kind-${r.kind}">${r.kind.replace("_", " ")}</span></td>
+        <td style="white-space:normal;min-width:220px">${esc(r.title)}</td><td class="mono">${esc(c.code ?? "")}</td>
+        <td class="mono">${esc(c.prompt ?? "")}</td><td class="num">${dur(r.duration_s)}</td><td class="num">${counts[r.id] ?? 0}</td></tr>${detail}`;
+    }).join("");
+    const ledger = $("#ledger");
+    ledger.innerHTML = `<thead><tr><th>Date</th><th>Kind</th><th>Run</th><th>Code</th><th>Prompt</th><th class="num">Duration</th><th class="num">Numbers</th></tr></thead><tbody>${rows}</tbody>`;
+    const toggle = (tr) => { const d = $(`#d-${CSS.escape(tr.dataset.id)}`); const open = d.hidden; d.hidden = !open; tr.setAttribute("aria-expanded", String(open)); };
+    ledger.addEventListener("click", (e) => { const tr = e.target.closest("tr.run"); if (tr) toggle(tr); });
+    ledger.addEventListener("keydown", (e) => { const tr = e.target.closest("tr.run"); if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggle(tr); } });
+
+    const last = runs.at(-1);
+    $("#foot").textContent = `${runs.length} runs · ${metrics.length} numbers · latest ${last.date} (${last.id}) · golden set ${last.config.golden} · KB snapshot ${last.config.kb_snapshot}`;
+  }
+
+  Promise.all(["runs.jsonl", "metrics.jsonl"].map((f) => fetch(f).then((r) => { if (!r.ok) throw new Error(`${f}: HTTP ${r.status}`); return r.text(); })))
+    .then(([r, m]) => render(parse(r), parse(m)))
+    .catch((e) => { const el = $("#err"); el.hidden = false; el.textContent = `Couldn’t load the history data (${e.message}). The page reads runs.jsonl and metrics.jsonl published next to it.`; });
+})();
+</script>
