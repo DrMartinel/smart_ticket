@@ -110,8 +110,8 @@ provider, or fail in confusing ways.
   arrives in `AIRunRequest` and is read **from state**.
 - A limit is not a threshold. `fusion_candidate_limit` slices a list ordered by RRF,
   and that's fine. Comparing an RRF *score* against a number is not (ADR-0005).
-- Safety fallbacks are private constants and **never** settings
-  (`_POLICY_FALLBACK_DENY`). Properties of a model or schema are commented constants
+- Safety fallbacks are **never** settings (the `(False, "high")` deny fallback of
+  the KB-policy lookup in `EmitSignalsNode`). Properties of a model or schema are commented constants
   (`EMBED_DIM`). Lexicons stay in code (`NEGATIONS`, `PATTERNS`).
 
 ## Failure semantics
@@ -124,7 +124,7 @@ dashboard can count. There are three shapes, and new code picks one on purpose:
 | Infrastructure the node needs is down (DB, embedder, reranker) | **let it raise** | graph aborts → 500 → core-api `ai_engine_unavailable` → HITL | `HybridRetrieveNode`, `RerankNode` |
 | A failure the graph should carry forward and name | return `degraded_reason="<ReasonCode value>"`, leave outputs at safe defaults | `emit_signals` still runs; core-api maps the reason in `apps/tickets/utils/pipeline.py` | `InferNode` on `AllLLMDownError` → `"all_llm_down"` |
 | Bad model output | not an exception: `proposal=None` | `validate` records `schema_valid=False` → HITL | `InferNode` JSON/schema failure |
-| A best-effort, log-only lookup | catch broadly, return the **deny** value | signals are still emitted | `EmitSignalsNode._lookup_kb_policy` |
+| A best-effort, log-only lookup | catch broadly, return the **deny** value | signals are still emitted | the KB-policy lookup in `EmitSignalsNode` |
 
 What the node must **never** do: turn an infrastructure failure into an empty or
 "clean" result, such as `[]` candidates, a zero vector, or checks marked as passed.

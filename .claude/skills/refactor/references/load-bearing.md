@@ -92,10 +92,10 @@ Format: **what** — why it exists — *what guards it*.
   as passing, and a check an exit leaves out silently reads as failed (on a route
   proposal that lowers trust). *`test_state.py::test_missing_validation_reads_as_every_check_failed`;
   the whole-update assertions in `test_validate.py`, one per exit.*
-- **`_POLICY_FALLBACK_DENY` is a private constant, not a setting.** No configuration
-  may turn a failed lookup into "auto-reply allowed". *Its comment in
-  `graph/nodes/emit_signals.py`.*
-- **`db.first()` stays inside the `try` in `EmitSignalsNode._lookup_kb_policy`.**
+- **The KB-policy lookup in `EmitSignalsNode` falls back to `(False, "high")`, a
+  literal, not a setting.** No configuration may turn a failed lookup into
+  "auto-reply allowed". *`test_emit_signals.py::test_kb_policy_lookup_failure_denies_auto_reply`.*
+- **`db.first()` stays inside the `try` of the KB-policy lookup in `EmitSignalsNode`.**
   A DB outage there must deny by default and not 500 the terminal node.
   *`test_emit_signals.py::test_kb_policy_lookup_failure_denies_auto_reply`.*
 - **`Candidate` carries no score.** RRF is derived from rank, so nothing may

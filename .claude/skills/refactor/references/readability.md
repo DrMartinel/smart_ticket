@@ -90,8 +90,8 @@ One line is fine when there is no contract beyond the name.
   `StrEnum`, UPPER_SNAKE members, values that carry meaning.
 - **One concept, one name, across services** (commit 3714f2d dropped the `VLLM_`
   prefix in core-api so its settings match ai-engine's `CHAT_MODEL`, `EMBED_MODEL`, …).
-- `_private` for module-internal helpers and constants. Safety constants are private
-  on purpose (`_POLICY_FALLBACK_DENY`) — they are not knobs.
+- `_private` for module-internal helpers and constants. Safety values are never
+  knobs (the deny fallback of the KB-policy lookup in `EmitSignalsNode`).
 - Test names are sentences describing behaviour:
   `test_embedder_failure_propagates_rather_than_returning_empty_candidates`.
 
@@ -162,8 +162,8 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
   only, with no default.
 - Read a setting **where it is used**; don't thread it through constructors.
 - Some numbers are deliberately **not** config, and say so in a comment:
-  - safety invariants (`_POLICY_FALLBACK_DENY` — "a safety invariant wearing a
-    magic-number costume");
+  - safety invariants (the `(False, "high")` deny fallback of the KB-policy
+    lookup in `EmitSignalsNode`);
   - properties of a model or schema (`EMBED_DIM` — changing it needs a migration);
   - linguistic lexicons (`NEGATIONS` in `validate.py`, PII regexes in `patterns.py`).
 
