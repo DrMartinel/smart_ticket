@@ -142,7 +142,13 @@ class VLLMClient(HttpClient):
         return [by_index[i] for i in range(expected)]
 
     def complete_json(
-        self, system_prompt: str, user_prompt: str, *, schema_name: str, schema: dict[str, Any]
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+        temperature: float,
     ) -> Any:
         """`/chat/completions` constrained to a JSON Schema; returns the
         parsed JSON. Errors never quote the reply: for PII NER, the reply
@@ -154,6 +160,7 @@ class VLLMClient(HttpClient):
                 Message(role="user", content=user_prompt),
             ],
             response_format=ResponseFormat(json_schema=JsonSchema(name=schema_name, schema=schema)),
+            temperature=temperature,
         )
         body = self.request("/chat/completions", payload)
         try:

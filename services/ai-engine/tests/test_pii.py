@@ -167,3 +167,15 @@ def test_request_puts_instructions_and_data_in_separate_messages(serve_ner):
     assert payload["response_format"]["type"] == "json_schema"
     assert payload["response_format"]["json_schema"]["schema"]["required"] == ["spans"]
     assert payload["chat_template_kwargs"] == {"enable_thinking": False}
+
+
+def test_ner_decodes_greedily(serve_ner):
+    """Sampled, the same ticket masked differently from call to call, once
+    with its request masked away (evals/HISTORY.md 2026-10-04 (2))."""
+
+    ner = serve_ner(_chat_reply(json.dumps({"spans": []})))
+
+    VllmPiiDetector().detect(_RAW)
+
+    _, payload = ner.sent[0]
+    assert payload["temperature"] == 0.0

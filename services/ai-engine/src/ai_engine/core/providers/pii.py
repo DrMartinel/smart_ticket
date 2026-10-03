@@ -24,6 +24,12 @@ from typing import Any
 from ai_engine.core.prompts import PII_NER_PROMPT
 from ai_engine.core.providers import clients
 
+# Greedy decoding. Sampled (vLLM's default for the model, ~0.7 for Qwen3), the
+# same ticket masked differently from call to call: cleanly once, with its
+# request masked away the next (g148, evals/HISTORY.md 2026-10-04 (2)).
+# Masking must be repeatable, so it can be reviewed and measured.
+_GREEDY = 0.0
+
 
 class PiiDetectionError(Exception):
     """NER could not produce an answer. core-api MUST treat this as
@@ -56,6 +62,7 @@ class VllmPiiDetector(PiiDetector):
                     "properties": {"spans": {"type": "array", "items": {"type": "string"}}},
                     "required": ["spans"],
                 },
+                temperature=_GREEDY,
             )
         except Exception as e:
             raise PiiDetectionError(f"NER call failed: {type(e).__name__}") from e

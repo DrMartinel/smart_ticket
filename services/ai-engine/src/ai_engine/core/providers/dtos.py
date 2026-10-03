@@ -51,6 +51,9 @@ class ChatRequest(BaseModel):
     model: str
     messages: list[Message]
     response_format: ResponseFormat
+    # Sampling temperature. The caller sets it: what a task needs (PII NER
+    # wants the same answer every time) is the provider's rule, not the client's.
+    temperature: float
     chat_template_kwargs: ChatTemplateKwargs = ChatTemplateKwargs()
 
 
