@@ -10,7 +10,6 @@ the other routing types stay in `router.py` (CLAUDE.md rule 4).
 
 from __future__ import annotations
 
-import uuid
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
@@ -22,7 +21,7 @@ from apps.tickets.utils.patterns import PIILevel
 
 # --- Wire schema of POST /v1/analyze (spec §6) --------------------------
 #
-# ai-engine defines the same shapes in ai_engine/core/state.py. There is no
+# ai-engine defines the same shapes in ai_engine/schemas.py. There is no
 # shared package: each service is deployed on its own, so change both sides
 # in the same PR. Cross-service integration tests are meant to catch drift;
 # until they exist, nothing does (ADR-0010).
@@ -108,11 +107,17 @@ class LLMProposalEnvelope(RootModel[LLMProposal]):
     root: LLMProposal
 
 
+# The final reranker's scale: which model's score `rerank_top1` is on. ai-engine
+# always sends "jev" (ADR-0015); the others are for rows stored before it.
+# Separate calibrations, never compared across (ADR-0005).
+type RerankScorer = Literal["cross_encoder", "lexical", "jev"]
+
+
 class RetrievalSignals(BaseModel):
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
-    # Where the cross-encoder's top article sits in BM25's own article
-    # ranking (1 = BM25's best), or None: not in BM25's list, nothing was
+    # Where the final reranker's top article (Jev's when it runs) sits in
+    # BM25's own article ranking (1 = BM25's best), or None: not in BM25's list, nothing was
     # reranked, or the row predates this field. A RANK, not a BM25 score:
     # BM25 scores are query-dependent and mean nothing across tickets
     # (ADR-0013). The trust scorer turns it into agreement with
@@ -123,7 +128,11 @@ class RetrievalSignals(BaseModel):
     # deserialize and score as they did.
     bm25_keyword_hit: bool = False
     docs_above_floor: int = Field(ge=0)
-    topk_chunk_ids: list[uuid.UUID] = Field(default_factory=list[uuid.UUID])
+    # Which model's score `rerank_top1` and `rerank_margin` are on: always
+    # Jev's from ai-engine now (ADR-0015). The router compares the floor only
+    # when this is "jev", and sends anything else to HITL. Defaults to the
+    # cross-encoder so signals stored before ADR-0015 read as what they were.
+    scorer: RerankScorer = "cross_encoder"
 
 
 class GenerationSignals(BaseModel):
@@ -168,7 +177,8 @@ class AIRunRequest(BaseModel):
 
     request_id: str
     ticket: TicketMasked
-    retrieval_floor: float
+    # thresholds.yaml `retrieval.floor`, on Jev's scale (ADR-0015).
+    retrieval_floor: float = Field(ge=0, le=1)
     prompt_version: str = "classify.v5"
 
 

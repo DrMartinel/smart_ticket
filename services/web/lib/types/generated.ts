@@ -17,7 +17,9 @@ export type UserRole = "employee" | "technician" | "manager" | "security";
 
 export type RiskTier = "low" | "medium" | "high";
 
-export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_inconsistent" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
+export type RerankScorer = "cross_encoder" | "lexical" | "jev";
+
+export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "retrieval_floor_unset" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_inconsistent" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
 
 export interface TicketIn {
   subject: string;
@@ -68,7 +70,7 @@ export interface RetrievalSignals {
   bm25_rank_of_top1?: number | null;
   bm25_keyword_hit?: boolean;
   docs_above_floor: number;
-  topk_chunk_ids?: string[];
+  scorer?: RerankScorer;
 }
 
 export interface GenerationSignals {

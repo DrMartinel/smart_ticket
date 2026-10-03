@@ -63,6 +63,9 @@ class ReasonCode(StrEnum):
     SCHEMA_INVALID = "schema_invalid"
     MASS_INCIDENT = "mass_incident"
     RETRIEVAL_FLOOR = "retrieval_below_floor"
+    # The signals aren't on Jev's scale, the only one `retrieval.floor` is set
+    # on. Not "below floor": no floor exists for that model.
+    RETRIEVAL_FLOOR_UNSET = "retrieval_floor_unset"
     # trust-based
     KB_NOT_AUTHORIZED = "kb_not_authorized"
     QUOTE_INVALID = "quote_invalid"
@@ -199,6 +202,15 @@ def route(
     # sent the most tickets to review this week" (spec §4.1). A gate that
     # reports the wrong cause is worse than no gate, because the dashboard
     # built on it quietly lies.
+    # retrieval.floor is on Jev's scale (ADR-0015). Signals on any other
+    # (rows stored before Jev, a mis-deployed ai-engine) have no floor to
+    # compare with, and borrowing this one would refuse or admit silently.
+    if signals.retrieval.scorer != "jev":
+        return _hitl(
+            ReasonCode.RETRIEVAL_FLOOR_UNSET,
+            queue=ReviewQueue.LOW_CONFIDENCE.value,
+            detail=f"no retrieval.floor for {signals.retrieval.scorer!r}",
+        )
     if signals.retrieval.rerank_top1 < th.retrieval_floor:
         return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
 

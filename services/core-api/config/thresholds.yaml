@@ -21,17 +21,13 @@ routing:
   quote_match: 0.95
 
 retrieval:
-  # 🔧 CROSS-ENCODER score, not cosine similarity and not an RRF score
-  # (ADR-0005), and never fitted to observed bge-reranker-v2-m3 output.
-  #
-  # ⚠️ ai-engine's default is RERANKER_PROVIDER=lexical, whose score is a
-  # token-overlap ratio — so by default this number is compared against a
-  # distribution it was not written for. core-api cannot detect that: it sends
-  # this value in AIRunRequest and has no visibility into which provider
-  # ai-engine selected. Until that is resolved, refusal behaviour is
-  # uncalibrated under BOTH providers, for different reasons.
-  # See docs/TODO.md item 4.
-  floor: 0.45
+  # 🔧 On JEV's scale, the final reranker on every run (ADR-0015): compared
+  # only with Jev's top-1, never a cross-encoder, cosine or RRF score
+  # (ADR-0005). 0.30 is the middle of the probe's 0.12-0.48 gap (evals/
+  # HISTORY.md 2026-10-02 (4)-(5)), so chosen from golden-set data: re-choose
+  # it on shadow pairs before P3. The cross-encoder's old 0.45 means nothing
+  # on this scale.
+  floor: 0.30
   margin: 0.08         # below this → downgrade trust, log "KB ambiguous"
   bm25_top_k: 20
   vector_top_k: 20

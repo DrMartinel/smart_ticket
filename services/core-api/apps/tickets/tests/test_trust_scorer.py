@@ -202,5 +202,25 @@ def test_thresholds_without_keyword_agreement_k_fail_to_load():
 
     with pytest.raises(ValidationError, match="keyword_agreement_k"):
         RetrievalThresholds(  # type: ignore[call-arg]  # the missing key is the test
-            floor=0.45, margin=0.08, bm25_top_k=20, vector_top_k=20, rrf_k=60, rerank_top_n=3
+            floor=0.30,
+            margin=0.08,
+            bm25_top_k=20,
+            vector_top_k=20,
+            rrf_k=60,
+            rerank_top_n=3,
+        )
+
+
+def test_thresholds_without_a_floor_fail_to_load():
+    """No Python default: a floor nobody chose would gate every ticket's
+    refuse-before-LLM decision (hard rule 2)."""
+
+    with pytest.raises(ValidationError, match="floor"):
+        RetrievalThresholds(  # type: ignore[call-arg]  # the missing key is the test
+            margin=0.08,
+            bm25_top_k=20,
+            vector_top_k=20,
+            rrf_k=60,
+            rerank_top_n=3,
+            keyword_agreement_k=3,
         )
