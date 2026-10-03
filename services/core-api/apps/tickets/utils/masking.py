@@ -91,16 +91,58 @@ async def llm_ner(text: str) -> list[str]:
         raise NERError(type(e).__name__) from e
 
 
+_SEVERITY = {PIILevel.ROUTINE: 0, PIILevel.SENSITIVE: 1, PIILevel.CRITICAL: 2}
+
+
+def _merge_overlapping(text: str, hits: list[PIIHit]) -> list[PIIHit]:
+    """One hit per run of overlapping hits, covering all of them.
+
+    Regex and NER find the same PII independently, so their spans overlap
+    routinely: both flag "NV-004521", or NER flags "pham" inside
+    "linh.pham@example.com". Replacing overlapping hits one by one, each at
+    its offset in the original text, cuts into the placeholder the other
+    left, and when the inner span is replaced first, leaves the end of the
+    outer value raw: "[EMAIL_1]mple.com", sent on to ai-engine and Jev.
+
+    The merged hit takes the most severe level, and the label of the most
+    severe hit; on a tie a regex label beats FREEFORM, being more specific,
+    then the longer hit wins.
+    """
+    merged: list[PIIHit] = []
+    group: list[PIIHit] = []
+    for h in sorted(hits, key=lambda h: (h.start, -h.end)):
+        if group and h.start >= max(g.end for g in group):
+            merged.append(_merge_group(text, group))
+            group = []
+        group.append(h)
+    if group:
+        merged.append(_merge_group(text, group))
+    return merged
+
+
+def _merge_group(text: str, group: list[PIIHit]) -> PIIHit:
+    if len(group) == 1:
+        return group[0]
+    start = min(h.start for h in group)
+    end = max(h.end for h in group)
+    lead = max(
+        group,
+        key=lambda h: (_SEVERITY[h.level], h.label != "FREEFORM", h.end - h.start),
+    )
+    return PIIHit(label=lead.label, level=lead.level, start=start, end=end, value=text[start:end])
+
+
 def _mask_field(
     text: str, hits: list[PIIHit], counters: dict[str, int], placeholder_map: dict[str, str]
 ) -> str:
     """Replace hits with numbered placeholders, right-to-left so earlier
-    offsets stay valid. Placeholders are numbered per-label so repeated
-    mentions of the same email keep their "same entity" relationship
-    (spec §5.2) — the value is looked up in `placeholder_map` if the exact
-    substring was already seen for that label.
+    offsets stay valid, after merging overlapping hits (right-to-left only
+    keeps offsets valid for hits that don't overlap). Placeholders are
+    numbered per-label so repeated mentions of the same email keep their
+    "same entity" relationship (spec §5.2) — the value is looked up in
+    `placeholder_map` if the exact substring was already seen for that label.
     """
-    ordered = sorted(hits, key=lambda h: h.start, reverse=True)
+    ordered = sorted(_merge_overlapping(text, hits), key=lambda h: h.start, reverse=True)
     for h in ordered:
         existing = next(
             (
@@ -193,14 +235,23 @@ async def mask(raw: TicketIn) -> MaskResult:
 
 
 def _spans_to_hits(text: str, spans: list[str]) -> list[PIIHit]:
+    """A hit for every occurrence of each span, not only the first: the model
+    names a value once, and a second mention of the same name would
+    otherwise stay raw."""
     hits = []
     for span in spans:
-        idx = text.find(span)
-        if idx == -1 or not span.strip():
+        if not span.strip():
             continue
-        hits.append(
-            PIIHit(
-                label="FREEFORM", level=PIILevel.ROUTINE, start=idx, end=idx + len(span), value=span
+        idx = text.find(span)
+        while idx != -1:
+            hits.append(
+                PIIHit(
+                    label="FREEFORM",
+                    level=PIILevel.ROUTINE,
+                    start=idx,
+                    end=idx + len(span),
+                    value=span,
+                )
             )
-        )
+            idx = text.find(span, idx + len(span))
     return hits
