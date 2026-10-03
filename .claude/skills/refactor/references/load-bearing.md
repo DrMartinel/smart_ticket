@@ -43,7 +43,7 @@ Format: **what** — why it exists — *what guards it*.
   `pyproject.toml`.*
 - **Separate connect and read timeouts** (3s / 120s). Collapsed, an unreachable
   provider hangs for 120s, while a short read timeout reports a cold model load as
-  "down". *Comments in `ai_engine/core/config.py`; CLAUDE.md Gotchas.*
+  "down". *Comments in `.env.example`; CLAUDE.md Gotchas.*
 - **Literal topology and route pins in tests** (`services/ai-engine/tests/test_build.py`).
   They are verbose on purpose: a dropped or redirected route has to fail.
 
@@ -79,7 +79,7 @@ Format: **what** — why it exists — *what guards it*.
 
 - **`TriageState` is frozen with `extra="forbid"`.** Without that, an in-place
   mutation is silently discarded. *`tests/test_state.py`.*
-- **The `_reject_unknown_keys` adapter in `core/build/builder.py`.** LangGraph drops unknown
+- **The `_reject_unknown_keys` adapter in `graph/build/builder.py`.** LangGraph drops unknown
   update keys silently, so a typo'd key would look like it worked.
   *`test_compiler.py::test_update_key_missing_from_the_schema_raises`.*
 - **`input_schema=state_schema` pinned in `GraphBuilder.compile`.**
@@ -93,17 +93,17 @@ Format: **what** — why it exists — *what guards it*.
 - **`_POLICY_FALLBACK_DENY` is a private constant, not a setting.** No configuration
   may turn a failed lookup into "auto-reply allowed". *Its comment in
   `graph/nodes/emit_signals.py`.*
-- **`db.connect()` stays inside the `try` in `EmitSignalsNode._lookup_kb_policy`.**
+- **`db.first()` stays inside the `try` in `EmitSignalsNode._lookup_kb_policy`.**
   A DB outage there must deny by default and not 500 the terminal node.
   *`test_emit_signals.py::test_kb_policy_lookup_failure_denies_auto_reply`.*
 - **`Candidate` carries no score.** RRF is derived from rank, so nothing may
-  threshold on it. *ADR-0005; `core/retrieval/fusion.py` docstring.*
-- **`RerankNode` sorts by the cross-encoder score before truncating.**
-  *`test_rerank.py::test_output_order_follows_the_reranker_not_the_rrf_order`.*
+  threshold on it. *ADR-0005; `graph/nodes/retrieve/fusion.py` docstring.*
+- **`RerankNode` sorts by Jev's score before truncating.**
+  *`test_rerank.py::test_jev_orders_and_scores_keeping_the_cross_encoder_score`.*
 - **Vector search orders by raw `cosine_distance`, not by `1 - distance`.** Only the
   raw form can use the HNSW index. *`test_db_queries.py`.*
-- **`đ`/`Đ` special-cased in `LexicalReranker._strip_diacritics`.** NFD does not
-  decompose them. *`tests/test_reranker_diacritics.py`.*
+- **`đ`/`Đ` special-cased in `LexicalShortlister._tokenize`.** NFD does not
+  decompose them. *`tests/test_shortlister_diacritics.py`.*
 - **`max_retries=0` and a single `complete()` attempt.** A failed call goes to HITL.
   *`test_llm_client.py::test_a_single_failure_raises_without_retrying`;
   `test_provider_selection.py` tests on "without … sdk retries".*
@@ -113,11 +113,11 @@ Format: **what** — why it exists — *what guards it*.
   without a database. *`test_provider_selection.py::test_building_providers_opens_no_connections`.*
 - **`_JSON_OBJECT` response_format on chat clients.** Without it the output turns to
   prose and the HITL rate climbs silently. *Its comment in
-  `core/providers/llm/models.py`.*
+  `core/providers/clients.py`.*
 - **An embedder or reranker failure raises and never returns empty.** An empty result
   reads as "the KB has nothing" rather than "the provider is down".
   *`test_retrieve.py::test_embedder_failure_propagates_rather_than_returning_empty_candidates`.*
-- **`load_system_prompt`'s path-traversal check.**
+- **The path-traversal check in `core/prompts` (`_check_version`).**
   *`test_infer.py::test_invalid_prompt_version_is_rejected`.*
 - **Only three tables are declared in `core/db/tables.py`, and nothing writes.**
   *ADR-0004; `tests/test_db_tables.py`.*

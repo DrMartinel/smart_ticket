@@ -14,8 +14,8 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [regression] No node writes to a database. No `session.add/commit/flush/delete`, no `create_all`. Only the three granted tables are read (ADR-0004).
 - [regression] ai-engine chooses no `Branch`, computes no trust score, and doesn't check auto-reply authority. Those are core-api's job (ADR-0001, ADR-0002).
 - [regression] `llm_self_confidence` is only forwarded, never used (ADR-0003).
-- [regression] Any retrieval threshold compares against the cross-encoder score, never an RRF score. `Candidate` has no score field (ADR-0005).
-- [regression] Only masked ticket text (`subject_masked`, `body_masked`) reaches a provider or prompt. The sole exception is `core/providers/pii.py` behind `/v1/pii/detect` (ADR-0012): raw text only to `models.ner`, never `models.chat`, and never into a log or error message.
+- [regression] Any retrieval threshold compares against Jev's score (`final_score()`, ADR-0015), never the cross-encoder's or an RRF score. `Candidate` has no score field (ADR-0005).
+- [regression] Only masked ticket text (`subject_masked`, `body_masked`) reaches a provider or prompt. The sole exception is `core/providers/pii.py` behind `/v1/pii/detect` (ADR-0012): raw text only to `clients.ner`, never `clients.chat`, and never into a log or error message.
 - [regression] Nothing in a prompt grants authority, such as permission to auto-reply or to skip review.
 - [regression] Nothing from `load-bearing.md` was simplified away.
 
@@ -55,7 +55,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [regression] An unknown provider value raises at import, with no fallback.
 - [regression] Construction opens no socket.
 - [regression] The real implementation validates the reply and raises on anything malformed.
-- [convention] Consumers import the singleton by name (`db`, `embedder`, `reranker`) or use `models.chat`. Each consumer module is listed in its `use_*` fixture.
+- [convention] Consumers import the singleton by name (`db`, `embedder`, `shortlister`, `reranker`) or use `clients.chat`. Each consumer module is listed in its `use_*` fixture.
 - [convention] There is an offline deterministic variant, and a Fake plus `fake_*`, `use_*` and `reload_*` fixtures in conftest.
 
 ## Config
@@ -63,7 +63,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [regression] ai-engine doesn't read `thresholds.yaml`. Per-request calibration comes from state.
 - [convention] New tunables are `Settings` fields with a why-comment, read where they're used.
 - [convention] Safety fallbacks, model/schema properties and lexicons are constants with a comment, not settings.
-- [convention] If there are new env vars, they're in `infra/.env.example` and compose.
+- [convention] New settings have no default in `config.py`; their value and reason are in the root `.env.example`, and they are in ai-engine's `environment:` allowlist in `docker-compose.yml`.
 
 ## Contracts (if touched)
 

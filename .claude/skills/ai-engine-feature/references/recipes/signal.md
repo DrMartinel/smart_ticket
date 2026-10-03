@@ -5,7 +5,7 @@ it reaches core-api through the wire schema, which each service defines itself
 (ADR-0010). This recipe is for a new
 `TrustSignals` field, a new `AIRunResponse` field, or a new failure reason.
 
-Open these before writing: `core/state.py` (ai-engine's wire schema),
+Open these before writing: `schemas.py` (ai-engine's wire schema),
 `services/core-api/infrastructure/dtos.py` (core-api's),
 `services/core-api/apps/tickets/utils/router.py` (`ReasonCode`), `graph/nodes/emit_signals.py`, `main.py`,
 `services/core-api/apps/tickets/utils/pipeline.py`,

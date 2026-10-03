@@ -13,30 +13,43 @@ disagrees with the code, the code wins; fix the doc.
 
 ```
 src/ai_engine/
-  core/            foundations. Never imports from graph/
-    config.py      Settings (operational tunables only)
-    state.py       TriageState + value types stored in state
-    node.py        BaseNode, SingleExit, Terminal, StateUpdate
-    providers/     embeddings.py, reranker.py (ABC + impls + import-time selection),
+  main.py          HTTP routes only. POST /v1/analyze: invoke the graph, shape the
+                   response; POST /v1/embed, /v1/pii/detect: core-api's model calls (ADR-0012)
+  schemas.py       the wire contract, mirrored in core-api's dtos.py (ADR-0010).
+                   Imports nothing else from ai_engine
+  core/            infrastructure. Never imports graph/, schemas.py or main.py
+    config.py      Settings: types only; values in the repo root's .env.example
+    providers/     the providers more than one caller shares:
+                   embeddings.py (ABC + impls + import-time selection),
                    pii.py (Tier-2 PII NER, the only code that sees raw text),
-                   llm/models.py (LLMClient, VLLMLLM, OpenAILLM, and the chat/embed/rerank clients)
-    retrieval/     bm25.py, vector.py, fusion.py: pure (session, …) -> list[FrozenHit]
-    db/            client.py (the `db` singleton), tables.py (3 read-only tables)
-    prompts/       <name>.v<N>.md + load_system_prompt
+                   clients.py (VLLMClient + JevClient on HttpClient, ChatClient + vllm_chat/openai_chat, and the chat/embed/rerank/ner/jev clients),
+                   dtos.py (the request and reply shapes of the model servers)
+    db/            client.py (the `db` singleton), tables.py (3 read-only tables, EMBED_DIM)
+    prompts/       <name>.v<N>.md; __init__.py loads each at import (CLASSIFY_PROMPT, ...)
+  graph/           the triage pipeline. Never imports main.py
+    state.py       TriageState + the value types stored in it (Candidate, RankedChunk)
     build/         generic, triage-agnostic graph machinery:
+      node.py      BaseNode, SingleExit, Terminal, StateUpdate
       edge.py      Edge: one route (source, outcome, target)
       graph.py     Graph: the edges; reachability + validation
       builder.py   GraphBuilder: Graph -> LangGraph
-  graph/
     triage.py      the triage route list + `triage_graph`
-    nodes/         one module per node, each ending in its production instance
-  main.py          POST /v1/analyze: invoke the graph, shape the response;
-                   POST /v1/embed, /v1/pii/detect: core-api's model calls (ADR-0012)
+    nodes/         one module per node, each ending in its production instance;
+                   a node with helpers of its own is a folder with node.py:
+      retrieve/    node.py (HybridRetrieveNode), bm25.py, vector.py, fusion.py:
+                   pure (session, …) -> list[FrozenHit]
+      candidate_pool/ node.py (CandidatePoolNode), links.py (link expansion;
+                   RerankNode also reads `article_titles` from it), shortlister.py
+                   (ABC + cross-encoder/lexical + import-time selection)
+      rerank/      node.py (RerankNode, the floor gate), reranker.py (JevReranker)
 ```
 
-A value type that sits in `TriageState` lives in `core/`, even if only one node
-produces it (`RankedChunk` in `state.py`, `Candidate` in `retrieval/fusion.py`),
-because `core` can't import from `graph/`.
+The layering is enforced by `tests/test_boundary.py`.
+
+A value type that sits in `TriageState` lives in `graph/state.py`, even if only
+one node produces it (`RankedChunk`, `Candidate`), so every node and the
+builder can import it. A type that crosses the HTTP boundary goes in
+`schemas.py` instead.
 
 ## The node contract
 
@@ -65,8 +78,8 @@ A node owns exactly four things: its **name** (derived from the class), its
   against module globals.
 - `decide()` runs **after** the update is merged, so it reads fresh state.
 
-Exemplars: `graph/nodes/rerank.py` (branching), `graph/nodes/injection.py`
-(branching, pure CPU), `graph/nodes/retrieve.py` (single-exit, providers),
+Exemplars: `graph/nodes/rerank/node.py` (branching), `graph/nodes/injection.py`
+(branching, pure CPU), `graph/nodes/retrieve/node.py` (single-exit, providers),
 `graph/nodes/infer.py` (boot-time `__init__`, LLM failure).
 
 ## Providers: singletons, used directly
@@ -77,8 +90,9 @@ Nodes import the provider singletons and call them. Nothing is passed in.
 |---|---|---|
 | `db` | `from ai_engine.core.db.client import db` | the `use_db` fixture patches the name in each node module |
 | `embedder` | `from ai_engine.core.providers.embeddings import embedder` | the `use_embedder` fixture patches it per module |
-| `reranker` | `from ai_engine.core.providers.reranker import reranker` | the `use_reranker` fixture patches it per module |
-| chat LLM | `from ai_engine.core.providers.llm import models`, then `models.chat.complete(…)` | `use_llm` patches `models.chat` once. Importing `chat` by name would bypass the patch |
+| `shortlister` | `from ai_engine.graph.nodes.candidate_pool.shortlister import shortlister` | the `use_shortlister` fixture patches it per module |
+| `reranker` (Jev) | `from ai_engine.graph.nodes.rerank.reranker import reranker` | the `use_reranker` fixture patches it per module |
+| chat LLM | `from ai_engine.core.providers import clients`, then `clients.chat.complete(…)` | `use_llm` patches `clients.chat` once. Importing `chat` by name would bypass the patch |
 
 **When a node module starts reading a provider, add that module to the matching
 `use_*` fixture in `tests/conftest.py`.** Otherwise tests quietly hit the real
@@ -86,12 +100,14 @@ provider, or fail in confusing ways.
 
 ## Config
 
-- A tunable becomes a field on `Settings` in `core/config.py`, with a comment saying
-  what it trades off. Read `settings.x` at the point of use, and don't pass it
-  through constructors.
-- ai-engine **never reads `thresholds.yaml`**. core-api owns calibration. The one
-  number the graph needs per request, `retrieval_floor`, arrives in `AIRunRequest`
-  and is read **from state**.
+- A tunable becomes a field on `Settings` in `core/config.py` (type only, **no
+  default**) and an entry in the repo root's `.env.example` with its value and
+  a comment saying what it trades off. `tests/test_config.py` fails if the two
+  disagree. Read `settings.x` at the point of use, and don't pass it through
+  constructors.
+- ai-engine **never reads `thresholds.yaml`**. core-api owns calibration. The
+  number the graph needs per request, `retrieval_floor` (on Jev's scale),
+  arrives in `AIRunRequest` and is read **from state**.
 - A limit is not a threshold. `fusion_candidate_limit` slices a list ordered by RRF,
   and that's fine. Comparing an RRF *score* against a number is not (ADR-0005).
 - Safety fallbacks are private constants and **never** settings
@@ -120,9 +136,10 @@ gets no signals at all.
 
 ## Database
 
-- Open sessions only through `with db.connect() as session:`, and keep the block
-  tight. Never hold a session across an HTTP call to a model. `FakeSessionSource.events`
-  exists so a test can prove it.
+- Read only through `db.all(statement)` or `db.first(statement)`. Each borrows a
+  pooled connection for that one statement, so no code holds a session, and none can
+  be held across an HTTP call to a model. `FakeSessionSource.events` lets a test
+  prove it (`test_retrieve.py::test_no_db_connection_is_held_while_embedding`).
 - Use SQLAlchemy 2.0 `select()` against `core/db/tables.py`. Declare only the columns
   you read.
 - The role is `ai_engine_ro`, which has SELECT on `kb_articles`, `kb_chunks` and
@@ -131,7 +148,7 @@ gets no signals at all.
 - No `session.add/commit/flush/delete`, and no `create_all`.
   `tests/test_db_tables.py` greps the source for these.
 
-## State (`core/state.py`)
+## State (`graph/state.py`)
 
 - `TriageState` is a frozen pydantic model with `extra="forbid"`, and its fields are
   flat.

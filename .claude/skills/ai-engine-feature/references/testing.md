@@ -22,10 +22,10 @@ piece.
 | `kb_row(chunk_id, content, score, slug)` | a row shaped like BM25/vector SELECTs | canned DB rows |
 | `fake_db` | the `FakeSessionSource` class: `(rows=… or callable(sql, params), error=…)` | DB answers and DB outages |
 | `fake_embedder` | the `FakeEmbedder` class: `(vector=…, error=…)` | embedder answers and outages |
-| `fake_reranker` | the `FakeReranker` class: `(scores=…, error=…)` | reranker ordering and outages |
+| `fake_shortlister` | the `FakeShortlister` class: `(scores=…, error=…)` | shortlist ordering and outages |
 | `fake_llm` | the `FakeLLM` class: `(result=LLMResult, error=…)` | LLM answers, `AllLLMDownError` |
-| `use_db`, `use_embedder`, `use_reranker`, `use_llm` | a function that installs a fake and returns it | swapping the provider singletons |
-| `reload_models`, `reload_embeddings`, `reload_reranker` | a function that re-runs a module's import-time wiring | provider-selection tests |
+| `use_db`, `use_embedder`, `use_shortlister`, `use_llm` | a function that installs a fake and returns it | swapping the provider singletons |
+| `reload_clients`, `reload_embeddings`, `reload_shortlister` | a function that re-runs a module's import-time wiring | provider-selection tests |
 
 Rules that follow from how the suite is set up:
 

@@ -26,7 +26,7 @@ Every module reads top-down in the same order:
      transport failure must be treated as fail-open-to-human.
    - `services/core-api/apps/tickets/utils/router.py` — the only module allowed to
      choose a `Branch`, and why the gate order is load-bearing.
-   - `services/ai-engine/src/ai_engine/graph/nodes/rerank.py` — where refuse-before-LLM
+   - `services/ai-engine/src/ai_engine/graph/nodes/rerank/node.py` — where refuse-before-LLM
      is decided, and which score thresholds may compare against.
 2. `from __future__ import annotations`
 3. **Imports in three groups**, blank line between:
@@ -36,7 +36,7 @@ Every module reads top-down in the same order:
 4. Module constants, then private helpers (`_name`), then the public class/functions.
 5. Import-time wiring (a singleton, a provider selected from settings) at the
    **bottom**, under a `# --- <what> ---` divider with a comment saying why it is
-   fatal at boot. See `services/ai-engine/src/ai_engine/core/providers/reranker.py`.
+   fatal at boot. See `services/ai-engine/src/ai_engine/graph/nodes/candidate_pool/shortlister.py`.
 
 ## 2. Comments
 
@@ -101,7 +101,7 @@ One line is fine when there is no contract beyond the name.
   (`ValidateNode.__call__`, `RerankNode.decide`).
 - **Keyword-only parameters** once there are several, or when two are easy to swap:
   `_checks(*, schema_valid, …)` in `validate.py`, `_block(reason_code, *, detail="")`
-  in `router.py`, `LLMClient.__init__(self, *, model, api_key, …)`.
+  in `router.py`, `ChatClient.__init__(self, *, model, chat_model, …)`.
 - **No defaults where every caller must decide.** `validate.py`'s `_checks` has none,
   so no code path can silently leave a check at its default.
 - **Flat over nested; small but not fragmented.** A helper that has one caller and
@@ -121,7 +121,7 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
 - Prefer a module-level singleton plus test patching over dependency-injection plumbing
   (55e853b). Construction must stay socket-free so import stays safe.
 - Extract a seam (an ABC) only when there are two real implementations or a test fake
-  needs one (`Embedder`, `Reranker`). One implementation and no fake → no ABC.
+  needs one (`Embedder`, `Shortlister`). One implementation and no fake → no ABC.
 - **But** indirection that protects an invariant is not complexity — see
   `load-bearing.md`. Read the comment before simplifying.
 
@@ -144,7 +144,7 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
   into a model at startup; select providers with
   `match … case other: raise ValueError(f"unknown x: {other!r} (expected …)")`.
 - **No silent fallback.** Falling back to another provider/calibration looks healthy
-  and is wrong (`reranker.py`'s selection comment).
+  and is wrong (`shortlister.py`'s selection comment).
 - **Degrade toward humans with a specific `ReasonCode`.** Never toward "assume fine".
   Free-text reasons are invisible to the dashboard, which is built on the enum.
 - **One exception type per failure class**, with a docstring saying how callers must
@@ -156,9 +156,10 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
 ## 9. Config
 
 - **No magic numbers.** Decision/routing numbers → `services/core-api/config/thresholds.yaml`.
-  Operational tunables (top-k, timeouts, batch sizes) → the service's settings
-  (`services/ai-engine/src/ai_engine/core/config.py`, `core-api/config/settings/`),
-  each with a comment on what it trades off.
+  Operational tunables (top-k, timeouts, batch sizes) → the service's
+  root `.env.example`,
+  each with a comment on what it trades off; the settings code declares the type
+  only, with no default.
 - Read a setting **where it is used**; don't thread it through constructors.
 - Some numbers are deliberately **not** config, and say so in a comment:
   - safety invariants (`_POLICY_FALLBACK_DENY` — "a safety invariant wearing a
@@ -180,7 +181,7 @@ something, splitting the decision out is usually the best refactor available.
 |---|---|---|
 | ai-engine | `core/` (settings, state, node base, providers, retrieval, db, prompts) · `graph/` (build + nodes) · `main.py` | `core/` never imports `graph/`. No writes, ever (ADR-0004). Details: `.claude/skills/ai-engine-feature/references/ai-engine-conventions.md` |
 | core-api | `apps/<app>/{views.py, request_schema.py, response_schema.py, models.py, utils.py or utils/, tasks.py, tests/}` · `apps/core` (shared foundation; imports no app) · `infrastructure/` · `config/settings/{base,development,production,test}.py` | `views.py` is thin (bind, validate, call a model method, manager method or util). Request bodies go in `request_schema.py`; every handler declares `response=` with an output Schema from `response_schema.py` (aliases for renamed fields, `resolve_<field>` for computed ones) and returns models, never hand-built dicts. The role gate is `apps/accounts/permissions.py`. Fat models: a write, decision or query that belongs to one entity is a method on it or its manager (`article.set_auto_reply_allowed`, `Ticket.objects.submit`, `ReviewItem.objects.for_queue`); logic that is no single model's behaviour goes in `utils` (pure decisions, text processing, the pipeline, cross-model aggregations like the metrics dashboard). `tasks.py` is only Celery entry points, because task names are module paths. `infrastructure/` is transport to other processes, never judgement. `router.py` is the only `Branch` chooser. `db_table` names mirror `infra/migrations/sql/`. |
-| wire schema | `services/core-api/infrastructure/dtos.py`, `services/ai-engine/src/ai_engine/core/state.py` | Defined once per service, kept identical by hand (ADR-0010). New persisted fields get a default. Regenerate TS after any change; never hand-edit `generated.ts`. |
+| wire schema | `services/core-api/infrastructure/dtos.py`, `services/ai-engine/src/ai_engine/schemas.py` | Defined once per service, kept identical by hand (ADR-0010). New persisted fields get a default. Regenerate TS after any change; never hand-edit `generated.ts`. |
 | evals | `evals/suites`, `evals/golden`, `evals/baselines` | Never lower a floor, average per-category F1, or drop a category. |
 
 ## 12. Tests

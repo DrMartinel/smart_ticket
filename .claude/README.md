@@ -70,7 +70,7 @@ To understand a rule, or change it, edit the reference file, not the SKILL.md:
 
 - **When your taste changes, edit the reference file** that states the rule. Keep
   each SKILL.md as the workflow only.
-- **Point to code; don't copy it.** Rules cite exemplar files (`graph/nodes/rerank.py`,
+- **Point to code; don't copy it.** Rules cite exemplar files (`graph/nodes/rerank/node.py`,
   `router.py`) so Claude reads the current version. Don't paste in lists that go
   stale, such as node names, test counts or route tables.
 - **When a refactor sets a new precedent, add it to `moves.md`** with its commit SHA.

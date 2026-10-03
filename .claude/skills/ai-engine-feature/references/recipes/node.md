@@ -1,10 +1,10 @@
 # Recipe: add a graph node
 
-Open these before writing: `graph/nodes/rerank.py` (branching), `graph/nodes/retrieve.py`
+Open these before writing: `graph/nodes/rerank/node.py` (branching), `graph/nodes/retrieve/node.py`
 (single-exit, providers), `graph/triage.py` (the route list at the bottom),
-`core/state.py`, `tests/conftest.py`, `tests/test_build.py`.
+`graph/state.py`, `tests/conftest.py`, `tests/test_build.py`.
 
-## 1. State fields: `core/state.py`
+## 1. State fields: `graph/state.py`
 
 Add the node's outputs under a new `# <Name>Node` comment, placed in **graph order**
 among the existing groups.
@@ -34,8 +34,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from ai_engine.core.node import BaseNode, StateUpdate
-from ai_engine.core.state import TriageState
+from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.state import TriageState
 
 
 class <Name>Outcome(StrEnum):
@@ -75,9 +75,9 @@ Checks while writing:
 
 ## 3. Providers → `tests/conftest.py`
 
-If the node reads `db`, `embedder` or `reranker`, import the singleton by name and
+If the node reads `db`, `embedder`, `shortlister` or `reranker`, import the singleton by name and
 **add the new module to the tuple in the matching `use_*` fixture**. If it calls the
-chat LLM, go through `models.chat`. `use_llm` already patches that.
+chat LLM, go through `clients.chat`. `use_llm` already patches that.
 
 ## 4. Wiring: `graph/triage.py`
 

@@ -42,7 +42,7 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
   every module that reads it (`use_db`, `use_embedder`… in
   `services/ai-engine/tests/conftest.py`).
 - **Guard:** construction must open no socket (import must stay safe with no DB).
-  Consumers that need patching through a module attribute (e.g. `models.chat`) must
+  Consumers that need patching through a module attribute (e.g. `clients.chat`) must
   keep accessing it that way.
 
 ### 5. Collapse scattered wiring into one place — 55e853b
@@ -71,7 +71,7 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
 
 - **Smell:** one concept spelled two ways in two services (`VLLM_CHAT_MODEL` vs `CHAT_MODEL`).
 - **Move:** rename to the better name everywhere.
-- **Guard:** env var renames reach `infra/.env.example`, `infra/docker-compose.yml`,
+- **Guard:** env var renames reach `.env.example`, `docker-compose.yml`,
   docs and any deployed env — list them all in the proposal.
 
 ### 9. Fail at boot instead of falling back — b5e2176

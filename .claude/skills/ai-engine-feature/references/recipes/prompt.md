@@ -6,8 +6,17 @@ noticing. The eval gate is the test that catches it.
 
 Open these before writing: the current prompt in `core/prompts/` (the file
 `settings.prompt_version` points at), `core/prompts/__init__.py`, `core/config.py`,
-and the wire schema in both services: `core/state.py` here and
+and the wire schema in both services: `schemas.py` here and
 `services/core-api/infrastructure/dtos.py`.
+
+**Every prompt is loaded once, at import.** `core/prompts/__init__.py` reads each
+file its `*_PROMPT_VERSION` setting names and exposes it as a module constant:
+`CLASSIFY_PROMPT`, `PII_NER_PROMPT`, `RERANK_QUESTION`. Code that sends a prompt
+imports the constant (`from ai_engine.core.prompts import CLASSIFY_PROMPT`) and
+uses it as is. It never calls a loader or stores its own copy. A missing or
+malformed file fails the boot, not the first ticket. A **new** prompt gets a
+`<NAME>_PROMPT_VERSION` setting (settings code, `.env.example` and compose, see
+CLAUDE.md) and one constant line at the bottom of `__init__.py`.
 
 ## Steps
 
@@ -15,14 +24,15 @@ and the wire schema in both services: `core/state.py` here and
    edit the copy. Old versions stay, because `ai_runs.prompt_version` records which
    one produced each proposal.
 2. **Bump both version pointers** so they stay equal:
-   - `prompt_version` in `services/ai-engine/src/ai_engine/core/config.py`, which is
-     the prompt that **runs**;
+   - `PROMPT_VERSION` in the root `.env.example` (and your own `.env`, which is
+     what is read), the prompt that **runs**;
    - the `AIRunRequest.prompt_version` default, which is what core-api sends. It
-     is defined in both services (`core/state.py` and core-api's
+     is defined in both services (`schemas.py` and core-api's
      `infrastructure/dtos.py`); change both.
 
-   ⚠️ `main.py` reports `req.prompt_version` in the response, but `InferNode` loads
-   `settings.prompt_version`. If the two differ, `ai_runs` records the wrong prompt.
+   ⚠️ `main.py` reports `req.prompt_version` in the response, but `InferNode` sends
+   `CLASSIFY_PROMPT`, loaded from `settings.prompt_version`. If the two differ,
+   `ai_runs` records the wrong prompt.
    Keeping them equal is currently the only guard.
 3. **Keep the prompt within its authority.** A prompt may ask for a proposal. It
    can't grant permission for anything: auto-reply authority lives on
@@ -33,8 +43,9 @@ and the wire schema in both services: `core/state.py` here and
    shown and a `verbatim_quote` taken from the shown chunks. The validator checks
    both.
 5. **Check the wiring:**
-   `tests/test_build.py::test_main_wires_the_prompt_for_settings_prompt_version`
-   proves the new file is the one that runs. Then run
+   `tests/test_build.py::test_the_classify_prompt_is_the_file_settings_prompt_version_names`
+   and `tests/test_infer.py::test_the_system_prompt_is_the_classify_prompt` prove the
+   new file is the one that runs. Then run
    `uv run pytest services/ai-engine/tests -q`.
 6. **Run the evals** against a live stack. The suites that need ai-engine skip
    themselves if it isn't running, and a skip is not a pass:
@@ -50,6 +61,7 @@ and the wire schema in both services: `core/state.py` here and
 ## Done when
 
 - [ ] A new version file exists and the old one is untouched.
+- [ ] The prompt is read only through its `core/prompts` constant: no loader call or copy elsewhere.
 - [ ] `settings.prompt_version` and the `AIRunRequest` default are equal and bumped.
 - [ ] The output still parses into `LLMProposalEnvelope`, and no authority is granted in the prompt text.
 - [ ] Evals were run on a live stack and the deltas are explained.

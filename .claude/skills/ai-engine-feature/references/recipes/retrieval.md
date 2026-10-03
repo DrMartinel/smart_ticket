@@ -5,12 +5,14 @@ only as a change in how often the LLM is called, or in which chunk it gets. No u
 test turns red.
 
 Open these before writing: `docs/adr/0005-threshold-on-cross-encoder-not-fused-score.md`,
-`core/retrieval/{bm25,vector,fusion}.py`, `graph/nodes/{retrieve,rerank}.py`,
-`core/providers/reranker.py`, `tests/test_{retrieve,rerank,fusion,db_queries}.py`.
+`graph/nodes/retrieve/{node,bm25,vector,fusion}.py`, `graph/nodes/candidate_pool/{node,links}.py`,
+`graph/nodes/rerank/node.py`,
+`graph/nodes/candidate_pool/shortlister.py`, `graph/nodes/rerank/reranker.py`,
+`tests/test_{retrieve,rerank,fusion,db_queries}.py`.
 
 ## The ADR-0005 check (mandatory for every change here)
 
-Per CLAUDE.md rule 8, any change touching `retrieve.py`, `fusion.py` or `rerank.py`
+Per CLAUDE.md rule 8, any change touching `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` or `graph/nodes/rerank/`
 has to pass this check, and you should say explicitly that it does:
 
 - [ ] Every threshold comparison uses the **cross-encoder** score, which is
@@ -22,15 +24,15 @@ has to pass this check, and you should say explicitly that it does:
 - [ ] A slice of the RRF-ordered list (`fusion_candidate_limit`) counts as a
       **limit**, meaning a cost/latency knob. It is not a threshold, and it shouldn't
       be described or tuned as one.
-- [ ] `RerankNode` reorders by cross-encoder score **before** truncating to
-      `rerank_top_n`. `decide()` reads `reranked[0]`, so the order decides whether
-      the LLM runs at all.
+- [ ] `RerankNode` reorders by Jev's score **before** truncating to
+      `rerank_top_n`. `decide()` reads `reranked[0].final_score()`, so the order
+      decides whether the LLM runs at all.
 
 ## Conventions
 
-- Search functions are pure functions of a session and inputs:
-  `def x_search(session: Session, …) -> list[<Hit>]`, returning frozen pydantic hits.
-  They don't open sessions themselves. The node does, with `db.connect()`.
+- Search functions take their inputs and run their reads through `db.all`:
+  `def x_search(…) -> list[<Hit>]`, returning frozen pydantic hits. A module that
+  reads `db` is listed in conftest's `use_db`.
 - Vector search `ORDER BY`s the raw `cosine_distance`, so the HNSW index can serve
   the query. The similarity can be computed in the select list.
 - Top-k values, the RRF k and limits all belong in `Settings`, each with a comment.
@@ -54,7 +56,7 @@ has to pass this check, and you should say explicitly that it does:
 Retrieval changes need the live evals: `test_retrieval` (Recall@3 ≥ 0.90) and
 `test_refusal` (out-of-KB refusal ≥ 0.90), plus `test_end_to_end`. Run
 `uv run pytest evals/suites -q` against the stack, and explain any change in the
-numbers. If `RERANKER_PROVIDER=lexical`, refusal behaviour is **uncalibrated**
+numbers. If `SHORTLIST_PROVIDER=lexical`, refusal behaviour is **uncalibrated**
 (`docs/TODO.md`). Don't read anything into those numbers.
 
 ## Done when

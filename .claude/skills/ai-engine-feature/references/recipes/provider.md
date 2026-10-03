@@ -5,9 +5,9 @@ an embeddings endpoint, a reranker. The pattern exists so that a bad configurati
 fails at boot, a provider outage looks like an outage rather than an empty result,
 and tests can swap the provider without mocks.
 
-Open these before writing: `core/providers/reranker.py` (the full pattern: ABC, real
+Open these before writing: `graph/nodes/candidate_pool/shortlister.py` (the full pattern: ABC, real
 implementation, offline implementation, import-time selection),
-`core/providers/embeddings.py`, `core/providers/llm/models.py`, `core/config.py`,
+`core/providers/embeddings.py`, `core/providers/clients.py`, `core/config.py`,
 `tests/conftest.py` and `tests/test_provider_selection.py`.
 
 ## 1. The seam: an ABC in the provider module
@@ -26,15 +26,20 @@ class <Thing>(ABC):
 Only add an ABC if you will have **two implementations**: a real one and an offline
 or fake one.
 
-## 2. The real implementation owns the task, and the client owns transport
+## 2. The client owns the protocol, and the provider owns the task
 
-- The implementation builds the request, parses the reply, and **validates** it:
-  shape, count, dimensions, index coverage. Anything wrong raises `ValueError` with
-  the reply included (`_scores_in_input_order`, `LexicalEmbedder.embed`).
-- Transport goes through a `VLLMLLM(...).request(path, payload)` client, built once
-  at the bottom of `core/providers/llm/models.py` next to `embed` and `rerank`.
-  A new server gets its own client instance plus `<x>_base_url` and `<x>_model`
-  fields in `Settings`.
+- **The client** (`core/providers/clients.py`) knows its server's endpoints: it
+  builds each request and **validates** each reply against a Pydantic DTO in `dtos.py`,
+  plus the checks the protocol implies (rerank index coverage, Jev's pinned model).
+  Anything wrong raises `ValueError` with the reply included, except where the
+  reply is PII (`complete_json`, which raises with no reply and no chained cause).
+  A new vLLM endpoint is a method on `VLLMClient`; a new server is a new instance
+  at the bottom of the module, plus `<x>_base_url` and `<x>_model` in `Settings`.
+  A hosted API gets its own `HttpClient` subclass, like `JevClient` (`api_key=`
+  goes as a bearer token).
+- **The provider** calls one client method and applies the task's rules: the
+  vector width (`LexicalEmbedder.embed`), PII-safe errors and the fallback unwrap
+  (`VllmPiiDetector.detect`), which answer to read (`JevReranker`).
 - No retries anywhere, SDK ones included (`max_retries=0`). Use the separate
   connect and read timeouts from `_split_timeout`.
 - Mark it stateless in the docstring (`Stateless.`). Instances are shared across
@@ -44,7 +49,7 @@ or fake one.
 
 It is deterministic, talks to no server, and says in its docstring what it is
 **not**: not a measure of quality, and not the same calibration. See
-`LexicalReranker` and `StubEmbedder`.
+`LexicalShortlister` and `StubEmbedder`.
 
 ## 4. Selection at import time: fatal on an unknown value
 
@@ -63,14 +68,18 @@ match settings.<thing>_provider:
 
 Construction **opens no socket**, so importing `graph/triage.py` must work with no
 server running. Put any lazy HTTP client behind `cached_property`, the way
-`VLLMLLM._http` does.
+`HttpClient._http` does.
 
 ## 5. Config and infra
 
-- In `Settings`, add `<thing>_provider` with a comment listing its values and what
-  each is for, plus any URL or model fields.
-- In `infra/.env.example` and `infra/docker-compose.yml`, add the env vars with the
-  same names in UPPER_CASE.
+- In `Settings`, add `<thing>_provider` and any URL or model fields, typed and with
+  no default.
+- In the root `.env.example`'s ai-engine section (the template `.env` is copied
+  from), add each in UPPER_CASE with its value and a comment listing the values
+  and what each is for. Add it to your own `.env` too.
+- In `docker-compose.yml`, add it to ai-engine's `environment:` allowlist as
+  `${NAME:?see .env.example}` (`${NAME:-}` if optional), or set the
+  container-side value if it differs from the host's.
 - If core-api embeds or scores the same way (core-api embeds tickets itself), the two
   services have to be kept on the same model **by config**, because they never share
   code (ADR-0004). Say so in a comment.
@@ -99,7 +108,9 @@ For reply parsing, in `tests/test_providers.py`:
 
 If the provider's output is compared against any threshold, for example a reranker
 score against `retrieval_floor`, then swapping providers changes the calibration.
-State that in the class docstring. Don't let the offline variant be selected by
+Give the class its own `scorer` (a new `RerankScorer` value in both services'
+wire schema), so only a floor set for it ever applies, and state that in the
+class docstring. Don't let the offline variant be selected by
 default (ADR-0005).
 
 ## Done when
