@@ -12,8 +12,8 @@ import json
 
 import pytest
 
-from ai_engine.core.providers.llm.models import AllLLMDownError, LLMResult
-from ai_engine.core.prompts import load_system_prompt
+from ai_engine.core.providers.clients import AllLLMDownError, LLMResult
+from ai_engine.core.prompts import CLASSIFY_PROMPT, load_system_prompt
 from ai_engine.graph.nodes.infer import infer
 
 _VALID_OUTPUT = json.dumps(
@@ -93,14 +93,14 @@ def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate, mak
     """The model must echo kb_slug back in an AutoReplyProposal, so it has
     to be told what the slugs are — otherwise it invents one."""
 
-    from ai_engine.core.state import RankedChunk
+    from ai_engine.graph.state import RankedChunk
 
     chunk = RankedChunk(
         chunk_id=UUID(int=1),
         article_id=UUID(int=10),
         article_slug="vpn-reset",
         content="nội dung",
-        score=0.9,
+        shortlist_score=0.9,
     )
     llm = fake_llm(result=_result())
 
@@ -108,6 +108,18 @@ def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate, mak
 
     _, user_prompt = llm.prompts[0]
     assert "vpn-reset" in user_prompt
+
+
+def test_the_system_prompt_is_the_classify_prompt(fake_llm, make_state, make_node):
+    """The prompt `settings.prompt_version` selects is the one sent, so
+    `ai_runs.prompt_version` names what actually ran."""
+
+    llm = fake_llm(result=_result())
+
+    make_node(llm)(make_state())
+
+    [(system_prompt, _)] = llm.prompts
+    assert system_prompt == CLASSIFY_PROMPT
 
 
 def test_invalid_prompt_version_is_rejected():

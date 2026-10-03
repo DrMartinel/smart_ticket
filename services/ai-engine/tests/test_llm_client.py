@@ -3,18 +3,17 @@ LLM-client tests: where an unusable provider reply ends up.
 
 Blank, non-string or missing content must be treated like a transport failure
 — AllLLMDownError → HITL. Escaping the client would be
-a 500 with no TrustSignals. Drives a fake `LLMClient` subclass (ADR-0007).
+a 500 with no TrustSignals. Drives a fake `ChatClient` subclass (ADR-0007).
 """
 
 from __future__ import annotations
 
-from typing import Any
 
 import httpx
 import pytest
 from langchain_core.messages import AIMessage
 
-from ai_engine.core.providers.llm.models import AllLLMDownError, LLMClient, LLMResult
+from ai_engine.core.providers.clients import AllLLMDownError, ChatClient, LLMResult
 
 
 class _FakeChatModel:
@@ -35,14 +34,10 @@ class _FakeChatModel:
         return reply
 
 
-class _FakeLLM(LLMClient):
+class _FakeLLM(ChatClient):
     def __init__(self, *replies, name="fake/model", cost=0.0):
-        # Set before super().__init__(), which calls _build().
         self._model = _FakeChatModel(replies)
-        super().__init__(model=name, api_key="unused", base_url=None, cost_per_1k_tokens=cost)
-
-    def _build(self) -> Any:
-        return self._model
+        super().__init__(model=name, chat_model=self._model, cost_per_1k_tokens=cost)
 
     @property
     def calls(self) -> int:
@@ -89,7 +84,7 @@ def test_unusable_content_raises_all_llm_down(content):
 # Every hierarchy that can realistically escape a provider. Raw httpx errors;
 # openai.APIError subclasses over vendored httpx2 (vLLM and the openai link) —
 # and httpx.HTTPError is NOT httpx2.HTTPError. An enumerated except
-# tuple in `LLMClient.complete()` would let one of these through as a 500.
+# tuple in `ChatClient.complete()` would let one of these through as a 500.
 _PROVIDER_ERRORS = {
     "httpx transport": httpx.ConnectTimeout("connect timed out"),
     "runtime": RuntimeError("provider not configured"),

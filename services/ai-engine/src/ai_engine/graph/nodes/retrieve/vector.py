@@ -6,9 +6,9 @@ import uuid
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
-from sqlalchemy.orm import Session
 
 from ai_engine.core.config import settings
+from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import KbArticle, KbChunk
 
 
@@ -22,7 +22,7 @@ class VectorHit(BaseModel):
     score: float  # cosine similarity, [-1, 1] in theory, [0, 1] in practice for text embeddings
 
 
-def vector_search(session: Session, query_embedding: list[float]) -> list[VectorHit]:
+def vector_search(query_embedding: list[float]) -> list[VectorHit]:
     distance = KbChunk.embedding.cosine_distance(query_embedding)
     statement = (
         select(
@@ -39,7 +39,7 @@ def vector_search(session: Session, query_embedding: list[float]) -> list[Vector
         .order_by(distance)
         .limit(settings.vector_top_k)
     )
-    rows = session.execute(statement).all()
+    rows = db.all(statement)
     return [
         VectorHit(
             chunk_id=chunk_id,

@@ -1,8 +1,7 @@
 """
-Embedders (spec §6.3). `LexicalEmbedder` owns the task: it builds the embeddings
-request, parses the reply and checks the vector is fit for pgvector.
-`models.embed`, built from config at import time, only carries the
-request to the model server.
+Embedders (spec §6.3). `LexicalEmbedder` gets its vector from
+`clients.embed` (which owns the `/embeddings` request and reply) and checks
+it is fit for pgvector.
 
 core-api embeds tickets, KB articles and few-shot examples through
 `POST /v1/embed` (ADR-0012), so every vector in the system comes from this
@@ -15,13 +14,9 @@ import hashlib
 from abc import ABC, abstractmethod
 
 import numpy as np
-
 from ai_engine.core.config import settings
-from ai_engine.core.providers.llm import models
-
-# A property of bge-m3 AND of the pgvector column width — changing it needs
-# a migration, so it is not node configuration.
-EMBED_DIM = 1024
+from ai_engine.core.db.tables import EMBED_DIM
+from ai_engine.core.providers import clients
 
 
 class Embedder(ABC):
@@ -43,7 +38,7 @@ class Embedder(ABC):
 
 class LexicalEmbedder(Embedder):
     """Embeds text with `settings.embed_model` through
-    `models.embed`, against an OpenAI-compatible `/embeddings`
+    `clients.embed`, against an OpenAI-compatible `/embeddings`
     endpoint. Stateless.
     """
 
@@ -52,18 +47,11 @@ class LexicalEmbedder(Embedder):
         return settings.embed_model
 
     def embed(self, text: str) -> list[float]:
-        model = settings.embed_model
-        body = models.embed.request("/embeddings", {"model": model, "input": text})
-        try:
-            vector = body["data"][0]["embedding"]
-        except (KeyError, IndexError, TypeError) as e:
-            raise ValueError(f"unusable embeddings reply: {body!r}") from e
-        if not isinstance(vector, list):
-            raise ValueError(
-                f"{model!r} returned dim {type(vector).__name__}, expected {EMBED_DIM}"
-            )
+        vector = clients.embed.embed(text)
         if len(vector) != EMBED_DIM:
-            raise ValueError(f"{model!r} returned dim {len(vector)}, expected {EMBED_DIM}")
+            raise ValueError(
+                f"{settings.embed_model!r} returned dim {len(vector)}, expected {EMBED_DIM}"
+            )
         return vector
 
 

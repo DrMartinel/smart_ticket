@@ -28,10 +28,11 @@ from collections import Counter
 
 from rapidfuzz import fuzz
 
-from ai_engine.core.state import AutoReplyProposal, TriageState
+from ai_engine.schemas import AutoReplyProposal
+from ai_engine.graph.state import TriageState
 
 from ai_engine.core.config import settings
-from ai_engine.core.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode, StateUpdate
 
 # Linguistic lexicons, not tunable numbers — they belong in code for the
 # same reason patterns.py holds the PII regexes. Vietnamese phrases are
@@ -119,7 +120,6 @@ def _checks(
     quote_source_in_topk: bool,
     negation_consistent: bool,
     category_consistent: bool,
-    source_chunk_id: uuid.UUID | None,
 ) -> StateUpdate:
     """Every check's outcome as a state update. No defaults on purpose: every
     path must state each check explicitly."""
@@ -131,7 +131,6 @@ def _checks(
         "quote_source_in_topk": quote_source_in_topk,
         "negation_consistent": negation_consistent,
         "category_consistent": category_consistent,
-        "source_chunk_id": source_chunk_id,
     }
 
 
@@ -142,7 +141,6 @@ ALL_FAILED = _checks(
     quote_source_in_topk=False,
     negation_consistent=False,
     category_consistent=False,
-    source_chunk_id=None,
 )
 
 
@@ -162,7 +160,6 @@ class ValidateNode(BaseNode):
                 quote_source_in_topk=False,
                 negation_consistent=True,
                 category_consistent=True,  # checked by core-api's router against KB category
-                source_chunk_id=None,
             )
 
         quote = normalize_ws(proposal.root.verbatim_quote)
@@ -196,7 +193,6 @@ class ValidateNode(BaseNode):
             quote_source_in_topk=in_topk,
             negation_consistent=neg_ok,
             category_consistent=True,
-            source_chunk_id=source,
         )
 
 

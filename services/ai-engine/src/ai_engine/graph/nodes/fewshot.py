@@ -11,9 +11,9 @@ from sqlalchemy import func, select
 from ai_engine.core.config import settings
 from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import FewshotExample
-from ai_engine.core.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode, StateUpdate
 from ai_engine.core.providers.embeddings import embedder
-from ai_engine.core.state import TriageState
+from ai_engine.graph.state import TriageState
 
 
 class SelectFewshotsNode(BaseNode):
@@ -34,8 +34,7 @@ class SelectFewshotsNode(BaseNode):
             .order_by(FewshotExample.embedding.cosine_distance(embedding))
             .limit(settings.fewshot_k)
         )
-        with db.connect() as session:
-            rows = session.execute(statement).all()
+        rows = db.all(statement)
 
         fewshots = [
             {"category": category, "input_text": input_text, "output_json": output_json}

@@ -8,9 +8,9 @@ from __future__ import annotations
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from ai_engine.core.node import BaseNode, SingleExit
-from ai_engine.core.state import TriageState
-from ai_engine.core.build.builder import GraphBuilder
+from ai_engine.graph.build.node import BaseNode, SingleExit
+from ai_engine.graph.state import RankedChunk, TriageState
+from ai_engine.graph.build.builder import GraphBuilder
 
 
 def test_state_is_frozen(make_state):
@@ -87,3 +87,23 @@ def test_node_annotation_does_not_override_the_graph_schema():
     g.route(node, SingleExit.DONE, g.end)
 
     assert g.compile(_Loose).invoke({})["seen"] == ["ran"]
+
+
+def test_final_score_without_a_jev_score_raises():
+    """ADR-0015: the floor is on Jev's scale. A chunk Jev never scored must
+    not fall back to its cross-encoder score, which compared against the Jev
+    floor would refuse or admit on the wrong scale, silently."""
+
+    from uuid import UUID
+
+    chunk = RankedChunk(
+        chunk_id=UUID(int=1),
+        article_id=UUID(int=1),
+        article_slug="kb",
+        content="c",
+        shortlist_score=0.9,
+    )
+
+    with pytest.raises(ValueError, match="no Jev score"):
+        chunk.final_score()
+    assert chunk.model_copy(update={"rerank_score": 0.2}).final_score() == 0.2

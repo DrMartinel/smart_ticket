@@ -11,8 +11,8 @@ from typing import Any, TypedDict
 
 import pytest
 
-from ai_engine.core.node import BaseNode, SingleExit, Terminal, terminal
-from ai_engine.core.build.builder import GraphBuilder
+from ai_engine.graph.build.node import BaseNode, SingleExit, Terminal, terminal
+from ai_engine.graph.build.builder import GraphBuilder
 
 
 class _State(TypedDict, total=False):

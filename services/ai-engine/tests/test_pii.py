@@ -3,38 +3,23 @@ Tier-2 PII NER tests (ADR-0012). This detector sees RAW ticket text, and
 core-api masks exactly what it returns. There are three ways it goes wrong
 silently:
 - a failure comes back as [] and the ticket is filed as "no PII found",
-- the raw text reaches `models.chat`, which may be a cloud provider,
+- the raw text reaches `clients.chat`, which may be a cloud provider,
 - an error message carries the text or the model's reply into a log.
 """
 
 from __future__ import annotations
 
 import json
+import traceback
 
 import httpx
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.core.providers.llm import models
 from ai_engine.core.providers.pii import PiiDetectionError, VllmPiiDetector
 
 _RAW = "anh Tuấn phòng kế toán tầng 3 không in được"
 _SECRET_REPLY = "chị Lan bàn cạnh cửa sổ"
-
-
-class _ScriptedNer:
-    """Stands in for `models.ner`: answers every request with one canned body
-    (or raises it) and records what was sent."""
-
-    def __init__(self, body):
-        self._body = body
-        self.sent: list[tuple[str, dict]] = []
-
-    def request(self, path, payload):
-        self.sent.append((path, payload))
-        if isinstance(self._body, Exception):
-            raise self._body
-        return self._body
 
 
 def _chat_reply(content: str) -> dict:
@@ -42,13 +27,8 @@ def _chat_reply(content: str) -> dict:
 
 
 @pytest.fixture
-def serve_ner(monkeypatch):
-    def install(body):
-        client = _ScriptedNer(body)
-        monkeypatch.setattr(models, "ner", client)
-        return client
-
-    return install
+def serve_ner(serve):
+    return lambda body: serve("ner", body)
 
 
 # --- failure paths first ------------------------------------------------------
@@ -97,9 +77,31 @@ def test_error_message_never_carries_the_text_or_the_reply(serve_ner, content):
     assert _SECRET_REPLY not in str(caught.value)
 
 
+@pytest.mark.parametrize(
+    "body",
+    [
+        _chat_reply(f"Found: {_SECRET_REPLY}"),
+        {"choices": [{"message": {"content": [_SECRET_REPLY]}}]},
+    ],
+    ids=["not json", "malformed envelope"],
+)
+def test_the_logged_traceback_never_carries_the_reply(serve_ner, body):
+    """A Pydantic ValidationError quotes its input. Logged with exc_info, a
+    chained one would print the model's reply, which is PII, so the client
+    must not chain it."""
+
+    serve_ner(body)
+
+    with pytest.raises(PiiDetectionError) as caught:
+        VllmPiiDetector().detect(_RAW)
+
+    logged = "".join(traceback.format_exception(caught.value))
+    assert _SECRET_REPLY not in logged
+
+
 def test_ner_never_uses_the_chat_client(serve_ner, fake_llm, use_llm, monkeypatch):
-    """`models.chat` may be OpenAI's cloud API (chat_client_provider=openai).
-    Raw PII must only ever reach the self-hosted `models.ner` client."""
+    """`clients.chat` may be OpenAI's cloud API (chat_client_provider=openai).
+    Raw PII must only ever reach the self-hosted `clients.ner` client."""
 
     monkeypatch.setattr(settings, "chat_client_provider", "openai")
     chat = use_llm(fake_llm())
@@ -111,17 +113,16 @@ def test_ner_never_uses_the_chat_client(serve_ner, fake_llm, use_llm, monkeypatc
     assert len(ner.sent) == 1
 
 
-def test_ner_client_is_the_self_hosted_chat_server(reload_models, monkeypatch):
-    """Pins where `models.ner` points, whatever the chat provider is."""
+def test_ner_client_is_the_self_hosted_chat_server(reload_clients, monkeypatch):
+    """Pins where `clients.ner` points, whatever the chat provider is."""
 
     monkeypatch.setattr(settings, "chat_client_provider", "openai")
     monkeypatch.setattr(settings, "cloud_api_key", "sk-test")
     monkeypatch.setattr(settings, "cloud_model", "gpt-test")
-    m = reload_models()
+    m = reload_clients()
 
-    assert type(m.ner) is m.VLLMLLM
+    assert type(m.ner) is m.VLLMClient
     assert m.ner.base_url == settings.chat_base_url
-    assert m.ner.model == settings.chat_model
 
 
 # --- behaviour ------------------------------------------------------------------
@@ -164,3 +165,5 @@ def test_request_puts_instructions_and_data_in_separate_messages(serve_ner):
     assert [m["role"] for m in payload["messages"]] == ["system", "user"]
     assert payload["messages"][1]["content"] == _RAW
     assert payload["response_format"]["type"] == "json_schema"
+    assert payload["response_format"]["json_schema"]["schema"]["required"] == ["spans"]
+    assert payload["chat_template_kwargs"] == {"enable_thinking": False}

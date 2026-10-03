@@ -12,20 +12,10 @@ from __future__ import annotations
 
 import uuid
 
-from pydantic import BaseModel, ConfigDict
-
 from ai_engine.core.config import settings
-from ai_engine.core.retrieval.bm25 import LexicalHit
-from ai_engine.core.retrieval.vector import VectorHit
-
-
-class Candidate(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    chunk_id: uuid.UUID
-    article_id: uuid.UUID
-    article_slug: str
-    content: str
+from ai_engine.graph.state import Candidate
+from ai_engine.graph.nodes.retrieve.bm25 import LexicalHit
+from ai_engine.graph.nodes.retrieve.vector import VectorHit
 
 
 def reciprocal_rank_fusion(

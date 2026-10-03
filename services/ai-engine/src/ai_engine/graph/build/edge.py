@@ -7,7 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
-from ai_engine.core.node import BaseNode
+from ai_engine.graph.build.node import BaseNode
 
 
 @dataclass(frozen=True, slots=True)

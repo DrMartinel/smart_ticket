@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from ai_engine.core.state import AutoReplyProposal, LLMProposalEnvelope, RankedChunk
+from ai_engine.schemas import AutoReplyProposal, LLMProposalEnvelope
+from ai_engine.graph.state import RankedChunk
 
 from ai_engine.core.config import settings
-from ai_engine.core.retrieval.bm25 import bm25_search
-from ai_engine.core.retrieval.vector import vector_search
+from ai_engine.graph.nodes.retrieve.bm25 import bm25_search
+from ai_engine.graph.nodes.retrieve.vector import vector_search
 from ai_engine.graph.nodes.emit_signals import emit_signals
 from ai_engine.graph.nodes.fewshot import select_fewshots
 
@@ -23,15 +24,14 @@ def _only_statement(db) -> tuple[str, dict]:
     return " ".join(sql.split()), params
 
 
-def test_vector_search_orders_by_cosine_distance_over_embedded_chunks_only(fake_db):
+def test_vector_search_orders_by_cosine_distance_over_embedded_chunks_only(fake_db, use_db):
     """ORDER BY must be the bare `<=>` expression the HNSW index can serve.
     Ordering by the derived similarity still returns correct rows, via a
     full scan — a silent latency regression.
     """
 
-    db = fake_db()
-    with db.connect() as session:
-        vector_search(session, [0.1, 0.2])
+    db = use_db(fake_db())
+    vector_search([0.1, 0.2])
     sql, params = _only_statement(db)
 
     assert "kb_chunks.embedding IS NOT NULL" in sql
@@ -41,16 +41,15 @@ def test_vector_search_orders_by_cosine_distance_over_embedded_chunks_only(fake_
     assert settings.vector_top_k in params.values()
 
 
-def test_bm25_search_uses_match_disjunction_and_ranks_by_bm25_score(fake_db):
+def test_bm25_search_uses_match_disjunction_and_ranks_by_bm25_score(fake_db, use_db):
     """`|||` lets a chunk match on SOME of the ticket's words. The old
     `plainto_tsquery` required all of them in one chunk and matched nothing
     on the English golden set, silently (ADR-0013). `pdb.score` is real BM25,
     with the IDF that `ts_rank_cd` lacked.
     """
 
-    db = fake_db()
-    with db.connect() as session:
-        bm25_search(session, "ERR-4042 on login")
+    db = use_db(fake_db())
+    bm25_search("ERR-4042 on login")
     sql, params = _only_statement(db)
 
     assert "kb_chunks.content ||| %(content_1)s" in sql
@@ -63,14 +62,13 @@ def test_bm25_search_uses_match_disjunction_and_ranks_by_bm25_score(fake_db):
     assert settings.bm25_top_k in params.values()
 
 
-def test_bm25_error_code_boost_is_read_from_settings(fake_db, kb_row, monkeypatch):
+def test_bm25_error_code_boost_is_read_from_settings(fake_db, kb_row, monkeypatch, use_db):
     """The boost is a tunable, so it lives in Settings (hard rule 2), and a
     chunk containing the ticket's error code moves ahead of one that doesn't."""
 
     monkeypatch.setattr(settings, "bm25_error_code_boost", 5.0)
-    db = fake_db(rows=[kb_row(1, "generic text", 3.0), kb_row(2, "fix for ERR-4042", 1.0)])
-    with db.connect() as session:
-        hits = bm25_search(session, "ERR-4042")
+    use_db(fake_db(rows=[kb_row(1, "generic text", 3.0), kb_row(2, "fix for ERR-4042", 1.0)]))
+    hits = bm25_search("ERR-4042")
 
     assert [h.content for h in hits] == ["fix for ERR-4042", "generic text"]
     assert hits[0].score == 6.0
@@ -117,7 +115,8 @@ def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state
         article_id=UUID(int=10),
         article_slug="iam.id_credentials_mfa_lost-or-broken",
         content="content",
-        score=0.9,
+        shortlist_score=0.9,
+        rerank_score=0.9,
     )
 
     db = fake_db()

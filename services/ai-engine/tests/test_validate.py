@@ -8,13 +8,8 @@ from uuid import UUID
 
 import pytest
 
-from ai_engine.core.state import (
-    AutoReplyProposal,
-    LLMProposalEnvelope,
-    RankedChunk,
-    RouteProposal,
-    TicketCategory,
-)
+from ai_engine.schemas import AutoReplyProposal, LLMProposalEnvelope, RouteProposal, TicketCategory
+from ai_engine.graph.state import RankedChunk
 
 from ai_engine.graph.nodes.validate import validate
 
@@ -25,7 +20,7 @@ def chunk(chunk_id: int, content: str) -> RankedChunk:
         article_id=UUID(int=1),
         article_slug="ec2.TroubleshootingInstancesConnecting",
         content=content,
-        score=0.9,
+        shortlist_score=0.9,
     )
 
 
@@ -69,7 +64,6 @@ def test_exact_substring_match(make_state):
     out = validate(state)
     assert out["quote_match_ratio"] == 1.0
     assert out["quote_source_in_topk"] is True
-    assert out["source_chunk_id"] == UUID(int=1)
 
 
 def test_quote_not_found_anywhere_fails_source_check(make_state):
@@ -95,7 +89,6 @@ def test_quote_found_verbatim_in_a_later_chunk_is_in_topk(make_state):
     )
     out = validate(state)
     assert out["quote_source_in_topk"] is True
-    assert out["source_chunk_id"] == UUID(int=2)
 
 
 def test_negation_mismatch_detected(make_state):

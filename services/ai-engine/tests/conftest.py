@@ -10,30 +10,39 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import copy
 import importlib
+import json
 from collections.abc import Callable, Iterable
 from contextlib import contextmanager
 from typing import Any
 
+import httpx
 import pytest
+from dotenv import dotenv_values
 from sqlalchemy.dialects import postgresql
 
-from ai_engine.core.state import PIILevel, TicketMasked, TriageState
+from ai_engine.core.config import ENV_FILE
+from ai_engine.schemas import PIILevel, TicketMasked
+from ai_engine.graph.state import TriageState
 
-from ai_engine.core.providers import embeddings, reranker as reranker_module
-from ai_engine.core.providers.llm import models
-from ai_engine.core.providers.llm.models import LLMClient
+from ai_engine.core.providers import embeddings
+from ai_engine.core.providers import clients
+from ai_engine.core.providers.clients import ChatClient
 from ai_engine.core.providers.embeddings import Embedder
 from ai_engine.core.providers.pii import PiiDetector
-from ai_engine.core.providers.reranker import Reranker
-from ai_engine.core.retrieval.fusion import Candidate
+from ai_engine.graph.state import Candidate
 from ai_engine import main
-from ai_engine.graph.nodes import (
-    emit_signals as emit_signals_node,
-    fewshot as fewshot_node,
-    rerank as rerank_node,
-    retrieve as retrieve_node,
-)
+from ai_engine.graph.nodes import emit_signals as emit_signals_node, fewshot as fewshot_node
+from ai_engine.graph.nodes.candidate_pool import node as candidate_pool_node
+from ai_engine.graph.nodes.candidate_pool import shortlister as shortlister_module
+from ai_engine.graph.nodes.candidate_pool.shortlister import Shortlister
+from ai_engine.graph.nodes.rerank import node as rerank_node
+from ai_engine.graph.nodes.rerank.reranker import Passage
+from ai_engine.graph.nodes.candidate_pool import links as links_module
+from ai_engine.graph.nodes.retrieve import bm25 as bm25_module
+from ai_engine.graph.nodes.retrieve import node as retrieve_node
+from ai_engine.graph.nodes.retrieve import vector as vector_module
 
 
 def _reloader(module):
@@ -41,7 +50,7 @@ def _reloader(module):
     monkeypatched) settings, and returns the module. Every module-level
     object is restored afterwards, so a test's config never leaks into
     another test. Reloading redefines the module's classes too, so assert
-    against the returned module's classes (`m.VLLMLLM`), not ones imported
+    against the returned module's classes (`m.ChatClient`), not ones imported
     at the top of a test file."""
 
     saved = dict(vars(module))
@@ -50,8 +59,48 @@ def _reloader(module):
 
 
 @pytest.fixture
-def reload_models():
-    yield from _reloader(models)
+def env_template() -> dict[str, str | None]:
+    """The repo root's `.env.example`: the template `.env` is copied from,
+    never read by the service. For tests about what it ships."""
+    return dotenv_values(ENV_FILE.with_name(".env.example"))
+
+
+class ScriptedServer:
+    """An httpx transport handler: answers every request with one canned JSON
+    body (or raises it) and records (path, payload) for each."""
+
+    def __init__(self, body):
+        self._body = body
+        self.sent: list[tuple[str, dict]] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.sent.append((request.url.path, json.loads(request.content)))
+        if isinstance(self._body, Exception):
+            raise self._body
+        return httpx.Response(200, json=self._body)
+
+
+@pytest.fixture
+def serve(monkeypatch):
+    """`serve("embed", body)`: swaps `clients.<name>` for a copy of the real
+    client whose server is a ScriptedServer, so the client's own request
+    building and reply validation run. Returns the server."""
+
+    def install(name: str, body) -> ScriptedServer:
+        client = copy.copy(getattr(clients, name))
+        server = ScriptedServer(body)
+        client.__dict__["_http"] = httpx.Client(
+            base_url="http://test", transport=httpx.MockTransport(server)
+        )
+        monkeypatch.setattr(clients, name, client)
+        return server
+
+    return install
+
+
+@pytest.fixture
+def reload_clients():
+    yield from _reloader(clients)
 
 
 @pytest.fixture
@@ -60,8 +109,8 @@ def reload_embeddings():
 
 
 @pytest.fixture
-def reload_reranker():
-    yield from _reloader(reranker_module)
+def reload_shortlister():
+    yield from _reloader(shortlister_module)
 
 
 class FakeEmbedder(Embedder):
@@ -100,7 +149,7 @@ class FakePiiDetector(PiiDetector):
         return list(self._spans)
 
 
-class FakeReranker(Reranker):
+class FakeShortlister(Shortlister):
     """`scores` is consumed positionally against `passages`, so a test can
     hand back an order that INVERTS the input and prove the node's output
     order follows the reranker rather than the RRF order it was given
@@ -118,16 +167,29 @@ class FakeReranker(Reranker):
         return list(self._scores[: len(passages)])
 
 
-class FakeLLM(LLMClient):
+class FakeReranker:
+    """Like FakeShortlister: `scores` are consumed positionally, so a test can
+    invert the cross-encoder's order. Records (subject, body, passages)."""
+
+    def __init__(self, scores: list[float] | None = None, error: Exception | None = None):
+        self.calls: list[tuple[str, str, list[Passage]]] = []
+        self._scores = scores if scores is not None else []
+        self._error = error
+
+    def score(self, subject: str, body: str, passages: list[Passage]) -> list[float]:
+        self.calls.append((subject, body, list(passages)))
+        if self._error is not None:
+            raise self._error
+        return list(self._scores[: len(passages)])
+
+
+class FakeLLM(ChatClient):
     """Records the prompts it was handed."""
 
     def __init__(self, result=None, error: Exception | None = None):
         self.prompts: list[tuple[str, str]] = []
         self._result = result
         self._error = error
-
-    def _build(self):
-        raise AssertionError("FakeLLM overrides complete(); no chat model is built")
 
     def complete(self, system_prompt: str, user_prompt: str) -> Any:
         self.prompts.append((system_prompt, user_prompt))
@@ -173,9 +235,11 @@ class _FakeSession:
 
 
 class FakeSessionSource:
-    """`error` makes connect() raise, which is how the DB-outage failure
-    paths get exercised. `events` records open/close ordering so a test can
-    prove a connection is not held across an HTTP round-trip."""
+    """Stands in for `db`: each `all`/`first` runs on its own fake session,
+    as each real read borrows its own connection. `error` makes every read
+    raise, which is how the DB-outage failure paths get exercised. `events`
+    records open/close ordering so a test can prove no connection is held
+    across an HTTP round-trip."""
 
     def __init__(self, rows: Rows = (), error: Exception | None = None):
         self._rows = rows if callable(rows) else list(rows)
@@ -183,8 +247,16 @@ class FakeSessionSource:
         self.events: list[str] = []
         self.sessions: list[_FakeSession] = []
 
+    def all(self, statement):
+        with self._session() as session:
+            return session.execute(statement).all()
+
+    def first(self, statement):
+        with self._session() as session:
+            return session.execute(statement).first()
+
     @contextmanager
-    def connect(self):
+    def _session(self):
         if self._error is not None:
             raise self._error
         session = _FakeSession(self._rows)
@@ -248,6 +320,11 @@ def fake_pii_detector():
 
 
 @pytest.fixture
+def fake_shortlister():
+    return FakeShortlister
+
+
+@pytest.fixture
 def fake_reranker():
     return FakeReranker
 
@@ -263,7 +340,7 @@ def fake_db():
 
 
 # Nodes and endpoints use the provider singletons directly (`db`, `embedder`,
-# `reranker`, `pii_detector`, `models.chat`). These fixtures swap one in for a fake in every node module
+# `shortlister`, `reranker`, `pii_detector`, `clients.chat`). These fixtures swap one in for a fake in every node module
 # that reads it, and return the fake. The modules are listed here once, so a
 # test cannot miss one; monkeypatch raises on a misspelled attribute and
 # restores everything after the test.
@@ -272,7 +349,7 @@ def fake_db():
 @pytest.fixture
 def use_db(monkeypatch):
     def use(fake):
-        for module in (retrieve_node, fewshot_node, emit_signals_node):
+        for module in (bm25_module, vector_module, links_module, fewshot_node, emit_signals_node):
             monkeypatch.setattr(module, "db", fake)
         return fake
 
@@ -299,7 +376,18 @@ def use_pii_detector(monkeypatch):
 
 
 @pytest.fixture
+def use_shortlister(monkeypatch):
+    def use(fake):
+        monkeypatch.setattr(candidate_pool_node, "shortlister", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
 def use_reranker(monkeypatch):
+    """Install a fake Jev, the reranker on every run."""
+
     def use(fake):
         monkeypatch.setattr(rerank_node, "reranker", fake)
         return fake
@@ -310,7 +398,7 @@ def use_reranker(monkeypatch):
 @pytest.fixture
 def use_llm(monkeypatch):
     def use(fake):
-        monkeypatch.setattr(models, "chat", fake)
+        monkeypatch.setattr(clients, "chat", fake)
         return fake
 
     return use

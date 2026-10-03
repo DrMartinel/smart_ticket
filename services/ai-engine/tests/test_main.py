@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import logging
 
+from uuid import UUID
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -108,3 +110,71 @@ def test_detect_returns_the_detectors_spans(client, fake_pii_detector, use_pii_d
 def test_detect_passes_an_empty_answer_through(client, fake_pii_detector, use_pii_detector):
     use_pii_detector(fake_pii_detector(spans=[]))
     assert client.post("/v1/pii/detect", json={"text": _RAW}).json() == {"spans": []}
+
+
+# --- /v1/analyze ----------------------------------------------------------------
+
+
+def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypatch):
+    """Each chunk reports the final score the floor compared (`rerank_score`,
+    the key stored runs have always had) and the shortlister's
+    (`shortlist_score`). Without both, a run can't show what Jev changed,
+    and neither scale can be calibrated against the other."""
+
+    from ai_engine import main
+    from ai_engine.schemas import (
+        GenerationSignals,
+        PIILevel,
+        PolicySignals,
+        RetrievalSignals,
+        TrustSignals,
+    )
+    from ai_engine.graph.state import RankedChunk
+
+    chunk = RankedChunk(
+        chunk_id=UUID(int=1),
+        article_id=UUID(int=10),
+        article_slug="kb-a",
+        content="c",
+        shortlist_score=0.7,
+        rerank_score=0.95,
+    )
+    signals = TrustSignals(
+        retrieval=RetrievalSignals(rerank_top1=0.95, rerank_margin=0.0, docs_above_floor=1),
+        generation=GenerationSignals(
+            schema_valid=False,
+            quote_match_ratio=0.0,
+            quote_source_in_topk=False,
+            negation_consistent=False,
+            category_consistent=False,
+        ),
+        policy=PolicySignals(
+            kb_auto_reply_allowed=False,
+            kb_risk_tier="high",
+            pii_level=PIILevel.ROUTINE,
+            injection_detected=False,
+            mass_incident=False,
+        ),
+    )
+    final = make_state(reranked=[chunk], signals=signals)
+    monkeypatch.setattr(
+        main, "triage_graph", type("G", (), {"invoke": lambda self, s: final.model_dump()})()
+    )
+
+    resp = client.post(
+        "/v1/analyze",
+        json={
+            "request_id": "r",
+            "ticket": final.ticket.model_dump(mode="json"),
+            "retrieval_floor": 0.3,
+        },
+    )
+
+    assert resp.status_code == 200
+    [out] = resp.json()["retrieved_chunks"]
+    assert out == {
+        "chunk_id": str(UUID(int=1)),
+        "kb_slug": "kb-a",
+        "rerank_score": 0.95,
+        "shortlist_score": 0.7,
+    }

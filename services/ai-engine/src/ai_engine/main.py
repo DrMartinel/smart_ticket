@@ -20,15 +20,15 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from ai_engine.core.state import (
+from ai_engine.schemas import (
     AIRunRequest,
     AIRunResponse,
     EmbedRequest,
     EmbedResponse,
     PiiDetectRequest,
     PiiDetectResponse,
-    TriageState,
 )
+from ai_engine.graph.state import TriageState
 
 from ai_engine.core.config import settings
 from ai_engine.core.providers.embeddings import embedder
@@ -37,6 +37,7 @@ from ai_engine.graph.triage import triage_graph
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 app = FastAPI(title="Smart Ticket Triage — ai-engine", version="1.0.0")
 
@@ -86,8 +87,16 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
         model=final_state.model_used or "n/a",
         proposal=final_state.proposal,
         signals=final_state.signals,
+        # `rerank_score` is the final (Jev's) score the floor compared, under
+        # the key stored runs have always had; `shortlist_score` is the first
+        # stage's, which chose Jev's shortlist.
         retrieved_chunks=[
-            {"chunk_id": r.chunk_id, "kb_slug": r.article_slug, "rerank_score": r.score}
+            {
+                "chunk_id": r.chunk_id,
+                "kb_slug": r.article_slug,
+                "rerank_score": r.final_score(),
+                "shortlist_score": r.shortlist_score,
+            }
             for r in reranked
         ],
         tokens_in=final_state.tokens_in,

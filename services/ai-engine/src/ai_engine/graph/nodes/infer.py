@@ -13,13 +13,13 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from ai_engine.core.state import LLMProposalEnvelope, RankedChunk, TriageState
+from ai_engine.schemas import LLMProposalEnvelope
+from ai_engine.graph.state import RankedChunk, TriageState
 
-from ai_engine.core.config import settings
-from ai_engine.core.node import BaseNode, StateUpdate
-from ai_engine.core.providers.llm import models
-from ai_engine.core.providers.llm.models import AllLLMDownError
-from ai_engine.core.prompts import load_system_prompt
+from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.core.providers import clients
+from ai_engine.core.providers.clients import AllLLMDownError
+from ai_engine.core.prompts import CLASSIFY_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +45,6 @@ def _format_fewshots(fewshots: list[dict[str, Any]]) -> str:
 
 
 class InferNode(BaseNode):
-    def __init__(self) -> None:
-        # Loaded at construction, so a missing prompt file fails the boot.
-        self._system_prompt = load_system_prompt(settings.prompt_version)
-
     def __call__(self, state: TriageState) -> StateUpdate:
         ticket = state.ticket
         reranked = state.reranked
@@ -61,7 +57,7 @@ class InferNode(BaseNode):
         )
 
         try:
-            result = models.chat.complete(self._system_prompt, user_prompt)
+            result = clients.chat.complete(CLASSIFY_PROMPT, user_prompt)
         except AllLLMDownError:
             return {"proposal": None, "degraded_reason": "all_llm_down"}
 

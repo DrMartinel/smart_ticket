@@ -14,9 +14,9 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.typing import StateLike
 
-from ai_engine.core.node import BaseNode, StateUpdate, terminal
-from ai_engine.core.build.edge import Edge
-from ai_engine.core.build.graph import Graph
+from ai_engine.graph.build.node import BaseNode, StateUpdate, terminal
+from ai_engine.graph.build.edge import Edge
+from ai_engine.graph.build.graph import Graph
 
 
 class GraphBuilder:

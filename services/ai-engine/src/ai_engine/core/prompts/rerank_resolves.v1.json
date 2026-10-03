@@ -1,0 +1,8 @@
+{
+  "type": "noul",
+  "instructions": "Does `passage` tell the user how to fix or resolve the problem described in `ticket`?",
+  "criteria": {
+    "true": "The passage gives the steps, settings or actions that would fix or resolve the problem in the ticket.",
+    "false": "The passage is about a related topic, only describes the problem or its causes, or is about something else."
+  }
+}

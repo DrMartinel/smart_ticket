@@ -10,8 +10,8 @@ from __future__ import annotations
 from enum import StrEnum
 from graphlib import CycleError, TopologicalSorter
 
-from ai_engine.core.node import BaseNode
-from ai_engine.core.build.edge import Edge
+from ai_engine.graph.build.node import BaseNode
+from ai_engine.graph.build.edge import Edge
 
 
 class Graph:

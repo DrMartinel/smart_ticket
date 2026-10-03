@@ -4,7 +4,7 @@ Node contract — see docs/graph-node-architecture.md.
 A node owns exactly four things: its name (derived from the class name), its
 `__call__` (the work), its `decide()` (which business outcome it reached) and
 its `Outcome` enum. It uses the provider singletons (`db`, `embedder`,
-`reranker`, `models.chat`) directly; tests swap them with the `use_*`
+`shortlister`, `reranker`, `clients.chat`) directly; tests swap them with the `use_*`
 fixtures. It never knows
 what runs after it — that lives in `graph/build.py`.
 """
@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any, ClassVar, Self
 
-from ai_engine.core.state import TriageState
+from ai_engine.graph.state import TriageState
 
 type StateUpdate = dict[str, Any]
 

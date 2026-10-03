@@ -23,9 +23,9 @@ import re
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_, select
-from sqlalchemy.orm import Session
 
 from ai_engine.core.config import settings
+from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import KbArticle, KbChunk
 
 _ERROR_CODE_RE = re.compile(r"0x[0-9A-Fa-f]{8}|ERR-\d+")
@@ -41,7 +41,7 @@ class LexicalHit(BaseModel):
     score: float
 
 
-def bm25_search(session: Session, query_text: str) -> list[LexicalHit]:
+def bm25_search(query_text: str) -> list[LexicalHit]:
     error_codes = _ERROR_CODE_RE.findall(query_text)
 
     score = func.pdb.score(KbChunk.id).label("score")
@@ -59,7 +59,7 @@ def bm25_search(session: Session, query_text: str) -> list[LexicalHit]:
         .order_by(score.desc())
         .limit(settings.bm25_top_k)
     )
-    rows = session.execute(statement).all()
+    rows = db.all(statement)
 
     hits = []
     for chunk_id, article_id, article_slug, content, score in rows:

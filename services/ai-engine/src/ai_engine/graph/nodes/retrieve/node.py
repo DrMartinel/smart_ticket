@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from ai_engine.core.config import settings
-from ai_engine.core.db.client import db
-from ai_engine.core.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode, StateUpdate
 from ai_engine.core.providers.embeddings import embedder
-from ai_engine.core.retrieval.bm25 import bm25_search
-from ai_engine.core.retrieval.fusion import reciprocal_rank_fusion
-from ai_engine.core.retrieval.vector import vector_search
-from ai_engine.core.state import TriageState
+from ai_engine.graph.nodes.retrieve.bm25 import bm25_search
+from ai_engine.graph.nodes.retrieve.fusion import reciprocal_rank_fusion
+from ai_engine.graph.nodes.retrieve.vector import vector_search
+from ai_engine.graph.state import TriageState
 
 
 class HybridRetrieveNode(BaseNode):
@@ -17,10 +16,9 @@ class HybridRetrieveNode(BaseNode):
         ticket = state.ticket
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
 
-        with db.connect() as session:
-            bm25_hits = bm25_search(session, query)
-            query_embedding = embedder.embed(query)
-            vector_hits = vector_search(session, query_embedding)
+        bm25_hits = bm25_search(query)
+        query_embedding = embedder.embed(query)
+        vector_hits = vector_search(query_embedding)
 
         candidates = reciprocal_rank_fusion(bm25_hits, vector_hits)
         return {
@@ -28,6 +26,7 @@ class HybridRetrieveNode(BaseNode):
             # Article level: an article with three matching chunks is one
             # answer, not three, so it must not push the next article to 4th.
             "bm25_article_ids": list(dict.fromkeys(h.article_id for h in bm25_hits)),
+            "query_embedding": query_embedding,
         }
 
 

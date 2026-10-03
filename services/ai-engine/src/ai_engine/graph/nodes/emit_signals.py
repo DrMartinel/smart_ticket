@@ -8,20 +8,20 @@ from __future__ import annotations
 
 import uuid
 
-from ai_engine.core.state import (
+from ai_engine.schemas import (
     AutoReplyProposal,
     GenerationSignals,
     PIILevel,
     PolicySignals,
     RetrievalSignals,
-    TriageState,
     TrustSignals,
 )
+from ai_engine.graph.state import TriageState
 
 from sqlalchemy import select
 
 from ai_engine.core.db.tables import KbArticle
-from ai_engine.core.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode, StateUpdate
 from ai_engine.core.db.client import db
 
 # Deny-by-default when the policy lookup can't answer. NOT a constructor
@@ -53,16 +53,15 @@ class EmitSignalsNode(BaseNode):
         if not kb_slug:
             return _POLICY_FALLBACK_DENY
         try:
-            # `connect()` MUST stay inside the try: a DB outage here has to
+            # The read MUST stay inside the try: a DB outage here has to
             # produce deny-by-default, not a 500 out of the terminal node
             # that every path through the graph passes through.
             statement = select(KbArticle.auto_reply_allowed, KbArticle.risk_tier).where(
                 KbArticle.slug == kb_slug, KbArticle.is_active.is_(True)
             )
-            with db.connect() as session:
-                row = session.execute(statement).first()
-                if row:
-                    return bool(row[0]), row[1]
+            row = db.first(statement)
+            if row:
+                return bool(row[0]), row[1]
         except Exception:  # noqa: BLE001 — best-effort only, never fail the graph over this
             pass
         return _POLICY_FALLBACK_DENY
@@ -71,13 +70,15 @@ class EmitSignalsNode(BaseNode):
         reranked = state.reranked
         proposal = state.proposal
 
-        rerank_top1 = reranked[0].score if reranked else 0.0
-        rerank_top2 = reranked[1].score if len(reranked) > 1 else 0.0
+        # Jev's scale throughout: the one the floor is set for (ADR-0015).
+        # Empty when rerank never ran (injection, no candidates).
+        final = [r.final_score() for r in reranked]
+        rerank_top1 = final[0] if final else 0.0
+        rerank_top2 = final[1] if len(final) > 1 else 0.0
         rerank_margin = max(0.0, rerank_top1 - rerank_top2) if len(reranked) > 1 else 0.0
-        # `retrieval_floor` is read from STATE, never from a constructor
-        # param: it arrives per-request in AIRunRequest so core-api stays the
-        # single owner of calibration (see core/config.py's module docstring).
-        docs_above_floor = sum(1 for r in reranked if r.score >= state.retrieval_floor)
+        # The floor is read from STATE: it arrives per-request in AIRunRequest
+        # so core-api stays the single owner of calibration.
+        docs_above_floor = sum(1 for s in final if s >= state.retrieval_floor)
         bm25_rank_of_top1 = (
             _bm25_rank(state.bm25_article_ids, reranked[0].article_id) if reranked else None
         )
@@ -96,7 +97,6 @@ class EmitSignalsNode(BaseNode):
                 rerank_margin=rerank_margin,
                 bm25_rank_of_top1=bm25_rank_of_top1,
                 docs_above_floor=docs_above_floor,
-                topk_chunk_ids=[r.chunk_id for r in reranked],
             ),
             generation=GenerationSignals(
                 schema_valid=state.schema_valid,

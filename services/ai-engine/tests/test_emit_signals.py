@@ -9,7 +9,8 @@ from uuid import UUID
 
 import pytest
 
-from ai_engine.core.state import AutoReplyProposal, LLMProposalEnvelope, PIILevel, RankedChunk
+from ai_engine.schemas import AutoReplyProposal, LLMProposalEnvelope, PIILevel, RetrievalSignals
+from ai_engine.graph.state import RankedChunk
 
 from ai_engine.graph.nodes.emit_signals import emit_signals
 
@@ -35,7 +36,8 @@ def _chunk(chunk_id: int, score: float, slug: str = "kb-a") -> RankedChunk:
         article_id=UUID(int=chunk_id * 10),
         article_slug=slug,
         content="nội dung",
-        score=score,
+        shortlist_score=score,
+        rerank_score=score,
     )
 
 
@@ -114,7 +116,6 @@ def test_no_reranked_chunks_yields_zeroed_retrieval_signals(fake_db, make_state,
 
     assert out["signals"].retrieval.rerank_top1 == 0.0
     assert out["signals"].retrieval.docs_above_floor == 0
-    assert out["signals"].retrieval.topk_chunk_ids == []
 
 
 def test_bm25_rank_is_none_when_nothing_was_reranked(fake_db, make_state, use_db):
@@ -155,15 +156,13 @@ def test_bm25_rank_is_the_one_based_position_of_the_top_article(fake_db, make_st
     assert out["signals"].retrieval.bm25_rank_of_top1 == 2
 
 
-def test_legacy_keyword_flag_is_never_set(fake_db, make_state, use_db):
+def test_ai_engine_cannot_send_the_legacy_keyword_flag():
     """core-api scores `legacy_flag or rank <= k`. If ai-engine ever sets the
-    legacy flag again, agreement stops depending on `k` at all."""
+    legacy flag again, agreement stops depending on `k` at all. The field
+    lives only in core-api's copy (for signals stored before ADR-0013), so
+    ai-engine has nothing to set it with."""
 
-    use_db(fake_db())
-
-    out = emit_signals(make_state(reranked=[_chunk(1, 0.9)], bm25_article_ids=[UUID(int=10)]))
-
-    assert out["signals"].retrieval.bm25_keyword_hit is False
+    assert "bm25_keyword_hit" not in RetrievalSignals.model_fields
 
 
 def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, use_db):
@@ -218,3 +217,23 @@ def test_policy_is_read_from_the_database_when_a_kb_slug_is_present(fake_db, mak
     assert db.events == ["open", "close"]
     assert out["signals"].policy.kb_auto_reply_allowed is True
     assert out["signals"].policy.kb_risk_tier == "low"
+
+
+def test_signals_are_on_jevs_scale(fake_db, make_state, use_db):
+    """Top-1, margin and the floor count are Jev's numbers, the scale the
+    floor is set on; the cross-encoder's would score the ticket on one it
+    isn't. `scorer` says so explicitly: core-api reads a missing value as
+    the cross-encoder's."""
+
+    use_db(fake_db())
+    chunks = [
+        _chunk(1, 0.2).model_copy(update={"rerank_score": 0.9}),
+        _chunk(2, 0.9).model_copy(update={"rerank_score": 0.5}),
+    ]
+
+    out = emit_signals(make_state(reranked=chunks, retrieval_floor=0.6))
+
+    retrieval = out["signals"].retrieval
+    assert (retrieval.rerank_top1, retrieval.rerank_margin) == (0.9, pytest.approx(0.4))
+    assert retrieval.docs_above_floor == 1
+    assert retrieval.model_dump()["scorer"] == "jev"

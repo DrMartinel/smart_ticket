@@ -12,7 +12,7 @@ from uuid import UUID
 import pytest
 
 from ai_engine.core.config import settings
-from ai_engine.graph.nodes.retrieve import hybrid_retrieve
+from ai_engine.graph.nodes.retrieve.node import hybrid_retrieve
 
 
 @pytest.fixture
@@ -60,6 +60,26 @@ def test_bm25_query_failure_propagates_rather_than_running_vector_only(
 
     with pytest.raises(RuntimeError, match="shared_preload_libraries"):
         node(make_state())
+
+
+def test_no_db_connection_is_held_while_embedding(
+    fake_db, fake_embedder, kb_row, make_state, make_node
+):
+    """The embedder is an HTTP call to vLLM that can take the full read
+    timeout. A connection held across it sits idle in transaction and out
+    of the pool for that long; under load that starves every other ticket."""
+
+    db = fake_db(rows=[kb_row(1, "a", 0.9)])
+    open_while_embedding = []
+
+    class Spy(fake_embedder):
+        def embed(self, text):
+            open_while_embedding.append(db.events.count("open") - db.events.count("close"))
+            return super().embed(text)
+
+    make_node(db, Spy())(make_state())
+
+    assert open_while_embedding == [0]
 
 
 def test_bm25_article_ids_are_empty_when_lexical_finds_nothing(

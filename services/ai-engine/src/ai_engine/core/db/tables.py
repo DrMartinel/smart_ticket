@@ -24,7 +24,10 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from ai_engine.core.providers.embeddings import EMBED_DIM
+# The width of every vector column, and so of every embedding: a property of
+# bge-m3 AND of the pgvector schema, so changing it needs a migration. The
+# embedder checks each vector against it.
+EMBED_DIM = 1024
 
 
 class Base(DeclarativeBase):
@@ -37,6 +40,10 @@ class KbArticle(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     slug: Mapped[str]
+    # Read by link expansion: links in chunk text resolve against
+    # `source_url`, and Jev sees the title with each passage (ADR-0015).
+    title: Mapped[str]
+    source_url: Mapped[str | None]
     # Read for the log-only `TrustSignals.policy` block. The authoritative
     # auto-reply check is core-api's (ADR-0002), never this read.
     auto_reply_allowed: Mapped[bool]
@@ -49,6 +56,9 @@ class KbChunk(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
+    # Document order, so link expansion follows an article's links in the
+    # order its author wrote them.
+    chunk_index: Mapped[int]
     content: Mapped[str]
     section_title: Mapped[str | None]
     embedding: Mapped[Any] = mapped_column(VECTOR(EMBED_DIM), nullable=True)

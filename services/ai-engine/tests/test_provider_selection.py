@@ -10,28 +10,28 @@ from langchain_openai import ChatOpenAI
 from pydantic import SecretStr, ValidationError
 
 from ai_engine.core.config import Settings, settings
-from ai_engine.core.providers.llm.models import (
+from ai_engine.core.providers.clients import (
     OPENAI_COST_PER_1K_TOKENS,
     VLLM_COST_PER_1K_TOKENS,
-    OpenAILLM,
-    VLLMLLM,
+    openai_chat,
+    vllm_chat,
 )
 from ai_engine.core.db import client as db_client
 from ai_engine.core.db.client import SqlAlchemySessionSource
 
 
 def test_unknown_reranker_provider_raises_rather_than_falling_back_to_lexical(
-    monkeypatch, reload_reranker
+    monkeypatch, reload_shortlister
 ):
-    """A typo'd RERANKER_PROVIDER must not fall back to lexical — a different
+    """A typo'd SHORTLIST_PROVIDER must not fall back to lexical — a different
     calibration from the one `retrieval.floor` is fitted against
     (ADR-0005). The refuse-before-LLM rate would be wrong with everything
     green.
     """
 
-    monkeypatch.setattr(settings, "reranker_provider", "cross-encoder")
-    with pytest.raises(ValueError, match="unknown reranker_provider"):
-        reload_reranker()
+    monkeypatch.setattr(settings, "shortlist_provider", "cross-encoder")
+    with pytest.raises(ValueError, match="unknown shortlist_provider"):
+        reload_shortlister()
 
 
 def test_unknown_embedding_provider_raises(monkeypatch, reload_embeddings):
@@ -43,34 +43,35 @@ def test_unknown_embedding_provider_raises(monkeypatch, reload_embeddings):
         reload_embeddings()
 
 
-def test_default_reranker_is_the_vllm_cross_encoder(monkeypatch, reload_reranker):
+def test_default_reranker_is_the_vllm_cross_encoder(env_template, monkeypatch, reload_shortlister):
     """Pins the shipped default: the cross-encoder `retrieval.floor` is
     specified against (ADR-0005), served by vLLM (ADR-0009). `lexical` is for
     CI and must be selected explicitly.
 
-    Reads the declared default, not the `settings` instance: CI exports
-    RERANKER_PROVIDER=lexical, so the instance reflects the job's env.
+    Reads the template, `.env.example`, not the `settings` instance: CI
+    exports SHORTLIST_PROVIDER=lexical, so the instance reflects the job's
+    env.
 
     Does NOT assert calibration — see docs/TODO.md item 4.
     """
 
-    default = Settings.model_fields["reranker_provider"].default
+    default = env_template["SHORTLIST_PROVIDER"]
     assert default == "vllm"
-    monkeypatch.setattr(settings, "reranker_provider", default)
-    m = reload_reranker()
-    assert type(m.reranker) is m.CrossEncoderReranker
+    monkeypatch.setattr(settings, "shortlist_provider", default)
+    m = reload_shortlister()
+    assert type(m.shortlister) is m.CrossEncoderShortlister
 
 
-def test_building_providers_opens_no_connections(monkeypatch, reload_reranker):
+def test_building_providers_opens_no_connections(monkeypatch, reload_shortlister):
     """graph/build.py imports the modules that build the providers, and
     test_build.py imports it with no database. A constructor that opens a socket breaks
     both.
     """
 
-    monkeypatch.setattr(settings, "reranker_provider", "lexical")
-    m = reload_reranker()
+    monkeypatch.setattr(settings, "shortlist_provider", "lexical")
+    m = reload_shortlister()
 
-    assert isinstance(m.reranker, m.LexicalReranker)
+    assert isinstance(m.shortlister, m.LexicalShortlister)
     assert isinstance(db_client.db, SqlAlchemySessionSource)  # constructed, not connected
 
 
@@ -86,43 +87,40 @@ def test_embedding_provider_selection(provider, expected, monkeypatch, reload_em
 
 @pytest.mark.parametrize(
     ("provider", "expected"),
-    [("lexical", "LexicalReranker"), ("vllm", "CrossEncoderReranker")],
+    [("lexical", "LexicalShortlister"), ("vllm", "CrossEncoderShortlister")],
 )
-def test_reranker_provider_selection(provider, expected, monkeypatch, reload_reranker):
-    monkeypatch.setattr(settings, "reranker_provider", provider)
-    m = reload_reranker()
-    assert type(m.reranker) is getattr(m, expected)
+def test_reranker_provider_selection(provider, expected, monkeypatch, reload_shortlister):
+    monkeypatch.setattr(settings, "shortlist_provider", provider)
+    m = reload_shortlister()
+    assert type(m.shortlister) is getattr(m, expected)
 
 
-def test_each_vllm_client_is_built_from_config_for_its_own_server(monkeypatch, reload_models):
+def test_each_vllm_client_is_built_from_config_for_its_own_server(monkeypatch, reload_clients):
     """vLLM serves one model per server, so chat, embeddings and reranking
     each have their own client — built from config, pointing at their own
     base URL."""
 
-    m = reload_models()
-    built = {"chat": m.chat, "embed": m.embed, "rerank": m.rerank}
-    assert {name: c.base_url for name, c in built.items()} == {
-        "chat": settings.chat_base_url,
-        "embed": settings.embed_base_url,
-        "rerank": settings.rerank_base_url,
-    }
-    assert {name: c.model for name, c in built.items()} == {
-        "chat": settings.chat_model,
-        "embed": settings.embed_model,
-        "rerank": settings.reranker_model,
-    }
+    monkeypatch.setattr(settings, "chat_client_provider", "vllm")
+    m = reload_clients()
+
+    assert m.embed.base_url == settings.embed_base_url
+    assert m.rerank.base_url == settings.rerank_base_url
+    assert str(m.chat.chat_model.root_client.base_url).rstrip("/") == (
+        settings.chat_base_url.rstrip("/")
+    )
+    assert m.chat.model == settings.chat_model
 
 
 # --- LLM chain wiring (ADR-0007) -------------------------------------------
 #
-# Provider selection for the LLM happens once, when models.py is imported, so
+# Provider selection for the LLM happens once, when clients.py is imported, so
 # these are startup tests like the ones above: the point is that a
 # misconfiguration is loud.
 
 
 @pytest.fixture
 def cloud_key(monkeypatch):
-    """OpenAILLM refuses to build without a key and a model."""
+    """openai_chat refuses to build without a key and a model."""
 
     monkeypatch.setattr(settings, "cloud_api_key", "k")
     monkeypatch.setattr(settings, "cloud_model", "test-model")
@@ -136,22 +134,30 @@ def _chat_on(monkeypatch, provider, cloud_base_url=None):
     monkeypatch.setattr(settings, "cloud_base_url", cloud_base_url)
 
 
-def test_default_chat_runs_on_vllm(reload_models):
-    m = reload_models()
-    assert isinstance(m.chat, m.VLLMLLM)
+def test_default_chat_runs_on_vllm(env_template, monkeypatch, reload_clients):
+    """Reads the template, not the `settings` instance, which reflects the
+    job's env."""
+    default = env_template["CHAT_CLIENT_PROVIDER"]
+    assert default == "vllm"
+    _chat_on(monkeypatch, default)
+    m = reload_clients()
+    assert m.chat.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
 
 
 @pytest.mark.parametrize(
-    ("provider", "expected"),
-    [("vllm", "VLLMLLM"), ("openai", "OpenAILLM")],
+    ("provider", "model", "cost"),
+    [
+        ("vllm", lambda: settings.chat_model, VLLM_COST_PER_1K_TOKENS),
+        ("openai", lambda: "test-model", OPENAI_COST_PER_1K_TOKENS),
+    ],
 )
-def test_chat_client_provider_selects_the_chat_class(
-    provider, expected, monkeypatch, reload_models
+def test_chat_client_provider_selects_the_chat_model(
+    provider, model, cost, monkeypatch, reload_clients
 ):
     _chat_on(monkeypatch, provider)
-    m = reload_models()
+    m = reload_clients()
 
-    assert type(m.chat) is getattr(m, expected)
+    assert (m.chat.model, m.chat.cost_per_1k_tokens) == (model(), cost)
 
 
 @pytest.mark.parametrize("removed", ["anthropic", "gemini", "vLLM"])
@@ -163,28 +169,28 @@ def test_unknown_chat_provider_is_rejected_by_settings(removed):
         Settings(chat_client_provider=removed)
 
 
-def test_openai_accepts_an_optional_base_url(monkeypatch, reload_models):
+def test_openai_accepts_an_optional_base_url(monkeypatch, reload_clients):
     """CLOUD_BASE_URL is a proxy setting, and it must actually be used."""
 
     _chat_on(monkeypatch, "openai", "https://proxy.example")
-    m = reload_models()
+    m = reload_clients()
 
-    assert str(m.chat.client.root_client.base_url).startswith("https://proxy.example")
+    assert str(m.chat.chat_model.root_client.base_url).startswith("https://proxy.example")
 
 
 @pytest.mark.parametrize("missing", ["cloud_api_key", "cloud_model"])
-def test_openai_without_its_key_or_model_is_fatal(missing, monkeypatch, reload_models):
+def test_openai_without_its_key_or_model_is_fatal(missing, monkeypatch, reload_clients):
     """Either one missing must fail the boot, not every ticket."""
 
     _chat_on(monkeypatch, "openai")
     monkeypatch.setattr(settings, missing, None)
 
     with pytest.raises(ValueError, match=f"requires {missing.upper()}"):
-        reload_models()
+        reload_clients()
 
 
-def test_building_the_openai_chat_model_opens_no_connections(monkeypatch, reload_models):
-    """models.py builds its clients at import time, so constructing a chat
+def test_building_the_openai_chat_model_opens_no_connections(monkeypatch, reload_clients):
+    """clients.py builds its clients at import time, so constructing a chat
     model must configure an HTTP client, not use one."""
 
     import socket
@@ -199,7 +205,7 @@ def test_building_the_openai_chat_model_opens_no_connections(monkeypatch, reload
         lambda self, addr, *a: (opened.append(addr), real_connect(self, addr, *a))[1],
     )
 
-    reload_models()
+    reload_clients()
 
     assert opened == []
 
@@ -210,7 +216,7 @@ def test_openai_asks_for_json_without_sdk_retries_and_capped_output(cloud_key):
     not to, and this system does not retry. The output cap stops a runaway
     generation from running until the read timeout."""
 
-    chat = OpenAILLM().client
+    chat = openai_chat().chat_model
     assert isinstance(chat, ChatOpenAI)
 
     assert chat.model_kwargs["response_format"] == {"type": "json_object"}
@@ -224,8 +230,8 @@ def test_provider_attributes_are_resolved_at_construction(cloud_key):
     call succeeds.
     """
 
-    vllm = VLLMLLM(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
-    openai = OpenAILLM()
+    vllm = vllm_chat(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
+    openai = openai_chat()
 
     assert vllm.model == "Qwen/Qwen3-8B-AWQ"
     assert vllm.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
@@ -241,8 +247,8 @@ def test_vllm_llm_asks_for_json_without_thinking_or_sdk_retries():
     would add minutes of latency; SDK retries would silently retry. Self-hosted,
     so billed as free."""
 
-    llm = VLLMLLM(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
-    chat = llm.client
+    llm = vllm_chat(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
+    chat = llm.chat_model
     assert isinstance(chat, ChatOpenAI)
 
     assert chat.model_kwargs["response_format"] == {"type": "json_object"}
@@ -252,14 +258,14 @@ def test_vllm_llm_asks_for_json_without_thinking_or_sdk_retries():
     assert llm.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
 
 
-def test_all_vllm_providers_open_no_connections(monkeypatch, reload_models):
-    """models.py builds its clients at import time, so pointing every capability at
+def test_all_vllm_providers_open_no_connections(monkeypatch, reload_clients):
+    """clients.py builds its clients at import time, so pointing every capability at
     a vLLM server that is not running must still boot."""
 
     import socket
 
     monkeypatch.setattr(settings, "embedding_provider", "vllm")
-    monkeypatch.setattr(settings, "reranker_provider", "vllm")
+    monkeypatch.setattr(settings, "shortlist_provider", "vllm")
 
     opened = []
     real_connect = socket.socket.connect
@@ -269,17 +275,17 @@ def test_all_vllm_providers_open_no_connections(monkeypatch, reload_models):
         lambda self, addr, *a: (opened.append(addr), real_connect(self, addr, *a))[1],
     )
 
-    reload_models()
+    reload_clients()
 
     assert opened == []
 
 
-# --- OpenAILLM ---------------------------------------------------------------
+# --- openai_chat ---------------------------------------------------------------
 
 
 def test_openai_client_authenticates_with_its_api_key(cloud_key, monkeypatch):
     monkeypatch.setattr(settings, "cloud_api_key", "secret")
-    chat = OpenAILLM().client
+    chat = openai_chat().chat_model
     assert isinstance(chat, ChatOpenAI)
     assert isinstance(chat.openai_api_key, SecretStr)
     assert chat.openai_api_key.get_secret_value() == "secret"
