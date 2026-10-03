@@ -12,8 +12,10 @@ from RRF's (ADR-0005).
 
 from __future__ import annotations
 
+from typing import Any
+
 from ai_engine.core.config import settings
-from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode
 from ai_engine.graph.nodes.candidate_pool.shortlister import shortlister
 from ai_engine.graph.state import Candidate
 from ai_engine.graph.nodes.candidate_pool.links import linked_article_ids, nearest_chunks
@@ -43,7 +45,7 @@ def _by_score(chunks: list[RankedChunk]) -> list[RankedChunk]:
 
 
 class CandidatePoolNode(BaseNode):
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         candidates = state.candidates
         if not candidates:
             return {"pool": []}

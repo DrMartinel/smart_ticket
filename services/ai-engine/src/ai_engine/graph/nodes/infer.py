@@ -7,16 +7,17 @@ chunks and few-shots, calls the LLM client, and parses the reply into
 
 from __future__ import annotations
 
+from typing import Any
+
 import json
 import logging
-from typing import Any
 
 from pydantic import ValidationError
 
 from ai_engine.schemas import LLMProposalEnvelope
-from ai_engine.graph.state import RankedChunk, TriageState
+from ai_engine.graph.state import TriageState
 
-from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import AllLLMDownError
 from ai_engine.core.prompts import CLASSIFY_PROMPT
@@ -24,35 +25,21 @@ from ai_engine.core.prompts import CLASSIFY_PROMPT
 logger = logging.getLogger(__name__)
 
 
-def _format_chunks(reranked: list[RankedChunk]) -> str:
-    if not reranked:
-        return "(no relevant excerpts found)"
-    # kb_slug is what the model must echo back in AutoReplyProposal.kb_slug
-    # — showing only chunk_id/article_id here previously left the model to
-    # invent something for kb_slug, since it was never actually told it.
-    return "\n\n".join(
-        f"[kb_slug={c.article_slug}, chunk_id={c.chunk_id}]\n{c.content}" for c in reranked
-    )
-
-
-def _format_fewshots(fewshots: list[dict[str, Any]]) -> str:
-    if not fewshots:
-        return "(none available)"
-    return "\n\n".join(
-        f"Input: {f['input_text']}\nOutput: {json.dumps(f['output_json'], ensure_ascii=False)}"
-        for f in fewshots
-    )
-
-
 class InferNode(BaseNode):
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         ticket = state.ticket
-        reranked = state.reranked
-        fewshots = state.fewshots
+        excerpts = "\n\n".join(
+            f"[kb_slug={c.article_slug}, chunk_id={c.chunk_id}]\n{c.content}"
+            for c in state.reranked
+        )
+        examples = "\n\n".join(
+            f"Input: {f['input_text']}\nOutput: {json.dumps(f['output_json'], ensure_ascii=False)}"
+            for f in state.fewshots
+        )
 
         user_prompt = (
-            f"## KB excerpts\n{_format_chunks(reranked)}\n\n"
-            f"## Few-shot examples\n{_format_fewshots(fewshots)}\n\n"
+            f"## KB excerpts\n{excerpts or '(no relevant excerpts found)'}\n\n"
+            f"## Few-shot examples\n{examples or '(none available)'}\n\n"
             f"## Ticket\nSubject: {ticket.subject_masked}\nBody: {ticket.body_masked}"
         )
 
@@ -61,7 +48,7 @@ class InferNode(BaseNode):
         except AllLLMDownError:
             return {"proposal": None, "degraded_reason": "all_llm_down"}
 
-        update: StateUpdate = {
+        update: dict[str, Any] = {
             "tokens_in": result.tokens_in,
             "tokens_out": result.tokens_out,
             "cost_usd": result.cost_usd,

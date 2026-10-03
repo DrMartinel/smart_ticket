@@ -129,7 +129,7 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
 
 - mypy with the django-stubs plugin everywhere (root `pyproject.toml`).
   `uv run mypy` must be clean.
-- Modern syntax: PEP 695 `type StateUpdate = dict[str, Any]`, generic methods
+- Modern syntax: PEP 695 `type` aliases, generic methods
   `def compile[S: StateLike](…)`, `X | None`, `StrEnum`.
 - Value objects are frozen pydantic models: `model_config = ConfigDict(frozen=True)`
   (`RankedChunk`, `LexicalHit`, `LLMResult`).

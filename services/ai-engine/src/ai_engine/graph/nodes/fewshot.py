@@ -6,18 +6,20 @@ nearest-neighbour on the ticket embedding across all active examples.
 
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import func, select
 
 from ai_engine.core.config import settings
 from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import FewshotExample
-from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode
 from ai_engine.core.providers.embeddings import embedder
 from ai_engine.graph.state import TriageState
 
 
 class SelectFewshotsNode(BaseNode):
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         ticket = state.ticket
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
         embedding = embedder.embed(query)

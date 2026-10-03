@@ -18,8 +18,6 @@ from typing import Any, ClassVar, Self
 
 from ai_engine.graph.state import TriageState
 
-type StateUpdate = dict[str, Any]
-
 
 class SingleExit(StrEnum):
     """The outcome of every node with one exit."""
@@ -73,7 +71,7 @@ class BaseNode(ABC):
         return any(outcome is member for member in cls.Outcome)
 
     @abstractmethod
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         """Do the work. Return only the state keys that changed."""
 
     def decide(self, state: TriageState) -> StrEnum:
@@ -94,7 +92,7 @@ class Terminal(BaseNode):
     nothing.
     """
 
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         return {}
 
 

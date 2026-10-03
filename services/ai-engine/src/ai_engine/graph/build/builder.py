@@ -14,7 +14,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.typing import StateLike
 
-from ai_engine.graph.build.node import BaseNode, StateUpdate, terminal
+from ai_engine.graph.build.node import BaseNode, terminal
 from ai_engine.graph.build.edge import Edge
 from ai_engine.graph.build.graph import Graph
 
@@ -78,7 +78,7 @@ def _reject_unknown_keys(node: BaseNode, state_keys: set[str]):
     A non-dict update still raises — here (`set(None)`, a string's
     characters as keys) or in LangGraph (an empty list) — so no check here."""
 
-    def run(state: Any) -> StateUpdate:
+    def run(state: Any) -> dict[str, Any]:
         update = node(state)
         if unknown := set(update) - state_keys:
             raise ValueError(

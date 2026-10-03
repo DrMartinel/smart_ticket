@@ -12,10 +12,12 @@ final, and its top `rerank_top_n` go on. The floor is compared only with
 
 from __future__ import annotations
 
+from typing import Any
+
 from enum import StrEnum
 
 from ai_engine.core.config import settings
-from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode
 from ai_engine.graph.nodes.rerank.reranker import Passage, reranker
 from ai_engine.graph.nodes.candidate_pool.links import article_titles
 from ai_engine.graph.state import TriageState
@@ -29,7 +31,7 @@ class RerankOutcome(StrEnum):
 class RerankNode(BaseNode):
     Outcome = RerankOutcome
 
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         shortlist = state.pool[: settings.rerank_pool]
         if not shortlist:
             return {"reranked": []}

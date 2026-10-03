@@ -197,7 +197,7 @@ the value — edge labels in `draw_mermaid()` read `EvidenceBelowFloor`, not
 
 ```python
 class Terminal(BaseNode):
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         return {}
 
 
@@ -344,7 +344,7 @@ class RerankOutcome(StrEnum):
 class RerankNode(BaseNode):
     Outcome = RerankOutcome
 
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         ...
         scores = reranker.score(...)  # Jev, the module singleton
         ...

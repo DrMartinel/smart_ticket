@@ -22,6 +22,8 @@ Validator — spec §6.4. Four checks, in the spec's order:
 
 from __future__ import annotations
 
+from typing import Any
+
 import re
 import uuid
 from collections import Counter
@@ -32,25 +34,14 @@ from ai_engine.schemas import AutoReplyProposal
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.config import settings
-from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode
 
-# Linguistic lexicons, not tunable numbers — they belong in code for the
-# same reason patterns.py holds the PII regexes. Vietnamese phrases are
-# matched as substrings. English is matched on word boundaries, since "not"
-# and "no" are inside "notification" and "node". The demo KB is English
-# (demo_kb/), and tickets may be in either language.
 NEGATIONS = {"không", "chưa", "ngoại trừ", "trừ khi", "không được", "cấm"}
 ENGLISH_NEGATION = re.compile(
     r"\b(?:not|no|never|cannot|none|nor|without|except|unless)\b|\b\w+n['’]t\b",
     re.IGNORECASE,
 )
-# A period after one of these doesn't end a sentence. Without this, "Do not
-# use root credentials, e.g. the root user access keys" splits after "e.g."
-# and the quote after it loses its "not". Missing an abbreviation here makes
-# the check weaker; treating a real sentence end as an abbreviation only
-# makes it stricter.
 _ABBREVIATIONS = ("e.g", "i.e", "etc", "vs")
-# End of a sentence, or a line break (a Markdown list item or heading).
 _SENTENCE_BREAK = re.compile(
     "".join(rf"(?<!\b{re.escape(abbr)})" for abbr in _ABBREVIATIONS) + r"[.!?](?=\s)|\n",
     re.IGNORECASE,
@@ -120,7 +111,7 @@ def _checks(
     quote_source_in_topk: bool,
     negation_consistent: bool,
     category_consistent: bool,
-) -> StateUpdate:
+) -> dict[str, Any]:
     """Every check's outcome as a state update. No defaults on purpose: every
     path must state each check explicitly."""
 
@@ -145,7 +136,7 @@ ALL_FAILED = _checks(
 
 
 class ValidateNode(BaseNode):
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         proposal = state.proposal
         reranked = state.reranked
 

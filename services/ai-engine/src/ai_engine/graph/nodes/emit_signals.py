@@ -6,6 +6,8 @@ writes to a database, only reads best-effort for the log-only `policy` fields.
 
 from __future__ import annotations
 
+from typing import Any
+
 import uuid
 
 from ai_engine.schemas import (
@@ -21,7 +23,7 @@ from ai_engine.graph.state import TriageState
 from sqlalchemy import select
 
 from ai_engine.core.db.tables import KbArticle
-from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode
 from ai_engine.core.db.client import db
 
 # Deny-by-default when the policy lookup can't answer. NOT a constructor
@@ -66,7 +68,7 @@ class EmitSignalsNode(BaseNode):
             pass
         return _POLICY_FALLBACK_DENY
 
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         reranked = state.reranked
         proposal = state.proposal
 

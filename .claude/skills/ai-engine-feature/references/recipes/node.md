@@ -33,8 +33,9 @@ before retrieval, or what a wrong answer here costs downstream.>
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Any
 
-from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode
 from ai_engine.graph.state import TriageState
 
 
@@ -49,7 +50,7 @@ class <Name>Node(BaseNode):
 
     Outcome = <Name>Outcome
 
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         ...
         return {"<field>": value}  # only the keys this node owns
 

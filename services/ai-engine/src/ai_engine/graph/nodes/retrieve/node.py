@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from ai_engine.core.config import settings
-from ai_engine.graph.build.node import BaseNode, StateUpdate
+from ai_engine.graph.build.node import BaseNode
 from ai_engine.core.providers.embeddings import embedder
 from ai_engine.graph.nodes.retrieve.bm25 import bm25_search
 from ai_engine.graph.nodes.retrieve.fusion import reciprocal_rank_fusion
@@ -12,7 +14,7 @@ from ai_engine.graph.state import TriageState
 
 
 class HybridRetrieveNode(BaseNode):
-    def __call__(self, state: TriageState) -> StateUpdate:
+    def __call__(self, state: TriageState) -> dict[str, Any]:
         ticket = state.ticket
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
 

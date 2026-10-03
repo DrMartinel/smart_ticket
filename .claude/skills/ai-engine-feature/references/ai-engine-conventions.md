@@ -29,7 +29,7 @@ src/ai_engine/
   graph/           the triage pipeline. Never imports main.py
     state.py       TriageState + the value types stored in it (Candidate, RankedChunk)
     build/         generic, triage-agnostic graph machinery:
-      node.py      BaseNode, SingleExit, Terminal, StateUpdate
+      node.py      BaseNode, SingleExit, Terminal
       edge.py      Edge: one route (source, outcome, target)
       graph.py     Graph: the edges; reachability + validation
       builder.py   GraphBuilder: Graph -> LangGraph
@@ -62,7 +62,7 @@ A node owns exactly four things: its **name** (derived from the class), its
   what shows up in traces. The module's production instance is a variable with that
   same name: `rerank = RerankNode()`. It is the only instance: `BaseNode` raises
   `TypeError` on a second construction, so tests import it too.
-- **`__call__(self, state: TriageState) -> StateUpdate`** returns only the keys it
+- **`__call__(self, state: TriageState) -> dict[str, Any]`** returns only the keys it
   changed. It **never writes to `self`**: one instance is shared across FastAPI's
   threadpool.
 - **`__init__` only for setup that should fail at boot**, such as `InferNode` loading
