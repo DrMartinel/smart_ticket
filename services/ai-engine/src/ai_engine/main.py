@@ -87,9 +87,6 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
         model=final_state.model_used or "n/a",
         proposal=final_state.proposal,
         signals=final_state.signals,
-        # `rerank_score` is the final (Jev's) score the floor compared, under
-        # the key stored runs have always had; `shortlist_score` is the first
-        # stage's, which chose Jev's shortlist.
         retrieved_chunks=[
             {
                 "chunk_id": r.chunk_id,

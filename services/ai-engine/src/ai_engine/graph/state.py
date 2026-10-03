@@ -59,9 +59,6 @@ class TriageState(BaseModel):
     request_id: str
     retrieval_floor: float
 
-    # Output, grouped by the one node that writes each field. Defaults mean
-    # "not run"; lists have no reducer.
-
     # InjectionNode
     injection_detected: bool = False
 
