@@ -21,9 +21,9 @@
 - `truth.kb_slug` — the KB article slug that should answer this ticket, if any.
 - `truth.expected_branch` — one of `Branch` (core-api `apps/tickets/utils/router.py`): `auto_reply | auto_route | hitl | block | escalate`.
 - `truth.reason_code` — one of `ReasonCode` (core-api `apps/tickets/utils/router.py`), when the specific gate/reason matters to the test (e.g. `injection_detected`, `kb_not_authorized`, `retrieval_below_floor`). Omitted when any HITL reason is acceptable.
-- `tags` — free-form, used to filter by suite. At minimum one of the six distribution buckets below.
+- `tags` — free-form, used to filter by suite. At minimum one of the six distribution buckets below, or `edge`.
 
-## Distribution (spec §12.1, 150 cases)
+## Distribution (spec §12.1, 150 cases, plus 24 edge cases)
 
 | Tag | Target | Actual | Why |
 |---|---|---|---|
@@ -32,7 +32,21 @@
 | `out_of_kb` | 15% | 23 | Tests whether refusal works |
 | `high_risk` | 10% | 15 | Tests KB authority gate (access/security) |
 | `injection` | 10% | 15 | Tests the injection guardrail |
-| `pii` | 5% | 7 | Tests masking at each PII level |
+| `pii` | 5% | 7 | Tests masking at each PII level (13 with the `pii_answerable` edge cases) |
+
+The 24 `edge` cases come after these, as g151-g174, so the IDs above never
+move. They are beyond §12.1's distribution, and each also carries one of:
+
+| Tag | Count | Expected | Why |
+|---|---|---|---|
+| `underspecified` | 6 | `hitl` | Several pages fit and the ticket doesn't say which; until the system can ask (docs/TODO.md item 10), a human decides |
+| `pii_answerable` | 6 | the page's own branch | Routine PII next to a request a page answers: masking and auto-reply on one ticket (also tagged `pii`) |
+| `split_chunk` | 6 | `auto_reply` | The answer is in a continuation chunk without the page title or section heading |
+| `near_miss` | 6 | `hitl` (`kb_not_authorized`) | Same topic as an approved page that doesn't resolve them; an auto-reply is false by construction |
+
+Retrieval, classification and refusal select their cases by tag, so `edge`
+cases count only in the end-to-end suite (branch accuracy, auto-reply
+precision).
 
 ## Provenance
 

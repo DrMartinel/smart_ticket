@@ -96,7 +96,7 @@ fail when the invariant they describe is broken.
 
 ### Golden set
 
-150 cases in `evals/golden/tickets.jsonl` at the spec §12.1 distribution:
+174 cases in `evals/golden/tickets.jsonl`: 150 at the spec §12.1 distribution, then 24 `edge` cases (underspecified, PII next to an answerable request, answers split across chunks, near misses; [`SCHEMA.md`](../evals/golden/SCHEMA.md)). The 150:
 
 | Tag | Share | Purpose |
 |---|---|---|
