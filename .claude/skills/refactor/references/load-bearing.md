@@ -87,9 +87,11 @@ Format: **what** — why it exists — *what guards it*.
 - **Outcome membership checked by identity (`is`), not `in`** (`BaseNode.produces`). A `StrEnum` from
   another node with the same value compares equal.
   *`test_compiler.py::test_equal_valued_outcome_from_another_enum_raises`.*
-- **Validation-field defaults read "failed"**, and **`_checks(*, …)` has no
-  defaults.** `emit_signals` must never report checks that nobody ran as passing.
-  *`test_state.py::test_missing_validation_reads_as_every_check_failed`.*
+- **Validation-field defaults read "failed"**, and **every `ValidateNode` exit
+  returns all six checks.** `emit_signals` must never report checks that nobody ran
+  as passing, and a check an exit leaves out silently reads as failed (on a route
+  proposal that lowers trust). *`test_state.py::test_missing_validation_reads_as_every_check_failed`;
+  the whole-update assertions in `test_validate.py`, one per exit.*
 - **`_POLICY_FALLBACK_DENY` is a private constant, not a setting.** No configuration
   may turn a failed lookup into "auto-reply allowed". *Its comment in
   `graph/nodes/emit_signals.py`.*

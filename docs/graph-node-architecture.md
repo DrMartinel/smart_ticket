@@ -143,8 +143,8 @@ a threshold reads `final_score()`, Jev's.
 
 The validation defaults read as "every check failed": refuse-before-LLM skips
 the validator, and `emit_signals` must not report passing checks nobody ran.
-`ValidateNode` writes every check on every path (through `_checks`, which has
-no defaults), so no path can silently leave a check at its default.
+`ValidateNode` writes every check on every path, and `test_validate.py` pins
+each path's whole update, so no path can silently leave a check at its default.
 
 List-valued fields (`candidates`, `reranked`, `fewshots`) deliberately have
 **no reducer**. Each is owned by exactly one node. Add a reducer

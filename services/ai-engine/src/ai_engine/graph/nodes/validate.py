@@ -103,58 +103,35 @@ def _best_fuzzy(quote: str, topk: dict[uuid.UUID, str]) -> tuple[uuid.UUID | Non
     return best_id, best_ratio
 
 
-def _checks(
-    *,
-    schema_valid: bool,
-    quote_applicable: bool,
-    quote_match_ratio: float,
-    quote_source_in_topk: bool,
-    negation_consistent: bool,
-    category_consistent: bool,
-) -> dict[str, Any]:
-    """Every check's outcome as a state update. No defaults on purpose: every
-    path must state each check explicitly."""
-
-    return {
-        "schema_valid": schema_valid,
-        "quote_applicable": quote_applicable,
-        "quote_match_ratio": quote_match_ratio,
-        "quote_source_in_topk": quote_source_in_topk,
-        "negation_consistent": negation_consistent,
-        "category_consistent": category_consistent,
-    }
-
-
-ALL_FAILED = _checks(
-    schema_valid=False,
-    quote_applicable=False,
-    quote_match_ratio=0.0,
-    quote_source_in_topk=False,
-    negation_consistent=False,
-    category_consistent=False,
-)
-
-
 class ValidateNode(BaseNode):
+    """Every exit returns all six checks. A check left out would not fail
+    loudly: it reads as its "failed" state default, so a deliberate pass
+    (negation and category on a route proposal) would silently lower trust.
+    test_validate.py pins each exit's whole update."""
+
     def __call__(self, state: TriageState) -> dict[str, Any]:
-        proposal = state.proposal
-        reranked = state.reranked
+        if state.proposal is None:
+            return {
+                "schema_valid": False,
+                "quote_applicable": False,
+                "quote_match_ratio": 0.0,
+                "quote_source_in_topk": False,
+                "negation_consistent": False,
+                "category_consistent": False,
+            }
 
-        if proposal is None:
-            return ALL_FAILED
+        if not isinstance(state.proposal.root, AutoReplyProposal):
+            return {
+                "schema_valid": True,
+                "quote_applicable": False,
+                "quote_match_ratio": 0.0,
+                "quote_source_in_topk": False,
+                "negation_consistent": True,
+                "category_consistent": True,
+            }
 
-        if not isinstance(proposal.root, AutoReplyProposal):
-            return _checks(
-                schema_valid=True,
-                quote_applicable=False,
-                quote_match_ratio=0.0,
-                quote_source_in_topk=False,
-                negation_consistent=True,
-                category_consistent=True,  # checked by core-api's router against KB category
-            )
-
-        quote = normalize_ws(proposal.root.verbatim_quote)
-        topk = {c.chunk_id: normalize_ws(c.content) for c in reranked}
+        quote = normalize_ws(state.proposal.root.verbatim_quote)
+        topk = {c.chunk_id: normalize_ws(c.content) for c in state.reranked}
 
         # 1. Exact substring first.
         source = next((cid for cid, txt in topk.items() if quote in txt), None)
@@ -164,27 +141,26 @@ class ValidateNode(BaseNode):
         if source is None:
             cid, ratio = _best_fuzzy(quote, topk)
             source = cid if ratio >= settings.quote_fuzzy_threshold else None
-            if source is None:
-                ratio = 0.0 if cid is None else ratio
 
         # 3. Source must be in the retrieved top-k.
         in_topk = source is not None
 
         # 4. Negation check — fuzzy match cannot catch this. Against the raw
         # chunk, whose line breaks still mark list items.
-        neg_ok = False
-        if source is not None:
-            content = next(c.content for c in reranked if c.chunk_id == source)
-            neg_ok = _negations_in(quote) == _negations_in(_enclosing_sentences(quote, content))
-
-        return _checks(
-            schema_valid=True,
-            quote_applicable=True,
-            quote_match_ratio=ratio,
-            quote_source_in_topk=in_topk,
-            negation_consistent=neg_ok,
-            category_consistent=True,
+        neg_ok = source is not None and _negations_in(quote) == _negations_in(
+            _enclosing_sentences(
+                quote, next(c.content for c in state.reranked if c.chunk_id == source)
+            )
         )
+
+        return {
+            "schema_valid": True,
+            "quote_applicable": True,
+            "quote_match_ratio": ratio,
+            "quote_source_in_topk": in_topk,
+            "negation_consistent": neg_ok,
+            "category_consistent": True,
+        }
 
 
 validate = ValidateNode()

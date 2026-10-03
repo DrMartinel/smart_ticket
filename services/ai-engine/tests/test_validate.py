@@ -42,7 +42,27 @@ def test_no_proposal_is_schema_invalid(make_state):
     assert out["schema_valid"] is False
 
 
+def test_no_proposal_reports_every_check_failed(make_state):
+    """With no proposal nothing was checked, so nothing may read as passed:
+    core-api scores and routes on these fields, and a stray True here
+    would be a check that never ran counting in the ticket's favour."""
+
+    out = validate(make_state(proposal=None, reranked=[]))
+    assert out == {
+        "schema_valid": False,
+        "quote_applicable": False,
+        "quote_match_ratio": 0.0,
+        "quote_source_in_topk": False,
+        "negation_consistent": False,
+        "category_consistent": False,
+    }
+
+
 def test_route_proposal_skips_quote_check(make_state):
+    """Every check, not just the quote ones: negation and category pass here
+    on purpose, and both are trust features for a route proposal. One left
+    out would read as failed and lower every route's trust silently."""
+
     proposal = LLMProposalEnvelope(
         root=RouteProposal(
             proposed_intent="route_to_team",
@@ -52,18 +72,31 @@ def test_route_proposal_skips_quote_check(make_state):
         )
     )
     state = make_state(proposal=proposal, reranked=[chunk(1, "some content")])
-    out = validate(state)
-    assert out["schema_valid"] is True
-    assert out["quote_applicable"] is False
+    assert validate(state) == {
+        "schema_valid": True,
+        "quote_applicable": False,
+        "quote_match_ratio": 0.0,
+        "quote_source_in_topk": False,
+        "negation_consistent": True,
+        "category_consistent": True,
+    }
 
 
 def test_exact_substring_match(make_state):
+    """The whole update, so no check on the auto-reply path can go missing
+    and fall back to its "failed" default unnoticed."""
+
     source = "Kiểm tra phím Caps Lock có đang bật không. Sau đó khởi động lại máy."
     quote = "Kiểm tra phím Caps Lock có đang bật không."
     state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
-    out = validate(state)
-    assert out["quote_match_ratio"] == 1.0
-    assert out["quote_source_in_topk"] is True
+    assert validate(state) == {
+        "schema_valid": True,
+        "quote_applicable": True,
+        "quote_match_ratio": 1.0,
+        "quote_source_in_topk": True,
+        "negation_consistent": True,
+        "category_consistent": True,
+    }
 
 
 def test_quote_not_found_anywhere_fails_source_check(make_state):
@@ -73,6 +106,20 @@ def test_quote_not_found_anywhere_fails_source_check(make_state):
     )
     out = validate(state)
     assert out["quote_source_in_topk"] is False
+
+
+def test_a_quote_with_no_source_is_not_negation_consistent(make_state):
+    """With no source there is no sentence to compare against, so the
+    negation check never ran and must read as failed. Comparing the quote
+    with nothing would pass every quote that has no negation in it."""
+
+    state = make_state(
+        proposal=auto_reply("Your WorkSpace will be rebuilt automatically every week."),
+        reranked=[chunk(1, "You can rebuild a WorkSpace from the Amazon WorkSpaces console.")],
+    )
+    out = validate(state)
+    assert out["quote_source_in_topk"] is False
+    assert out["negation_consistent"] is False
 
 
 def test_quote_found_verbatim_in_a_later_chunk_is_in_topk(make_state):

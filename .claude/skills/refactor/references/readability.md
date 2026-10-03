@@ -100,10 +100,10 @@ One line is fine when there is no contract beyond the name.
 - **Guard clauses and early returns** over nested `if`/`else`
   (`ValidateNode.__call__`, `RerankNode.decide`).
 - **Keyword-only parameters** once there are several, or when two are easy to swap:
-  `_checks(*, schema_valid, …)` in `validate.py`, `_block(reason_code, *, detail="")`
+  `_block(reason_code, *, detail="")`
   in `router.py`, `ChatClient.__init__(self, *, model, chat_model, …)`.
-- **No defaults where every caller must decide.** `validate.py`'s `_checks` has none,
-  so no code path can silently leave a check at its default.
+- **No defaults where every caller must decide.** `router.py`'s `route()` takes its
+  thresholds with none, so no call can route on a forgotten default (CLAUDE.md rule 1).
 - **Flat over nested; small but not fragmented.** A helper that has one caller and
   wraps one call gets inlined (commit e6d55c9). A helper that names an idea used in
   several places, or isolates a boundary, stays.
