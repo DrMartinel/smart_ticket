@@ -216,3 +216,132 @@
 {"run":"2026-10-02-probe-qwen3-reranker-4b-capped","metric":"latency_p95_s","value":5.196,"n":83,"labels":{"component":"qwen3-reranker-4b/resolves, cross-encoder top 15 per ticket"}}
 {"run":"2026-10-02-probe-qwen3-reranker-4b-capped","metric":"latency_p50_s","value":4.009,"n":83,"labels":{"component":"qwen3-reranker-4b/resolves, cross-encoder top 20 per ticket"}}
 {"run":"2026-10-02-probe-qwen3-reranker-4b-capped","metric":"latency_p95_s","value":6.653,"n":83,"labels":{"component":"qwen3-reranker-4b/resolves, cross-encoder top 20 per ticket"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7667,"n":60,"labels":{"variant":"production","pool":"production","scorer":"cross_encoder"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"},"cases":["g008","g011","g012","g036","g046","g048","g050","g051","g052","g053","g055","g056","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Jev “resolves”, top 5 above floor","pool":"production","scorer":"jev/resolves","k":"5"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Jev “resolves”, top 5 above floor","pool":"production","scorer":"jev/resolves","k":"5"},"cases":["g036"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Jev “resolves”, top 5 above floor","pool":"production","scorer":"jev/resolves","k":"5"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Jev “resolves”, top 8 above floor","pool":"production","scorer":"jev/resolves","k":"8"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Jev “resolves”, top 8 above floor","pool":"production","scorer":"jev/resolves","k":"8"},"cases":["g036"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Jev “resolves”, top 8 above floor","pool":"production","scorer":"jev/resolves","k":"8"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Jev “resolves”, top 10 above floor","pool":"production","scorer":"jev/resolves","k":"10"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Jev “resolves”, top 10 above floor","pool":"production","scorer":"jev/resolves","k":"10"},"cases":["g036"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Jev “resolves”, top 10 above floor","pool":"production","scorer":"jev/resolves","k":"10"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Jev “resolves” ranks the whole pool","pool":"production","scorer":"jev/resolves","order":"sole_ranker"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Jev “resolves” ranks the whole pool","pool":"production","scorer":"jev/resolves","order":"sole_ranker"},"cases":["g036"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Jev “resolves” ranks the whole pool","pool":"production","scorer":"jev/resolves","order":"sole_ranker"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Jev “relevant”, top 5 above floor","pool":"production","scorer":"jev/relevant","k":"5"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Jev “relevant”, top 5 above floor","pool":"production","scorer":"jev/relevant","k":"5"},"cases":["g036"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Jev “relevant”, top 5 above floor","pool":"production","scorer":"jev/relevant","k":"5"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Jev “relevant”, top 8 above floor","pool":"production","scorer":"jev/relevant","k":"8"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Jev “relevant”, top 8 above floor","pool":"production","scorer":"jev/relevant","k":"8"},"cases":["g036"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Jev “relevant”, top 8 above floor","pool":"production","scorer":"jev/relevant","k":"8"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Jev “relevant”, top 10 above floor","pool":"production","scorer":"jev/relevant","k":"10"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Jev “relevant”, top 10 above floor","pool":"production","scorer":"jev/relevant","k":"10"},"cases":["g036"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Jev “relevant”, top 10 above floor","pool":"production","scorer":"jev/relevant","k":"10"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.7833,"n":60,"labels":{"variant":"production, Jev “relevant” ranks the whole pool","pool":"production","scorer":"jev/relevant","order":"sole_ranker"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":1.0,"labels":{"variant":"production, Jev “relevant” ranks the whole pool","pool":"production","scorer":"jev/relevant","order":"sole_ranker"},"cases":["g036"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"production, Jev “relevant” ranks the whole pool","pool":"production","scorer":"jev/relevant","order":"sole_ranker"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.8,"n":60,"labels":{"variant":"links, cross-encoder","pool":"links","scorer":"cross_encoder"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":2.0,"labels":{"variant":"links, cross-encoder","pool":"links","scorer":"cross_encoder"},"cases":["g046","g051"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, cross-encoder","pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.8333,"n":60,"labels":{"variant":"links, Jev “resolves”, top 5 above floor","pool":"links","scorer":"jev/resolves","k":"5"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Jev “resolves”, top 5 above floor","pool":"links","scorer":"jev/resolves","k":"5"},"cases":["g036","g046","g051","g058"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “resolves”, top 5 above floor","pool":"links","scorer":"jev/resolves","k":"5"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links, Jev “resolves”, top 8 above floor","pool":"links","scorer":"jev/resolves","k":"8"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":5.0,"labels":{"variant":"links, Jev “resolves”, top 8 above floor","pool":"links","scorer":"jev/resolves","k":"8"},"cases":["g036","g046","g051","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “resolves”, top 8 above floor","pool":"links","scorer":"jev/resolves","k":"8"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links, Jev “resolves”, top 10 above floor","pool":"links","scorer":"jev/resolves","k":"10"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":5.0,"labels":{"variant":"links, Jev “resolves”, top 10 above floor","pool":"links","scorer":"jev/resolves","k":"10"},"cases":["g036","g046","g051","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “resolves”, top 10 above floor","pool":"links","scorer":"jev/resolves","k":"10"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.9167,"n":60,"labels":{"variant":"links, Jev “resolves” ranks the whole pool","pool":"links","scorer":"jev/resolves","order":"sole_ranker"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":9.0,"labels":{"variant":"links, Jev “resolves” ranks the whole pool","pool":"links","scorer":"jev/resolves","order":"sole_ranker"},"cases":["g008","g036","g046","g050","g051","g052","g053","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “resolves” ranks the whole pool","pool":"links","scorer":"jev/resolves","order":"sole_ranker"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.8167,"n":60,"labels":{"variant":"links, Jev “relevant”, top 5 above floor","pool":"links","scorer":"jev/relevant","k":"5"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":3.0,"labels":{"variant":"links, Jev “relevant”, top 5 above floor","pool":"links","scorer":"jev/relevant","k":"5"},"cases":["g036","g046","g051"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “relevant”, top 5 above floor","pool":"links","scorer":"jev/relevant","k":"5"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.8333,"n":60,"labels":{"variant":"links, Jev “relevant”, top 8 above floor","pool":"links","scorer":"jev/relevant","k":"8"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Jev “relevant”, top 8 above floor","pool":"links","scorer":"jev/relevant","k":"8"},"cases":["g036","g046","g051","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “relevant”, top 8 above floor","pool":"links","scorer":"jev/relevant","k":"8"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.8333,"n":60,"labels":{"variant":"links, Jev “relevant”, top 10 above floor","pool":"links","scorer":"jev/relevant","k":"10"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Jev “relevant”, top 10 above floor","pool":"links","scorer":"jev/relevant","k":"10"},"cases":["g036","g046","g051","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “relevant”, top 10 above floor","pool":"links","scorer":"jev/relevant","k":"10"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.9,"n":60,"labels":{"variant":"links, Jev “relevant” ranks the whole pool","pool":"links","scorer":"jev/relevant","order":"sole_ranker"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":8.0,"labels":{"variant":"links, Jev “relevant” ranks the whole pool","pool":"links","scorer":"jev/relevant","order":"sole_ranker"},"cases":["g008","g036","g046","g050","g051","g052","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “relevant” ranks the whole pool","pool":"links","scorer":"jev/relevant","order":"sole_ranker"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.85,"n":60,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 10","pool":"links","scorer":"jev/resolves","k":"10","order":"capped"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":5.0,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 10","pool":"links","scorer":"jev/resolves","k":"10","order":"capped"},"cases":["g036","g046","g051","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 10","pool":"links","scorer":"jev/resolves","k":"10","order":"capped"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.9167,"n":60,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 15","pool":"links","scorer":"jev/resolves","k":"15","order":"capped"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":9.0,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 15","pool":"links","scorer":"jev/resolves","k":"15","order":"capped"},"cases":["g008","g036","g046","g050","g051","g052","g053","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 15","pool":"links","scorer":"jev/resolves","k":"15","order":"capped"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.9167,"n":60,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 20","pool":"links","scorer":"jev/resolves","k":"20","order":"capped"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":9.0,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 20","pool":"links","scorer":"jev/resolves","k":"20","order":"capped"},"cases":["g008","g036","g046","g050","g051","g052","g053","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 20","pool":"links","scorer":"jev/resolves","k":"20","order":"capped"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.9167,"n":60,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 30","pool":"links","scorer":"jev/resolves","k":"30","order":"capped"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":9.0,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 30","pool":"links","scorer":"jev/resolves","k":"30","order":"capped"},"cases":["g008","g036","g046","g050","g051","g052","g053","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “resolves” ranks cross-encoder top 30","pool":"links","scorer":"jev/resolves","k":"30","order":"capped"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.8333,"n":60,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 10","pool":"links","scorer":"jev/relevant","k":"10","order":"capped"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":4.0,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 10","pool":"links","scorer":"jev/relevant","k":"10","order":"capped"},"cases":["g036","g046","g051","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 10","pool":"links","scorer":"jev/relevant","k":"10","order":"capped"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.9,"n":60,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 15","pool":"links","scorer":"jev/relevant","k":"15","order":"capped"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":8.0,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 15","pool":"links","scorer":"jev/relevant","k":"15","order":"capped"},"cases":["g008","g036","g046","g050","g051","g052","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 15","pool":"links","scorer":"jev/relevant","k":"15","order":"capped"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.9,"n":60,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 20","pool":"links","scorer":"jev/relevant","k":"20","order":"capped"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":8.0,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 20","pool":"links","scorer":"jev/relevant","k":"20","order":"capped"},"cases":["g008","g036","g046","g050","g051","g052","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 20","pool":"links","scorer":"jev/relevant","k":"20","order":"capped"}}
+{"run":"2026-10-02-probe-jev","metric":"retrieval_recall_at_3","value":0.9,"n":60,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 30","pool":"links","scorer":"jev/relevant","k":"30","order":"capped"},"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-probe-jev","metric":"misses_recovered","value":8.0,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 30","pool":"links","scorer":"jev/relevant","k":"30","order":"capped"},"cases":["g008","g036","g046","g050","g051","g052","g058","g060"]}
+{"run":"2026-10-02-probe-jev","metric":"cases_lost","value":0.0,"labels":{"variant":"links, Jev “relevant” ranks cross-encoder top 30","pool":"links","scorer":"jev/relevant","k":"30","order":"capped"}}
+{"run":"2026-10-02-probe-jev","metric":"auroc_gold_vs_rest","value":0.6215,"n":47,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"gold_ranked_first","value":38.0,"n":47,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"refusal_separation_auroc","value":1.0,"n":83,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"kb_refused_at_safe_threshold","value":0.0,"n":60,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"oob_top1_max","value":0.0985,"n":23,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"rerank_margin_median","value":0.0086,"n":60,"labels":{"pool":"production","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"auroc_gold_vs_rest","value":0.7504,"n":47,"labels":{"pool":"production","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"gold_ranked_first","value":42.0,"n":47,"labels":{"pool":"production","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"refusal_separation_auroc","value":0.9975,"n":83,"labels":{"pool":"production","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"kb_refused_at_safe_threshold","value":1.0,"n":60,"labels":{"pool":"production","scorer":"jev/resolves"},"cases":["g055"]}
+{"run":"2026-10-02-probe-jev","metric":"oob_top1_max","value":0.12,"n":23,"labels":{"pool":"production","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"rerank_margin_median","value":0.075,"n":60,"labels":{"pool":"production","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"auroc_gold_vs_rest","value":0.7585,"n":47,"labels":{"pool":"production","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"gold_ranked_first","value":42.0,"n":47,"labels":{"pool":"production","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"refusal_separation_auroc","value":1.0,"n":83,"labels":{"pool":"production","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"kb_refused_at_safe_threshold","value":0.0,"n":60,"labels":{"pool":"production","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"oob_top1_max","value":0.34,"n":23,"labels":{"pool":"production","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"rerank_margin_median","value":0.01,"n":60,"labels":{"pool":"production","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"auroc_gold_vs_rest","value":0.7199,"n":56,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"gold_ranked_first","value":38.0,"n":56,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"refusal_separation_auroc","value":1.0,"n":83,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"kb_refused_at_safe_threshold","value":0.0,"n":60,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"oob_top1_max","value":0.1007,"n":23,"labels":{"pool":"links","scorer":"cross_encoder"}}
+{"run":"2026-10-02-probe-jev","metric":"auroc_gold_vs_rest","value":0.8403,"n":56,"labels":{"pool":"links","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"gold_ranked_first","value":51.0,"n":56,"labels":{"pool":"links","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"refusal_separation_auroc","value":1.0,"n":83,"labels":{"pool":"links","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"kb_refused_at_safe_threshold","value":0.0,"n":60,"labels":{"pool":"links","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"oob_top1_max","value":0.12,"n":23,"labels":{"pool":"links","scorer":"jev/resolves"}}
+{"run":"2026-10-02-probe-jev","metric":"auroc_gold_vs_rest","value":0.8469,"n":56,"labels":{"pool":"links","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"gold_ranked_first","value":47.0,"n":56,"labels":{"pool":"links","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"refusal_separation_auroc","value":1.0,"n":83,"labels":{"pool":"links","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"kb_refused_at_safe_threshold","value":0.0,"n":60,"labels":{"pool":"links","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"oob_top1_max","value":0.34,"n":23,"labels":{"pool":"links","scorer":"jev/relevant"}}
+{"run":"2026-10-02-probe-jev","metric":"model_calls","value":5617.0,"labels":{"component":"jev-1.13.0, one request, two Nouls"}}
+{"run":"2026-10-02-probe-jev","metric":"latency_p50_s","value":0.237,"labels":{"component":"jev-1.13.0, one request (one chunk)"}}
+{"run":"2026-10-02-probe-jev","metric":"latency_p95_s","value":0.293,"labels":{"component":"jev-1.13.0, one request (one chunk)"}}
+{"run":"2026-10-02-full-jev","metric":"category_f1","value":0.9655172413793104,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-02-full-jev","metric":"category_f1","value":0.967741935483871,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-02-full-jev","metric":"category_f1","value":1.0,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-02-full-jev","metric":"category_f1","value":0.9302325581395349,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-02-full-jev","metric":"category_f1","value":0.888888888888889,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-02-full-jev","metric":"category_f1","value":1.0,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-02-full-jev","metric":"branch_accuracy","value":0.9172413793103448,"n":145}
+{"run":"2026-10-02-full-jev","metric":"auto_reply_precision","value":0.8888888888888888,"n":18,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-02-full-jev","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-02-full-jev","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-02-full-jev","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-02-full-jev","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-02-full-jev","metric":"retrieval_mrr","value":0.8722222222222222,"n":60}
+{"run":"2026-10-02-full-jev","metric":"gold_use","value":40.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-02-full-jev","metric":"gold_use","value":6.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-02-full-jev","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-02-full-jev","metric":"gold_use","value":9.0,"labels":{"outcome":"other"}}

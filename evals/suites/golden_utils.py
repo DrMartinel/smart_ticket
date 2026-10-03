@@ -13,6 +13,7 @@ from __future__ import annotations
 import functools
 import json
 import os
+
 from pathlib import Path
 
 import httpx
@@ -80,10 +81,15 @@ def record_metric(name: str, value: float, **extra) -> None:
     RESULTS_PATH.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n")
 
 
-def analyze(
-    client: httpx.Client, subject: str, body: str, *, retrieval_floor: float = 0.45
-) -> dict:
+def analyze(client: httpx.Client, subject: str, body: str, *, never_refuse: bool = False) -> dict:
+    """POST /v1/analyze with thresholds.yaml's floor, or 0.0 when
+    `never_refuse`, so the model always answers."""
+
+    from django.conf import settings
+
     from apps.tickets.utils.patterns import PIILevel
+
+    floor = 0.0 if never_refuse else settings.THRESHOLDS.retrieval_floor
 
     req = {
         "request_id": f"eval-{hash((subject, body)) & 0xFFFFFFFF}",
@@ -94,7 +100,7 @@ def analyze(
             "pii_level": PIILevel.ROUTINE.value,
             "placeholder_keys": [],
         },
-        "retrieval_floor": retrieval_floor,
+        "retrieval_floor": floor,
     }
     resp = client.post("/v1/analyze", json=req)
     resp.raise_for_status()

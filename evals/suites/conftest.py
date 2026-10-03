@@ -20,10 +20,6 @@ import httpx
 import pytest
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
-os.environ.setdefault(
-    "DATABASE_URL", "postgresql://app_user:app_password@localhost:5434/smart_triage"
-)
-os.environ.setdefault("SECRET_KEY", "eval-harness-key")
 os.environ.setdefault("EMBEDDING_PROVIDER", "stub")
 django.setup()
 

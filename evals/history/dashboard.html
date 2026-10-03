@@ -16,6 +16,8 @@
   --s3: #1baf7a;
   --s4: #eda100;
   --s5: #e87ba4;
+  --s6: #7c5cd6;
+  --s7: #4f8a9c;
   --good: #0ca30c;
   --good-text: #006300;
   --critical: #d03b3b;
@@ -29,14 +31,14 @@
     color-scheme: dark;
     --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a988f;
     --grid: #2c2c2a; --axis: #45453f; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.05);
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9a80ee; --s7: #6fb0c4; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
   }
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
   --page: #0d0d0d; --surface: #1a1a19; --ink: #ffffff; --ink-2: #c3c2b7; --muted: #9a988f;
   --grid: #2c2c2a; --axis: #45453f; --ring: rgba(255, 255, 255, 0.10); --wash: rgba(255, 255, 255, 0.05);
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #9a80ee; --s7: #6fb0c4; --good-text: #0ca30c; --critical-text: #e66767; --gate: #c3c2b7;
 }
 * { box-sizing: border-box; }
 body { background: var(--page); color: var(--ink); font: 14px/1.5 var(--sans); }
@@ -53,12 +55,17 @@ section { display: grid; gap: 12px; }
 .panel { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 16px; min-width: 0; }
 
 /* gate tiles */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
 .tile { display: grid; gap: 6px; align-content: start; }
 .tile .name { font-size: 13px; color: var(--ink-2); }
 .tile .value { font-size: 28px; font-weight: 650; line-height: 1.1; letter-spacing: -.01em; }
 .tile .meta { font-size: 12px; color: var(--muted); }
-.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 8px 2px 6px; border-radius: 999px; width: fit-content; }
+.tile .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tile .pair > div { display: grid; gap: 4px; align-content: start; }
+.tile .side { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.tile .pair .value { font-size: 22px; }
+.tile .pair .cand .value { color: var(--s6); }
+.pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; padding: 2px 8px 2px 6px; border-radius: 999px; width: fit-content; white-space: nowrap; }
 .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 .pill.pass { color: var(--good-text); background: color-mix(in srgb, var(--good) 12%, transparent); }
 .pill.fail { color: var(--critical-text); background: color-mix(in srgb, var(--critical) 12%, transparent); }
@@ -67,6 +74,9 @@ section { display: grid; gap: 12px; }
 .pill.kind-suite_run { color: var(--ink-2); background: var(--wash); }
 .pill.kind-probe { color: var(--ink-2); background: transparent; box-shadow: inset 0 0 0 1px var(--axis); }
 .pill.kind-full_run::before, .pill.kind-suite_run::before, .pill.kind-probe::before { display: none; }
+.pill.cand { color: var(--s6); background: color-mix(in srgb, var(--s6) 12%, transparent); }
+.pill.cand::before { display: none; }
+th.cand { color: var(--s6); }
 
 /* charts */
 .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
@@ -246,16 +256,23 @@ footer { color: var(--muted); font-size: 12px; }
       if (p.tick2) text(svg, x(i), H - m.b + 32, p.tick2, { "text-anchor": "middle" });
       lab.setAttribute("class", "lab");
     });
-    const d = pts.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.v)}`).join("");
-    svgEl("path", { d, fill: "none", stroke: "var(--s1)", "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }, svg);
+    // One segment per step: dashed into a candidate run, which is a
+    // configuration under test, not a step the shipped pipeline took.
+    pts.slice(1).forEach((p, i) => {
+      svgEl("line", { x1: x(i), y1: y(pts[i].v), x2: x(i + 1), y2: y(p.v), stroke: p.cand ? "var(--s6)" : "var(--s1)", "stroke-width": 2,
+        "stroke-linecap": "round", ...(p.cand ? { "stroke-dasharray": "4 4" } : {}) }, svg);
+    });
     pts.forEach((p, i) => {
       const pass = gate ? gate.op === ">=" ? p.v >= gate.value : p.v <= gate.value : null;
-      svgEl("circle", { cx: x(i), cy: y(p.v), r: 4.5, fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
+      svgEl("circle", p.cand
+        ? { cx: x(i), cy: y(p.v), r: 4.5, fill: "var(--surface)", stroke: "var(--s6)", "stroke-width": 2.5 }
+        : { cx: x(i), cy: y(p.v), r: 4.5, fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2 }, svg);
       const last = i === pts.length - 1;
       if (last || i === 0) text(svg, x(i), y(p.v) - 10, fmt(p.v, unit), { "text-anchor": "middle", class: "val" });
       const hit = svgEl("rect", { x: x(i) - 18, y: m.t, width: 36, height: ih, class: "hit" }, svg);
       bindTip(hit, `<b>${fmt(p.v, unit)}${p.n ? ` · n=${p.n}` : ""}</b>`
         + (pass === null ? "" : `<div class="t-row">${pass ? "✓ meets" : "✕ below"} gate ${gate.op} ${gate.value} (${esc(gate.basis)})</div>`)
+        + (p.cand ? `<div class="t-row">Candidate, not shipped: ${esc(p.cand)}</div>` : "")
         + `<div class="t-row">${esc(p.run.title)}</div><div class="t-row mono">${esc(p.run.id)} · ${esc(p.run.config.code ?? "")}</div>`);
     });
     host.replaceChildren(svg);
@@ -332,44 +349,73 @@ footer { color: var(--muted); font-size: 12px; }
     const runById = Object.fromEntries(runs.map((r) => [r.id, r]));
     const order = Object.fromEntries(runs.map((r, i) => [r.id, i]));
     const official = runs.filter((r) => r.kind !== "probe");
+    // A candidate run measures a configuration that doesn't ship: its config
+    // turns on something the pipeline has off by default (ADR-0015's second
+    // reranker, link expansion). Keyed on the recorded config, so a run of the
+    // shipped pipeline is never mislabeled by its title.
+    const candidateOf = (r) => {
+      const c = r?.config ?? {};
+      const parts = [c.second_reranker, c.link_expansion ? "links" : null].filter(Boolean);
+      return parts.length ? parts.join(" + ") : null;
+    };
     const unlabeled = (m) => !m.labels || Object.keys(m.labels).length === 0;
     const tickOf = (r) => {
       const d = r.date.slice(5).replace("-", "/");
       const ids = official.filter((o) => o.date === r.date).map((o) => o.id);
+      if (candidateOf(r)) return [d, "candidate"];
       return ids.length > 1 ? [d, `run ${ids.indexOf(r.id) + 1}/${ids.length}`] : [d, ""];
     };
 
     // Gate tiles
     const GATED = [["retrieval_recall_at_3", "Retrieval recall@3"], ["auto_reply_precision", "Auto-reply precision"],
       ["refusal_rate", "Out-of-KB refusal"], ["injection_recall", "Injection recall"], ["quote_validation_precision", "Quote validation"]];
+    const passes = (m) => (m.gate ? (m.gate.op === ">=" ? m.value >= m.gate.value : m.value <= m.gate.value) : null);
+    const pill = (m) => { const ok = passes(m); return `<span class="pill ${ok ? "pass" : "fail"}">${ok ? "Meets" : "Below"} ${m.gate.op.replace(">=", "≥").replace("<=", "≤")} ${m.gate.value}</span>`; };
+    const metaOf = (m) => { const r = runById[m.run]; return `${r.date} · ${r.kind.replace("_", " ")}${m.n ? ` · n=${m.n}` : ""}`; };
+    // The shipped pipeline's latest number, and beside it a candidate's when
+    // one was measured after it: "now" is what ships, never a configuration
+    // still under test.
     const tiles = GATED.map(([key, name]) => {
       const rows = metrics.filter((m) => m.metric === key && unlabeled(m) && runById[m.run]?.kind !== "probe")
         .sort((p, q) => order[p.run] - order[q.run]);
-      const m = rows.at(-1);
-      if (!m) return `<div class="panel tile"><div class="name">${name}</div><div class="value" style="color:var(--muted)">—</div>
+      const base = rows.filter((m) => !candidateOf(runById[m.run])).at(-1);
+      const cand = rows.at(-1) && candidateOf(runById[rows.at(-1).run]) ? rows.at(-1) : null;
+      if (!base && !cand) return `<div class="panel tile"><div class="name">${name}</div><div class="value" style="color:var(--muted)">—</div>
         <span class="pill none">No number recorded yet</span><div class="meta">Recorded from the next run on (record_metric added 2026-10-01)</div></div>`;
-      const run = runById[m.run], pass = m.gate ? (m.gate.op === ">=" ? m.value >= m.gate.value : m.value <= m.gate.value) : null;
-      return `<div class="panel tile"><div class="name">${name}</div><div class="value">${m.value.toFixed(3)}</div>
-        <span class="pill ${pass ? "pass" : "fail"}">${pass ? "Meets gate" : "Below gate"} ${m.gate.op} ${m.gate.value}</span>
-        <div class="meta">${run.date} · ${run.kind.replace("_", " ")}${m.n ? ` · n=${m.n}` : ""}</div></div>`;
+      if (!cand) return `<div class="panel tile"><div class="name">${name}</div><div class="value">${base.value.toFixed(3)}</div>
+        ${pill(base)}<div class="meta">${metaOf(base)}</div></div>`;
+      const side = (m, label, cls) => m
+        ? `<div class="${cls}"><span class="side">${label}</span><div class="value">${m.value.toFixed(3)}</div>${pill(m)}<div class="meta">${metaOf(m)}</div></div>`
+        : `<div class="${cls}"><span class="side">${label}</span><div class="value" style="color:var(--muted)">—</div></div>`;
+      return `<div class="panel tile"><div class="name">${name}</div><div class="pair">${side(base, "Baseline", "")}${side(cand, "Candidate", "cand")}</div></div>`;
     });
     // Category F1 as one tile: how many categories meet, never an average.
     const f1Runs = official.filter((r) => metrics.some((m) => m.run === r.id && m.metric === "category_f1"));
-    const lastF1 = f1Runs.at(-1);
-    if (lastF1) {
-      const rows = metrics.filter((m) => m.run === lastF1.id && m.metric === "category_f1");
+    const f1Side = (run, label, cls) => {
+      const rows = metrics.filter((m) => m.run === run.id && m.metric === "category_f1");
       const ok = rows.filter((m) => m.value >= m.gate.value).length;
       const worst = rows.reduce((a, b) => (b.value < a.value ? b : a));
-      tiles.splice(2, 0, `<div class="panel tile"><div class="name">Category F1</div><div class="value">${ok}<span style="font-size:16px;color:var(--muted)"> / ${rows.length}</span></div>
-        <span class="pill ${ok === rows.length ? "pass" : "fail"}">${ok === rows.length ? "All categories meet" : "Some below"} ≥ 0.85</span>
-        <div class="meta">${lastF1.date} · lowest: ${esc(worst.labels.category)} ${worst.value.toFixed(2)}</div></div>`);
+      return `<div class="${cls}">${label ? `<span class="side">${label}</span>` : ""}<div class="value">${ok}<span style="font-size:16px;color:var(--muted)"> / ${rows.length}</span></div>
+        <span class="pill ${ok === rows.length ? "pass" : "fail"}">${ok === rows.length ? "All meet" : "Some below"} ≥ 0.85</span>
+        <div class="meta">${run.date} · lowest: ${esc(worst.labels.category)} ${worst.value.toFixed(2)}</div></div>`;
+    };
+    const baseF1 = f1Runs.filter((r) => !candidateOf(r)).at(-1);
+    const candF1 = f1Runs.at(-1) && candidateOf(f1Runs.at(-1)) ? f1Runs.at(-1) : null;
+    if (baseF1 || candF1) {
+      tiles.splice(2, 0, candF1
+        ? `<div class="panel tile"><div class="name">Category F1</div><div class="pair">${baseF1 ? f1Side(baseF1, "Baseline", "") : ""}${f1Side(candF1, "Candidate", "cand")}</div></div>`
+        : `<div class="panel tile"><div class="name">Category F1</div>${f1Side(baseF1, "", "")}</div>`);
     }
     $("#tiles").innerHTML = tiles.join("");
+    const lastOfficial = official.at(-1);
+    $("#gates-note").textContent = candidateOf(lastOfficial)
+      ? `Latest run of the shipped pipeline, beside the candidate measured after it (${candidateOf(lastOfficial)}, not shipped). Probes never count.`
+      : "Latest full or suite run that measured each gated metric. Probes never count.";
 
     // Trend charts
     const series = (key) => metrics.filter((m) => m.metric === key && unlabeled(m) && runById[m.run]?.kind !== "probe")
       .sort((p, q) => order[p.run] - order[q.run])
-      .map((m) => { const r = runById[m.run]; const [t1, t2] = tickOf(r); return { v: m.value, n: m.n, run: r, tick: t1, tick2: t2, gate: m.gate }; });
+      .map((m) => { const r = runById[m.run]; const [t1, t2] = tickOf(r); return { v: m.value, n: m.n, run: r, tick: t1, tick2: t2, gate: m.gate, cand: candidateOf(r) }; });
     const rec = series("retrieval_recall_at_3");
     lineChart($("#c-recall"), rec, { domain: [0.6, 1.0], gate: rec.at(-1)?.gate });
     const ar = series("auto_reply_precision");
@@ -378,7 +424,7 @@ footer { color: var(--muted); font-size: 12px; }
 
     // F1 table: category x run
     const cats = [...new Set(metrics.filter((m) => m.metric === "category_f1").map((m) => m.labels.category))].sort();
-    $("#t-f1").innerHTML = `<table class="f1"><thead><tr><th>Category</th>${f1Runs.map((r) => { const [a, b] = tickOf(r); return `<th class="num" title="${esc(r.title)}">${a}${b ? `<br>${b}` : ""}</th>`; }).join("")}</tr></thead><tbody>`
+    $("#t-f1").innerHTML = `<table class="f1"><thead><tr><th>Category</th>${f1Runs.map((r) => { const [a, b] = tickOf(r); return `<th class="num${candidateOf(r) ? " cand" : ""}" title="${esc(r.title)}">${a}${b ? `<br>${b}` : ""}</th>`; }).join("")}</tr></thead><tbody>`
       + cats.map((c) => `<tr><td>${esc(c)}</td>${f1Runs.map((r) => {
           const m = metrics.find((x) => x.run === r.id && x.metric === "category_f1" && x.labels.category === c);
           return m ? `<td class="cell num ${m.value < m.gate.value ? "below" : ""}">${m.value.toFixed(2)}</td>` : `<td class="cell num" style="color:var(--muted)">—</td>`;
@@ -392,9 +438,11 @@ footer { color: var(--muted); font-size: 12px; }
     const runBase = (runId) => metrics.find((x) => x.run === runId && x.metric === "retrieval_recall_at_3" && (x.labels?.variant === "production" || /^production, top3/.test(x.labels?.variant ?? "")))?.value ?? baseline;
     // Fixed slot per scorer, so a colour always means the same re-orderer.
     const COLORS = { cross_encoder: "var(--s1)", laya: "var(--s2)", "qwen3-8b": "var(--s3)",
-      "qwen3-reranker-4b/relevance": "var(--s4)", "qwen3-reranker-4b/resolves": "var(--s5)" };
+      "qwen3-reranker-4b/relevance": "var(--s4)", "qwen3-reranker-4b/resolves": "var(--s5)",
+      "jev/resolves": "var(--s6)", "jev/relevant": "var(--s7)" };
     const NAMES = { cross_encoder: "Cross-encoder order", laya: "Laya zero-shot re-orders", "qwen3-8b": "Qwen3-8B re-orders",
-      "qwen3-reranker-4b/relevance": "Qwen3-Reranker-4B, “relevance”", "qwen3-reranker-4b/resolves": "Qwen3-Reranker-4B, “resolves”" };
+      "qwen3-reranker-4b/relevance": "Qwen3-Reranker-4B, “relevance”", "qwen3-reranker-4b/resolves": "Qwen3-Reranker-4B, “resolves”",
+      "jev/resolves": "Jev, “resolves”", "jev/relevant": "Jev, “relevant”" };
     const scorerOf = (m) => m.labels?.scorer ?? "cross_encoder";
     const present = new Set(metrics.filter((m) => m.metric === "retrieval_recall_at_3" && runById[m.run]?.kind === "probe").map(scorerOf));
     legend($("#probe-legend"), Object.entries(NAMES).filter(([k]) => present.has(k)).map(([k, v]) => [COLORS[k], v]));
@@ -404,7 +452,7 @@ footer { color: var(--muted); font-size: 12px; }
       "2026-10-01-probe-topk": "Top-5", "2026-10-01-probe-adr14-multichunk": "Multi-chunk (current)",
       "2026-10-01-probe-laya-baseline": "Laya re-order", "2026-10-01-probe-llm-reorder-baseline": "LLM re-order",
       "2026-10-02-probe-qwen3-reranker-4b": "Reranker 4B", "2026-10-02-probe-qwen3-reranker-4b-sole": "4B as only ranker",
-      "2026-10-02-probe-qwen3-reranker-4b-capped": "4B, capped pool" };
+      "2026-10-02-probe-qwen3-reranker-4b-capped": "4B, capped pool", "2026-10-02-probe-jev": "Jev" };
     // A fresh ledger may have no probes yet: hide the section, not an empty chart.
     document.getElementById("probes-section").hidden = probeRuns.length === 0;
     let current = "all";
@@ -417,7 +465,8 @@ footer { color: var(--muted); font-size: 12px; }
         rows: metrics.filter((m) => m.run === r.id && isRecall(m)).map((m) => {
           const recd = sib(m, "misses_recovered"), lost = sib(m, "cases_lost");
           const label = shown((m.labels.variant ?? "").replace(/^production, |^links, /, (s) => s === "links, " ? "+ links, " : ""))
-            .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("Qwen3-Reranker-4B ", "4B ")
+            .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("Qwen3-Reranker-4B ", "4B ").replace(/Jev “(\w+)”(,)? /, "Jev $1 ").replace(/(Jev \w+) top (\d+) above floor$/, "$1 re-orders top $2")
+            .replace(/(Jev \w+) ranks the whole pool$/, "$1 ranks all").replace(/(Jev \w+) ranks cross-encoder top/, "$1 ranks CE top")
             .replace("qwen3-reranker-4b/resolves ranks the whole pool", "4B “resolves” ranks all").replace("cross_encoder ranks the whole pool", "cross-encoder ranks all")
             .replace(/cross-encoder top (\S+) → 4B “resolves” ranks/, "4B ranks CE top $1").replace("cross_encoder", "shown in CE order").replace("both_agree", "both orders agree");
           return {
@@ -475,7 +524,7 @@ footer { color: var(--muted); font-size: 12px; }
         <p class="notes">HISTORY.md: “${esc(r.history_entry)}” · source: ${esc(r.source)}</p></td></tr>`;
       return `<tr class="run" tabindex="0" aria-expanded="false" aria-controls="d-${r.id}" data-id="${r.id}">
         <td><span class="chev">▸</span> ${r.date}</td><td><span class="pill kind-${r.kind}">${r.kind.replace("_", " ")}</span></td>
-        <td style="white-space:normal;min-width:220px">${esc(shown(r.title))}</td><td class="mono">${esc(c.code ?? "")}</td>
+        <td style="white-space:normal;min-width:220px">${esc(shown(r.title))}${candidateOf(r) ? ` <span class="pill cand">candidate · ${esc(candidateOf(r))}</span>` : ""}</td><td class="mono">${esc(c.code ?? "")}</td>
         <td class="mono">${esc(c.prompt ?? "")}</td><td class="num">${dur(r.duration_s)}</td><td class="num">${counts[r.id] ?? 0}</td></tr>${detail}`;
     }).join("");
     const ledger = $("#ledger");

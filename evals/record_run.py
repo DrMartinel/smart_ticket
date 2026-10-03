@@ -12,7 +12,7 @@ By default it reads the suites' evals/.results.json. A probe passes its own
 numbers with --metrics (a JSON list of {"metric", "value", "n"?, "labels"?,
 "cases"?}). The configuration (commit, dirty files, golden and KB snapshot
 hashes, prompt and graph versions, thresholds, models from the stack's
-compose env file, --env-file, default infra/.env) is collected here; --set key=value adds or overrides an entry, e.g. the KB
+compose env file, --env-file, default .env) is collected here; --set key=value adds or overrides an entry, e.g. the KB
 counts, which need the database. --dry-run prints the rows instead.
 """
 
@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from datetime import date
@@ -35,7 +36,13 @@ from history import Metric, Run, RunKind, append, check, gate_for  # noqa: E402
 EVALS = Path(__file__).parent
 REPO = EVALS.parent
 RESULTS = EVALS / ".results.json"
-THRESHOLDS = REPO / "services/core-api/config/thresholds.yaml"
+# The file core-api loaded: THRESHOLDS_PATH overrides it there too, so a run
+# with a scratch thresholds file records the numbers it actually used.
+THRESHOLDS = Path(
+    os.environ.get("THRESHOLDS_PATH", REPO / "services/core-api/config/thresholds.yaml")
+)
+# Recorded under the names runs.jsonl has always used.
+_VERSION_KEYS = {"PROMPT_VERSION": "prompt", "GRAPH_VERSION": "graph"}
 ENV_KEYS = (
     "CHAT_MODEL",
     "EMBED_MODEL",
@@ -103,28 +110,27 @@ def collect_config(env: Path) -> dict[str, str | int | float | bool | None]:
             :12
         ],
     }
-    try:
-        from ai_engine.core.config import Settings
-
-        config["prompt"] = Settings.model_fields["prompt_version"].default
-        config["graph"] = Settings.model_fields["graph_version"].default
-    except ImportError:
-        pass
     thresholds = yaml.safe_load(THRESHOLDS.read_text())
     retrieval, routing = thresholds.get("retrieval", {}), thresholds.get("routing", {})
+    # `retrieval.floor` is on Jev's scale since ADR-0015; earlier runs
+    # recorded a cross-encoder floor under the same key.
     for key in ("floor", "rerank_top_n", "keyword_agreement_k"):
         if key in retrieval:
             config[f"retrieval.{key}"] = retrieval[key]
     for key in ("t_auto", "t_route"):
         if key in routing:
             config[key] = routing[key]
-    # The models the stack actually ran come from the compose env file, not
-    # from ai-engine's defaults, which a deployment overrides.
+    # What the stack actually ran: the .env compose and the services read.
     if env.exists():
         for line in env.read_text().splitlines():
             key, _, value = line.partition("=")
-            if key.strip() in ENV_KEYS and value.strip():
-                config[key.strip().lower()] = yaml.safe_load(value.strip())
+            key, value = key.strip(), value.strip()
+            if not value:
+                continue
+            if key in ENV_KEYS:
+                config[key.lower()] = yaml.safe_load(value)
+            elif key in _VERSION_KEYS:
+                config[_VERSION_KEYS[key]] = value
     return config
 
 
@@ -153,8 +159,8 @@ def main() -> None:
     p.add_argument(
         "--env-file",
         type=Path,
-        default=REPO / "infra/.env",
-        help="the stack's compose env, for model names (default infra/.env)",
+        default=REPO / ".env",
+        help="the stack's compose env, for model names (default .env)",
     )
     p.add_argument("--set", action="append", default=[], metavar="KEY=VALUE")
     p.add_argument("--dry-run", action="store_true")

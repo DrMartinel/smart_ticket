@@ -7,14 +7,8 @@ including the negation-flip case that's the whole reason §6.4 exists.
 """
 
 from uuid import UUID
-from ai_engine.core.state import (
-    AutoReplyProposal,
-    LLMProposalEnvelope,
-    PIILevel,
-    RankedChunk,
-    TicketMasked,
-    TriageState,
-)
+from ai_engine.schemas import AutoReplyProposal, LLMProposalEnvelope, PIILevel, TicketMasked
+from ai_engine.graph.state import RankedChunk, TriageState
 
 from ai_engine.graph.nodes.validate import validate
 from suites.golden_utils import record_metric
@@ -116,7 +110,7 @@ def _is_flagged(quote: str, sources: list[str]) -> bool:
             article_id=UUID(int=1),
             article_slug="KB-TEST",
             content=content,
-            score=0.9,
+            shortlist_score=0.9,
         )
         for i, content in enumerate(sources)
     ]

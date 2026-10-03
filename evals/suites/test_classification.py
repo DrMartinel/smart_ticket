@@ -15,7 +15,7 @@ documentation, so no `other` ticket (HR, facilities) can be KB-covered.
 Scoring only `kb_covered` would silently drop `other` from the
 per-category gate, which CLAUDE.md rule 9 forbids. Out-of-KB tickets still
 have a right category. The pipeline would refuse them before the LLM, but
-this suite runs with `retrieval_floor=0.0`, so the model always answers.
+this suite runs with `never_refuse=True` (floor 0.0), so the model always answers.
 
 On an out-of-KB case, `insufficient_context` counts as correct (decided
 2026-09-29, evals/HISTORY-archive.md). It names no category, but it is the answer
@@ -96,7 +96,7 @@ def test_per_category_f1_meets_threshold(ai_engine_client):
 
     for case in cases:
         truth = case["truth"]["category"]
-        result = analyze(ai_engine_client, case["subject"], case["body"], retrieval_floor=0.0)
+        result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
         predicted = _scored_category(case, result)
 
         if predicted == truth:

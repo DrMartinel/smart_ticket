@@ -6,7 +6,7 @@ chunks, so what is measured is Recall@3 and the metric is named for that.
 Until 2026-09-29 it was recorded as `retrieval_recall_at_5`; see
 evals/HISTORY-archive.md before comparing numbers across the rename.
 
-Live pipeline: calls ai-engine's /v1/analyze with `retrieval_floor=0.0` so
+Live pipeline: calls ai-engine's /v1/analyze with `never_refuse=True` (floor 0.0) so
 the graph never refuses before returning chunks, then checks
 `retrieved_chunks` (the actual post-rerank output) directly — this
 measures RETRIEVAL quality specifically, independent of what the LLM
@@ -17,7 +17,7 @@ problem, not a retrieval miss).
 It also reports, ungated, what the model did with the gold article when
 retrieval found it (`_gold_use`). The golden set has no expected quote, so
 this is a proxy for "the chunk kept for the gold article held the answer":
-since per-article dedup (rerank.py) the LLM sees one chunk per article, and
+since per-article dedup (the rerank node) the LLM sees one chunk per article, and
 if that chunk only restates the problem the model can refuse or quote text
 it wasn't shown.
 """
@@ -53,7 +53,7 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
     gold_use: dict[str, list[str]] = {"quoted": [], "quote_missed": [], "refused": [], "other": []}
 
     for case in cases:
-        result = analyze(ai_engine_client, case["subject"], case["body"], retrieval_floor=0.0)
+        result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
         truth_slug = case["truth"]["kb_slug"]
         retrieved_slugs = [c["kb_slug"] for c in result.get("retrieved_chunks", [])]
 

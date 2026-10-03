@@ -67,12 +67,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
     mismatches = []
 
     for case in cases:
-        result = analyze(
-            ai_engine_client,
-            case["subject"],
-            case["body"],
-            retrieval_floor=settings.THRESHOLDS.retrieval_floor,
-        )
+        result = analyze(ai_engine_client, case["subject"], case["body"])
         signals = TrustSignals(**result["signals"])
         proposal_dict = result.get("proposal")
 
