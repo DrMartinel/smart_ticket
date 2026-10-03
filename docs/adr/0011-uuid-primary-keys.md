@@ -44,7 +44,7 @@ not keyed by a UUID.
 ## Consequences
 
 - Ids are strings in JSON: API responses, the web client's types, and the
-  ai-engine wire (`topk_chunk_ids`, `source_chunk_id`, `KBArticleMeta.id`).
+  ai-engine wire (`retrieved_chunks[].chunk_id`, `KBArticleMeta.id`).
 - Celery task arguments are passed as `str(ticket.id)`, because task
   arguments go through Celery's JSON serializer.
 - ai-engine's prompt context names each chunk `chunk_id=<uuid>` instead of a

@@ -67,8 +67,8 @@ There is no shared schema package (ADR-0010). Each type is defined in the module
 | Types | core-api | ai-engine |
 |---|---|---|
 | `TicketIn` (`extra="forbid"`) | `apps/tickets/request_schema.py` | — |
-| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `TrustSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `core/state.py` |
-| `PIILevel` | `apps/tickets/utils/patterns.py` | `core/state.py` |
+| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `TrustSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` |
+| `PIILevel` | `apps/tickets/utils/patterns.py` | `schemas.py` |
 | `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `RoutingDecision` | `apps/tickets/utils/router.py` | — |
 | `Thresholds` | `config/settings/base.py` | — |
 | `TrustScore` | `apps/tickets/utils/trust_scorer.py` | — |
@@ -106,7 +106,7 @@ Masking is inline **on purpose**. Async masking would create a window where raw 
 
 The two NER calls (subject, body) run concurrently: they are independent, and sequential calls would make the worst case two full timeouts deep inside a request a user is waiting on.
 
-Tier 2 runs in ai-engine (ADR-0012), on the self-hosted chat model through its own `models.ner` client, never the possibly-cloud `models.chat`. This is the **one** place raw text enters ai-engine: `/v1/pii/detect` logs neither the text nor the model's reply, and a failure comes back as a 502 that core-api resolves to `mask_failed`.
+Tier 2 runs in ai-engine (ADR-0012), on the self-hosted chat model through its own `clients.ner` client, never the possibly-cloud `clients.chat`. This is the **one** place raw text enters ai-engine: `/v1/pii/detect` logs neither the text nor the model's reply, and a failure comes back as a 502 that core-api resolves to `mask_failed`.
 
 ### Stage 2 — Embedding and incident detection (Celery)
 
@@ -134,9 +134,14 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
    hybrid_retrieve   BM25 top-20 ∥ vector top-20 ──► RRF (k=60) ──► top-10
                      (pg_search BM25, ADR-0013; records BM25's article order)
        ▼
-   rerank            cross-encoder ──► top-3
+   candidate_pool    cross-encoder scores the candidates, plus chunks of pages
+                     linked from its top-3 seeds (ADR-0014/0015)
+                     ──► pool, in cross-encoder order
+       ▼
+   rerank            Jev re-scores the pool's top-15 ──► Jev's top-3
+                     each chunk keeps both: shortlist_score, rerank_score
        │
-       ├─ EvidenceBelowFloor (top1 < retrieval_floor) ──► emit_signals   ← REFUSE BEFORE LLM
+       ├─ EvidenceBelowFloor (Jev's top1 < retrieval.floor) ──► emit_signals   ← REFUSE BEFORE LLM
        │ EvidenceAboveFloor
        ▼
    select_fewshots   few-shot examples for this category
@@ -155,36 +160,40 @@ Three properties are structural, not conventional:
 2. **Refuse-before-LLM.** Weak retrieval means the model is never invoked — cheaper *and* safer.
 3. **No loop.** The graph is acyclic — every node runs at most once per ticket, so non-termination is impossible by construction. A schema-invalid proposal goes to a human, not back to the model.
 
-Each node is a `BaseNode` subclass (`core/node.py`) that uses the provider
-singletons (`db`, `embedder`, `reranker`, `models.chat`) directly and reads
+Each node is a `BaseNode` subclass (`graph/build/node.py`) that uses the provider
+singletons (`db`, `embedder`, `shortlister`, `reranker`, `clients.chat`) directly and reads
 tunables from `core/config.py`. Its node name is derived from the class
 name (`HybridRetrieveNode` → `hybrid_retrieve`), and a branching node reports
 where it ended up as a domain `Outcome` from `decide()` — it never names its
 successor. The generic `Edge`, `Graph` and `GraphBuilder` live in
-`core/build/`. `graph/triage.py` holds the topology (a list of routes from
+`graph/build/`. `graph/triage.py` holds the topology (a list of routes from
 each outcome of a node instance to the next instance) and `triage_graph`,
 compiled once at import time from the instances each node module builds. `GraphBuilder.compile`
 validates the routes at startup (every outcome routed, nothing unreachable)
 and is the only place a node becomes a LangGraph string. `main.py` only
 invokes `triage_graph`. See
 [graph-node-architecture.md](graph-node-architecture.md).
-Models are reached through two layers. `LLMClient`
-(`core/providers/llm/models.py`, with the providers that subclass it) is the
-lower one and only abstracts
-communication with a model server: chat through `complete()` on every provider,
-and raw JSON requests through `request()`, which only `VLLMLLM` has. `LexicalEmbedder` and `CrossEncoderReranker`
-(`core/providers/embeddings.py`, `reranker.py`) are the upper one and own their
-tasks: they build the `/embeddings` or `/rerank` request, parse the reply, and
-enforce their contract (vector width, one score per passage in input order).
-They call the client objects `core/providers/llm/models.py` builds from config at
-import time (`embed`, `rerank`, `chat`), one per server. `StubEmbedder` and `LexicalReranker` are
+Models are reached through two layers. The clients in
+`core/providers/clients.py` are the lower one and own each server's protocol:
+`VLLMClient` has `embed()`, `rerank()` and `complete_json()`, `JevClient` has
+`ask()`, and each builds its request and validates the reply against a
+Pydantic DTO from `core/providers/dtos.py`. `ChatClient` does triage chat through `complete()` (LangChain;
+`vllm_chat` or `openai_chat` builds it). The providers
+(`core/providers/embeddings.py` and `pii.py`, and the shortlister and reranker
+beside their nodes in `graph/nodes/candidate_pool/` and `graph/nodes/rerank/`)
+are the upper one and
+own their tasks: the vector width pgvector needs, PII-safe errors, which
+answer is the score.
+They call the client objects `core/providers/clients.py` builds from config at
+import time (`embed`, `rerank`, `ner`, `chat`, and `jev` for the hosted Jev), one per server. `StubEmbedder` and `LexicalShortlister` are
 offline alternatives for CI that talk to no server. Nodes depend on the `Embedder`
-and `Reranker` base classes and on `LLMClient`, never on a provider class. The database client
+and `Shortlister` base classes and on `ChatClient`, never on a provider class. The database client
 has one implementation and no base class:
 nodes take `SqlAlchemySessionSource` from `core/db/client.py`.
 
-The bottoms of `core/providers/embeddings.py` and `reranker.py` are the only
-places `EMBEDDING_PROVIDER` and `RERANKER_PROVIDER` are read, and
+The bottoms of `core/providers/embeddings.py` and
+`graph/nodes/candidate_pool/shortlister.py` are the only
+places `EMBEDDING_PROVIDER` and `SHORTLIST_PROVIDER` are read, and
 `core/db/client.py` builds the single `db`. ai-engine's self-hosted models run
 on vLLM — embeddings and rerank always, chat by default —
 over its OpenAI-compatible APIs (ADR-0009). ai-engine is the only vLLM client
@@ -192,8 +201,10 @@ over its OpenAI-compatible APIs (ADR-0009). ai-engine is the only vLLM client
 `/v1/pii/detect` and `/v1/embed`, through `infrastructure.ai_engine.AIEngineClient`.
 Selection happens once at startup and an
 unrecognized value is fatal — a typo used to fall through to the lexical
-reranker, whose scores are a different calibration from the cross-encoder
-distribution `retrieval.floor` is fitted against (ADR-0005).
+reranker, whose scores are a different calibration from the cross-encoder's
+(ADR-0005). Each reranker declares its scale (`scorer`), and RerankNode
+applies only the `retrieval.floor` entry for it, failing the run when
+core-api sent none.
 
 Two constraints on anything added here: `main.py` builds the graph at uvicorn
 import time, so no constructor may open a socket or load a model — every model
@@ -312,7 +323,7 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What the model is asked | `ai-engine/core/prompts/*.md` — versioned, and eval-gated like code |
 | What counts as PII | `tickets/utils/patterns.py` (regex) or ai-engine's NER prompt `core/prompts/pii_ner.v*.md` |
-| How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
+| How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | What a reviewer sees | `TrustSignalsPanel.tsx`, `ReviewForm.tsx` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 

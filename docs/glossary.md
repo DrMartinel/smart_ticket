@@ -69,7 +69,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Cross-encoder / reranker** — scores each (query, passage) pair jointly for a genuine relevance judgment. This score is the *only* one thresholds compare against. The default `lexical` provider is a dependency-free token-overlap stand-in for CI and offline dev; it is not a substitute for retrieval quality.
 
-**Retrieval floor** — if the top reranked score is below `retrieval.floor` (0.45), the LLM is **never called**. This is both the largest cost saving and a safety property: a model with no source material has nothing to do but fabricate one.
+**Retrieval floor** — if the top reranked score is below `retrieval.floor` (0.30, on Jev's scale: Jev is the reranker), the LLM is **never called**. Never compared with the cross-encoder's score, which only orders the pool. This is both the largest cost saving and a safety property: a model with no source material has nothing to do but fabricate one.
 
 **Refuse-before-LLM** — the above, as a graph edge. Worth knowing by name because it explains runs where `model = n/a` and every generation signal is false: nothing was generated, so nothing could be validated.
 

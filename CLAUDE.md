@@ -39,8 +39,9 @@ usually cite the ADR or spec section that explains what breaks without it.
    `routing_decisions.thresholds_used`.
 2. **No magic numbers.** Every tunable lives in
    [`thresholds.yaml`](services/core-api/config/thresholds.yaml) — not a
-   constant, not a default argument. Timeouts and connect budgets go in
-   settings/env.
+   constant, not a default argument. Timeouts, connect budgets and other
+   operational settings go in the root `.env.example` (below), never as a
+   default in settings code or docker-compose.yml.
 3. **Degrade toward humans.** Every new failure path routes to HITL with a
    specific `ReasonCode` (add it to the enum — the dashboard is built on the
    enum, free text is invisible to it). Never toward "assume it's fine."
@@ -49,7 +50,7 @@ usually cite the ADR or spec section that explains what breaks without it.
 4. **No shared contracts package (ADR-0010).** Each schema is defined in the
    module that uses it (the ADR has the table). The ai-engine wire shapes exist
    in both services — core-api `infrastructure/dtos.py`, ai-engine
-   `core/state.py` — so change **both in the same PR**; until the cross-service
+   `schemas.py` — so change **both in the same PR**; until the cross-service
    integration tests exist, nothing else catches drift. Never define routing or
    scoring types (`Branch`, `ReasonCode`, `TrustScore`, …) in ai-engine, and
    never put a type `router.py` needs in a Django `models.py`. After a core-api
@@ -63,9 +64,11 @@ usually cite the ADR or spec section that explains what breaks without it.
 7. **`RunbookProposal` always goes to HITL** (ADR-0006). No threshold, no
    config flag, no exception. Changing this requires a new ADR that explicitly
    supersedes 0006.
-8. **Retrieval thresholds compare against the cross-encoder score, never the RRF
-   fusion score** (ADR-0005). RRF is rank-derived; its magnitude means nothing.
-   Any PR touching `retrieve.py` / `fusion.py` / `rerank.py` needs this check —
+8. **Retrieval thresholds compare against the reranker's score (Jev's,
+   ADR-0015), never the cross-encoder's or the RRF fusion score** (ADR-0005).
+   RRF is rank-derived; its magnitude means nothing. The cross-encoder only
+   orders the pool and picks Jev's shortlist.
+   Any PR touching `graph/nodes/retrieve/` / `graph/nodes/candidate_pool/` / `graph/nodes/rerank/` needs this check —
    the bug it prevents does not fail loudly.
 9. **Never lower an eval floor to make CI green.** Not the per-category F1 floor,
    not the auto-reply precision floor, and don't average per-category F1 or drop
@@ -79,9 +82,23 @@ cd services/web && npm install
 ```
 
 core-api's commands are targets in [`services/core-api/Makefile`](services/core-api/Makefile);
-run `make` there to list them. Its recipes are the canonical spelling. It exports
-`DATABASE_URL` / `CELERY_BROKER_URL` for the Dockerized Postgres/Redis, but not
-`DJANGO_SETTINGS_MODULE` (exporting it would override `pytest.ini`'s test settings).
+run `make` there to list them. Its recipes are the canonical spelling. It does
+not export `DJANGO_SETTINGS_MODULE` (that would override `pytest.ini`'s test settings).
+
+**Settings come only from the root `.env`** (git-ignored) and real
+environment variables, which win; an empty value counts as unset. Neither the
+settings code nor `docker-compose.yml` holds a default, and nothing reads the
+root `.env.example`: it is the template (`cp .env.example .env`, needed for
+pytest too), documenting every setting, its shipped value and why. Its values
+point at the Dockerized Postgres/Redis on host ports; compose passes each
+container an **allowlist** of its own settings from `.env` and sets the
+container wiring itself. A new setting goes in the settings code (type only),
+`.env.example` (value and why), **and** that service's `environment:` in
+`docker-compose.yml`; tests fail if any of the three disagree. A value
+changed in `.env.example` doesn't reach an existing `.env`: diff after
+pulling. ai-engine's DSN is `AI_ENGINE_DATABASE_URL`, never `DATABASE_URL`
+(core-api's read-write role, ADR-0004), and its container never receives the
+latter. `thresholds.yaml` is separate and stays where it is.
 Extra arguments go in `ARGS=`, e.g. `make test ARGS="-k router -x"`.
 
 ```bash
@@ -109,7 +126,7 @@ uv run mypy                                # all three packages
 Full stack (7 containers + the `vllm` profile for models). Migrations run automatically on `core-api` start:
 
 ```bash
-cp infra/.env.example infra/.env && cd infra && docker compose up -d --build
+cp .env.example .env && docker compose up -d --build
 ```
 
 ai-engine against the Dockerized stack:
@@ -135,7 +152,9 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | `AIEngineClient`, core-api's only route to ai-engine and, through it, to every model (ADR-0012; transport only, never judgement) | [infrastructure/](services/core-api/infrastructure/) |
 | PII regex patterns | [patterns.py](services/core-api/apps/tickets/utils/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
-| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [state.py](services/ai-engine/src/ai_engine/core/state.py) |
+| Operational settings and their defaults (URLs, models, timeouts, top-k), for both services and compose | [.env.example](.env.example) |
+| The Docker stack | [docker-compose.yml](docker-compose.yml) (repo root; DB image and raw SQL in [infra/](infra/)) |
+| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [schemas.py](services/ai-engine/src/ai_engine/schemas.py) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
 | Prompts (versioned, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
@@ -185,10 +204,10 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/utils/pipeline.py` — not `tasks.py`, which is only the entry point |
-| What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `core/config.py` |
+| What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `PROMPT_VERSION` in `.env.example` (and your `.env`) |
 | What counts as PII | `patterns.py` (regex) or the NER prompt `ai-engine/core/prompts/pii_ner.v*.md` |
 | What is in the demo KB | `demo_kb/sources.json` (then `fetch.py`), approvals and risk tiers in `demo_kb/curation.json` — never by editing fetched pages |
-| How relevance is judged | `ai-engine/core/providers/reranker.py`, `core/retrieval/` |
+| How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
@@ -227,10 +246,13 @@ copies that directory — a new SQL file that isn't copied fails at container st
   Since ADR-0013 the `bm25_keyword_hit` feature (BM25/vector agreement,
   `retrieval.keyword_agreement_k`) is live for the first time, and it lifts
   a high-risk access request (g120) over `t_route`. Another reason P3 waits.
-- Reranker defaults to `vllm` (the bge-reranker-v2-m3 cross-encoder on vllm-rerank);
-  `lexical` is dependency-free, for CI/offline. `retrieval.floor` is specified as a
-  *cross-encoder* score — the two distributions are separate calibrations, never
-  interchangeable.
+- Every run shortlists, then reranks: the shortlister, a cross-encoder (`vllm`,
+  bge-reranker-v2-m3; `lexical` for CI/offline), orders the fused candidates plus
+  link-expanded chunks, and **Jev**, the reranker (hosted, needs `JEV_API_KEY`),
+  scores its top 15 (`RERANK_POOL`). `retrieval.floor` is on *Jev's* scale (0.30 🔧, chosen from
+  golden-set data). Trust coefficients and `t_auto`/`t_route` were hand-set for
+  the cross-encoder's `rerank_top1`: another reason P3 waits. Every ticket's
+  *masked* text goes to Jev's API.
 - PII quarantine **write** path is done; the **read** path is not. Currently fails
   safe (nobody can read raw PII). **Do not add a `decrypt()` call without writing
   the `PiiAccessLog` row in the same transaction, with a mandatory non-empty reason.**
@@ -246,10 +268,12 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Every ticket `mask_failed` | ai-engine is down, or vllm-chat isn't reachable from it, or ai-engine's `CHAT_MODEL` doesn't match what it serves. **Never "fix" this by treating NER failure as no-PII-found** |
 | Submit hangs ~120s | Connect and read timeouts collapsed into one. Deliberately separate: 3s connect, 120s read (a cold model load legitimately takes 15–20s) |
 | All four generation checks ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
-| Unaccented Vietnamese matches nothing | Diacritic folding (`_strip_diacritics`) in `LexicalReranker` regressed; `đ`/`Đ` need special handling |
+| Unaccented Vietnamese matches nothing | Diacritic folding (`LexicalShortlister._tokenize`) regressed; `đ`/`Đ` need special handling |
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `pg_search must be loaded via shared_preload_libraries`, or migrate fails at `dbextras.0003` | Postgres is the stock pgvector image, or started without the preload flag. Use compose's `db` (built from `infra/db/Dockerfile`, ADR-0013). **Never "fix" it by catching the BM25 error**: that silently makes retrieval vector-only again |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
+| `ImproperlyConfigured: X is not set` (core-api), `Field required` on `Settings` (ai-engine), or compose's `required variable X is missing a value` | No root `.env` (`cp .env.example .env`), or yours predates X: copy its line from `.env.example`. A new setting goes in `.env.example` too; never a default in code |
+| Behaviour differs from a teammate's on the same commit (prompt, model, top-k) | Your `.env` holds an old value that `.env.example` has since changed: diff the two |
 | Frontend types out of sync | Re-run `gen_typescript.py` |
 | `ModuleNotFoundError: config.settings.dev` (or `.prod`) | Renamed to `config.settings.development` / `.production`; update `DJANGO_SETTINGS_MODULE` |
 | mypy: `ImproperlyConfigured` / plugin can't load settings | The django-stubs plugin imports `config.settings.test` (set in `[tool.django-stubs]`). Run `uv run mypy` from the repo root (or `make typecheck` in core-api) after `uv sync --all-packages`, not `uvx mypy`, which has no Django |

@@ -8,7 +8,7 @@
 This is a technical trap, not a philosophical one, and it is easy to fall
 into during a refactor: `thresholds.yaml` has `retrieval.floor: 0.45` right
 next to `retrieval.rrf_k: 60`, in the same `retrieval:` block. A future
-refactor of `ai-engine/graph/nodes/rerank.py` or `retrieve.py` could
+refactor of `ai-engine/graph/nodes/rerank/node.py` or `graph/nodes/retrieve/` could
 plausibly move the floor check earlier, against the RRF-fused score, and
 nothing would immediately look wrong — the code would still run, the graph
 would still route somewhere.
@@ -16,9 +16,9 @@ would still route somewhere.
 ## Decision
 
 `retrieval.floor` and `retrieval.margin` are checked **only** in
-`ai_engine/graph/nodes/rerank.py`, against `reranked[0].score` (the
+`ai_engine/graph/nodes/rerank/node.py`, against `reranked[0].score` (the
 cross-encoder's output), never against the RRF score computed in
-`core/retrieval/fusion.py`.
+`graph/nodes/retrieve/fusion.py`.
 
 ## Rationale
 
@@ -34,10 +34,10 @@ exactly the property a floor/refuse decision needs.
 
 ## Consequences
 
-- `ai_engine/core/retrieval/fusion.py` should never expose its output as
+- `ai_engine/graph/nodes/retrieve/fusion.py` should never expose its output as
   something a threshold gets compared against; keep it typed as a ranking
   input only (e.g. return ordered candidates, not a "score" field consumers
   might reach for).
-- Code review checklist item: any PR touching `retrieve.py`, `fusion.py`,
-  or `rerank.py` should be checked against this ADR specifically, since the
+- Code review checklist item: any PR touching `graph/nodes/retrieve/` (node, `fusion.py`),
+  or `graph/nodes/rerank/` should be checked against this ADR specifically, since the
   bug this prevents does not fail loudly.

@@ -97,37 +97,30 @@ Left to do: the change to what the gate measures needs review by someone other t
 
 ---
 
-## 4. Calibrate `retrieval.floor`, and make the provider/floor pairing knowable
+## 4. Calibrate `retrieval.floor` on Jev's scale
 
-**Priority:** High · **Spec:** §6.3, ADR-0005
+**Priority:** High · **Spec:** §6.3, ADR-0005, ADR-0015
 
 ### Problem
 
-The cross-encoder is the default: `RERANKER_PROVIDER=vllm` serves `bge-reranker-v2-m3` from vllm-rerank (ADR-0009). Calibration is not done:
+Since 2026-10-03 Jev is the reranker on every run (ADR-0015, still to be written): the cross-encoder (`SHORTLIST_PROVIDER=vllm`, bge-reranker-v2-m3 on vllm-rerank) scores the fused candidates plus link-expanded chunks, and Jev re-scores its top 15. `retrieval.floor` is on **Jev's** scale and is compared only with Jev's top-1; the cross-encoder's score only orders the pool and picks the shortlist, so it no longer needs a floor of its own. Calibration is not done:
 
-- `retrieval.floor = 0.45` is a **cross-encoder** score (🔧, never fitted).
-- It was written against FlagEmbedding's sigmoid-normalized `compute_score(normalize=True)`; whether vLLM returns that same scale is unverified.
-- Under `lexical` (CI), the floor is compared against a token-overlap ratio. Different question, no error, no test that can see it.
+- `retrieval.floor = 0.30` (🔧) is the middle of the probe's 0.12-0.48 gap, chosen from **golden-set** data (evals/HISTORY.md 2026-10-02 (4)-(5)).
+- The trust coefficients, `t_auto` and `t_route` were hand-set for the cross-encoder's `rerank_top1` and margin; Jev's top-1 sits on a different distribution.
+- The cross-encoder's scale still matters for which 15 chunks Jev sees: pin `RERANKER_REVISION` so an upstream commit can't move it.
 
-Note the shape of this: it is not "the wrong number", it is "a number from a different measurement compared against this one". Fixing it by nudging `0.45` would be the worst outcome, because it would make the mismatch invisible rather than absent.
-
-There is also a structural blocker. core-api owns `thresholds.yaml` and sends `retrieval_floor` in `AIRunRequest` ([dtos.py](../services/core-api/infrastructure/dtos.py)), but `RERANKER_PROVIDER` is read only by ai-engine. **core-api cannot see which provider scored**, so it cannot select a matching floor, and a mismatch cannot currently be detected at all.
+Note the shape of this: it is not "the wrong number", it is "a number from a different measurement compared against this one". Fixing it by nudging `0.30` would be the worst outcome, because it would make the mismatch invisible rather than absent.
 
 ### Work
 
-1. Pin `RERANKER_REVISION` to a commit sha in `infra/.env` (it is passed to vllm-rerank). Do this first — with it at `main`, an upstream push moves the distribution out from under whatever you measure.
-2. Confirm vllm-rerank's scores are in [0, 1] on the sigmoid scale, then run the pipeline under `vllm` and **look at the score distribution** before choosing anything. The GPU job in `eval-gate.yml` is the natural place.
-
-   ```bash
-   RERANKER_PROVIDER=vllm uv run --package evals pytest evals/suites/test_retrieval.py -q
-   ```
-3. Derive floor and margin from what you observe, not from what keeps CI green.
-4. Close the coupling. Options, cheapest first: have ai-engine echo its provider in `AIRunResponse` so core-api can log or reject a mismatch; or move the floor per-provider in `thresholds.yaml` and give core-api the provider setting (accepting that two services then share a value that can disagree).
+1. Pin `RERANKER_REVISION` to a commit sha in `.env.example` (it is passed to vllm-rerank).
+2. Choose the Jev floor and margin on shadow pairs, not the golden set: look at Jev's top-1 distribution for tickets humans resolved from the KB vs. not.
+3. Refit the trust coefficients (item 2) on Jev-scale signals before P3.
 
 ### vLLM (ADR-0009)
 
 The in-process FlagEmbedding reranker is removed, so there is no local score
-to compare against: step 2 above is the check. Every embedding now comes from vLLM through ai-engine (ADR-0012), so the KB chunks, ticket
+to compare against. Every embedding now comes from vLLM through ai-engine (ADR-0012), so the KB chunks, ticket
 embeddings and few-shot examples already in pgvector must be re-embedded
 through it. Masking's tier-2 NER runs in ai-engine on `CHAT_MODEL` and needs its
 detection quality re-checked on real tickets. None of the vLLM path has run
@@ -135,7 +128,7 @@ against real hardware yet.
 
 ### Done when
 
-`Recall@3 ≥ 0.90` holds under `vllm` with floor and margin derived from observed scores, `RERANKER_REVISION` is a sha, the 🔧 markers are gone from `retrieval` in `thresholds.yaml`, and a provider/floor mismatch is detectable rather than silent.
+`Recall@3 ≥ 0.90` holds under `vllm` + Jev with floor and margin derived from shadow pairs on Jev's scale, `RERANKER_REVISION` is a sha, and the 🔧 markers are gone from `retrieval` in `thresholds.yaml`.
 
 > Per hard rule 9: do not move the floor to make a suite green. If the numbers disagree, that is the finding.
 
@@ -192,15 +185,11 @@ process-lifetime and grow unboundedly across tickets.
 
 **Done when** one embedding call per ticket is visible in a trace.
 
-### 6d. `embed()` is called while holding a DB connection
+### 6d. ~~`embed()` is called while holding a DB connection~~ Done 2026-10-03
 
-**Priority:** Low
-
-In `HybridRetrieveNode`, the embedding round-trip happens inside
-`with self._db.connect()`, pinning an `ai_engine_ro` connection for the
-15–20s a cold model load can take. Hoisting it out is a small change
-but it reorders two I/O operations and their failure sequence, so it wants
-its own commit and its own test.
+Every read now borrows a pooled connection for one statement (`db.all` /
+`db.first`), so nothing can hold one across a model call. Pinned by
+`test_retrieve.py::test_no_db_connection_is_held_while_embedding`.
 
 ---
 

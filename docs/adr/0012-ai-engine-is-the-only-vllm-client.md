@@ -51,8 +51,8 @@ ai-engine, which ADR-0004 and the `TicketMasked` contract said never
 happens. This ADR deliberately relaxes that, for `/v1/pii/detect` only, on
 these conditions:
 
-1. **Self-hosted only.** NER uses its own `models.ner` client on
-   `chat_base_url`, never `models.chat`, which can be a cloud provider
+1. **Self-hosted only.** NER uses its own `clients.ner` client on
+   `chat_base_url`, never `clients.chat`, which can be a cloud provider
    (`chat_client_provider=openai`). Raw PII never leaves the deployment.
    *`test_pii.py::test_ner_never_uses_the_chat_client`.*
 2. **Nothing retains it.** The endpoint does not log the text or the model's

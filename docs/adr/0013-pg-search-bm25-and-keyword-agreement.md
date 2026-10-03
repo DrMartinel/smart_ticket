@@ -110,7 +110,7 @@ with ≥500 shadow pairs, `k` can be chosen from data instead of set by hand.
   two weeks around this decision). Bump the version and checksum together, and
   re-run the retrieval suite.
 - **Wire schema change, both services in one PR** (ADR-0010). A new rank field
-  in core-api `infrastructure/dtos.py` and ai-engine `core/state.py`,
+  in core-api `infrastructure/dtos.py` and ai-engine `schemas.py`,
   defaulted so old rows deserialize. The existing `bm25_keyword_hit` field
   stays for old rows, and the TypeScript types are regenerated. The rank is
   computed after reranking, so the BM25 article ranking has to travel in

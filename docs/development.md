@@ -17,7 +17,7 @@ core-api's commands are targets in [`services/core-api/Makefile`](../services/co
 
 ### Running services individually
 
-Point at the Dockerized Postgres and Redis so you only run what you're editing. core-api's Makefile exports `DATABASE_URL` and `CELERY_BROKER_URL` for them (host ports 5434 / 6380); override on the command line, e.g. `make runserver DATABASE_URL=...`.
+Point at the Dockerized Postgres and Redis so you only run what you're editing. A root `.env` copied from `.env.example` already does (host ports 5434 / 6380). Both services read only `.env` and environment variables, which win; nothing reads the template. Override in `.env` or on the command line, e.g. `DATABASE_URL=... make runserver`. After pulling, diff `.env` against `.env.example`: a changed value there doesn't reach your copy.
 
 ```bash
 cd services/core-api
@@ -56,7 +56,7 @@ If you need data to make a routing decision, fetch it *before* the call and pass
 
 ### 4. Schemas live where they are used
 
-There is no shared contracts package (ADR-0010). A schema is defined in the module that uses it; `docs/architecture.md` §3 has the table. The ai-engine wire shapes (`AIRunRequest`, `AIRunResponse` and everything in them) exist in both services — core-api `infrastructure/dtos.py`, ai-engine `core/state.py` — so change **both** in the same PR. After a core-api schema change, regenerate the frontend types:
+There is no shared contracts package (ADR-0010). A schema is defined in the module that uses it; `docs/architecture.md` §3 has the table. The ai-engine wire shapes (`AIRunRequest`, `AIRunResponse` and everything in them) exist in both services — core-api `infrastructure/dtos.py`, ai-engine `schemas.py` — so change **both** in the same PR. After a core-api schema change, regenerate the frontend types:
 
 ```bash
 cd services/core-api && make types
@@ -93,7 +93,7 @@ Routers live in `apps/<app>/views.py` (Django Ninja). Keep the handler thin: bin
 
 ### Change a prompt
 
-Prompts are versioned files in `services/ai-engine/src/ai_engine/core/prompts/`. Bump the version in the filename and in `core/config.py`, and note what changed. **Prompt changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI.
+Prompts are versioned files in `services/ai-engine/src/ai_engine/core/prompts/`. Bump the version in the filename and `PROMPT_VERSION` in the root `.env.example` (and your `.env`), and note what changed. **Prompt changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI.
 
 ### Add a KB article
 
@@ -134,7 +134,7 @@ Retrieval recall currently fails on a full run. That is a documented finding, no
 | Every ticket `mask_failed` | ai-engine is down, or vllm-chat isn't running or reachable from it (see [`onboarding.md`](onboarding.md) step 2), or ai-engine's `CHAT_MODEL` doesn't match what it serves |
 | Submit hangs for a long time | Connect and read timeouts collapsed into one. They're deliberately separate: 3s connect, 120s read |
 | All four generation checks ✗ | No LLM ran. Read the reason code above the panel — usually a degraded run |
-| Unaccented Vietnamese matches nothing | `LexicalReranker` folds diacritics (`_strip_diacritics`). If this regresses, tickets typed without tone marks stop matching an accented KB |
+| Unaccented Vietnamese matches nothing | `LexicalShortlister` folds diacritics (`_tokenize`). If this regresses, tickets typed without tone marks stop matching an accented KB |
 | Connecting to port 5432 / 6379 fails | Host ports are **5434** and **6380**; `db:5432` / `redis:6379` are internal only |
 | `column "id" is of type bigint but expression is of type uuid` | Your dev DB volume predates a `0001_initial` migration that was rewritten in place. Reset it: [`onboarding.md`](onboarding.md) step 7 |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — it's parsed into a Pydantic model at startup on purpose, so bad config fails loudly rather than at routing time |

@@ -44,9 +44,10 @@ always arrive as a parameter.
 **ai-engine**
 
 The wire types (`AIRunRequest`, `AIRunResponse` and everything nested in them,
-plus `PIILevel` and `TicketCategory`) live in `core/state.py`, which the graph
-state already builds on. Putting them in `main.py` would create an import
-cycle, since `main.py` imports `state.py`. ai-engine defines no `Branch`,
+plus `PIILevel` and `TicketCategory`) live in `schemas.py`, which imports
+nothing else from ai-engine; the graph's state (`graph/state.py`) builds on
+them. Putting them in `main.py` would create an import cycle, since the graph
+needs them and `main.py` imports the graph. ai-engine defines no `Branch`,
 `ReasonCode`, `RoutingDecision` or `TrustScore`: it has no authority to route
 (ADR-0001) or to score itself (ADR-0003).
 

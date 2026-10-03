@@ -60,7 +60,7 @@ The whole file runs without a database, model, or network. That is the property 
 
 Also pinned: quote features are skipped when a proposal carries no quote, so `contributions` can show "not applicable" rather than an unexplained zero. That is explainability only — both are linear terms, so a 0.0 value contributes 0.0 either way, and a test asserts the score does **not** move. If someone later gives those features a non-zero baseline, that test fails and forces a deliberate decision.
 
-### `test_reranker_diacritics.py`
+### `test_shortlister_diacritics.py`
 
 Vietnamese tickets are typed without tone marks; the KB is written with them. Under exact token matching a near-verbatim restatement of a KB title scored 0.042 against a 0.45 floor, tripping refuse-before-LLM and sending it to a human as "nothing matches". These tests pin the folding, including that `đ`/`Đ` need special handling (distinct letters, not decomposable base + mark) and that folding doesn't make unrelated text start matching.
 
@@ -69,10 +69,10 @@ Vietnamese tickets are typed without tone marks; the KB is written with them. Un
 ### ai-engine node tests — fakes, not mocks
 
 `services/ai-engine/tests/conftest.py` provides a fake for each of the four
-provider seams (`fake_embedder`, `fake_reranker`, `fake_llm`, `fake_db`) —
-subclasses of the `Embedder` / `Reranker` / `LLMClient` base classes, plus a
+provider seams (`fake_embedder`, `fake_shortlister`, `fake_llm`, `fake_db`) —
+subclasses of the `Embedder` / `Shortlister` / `ChatClient` classes, plus a
 duck-typed session source — and a `make_state` builder. Nodes use the provider
-singletons directly, so the `use_db` / `use_embedder` / `use_reranker` /
+singletons directly, so the `use_db` / `use_embedder` / `use_shortlister` /
 `use_llm` fixtures install a fake in every node module that reads it. They are plain classes rather than
 `unittest.mock` objects: a fake whose behaviour you can read in one place
 beats a Mock configured three lines from the assertion.

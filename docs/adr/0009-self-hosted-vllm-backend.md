@@ -29,13 +29,13 @@ ai-engine (`OllamaLLM`, `OllamaEmbedder` and `langchain-ollama` are removed):
 
 | Capability | Setting | Code |
 |---|---|---|
-| Chat LLM | always vLLM — the only link without a cloud provider, the fallback behind one | `VLLMLLM` |
-| Embeddings | `EMBEDDING_PROVIDER=vllm` (default) \| `stub` | `LexicalEmbedder` → `models.embed` |
-| Reranking | `RERANKER_PROVIDER=vllm` (default) \| `lexical` | `CrossEncoderReranker` → `models.rerank` |
+| Chat LLM | always vLLM — the only link without a cloud provider, the fallback behind one | `vllm_chat` → `ChatClient` |
+| Embeddings | `EMBEDDING_PROVIDER=vllm` (default) \| `stub` | `LexicalEmbedder` → `clients.embed` |
+| Shortlisting (cross-encoder) | `SHORTLIST_PROVIDER=vllm` (default) \| `lexical` | `CrossEncoderShortlister` → `clients.rerank` |
 
-`LLMClient` only carries requests to the server; `LexicalEmbedder` and `CrossEncoderReranker` own
-the `/embeddings` and `/rerank` payloads and replies. One `VLLMLLM` instance
-per vLLM server.
+`VLLMClient` owns the `/embeddings`, `/rerank` and `/chat/completions`
+payloads and replies; `LexicalEmbedder` and `CrossEncoderShortlister` call it.
+One client instance per vLLM server (`VLLMClient`, or `ChatClient` for chat).
 
 core-api (**superseded by ADR-0012**: core-api now reaches these through
 ai-engine's `/v1/pii/detect` and `/v1/embed`, and calls no vLLM server itself):
@@ -45,14 +45,14 @@ ai-engine's `/v1/pii/detect` and `/v1/embed`, and calls no vLLM server itself):
 | Tier-2 PII NER (masking) | `/v1/chat/completions` on `CHAT_MODEL`, JSON-Schema-constrained | `masking.llm_ner` |
 | Ticket / KB / few-shot embeddings | `/v1/embeddings` on `EMBED_MODEL` (`EMBEDDING_PROVIDER=vllm` default \| `stub`) | `embeddings.embed_text` |
 
-With `RERANKER_PROVIDER=vllm`, every model operation in the system goes to the
+With `SHORTLIST_PROVIDER=vllm`, every model operation in the system goes to the
 self-hosted servers. vLLM serves one model per process, so the three
 capabilities are three servers (`vllm-chat`, `vllm-embed`, `vllm-rerank` in the
 `vllm` compose profile), each with its own base URL.
 
 Each client keeps the contract of the provider it replaces: no socket at
 construction, separate connect and read timeouts, SDK retries off (retry and
-fallback stay in `LLMClient.complete()`, ADR-0007), and RAISE rather than
+fallback stay in `ChatClient.complete()`, ADR-0007), and RAISE rather than
 degrade. `request()` never falls back — embeddings and reranking must not switch
 to lexical or to another model.
 

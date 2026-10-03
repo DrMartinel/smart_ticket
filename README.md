@@ -114,11 +114,13 @@ smart_ticket/
 │   │   └── config/              #   settings/{base,development,production,test} · celery · thresholds.yaml
 │   ├── ai-engine/               # FastAPI + LangGraph
 │   │   └── src/ai_engine/
-│   │       ├── graph/nodes/     #   injection · retrieve · rerank · fewshot · infer · validate
+│   │       ├── graph/nodes/     #   injection · rerank · fewshot · infer · validate · emit_signals,
+│   │       │   ├── retrieve/    #     and a folder per stage with helpers: bm25 · vector · rrf fusion
+│   │       │   ├── candidate_pool/ #  shortlister (cross-encoder) · link expansion
+│   │       │   └── rerank/      #     Jev reranker · the floor gate
 │   │       └── core/            #   settings · state · node base classes, and:
-│   │           ├── providers/   #     seams (ABCs) · embedders · rerankers · db
-│   │           ├── llm/         #     client, versioned prompts
-│   │           └── retrieval/   #     bm25 · vector · rrf fusion
+│   │           ├── providers/   #     seams (ABCs) · embedders · rerankers · model clients
+│   │           └── prompts/     #     versioned prompts
 │   └── web/                     # Next.js App Router
 │       ├── app/                 #   submit · queue · review/[id] · dashboard · kb · login
 │       ├── components/          #   TrustSignalsPanel · ReviewForm · NavBar
@@ -128,8 +130,10 @@ smart_ticket/
 │   ├── suites/                  #   retrieval · classification · quote · refusal · injection · e2e
 │   ├── calibration/             #   fit trust score · choose thresholds from PR curve
 │   └── baselines/baseline.json  #   committed; changes require review
+├── docker-compose.yml           # the stack; reads .env (from .env.example)
+├── .env.example                 # template for .env: every setting, its value and why
 ├── infra/
-│   ├── docker-compose.yml
+│   ├── db/                      #   Postgres image (pgvector + pg_search)
 │   ├── migrations/sql/          #   extensions, HNSW indexes, CHECK constraints, RO role
 │   └── ci/eval-gate.yml
 └── docs/
@@ -171,10 +175,11 @@ closed to `MASK_FAILED` and everything goes to a human, by design.
 ### 1. Configure
 
 ```bash
-cp infra/.env.example infra/.env
+cp .env.example .env
 ```
 
-For anything beyond local dev, regenerate the two secrets:
+`.env.example` is the template: every setting for core-api, ai-engine and
+compose, each with its value and the reason for it. Only `.env` is read. For anything beyond local dev, regenerate the two secrets:
 
 ```bash
 python -c "import os,base64;print('PII_ENCRYPTION_KEY='+base64.b64encode(os.urandom(32)).decode())"
@@ -183,7 +188,7 @@ python -c "import os,base64;print('PII_ENCRYPTION_KEY='+base64.b64encode(os.uran
 ### 2. Start the stack
 
 ```bash
-cd infra && docker compose up -d --build
+docker compose up -d --build
 ```
 
 Self-hosted models run in the `vllm` profile (ADR-0009). The three servers
@@ -266,13 +271,13 @@ Values marked 🔧 are **assumptions awaiting calibration**, not tuned values. T
 
 ### Environment variables
 
-Full list in [`infra/.env.example`](infra/.env.example). The ones that change behavior most:
+Full list in [`.env.example`](.env.example). The ones that change behavior most:
 
 | Variable | Default | Effect |
 |---|---|---|
 | `SHADOW_MODE` | `true` | Router records decisions without acting; everything still goes to HITL |
 | `EMBEDDING_PROVIDER` | `vllm` | ai-engine's embedder, which also embeds for core-api. `stub` = deterministic hash embeddings, no network (used by CI) |
-| `RERANKER_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
+| `SHORTLIST_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |
 | `MODEL_TIMEOUT_SEC` | `120` | Ceiling for one model call (NER, embeddings, inference); core-api's read timeout on NER and embedding calls to ai-engine |
@@ -437,7 +442,7 @@ The two metrics most worth watching are counterintuitive: **`reopen_rate_after_a
 | Task queue | Celery 5.6 · Redis 7 |
 | Database | PostgreSQL 17 · pgvector (HNSW) |
 | Embeddings | BGE-M3, 1024-dim (via vLLM) |
-| Reranker | lexical (default) · BGE-Reranker-v2-M3 (optional) |
+| Shortlister | lexical (default) · BGE-Reranker-v2-M3 (optional) |
 | LLM | Qwen 3 8B AWQ for inference and PII NER (via vLLM) |
 | Frontend | Next.js 15 · React 19 · Tailwind |
 | Tooling | uv workspace · pytest · Ruff |

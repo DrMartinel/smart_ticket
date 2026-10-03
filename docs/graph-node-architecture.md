@@ -31,7 +31,7 @@ node identity is persisted and has to survive a process restart:
 
 A class object cannot round-trip through a database row; a name can. So the
 goal is not to remove strings from LangGraph. It is to **push them into a
-single conversion function** (`GraphBuilder.compile` in `core/build/builder.py`) and
+single conversion function** (`GraphBuilder.compile` in `graph/build/builder.py`) and
 keep application code referencing node instances and typed enums.
 
 ---
@@ -39,7 +39,7 @@ keep application code referencing node instances and typed enums.
 ## 2. Core concepts (LangGraph vocabulary)
 
 **State** — the shared schema that flows through the whole graph:
-`TriageState` in `core/state.py`, a frozen pydantic model. Nodes receive a
+`TriageState` in `graph/state.py`, a frozen pydantic model. Nodes receive a
 `TriageState` instance and return a dict of only the fields they changed;
 LangGraph merges the update.
 
@@ -64,7 +64,7 @@ at core-api's Celery layer. The practical consequence is in §9.
 **A node owns exactly four things.** Its name (auto-derived), its `__call__`
 (the work), its `decide()` (which business outcome it reached), and its
 `Outcome` enum. Nothing else. It uses the provider singletons (`db`,
-`embedder`, `reranker`, `models.chat`) directly; an `__init__` is only for
+`embedder`, `shortlister`, `reranker`, `clients.chat`) directly; an `__init__` is only for
 one-time setup that must fail at boot, like `InferNode` loading its prompt.
 
 **Outcomes carry business meaning, not booleans.** `InjectionDetected` /
@@ -93,20 +93,26 @@ threadpool. All per-call data belongs in state.
 
 ## 4. The architecture
 
-`ai_engine/core/` is everything the nodes are built on: `config.py`
-(settings), `state.py`, `node.py` (`BaseNode`, `Terminal`), `providers/`
-(`embeddings.py` and `reranker.py`, each holding its seam as an ABC, the real
-and offline implementations, and the singleton selected at import; and
-`llm/models.py`, the `LLMClient` seam and the chat/embed/rerank clients), `prompts/` (the
-versioned system prompts and their loader), `db/` (the SQLAlchemy client and
-table declarations) and `retrieval/` (BM25, vector, RRF). Outside it are only
-`graph/` (builder, wiring, nodes) and `main.py`. The graph imports from
-`core`; `core` never imports from the graph.
+ai-engine has four layers, and each imports only the ones below it
+(`tests/test_boundary.py`):
 
-### 4.1 State — `core/state.py`
+- `main.py`: the HTTP routes.
+- `graph/`: the pipeline. `state.py` (`TriageState` and the value types in
+  it), `build/` (`node.py` with `BaseNode` and `Terminal`, plus the generic
+  builder), `triage.py` (the wiring) and `nodes/` (a node with helpers of its
+  own, such as retrieval or the shortlister, is a folder there).
+- `schemas.py`: the wire contract mirrored in core-api (ADR-0010); it imports
+  nothing else from ai-engine.
+- `core/`: infrastructure. `config.py` (settings), `providers/` (`embeddings.py`
+  with its ABC, implementations and import-time selection; `pii.py`;
+  `clients.py` and `dtos.py`, the model clients and their wire shapes),
+  `prompts/` (loaded at import) and `db/` (the SQLAlchemy client and table
+  declarations). It never imports from the layers above.
+
+### 4.1 State — `graph/state.py`
 
 One frozen pydantic model, `TriageState`, with every field flat — the injection
-verdict is `injection_detected` / `injection_matched_patterns`, and each
+verdict is `injection_detected`, and each
 validation check is its own field (`schema_valid`, `quote_match_ratio`, …).
 Nodes read fields as attributes
 (`state.reranked`) and return partial update dicts — returning a whole model
@@ -128,9 +134,12 @@ What LangGraph (1.2.9) does with a pydantic schema, pinned in
   unless told otherwise. `GraphBuilder.compile` passes
   `input_schema=state_schema` so the graph's schema always wins.
 
-`candidates` is `list[Candidate]` and `reranked` is `list[RankedChunk]`. Both
-types live in `core/retrieval/`, not in their nodes, because `core` never
-imports from `graph/`.
+`candidates` is `list[Candidate]`; `pool` and `reranked` are
+`list[RankedChunk]`. These types live in `core/`, not in their nodes,
+because `core` never imports from `graph/`. A `RankedChunk` carries one
+score per reranking stage: `shortlist_score` (set by CandidatePoolNode)
+and `rerank_score` (set by RerankNode, None until then). Anything compared with
+a threshold reads `final_score()`, Jev's.
 
 The validation defaults read as "every check failed": refuse-before-LLM skips
 the validator, and `emit_signals` must not report passing checks nobody ran.
@@ -142,7 +151,7 @@ List-valued fields (`candidates`, `reranked`, `fewshots`) deliberately have
 (`Annotated[list, operator.add]`) only for a field several nodes genuinely
 accumulate into.
 
-### 4.2 BaseNode — `core/node.py`
+### 4.2 BaseNode — `graph/build/node.py`
 
 ```python
 class SingleExit(StrEnum):
@@ -231,14 +240,14 @@ triage_graph = _triage.compile(TriageState)
 
 `main.py` only imports and invokes `triage_graph`.
 
-### 4.4 Builder — `core/build/`
+### 4.4 Builder — `graph/build/`
 
 `GraphBuilder(entry=node)` is generic — it knows nothing about triage — and
 its `compile(state_schema)` is the only place a node
 becomes a string. Routes are stored on the builder's `Graph`, keyed by node
 **instance**, never on node classes or `Outcome` members (§7 says why).
 
-The `core/build/` package — generic, it knows nothing about triage — splits the work three ways, none of it but the
+The `graph/build/` package — generic, it knows nothing about triage — splits the work three ways, none of it but the
 builder importing LangGraph:
 
 | Module | Object | Job |
@@ -295,10 +304,10 @@ Tests pin routes on the compiled graph (`triage_graph.get_graph().edges`, see
 
 Each node module ends with its production instance. Nodes take no
 dependencies: they use the provider singletons built at the bottom of the
-provider modules (`db`, `embedder`, `reranker`, `models.chat`) directly.
+provider modules (`db`, `embedder`, `shortlister`, `reranker`, `clients.chat`) directly.
 
 ```python
-# nodes/rerank.py
+# nodes/rerank/node.py
 rerank = RerankNode()
 ```
 
@@ -313,7 +322,7 @@ through the assembly or a node that merely passes it on. Tests that need a
 non-default value `monkeypatch.setattr(settings, ...)`.
 
 Tests that exercise a node swap its providers for the fakes in
-`tests/conftest.py` with the `use_db`, `use_embedder`, `use_reranker` and
+`tests/conftest.py` with the `use_db`, `use_embedder`, `use_shortlister` and
 `use_llm` fixtures, which patch every node module that reads that provider:
 `use_db(fake_db()); emit_signals(state)` — the module's instance, never a
 fresh `EmitSignalsNode()`, which raises. Tests that exercise the builder wire a small graph of
@@ -324,7 +333,7 @@ literally by `tests/test_build.py`.
 
 ## 5. Writing a node
 
-A branching node (`nodes/rerank.py`, abridged):
+A branching node (`nodes/rerank/node.py`, abridged):
 
 ```python
 class RerankOutcome(StrEnum):
@@ -337,13 +346,13 @@ class RerankNode(BaseNode):
 
     def __call__(self, state: TriageState) -> StateUpdate:
         ...
-        scores = reranker.score(query, [c.content for c in candidates])  # the module singleton
+        scores = reranker.score(...)  # Jev, the module singleton
         ...
-        return {"reranked": ranked[: settings.rerank_top_n]}
+        return {"reranked": rescored[: settings.rerank_top_n]}
 
     def decide(self, state: TriageState) -> RerankOutcome:
         reranked = state.reranked
-        if not reranked or reranked[0].score < state.retrieval_floor:
+        if not reranked or reranked[0].final_score() < state.retrieval_floor:
             return RerankOutcome.EVIDENCE_BELOW_FLOOR
         return RerankOutcome.EVIDENCE_ABOVE_FLOOR
 ```
@@ -374,11 +383,11 @@ decision always sees fresh state. Worked example, a ticket whose LLM answer
 fails the schema:
 
 ```
-input:             {"ticket": ..., "retrieval_floor": 0.45, ...}
+input:             {"ticket": ..., "retrieval_floor": 0.30, ...}
 after injection:   {..., "injection_detected": False, ...}
 decide()        -> InjectionClear      -> HybridRetrieveNode
 after retrieve:    {..., "candidates": [...10]}
-after rerank:      {..., "reranked": [top1.score=0.81, ...]}
+after rerank:      {..., "reranked": [top1.rerank_score=0.81, ...]}
 decide()        -> EvidenceAboveFloor  -> SelectFewshotsNode -> InferNode
 after infer:       {..., "proposal": None}                       # unparseable JSON
 after validate:    {..., "schema_valid": False, ...}

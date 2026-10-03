@@ -36,7 +36,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §5 | Masking engine (inline, two-tier) | ✅ | 100% branch coverage; regex tier-1 short-circuits before any LLM call |
 | §6 | LangGraph pipeline | ✅ | Refuse-before-LLM verified; graph is acyclic (no LLM retry) |
 | §6.3 | Hybrid retrieval BM25 + vector + RRF | ✅ | BM25 is pg_search (ADR-0013), departing from the spec's `ts_rank_cd`, which had no IDF and matched nothing on the English KB. RRF k=60; no threshold on fused rank or on BM25 scores (ADR-0005) |
-| §6.3 | Cross-encoder reranker | ⚠️ Unverified | Served by vLLM (`RERANKER_PROVIDER=vllm`, the default), not yet run against real hardware; `lexical` (for CI) folds Vietnamese diacritics; see [Gap 3](#gap-3--retrievalfloor-is-uncalibrated) |
+| §6.3 | Cross-encoder shortlister | ⚠️ Unverified | Served by vLLM (`SHORTLIST_PROVIDER=vllm`, the default), not yet run against real hardware; `lexical` (for CI) folds Vietnamese diacritics; picks Jev's shortlist, Jev is the reranker; see [Gap 3](#gap-3--retrievalfloor-is-uncalibrated) |
 | §6.4 | Validator (quote → fuzzy → in-top-k → negation) | ✅ | Negation check verified catching a real `negation_mismatch` live |
 | §7 | Trust scorer, outside ai-engine | ⚠️ Uncalibrated | Works, but coefficients are a hand-set prior — see [Gap 2](#gap-2-trust-score-is-an-uncalibrated-prior) |
 | §8 | Switch router — pure function, hard gates ordered | ✅ | Every branch unit-tested with no DB/LLM/network |
@@ -76,14 +76,7 @@ This is the expected P1 state, not a defect. `evals/calibration/fit_trust_score.
 
 ### Gap 3 — `retrieval.floor` is uncalibrated
 
-`RERANKER_PROVIDER=vllm` is the default: the `bge-reranker-v2-m3` cross-encoder served by vllm-rerank (ADR-0009). The in-process FlagEmbedding reranker is gone, and with it torch and the baked weights in the ai-engine image.
-
-**The open problem is calibration.** `retrieval.floor = 0.45` is specified as a **cross-encoder** score (ADR-0005), but it was never fitted, and whether vLLM returns the same sigmoid-normalized scale FlagEmbedding did is unverified. Under `lexical` (CI), the floor is compared against `|query ∩ passage| / |query|` instead — a different question, decided silently. Treat refusal behaviour as uncalibrated.
-
-Two things have to happen to close it, and neither is a config edit:
-
-1. **Measure.** Nobody has observed real `bge-reranker-v2-m3` scores on this KB, so `0.45` is a hand-set prior (🔧) even for the provider it was written for.
-2. **Make the pairing knowable.** core-api reads `retrieval.floor` and sends it in `AIRunRequest` ([dtos.py](../services/core-api/infrastructure/dtos.py)), but `RERANKER_PROVIDER` is an ai-engine-only variable — core-api cannot see which provider scored, so it cannot pick the matching floor or detect a mismatch. A per-provider floor needs that coupling to exist first.
+Every run shortlists, then reranks (ADR-0015): the `bge-reranker-v2-m3` cross-encoder on vllm-rerank (`SHORTLIST_PROVIDER=vllm`; `lexical` in CI) shortlists the candidates plus link-expanded chunks, and Jev, the reranker, scores its top 15. `retrieval.floor = 0.30` is on Jev's scale (🔧): chosen from golden-set data, not fitted. The trust coefficients were hand-set for the cross-encoder's scores, not Jev's. Treat refusal and trust behaviour as uncalibrated.
 
 See [TODO.md](TODO.md) item 4.
 

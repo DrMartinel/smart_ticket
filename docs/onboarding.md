@@ -44,16 +44,17 @@ Every model — inference, PII detection, embeddings, reranking — is served by
 vLLM in the `vllm` compose profile (ADR-0009). It needs an NVIDIA GPU; on
 Windows, Docker Desktop with the WSL2 backend.
 
-Create `infra/.env` first: the GPU settings below are read from it.
+Create `.env` at the repo root first: compose reads the GPU settings below
+from it.
 
 ```bash
-cp infra/.env.example infra/.env
+cp .env.example .env
 ```
 
 The three servers share one GPU. vLLM reserves memory up front, and each
 server gets a fixed fraction of the card:
 
-| Server | Setting in `infra/.env` | Default | Holds |
+| Server | Setting in `.env` | Default | Holds |
 |---|---|---|---|
 | `vllm-chat` | `VLLM_CHAT_GPU_UTIL` | 0.6 | Qwen3-8B-AWQ, ~5.7 GiB of weights plus its KV cache |
 | `vllm-embed` | `VLLM_EMBED_GPU_UTIL` | 0.12 | bge-m3, ~1.1 GiB of weights |
@@ -70,7 +71,6 @@ starting all three together can leave two of them fighting over the same
 free memory:
 
 ```bash
-cd infra
 docker compose --profile vllm up -d vllm-chat
 docker compose logs -f vllm-chat      # Ctrl-C at "Application startup complete"
 docker compose --profile vllm up -d vllm-embed
@@ -225,7 +225,7 @@ You are ready to work on this when you can answer:
 | Every ticket is `mask_failed` | ai-engine is down, or vllm-chat is not running or not reachable from it | Step 2 |
 | Submit hangs ~120s | Connect and read timeouts collapsed into one | Step 2; confirm `MODEL_CONNECT_TIMEOUT_SEC=3` |
 | All four generation checks show ✗ | No LLM ran — read the reason code above the panel | Usually vLLM not running |
-| Vietnamese ticket matches nothing | Was a real bug (diacritics); fixed. If it recurs, check `_strip_diacritics` in the reranker | — |
+| Vietnamese ticket matches nothing | Was a real bug (diacritics); fixed. If it recurs, check `LexicalShortlister._tokenize` | — |
 | Port 5432/6379 conflict | You are looking at the wrong ports | Use **5434** / **6380** |
 | `core-api` exits on boot | `thresholds.yaml` unreadable or malformed | It is parsed into a Pydantic model at boot, on purpose — read the traceback |
 | A `vllm-*` container exits with `Engine core initialization failed` | Almost always `CUDA error: out of memory`, further up its log: the three servers don't fit on the card together | Step 2: raise the fraction for the one that died, lower `VLLM_CHAT_GPU_UTIL`, start them one at a time |
