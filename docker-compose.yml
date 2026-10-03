@@ -1,0 +1,279 @@
+# Pinned to the name it had when this file lived in infra/: compose names
+# containers, the network and the db_data volume after the project, so a new
+# name would start every existing checkout on an empty database.
+name: infra
+
+networks:
+  smart-triage:
+    driver: bridge
+
+volumes:
+  db_data:
+
+# Every value comes from .env beside this file (`cp .env.example .env`, the
+# template that documents each one); nothing here repeats a default, and
+# `${X:?}` refuses to start without one. Each service's `environment:` is an
+# ALLOWLIST: exactly the settings that service reads, so ai-engine never holds
+# core-api's read-write DSN or Django secret (ADR-0004), which `env_file`
+# would hand it. The values not taken from .env are container wiring
+# (hostnames, DSNs): .env holds the host-side ones (localhost:5434, ...).
+# apps/core/tests/test_settings_env.py checks each list against its service.
+x-core-api-env: &core-api-env
+  DJANGO_SETTINGS_MODULE: config.settings.development
+  DATABASE_URL: postgresql://${POSTGRES_APP_USER:?see .env.example}:${POSTGRES_APP_PASSWORD:?see .env.example}@db:5432/${POSTGRES_DB:?see .env.example}
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+  # core-api's only route to a model: ai-engine is the only vLLM client
+  # (ADR-0012), so PII detection and embeddings go through it too.
+  AI_ENGINE_URL: http://ai-engine:8001
+  ALLOWED_HOSTS: "*"
+  # From .env.
+  SECRET_KEY: ${SECRET_KEY:?see .env.example}
+  DEBUG: ${DEBUG:?see .env.example}
+  LOG_LEVEL: ${LOG_LEVEL:?see .env.example}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?see .env.example}
+  SHADOW_MODE: ${SHADOW_MODE:?see .env.example}
+  MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:?see .env.example}
+  MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:?see .env.example}
+  AI_ENGINE_ANALYZE_GRACE_SEC: ${AI_ENGINE_ANALYZE_GRACE_SEC:?see .env.example}
+  PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?see .env.example}
+  PII_QUARANTINE_TTL_HOURS: ${PII_QUARANTINE_TTL_HOURS:?see .env.example}
+  POSTGRES_AI_RO_PASSWORD: ${POSTGRES_AI_RO_PASSWORD:?see .env.example}
+  THRESHOLDS_PATH: ${THRESHOLDS_PATH:?see .env.example}
+  DEMO_KB_DIR: ${DEMO_KB_DIR:?see .env.example}
+
+services:
+  db:
+    # pgvector + pg_search (ADR-0013). The preload flag is required: without
+    # it `CREATE EXTENSION pg_search` fails and BM25 queries error out.
+    build: ./infra/db
+    image: smart-triage-db:pg17-pg_search-0.25.10
+    command: ["postgres", "-c", "shared_preload_libraries=pg_search"]
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?see .env.example}
+      POSTGRES_USER: ${POSTGRES_APP_USER:?see .env.example}
+      POSTGRES_PASSWORD: ${POSTGRES_APP_PASSWORD:?see .env.example}
+      # picked up by infra/migrations/sql/0001_extensions_and_roles.sql
+      AI_ENGINE_RO_PASSWORD: ${POSTGRES_AI_RO_PASSWORD:?see .env.example}
+    ports:
+      # Host port 5434 avoids clashing with other locally-running Postgres
+      # instances; containers still reach this service at db:5432
+      # internally regardless of this host-side mapping.
+      - "5434:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_APP_USER:?see .env.example} -d ${POSTGRES_DB:?see .env.example}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [smart-triage]
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      # Not needed by any container (they all reach redis:6379 over the
+      # compose network) — published purely for local dev convenience,
+      # e.g. running core-api/worker directly on the host against this
+      # same Redis instead of a second one.
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [smart-triage]
+
+  core-api:
+    build:
+      context: .
+      dockerfile: services/core-api/Dockerfile
+    command: ["./docker-entrypoint.sh"]
+    environment:
+      <<: *core-api-env
+    # The demo KB snapshot, read by `manage.py load_demo_kb` (DEMO_KB_DIR
+    # defaults to this path). Read-only: the container never writes to it.
+    volumes:
+      - ./demo_kb:/workspace/demo_kb:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [smart-triage]
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/core-api/Dockerfile
+    command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency=2"]
+    environment:
+      <<: *core-api-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [smart-triage]
+
+  beat:
+    build:
+      context: .
+      dockerfile: services/core-api/Dockerfile
+    command: ["celery", "-A", "config", "beat", "-l", "info"]
+    environment:
+      <<: *core-api-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [smart-triage]
+
+  ai-engine:
+    build:
+      context: .
+      dockerfile: services/ai-engine/Dockerfile
+    environment:
+      # read-only DSN — the ai_engine_ro role has SELECT-only grants on
+      # kb_articles / kb_chunks / fewshot_examples (see infra/migrations/sql).
+      # This is a structural permission boundary, not a convention (ADR-0004).
+      AI_ENGINE_DATABASE_URL: postgresql://ai_engine_ro:${POSTGRES_AI_RO_PASSWORD:?see .env.example}@db:5432/${POSTGRES_DB:?see .env.example}
+      AI_ENGINE_DB_POOL_SIZE: ${AI_ENGINE_DB_POOL_SIZE:?see .env.example}
+      AI_ENGINE_DB_MAX_OVERFLOW: ${AI_ENGINE_DB_MAX_OVERFLOW:?see .env.example}
+      # The `vllm` profile's servers below (ADR-0009). To reach vLLM
+      # elsewhere, set them in docker-compose.override.yml.
+      CHAT_BASE_URL: http://vllm-chat:8000/v1
+      EMBED_BASE_URL: http://vllm-embed:8000/v1
+      RERANK_BASE_URL: http://vllm-rerank:8000/v1
+      # From .env. The model names are the same variables the vllm-* servers
+      # below load, so ai-engine asks for what they serve.
+      CHAT_CLIENT_PROVIDER: ${CHAT_CLIENT_PROVIDER:?see .env.example}
+      CHAT_MODEL: ${CHAT_MODEL:?see .env.example}
+      EMBED_MODEL: ${EMBED_MODEL:?see .env.example}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:?see .env.example}
+      SHORTLIST_PROVIDER: ${SHORTLIST_PROVIDER:?see .env.example}
+      RERANKER_MODEL: ${RERANKER_MODEL:?see .env.example}
+      MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:?see .env.example}
+      MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:?see .env.example}
+      CLOUD_API_KEY: ${CLOUD_API_KEY:-}
+      CLOUD_BASE_URL: ${CLOUD_BASE_URL:-}
+      CLOUD_MODEL: ${CLOUD_MODEL:-}
+      CLOUD_MAX_OUTPUT_TOKENS: ${CLOUD_MAX_OUTPUT_TOKENS:?see .env.example}
+      GRAPH_VERSION: ${GRAPH_VERSION:?see .env.example}
+      PROMPT_VERSION: ${PROMPT_VERSION:?see .env.example}
+      PII_NER_PROMPT_VERSION: ${PII_NER_PROMPT_VERSION:?see .env.example}
+      RRF_K: ${RRF_K:?see .env.example}
+      BM25_TOP_K: ${BM25_TOP_K:?see .env.example}
+      BM25_ERROR_CODE_BOOST: ${BM25_ERROR_CODE_BOOST:?see .env.example}
+      VECTOR_TOP_K: ${VECTOR_TOP_K:?see .env.example}
+      RERANK_TOP_N: ${RERANK_TOP_N:?see .env.example}
+      FEWSHOT_K: ${FEWSHOT_K:?see .env.example}
+      FUSION_CANDIDATE_LIMIT: ${FUSION_CANDIDATE_LIMIT:?see .env.example}
+      QUOTE_FUZZY_THRESHOLD: ${QUOTE_FUZZY_THRESHOLD:?see .env.example}
+      LINK_EXPANSION_SEEDS: ${LINK_EXPANSION_SEEDS:?see .env.example}
+      LINK_EXPANSION_CHUNKS_PER_PAGE: ${LINK_EXPANSION_CHUNKS_PER_PAGE:?see .env.example}
+      LINK_EXPANSION_MAX_LINKS_PER_SEED: ${LINK_EXPANSION_MAX_LINKS_PER_SEED:?see .env.example}
+      RERANK_POOL: ${RERANK_POOL:?see .env.example}
+      JEV_BASE_URL: ${JEV_BASE_URL:?see .env.example}
+      JEV_MODEL: ${JEV_MODEL:?see .env.example}
+      JEV_API_KEY: ${JEV_API_KEY:-}
+      RERANK_PROMPT_VERSION: ${RERANK_PROMPT_VERSION:?see .env.example}
+    ports:
+      - "8001:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [smart-triage]
+
+  # Self-hosted vLLM for every model in the system (ADR-0009). Only ai-engine
+  # talks to it (ADR-0012): inference, embeddings and reranking, plus the PII
+  # detection and embeddings it serves to core-api. Required for real masking — without it every ticket is
+  # MASK_FAILED and goes to a human, by design.
+  #
+  #   docker compose --profile vllm up -d
+  #
+  # vLLM serves one model per server and reserves GPU memory up front, so the
+  # three share the card through the *_GPU_UTIL fractions — tune them to your
+  # VRAM. Not yet run against real hardware: before trusting it, confirm
+  # vllm-rerank's score scale (ADR-0005) and re-embed stored vectors
+  # (ADR-0009, docs/TODO.md item 4).
+  vllm-chat:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG:?see .env.example}
+    profiles: ["vllm"]
+    command:
+      - --model=${CHAT_MODEL:?see .env.example}
+      - --gpu-memory-utilization=${VLLM_CHAT_GPU_UTIL:?see .env.example}
+      - --max-model-len=${VLLM_CHAT_MAX_MODEL_LEN:?see .env.example}
+    volumes:
+      - ${HF_CACHE_DIR:?see .env.example}:/root/.cache/huggingface
+    ports:
+      - "8100:8000"
+    deploy: &vllm-gpu
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks: [smart-triage]
+
+  vllm-embed:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG:?see .env.example}
+    profiles: ["vllm"]
+    command:
+      - --model=${EMBED_MODEL:?see .env.example}
+      - --gpu-memory-utilization=${VLLM_EMBED_GPU_UTIL:?see .env.example}
+      # No CUDA-graph capture: it is the startup step that runs out of
+      # memory when three servers share a 12 GiB card, and it buys
+      # little for a small encoder.
+      - --enforce-eager
+    volumes:
+      - ${HF_CACHE_DIR:?see .env.example}:/root/.cache/huggingface
+    ports:
+      - "8101:8000"
+    deploy: *vllm-gpu
+    networks: [smart-triage]
+
+  vllm-rerank:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG:?see .env.example}
+    profiles: ["vllm"]
+    command:
+      # Pin RERANKER_REVISION to a commit sha: left at `main`, an upstream push
+      # silently moves the score scale retrieval.floor is compared against
+      # (ADR-0005).
+      - --model=${RERANKER_MODEL:?see .env.example}
+      - --revision=${RERANKER_REVISION:?see .env.example}
+      - --gpu-memory-utilization=${VLLM_RERANK_GPU_UTIL:?see .env.example}
+      # No CUDA-graph capture: it is the startup step that runs out of
+      # memory when three servers share a 12 GiB card, and it buys
+      # little for a small encoder.
+      - --enforce-eager
+    volumes:
+      - ${HF_CACHE_DIR:?see .env.example}:/root/.cache/huggingface
+    ports:
+      - "8102:8000"
+    deploy: *vllm-gpu
+    networks: [smart-triage]
+
+  web:
+    build:
+      context: ./services/web
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:?see .env.example}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - core-api
+    networks: [smart-triage]

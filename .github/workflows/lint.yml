@@ -50,6 +50,9 @@ jobs:
       # Type hints are not enforced at runtime, so this is the only thing that
       # makes them binding. Needs the real dependencies installed: without
       # them every third-party import is Unknown and most checks go quiet.
+      # Settings come only from .env (or the env); the template is the
+      # shipped config. Job-level env: entries still win over it.
+      - run: cp .env.example .env
       - run: uv sync --all-packages
 
       - name: mypy

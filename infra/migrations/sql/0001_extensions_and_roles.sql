@@ -24,4 +24,4 @@ $$;
 -- CONNECT is granted to PUBLIC by default in Postgres, so ai_engine_ro can
 -- connect once the owning migration ALTERs it to LOGIN with a password.
 -- No database-name literal is hardcoded here on purpose — POSTGRES_DB is
--- an env-configurable value (see infra/.env.example).
+-- an env-configurable value (POSTGRES_AI_RO_PASSWORD in .env.example).

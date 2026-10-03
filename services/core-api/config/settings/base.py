@@ -2,23 +2,65 @@
 Base Django settings. Environment-specific overrides live in development.py,
 production.py and test.py.
 
-Everything that varies between environments is read from os.environ here,
-with dev-safe defaults — those defaults are NOT meant to be used in prod
-(see production.py, which fails loudly if left unset).
+Everything that varies between environments is read through `env()`: from
+the repo root's `.env` (git-ignored; start from `cp .env.example .env`, the
+template that documents each setting) or a real environment variable, which
+wins. Never from a default in this file, and never from the template itself.
+The template's values are dev-only: production.py refuses its secrets.
 """
 
 import os
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import yaml
+from django.core.exceptions import ImproperlyConfigured
+from dotenv import dotenv_values
 from pydantic import BaseModel, Field
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-secret-key-change-me")
-DEBUG = os.environ.get("DEBUG", "false").lower() == "true"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# ── Environment ─────────────────────────────────────────────────────────
+# The repo root (the image's /workspace). Containers have no .env there
+# (.dockerignore): compose hands them its contents as environment variables.
+REPO_ROOT = BASE_DIR.parent.parent
+ENV_FILE = REPO_ROOT / ".env"
+
+
+def layered_env(*sources: Mapping[str, str | None]) -> dict[str, str]:
+    """Later sources win. Empty counts as unset: a blank line in .env is a
+    setting nobody filled in, not a value."""
+    return {key: value for source in sources for key, value in source.items() if value}
+
+
+_ENV = layered_env(dotenv_values(ENV_FILE), os.environ)
+
+
+def env(key: str) -> str:
+    """A setting with no value anywhere fails the boot: there is no
+    fallback to a number nobody chose."""
+    try:
+        return _ENV[key]
+    except KeyError:
+        raise ImproperlyConfigured(
+            f"{key} is not set: add it to {ENV_FILE} (see .env.example) or the environment"
+        )
+
+
+def env_bool(key: str) -> bool:
+    return env(key).lower() == "true"
+
+
+def env_path(key: str) -> str:
+    """Relative to the repo root, so it works from any cwd; an absolute
+    path is kept as is."""
+    return str((REPO_ROOT / env(key)).resolve())
+
+
+SECRET_KEY = env("SECRET_KEY")
+DEBUG = env_bool("DEBUG")
+ALLOWED_HOSTS = env("ALLOWED_HOSTS").split(",")
 
 INSTALLED_APPS = [
     "django.contrib.auth",
@@ -69,9 +111,7 @@ AUTH_USER_MODEL = "accounts.User"
 
 # ── Database ─────────────────────────────────────────────────────────────
 # DATABASE_URL, e.g. postgresql://app_user:app_password@db:5432/smart_triage
-_db_url = os.environ.get(
-    "DATABASE_URL", "postgresql://app_user:app_password@localhost:5432/smart_triage"
-)
+_db_url = env("DATABASE_URL")
 
 
 def _parse_database_url(url: str) -> dict[str, Any]:
@@ -97,8 +137,8 @@ DATABASES = {"default": _parse_database_url(_db_url)}
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ── Celery ───────────────────────────────────────────────────────────────
-CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://localhost:6379/1")
+CELERY_BROKER_URL = env("CELERY_BROKER_URL")
+CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND")
 CELERY_TASK_ACKS_LATE = True  # spec §10.3: worker death mid-task must not drop the ticket
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
@@ -122,44 +162,22 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # ── CORS (web talks to core-api from a different origin in dev) ────────────
-CORS_ALLOWED_ORIGINS = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS").split(",")
 
 # ── Smart Triage domain settings ────────────────────────────────────────
-SHADOW_MODE = os.environ.get("SHADOW_MODE", "true").lower() == "true"
-AI_ENGINE_URL = os.environ.get("AI_ENGINE_URL", "http://localhost:8001")
+SHADOW_MODE = env_bool("SHADOW_MODE")
 # ai-engine is the only vLLM client (ADR-0012): core-api's embeddings and PII
 # NER go through AI_ENGINE_URL, so core-api has no model URL, model name or
-# embedding provider. EMBEDDING_PROVIDER=stub is set on ai-engine.
-#
-# Read timeout for one embed or PII NER call to ai-engine, which in turn
-# waits on a model. Generous by design:
-# a cold model load alone can take 15-20s, and the old 3s NER budget
-# meant essentially every ticket timed out into PIILevel.MASK_FAILED before
-# the model had even finished loading. Failing to MASK_FAILED is the
-# correct behavior when we genuinely can't verify (spec §5.2) — but it
-# should signal "the model is down", not "the model was still warming up".
-MODEL_TIMEOUT_SEC = float(os.environ.get("MODEL_TIMEOUT_SEC", "120"))
-# Connect timeout for every call to ai-engine, deliberately SHORT and
-# separate from the read budgets. The two describe different failures:
-#   - can't open a TCP connection  -> ai-engine unreachable (down, wrong
-#     host, firewall dropping the Docker subnet). Waiting longer cannot
-#     help; a dropped packet just burns the full budget in silence.
-#   - connected but slow to respond -> a model is loading or generating.
-#     That legitimately needs the full read budget.
-# Collapsing both into one number means an unreachable server makes the
-# user stare at a spinner for two minutes before an error that was
-# knowable in three seconds — masking runs inline in the submit request,
-# so this delay is felt directly by whoever filed the ticket.
-MODEL_CONNECT_TIMEOUT_SEC = float(os.environ.get("MODEL_CONNECT_TIMEOUT_SEC", "3"))
-# Slack on top of thresholds.yaml's budget.max_latency_sec for the
-# /v1/analyze read timeout, so a run that finishes right at the budget
-# still delivers its response.
-AI_ENGINE_ANALYZE_GRACE_SEC = float(os.environ.get("AI_ENGINE_ANALYZE_GRACE_SEC", "5"))
-PII_ENCRYPTION_KEY = os.environ.get(
-    "PII_ENCRYPTION_KEY", "Zm9yLWRldi1vbmx5LTMyLWJ5dGUta2V5LWhlcmUhISE="
-)
-PII_QUARANTINE_TTL_HOURS = int(os.environ.get("PII_QUARANTINE_TTL_HOURS", "72"))
-AI_ENGINE_RO_PASSWORD = os.environ.get("POSTGRES_AI_RO_PASSWORD", "ai_engine_ro_password")
+# embedding provider.
+AI_ENGINE_URL = env("AI_ENGINE_URL")
+# Read and connect timeouts for calls to ai-engine are separate on purpose;
+# `.env.example` explains both values.
+MODEL_TIMEOUT_SEC = float(env("MODEL_TIMEOUT_SEC"))
+MODEL_CONNECT_TIMEOUT_SEC = float(env("MODEL_CONNECT_TIMEOUT_SEC"))
+AI_ENGINE_ANALYZE_GRACE_SEC = float(env("AI_ENGINE_ANALYZE_GRACE_SEC"))
+PII_ENCRYPTION_KEY = env("PII_ENCRYPTION_KEY")
+PII_QUARANTINE_TTL_HOURS = int(env("PII_QUARANTINE_TTL_HOURS"))
+AI_ENGINE_RO_PASSWORD = env("POSTGRES_AI_RO_PASSWORD")
 DB_APP_ROLE = DATABASES["default"]["USER"]
 
 # The schema of thresholds.yaml (spec §8, §13). Parsed at boot, so a missing
@@ -173,6 +191,7 @@ class RoutingThresholds(BaseModel):
 
 
 class RetrievalThresholds(BaseModel):
+    # On Jev's scale, the final reranker on every run (ADR-0015).
     floor: float = Field(ge=0, le=1)
     margin: float = Field(ge=0, le=1)
     bm25_top_k: int
@@ -246,11 +265,11 @@ class Thresholds(BaseModel):
         return self.routing.quote_match
 
 
-THRESHOLDS_PATH = os.environ.get("THRESHOLDS_PATH", str(BASE_DIR / "config" / "thresholds.yaml"))
+THRESHOLDS_PATH = env_path("THRESHOLDS_PATH")
 
 # The demo knowledge base snapshot (repo-root demo_kb/), read by
 # `manage.py load_demo_kb`. docker-compose mounts it at the same place.
-DEMO_KB_DIR = os.environ.get("DEMO_KB_DIR", str(BASE_DIR.parent.parent / "demo_kb"))
+DEMO_KB_DIR = env_path("DEMO_KB_DIR")
 
 
 def load_thresholds() -> Thresholds:
@@ -278,5 +297,5 @@ LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "handlers": {"console": {"class": "logging.StreamHandler"}},
-    "root": {"handlers": ["console"], "level": os.environ.get("LOG_LEVEL", "INFO")},
+    "root": {"handlers": ["console"], "level": env("LOG_LEVEL")},
 }

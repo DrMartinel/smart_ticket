@@ -52,19 +52,21 @@ jobs:
       DATABASE_URL: postgresql://app_user:app_password@localhost:5434/smart_triage
       SECRET_KEY: ci-only-key
       EMBEDDING_PROVIDER: stub
-      # No vLLM in this job. Note what that means: retrieval.floor is a
-      # CROSS-ENCODER score (ADR-0005), so the refusal-related metrics in this
-      # gate are measured against a threshold compared to token-overlap ratios.
-      # They protect the wiring, not the retrieval calibration — see
-      # docs/TODO.md item 4.
-      RERANKER_PROVIDER: lexical
+      # No vLLM in this job, and no ai-engine server: the suites here call
+      # nodes directly. thresholds.yaml sets no floor for `lexical`, so a
+      # /v1/analyze run under it would fail rather than compare token-overlap
+      # ratios with the cross-encoder's floor (ADR-0005, docs/TODO.md item 4).
+      SHORTLIST_PROVIDER: lexical
       POSTGRES_AI_RO_PASSWORD: ai_engine_ro_password
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
+      # Settings come only from .env (or the env); the template is the
+      # shipped config. Job-level env: entries still win over it.
+      - run: cp .env.example .env
       - run: uv sync --all-packages
       - name: Postgres (pgvector + pg_search, ADR-0013)
-        run: docker compose -f infra/docker-compose.yml up -d --wait db
+        run: docker compose up -d --wait db
 
       - name: Migrate (applies infra/migrations/sql/* via Django RunSQL)
         working-directory: services/core-api
@@ -110,13 +112,19 @@ jobs:
       EMBEDDING_PROVIDER: vllm
       # The shipped default: the cross-encoder served by vllm-rerank. This is
       # the only job with a GPU runner, and item 4 needs its score distribution.
-      RERANKER_PROVIDER: vllm
+      SHORTLIST_PROVIDER: vllm
+      # Jev is the final reranker on every run (ADR-0015); ai-engine refuses
+      # to start without its key.
+      JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
       EVAL_FULL_RUN: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
+      # Settings come only from .env (or the env); the template is the
+      # shipped config. Job-level env: entries still win over it.
+      - run: cp .env.example .env
       - run: uv sync --all-packages
-      - run: docker compose -f infra/docker-compose.yml up -d db redis
+      - run: docker compose up -d db redis
       - working-directory: services/core-api
         run: uv run python manage.py migrate
       - name: Start ai-engine

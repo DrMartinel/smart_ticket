@@ -9,16 +9,13 @@ SHELL := /bin/bash
 ROOT   := ../..
 MANAGE := uv run python manage.py
 
-# The Dockerized Postgres and Redis, on their host ports (5434 / 6380, not the
-# defaults, to avoid collisions). Override on the command line:
-# `make runserver DATABASE_URL=...`.
+# Settings come from the repo root's .env.example (the Dockerized Postgres
+# and Redis on their host ports, 5434 / 6380), then the root .env, then the
+# environment. Override on the command line: `DATABASE_URL=... make runserver`.
 #
 # DJANGO_SETTINGS_MODULE is deliberately NOT exported: manage.py and
 # config/celery.py default to `development`, and pytest.ini selects `test`.
 # Exporting it would override pytest.ini and run the tests on dev settings.
-DATABASE_URL      ?= postgresql://app_user:app_password@localhost:5434/smart_triage
-CELERY_BROKER_URL ?= redis://localhost:6380/0
-export DATABASE_URL CELERY_BROKER_URL
 
 # ruff is pinned to match lint.yml; bump both together.
 RUFF := uvx ruff@0.16.7

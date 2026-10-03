@@ -1,4 +1,4 @@
-# Build context is the repo root (see infra/docker-compose.yml) because the
+# Build context is the repo root (see docker-compose.yml) because the
 # uv workspace lockfile and infra/migrations/sql live there.
 FROM python:3.13-slim
 

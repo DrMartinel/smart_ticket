@@ -5,7 +5,7 @@
 # This produces tagged, pullable artifacts; rolling them out stays manual
 # until there is somewhere to roll them out to.
 #
-# THREE images, not five: infra/docker-compose.yml builds core-api, worker
+# THREE images, not five: docker-compose.yml builds core-api, worker
 # and beat from the same core-api Dockerfile and differentiates them by
 # `command`, so publishing core-api covers all three.
 #
@@ -47,14 +47,17 @@ jobs:
       DATABASE_URL: postgresql://app_user:app_password@localhost:5434/smart_triage
       SECRET_KEY: ci-only-key
       EMBEDDING_PROVIDER: stub
-      RERANKER_PROVIDER: lexical
+      SHORTLIST_PROVIDER: lexical
       POSTGRES_AI_RO_PASSWORD: ai_engine_ro_password
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
+      # Settings come only from .env (or the env); the template is the
+      # shipped config. Job-level env: entries still win over it.
+      - run: cp .env.example .env
       - run: uv sync --all-packages
       - name: Postgres (pgvector + pg_search, ADR-0013)
-        run: docker compose -f infra/docker-compose.yml up -d --wait db
+        run: docker compose up -d --wait db
 
       # Pinned to match .github/workflows/lint.yml — ruff's default rule set
       # is not stable across releases. Bump both together.
