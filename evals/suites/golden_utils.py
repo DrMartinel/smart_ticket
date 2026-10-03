@@ -83,22 +83,34 @@ def record_metric(name: str, value: float, **extra) -> None:
 
 def analyze(client: httpx.Client, subject: str, body: str, *, never_refuse: bool = False) -> dict:
     """POST /v1/analyze with thresholds.yaml's floor, or 0.0 when
-    `never_refuse`, so the model always answers."""
+    `never_refuse`, so the model always answers.
 
+    The ticket goes through core-api's own `mask()` first and ai-engine gets
+    what `pipeline.py` sends it: the masked text and the PII level masking
+    found. ai-engine echoes that level into its policy signals, so the
+    router blocks critical PII and sends `mask_failed` to a human, as in
+    production. Before, the harness sent raw text as "masked" with the level
+    pinned to routine: g144's raw password was auto-replied in the
+    2026-10-04 run instead of blocked, and no masking regression could show
+    up here. Masking calls ai-engine's NER, so a run needs it up."""
+
+    from asgiref.sync import async_to_sync
     from django.conf import settings
 
-    from apps.tickets.utils.patterns import PIILevel
+    from apps.tickets.request_schema import TicketIn
+    from apps.tickets.utils.masking import mask
 
     floor = 0.0 if never_refuse else settings.THRESHOLDS.retrieval_floor
+    masked = async_to_sync(mask)(TicketIn(subject=subject, body=body))
 
     req = {
         "request_id": f"eval-{hash((subject, body)) & 0xFFFFFFFF}",
         "ticket": {
             "ticket_public_id": "TKT-EVAL",
-            "subject_masked": subject,
-            "body_masked": body,
-            "pii_level": PIILevel.ROUTINE.value,
-            "placeholder_keys": [],
+            "subject_masked": masked.subject_masked,
+            "body_masked": masked.body_masked,
+            "pii_level": masked.pii_level.value,
+            "placeholder_keys": list(masked.placeholder_map),
         },
         "retrieval_floor": floor,
     }

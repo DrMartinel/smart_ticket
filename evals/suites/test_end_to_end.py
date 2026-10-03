@@ -25,6 +25,7 @@ pre-calibration threshold should gate.
 
 from __future__ import annotations
 
+from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier, route
 from infrastructure.dtos import TicketCategory, TrustSignals
 from django.conf import settings
@@ -65,10 +66,16 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
     auto_reply_predicted = 0
     auto_reply_correct = 0
     mismatches = []
+    # Tickets whose masking failed (NER down or erroring). They reach HITL
+    # as in production; listed so an NER outage reads as one, not as a
+    # model regression.
+    mask_failed = []
 
     for case in cases:
         result = analyze(ai_engine_client, case["subject"], case["body"])
         signals = TrustSignals(**result["signals"])
+        if signals.policy.pii_level is PIILevel.MASK_FAILED:
+            mask_failed.append(case["id"])
         proposal_dict = result.get("proposal")
 
         proposal = None
@@ -103,7 +110,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
     # pre-calibration branch-accuracy threshold would be the wrong check.
     print(
         f"\nEnd-to-end: branch_accuracy={accuracy} auto_reply_precision={precision} "
-        f"n={len(cases)} mismatches={mismatches}"
+        f"n={len(cases)} mismatches={mismatches} mask_failed={mask_failed}"
     )
 
     if accuracy is not None:

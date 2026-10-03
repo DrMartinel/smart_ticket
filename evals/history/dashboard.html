@@ -156,7 +156,7 @@ footer { color: var(--muted); font-size: 12px; }
     <div class="grid-2">
       <div class="panel"><p class="chart-title">Retrieval recall@3</p><p class="chart-sub">Gold article in the 3 pages returned · 60 KB-covered tickets</p><div id="c-recall"></div></div>
       <div class="panel"><p class="chart-title">Auto-reply precision</p><p class="chart-sub">Auto-replies whose golden branch is auto_reply · absolute gate</p><div id="c-autoreply"></div></div>
-      <div class="panel"><p class="chart-title">Branch accuracy</p><p class="chart-sub">Routed branch matches the golden branch · 145 tickets · reported, not gated</p><div id="c-branch"></div></div>
+      <div class="panel"><p class="chart-title">Branch accuracy</p><p class="chart-sub">Routed branch matches the golden branch · every labeled ticket (145, then 171 from 10/04) · reported, not gated</p><div id="c-branch"></div></div>
       <div class="panel"><p class="chart-title">F1 by category</p><p class="chart-sub">Gate 0.85 for every category, never averaged (rule 9) · ▼ below gate</p><div class="scroll" id="t-f1"></div></div>
     </div>
   </section>
@@ -349,13 +349,17 @@ footer { color: var(--muted); font-size: 12px; }
     const runById = Object.fromEntries(runs.map((r) => [r.id, r]));
     const order = Object.fromEntries(runs.map((r, i) => [r.id, i]));
     const official = runs.filter((r) => r.kind !== "probe");
-    // A candidate run measures a configuration that doesn't ship: its config
-    // turns on something the pipeline has off by default (ADR-0015's second
-    // reranker, link expansion). Keyed on the recorded config, so a run of the
-    // shipped pipeline is never mislabeled by its title.
+    // A candidate run measures a configuration that didn't ship when it ran:
+    // its config turns on something the pipeline then had off. Keyed on the
+    // recorded config and the date each part shipped (Jev and link expansion,
+    // ADR-0015, on 2026-10-03), so a run of the shipped pipeline is never
+    // mislabeled by its title, and an old candidate stays one.
+    const SHIPPED_ON = { second_reranker: "2026-10-03", link_expansion: "2026-10-03" };
     const candidateOf = (r) => {
       const c = r?.config ?? {};
-      const parts = [c.second_reranker, c.link_expansion ? "links" : null].filter(Boolean);
+      const before = (key) => !r?.date || r.date < SHIPPED_ON[key];
+      const parts = [c.second_reranker && before("second_reranker") ? c.second_reranker : null,
+        c.link_expansion && before("link_expansion") ? "links" : null].filter(Boolean);
       return parts.length ? parts.join(" + ") : null;
     };
     const unlabeled = (m) => !m.labels || Object.keys(m.labels).length === 0;
