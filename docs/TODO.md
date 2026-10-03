@@ -304,3 +304,34 @@ Of the 14 remaining misses, 9 are GuardDuty and SES tickets (g048, g050–g053, 
 ### Done when
 
 Retrieval recall meets the gate against a reviewed baseline measured on this KB.
+
+---
+
+## 10. Ask the requester when a ticket is ambiguous (clarification branch)
+
+**Priority:** Medium, after item 4 (it does not fix the failing auto-reply gate) · **Spec:** §5, §8 · **ADR:** new, to be written (not 0015, which is reserved for Jev)
+
+### Problem
+
+Some tickets have a plausible KB answer but leave out the detail that says whether it applies. The 2026-10-02 (5) full run ([`evals/HISTORY.md`](../evals/HISTORY.md)) had two:
+
+- **g148**, "I need help resetting my portal password": Jev ranks `identity-center.resetpassword-accessportal` top-1 at 0.92 and the run auto-replies 2 times in 3. The ticket never says *which* portal. The labeled g001-g005 all say "AWS access portal", "access portal" or "Identity Center".
+- **g150**, "connection error when connecting to the internal server at 10.0.4.22": auto-replies 3 times in 3 with `ec2.TroubleshootingInstancesConnecting`, though nothing says the server is an EC2 instance.
+
+The router can only guess (`auto_reply`) or hand the ticket off (`auto_route`, `hitl`, `escalate`, `block`). A human then asks the question by hand, or the requester gets an answer to a question they didn't ask.
+
+### Work
+
+1. **Write the ADR first.** This lets the system send the requester something other than a human reply or an approved KB answer, so it widens what the LLM can cause without a human. The ADR has to say why that is safe.
+2. **The LLM proposes, the router decides.** ai-engine returns a `proposed_clarification` (the question, and which KB pages it would separate). `router.py` decides whether to ask, from deterministic rules with thresholds passed in. For example: ask only when the top page has `auto_reply_allowed` and trust falls between `t_route` and `t_auto`. Never ask on `block`, high-risk or PII-critical tickets, and never on a `RunbookProposal` (ADR-0006).
+3. A new `Branch` value (e.g. `clarify`) and its `ReasonCode`s. Every limit (rounds, wait time) goes in `thresholds.yaml`.
+4. **Failure paths go to HITL, each with its own `ReasonCode`:** no reply within the wait time, a reply that is still ambiguous, the round cap reached (one question, then a human), and an LLM question that is empty or malformed.
+5. Wire schema in both services in the same PR (`infrastructure/dtos.py`, ai-engine `schemas.py`), new fields defaulted, `make types` for web.
+6. Re-run the pipeline on the requester's reply: the original ticket plus the answer, masked again, since the reply can contain PII.
+7. Golden cases for ambiguous tickets with `expected_branch: clarify`, chosen and reviewed by someone other than the author (rule 9). Don't relabel g148/g150 to make the precision gate pass.
+
+**Cheaper first step, worth measuring before any of the above:** the auto-reply states its assumption ("If you mean the AWS access portal, …"). This is only a prompt change, so it goes through the eval gate with a version bump.
+
+### Done when
+
+The ADR is accepted. Ambiguous tickets reach `clarify` in the evals without lowering auto-reply precision. Every clarification failure path has a test that ends in HITL with its `ReasonCode`. And shadow mode records `clarify` decisions so they can be compared with what technicians actually asked.
