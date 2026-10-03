@@ -101,7 +101,9 @@ def analyze(client: httpx.Client, subject: str, body: str, *, never_refuse: bool
     from apps.tickets.utils.masking import mask
 
     floor = 0.0 if never_refuse else settings.THRESHOLDS.retrieval_floor
-    masked = async_to_sync(mask)(TicketIn(subject=subject, body=body))
+    masked = async_to_sync(mask)(
+        TicketIn(subject=subject, body=body), settings.THRESHOLDS.masking.ner_max_share
+    )
 
     req = {
         "request_id": f"eval-{hash((subject, body)) & 0xFFFFFFFF}",

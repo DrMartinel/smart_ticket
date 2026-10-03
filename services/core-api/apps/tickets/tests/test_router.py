@@ -15,6 +15,7 @@ from config.settings.base import (
     BudgetThresholds,
     FewshotThresholds,
     IncidentThresholds,
+    MaskingThresholds,
     RetrievalThresholds,
     RoutingThresholds,
     Thresholds,
@@ -65,6 +66,7 @@ def make_thresholds(**overrides) -> Thresholds:
             trust_score_drift_max=0.10,
             trust_score_std_min=0.08,
         ),
+        masking=MaskingThresholds(ner_max_share=0.5),
     )
     base.update(overrides)
     return Thresholds(**base)

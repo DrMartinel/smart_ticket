@@ -188,9 +188,12 @@ class MaskResult:
     body_masked: str
     pii_level: PIILevel
     placeholder_map: dict[str, str]  # placeholder -> real value, for quarantine
+    # NER's share of the text beyond the regex hits (`ner_share`); 0.0 when
+    # NER didn't run (critical PII, NER failure). For the masking eval.
+    ner_share: float = 0.0
 
 
-async def mask(raw: TicketIn) -> MaskResult:
+async def mask(raw: TicketIn, ner_max_share: float) -> MaskResult:
     """Returns the masked ticket plus the placeholder -> real value map to
     hand to the quarantine store. Attachments are never inspected here —
     they are treated as fully untrusted (spec §5.2) and are not masked or
@@ -231,7 +234,38 @@ async def mask(raw: TicketIn) -> MaskResult:
     subject_masked, body_masked, placeholder_map, level = _apply(
         raw, subject_hits + llm_subject_hits, body_hits + llm_body_hits
     )
-    return MaskResult(subject_masked, body_masked, level, placeholder_map)
+    share = ner_share(
+        [(raw.subject, subject_hits, llm_subject_hits), (raw.body, body_hits, llm_body_hits)]
+    )
+    if share > ner_max_share:
+        # NER masked far more than free-form PII takes: whole sentences, an
+        # injection, the request itself. Everything it flagged stays masked
+        # (dropping a span could leak PII), but a human gets the ticket
+        # instead of retrieval and the injection detector getting text with
+        # its substance removed. The share, never the text, goes in the log.
+        logger.warning(
+            "masking: NER covered %.2f of the text (max %.2f) — flagging MASK_FAILED",
+            share,
+            ner_max_share,
+        )
+        level = PIILevel.MASK_FAILED
+    return MaskResult(subject_masked, body_masked, level, placeholder_map, share)
+
+
+def ner_share(fields: list[tuple[str, list[PIIHit], list[PIIHit]]]) -> float:
+    """The share of the text, over all `(text, regex_hits, ner_hits)`
+    fields, that NER's hits cover beyond the regex hits. Regex-covered
+    characters are left out: an NER span over an email it was told to skip
+    is not over-masking."""
+    total = sum(len(text) for text, _, _ in fields)
+    if total == 0:
+        return 0.0
+    covered = 0
+    for _, regex_hits, ner_hits in fields:
+        by_regex = {i for h in regex_hits for i in range(h.start, h.end)}
+        by_ner = {i for h in ner_hits for i in range(h.start, h.end)}
+        covered += len(by_ner - by_regex)
+    return covered / total
 
 
 def _spans_to_hits(text: str, spans: list[str]) -> list[PIIHit]:

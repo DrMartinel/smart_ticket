@@ -51,7 +51,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 | `routine` | Names, internal emails, employee IDs | Continue |
 | `sensitive` | National ID, bank account, health info | Continue, flagged |
 | `critical` | Password, token, API key | **BLOCK** + alert security |
-| `mask_failed` | The masker errored or timed out | **HITL** — never treated as clean |
+| `mask_failed` | The masker errored or timed out, or NER masked more than `masking.ner_max_share` of the text | **HITL** — never treated as clean |
 
 **`mask_failed` is not an error state** — it is the correct answer to "I could not verify." Uncertainty must cost a human's time, never risk a leak. Any change that makes a masking failure resolve toward "no PII found" is a serious regression.
 

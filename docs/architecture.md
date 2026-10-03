@@ -94,10 +94,12 @@ POST /api/tickets/submit
    │         └─► BLOCK, alert security. No model is called. Stop.
    │
    ├─ Tier 2: LLM NER via ai-engine /v1/pii/detect (free-form PII regex can't catch)
-   │    └─ timeout or error?
-   │         └─► pii_level = mask_failed  (never "assume clean")
+   │    ├─ timeout or error?
+   │    │    └─► pii_level = mask_failed  (never "assume clean")
+   │    └─ spans cover more than masking.ner_max_share of the text?
+   │         └─► pii_level = mask_failed  (still fully masked)
    │
-   ├─ Replace hits with numbered placeholders  [EMAIL_1], [PHONE_VN_1]
+   ├─ Merge overlapping hits, then replace them with numbered placeholders  [EMAIL_1], [PHONE_VN_1]
    ├─ Encrypt real values → pii_quarantine (AES-GCM, 72h TTL)
    └─ INSERT INTO tickets  ← the first DB write; only masked text
 ```
@@ -106,7 +108,9 @@ Masking is inline **on purpose**. Async masking would create a window where raw 
 
 The two NER calls (subject, body) run concurrently: they are independent, and sequential calls would make the worst case two full timeouts deep inside a request a user is waiting on.
 
-Tier 2 runs in ai-engine (ADR-0012), on the self-hosted chat model through its own `clients.ner` client, never the possibly-cloud `clients.chat`. This is the **one** place raw text enters ai-engine: `/v1/pii/detect` logs neither the text nor the model's reply, and a failure comes back as a 502 that core-api resolves to `mask_failed`.
+Tier 2 runs in ai-engine (ADR-0012), on the self-hosted chat model through its own `clients.ner` client, never the possibly-cloud `clients.chat`. This is the **one** place raw text enters ai-engine: `/v1/pii/detect` logs neither the text nor the model's reply, and a failure comes back as a 502 that core-api resolves to `mask_failed`. NER decodes greedily, so a ticket masks the same way every time.
+
+Masking can also fail by removing too much. Everything after it, the injection detector included, sees only masked text, so an NER span over a whole sentence hides that sentence from all of them: it once hid an injection and, on another ticket, the request itself (`evals/HISTORY.md`, 2026-10-04 (2)). When NER's spans, beyond the regex hits, cover more than `masking.ner_max_share` of the ticket (`thresholds.yaml`), the ticket is `mask_failed` and goes to a human. Every span stays masked: dropping one could leak PII. `evals/suites/test_masking.py` measures how often NER over-masks.
 
 ### Stage 2 — Embedding and incident detection (Celery)
 

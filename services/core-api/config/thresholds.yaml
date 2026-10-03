@@ -67,3 +67,17 @@ alerts:
   override_rate_delta_max: 0.05
   trust_score_drift_max: 0.10
   trust_score_std_min: 0.08    # weekly spread below this → scorer can't tell tickets apart (§7.2)
+
+masking:
+  # 🔧 Share of a ticket's text (subject + body) that tier-2 NER's free-form
+  # spans may cover beyond what the regex tier masked. Above it the ticket is
+  # MASK_FAILED, a human, instead of going on over-masked: NER has masked whole
+  # sentences with no PII in them, hiding an injection from the detector (g133)
+  # and a request from retrieval (g148), evals/HISTORY.md 2026-10-04 (2).
+  # Measured 2026-10-04: whole-ticket over-masking covered 0.80 (g133), 0.86
+  # and 1.0 (g141) under pii_ner.v1; short tickets dense with real free-form
+  # PII ("Ask Mr. Hung on the 5th floor near the kitchen, he has the toner")
+  # cover up to ~0.6, and 0.5 sent them to a human. A backstop for the
+  # extreme case; pii_ner.v2 is the fix. Chosen from these few cases:
+  # re-choose on shadow data.
+  ner_max_share: 0.7

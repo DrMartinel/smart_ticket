@@ -189,7 +189,7 @@ class TicketManager(models.Manager["Ticket"]):
         regex could mask, at `PIILevel.MASK_FAILED`, which the router sends to a
         human. Callers must never retry or drop a MASK_FAILED ticket.
         """
-        result = async_to_sync(mask)(ticket_in)
+        result = async_to_sync(mask)(ticket_in, settings.THRESHOLDS.masking.ner_max_share)
         quarantine_entries = build_quarantine_entries(result.placeholder_map)
 
         with transaction.atomic():

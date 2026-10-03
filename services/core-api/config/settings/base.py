@@ -234,6 +234,12 @@ class AlertThresholds(BaseModel):
     trust_score_std_min: float
 
 
+class MaskingThresholds(BaseModel):
+    # Above this share of a ticket's text, NER's spans (beyond the regex
+    # hits) make the ticket MASK_FAILED instead of passing it on over-masked.
+    ner_max_share: float = Field(gt=0, le=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -247,6 +253,7 @@ class Thresholds(BaseModel):
     fewshot: FewshotThresholds
     budget: BudgetThresholds
     alerts: AlertThresholds
+    masking: MaskingThresholds
 
     @property
     def retrieval_floor(self) -> float:
