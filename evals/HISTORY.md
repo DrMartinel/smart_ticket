@@ -95,6 +95,72 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-04 (3): pii_ner.v2, greedy NER, and an over-masking net, full run
+
+**Verdict:** NER no longer over-masks: on 174 tickets × 3 passes, the
+over-masking rate goes from 1.0% to 0, PII-level accuracy from 0.949 to
+1.00, and every ticket masks the same way on every pass. g133 is blocked
+again and g148 auto-replies. **Two gates fail.** Auto-reply precision
+0.931 (27/29): g151 and g155, as before. **Security F1 0.82** (floor
+0.85), from 0.89 in every earlier run: recall 7/10, one more miss than
+usual, which ten security tickets re-run three times each did not
+reproduce (finding 3).
+
+| Configuration | |
+|---|---|
+| Code | `e32a09f` (`main`) + uncommitted: NER greedy (`temperature` 0) and `pii_ner.v2`; `masking.ner_max_share` 0.7 net in core-api; the masking suite |
+| Prompts | `classify.v5` (unchanged) · **`pii_ner.v2`** |
+| Models · KB · golden · retrieval thresholds | as 2026-10-04 (2) |
+| Duration | 24m30s, every suite, no re-run (no Jev failure this time) |
+
+| Metric | Value | Gate | 2026-10-04 (2) | |
+|---|---|---|---|---|
+| Retrieval recall@3 | 0.917 (55/60, MRR 0.881) | ≥ 0.90 | 0.917 (MRR 0.881) | ✅ |
+| Auto-reply precision | **0.931** (27/29) | ≥ 0.95 absolute | 0.926 (25/27) | ❌ |
+| Branch accuracy | 0.906 (155/171) | reported only | 0.895 (153/171) | — |
+| Refusal on out-of-KB | 1.00 (23/23) | ≥ 0.90 | 1.00 | ✅ |
+| Injection recall | 1.00 (15/15) | ≥ baseline 1.00 | 1.00 | ✅ |
+| Quote-validation precision | 1.00 (7/7) | ≥ 0.95 | 1.00 | ✅ |
+| F1 `access` · `hardware` · `network` · `other` · `security` · `software` | 0.97 · 0.97 · 1.00 · 0.95 · **0.82** · 1.00 | ≥ 0.85 each | 0.97 · 0.94 · 1.00 · 0.93 · 0.89 · 0.95 | ❌ |
+| Masking: PII-level accuracy · over-masking rate · consistency | 1.00 (39) · 0 (522) · 1.00 (174) | reported only | 0.949 · 0.010 · 0.937 (masking suite on v1, same day) | — |
+
+### Findings
+
+**1. NER v1 vs v2, the masking suite.** Same tickets, three passes each.
+v1 (sampled): over-masked g133 twice, g141, g148, g149; 11 tickets masked
+differently between passes; NER share max 0.86. v2 (greedy): none, none,
+max 0.23. Five hand-written tickets dense with real free-form PII were all
+still masked ("Ask Mr. Hung on the 5th floor near the kitchen").
+
+**2. The net's threshold moved from 0.5 to 0.7 before this run.** At 0.5
+those dense, correctly masked tickets (0.52, 0.59 of the text) went to a
+human. Whole-ticket over-masking measured 0.80-1.0.
+
+**3. Security F1.** g055 and g056 come back with no category on every
+attempt, as in earlier runs (8/10). This run had a third miss. Re-run three
+times, the other eight were security every time, so the extra miss did not
+reproduce; the suite does not log which ticket it was. One candidate:
+**v2 masks `my IAM user's credentials` in g057**, every time now, which is
+not personal information. The floor stays (rule 9); the run fails as
+measured.
+
+**4. End-to-end.** g133 `block` again and g148 `auto_reply` (both broken by
+v1 over-masking in (2)); g004 passes. New: g072 `auto_route` (the known
+multi-issue gap). False auto-replies: g151, g155.
+
+### Follow-ups
+
+- [ ] v2's false positive on g057: references to accounts, users or
+      credentials by type ("my IAM user's credentials") are not PII. A v3,
+      then the eval gate.
+- [ ] The classification suite logs which tickets it got wrong, so a
+      one-off miss can be traced.
+- [ ] Underspecified tickets that guess (g151, g155).
+- [ ] The net reuses `pii_mask_failed`: the dashboard can't tell an NER
+      outage from over-masking.
+
+---
+
 ## 2026-10-04 (2): the harness masks tickets as production does, full run
 
 **Verdict:** with tickets masked by core-api's `mask()` before ai-engine,

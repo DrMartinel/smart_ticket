@@ -122,6 +122,23 @@ METRICS: dict[str, MetricSpec] = {
         description="Per-category F1 of the classification suite. Never averaged (rule 9).",
     ),
     # --- reported, not gated ------------------------------------------------
+    "masking_pii_level_accuracy": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
+        description="PII cases whose mask() level matches expected_pii_level, over every "
+        "pass of the masking suite. Over-masked tickets are mask_failed, so wrong.",
+    ),
+    "masking_overmask_rate": MetricSpec(
+        unit="ratio",
+        higher_is_better=False,
+        description="Ticket-passes where NER covered more than masking.ner_max_share of "
+        "the text beyond the regex hits (masking suite, every golden ticket).",
+    ),
+    "masking_consistency": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
+        description="Golden tickets that masked identically on every pass of the masking suite.",
+    ),
     "branch_accuracy": MetricSpec(
         unit="ratio",
         higher_is_better=True,
