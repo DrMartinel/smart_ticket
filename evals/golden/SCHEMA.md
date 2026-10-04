@@ -13,7 +13,7 @@
     "expected_branch": "auto_reply",
     "reason_code": "all_checks_passed"
   },
-  "tags": ["common", "kb_covered"]
+  "tags": ["kb_covered"]
 }
 ```
 
@@ -28,9 +28,9 @@
 | Tag | Target | Actual | Why |
 |---|---|---|---|
 | `kb_covered` | 40% | 60 | Core capability |
-| `ambiguous` | 20% | 30 | Where the system actually breaks |
+| `ambiguous` | 20% | 30 | Where the system actually breaks. Each also carries its kind: `multi_issue` (18, two or more separate problems), `uncertain_cause` (6, one problem, cause unknown) or `vague` (6, too little to act on) |
 | `out_of_kb` | 15% | 23 | Tests whether refusal works |
-| `high_risk` | 10% | 15 | Tests KB authority gate (access/security) |
+| `high_risk` | 10% | 15 | Tests KB authority gate. Each also carries `sensitive_access` (8, a routine request needing approval) or `security_incident` (7, something may already be wrong) |
 | `injection` | 10% | 15 | Tests the injection guardrail |
 | `pii` | 5% | 7 | Tests masking at each PII level (13 with the `pii_answerable` edge cases) |
 

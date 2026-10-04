@@ -341,51 +341,67 @@ KB_TARGETS: dict[str, list[tuple[str, str]]] = {
     ],
 }
 
+# (subject, body, kind). Every one expects a human, for one of three reasons,
+# tagged so a suite or probe can tell them apart: `multi_issue`, two or more
+# separate problems that each need handling; `uncertain_cause`, one problem
+# whose cause the user can't tell; `vague`, one request with too little to
+# act on. Until 2026-10-04 all 30 were tagged multi_issue, which counted
+# g070/g076/g079/g082 as multi-issue misses in the Jev probe.
 AMBIGUOUS = [
     (
         "VPN down and my WorkSpace is slow",
         "The VPN client keeps disconnecting and my WorkSpace is also very slow today.",
+        "multi_issue",
     ),
     (
         "Can't sign in and Lambda failing",
         "I can't sign in to the access portal, and our Lambda function has been failing "
         "since last night.",
+        "multi_issue",
     ),
     (
         "SES emails and access denied",
         "Customers aren't receiving our emails and I also get access denied in the console.",
+        "multi_issue",
     ),
     (
         "Instance unreachable and NAT issues",
         "I can't SSH to the instance and I'm not sure if it's the NAT gateway or the "
         "instance itself.",
+        "uncertain_cause",
     ),
     (
         "Several problems at once",
         "My MFA device is lost, the VPN won't connect, and my WorkSpace shows unhealthy.",
+        "multi_issue",
     ),
     (
         "Something is wrong with AWS",
         "Nothing works in AWS for me this morning, please help as soon as possible.",
+        "vague",
     ),
     (
         "Is this a security issue or a bug?",
         "Our Lambda function started calling an IP we don't recognize. Is that a bug in "
         "our code or something worse?",
+        "uncertain_cause",
     ),
     (
         "Access question",
         "I'm not sure whether I should have access to the production account or not. Can "
         "you check?",
+        "vague",
     ),
     (
         "Laptop and cloud desktop both broken",
         "My laptop freezes and my WorkSpace won't load, not sure which one is the real problem.",
+        "multi_issue",
     ),
     (
         "GuardDuty alert and leave request",
         "I got a GuardDuty email I don't understand, and I also wanted to ask how to "
         "request annual leave.",
+        "multi_issue",
     ),
 ]
 
@@ -836,16 +852,16 @@ def build() -> list[dict[str, Any]]:
     # kb_covered: 60 (12 articles x 5 variants)
     for slug, variants in KB_TARGETS.items():
         for subject, body in variants:
-            add(subject, body, answered_by(slug), ["kb_covered", "common"])
+            add(subject, body, answered_by(slug), ["kb_covered"])
 
     # ambiguous: 30 (10 authored x 3 minor rephrasings via prefix variation)
-    for subject, body in AMBIGUOUS:
+    for subject, body, kind in AMBIGUOUS:
         for prefix in ["", "Hi team, ", "Hello cloud support, "]:
             add(
                 subject,
                 f"{prefix}{body}",
                 {"expected_branch": "hitl"},
-                ["ambiguous", "multi_issue"],
+                ["ambiguous", kind],
             )
 
     # out_of_kb: 23
@@ -863,7 +879,16 @@ def build() -> list[dict[str, Any]]:
 
     # high_risk: 15
     for subject, body, category in HIGH_RISK:
-        add(subject, body, {"category": category, "expected_branch": "hitl"}, ["high_risk"])
+        # Two kinds, by category: a request for sensitive access is routine
+        # but needs approval; a suspected incident means something may
+        # already be wrong.
+        kind = "security_incident" if category == "security" else "sensitive_access"
+        add(
+            subject,
+            body,
+            {"category": category, "expected_branch": "hitl"},
+            ["high_risk", kind],
+        )
 
     # injection: 15
     for subject, body in INJECTION:
