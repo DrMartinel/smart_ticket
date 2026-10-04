@@ -25,9 +25,11 @@ class _FakeChatModel:
     def __init__(self, replies):
         self._replies = list(replies)
         self.calls = 0
+        self.kwargs: list[dict] = []
 
-    def invoke(self, messages):
+    def invoke(self, messages, **kwargs):
         self.calls += 1
+        self.kwargs.append(kwargs)
         reply = self._replies[min(self.calls - 1, len(self._replies) - 1)]
         if isinstance(reply, Exception):
             raise reply
@@ -35,9 +37,14 @@ class _FakeChatModel:
 
 
 class _FakeLLM(ChatClient):
-    def __init__(self, *replies, name="fake/model", cost=0.0):
+    def __init__(self, *replies, name="fake/model", cost=0.0, constrains_schema=True):
         self._model = _FakeChatModel(replies)
-        super().__init__(model=name, chat_model=self._model, cost_per_1k_tokens=cost)
+        super().__init__(
+            model=name,
+            chat_model=self._model,
+            cost_per_1k_tokens=cost,
+            constrains_schema=constrains_schema,
+        )
 
     @property
     def calls(self) -> int:
@@ -77,7 +84,7 @@ def test_unusable_content_raises_all_llm_down(content):
 
     primary = _FakeLLM(AIMessage(content=content))
     with pytest.raises(AllLLMDownError):
-        primary.complete("s", "u")
+        primary.complete("s", "u", schema_name="s", schema={})
     assert primary.calls == 1
 
 
@@ -101,7 +108,7 @@ def test_no_provider_exception_escapes_as_anything_but_all_llm_down(exc):
     """
 
     with pytest.raises(AllLLMDownError):
-        _FakeLLM(exc).complete("s", "u")
+        _FakeLLM(exc).complete("s", "u", schema_name="s", schema={})
 
 
 def test_a_single_failure_raises_without_retrying():
@@ -111,7 +118,7 @@ def test_a_single_failure_raises_without_retrying():
 
     llm = _FakeLLM(RuntimeError("down"), _ok())
     with pytest.raises(AllLLMDownError):
-        llm.complete("s", "u")
+        llm.complete("s", "u", schema_name="s", schema={})
     assert llm.calls == 1
 
 
@@ -120,7 +127,9 @@ def test_absent_usage_metadata_defaults_to_zero_tokens():
     an error (indistinguishable from null counts — ADR-0007).
     """
 
-    result = _FakeLLM(AIMessage(content='{"ok": true}')).complete("s", "u")
+    result = _FakeLLM(AIMessage(content='{"ok": true}')).complete(
+        "s", "u", schema_name="s", schema={}
+    )
     assert (result.tokens_in, result.tokens_out) == (0, 0)
 
 
@@ -131,7 +140,9 @@ def test_model_name_comes_from_config_not_the_response():
 
     reply = _ok()
     reply.response_metadata["model"] = "something-else-entirely"
-    result = _FakeLLM(reply, name="Qwen/Qwen3-8B-AWQ").complete("s", "u")
+    result = _FakeLLM(reply, name="Qwen/Qwen3-8B-AWQ").complete(
+        "s", "u", schema_name="s", schema={}
+    )
     assert result.model == "Qwen/Qwen3-8B-AWQ"
 
 
@@ -141,13 +152,17 @@ def test_cost_is_billed_at_the_providers_own_rate():
     look plausible while wrong.
     """
 
-    result = _FakeLLM(_ok(tokens_in=900, tokens_out=100), cost=0.003).complete("s", "u")
+    result = _FakeLLM(_ok(tokens_in=900, tokens_out=100), cost=0.003).complete(
+        "s", "u", schema_name="s", schema={}
+    )
     assert result.tokens_in == 900
     assert result.cost_usd == pytest.approx(0.003)
 
 
 def test_local_provider_is_free():
-    result = _FakeLLM(_ok(tokens_in=1000, tokens_out=0), cost=0.0).complete("s", "u")
+    result = _FakeLLM(_ok(tokens_in=1000, tokens_out=0), cost=0.0).complete(
+        "s", "u", schema_name="s", schema={}
+    )
     assert result.cost_usd == 0.0, "self-hosted vLLM is local compute, treated as free"
 
 
@@ -158,3 +173,32 @@ def test_llm_result_rejects_a_null_text():
 
     with pytest.raises(Exception):
         LLMResult(text=None, tokens_in=0, tokens_out=0, model="m", cost_usd=0.0)
+
+
+# --- schema-constrained decoding ----------------------------------------------
+
+
+def test_a_constraining_server_gets_the_schema():
+    """vLLM decodes against the schema it is sent: a reply then can't take
+    another shape, the failure that sent v6's clarify replies to a human."""
+    llm = _FakeLLM(_ok())
+    schema = {"type": "object", "required": ["proposed_intent"]}
+
+    llm.complete("s", "u", schema_name="triage_proposal", schema=schema)
+
+    assert llm._model.kwargs[0] == {
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": "triage_proposal", "schema": schema},
+        }
+    }
+
+
+def test_a_plain_json_server_is_sent_no_schema():
+    """OpenAI's schema mode can't take the proposal union: its client keeps
+    the plain JSON mode it was built with, and the caller validates."""
+    llm = _FakeLLM(_ok(), constrains_schema=False)
+
+    llm.complete("s", "u", schema_name="triage_proposal", schema={"type": "object"})
+
+    assert llm._model.kwargs[0] == {}

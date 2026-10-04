@@ -222,6 +222,7 @@ def test_openai_asks_for_json_without_sdk_retries_and_capped_output(cloud_key):
     assert chat.model_kwargs["response_format"] == {"type": "json_object"}
     assert chat.max_retries == 0
     assert chat.max_tokens == settings.cloud_max_output_tokens
+    assert openai_chat().constrains_schema is False
 
 
 def test_provider_attributes_are_resolved_at_construction(cloud_key):
@@ -256,6 +257,7 @@ def test_vllm_llm_asks_for_json_without_thinking_or_sdk_retries():
     assert chat.max_retries == 0
     assert llm.model == "Qwen/Qwen3-8B-AWQ"
     assert llm.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
+    assert llm.constrains_schema is True
 
 
 def test_all_vllm_providers_open_no_connections(monkeypatch, reload_clients):

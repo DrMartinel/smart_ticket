@@ -24,6 +24,13 @@ from ai_engine.core.prompts import CLASSIFY_PROMPT
 
 logger = logging.getLogger(__name__)
 
+# The shape every reply must take, for the server to decode against. Without
+# it the model was free to write any JSON: a `clarify` without its
+# `rationale`, or "security" as the `proposed_intent` (evals/HISTORY.md
+# 2026-10-04 (4)), each a schema failure sent to a human. The reply is still
+# validated below: a server that ignores the schema fails safe.
+_PROPOSAL_SCHEMA = LLMProposalEnvelope.model_json_schema()
+
 
 class InferNode(BaseNode):
     def __call__(self, state: TriageState) -> dict[str, Any]:
@@ -44,7 +51,12 @@ class InferNode(BaseNode):
         )
 
         try:
-            result = clients.chat.complete(CLASSIFY_PROMPT, user_prompt)
+            result = clients.chat.complete(
+                CLASSIFY_PROMPT,
+                user_prompt,
+                schema_name="triage_proposal",
+                schema=_PROPOSAL_SCHEMA,
+            )
         except AllLLMDownError:
             return {"proposal": None, "degraded_reason": "all_llm_down"}
 

@@ -13,6 +13,7 @@ import json
 import pytest
 
 from ai_engine.core.providers.clients import AllLLMDownError, LLMResult
+from ai_engine.schemas import LLMProposalEnvelope
 from ai_engine.core.prompts import CLASSIFY_PROMPT, load_system_prompt
 from ai_engine.graph.nodes.infer import infer
 
@@ -120,6 +121,40 @@ def test_the_system_prompt_is_the_classify_prompt(fake_llm, make_state, make_nod
 
     [(system_prompt, _)] = llm.prompts
     assert system_prompt == CLASSIFY_PROMPT
+
+
+def test_the_reply_is_constrained_to_the_proposal_union(fake_llm, make_state, make_node):
+    """The server decodes against the union's own schema, so a reply can't
+    leave out a field or put a category in `proposed_intent`
+    (evals/HISTORY.md 2026-10-04 (4))."""
+
+    llm = fake_llm(result=_result())
+
+    make_node(llm)(make_state())
+
+    assert llm.schemas == [LLMProposalEnvelope.model_json_schema()]
+
+
+def test_the_changelog_is_not_sent_to_the_model():
+    """The prompt file's changelog is for people; sent, it took ~875 tokens
+    of a 4096-token context on every classify call."""
+
+    assert "<!--" not in CLASSIFY_PROMPT
+    assert "Changelog" not in CLASSIFY_PROMPT
+    assert CLASSIFY_PROMPT.startswith("You are a triage assistant")
+
+
+def test_an_unclosed_changelog_fails_the_boot(tmp_path, monkeypatch):
+    """A prompt whose opening comment never closes would otherwise be sent
+    whole, or cut at a random later "-->"; failing at import is the safe
+    outcome."""
+
+    from ai_engine.core import prompts
+
+    (tmp_path / "broken.v1.md").write_text("<!-- changelog with no end\nYou are...")
+    monkeypatch.setattr(prompts, "PROMPT_DIR", tmp_path)
+    with pytest.raises(ValueError, match="never closes"):
+        prompts.load_system_prompt("broken.v1")
 
 
 def test_invalid_prompt_version_is_rejected():

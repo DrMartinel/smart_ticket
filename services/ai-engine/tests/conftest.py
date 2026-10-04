@@ -188,11 +188,15 @@ class FakeLLM(ChatClient):
 
     def __init__(self, result=None, error: Exception | None = None):
         self.prompts: list[tuple[str, str]] = []
+        self.schemas: list[dict[str, Any]] = []
         self._result = result
         self._error = error
 
-    def complete(self, system_prompt: str, user_prompt: str) -> Any:
+    def complete(
+        self, system_prompt: str, user_prompt: str, *, schema_name: str, schema: dict[str, Any]
+    ) -> Any:
         self.prompts.append((system_prompt, user_prompt))
+        self.schemas.append(schema)
         if self._error is not None:
             raise self._error
         return self._result

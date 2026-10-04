@@ -17,10 +17,23 @@ PROMPT_DIR = Path(__file__).resolve().parent
 
 
 def load_system_prompt(version: str) -> str:
-    """Resolve a prompt version ("classify.v3") to core/prompts/classify.v3.md."""
+    """Resolve a prompt version ("classify.v3") to core/prompts/classify.v3.md,
+    without the file's leading `<!-- ... -->` changelog.
+
+    The changelog is for people reading the file. Sent with the prompt, it
+    cost every classify call ~875 tokens of version history (v7) inside a
+    4096-token context, where long KB chunks already push some calls over
+    (evals/HISTORY.md 2026-10-04 (4)). Only a comment that opens the file is
+    removed: the instructions themselves are never touched."""
 
     _check_version(version)
-    return (PROMPT_DIR / f"{version}.md").read_text()
+    text = (PROMPT_DIR / f"{version}.md").read_text()
+    if text.startswith("<!--"):
+        end = text.find("-->")
+        if end == -1:
+            raise ValueError(f"prompt {version!r} opens a comment it never closes")
+        text = text[end + len("-->") :].lstrip()
+    return text
 
 
 def load_question(version: str) -> dict[str, Any]:

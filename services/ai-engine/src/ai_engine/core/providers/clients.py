@@ -196,18 +196,40 @@ class JevClient(HttpClient):
 
 class ChatClient:
     """The triage chat model (InferNode), on whichever provider
-    `chat_client_provider` selects: see `vllm_chat` and `openai_chat`."""
+    `chat_client_provider` selects: see `vllm_chat` and `openai_chat`.
 
-    def __init__(self, *, model: str, chat_model: BaseChatModel, cost_per_1k_tokens: float) -> None:
+    `constrains_schema`: whether the server decodes against a JSON Schema
+    (vLLM's guided decoding). Where it does, a reply can only take the
+    caller's shape; elsewhere the client asks for plain JSON, and the caller
+    validates the reply either way."""
+
+    def __init__(
+        self,
+        *,
+        model: str,
+        chat_model: BaseChatModel,
+        cost_per_1k_tokens: float,
+        constrains_schema: bool,
+    ) -> None:
         self.model = model
         self.chat_model = chat_model
         self.cost_per_1k_tokens = cost_per_1k_tokens
+        self.constrains_schema = constrains_schema
 
-    def complete(self, system_prompt: str, user_prompt: str) -> LLMResult:
-        """One call, no retry. Any failure raises `AllLLMDownError`."""
+    def complete(
+        self, system_prompt: str, user_prompt: str, *, schema_name: str, schema: dict[str, Any]
+    ) -> LLMResult:
+        """One call, no retry, its reply decoded against `schema` where the
+        server can. Any failure raises `AllLLMDownError`."""
+        constrained: dict[str, Any] = {}
+        if self.constrains_schema:
+            constrained["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": schema_name, "schema": schema},
+            }
         try:
             message = self.chat_model.invoke(
-                [SystemMessage(system_prompt), HumanMessage(user_prompt)]
+                [SystemMessage(system_prompt), HumanMessage(user_prompt)], **constrained
             )
             text = message.content
             if not isinstance(text, str) or not text.strip():
@@ -246,6 +268,7 @@ def vllm_chat(*, model: str, base_url: str) -> ChatClient:
             max_retries=0,
         ),
         cost_per_1k_tokens=VLLM_COST_PER_1K_TOKENS,
+        constrains_schema=True,
     )
 
 
@@ -270,6 +293,10 @@ def openai_chat() -> ChatClient:
             max_retries=0,
         ),
         cost_per_1k_tokens=OPENAI_COST_PER_1K_TOKENS,
+        # OpenAI's json_schema mode takes only a strict subset of JSON Schema
+        # (every property required, no oneOf), which the proposal union isn't.
+        # Plain JSON mode, and infer.py's validation catches the rest.
+        constrains_schema=False,
     )
 
 

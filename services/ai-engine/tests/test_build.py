@@ -154,6 +154,7 @@ def test_the_classify_prompt_is_the_file_settings_prompt_version_names():
     from ai_engine.core.config import settings
     from ai_engine.core.prompts import CLASSIFY_PROMPT, PROMPT_DIR
 
-    expected = (PROMPT_DIR / f"{settings.prompt_version}.md").read_text()
-    assert CLASSIFY_PROMPT == expected
-    assert expected.strip() != ""
+    text = (PROMPT_DIR / f"{settings.prompt_version}.md").read_text()
+    instructions = text.split("-->", 1)[1].strip() if text.startswith("<!--") else text
+    assert CLASSIFY_PROMPT.strip() == instructions
+    assert instructions != ""
