@@ -4,35 +4,31 @@ Classification F1 — spec §12.2 (`test_classification`, threshold: F1 >= 0.85
 rare-but-serious category like `security` scoring badly while the
 aggregate still looks fine).
 
-Live pipeline: predicted category comes from whichever proposal field
-carries it (`RouteProposal.proposed_category`, `RunbookProposal.
-proposed_category`), or — for an `auto_reply` proposal — the retrieved
-KB article's own category via `retrieved_chunks[0].kb_slug`, since
-AutoReplyProposal doesn't carry a category field of its own.
+Live pipeline: the predicted category is Jev's choice,
+`signals.classification.category_choice` (ADR-0017), the category the router
+routes on. The LLM's `proposed_category` is log-only and not scored here.
 
 Cases come from `kb_covered` AND `out_of_kb`. The demo KB is AWS
 documentation, so no `other` ticket (HR, facilities) can be KB-covered.
 Scoring only `kb_covered` would silently drop `other` from the
 per-category gate, which CLAUDE.md rule 9 forbids. Out-of-KB tickets still
-have a right category. The pipeline would refuse them before the LLM, but
-this suite runs with `never_refuse=True` (floor 0.0), so the model always answers.
+have a right category, and Jev chooses one for every ticket, below the
+floor included (from the ticket alone, with no page). So the suite runs at
+the real floor, as production does: Jev sees a page only when the ticket
+has one above it, the condition the question was measured under
+(evals/HISTORY.md 2026-10-04 (5)).
 
-On an out-of-KB case, `insufficient_context` counts as correct (decided
-2026-09-29, evals/HISTORY-archive.md). It names no category, but it is the answer
-spec §12.2 asks for when the KB has nothing on the topic, and
-test_refusal.py scores it correct on these same cases. Scoring it wrong
-here would demand the opposite of the refusal suite, and push the prompt
-towards confident routing on exactly the tickets an HR request that slips
-over the floor would be. What the `other` gate protects is that such a
-ticket is never claimed as an IT category or auto-replied: those still
-count against `other` and as a false positive for the category claimed.
-On a KB-covered case, a refusal is still a miss.
+Before ADR-0017 the LLM chose the category, and an `insufficient_context`
+refusal on an out-of-KB case was credited with the truth (decided
+2026-09-29, evals/HISTORY-archive.md), since the LLM names no category when
+it refuses. Jev always names one, so nothing is credited: a ticket with no
+choice (a failed run) is a miss.
 """
 
 from collections import defaultdict
 from typing import Any
 
-from suites.golden_utils import EVAL_FULL_RUN, analyze, kb_category, load_golden, record_metric
+from suites.golden_utils import EVAL_FULL_RUN, analyze, load_golden, record_metric
 
 F1_THRESHOLD = 0.85
 PER_CATEGORY_SAMPLE = 5  # per category, not a flat slice — see _stratified_sample
@@ -46,27 +42,10 @@ MIN_SAMPLES_TO_GATE = 5
 
 
 def _predicted_category(result: dict[str, Any]) -> str | None:
-    proposal = result.get("proposal") or {}
-    intent = proposal.get("proposed_intent")
-    if intent in ("route_to_team", "runbook", "clarify"):
-        return proposal.get("proposed_category")
-    if intent == "auto_reply":
-        chunks = result.get("retrieved_chunks") or []
-        slug = chunks[0]["kb_slug"] if chunks else proposal.get("kb_slug")
-        return kb_category(slug) if isinstance(slug, str) else None
-    return None
-
-
-def _scored_category(case: dict[str, Any], result: dict[str, Any]) -> str | None:
-    """The category this answer is credited with. A refusal on an
-    out-of-KB case is credited with the truth (module docstring). Only an
-    explicit `insufficient_context` counts: a run with no proposal at all
-    (schema invalid, degraded) is a failure, not a refusal."""
-
-    proposal = result.get("proposal") or {}
-    if "out_of_kb" in case["tags"] and proposal.get("proposed_intent") == "insufficient_context":
-        return str(case["truth"]["category"])
-    return _predicted_category(result)
+    """Jev's choice, or None when the run asked no one (refused at the
+    injection guard, or stored before ADR-0017)."""
+    classification = (result.get("signals") or {}).get("classification") or {}
+    return classification.get("category_choice")
 
 
 def _stratified_sample(cases: list[dict], per_category: int) -> list[dict]:
@@ -96,8 +75,8 @@ def test_per_category_f1_meets_threshold(ai_engine_client):
 
     for case in cases:
         truth = case["truth"]["category"]
-        result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
-        predicted = _scored_category(case, result)
+        result = analyze(ai_engine_client, case["subject"], case["body"])
+        predicted = _predicted_category(result)
 
         if predicted == truth:
             tp[truth] += 1
