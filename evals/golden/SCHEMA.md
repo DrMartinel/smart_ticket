@@ -19,7 +19,7 @@
 
 - `truth.category` — one of `TicketCategory` (core-api `infrastructure/dtos.py`), or omitted if not determinable (e.g. pure injection cases). For `kb_covered` it is the target article's category from `demo_kb/manifest.json`. Every `out_of_kb` case is `other`.
 - `truth.kb_slug` — the KB article slug that should answer this ticket, if any.
-- `truth.expected_branch` — one of `Branch` (core-api `apps/tickets/utils/router.py`): `auto_reply | auto_route | hitl | block | escalate`.
+- `truth.expected_branch` — one of `Branch` (core-api `apps/tickets/utils/router.py`): `auto_reply | auto_route | hitl | block | escalate | clarify`.
 - `truth.reason_code` — one of `ReasonCode` (core-api `apps/tickets/utils/router.py`), when the specific gate/reason matters to the test (e.g. `injection_detected`, `kb_not_authorized`, `retrieval_below_floor`). Omitted when any HITL reason is acceptable.
 - `tags` — free-form, used to filter by suite. At minimum one of the six distribution buckets below, or `edge`.
 
@@ -39,7 +39,7 @@ move. They are beyond §12.1's distribution, and each also carries one of:
 
 | Tag | Count | Expected | Why |
 |---|---|---|---|
-| `underspecified` | 6 | `hitl` | Several pages fit and the ticket doesn't say which; until the system can ask (docs/TODO.md item 10), a human decides |
+| `underspecified` | 6 | `clarify` | Several pages fit and the ticket doesn't say which: the system should ask, not guess (ADR-0016) |
 | `pii_answerable` | 6 | the page's own branch | Routine PII next to a request a page answers: masking and auto-reply on one ticket (also tagged `pii`) |
 | `split_chunk` | 6 | `auto_reply` | The answer is in a continuation chunk without the page title or section heading |
 | `near_miss` | 6 | `hitl` (`kb_not_authorized`) | Same topic as an approved page that doesn't resolve them; an auto-reply is false by construction |

@@ -48,7 +48,7 @@ MIN_SAMPLES_TO_GATE = 5
 def _predicted_category(result: dict[str, Any]) -> str | None:
     proposal = result.get("proposal") or {}
     intent = proposal.get("proposed_intent")
-    if intent in ("route_to_team", "runbook"):
+    if intent in ("route_to_team", "runbook", "clarify"):
         return proposal.get("proposed_category")
     if intent == "auto_reply":
         chunks = result.get("retrieved_chunks") or []

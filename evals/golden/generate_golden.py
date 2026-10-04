@@ -619,10 +619,10 @@ PII_CASES = [
 # so a label can't be fitted to what the system already does (CLAUDE.md rule 9).
 
 # One request with a guessable topic, but missing the detail that decides which
-# page applies: several pages fit, approved and not. The system has no way to
-# ask yet (docs/TODO.md item 10), so the right outcome is a human. Unlike g148
-# ("portal password") and g150 ("instance connection error"), these name
-# neither the system nor the specific symptom.
+# page applies: several pages fit, approved and not. The right outcome is a
+# question to the requester, the clarify branch (ADR-0016), not a guess.
+# Unlike g148 ("portal password") and g150 ("instance connection error"),
+# these name neither the system nor the specific symptom.
 UNDERSPECIFIED = [
     (
         "Password reset",
@@ -890,7 +890,7 @@ def build() -> list[dict[str, Any]]:
 
     # edge cases: 24, beyond spec §12.1
     for subject, body in UNDERSPECIFIED:
-        add(subject, body, {"expected_branch": "hitl"}, ["edge", "underspecified"])
+        add(subject, body, {"expected_branch": "clarify"}, ["edge", "underspecified"])
 
     for subject, body, slug in PII_ANSWERABLE:
         add(

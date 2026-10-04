@@ -95,6 +95,64 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-04 (4): the clarify branch and classify.v6 (ADR-0016), full run
+
+**Verdict:** **auto-reply precision passes for the first time today: 1.00
+(27/27)**. g155 now gets a question instead of a guess; g151 is no longer
+auto-replied either. But v6 asks too often and security F1 stays at 0.82,
+so the run fails: v6 is not shippable as is. Not like for like with (3):
+g151-g156 now expect `clarify`, and the prompt changed.
+
+| Configuration | |
+|---|---|
+| Code | `fd5403e` (`main`) + uncommitted: ADR-0016 (`ClarificationProposal`, `clarify_options_in_topk`, `Branch.CLARIFY`, the `clarification` queue), g151-g156 relabeled `clarify` |
+| Prompts | **`classify.v6`** · `pii_ner.v2` |
+| Models · KB · thresholds | as (3) |
+| Duration | 22m12s every suite, plus 6m37s re-running `test_retrieval.py` alone after one Jev 500 |
+
+| Metric | Value | Gate | (3) | |
+|---|---|---|---|---|
+| Retrieval recall@3 | 0.917 (55/60, MRR 0.881) | ≥ 0.90 | 0.917 | ✅ |
+| Auto-reply precision | **1.00** (27/27) | ≥ 0.95 absolute | 0.931 (27/29) | ✅ |
+| Branch accuracy | 0.860 (147/171) | reported only | 0.906 (155/171) | — |
+| Refusal on out-of-KB | 1.00 (23/23) | ≥ 0.90 | 1.00 | ✅ |
+| Injection recall · quote validation | 1.00 · 1.00 | as before | 1.00 · 1.00 | ✅ |
+| F1 `access` · `hardware` · `network` · `other` · `security` · `software` | 0.97 · 0.93 · 0.95 · 0.90 · **0.82** · 0.95 | ≥ 0.85 each | 0.97 · 0.97 · 1.00 · 0.95 · 0.82 · 1.00 | ❌ |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | reported only | the same | — |
+
+### Findings
+
+**1. The underspecified tickets.** g155 `clarify` in spot checks ("Could you
+specify which client application is crashing (e.g., AWS Client VPN, Amazon
+WorkSpaces client)?", options both shown), `schema_invalid` once in this
+run. g151 reaches HITL (`quote_source_not_in_topk`): its top 3 are two
+chunks of the access-portal page and the admin reset page, so there is no
+second reading to ask about; the router asks only between shown pages, on
+purpose. g153, g154, g156 reach HITL `kb_not_authorized` (auto-reply proposals
+on unapproved pages). None reaches `clarify` in this run, but none is
+auto-replied.
+
+**2. v6 over-asks.** Six multi-issue tickets (g061, g064, g067-g069, g071,
+expected `hitl`) got a question: both issues need handling, so "which one?"
+is the wrong question. On out-of-KB tickets (holidays, taxi fares) v6 tries
+`clarify` and often omits the required `rationale`, failing the schema, so
+`other` loses the `insufficient_context` credit v5 earned: `other` F1 0.95
+→ 0.90. Branch accuracy 0.906 → 0.860, almost all from these.
+
+**3. Security F1, again 0.82.** g055 and g056 fail every time (the model
+writes `"security"` as `proposed_intent`, a schema failure that predates
+v6). The third miss did not reproduce in two passes over the ten tickets.
+Two runs in a row at 7/10 make it more than chance; not yet explained.
+
+### Follow-ups
+
+- [ ] `classify.v7`: `clarify` only for one issue with several shown readings;
+      multi-issue and out-of-KB tickets keep `insufficient_context`.
+- [ ] Trace the third security miss (log the suite's misses).
+- [ ] Review the g151-g156 relabel (rule 9).
+
+---
+
 ## 2026-10-04 (3): pii_ner.v2, greedy NER, and an over-masking net, full run
 
 **Verdict:** NER no longer over-masks: on 174 tickets × 3 passes, the
