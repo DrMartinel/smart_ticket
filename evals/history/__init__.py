@@ -122,6 +122,13 @@ METRICS: dict[str, MetricSpec] = {
         description="Per-category F1 of the classification suite. Never averaged (rule 9).",
     ),
     # --- reported, not gated ------------------------------------------------
+    "flag_auroc": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
+        labels=("flag", "kind"),
+        description="How well a scored flag (e.g. Jev's multi_issue noul) separates golden "
+        "tickets of one kind from the clear kb_covered tickets. 0.5 is chance.",
+    ),
     "masking_pii_level_accuracy": MetricSpec(
         unit="ratio",
         higher_is_better=True,

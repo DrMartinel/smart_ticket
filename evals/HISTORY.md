@@ -95,6 +95,93 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-04 (5): Jev as the category classifier, probe
+
+**Verdict:** Jev classifies as well as the LLM once it gets the same context.
+A single `choice` question over the six categories, given the masked ticket
+and the title of the page that answers it, gets 80 and 79 of 83 right and
+clears the 0.85 F1 floor in every category on both passes; the LLM
+(`classify.v7`) gets 77 and 78. Six separate yes/no (`noul`) questions can't
+weigh one category against another and fail the floor. Jev's `multi_issue`
+noul separates the 18 multi-issue tickets from clear ones perfectly. Basis
+for ADR-0017. A probe on 83 synthetic tickets, never a gate measurement.
+
+| Configuration | |
+|---|---|
+| Code | `7fdda21` (`main`) + uncommitted (`classify.v7`, schema-constrained classify, changelog stripped, golden tags split) |
+| Jev | `jev-1.13.0` through ai-engine's own client, inside its container (the key never left it); one request per ticket; masked text only, masked by core-api's `mask()` |
+| Questions | `.probe/jev-classify/` (gitignored): `questions.json` (noul v1: six category questions written from the classify prompt's definitions, plus `multi_issue`, `underspecified`), `questions.v2.json` (noul v2: the definitions verbatim, "classify by what the user needs"), `question_choice.json` (one `choice` question, options = the definitions verbatim), `question_choice_page.json` (the same, plus the page and the classify prompt's rule "the category of the page that answers it is usually right") |
+| Cases | the classification suite's 83 (60 `kb_covered`, 23 `out_of_kb`), scored by its rule; the page is the top reranked page above the 0.30 floor through the live pipeline (none for all 23 out-of-KB tickets) |
+| LLM | `classify.v7`, schema-constrained, `VLLM_CHAT_MAX_MODEL_LEN` 4096, two passes |
+
+| Classifier | Correct (of 83), 2 passes | F1 access · network · hardware · software · security · other (pass 1) |
+|---|---|---|
+| LLM `classify.v7` | 77 · 78 | 0.93 · 1.00 · 0.94 · 1.00 · 0.89 · 0.93 |
+| Jev noul v1 | 77 · 75 | 0.86 · 0.95 · 0.85 · 0.89 · 1.00 · 1.00 (pass 2: hardware, software 0.80 ❌) |
+| Jev noul v2 (definitions) | 75 · 75 | 0.88 · 0.87 · **0.75** · 0.84 · 1.00 · 1.00 ❌ |
+| Jev choice | 77 · 77 | 0.88 · 0.95 · 0.85 · **0.84** · 1.00 · 1.00 ❌ |
+| **Jev choice + page title** | **80 · 79** | **0.94 · 0.95 · 0.93 · 0.95 · 1.00 · 1.00** (pass 2: 0.91 · 0.95 · 0.93 · 0.89 · 1.00 · 1.00) |
+
+### Findings
+
+**1. Yes/no questions follow words.** Asked separately per category, Jev
+put "Permission denied", "not authorized" and a registration email under
+`access` (g027, g028, g034, g042, g049) and a "network error" under
+`network` (g032). Rewording each question with the full definitions (v2)
+made it worse (hardware 0.75): an SSH ticket fits both the hardware and the
+network definition, and independent scores can't pick the primary need.
+
+**2. One choice question compares, and is stable.** Same answer on all 83
+tickets in both passes (noul v1 flipped two), but the same misses.
+
+**3. The page settles meaning.** The LLM sees the retrieved pages; Jev saw
+only the ticket. With the answering page's title, g027 and g028 go to
+`hardware` ("Troubleshoot issues connecting to your Amazon EC2 Linux
+instance"). Left: g042 ("not authorized to perform lambda:InvokeFunction",
+labeled `software`), which the written definition puts under `access`, a
+definition-vs-label conflict; g032 and g034, boundary cases; g049 in one
+pass. Confidence below 0.65: 4 tickets, 2 of them wrong.
+
+**4. The LLM's misses are context overflow, not judgement.** 3 of its 5-6
+(g055, g091, g096) were `all_llm_down`: prompt plus chunks over 4,096
+tokens. Its real misses: g012, g056, and g111 in one pass.
+
+**5. multi_issue.** AUROC 1.00 against clear tickets for the 18 tickets now
+tagged `multi_issue` (scores 0.83-0.99, clear tickets at most 0.40); 0.96
+for `uncertain_cause`, 0.49 for `vague`, as it should be. The
+`underspecified` noul is unusable as worded: clear tickets score up to 0.95.
+
+**6. Reliability.** Jev's API failed once in the LLM comparison (a 520,
+the third failure today). Every classification call would be one more
+chance of that, and each failure is a ticket for a human.
+
+**7. The chunk's text makes it worse** (2026-10-04, same session, run
+`2026-10-04-probe-jev-classify-chunk`). With the top chunk's text beside its
+title (same top page for 82 of 83 tickets): 77 and 77 of 83, hardware 0.80
+❌ (access 0.94, network 0.87, software 0.90, security and other 1.00).
+The text says how to fix the problem, and that detail belongs to other
+categories: the EC2 connection page's "Connection timed out" section is
+security groups, route tables and gateways, so g026, g030 and g032 moved to
+`network`. The title says what the page is for, which is the question.
+Stable (83 of 83 the same), and confidence below 0.65 flags 5 tickets, 4
+of them wrong. The design keeps the title only.
+
+**Fitting:** every variant was written from the classify prompt's text,
+not from the misses, but all were developed and scored on the same 83
+tickets. The page check (a router rule sending Jev/page disagreements to a
+human) was simulated and set aside: it made errors safe, not fewer.
+
+### Follow-ups
+
+- [ ] ADR-0017: Jev's choice question, with the answering page, as the
+      category; low confidence to a human.
+- [ ] Re-measure on tickets these questions were not developed on.
+- [ ] `multi_issue` as a router gate (separate decision).
+- [ ] Resolve g042's definition-vs-label conflict (the golden label or the
+      `access` definition).
+
+---
+
 ## 2026-10-04 (4): the clarify branch and classify.v6 (ADR-0016), full run
 
 **Verdict:** **auto-reply precision passes for the first time today: 1.00
