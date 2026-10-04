@@ -6,7 +6,8 @@ errors, ordering).
 
 - `VLLMClient` (on `HttpClient`, httpx): one self-hosted vLLM server, with
   `embed()`, `rerank()` and `complete_json()`. `embed`, `rerank` and `ner`.
-- `JevClient` (on `HttpClient`): TypeSafe's hosted Jev, `ask()`. `jev`.
+- `JevClient` (on `HttpClient`): TypeSafe's hosted Jev, `ask()` (yes/no)
+  and `choose()` (one choice question). `jev`.
 - `ChatClient`: the triage chat model through LangChain (whose OpenAI SDK
   runs on httpx2), for `chat`. `vllm_chat` / `openai_chat` build it.
 
@@ -20,7 +21,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import cached_property
-from typing import Any
+from typing import Any, NamedTuple
 
 import httpx
 import httpx2
@@ -34,6 +35,9 @@ from ai_engine.core.providers.dtos import (
     ChatRequest,
     EmbeddingsReply,
     EmbeddingsRequest,
+    JevAnswer,
+    JevChoiceAnswer,
+    JevNoulAnswer,
     JevReply,
     JevRequest,
     JsonSchema,
@@ -180,6 +184,25 @@ class JevClient(HttpClient):
         self.model = model
 
     def ask(self, state: dict[str, Any], questions: dict[str, Any]) -> dict[str, float]:
+        """Yes/no questions: each answer's probability, by question id."""
+        answers = self._answers(state, questions)
+        if not all(isinstance(a, JevNoulAnswer) for a in answers.values()):
+            raise ValueError(f"Jev answered a yes/no question otherwise: {answers!r}")
+        return {qid: a.noul for qid, a in answers.items() if isinstance(a, JevNoulAnswer)}
+
+    def choose(
+        self, state: dict[str, Any], question_id: str, question: dict[str, Any]
+    ) -> JevChoice:
+        """One choice question. Raises when the choice is not one of the
+        question's options: an option Jev made up has no meaning downstream."""
+        answer = self._answers(state, {question_id: question})[question_id]
+        if not isinstance(answer, JevChoiceAnswer):
+            raise ValueError(f"Jev answered a choice question otherwise: {answer!r}")
+        if answer.choice not in question["criteria"]:
+            raise ValueError(f"Jev chose {answer.choice!r}, not an option of {question_id!r}")
+        return JevChoice(choice=answer.choice, confidence=answer.confidence)
+
+    def _answers(self, state: dict[str, Any], questions: dict[str, Any]) -> dict[str, JevAnswer]:
         body = self.request(
             "/systemone", JevRequest(model=self.model, state=state, questions=questions)
         )
@@ -191,7 +214,14 @@ class JevClient(HttpClient):
             raise ValueError(f"Jev answered as {reply.model!r}, expected {self.model!r}")
         if set(reply.answers) != set(questions):
             raise ValueError(f"unusable Jev reply: {body!r}")
-        return {qid: answer.noul for qid, answer in reply.answers.items()}
+        return reply.answers
+
+
+class JevChoice(NamedTuple):
+    """A choice question's answer, as callers use it."""
+
+    choice: str
+    confidence: float
 
 
 class ChatClient:

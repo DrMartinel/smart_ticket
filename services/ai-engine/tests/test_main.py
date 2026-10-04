@@ -125,6 +125,7 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
     from ai_engine.schemas import (
         GenerationSignals,
         PIILevel,
+        ClassificationSignals,
         PolicySignals,
         RetrievalSignals,
         TrustSignals,
@@ -155,6 +156,7 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
             injection_detected=False,
             mass_incident=False,
         ),
+        classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
     )
     final = make_state(reranked=[chunk], signals=signals)
     monkeypatch.setattr(

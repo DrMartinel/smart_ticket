@@ -27,6 +27,7 @@ from infrastructure.dtos import (
     AIRunResponse,
     GenerationSignals,
     LLMProposalEnvelope,
+    ClassificationSignals,
     PolicySignals,
     RetrievalSignals,
     TicketCategory,
@@ -74,6 +75,8 @@ def _degraded_signals() -> TrustSignals:
             injection_detected=False,
             mass_incident=False,
         ),
+        # A degraded run never asked Jev: no category.
+        classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
     )
 
 

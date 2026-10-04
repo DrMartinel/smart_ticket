@@ -22,6 +22,7 @@ from infrastructure.dtos import (
     EMBED_DIM,
     AIRunResponse,
     GenerationSignals,
+    ClassificationSignals,
     PolicySignals,
     RetrievalSignals,
     TicketMasked,
@@ -62,6 +63,7 @@ def _run_response(request_id: str) -> dict:
                 injection_detected=False,
                 mass_incident=False,
             ),
+            classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
         ),
     ).model_dump(mode="json")
 

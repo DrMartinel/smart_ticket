@@ -78,6 +78,8 @@ class ReasonCode(StrEnum):
     TRUST_BELOW_AUTO = "trust_below_auto_threshold"
     TRUST_BELOW_ROUTE = "trust_below_route_threshold"
     CATEGORY_INCONSISTENT = "category_inconsistent"
+    # Jev chose no category, or one it was unsure of (ADR-0017)
+    CATEGORY_LOW_CONFIDENCE = "category_low_confidence"
     # clarify (ADR-0016)
     CLARIFY_SECURITY = "clarify_security"
     CLARIFY_OPTIONS_NOT_SHOWN = "clarify_options_not_shown"
@@ -174,6 +176,18 @@ def _hitl(
     )
 
 
+def _confident_category(signals: TrustSignals, th: Thresholds) -> TicketCategory | None:
+    """Jev's category, when it chose one with at least
+    `classification.min_confidence` (ADR-0017). The LLM's
+    `proposed_category` is never a fallback: it is log-only, and a silent
+    switch of classifier would route on a category nobody calibrated."""
+
+    c = signals.classification
+    if c.category_choice is None or c.category_confidence < th.classification.min_confidence:
+        return None
+    return c.category_choice
+
+
 def route(
     signals: TrustSignals,
     proposal: LLMProposalEnvelope | None,
@@ -228,16 +242,24 @@ def route(
     if isinstance(proposal.root, InsufficientContext):
         return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
 
+    # The ticket's category is Jev's, never the LLM's `proposed_category`
+    # (ADR-0017). Only the branches that act on it check its confidence:
+    # an auto-reply takes its KB page's category instead.
+    category = _confident_category(signals, th)
+
     # ── Clarify: ask which of the shown pages the requester means (ADR-0016) ──
     # Before trust on purpose: a question grants nothing and changes no
     # system, and the trust score prices the risk of an automatic action.
     if isinstance(proposal.root, ClarificationProposal):
-        if proposal.root.proposed_category is TicketCategory.SECURITY:
+        if signals.classification.category_choice is TicketCategory.SECURITY:
             # Something may already be wrong. A human gets it now; it never
-            # waits on a requester's answer. A rule, not a threshold.
+            # waits on a requester's answer. A rule, not a threshold: Jev's
+            # confidence doesn't matter, a human gets it either way.
             return _hitl(
                 ReasonCode.CLARIFY_SECURITY, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=2
             )
+        if category is None:
+            return _hitl(ReasonCode.CATEGORY_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value)
         if not signals.generation.clarify_options_in_topk:
             return _hitl(
                 ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN, queue=ReviewQueue.LOW_CONFIDENCE.value
@@ -246,7 +268,7 @@ def route(
             branch=Branch.CLARIFY,
             reason_code=ReasonCode.ALL_CHECKS_PASSED,
             reason_detail="all clarify checks passed",
-            category=proposal.root.proposed_category,
+            category=category,
             queue=ReviewQueue.CLARIFICATION,
         )
 
@@ -291,6 +313,8 @@ def route(
 
     # ── Branch B: auto-route ──
     if isinstance(proposal.root, RouteProposal):
+        if category is None:
+            return _hitl(ReasonCode.CATEGORY_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value)
         if not g.category_consistent:
             return _hitl(ReasonCode.CATEGORY_INCONSISTENT, queue=ReviewQueue.LOW_CONFIDENCE.value)
         if trust < th.t_route:
@@ -300,7 +324,7 @@ def route(
             branch=Branch.AUTO_ROUTE,
             reason_code=ReasonCode.ALL_CHECKS_PASSED,
             reason_detail="all auto-route checks passed",
-            category=proposal.root.proposed_category,
+            category=category,
             trust=trust,
         )
 

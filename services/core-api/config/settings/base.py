@@ -234,6 +234,11 @@ class AlertThresholds(BaseModel):
     trust_score_std_min: float
 
 
+class ClassificationThresholds(BaseModel):
+    # On Jev's choice confidence, the category's classifier (ADR-0017).
+    min_confidence: float = Field(ge=0, le=1)
+
+
 class MaskingThresholds(BaseModel):
     # Above this share of a ticket's text, NER's spans (beyond the regex
     # hits) make the ticket MASK_FAILED instead of passing it on over-masked.
@@ -253,6 +258,7 @@ class Thresholds(BaseModel):
     fewshot: FewshotThresholds
     budget: BudgetThresholds
     alerts: AlertThresholds
+    classification: ClassificationThresholds
     masking: MaskingThresholds
 
     @property

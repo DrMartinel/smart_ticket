@@ -12,7 +12,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from ai_engine.schemas import LLMProposalEnvelope, TicketMasked, TrustSignals
+from ai_engine.schemas import LLMProposalEnvelope, TicketCategory, TicketMasked, TrustSignals
 
 
 class Candidate(BaseModel):
@@ -72,6 +72,10 @@ class TriageState(BaseModel):
 
     # RerankNode
     reranked: list[RankedChunk] = []  # Jev order, every one Jev-scored
+
+    # ClassifyCategoryNode (None: not run, which core-api routes to a human)
+    category_choice: TicketCategory | None = None
+    category_confidence: float = 0.0
 
     # SelectFewshotsNode
     fewshots: list[dict[str, Any]] = []

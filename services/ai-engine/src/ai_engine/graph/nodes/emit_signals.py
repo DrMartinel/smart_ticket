@@ -10,6 +10,7 @@ from typing import Any
 
 from ai_engine.schemas import (
     AutoReplyProposal,
+    ClassificationSignals,
     GenerationSignals,
     PIILevel,
     PolicySignals,
@@ -78,6 +79,10 @@ class EmitSignalsNode(BaseNode):
                 pii_level=state.ticket.pii_level or PIILevel.ROUTINE,
                 injection_detected=state.injection_detected,
                 mass_incident=False,
+            ),
+            classification=ClassificationSignals(
+                category_choice=state.category_choice,
+                category_confidence=state.category_confidence,
             ),
             llm_self_confidence=self_confidence,
         )

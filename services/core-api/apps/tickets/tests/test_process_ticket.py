@@ -117,7 +117,7 @@ class TestLlmFailureKeepsItsReasonCode:
 def _clarify_response(request_id: str):
     """ai-engine proposing a question whose options it was shown."""
 
-    from infrastructure.dtos import AIRunResponse, LLMProposalEnvelope
+    from infrastructure.dtos import AIRunResponse, LLMProposalEnvelope, TicketCategory
 
     from apps.tickets.utils.pipeline import _degraded_signals
 
@@ -126,6 +126,10 @@ def _clarify_response(request_id: str):
     signals.retrieval.scorer = "jev"
     signals.generation.schema_valid = True
     signals.generation.clarify_options_in_topk = True
+    # Jev's category, confident: without it the router sends the ticket to a
+    # human as category_low_confidence (ADR-0017).
+    signals.classification.category_choice = TicketCategory.SOFTWARE
+    signals.classification.category_confidence = 0.9
     return AIRunResponse(
         request_id=request_id,
         graph_version="test",

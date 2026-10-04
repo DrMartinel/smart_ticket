@@ -248,3 +248,32 @@ def test_signals_are_on_jevs_scale(fake_db, make_state, use_db):
     assert (retrieval.rerank_top1, retrieval.rerank_margin) == (0.9, pytest.approx(0.4))
     assert retrieval.docs_above_floor == 1
     assert retrieval.model_dump()["scorer"] == "jev"
+
+
+def test_jevs_category_is_forwarded(fake_db, make_state, use_db):
+    """The router takes this as the ticket's category (ADR-0017). Dropped
+    here, it would read as "not asked" and send every route to a human."""
+
+    from ai_engine.schemas import TicketCategory
+
+    use_db(fake_db())
+
+    out = emit_signals(make_state(category_choice=TicketCategory.NETWORK, category_confidence=0.77))
+
+    classification = out["signals"].classification
+    assert (classification.category_choice, classification.category_confidence) == (
+        TicketCategory.NETWORK,
+        0.77,
+    )
+
+
+def test_a_run_that_never_asked_jev_reports_no_category(fake_db, make_state, use_db):
+    """The injection guard refuses before Jev: no category, which the router
+    reads as "send to a human" wherever it needs one."""
+
+    use_db(fake_db())
+
+    out = emit_signals(make_state(injection_detected=True))
+
+    assert out["signals"].classification.category_choice is None
+    assert out["signals"].classification.category_confidence == 0.0

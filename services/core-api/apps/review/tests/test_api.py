@@ -53,6 +53,7 @@ SIGNALS = {
         "injection_detected": False,
         "mass_incident": False,
     },
+    "classification": {"category_choice": "access", "category_confidence": 0.9},
 }
 
 

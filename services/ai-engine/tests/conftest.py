@@ -38,6 +38,9 @@ from ai_engine.graph.nodes.candidate_pool import node as candidate_pool_node
 from ai_engine.graph.nodes.candidate_pool import shortlister as shortlister_module
 from ai_engine.graph.nodes.candidate_pool.shortlister import Shortlister
 from ai_engine.graph.nodes.rerank import node as rerank_node
+from ai_engine.graph.nodes.classify_category import node as classify_category_node
+from ai_engine.graph.nodes.classify_category.classifier import CategoryChoice
+from ai_engine.schemas import TicketCategory
 from ai_engine.graph.nodes.rerank.reranker import Passage
 from ai_engine.graph.nodes.candidate_pool import links as links_module
 from ai_engine.graph.nodes.retrieve import bm25 as bm25_module
@@ -181,6 +184,26 @@ class FakeReranker:
         if self._error is not None:
             raise self._error
         return list(self._scores[: len(passages)])
+
+
+class FakeClassifier:
+    """Jev's category answer: always `choice`, or raises `error`. Records
+    (subject, body, page_title)."""
+
+    def __init__(
+        self,
+        choice: CategoryChoice = CategoryChoice(TicketCategory.SOFTWARE, 0.9),
+        error: Exception | None = None,
+    ):
+        self.calls: list[tuple[str, str, str | None]] = []
+        self._choice = choice
+        self._error = error
+
+    def classify(self, subject: str, body: str, page_title: str | None) -> CategoryChoice:
+        self.calls.append((subject, body, page_title))
+        if self._error is not None:
+            raise self._error
+        return self._choice
 
 
 class FakeLLM(ChatClient):
@@ -334,6 +357,11 @@ def fake_reranker():
 
 
 @pytest.fixture
+def fake_classifier():
+    return FakeClassifier
+
+
+@pytest.fixture
 def fake_llm():
     return FakeLLM
 
@@ -394,6 +422,17 @@ def use_reranker(monkeypatch):
 
     def use(fake):
         monkeypatch.setattr(rerank_node, "reranker", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
+def use_classifier(monkeypatch):
+    """Install a fake Jev category classifier (ADR-0017)."""
+
+    def use(fake):
+        monkeypatch.setattr(classify_category_node, "classifier", fake)
         return fake
 
     return use

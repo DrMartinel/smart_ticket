@@ -7,12 +7,17 @@ from uuid import UUID
 
 from ai_engine.graph.build.node import Terminal
 from ai_engine.graph.nodes.candidate_pool.node import CandidatePoolNode
+from ai_engine.graph.nodes.classify_category.node import (
+    ClassifyCategoryNode,
+    ClassifyCategoryOutcome,
+    classify_category,
+)
 from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer import InferNode
 from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome, injection
 from ai_engine.graph.state import RankedChunk
-from ai_engine.graph.nodes.rerank.node import RerankNode, RerankOutcome, rerank
+from ai_engine.graph.nodes.rerank.node import RerankNode
 from ai_engine.graph.nodes.retrieve.node import HybridRetrieveNode
 from ai_engine.graph.nodes.validate import ValidateNode
 
@@ -40,20 +45,17 @@ def test_no_injection_decides_clear(make_state):
 
 def test_empty_reranked_is_below_floor(make_state):
     state = make_state(reranked=[], retrieval_floor=0.45)
-    node = rerank
-    assert node.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
+    assert classify_category.decide(state) is ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_below_floor_is_below_floor(make_state):
     state = make_state(reranked=[_chunk(0.1)], retrieval_floor=0.45)
-    node = rerank
-    assert node.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
+    assert classify_category.decide(state) is ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_above_floor_is_above_floor(make_state):
     state = make_state(reranked=[_chunk(0.9)], retrieval_floor=0.45)
-    node = rerank
-    assert node.decide(state) is RerankOutcome.EVIDENCE_ABOVE_FLOOR
+    assert classify_category.decide(state) is ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR
 
 
 def test_decide_reads_the_jev_score_not_the_cross_encoders(make_state):
@@ -64,7 +66,7 @@ def test_decide_reads_the_jev_score_not_the_cross_encoders(make_state):
     chunk = _chunk(0.9).model_copy(update={"rerank_score": 0.1})
     state = make_state(reranked=[chunk], retrieval_floor=0.30)
 
-    assert rerank.decide(state) is RerankOutcome.EVIDENCE_BELOW_FLOOR
+    assert classify_category.decide(state) is ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
 
 
 def _edges() -> dict[tuple[str, str], object]:
@@ -85,7 +87,14 @@ def test_safety_critical_routes():
 
     assert ("__start__", "injection") in edges
     assert edges[("injection", "emit_signals")] == InjectionOutcome.INJECTION_DETECTED
-    assert edges[("rerank", "emit_signals")] == RerankOutcome.EVIDENCE_BELOW_FLOOR
+    assert edges[("classify_category", "emit_signals")] == (
+        ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
+    )
+    # Jev chooses the category before the floor splits the graph, so a
+    # refused ticket has one too (ADR-0017); nothing skips it to the LLM.
+    assert ("rerank", "classify_category") in edges
+    assert ("rerank", "select_fewshots") not in edges
+    assert ("rerank", "emit_signals") not in edges
     # Expansion feeds the floor's node; nothing skips it to reach the LLM.
     assert ("candidate_pool", "rerank") in edges
     assert ("candidate_pool", "select_fewshots") not in edges
@@ -104,6 +113,7 @@ def test_graph_has_exactly_the_expected_nodes():
         HybridRetrieveNode.name,
         CandidatePoolNode.name,
         RerankNode.name,
+        ClassifyCategoryNode.name,
         SelectFewshotsNode.name,
         InferNode.name,
         ValidateNode.name,
@@ -116,6 +126,7 @@ def test_graph_has_exactly_the_expected_nodes():
         "hybrid_retrieve",
         "candidate_pool",
         "rerank",
+        "classify_category",
         "select_fewshots",
         "infer",
         "validate",
@@ -126,8 +137,8 @@ def test_graph_has_exactly_the_expected_nodes():
 
 def test_compiled_edges_are_exactly_the_triage_topology():
     """Pins the production topology literally: an added, dropped or
-    redirected route fails. Refuse-before-LLM is the absence of a rerank →
-    infer path that skips select_fewshots.
+    redirected route fails. Refuse-before-LLM is the absence of a
+    classify_category → infer path that skips select_fewshots.
     """
 
     assert set(_edges()) == {
@@ -136,8 +147,9 @@ def test_compiled_edges_are_exactly_the_triage_topology():
         ("injection", "hybrid_retrieve"),
         ("hybrid_retrieve", "candidate_pool"),
         ("candidate_pool", "rerank"),
-        ("rerank", "emit_signals"),
-        ("rerank", "select_fewshots"),
+        ("rerank", "classify_category"),
+        ("classify_category", "emit_signals"),
+        ("classify_category", "select_fewshots"),
         ("select_fewshots", "infer"),
         ("infer", "validate"),
         ("validate", "emit_signals"),

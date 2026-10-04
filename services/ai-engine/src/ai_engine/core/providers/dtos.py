@@ -7,7 +7,7 @@ request (rerank index coverage, Jev's pinned model) stay in the client.
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -98,9 +98,24 @@ class JevRequest(BaseModel):
     questions: dict[str, Any]
 
 
-class JevAnswer(BaseModel):
+class JevNoulAnswer(BaseModel):
+    """A yes/no question's answer: the probability it is true."""
+
     type: Literal["noul"]
     noul: float = Field(ge=0, le=1)
+
+
+class JevChoiceAnswer(BaseModel):
+    """A choice question's answer: the chosen option, a probability per
+    option, and a confidence that is low when the probability is spread."""
+
+    type: Literal["choice"]
+    choice: str
+    confidence: float = Field(ge=0, le=1)
+    probabilities: dict[str, float]
+
+
+type JevAnswer = Annotated[JevNoulAnswer | JevChoiceAnswer, Field(discriminator="type")]
 
 
 class JevReply(BaseModel):

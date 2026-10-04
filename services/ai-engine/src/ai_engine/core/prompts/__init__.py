@@ -64,3 +64,5 @@ CLASSIFY_PROMPT = load_system_prompt(settings.prompt_version)
 PII_NER_PROMPT = load_system_prompt(settings.pii_ner_prompt_version)
 # The question Jev answers per chunk (ADR-0015).
 RERANK_QUESTION = load_question(settings.rerank_prompt_version)
+# The choice question Jev answers once per ticket: its category (ADR-0017).
+CATEGORY_QUESTION = load_question(settings.category_question_version)

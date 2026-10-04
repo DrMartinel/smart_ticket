@@ -5,7 +5,14 @@ never part of the feature set.
 """
 
 from apps.tickets.utils.patterns import PIILevel
-from infrastructure.dtos import GenerationSignals, PolicySignals, RetrievalSignals, TrustSignals
+from infrastructure.dtos import (
+    ClassificationSignals,
+    GenerationSignals,
+    PolicySignals,
+    RetrievalSignals,
+    TicketCategory,
+    TrustSignals,
+)
 
 import pytest
 from pydantic import ValidationError
@@ -42,6 +49,9 @@ def make_signals(**overrides) -> TrustSignals:
             pii_level=PIILevel.ROUTINE,
             injection_detected=False,
             mass_incident=False,
+        ),
+        classification=ClassificationSignals(
+            category_choice=TicketCategory.NETWORK, category_confidence=0.9
         ),
         llm_self_confidence=99.0,
     )

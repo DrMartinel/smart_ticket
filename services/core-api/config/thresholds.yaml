@@ -68,6 +68,16 @@ alerts:
   trust_score_drift_max: 0.10
   trust_score_std_min: 0.08    # weekly spread below this → scorer can't tell tickets apart (§7.2)
 
+classification:
+  # 🔧 Jev's confidence in its category choice (ADR-0017), below which a
+  # route or clarify proposal goes to a human as `category_low_confidence`
+  # instead of being routed on a category Jev was unsure of. Confidence is
+  # low when Jev's probability is spread over several categories. On the
+  # 2026-10-04 probe (83 golden tickets, evals/HISTORY.md 2026-10-04 (5)),
+  # below 0.65 held 4 tickets, 2 of them misclassified. Chosen from that one
+  # probe: re-choose on shadow data before P3.
+  min_confidence: 0.65
+
 masking:
   # 🔧 Share of a ticket's text (subject + body) that tier-2 NER's free-form
   # spans may cover beyond what the regex tier masked. Above it the ticket is

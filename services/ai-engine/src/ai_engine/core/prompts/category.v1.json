@@ -1,0 +1,24 @@
+{
+  "type": "choice",
+  "instructions": "Which category is the primary need of the user in `ticket`? Classify by WHAT the user needs, not by how sensitive or risky the affected system is. Risk and approvals are handled elsewhere; a request that needs extra approval is still in its normal category. If a ticket fits two categories, pick the one describing the user's primary need. `page` is the knowledge-base page that answers the ticket, when one does: if a page answers the ticket, the category that page belongs to is usually the right one. When there is no `page`, judge from the ticket alone.",
+  "criteria": {
+    "access": {
+      "what": "Identity and permissions: IAM users, groups, roles and policies; IAM Identity Center (SSO, the AWS access portal, permission sets); console sign-in, passwords, MFA devices, access keys; AccessDenied / \"not authorized to perform\" errors; requests to grant, change or remove access to ANY account, service or resource. Access to sensitive resources (production accounts, billing, KMS keys) needs extra approval but is still `access`, not `security`."
+    },
+    "network": {
+      "what": "Connectivity: VPCs, subnets, route tables, internet and NAT gateways, security groups and network ACLs, VPC peering, DNS resolution, Site-to-Site VPN, and AWS Client VPN (cannot connect, connected but cannot reach resources, slow tunnel)."
+    },
+    "hardware": {
+      "what": "Compute and virtual desktops: a specific EC2 instance or Amazon WorkSpace — it will not start or stop, fails status checks, runs out of disk or memory, is slow, or cannot be connected to over SSH/RDP or the WorkSpaces client when the instance itself is the problem. Instance types, EBS volumes, and WorkSpace bundles belong here too."
+    },
+    "software": {
+      "what": "Applications and managed services: Lambda functions (errors, timeouts, throttling, permissions a function needs at runtime), Amazon SES email (sending, bounces, sandbox limits, deliverability, DKIM/SPF), deployments and application errors."
+    },
+    "security": {
+      "what": "Threats and incidents: GuardDuty findings, failed Security Hub controls, compromised or leaked credentials (e.g. access keys pushed to a public repository), unauthorized activity in an account, abuse or phishing reports. Use `security` only when something may already be wrong or under attack — never for a routine permission request."
+    },
+    "other": {
+      "what": "Not a cloud-platform or IT matter, even though it arrived as a ticket: HR (leave, payroll, benefits), facilities, office administration. Office hardware such as printers is also `other` here: this desk supports the AWS platform, not office equipment."
+    }
+  }
+}

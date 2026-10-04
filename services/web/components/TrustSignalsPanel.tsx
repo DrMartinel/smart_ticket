@@ -36,6 +36,11 @@ interface TrustSignals {
     injection_detected: boolean;
     mass_incident: boolean;
   };
+  /** Jev's category choice (ADR-0017); absent on signals stored before it. */
+  classification?: {
+    category_choice?: string | null;
+    category_confidence?: number;
+  };
 }
 
 export interface TrustSignalsPanelProps {
@@ -215,6 +220,26 @@ export default function TrustSignalsPanel({
             </span>
           </div>
         </div>
+      </div>
+
+      <div>
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Category</div>
+        {trustSignals.classification?.category_choice ? (
+          // Jev's choice is the ticket's category (ADR-0017). Whether its
+          // confidence is enough is core-api's decision, shown in the
+          // reason code above, so no ✓/✗ here.
+          <div className="flex items-center gap-2 text-xs">
+            <span className="w-28 shrink-0 text-[var(--text-muted)]">
+              {trustSignals.classification.category_choice}
+            </span>
+            <Bar value={trustSignals.classification.category_confidence ?? 0} />
+            <span className="w-10 shrink-0 text-right tabular-nums">
+              {(trustSignals.classification.category_confidence ?? 0).toFixed(2)}
+            </span>
+          </div>
+        ) : (
+          <div className="text-xs text-[var(--text-muted)]">No category was chosen for this ticket.</div>
+        )}
       </div>
 
       <div>

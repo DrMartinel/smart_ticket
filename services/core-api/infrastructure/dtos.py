@@ -185,10 +185,25 @@ class PolicySignals(BaseModel):
     mass_incident: bool
 
 
+class ClassificationSignals(BaseModel):
+    """Jev's answer to the category question (ADR-0017). The router takes
+    `category_choice` as the ticket's category; the LLM's
+    `proposed_category` is log-only. No choice (None, 0.0) means Jev wasn't
+    asked: a refusal at the injection guard, or a degraded run. The router
+    sends that to a human wherever it needs a category.
+
+    No defaults, here or on `TrustSignals.classification`: no signals were
+    stored before ADR-0017, so every producer must say what Jev answered."""
+
+    category_choice: TicketCategory | None
+    category_confidence: float = Field(ge=0, le=1)
+
+
 class TrustSignals(BaseModel):
     retrieval: RetrievalSignals
     generation: GenerationSignals
     policy: PolicySignals
+    classification: ClassificationSignals
     llm_self_confidence: float | None = None  # log-only, never used to route
 
 

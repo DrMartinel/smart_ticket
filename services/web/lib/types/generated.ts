@@ -91,10 +91,16 @@ export interface PolicySignals {
   mass_incident: boolean;
 }
 
+export interface ClassificationSignals {
+  category_choice?: TicketCategory | null;
+  category_confidence?: number;
+}
+
 export interface TrustSignals {
   retrieval: RetrievalSignals;
   generation: GenerationSignals;
   policy: PolicySignals;
+  classification?: ClassificationSignals;
   llm_self_confidence?: number | null;
 }
 

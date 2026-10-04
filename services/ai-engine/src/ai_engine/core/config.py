@@ -81,6 +81,7 @@ class Settings(BaseSettings):
     jev_model: str
     jev_api_key: SecretStr | None = None
     rerank_prompt_version: str
+    category_question_version: str
 
 
 settings = Settings()  # type: ignore[call-arg]  # every value comes from .env or the env

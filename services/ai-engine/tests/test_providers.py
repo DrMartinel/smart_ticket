@@ -305,6 +305,68 @@ def test_jev_scores_through_the_jev_client(serve_jev):
     }
 
 
+_CHOICE_QUESTION = {"type": "choice", "instructions": "i", "criteria": {"a": None, "b": None}}
+
+
+def _choice_answer(choice="a", **fields):
+    return {
+        "model": settings.jev_model,
+        "answers": {
+            "q": {
+                "type": "choice",
+                "choice": choice,
+                "confidence": 0.8,
+                "probabilities": {"a": 0.8, "b": 0.2},
+                **fields,
+            }
+        },
+    }
+
+
+def test_a_jev_choice_outside_the_options_raises(serve_jev):
+    """An option Jev made up has no meaning downstream; it fails the run
+    rather than reaching the router as a category."""
+
+    serve_jev(_choice_answer("c"))
+
+    with pytest.raises(ValueError, match="not an option"):
+        clients.jev.choose({}, "q", _CHOICE_QUESTION)
+
+
+def test_a_jev_choice_confidence_outside_0_1_raises(serve_jev):
+    serve_jev(_choice_answer(confidence=1.2))
+
+    with pytest.raises(ValueError, match="unusable Jev reply"):
+        clients.jev.choose({}, "q", _CHOICE_QUESTION)
+
+
+def test_a_noul_answer_to_a_choice_question_raises(serve_jev):
+    serve_jev({"model": settings.jev_model, "answers": {"q": {"type": "noul", "noul": 0.5}}})
+
+    with pytest.raises(ValueError, match="choice question otherwise"):
+        clients.jev.choose({}, "q", _CHOICE_QUESTION)
+
+
+def test_a_choice_answer_to_a_yes_no_question_raises(serve_jev):
+    """`ask` returns probabilities; a choice read as one would be a made-up
+    rerank score."""
+
+    serve_jev(_choice_answer())
+
+    with pytest.raises(ValueError, match="yes/no question otherwise"):
+        clients.jev.ask({}, {"q": {"type": "noul", "instructions": "i"}})
+
+
+def test_jev_chooses_through_the_jev_client(serve_jev):
+    jev = serve_jev(_choice_answer("b", confidence=0.6))
+
+    assert clients.jev.choose({"x": 1}, "q", _CHOICE_QUESTION) == ("b", 0.6)
+    [(path, payload)] = jev.sent
+    assert path == "/systemone"
+    assert payload["questions"] == {"q": _CHOICE_QUESTION}
+    assert payload["state"] == {"x": 1}
+
+
 @pytest.mark.parametrize(
     ("embedding_provider", "shortlist_provider"),
     [("stub", "lexical"), ("vllm", "vllm")],

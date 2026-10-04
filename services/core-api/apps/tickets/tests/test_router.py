@@ -13,6 +13,7 @@ from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQ
 from config.settings.base import (
     AlertThresholds,
     BudgetThresholds,
+    ClassificationThresholds,
     FewshotThresholds,
     IncidentThresholds,
     MaskingThresholds,
@@ -23,6 +24,7 @@ from config.settings.base import (
 from apps.tickets.utils.patterns import PIILevel
 from infrastructure.dtos import (
     AutoReplyProposal,
+    ClassificationSignals,
     GenerationSignals,
     ClarificationProposal,
     InsufficientContext,
@@ -67,6 +69,7 @@ def make_thresholds(**overrides) -> Thresholds:
             trust_score_drift_max=0.10,
             trust_score_std_min=0.08,
         ),
+        classification=ClassificationThresholds(min_confidence=0.65),
         masking=MaskingThresholds(ner_max_share=0.5),
     )
     base.update(overrides)
@@ -98,6 +101,9 @@ def good_signals(**overrides) -> TrustSignals:
             pii_level=PIILevel.ROUTINE,
             injection_detected=False,
             mass_incident=False,
+        ),
+        classification=ClassificationSignals(
+            category_choice=TicketCategory.NETWORK, category_confidence=0.9
         ),
     )
     for path, value in overrides.items():
@@ -315,6 +321,48 @@ def test_runbook_hitl_even_with_no_kb_at_all():
 # ── Auto-route branch ────────────────────────────────────────────────────
 
 
+def test_auto_route_without_a_jev_category_goes_to_a_human():
+    """A run where Jev was never asked (refused at the injection guard, or
+    degraded) has no category to route on. The LLM's is not a fallback."""
+    signals = good_signals()
+    signals.classification = ClassificationSignals(category_choice=None, category_confidence=0.0)
+    d = route(signals, route_proposal(), None, TH)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CATEGORY_LOW_CONFIDENCE
+
+
+def test_auto_route_below_min_confidence_goes_to_a_human():
+    signals = good_signals(**{"classification.category_confidence": 0.64})
+    d = route(signals, route_proposal(), None, TH)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CATEGORY_LOW_CONFIDENCE
+
+
+def test_auto_route_at_min_confidence_routes():
+    """The threshold is inclusive: `min_confidence` itself is enough."""
+    signals = good_signals(**{"classification.category_confidence": 0.65})
+    d = route(signals, route_proposal(), None, TH)
+    assert d.branch is Branch.AUTO_ROUTE
+
+
+def test_auto_route_goes_to_jevs_category_not_the_llms():
+    """ADR-0017: the team a ticket is routed to is Jev's choice. The LLM's
+    `proposed_category` stays in the proposal, log-only."""
+    signals = good_signals(**{"classification.category_choice": TicketCategory.HARDWARE})
+    d = route(signals, route_proposal(proposed_category=TicketCategory.NETWORK), None, TH)
+    assert d.branch is Branch.AUTO_ROUTE
+    assert d.category is TicketCategory.HARDWARE
+
+
+def test_auto_reply_needs_no_jev_confidence():
+    """An auto-reply takes its KB page's category, not Jev's: an unsure Jev
+    must not add human work where the category isn't used."""
+    signals = good_signals()
+    signals.classification = ClassificationSignals(category_choice=None, category_confidence=0.0)
+    d = route(signals, auto_reply_proposal(), kb(), TH)
+    assert d.branch is Branch.AUTO_REPLY
+
+
 def test_auto_route_category_inconsistent():
     signals = good_signals(**{"generation.category_consistent": False})
     d = route(signals, route_proposal(), None, TH)
@@ -447,13 +495,60 @@ def test_clarify_on_a_possible_security_incident_goes_to_a_human():
     """A possible incident never waits on a requester's answer, whatever
     else checks out."""
     d = route(
-        good_signals(**{"generation.clarify_options_in_topk": True}),
-        clarify_proposal(proposed_category=TicketCategory.SECURITY),
+        good_signals(
+            **{
+                "generation.clarify_options_in_topk": True,
+                "classification.category_choice": TicketCategory.SECURITY,
+            }
+        ),
+        clarify_proposal(),
         None,
         TH,
     )
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.CLARIFY_SECURITY
+
+
+def test_clarify_security_reads_jevs_category_not_the_llms():
+    """ADR-0017: the LLM's `proposed_category` decides nothing. An LLM
+    saying `security` doesn't hold a question Jev puts in `access`, and an
+    LLM saying `access` doesn't let through one Jev puts in `security`."""
+    llm_says_security = route(
+        good_signals(**{"generation.clarify_options_in_topk": True}),
+        clarify_proposal(proposed_category=TicketCategory.SECURITY),
+        None,
+        TH,
+    )
+    jev_says_security = route(
+        good_signals(
+            **{
+                "generation.clarify_options_in_topk": True,
+                "classification.category_choice": TicketCategory.SECURITY,
+                "classification.category_confidence": 0.3,
+            }
+        ),
+        clarify_proposal(proposed_category=TicketCategory.ACCESS),
+        None,
+        TH,
+    )
+    assert llm_says_security.branch is Branch.CLARIFY
+    assert jev_says_security.reason_code is ReasonCode.CLARIFY_SECURITY
+
+
+def test_clarify_on_a_category_jev_is_unsure_of_goes_to_a_human():
+    d = route(
+        good_signals(
+            **{
+                "generation.clarify_options_in_topk": True,
+                "classification.category_confidence": 0.5,
+            }
+        ),
+        clarify_proposal(),
+        None,
+        TH,
+    )
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CATEGORY_LOW_CONFIDENCE
 
 
 def test_clarify_with_options_not_shown_goes_to_a_human():
@@ -492,5 +587,6 @@ def test_clarify_needs_no_trust_and_lands_in_the_clarification_queue():
     assert d.branch is Branch.CLARIFY
     assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
     assert d.queue is ReviewQueue.CLARIFICATION
-    assert d.category is TicketCategory.ACCESS
+    # Jev's category (good_signals: network), not the proposal's (access).
+    assert d.category is TicketCategory.NETWORK
     assert d.trust is None

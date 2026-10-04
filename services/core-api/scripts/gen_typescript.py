@@ -28,6 +28,7 @@ MODELS = [
     "RetrievalSignals",
     "GenerationSignals",
     "PolicySignals",
+    "ClassificationSignals",
     "TrustSignals",
     "TrustScore",
     "KBArticleMeta",
