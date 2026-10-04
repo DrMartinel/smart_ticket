@@ -76,6 +76,8 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 - **the reranker**: one noul per shortlisted chunk, "does this passage tell the user how to fix the problem?" Its answer is `rerank_score`, the score `retrieval.floor` and the trust signals read. Its order is final; the top 3 go on.
 - **the category**: one choice among the six categories, given the ticket and the title of the page that answers it (ADR-0017). The router routes on it; the LLM's `proposed_category` is log-only.
 
+**Category confidence** — Jev's confidence in its category choice, low when its probability is spread over several categories. Below `classification.min_confidence` (0.65) a route or clarify goes to a human as `category_low_confidence`.
+
 **Retrieval floor** — if Jev's top reranked score is below `retrieval.floor` (0.30, on Jev's scale), the LLM is **never called**. Never compared with the cross-encoder's score, which only orders the pool. This is both the largest cost saving and a safety property: a model with no source material has nothing to do but fabricate one.
 
 **Refuse-before-LLM** — the above, as a graph edge. Worth knowing by name because it explains runs where `model = n/a` and every generation signal is false: nothing was generated, so nothing could be validated.
@@ -93,8 +95,6 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 **`quote_source_in_topk`** — mandatory: the quote must come from a chunk retrieval actually returned. A perfectly accurate quote pulled from a *different* KB article is a wrong answer in the right words.
 
 **Negation check** — compares negation markers between the quote and the sentence(s) of the source it was cut from: Vietnamese (`không`, `chưa`, `ngoại trừ`, `trừ khi`, `cấm`) and English (`not`, `never`, `cannot`, `without`, `unless`, `-n't`…, matched on word boundaries). Fuzzy matching cannot catch this: *"delete the root user access keys"* and *"Do not delete the root user access keys"* (or *"được cấp quyền"* and *"không được cấp quyền"*) score ~0.96 similar and mean opposite things. In ITSM, an inverted condition is the most dangerous error class there is.
-
-**Category confidence** — Jev's confidence in its category choice, low when its probability is spread over several categories. Below `classification.min_confidence` (0.65) a route or clarify goes to a human as `category_low_confidence`.
 
 **`quote_applicable`** — whether quote checks apply at all. Route and runbook proposals carry no quote, so their quote signals are reported false; without this flag the UI shows red ✗ for checks that never ran.
 
@@ -118,12 +118,11 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Baseline** — committed metrics in `evals/baselines/baseline.json`. Updating it requires review, because otherwise the easiest way to make a failing PR pass is to lower the bar.
 
-**Full run / probe** — a full run is every suite on the whole golden set (`EVAL_FULL_RUN=1`); a probe measures one design question on the golden set, outside the pipeline. Both are recorded in `evals/HISTORY.md`, with their numbers in `evals/history/`. Neither default-sample run counts.
+**Full run / probe** — a full run is every suite on the whole golden set (`EVAL_FULL_RUN=1`); a probe measures one design question on the golden set, outside the pipeline. Both are recorded in `evals/HISTORY.md`, with their numbers in `evals/history/`. A default-sample run counts as neither.
 
 ---
 
 ## Operations
-
 
 **Budget** — a daily cost ceiling (`budget.daily_cost_ceiling_usd`): once the day's AI spend exceeds it, every ticket goes to HITL as `budget_exceeded`. The spec's per-ticket caps were removed; the graph is acyclic and never retries, so a ticket cannot loop. `budget.max_latency_sec` is how long core-api waits on ai-engine.
 
