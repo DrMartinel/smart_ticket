@@ -19,14 +19,14 @@ uv sync --all-packages    # once; a bare `uv sync` won't install pytest
 uv run pytest                              # everything (unit + eval)
 cd services/core-api && make test          # core-api
 uv run pytest services/ai-engine/tests -q
-uv run pytest evals/suites -q              # 8 suites
+uv run pytest evals/suites -q              # 9 files
 ```
 
 Pass pytest arguments to core-api's target with `ARGS=`: `make test ARGS="-k router -x"`.
 
 core-api's tests run with `config.settings.test` (from its `pytest.ini`): the stub embedder, whatever the environment says, and a fast password hasher. Its database tests still need `DATABASE_URL`; `make test` exports it, pointing at the Dockerized Postgres on port 5434. Running pytest directly, export it yourself.
 
-Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn't reachable, so unit tests stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies at all.
+Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn't reachable, so unit tests stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies at all; `test_history_data` checks that every `evals/HISTORY.md` entry has its recorded data, and `test_analyze_masking` checks the harness masks tickets as production does, both offline.
 
 Coverage on the two modules where it is contractual:
 
@@ -62,18 +62,22 @@ Also pinned: quote features are skipped when a proposal carries no quote, so `co
 
 ### `test_shortlister_diacritics.py`
 
-Vietnamese tickets are typed without tone marks; the KB is written with them. Under exact token matching a near-verbatim restatement of a KB title scored 0.042 against a 0.45 floor, tripping refuse-before-LLM and sending it to a human as "nothing matches". These tests pin the folding, including that `đ`/`Đ` need special handling (distinct letters, not decomposable base + mark) and that folding doesn't make unrelated text start matching.
+Vietnamese tickets are typed without tone marks; the KB is written with them. Under exact token matching a near-verbatim restatement of a KB title scored 0.042 against the 0.45 floor of the time, tripping refuse-before-LLM and sending it to a human as "nothing matches". These tests pin the folding, including that `đ`/`Đ` need special handling (distinct letters, not decomposable base + mark) and that folding doesn't make unrelated text start matching.
 
 ---
 
 ### ai-engine node tests — fakes, not mocks
 
-`services/ai-engine/tests/conftest.py` provides a fake for each of the four
-provider seams (`fake_embedder`, `fake_shortlister`, `fake_llm`, `fake_db`) —
-subclasses of the `Embedder` / `Shortlister` / `ChatClient` classes, plus a
-duck-typed session source — and a `make_state` builder. Nodes use the provider
-singletons directly, so the `use_db` / `use_embedder` / `use_shortlister` /
-`use_llm` fixtures install a fake in every node module that reads it. They are plain classes rather than
+`services/ai-engine/tests/conftest.py` provides a fake for each provider seam
+(`fake_embedder`, `fake_pii_detector`, `fake_shortlister`, `fake_reranker`
+for Jev's rerank scores, `fake_classifier` for Jev's category, `fake_llm`,
+`fake_db`) and a `make_state` builder. Nodes use the provider singletons
+directly, so the `use_db` / `use_embedder` / `use_pii_detector` /
+`use_shortlister` / `use_reranker` / `use_classifier` / `use_llm` fixtures
+install a fake in every module that reads it. To exercise a real client's
+request building and reply validation instead, `serve("jev", body)` swaps
+`clients.<name>` for a copy whose server answers a canned body and records
+what it was sent. They are plain classes rather than
 `unittest.mock` objects: a fake whose behaviour you can read in one place
 beats a Mock configured three lines from the assertion.
 
@@ -114,11 +118,12 @@ fail when the invariant they describe is broken.
 | Suite | Metric | Gate |
 |---|---|---|
 | `test_retrieval` | Recall@3 (the spec says @5; the pipeline returns `rerank_top_n` = 3) | ≥ 0.90 |
-| `test_classification` | F1 **per category** | ≥ 0.85 each |
+| `test_classification` | F1 **per category**, on Jev's category choice (ADR-0017) | ≥ 0.85 each |
 | `test_quote_validation` | Hallucination-catch precision | ≥ 0.95 |
 | `test_refusal` | Out-of-KB refusal rate | ≥ 0.90 |
 | `test_injection` | Detection recall | ≥ 0.95 |
-| `test_end_to_end` | Auto-reply precision | ≥ 0.95 **absolute** |
+| `test_end_to_end` | Auto-reply precision (and branch accuracy, reported only) | ≥ 0.95 **absolute** |
+| `test_masking` | PII level accuracy, over-masking rate, consistency | reported only |
 
 Two of these are deliberately not negotiable:
 
@@ -128,9 +133,9 @@ Two of these are deliberately not negotiable:
 
 ### Known failures
 
-On the 2026-10-01 baseline full run, one gate fails: retrieval recall@3 **0.767** ([`TODO.md`](TODO.md) item 9). Auto-reply precision is 1.00.
+The last full run (2026-10-04 (4)) failed one gate: per-category F1, `security` 0.82, on the LLM's category. Retrieval recall@3 is 0.917 and auto-reply precision 1.00. Jev has chosen the category since; the classification suite alone passes every category at ≥ 0.93 (2026-10-04 (6)), but `main` has had no full run since ([`TODO.md`](TODO.md) item 11).
 
-**On an out-of-KB case, a refusal counts as a correct `other`.** Scored strictly, the classification suite demanded the opposite of the refusal suite on the same tickets. An IT category or an auto-reply on such a ticket still fails. See [`evals/HISTORY-archive.md`](../evals/HISTORY-archive.md), 2026-09-29 (2), for the decision.
+**The classification suite scores Jev's choice at the real floor.** While the LLM chose the category, an `insufficient_context` refusal on an out-of-KB case counted as a correct `other`, so the suite didn't demand the opposite of the refusal suite (decided 2026-09-29 (2), [`evals/HISTORY-archive.md`](../evals/HISTORY-archive.md)). Jev names a category for every ticket, below the floor included, so nothing is credited any more; the refusal suite still scores refusals.
 
 **Do not** lower the floor, average the F1, or drop the category to make CI green.
 
@@ -160,6 +165,8 @@ On the 2026-10-01 baseline full run, one gate fails: retrieval recall@3 **0.767*
 
 `.github/workflows/eval-gate.yml` runs the eval suites on every PR and on pushes to `main`, compares against the committed baseline, and posts a report. Prompt changes go through it exactly like code changes — that is the whole reason `evals/` lives in this repository rather than in a notebook somewhere.
 
-Two more workflows sit alongside it. `lint.yml` runs `ruff check` and `ruff format --check` with no services attached, so it answers fast. `publish-images.yml` builds the three container images and pushes them to GHCR on merge to `main`; it runs its own unit-test job rather than chaining behind the eval gate, because that gate is knowingly red on the `other` category F1 and publishing should not be hostage to it.
+Two more workflows sit alongside it. `lint.yml` runs `ruff check` and `ruff format --check` with no services attached, so it answers fast. `publish-images.yml` builds the three container images and pushes them to GHCR on merge to `main`; it runs its own unit-test job rather than chaining behind the eval gate, so that publishing an image is not hostage to a model-quality gate that may be red for documented reasons ([`evals/HISTORY.md`](../evals/HISTORY.md)).
+
+The eval gate has two jobs. `offline-suites` runs on every PR with no models: unit tests, the router and masking coverage, and the in-process suites (injection, quote validation). `live-pipeline-suites` runs the full set (`EVAL_FULL_RUN=1`) with vLLM and Jev, and only where a self-hosted GPU runner exists (`vars.HAS_GPU_RUNNER`); until one does, full runs happen by hand and are recorded in `evals/HISTORY.md`.
 
 Note that the ruff binary is pinned in the workflows and the rule selection is pinned in `pyproject.toml`. Ruff's implicit default is not stable across releases — this repo is clean under the historical default but ruff 0.16 reports 104 findings on unchanged code. Bump the two pins together.

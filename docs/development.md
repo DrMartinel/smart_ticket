@@ -64,7 +64,7 @@ cd services/core-api && make types
 
 Never hand-edit `services/web/lib/types/generated.ts`.
 
-Adding a field to a persisted schema? Give it a **default**, so rows written before the change still deserialize. `GenerationSignals.quote_applicable` is the worked example.
+Adding a field to a persisted schema? Give it a **default**, so rows written before the change still deserialize. `GenerationSignals.quote_applicable` is the worked example. The one deliberate exception is `TrustSignals.classification` (ADR-0017): no signals existed before it, so every producer must state Jev's answer.
 
 ### 5. Degrade toward humans
 
@@ -91,9 +91,18 @@ For things the ORM can't express (partial indexes, HNSW, CHECK constraints tied 
 
 Routers live in `apps/<app>/views.py` (Django Ninja). Keep the handler thin: bind and validate the input, call a model method or manager method (writes and decisions belong on the model they change), or a function in the app's `utils` (logic no single model owns, including cross-model reads), and return the model. Reads that belong to one model are manager methods too. Request bodies go in the app's `request_schema.py`; declare the output with `response=` and an output Schema in `response_schema.py`, so the shape is validated and documented in OpenAPI. Gate a handler by role with `@require_role(...)` from `apps/accounts/permissions.py`. Roles: `employee`, `technician`, `manager`, `security`. No router applies it yet: KB governance is enforced inside `KbArticle.set_auto_reply_allowed` (`apps/kb/models.py`), not at the endpoint.
 
-### Change a prompt
+### Change a prompt or a Jev question
 
-Prompts are versioned files in `services/ai-engine/src/ai_engine/core/prompts/`. Bump the version in the filename and `PROMPT_VERSION` in the root `.env.example` (and your `.env`), and note what changed. **Prompt changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI.
+Prompts and Jev's questions are versioned files in `services/ai-engine/src/ai_engine/core/prompts/`, each selected by a setting:
+
+| File | Setting | Used by |
+|---|---|---|
+| `classify.v*.md` | `PROMPT_VERSION` | `InferNode`, the classify LLM |
+| `pii_ner.v*.md` | `PII_NER_PROMPT_VERSION` | Tier-2 PII NER (`/v1/pii/detect`) |
+| `rerank_resolves.v*.json` | `RERANK_PROMPT_VERSION` | Jev, once per shortlisted chunk (ADR-0015) |
+| `category.v*.json` | `CATEGORY_QUESTION_VERSION` | Jev, the ticket's category (ADR-0017) |
+
+Bump the version in the filename and the setting in the root `.env.example` (and your `.env`). A prompt's changelog goes in a leading `<!-- … -->` comment, which the loader strips so it is never sent. **Prompt and question changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI. A Jev question changes the scale its answers are on: a new rerank question means re-choosing `retrieval.floor`, a new category question `classification.min_confidence`.
 
 ### Add a KB article
 
@@ -101,7 +110,7 @@ Via the API/UI, or for the demo KB: add a guide to `demo_kb/sources.json`, run `
 
 ### Add a golden eval case
 
-Append to `evals/golden/tickets.jsonl` following [`SCHEMA.md`](../evals/golden/SCHEMA.md), tagged with one of the six distribution buckets. Best sources are real `eval_candidates` rows — humans correcting the system is exactly the signal calibration needs.
+Append to `evals/golden/tickets.jsonl` following [`SCHEMA.md`](../evals/golden/SCHEMA.md), tagged with one of the six distribution buckets (or `edge`, with a specific kind tag). Best sources are real `eval_candidates` rows — humans correcting the system is exactly the signal calibration needs.
 
 ---
 
@@ -118,10 +127,10 @@ uv run pytest evals/suites -q              # skips live suites if ai-engine is d
 
 Two invariants CI enforces that you should not work around:
 
-- **Masking keeps 100% branch coverage.** It is the P0 release gate.
+- **Masking and the router keep 100% branch coverage** (`make coverage`). For masking it is the P0 release gate.
 - **Per-category F1 ≥ 0.85, never averaged.** Averaging hides the rare-but-serious category.
 
-Retrieval recall currently fails on a full run. That is a documented finding, not a broken checkout — see [`../evals/HISTORY.md`](../evals/HISTORY.md) and [`TODO.md`](TODO.md) item 9.
+The last full run failed per-category F1 (`security`, on the LLM's category), which Jev now chooses; `main` has no full run since. That is a documented finding, not a broken checkout — see [`../evals/HISTORY.md`](../evals/HISTORY.md) and [`TODO.md`](TODO.md) item 11.
 
 ---
 
@@ -132,6 +141,8 @@ Retrieval recall currently fails on a full run. That is a documented finding, no
 | `Failed to spawn: pytest` | `uv sync` instead of `uv sync --all-packages` |
 | `ModuleNotFoundError: tests.*` on a whole-workspace run | core-api and ai-engine both have a package named `tests`. Handled by `--import-mode=importlib` in root `pyproject.toml` — don't remove it |
 | Every ticket `mask_failed` | ai-engine is down, or vllm-chat isn't running or reachable from it (see [`onboarding.md`](onboarding.md) step 2), or ai-engine's `CHAT_MODEL` doesn't match what it serves |
+| Every ticket past the injection guard `ai_engine_unavailable` | Jev unreachable: `JEV_API_KEY` unset, or its API failing. By design there is no fallback |
+| Classify fails as `all_llm_down` on long tickets | The prompt plus chunks overflow `VLLM_CHAT_MAX_MODEL_LEN` (4096 in recorded runs); vLLM answers 400 |
 | Submit hangs for a long time | Connect and read timeouts collapsed into one. They're deliberately separate: 3s connect, 120s read |
 | All four generation checks ✗ | No LLM ran. Read the reason code above the panel — usually a degraded run |
 | Unaccented Vietnamese matches nothing | `LexicalShortlister` folds diacritics (`_tokenize`). If this regresses, tickets typed without tone marks stop matching an accented KB |
@@ -147,7 +158,7 @@ Retrieval recall currently fails on a full run. That is a documented finding, no
 - [ ] `uv run pytest` passes
 - [ ] New behavior has a test; new *failure* paths have one too
 - [ ] No new magic numbers — did it go in `thresholds.yaml`?
-- [ ] Contract change → types regenerated, new fields defaulted
+- [ ] Contract change → both services' schemas, types regenerated, new fields defaulted
 - [ ] New failure path → routes to HITL with a specific `reason_code`
 - [ ] Prompt change → evals run, and you can explain any metric movement
 - [ ] Comments explain **why**, especially for anything that looks like indirection worth removing

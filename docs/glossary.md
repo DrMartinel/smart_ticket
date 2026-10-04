@@ -35,7 +35,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Shadow mode** — `SHADOW_MODE=true`, the current default. The router evaluates every ticket and records what it *would* have done, but every ticket still goes to a human. The same `route()` function runs in both modes, so calibration data describes exactly what will happen when it is switched live.
 
-**Trust score** — a calibrated probability that a proposal is correct, computed by logistic regression in **core-api** (never in ai-engine, so the LLM has no influence over the score used to judge it). Built only from externally verifiable signals.
+**Trust score** — meant to be a calibrated probability that a proposal is correct (today a hand-set prior, awaiting shadow data), computed by logistic regression in **core-api** (never in ai-engine, so the LLM has no influence over the score used to judge it). Built only from externally verifiable signals.
 
 **`t_auto` / `t_route`** — trust thresholds for auto-reply and auto-route. `t_route` is lower on purpose: a wrong auto-route costs one technician click (and yields a free label), while a wrong auto-reply reaches the user on a ticket that is already closed.
 
@@ -68,9 +68,15 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **RRF** — Reciprocal Rank Fusion, `score(d) = Σ 1/(k + rank_i(d))` with k=60. Combines the two result lists. **Never threshold on an RRF score** — it is a rank-derived value, not a similarity, and its absolute magnitude means nothing ([ADR-0005](adr/0005-threshold-on-cross-encoder-not-fused-score.md)).
 
-**Cross-encoder / reranker** — scores each (query, passage) pair jointly for a genuine relevance judgment. This score is the *only* one thresholds compare against. The default `lexical` provider is a dependency-free token-overlap stand-in for CI and offline dev; it is not a substitute for retrieval quality.
+**Link expansion** — chunks of the KB pages linked from the shortlister's top 3 are added to the candidates (ADR-0014): the page with the fix is often one link away from the page that describes the symptom.
 
-**Retrieval floor** — if the top reranked score is below `retrieval.floor` (0.30, on Jev's scale: Jev is the reranker), the LLM is **never called**. Never compared with the cross-encoder's score, which only orders the pool. This is both the largest cost saving and a safety property: a model with no source material has nothing to do but fabricate one.
+**Shortlister** — a cross-encoder (bge-reranker-v2-m3 on vLLM) that scores each (ticket, chunk) pair and orders the pool; its top 15 (`RERANK_POOL`) are Jev's shortlist. Its score (`shortlist_score`) only orders; **no threshold reads it**. The `lexical` provider is a dependency-free token-overlap stand-in for CI and offline dev, not a substitute for retrieval quality.
+
+**Jev** — TypeSafe's hosted System One model, the one model outside the deployment (ADR-0015). It answers structured questions about a JSON state: a **noul** (the probability a statement is true), a **score** (a position on ordered levels) or a **choice** (one option of several, with a probability each and a confidence). It receives only masked ticket text and KB text. ai-engine asks it two things:
+- **the reranker**: one noul per shortlisted chunk, "does this passage tell the user how to fix the problem?" Its answer is `rerank_score`, the score `retrieval.floor` and the trust signals read. Its order is final; the top 3 go on.
+- **the category**: one choice among the six categories, given the ticket and the title of the page that answers it (ADR-0017). The router routes on it; the LLM's `proposed_category` is log-only.
+
+**Retrieval floor** — if Jev's top reranked score is below `retrieval.floor` (0.30, on Jev's scale), the LLM is **never called**. Never compared with the cross-encoder's score, which only orders the pool. This is both the largest cost saving and a safety property: a model with no source material has nothing to do but fabricate one.
 
 **Refuse-before-LLM** — the above, as a graph edge. Worth knowing by name because it explains runs where `model = n/a` and every generation signal is false: nothing was generated, so nothing could be validated.
 
@@ -88,6 +94,8 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Negation check** — compares negation markers between the quote and the sentence(s) of the source it was cut from: Vietnamese (`không`, `chưa`, `ngoại trừ`, `trừ khi`, `cấm`) and English (`not`, `never`, `cannot`, `without`, `unless`, `-n't`…, matched on word boundaries). Fuzzy matching cannot catch this: *"delete the root user access keys"* and *"Do not delete the root user access keys"* (or *"được cấp quyền"* and *"không được cấp quyền"*) score ~0.96 similar and mean opposite things. In ITSM, an inverted condition is the most dangerous error class there is.
 
+**Category confidence** — Jev's confidence in its category choice, low when its probability is spread over several categories. Below `classification.min_confidence` (0.65) a route or clarify goes to a human as `category_low_confidence`.
+
 **`quote_applicable`** — whether quote checks apply at all. Route and runbook proposals carry no quote, so their quote signals are reported false; without this flag the UI shows red ✗ for checks that never ran.
 
 ---
@@ -102,7 +110,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 ## Evaluation
 
-**Golden set** — 150 labeled cases at a fixed distribution (40% KB-covered, 20% ambiguous, 15% out-of-KB, 10% high-risk, 10% injection, 5% PII). Currently **synthetic** — a pass means "the wiring didn't regress," not "the model is good."
+**Golden set** — 174 labeled cases: 150 at a fixed distribution (40% KB-covered, 20% ambiguous, 15% out-of-KB, 10% high-risk, 10% injection, 5% PII) plus 24 edge cases. Currently **synthetic** — a pass means "the wiring didn't regress," not "the model is good."
 
 **Eval candidate** — a case auto-created whenever a human overrides the AI. The three free label sources are HITL overrides, technician reroutes, and reopens after auto-reply. All three are humans correcting the system, which is exactly the data calibration needs — provided the UI captures the *reason*, not just the outcome.
 
@@ -110,12 +118,14 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Baseline** — committed metrics in `evals/baselines/baseline.json`. Updating it requires review, because otherwise the easiest way to make a failing PR pass is to lower the bar.
 
+**Full run / probe** — a full run is every suite on the whole golden set (`EVAL_FULL_RUN=1`); a probe measures one design question on the golden set, outside the pipeline. Both are recorded in `evals/HISTORY.md`, with their numbers in `evals/history/`. Neither default-sample run counts.
+
 ---
 
 ## Operations
 
 
-**Budget** — per-ticket caps on tokens, LLM calls, latency, and graph iterations, plus a daily cost ceiling. Exceeding any of them routes to HITL. This is both a cost control and a security control: an adversarial ticket engineered to induce a retry loop could otherwise burn the day's quota in minutes.
+**Budget** — a daily cost ceiling (`budget.daily_cost_ceiling_usd`): once the day's AI spend exceeds it, every ticket goes to HITL as `budget_exceeded`. The spec's per-ticket caps were removed; the graph is acyclic and never retries, so a ticket cannot loop. `budget.max_latency_sec` is how long core-api waits on ai-engine.
 
 **Degraded** — any run where the pipeline could not complete normally (`embedding_unavailable`, `ai_engine_unavailable`, `all_llm_down`, `budget_exceeded`). All of them degrade *toward a human*. A user waiting longer is acceptable; a user receiving a confident wrong answer is not.
 

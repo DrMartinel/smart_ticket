@@ -95,6 +95,8 @@ On an out-of-KB case, the classification suite now counts `insufficient_context`
 
 Left to do: the change to what the gate measures needs review by someone other than its author, like a baseline change, and the `_known_issue` note in `baseline.json` goes when the next baseline is proposed.
 
+**Superseded 2026-10-04 by ADR-0017** for the classification suite: it now scores Jev's category choice, which names a category for every ticket, so the refusal credit no longer applies there. The refusal suite still scores `insufficient_context` as correct. This change to the gate needs the same outside review.
+
 ---
 
 ## 4. Calibrate `retrieval.floor` on Jev's scale
@@ -119,12 +121,12 @@ Note the shape of this: it is not "the wrong number", it is "a number from a dif
 
 ### vLLM (ADR-0009)
 
-The in-process FlagEmbedding reranker is removed, so there is no local score
-to compare against. Every embedding now comes from vLLM through ai-engine (ADR-0012), so the KB chunks, ticket
-embeddings and few-shot examples already in pgvector must be re-embedded
-through it. Masking's tier-2 NER runs in ai-engine on `CHAT_MODEL` and needs its
-detection quality re-checked on real tickets. None of the vLLM path has run
-against real hardware yet.
+Every embedding comes from vLLM through ai-engine (ADR-0012); a database
+embedded before that must be re-embedded through it. The vLLM path has run
+on real hardware (an RTX 3060) in every full eval run since 2026-10-01, and
+masking's tier-2 NER is measured on the golden set by
+`evals/suites/test_masking.py`. Its quality on *real* tickets is still
+unmeasured.
 
 ### Done when
 
@@ -178,10 +180,14 @@ request whose `prompt_version` does not match with a 400.
 `subject_masked\nbody_masked` string — two HTTP round-trips where one would
 do, on the latency-critical path.
 
-The fix is a `query_embedding` key in `TriageState`, which is a state-shape
-change. A caching decorator on the embedder is the **wrong** answer: the graph
+`TriageState.query_embedding` now exists (HybridRetrieveNode writes it, link
+expansion reads it), so the fix is `SelectFewshotsNode` reading it instead of
+embedding again. A caching decorator on the embedder is the **wrong** answer: the graph
 is built once at import and has no request scope, so such a cache would be
-process-lifetime and grow unboundedly across tickets.
+process-lifetime and grow unboundedly across tickets. Related: since
+ADR-0017 the category is known before few-shot selection (`category_choice`),
+while the node still searches across all categories; whether to filter by
+it is an eval question, not part of this fix.
 
 **Done when** one embedding call per ticket is visible in a trace.
 
@@ -276,15 +282,22 @@ Two things to decide before starting, not during:
 - **Golden set is synthetic.** Per spec §12.4, promote real cases into `evals/golden/tickets.jsonl` over time from the three free label sources already being captured: human overrides, technician reroutes, and reopens after auto-reply. `eval_candidates` rows are accumulating for exactly this — they just need a periodic review-and-promote pass.
 
 - **The OpenAI cost rate is a placeholder.** `OPENAI_COST_PER_1K_TOKENS` in
-  `models.py` is illustrative. Replace it with the real rate card for
+  ai-engine's `core/providers/clients.py` is illustrative. Replace it with the real rate card for
   `CLOUD_MODEL` before `cost_per_ticket` dashboards are trusted — the number
   is currently plausible-looking and wrong.
 
+- **Jev's spend is not counted.** `ai_runs.cost_usd` is the chat model's
+  cost only; the up-to-16 Jev requests per ticket (15 rerank, 1 category,
+  about $0.042 per million input tokens) are not in it, so
+  `budget.daily_cost_ceiling_usd` does not see them.
+
 ---
 
-## 9. Retrieval recall on the AWS demo KB (failing CI gate)
+## 9. Retrieval recall on the AWS demo KB
 
-**Priority:** High · **Spec:** §12.2 · **ADR:** 0005
+**Status (2026-10-04):** the gate passes. Link expansion and Jev as the reranker ([ADR-0014](adr/0014-candidate-expansion-and-llm-reorder.md), [ADR-0015](adr/0015-jev-reranks-the-shortlist.md)) took recall@3 from 0.767 to **0.917** in every full run since 2026-10-02 (5). Five tickets are still missed: g011, g012, g048, g055, g056. The history below is from the baseline.
+
+**Priority:** Medium (was High while the gate failed) · **Spec:** §12.2 · **ADR:** 0005
 
 ### Problem
 
@@ -309,9 +322,9 @@ Retrieval recall meets the gate against a reviewed baseline measured on this KB.
 
 ## 10. Ask the requester when a ticket is ambiguous (clarification branch)
 
-**Status (2026-10-04):** the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6`, the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
+**Status (2026-10-04):** the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6` (`v7` since), the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
 
-**Priority:** Medium, after item 4 (it does not fix the failing auto-reply gate) · **Spec:** §5, §8 · **ADR:** [0016](adr/0016-clarify-branch.md)
+**Priority:** Medium · **Spec:** §5, §8 · **ADR:** [0016](adr/0016-clarify-branch.md)
 
 ### Problem
 

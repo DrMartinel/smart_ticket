@@ -31,11 +31,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Deliberately NOT `needs: eval-gate`. The eval gate is knowingly red on
-  # main — the `other` category F1 is 0.75 against a 0.85 floor (docs/TODO.md
-  # §3) — so chaining publish behind it would mean never publishing. This
-  # job is the narrower question "is the tree healthy enough to ship an
-  # image", which the F1 gap does not speak to. It duplicates the unit-test
+  # Deliberately NOT `needs: eval-gate`. The eval gate measures model
+  # quality and can be red on main for documented reasons (evals/HISTORY.md),
+  # so chaining publish behind it would hold images hostage to it. This job
+  # is the narrower question "is the tree healthy enough to ship an image",
+  # which a model-quality gap does not speak to. It duplicates the unit-test
   # run in eval-gate.yml; that is the cost of keeping the two independent.
   verify:
     runs-on: ubuntu-latest

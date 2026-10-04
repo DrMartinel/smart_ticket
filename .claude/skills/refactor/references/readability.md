@@ -98,7 +98,7 @@ One line is fine when there is no contract beyond the name.
 ## 5. Code shape
 
 - **Guard clauses and early returns** over nested `if`/`else`
-  (`ValidateNode.__call__`, `RerankNode.decide`).
+  (`ValidateNode.__call__`, `ClassifyCategoryNode.decide`).
 - **Keyword-only parameters** once there are several, or when two are easy to swap:
   `_block(reason_code, *, detail="")`
   in `router.py`, `ChatClient.__init__(self, *, model, chat_model, …)`.

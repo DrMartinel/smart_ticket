@@ -119,7 +119,7 @@ Whole workspace, from the repo root:
 ```bash
 uv run pytest                              # everything (unit + eval)
 uv run pytest services/ai-engine/tests -q
-uv run pytest evals/suites -q              # 8 suites; live ones skip if ai-engine is down
+uv run pytest evals/suites -q              # 9 files; live ones skip if ai-engine is down
 uv run mypy                                # all three packages
 ```
 
@@ -156,7 +156,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | The Docker stack | [docker-compose.yml](docker-compose.yml) (repo root; DB image and raw SQL in [infra/](infra/)) |
 | ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [schemas.py](services/ai-engine/src/ai_engine/schemas.py) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
-| Prompts (versioned, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
+| Prompts and Jev's questions (versioned `.md` / `.json`, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
@@ -205,9 +205,11 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/utils/pipeline.py` — not `tasks.py`, which is only the entry point |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `PROMPT_VERSION` in `.env.example` (and your `.env`) |
+| What Jev is asked | `ai-engine/core/prompts/*.json` — bump the version in filename and `RERANK_PROMPT_VERSION` or `CATEGORY_QUESTION_VERSION` the same way |
 | What counts as PII | `patterns.py` (regex) or the NER prompt `ai-engine/core/prompts/pii_ner.v*.md` |
 | What is in the demo KB | `demo_kb/sources.json` (then `fetch.py`), approvals and risk tiers in `demo_kb/curation.json` — never by editing fetched pages |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
+| How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question `core/prompts/category.v*.json`; the confidence bar in `thresholds.yaml` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
@@ -231,15 +233,18 @@ copies that directory — a new SQL file that isn't copied fails at container st
   Demo tickets and the golden set are English. The snapshot is frozen: pages
   are checked against `manifest.json`, and each auto-reply approval in
   `curation.json` is pinned to the SHA-256 of the reviewed text.
-- **One eval gate fails** (the baseline full run, 2026-10-01, [`evals/HISTORY.md`](evals/HISTORY.md)):
-  retrieval recall @3 **0.767**, mostly GuardDuty/SES tickets whose wording
-  shares nothing with the page that answers them (TODO item 9, ADR-0014;
-  not chunk crowding, which was measured and ruled out). Auto-reply
-  precision is 1.00 (n=18). `other` F1 is 0.95 since a
-  refusal on an out-of-KB ticket counts as correct, as in the refusal
-  suite; that scoring rule is deliberate, don't revert it to "fix" a
-  number. Record every full run in `evals/HISTORY.md`; runs before the
-  baseline are in `evals/HISTORY-archive.md`, read-only.
+- **Eval gates** ([`evals/HISTORY.md`](evals/HISTORY.md)): the last full run
+  (2026-10-04 (4), `classify.v6`) passed every gate but per-category F1
+  (`security` 0.82, the LLM's category): retrieval recall@3 0.917 (Jev,
+  ADR-0015; still missed g011, g012, g048, g055, g056, TODO item 9),
+  auto-reply precision 1.00 (n=27, with the clarify branch, ADR-0016).
+  Since then `classify.v7` and ADR-0017 (Jev chooses the category) landed
+  without a full run; the classification suite alone passes every category
+  at ≥ 0.93 (2026-10-04 (6)). That suite now scores Jev's choice, which
+  always names a category, so it no longer credits an `insufficient_context`
+  refusal on an out-of-KB ticket; the refusal suite still does. Record
+  every full run in `evals/HISTORY.md`; runs before the 2026-10-01 baseline
+  are in `evals/HISTORY-archive.md`, read-only.
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
@@ -253,6 +258,15 @@ copies that directory — a new SQL file that isn't copied fails at container st
   golden-set data). Trust coefficients and `t_auto`/`t_route` were hand-set for
   the cross-encoder's `rerank_top1`: another reason P3 waits. Every ticket's
   *masked* text goes to Jev's API.
+- **Jev also chooses the category** (ADR-0017, Proposed): `classify_category`
+  asks it one choice question after reranking; the router routes auto-route
+  and clarify on that choice and sends it to a human below
+  `classification.min_confidence` (0.65 🔧) as `category_low_confidence`.
+  The LLM's `proposed_category` is log-only. A Jev failure, reranking or
+  category, is a 500 → HITL `ai_engine_unavailable`, never a fallback.
+- **`clarify`** (ADR-0016, Proposed): the router can choose to ask the
+  requester which shown page they mean; until the requester side exists it
+  is a review item in the `clarification` queue.
 - PII quarantine **write** path is done; the **read** path is not. Currently fails
   safe (nobody can read raw PII). **Do not add a `decrypt()` call without writing
   the `PiiAccessLog` row in the same transaction, with a mandatory non-empty reason.**

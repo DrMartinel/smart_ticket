@@ -113,8 +113,9 @@ jobs:
       # The shipped default: the cross-encoder served by vllm-rerank. This is
       # the only job with a GPU runner, and item 4 needs its score distribution.
       SHORTLIST_PROVIDER: vllm
-      # Jev is the final reranker on every run (ADR-0015); ai-engine refuses
-      # to start without its key.
+      # Jev reranks and chooses the category on every run (ADR-0015,
+      # ADR-0017); without its key every ticket past the injection guard
+      # fails to ai_engine_unavailable.
       JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
       EVAL_FULL_RUN: "1"
     steps:

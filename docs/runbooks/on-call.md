@@ -31,12 +31,33 @@ ticket routes to HITL with `degraded_reason="budget_exceeded"`.
    tomorrow's ceiling, not a same-day override — raising the ceiling
    live during an incident should not be a one-person decision.
 
-## `pgvector` degraded / slow
+## Jev failing (spike in `ai_engine_unavailable` with ai-engine up)
 
-**What this means:** retrieval falls back to BM25-only, and *every* ticket
-routes to HITL (spec §10.3: "retrieval kém = không đủ tin để auto" — weak
-retrieval never earns enough trust to automate). This is expected,
-self-limiting behavior, not a bug.
+**What this means:** Jev, the hosted model that reranks the shortlist and
+chooses the category (ADR-0015, ADR-0017), is failing requests. ai-engine
+does not retry and has no fallback: falling back to the cross-encoder's
+order would compare its scores with a floor set on Jev's, and falling back
+to the LLM's category would hide the outage. Each affected ticket gets a
+500 from ai-engine and goes to HITL as `ai_engine_unavailable`. Jev's API
+has failed with TLS errors and 520s in bursts (four on 2026-10-04).
+
+**Actions:**
+1. `docker compose logs ai-engine` shows the failing call
+   (`httpx.HTTPStatusError`, `ConnectError`) in the traceback.
+2. Check `JEV_API_KEY` is set in ai-engine's environment, and TypeSafe's
+   status. A 429 is a rate limit, not an outage.
+3. Like an LLM outage, this is an "add people" incident: tickets keep
+   flowing to humans. Do not switch the reranker or the category source to
+   keep automation running; that changes what every threshold means.
+
+## `pgvector` or BM25 queries failing / slow
+
+**What this means:** retrieval has no fallback. A failing vector or BM25
+query raises in ai-engine, which answers 500, and the ticket goes to HITL as
+`ai_engine_unavailable`; a query slow enough to outlast
+`budget.max_latency_sec` ends the same way from core-api's side. Vector-only
+or BM25-only retrieval is never substituted: a channel that silently stopped
+working is exactly the failure ADR-0013 was written after.
 
 **Actions:**
 1. Check Postgres `pg_stat_activity` for long-running queries against
@@ -101,12 +122,19 @@ not the bug.
    the gunicorn `--timeout` in `docker-entrypoint.sh` too: masking runs
    inline in the submit request, so gunicorn reaping the worker first
    turns a clean MASK_FAILED into a 502 and loses the ticket.
-4. **Response-shape drift.** The request pins a JSON Schema, so the reply
-   should be `{"spans": [...]}`; the parser also unwraps the first list value
-   of any other object. A server that ignores the schema, or a reply with no
-   content, fails closed to `MASK_FAILED`. Check the
-   `masking: LLM NER failed (...)` warning — it logs the offending payload
-   verbatim.
+5. **Response-shape drift.** The request pins a JSON Schema, so the reply
+   should be `{"spans": [...]}`. ai-engine validates it, and a server that
+   ignores the schema, or a reply with no content, comes back to core-api
+   as a 502 and fails closed to `MASK_FAILED`. Neither service logs the
+   ticket text or the model's reply (for NER the reply *is* the PII): look
+   for `PII NER failed: <ErrorClass>` in ai-engine and
+   `masking: LLM NER failed (...)` in core-api.
+6. **Over-masking, not failure.** If the warning is
+   `masking: NER covered 0.xx of the text (max 0.70)`, NER answered but
+   masked more of the ticket than `masking.ner_max_share` allows, so the
+   ticket goes to a human rather than on with its substance removed. A
+   flood of these means the NER prompt regressed (`PII_NER_PROMPT_VERSION`);
+   `evals/suites/test_masking.py` measures it.
 
 **Do not** "fix" this by treating NER failure as no-PII-found. That inverts
 the one safety property this stage exists to guarantee.
@@ -146,9 +174,12 @@ during an outage (spec §9).
 
 ## DB read-only
 
-**What this means:** the ticket-submission endpoint returns `503` rather
-than silently dropping data (spec §10.3: "từ chối rõ ràng hơn là mất im
-lặng" — an explicit refusal beats a silent loss).
+**What this means:** spec §10.3 asks the submission endpoint to answer `503`
+rather than silently dropping data ("từ chối rõ ràng hơn là mất im lặng" —
+an explicit refusal beats a silent loss). **Not built:** there is no
+read-only handling today, so a failed write surfaces as an unhandled
+database error (a 500) on submit. The ticket is not stored either way;
+the submitter sees an error, not a silent loss.
 
 **Actions:**
 1. Check whether this is a planned failover or an actual outage.

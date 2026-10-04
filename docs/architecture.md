@@ -39,15 +39,20 @@ The third is the strongest, and it is why splitting `ai-engine` into its own ser
        │ Celery (idempotent)          │ read/write
 ┌──────▼───────────────┐   ┌──────────▼────────────┐
 │  ai-engine           │   │  PostgreSQL + pgvector │
-│  FastAPI + LangGraph │──►│                        │
+│  FastAPI + LangGraph │──►│  + pg_search (BM25)    │
 │                      │ RO│  tickets, kb_chunks,   │
 │  injection → retrieve│   │  ai_runs, audit_log…   │
-│  → rerank → infer    │   └────────────────────────┘
-│  → validate          │
+│  → shortlist → rerank│   └────────────────────────┘
+│  → category → infer  │   ┌────────────────────────┐
+│  → validate          │──►│  vLLM (self-hosted)    │
+│                      │   │  chat/NER · embed ·    │
+│  NO business writes  │   │  cross-encoder         │
+│  NO routing decisions│   └────────────────────────┘
 │                      │   ┌────────────────────────┐
-│  NO business writes  │   │  vLLM (self-hosted)    │
-│  NO routing decisions│──►│  infer · embed · rerank│
-└──────────────────────┘   └────────────────────────┘
+│                      │──►│  Jev (hosted, TypeSafe)│
+│                      │   │  rerank · category     │
+└──────────────────────┘   │  masked text + KB only │
+                           └────────────────────────┘
 ```
 
 ### Why these boundaries
@@ -67,7 +72,7 @@ There is no shared schema package (ADR-0010). Each type is defined in the module
 | Types | core-api | ai-engine |
 |---|---|---|
 | `TicketIn` (`extra="forbid"`) | `apps/tickets/request_schema.py` | — |
-| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `TrustSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` |
+| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / clarification / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `ClassificationSignals`, `TrustSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` |
 | `PIILevel` | `apps/tickets/utils/patterns.py` | `schemas.py` |
 | `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `RoutingDecision` | `apps/tickets/utils/router.py` | — |
 | `Thresholds` | `config/settings/base.py` | — |
@@ -151,11 +156,12 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
        ├─ EvidenceBelowFloor (Jev's top1 < retrieval.floor) ──► emit_signals   ← REFUSE BEFORE LLM
        │ EvidenceAboveFloor
        ▼
-   select_fewshots   few-shot examples for this category
+   select_fewshots   nearest few-shot examples by embedding, across categories
        ▼
    infer             LLM ──► JSON, schema-constrained
        ▼
-   validate          quote → fuzzy ≥0.95 → in-top-k → negation
+   validate          quote → fuzzy ≥0.95 → in-top-k → negation;
+                     a clarify proposal's options must be shown pages
        │
        ▼                 (schema invalid → no retry; emit_signals, then HITL)
    emit_signals ──► terminal ──► END
@@ -168,7 +174,7 @@ Three properties are structural, not conventional:
 3. **No loop.** The graph is acyclic — every node runs at most once per ticket, so non-termination is impossible by construction. A schema-invalid proposal goes to a human, not back to the model.
 
 Each node is a `BaseNode` subclass (`graph/build/node.py`) that uses the provider
-singletons (`db`, `embedder`, `shortlister`, `reranker`, `clients.chat`) directly and reads
+singletons (`db`, `embedder`, `shortlister`, `reranker`, `classifier`, `clients.chat`) directly and reads
 tunables from `core/config.py`. Its node name is derived from the class
 name (`HybridRetrieveNode` → `hybrid_retrieve`), and a branching node reports
 where it ended up as a domain `Outcome` from `decide()` — it never names its
@@ -186,8 +192,9 @@ Models are reached through two layers. The clients in
 `ask()` (yes/no) and `choose()` (one choice question), and each builds its request and validates the reply against a
 Pydantic DTO from `core/providers/dtos.py`. `ChatClient` does triage chat through `complete()` (LangChain;
 `vllm_chat` or `openai_chat` builds it). The providers
-(`core/providers/embeddings.py` and `pii.py`, and the shortlister and reranker
-beside their nodes in `graph/nodes/candidate_pool/` and `graph/nodes/rerank/`)
+(`core/providers/embeddings.py` and `pii.py`, and the shortlister, the reranker
+and the category classifier beside their nodes in `graph/nodes/candidate_pool/`,
+`graph/nodes/rerank/` and `graph/nodes/classify_category/`)
 are the upper one and
 own their tasks: the vector width pgvector needs, PII-safe errors, which
 answer is the score.
@@ -208,10 +215,11 @@ over its OpenAI-compatible APIs (ADR-0009). ai-engine is the only vLLM client
 `/v1/pii/detect` and `/v1/embed`, through `infrastructure.ai_engine.AIEngineClient`.
 Selection happens once at startup and an
 unrecognized value is fatal — a typo used to fall through to the lexical
-reranker, whose scores are a different calibration from the cross-encoder's
-(ADR-0005). Each reranker declares its scale (`scorer`), and RerankNode
-applies only the `retrieval.floor` entry for it, failing the run when
-core-api sent none.
+shortlister, whose scores are a different calibration from the cross-encoder's
+(ADR-0005). Whatever the shortlister, the score thresholds read is Jev's
+(ADR-0015): `retrieval.floor` arrives per request in `AIRunRequest`, ai-engine
+reports `RetrievalSignals.scorer = "jev"`, and core-api's router compares the
+floor only for that scorer.
 
 Two constraints on anything added here: `main.py` builds the graph at uvicorn
 import time, so no constructor may open a socket or load a model — every model
@@ -232,10 +240,12 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
      pii_level = critical ──► BLOCK    + alert security
      mass_incident        ──► ESCALATE   (before any duplicate logic)
      pii_level = mask_fail──► HITL       (queue: mask_failed, priority 1)
+     scorer ≠ jev         ──► HITL       (retrieval_floor_unset: no floor for that scale)
      retrieval < floor    ──► HITL       (before the schema gate: no LLM ran,
                                           so "no proposal" is a consequence,
                                           not the cause)
-     no/invalid proposal  ──► HITL
+     no/invalid proposal  ──► HITL       (schema_invalid)
+     insufficient_context ──► HITL       (retrieval_below_floor)
 
    The ticket's category is Jev's choice (signals.classification, ADR-0017),
    never the LLM's proposed_category, which is log-only. Only clarify and
@@ -327,11 +337,10 @@ Every degradation resolves toward a human. A user waiting longer is acceptable; 
 |---|---|
 | LLM unreachable, timed out or erroring | No retry → HITL, `all_llm_down` |
 | Embedding unavailable | HITL, `embedding_unavailable` |
-| pgvector slow | BM25 only → always HITL (weak retrieval never earns automation) |
+| Retrieval query, cross-encoder or Jev fails (reranking or the category) | ai-engine raises, answers 500 → HITL, `ai_engine_unavailable`. No fallback to another score scale or to the LLM's category |
 | ai-engine down | Tickets still accepted; all to HITL — **fail open toward people** |
 | Worker dies mid-task | `acks_late` + idempotency key; redelivery cannot double-send |
 | Daily cost ceiling exceeded (core-api) | AI off for the day; everything to HITL |
-| DB read-only | Submission returns 503 — an explicit refusal beats a silent loss |
 
 Two timeout budgets exist per model call, and the distinction matters: **connect** is short (3s) because an unreachable provider is knowable immediately, while **read** is long (120s) because a cold model load legitimately takes 15–20s. Collapsing them means an unreachable provider burns the full read budget — which, since masking is inline, is a user watching a spinner.
 
@@ -344,8 +353,10 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What the model is asked | `ai-engine/core/prompts/*.md` — versioned, and eval-gated like code |
+| What Jev is asked | `ai-engine/core/prompts/*.json` (`rerank_resolves.v*`, `category.v*`) — versioned and eval-gated the same way |
 | What counts as PII | `tickets/utils/patterns.py` (regex) or ai-engine's NER prompt `core/prompts/pii_ner.v*.md` |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
+| How the category is chosen | ai-engine `graph/nodes/classify_category/` (Jev's question), `classification.min_confidence` in `thresholds.yaml` |
 | What a reviewer sees | `TrustSignalsPanel.tsx`, `ReviewForm.tsx` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 

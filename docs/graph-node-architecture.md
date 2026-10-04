@@ -64,7 +64,7 @@ at core-api's Celery layer. The practical consequence is in §9.
 **A node owns exactly four things.** Its name (auto-derived), its `__call__`
 (the work), its `decide()` (which business outcome it reached), and its
 `Outcome` enum. Nothing else. It uses the provider singletons (`db`,
-`embedder`, `shortlister`, `reranker`, `clients.chat`) directly; an `__init__` is only for
+`embedder`, `shortlister`, `reranker`, `classifier`, `clients.chat`) directly; an `__init__` is only for
 one-time setup that must fail at boot, like `InferNode` loading its prompt.
 
 **Outcomes carry business meaning, not booleans.** `InjectionDetected` /
@@ -135,11 +135,13 @@ What LangGraph (1.2.9) does with a pydantic schema, pinned in
   `input_schema=state_schema` so the graph's schema always wins.
 
 `candidates` is `list[Candidate]`; `pool` and `reranked` are
-`list[RankedChunk]`. These types live in `core/`, not in their nodes,
-because `core` never imports from `graph/`. A `RankedChunk` carries one
+`list[RankedChunk]`. These types live in `graph/state.py`, not in their
+nodes, so every node and the builder can import them. A `RankedChunk` carries one
 score per reranking stage: `shortlist_score` (set by CandidatePoolNode)
 and `rerank_score` (set by RerankNode, None until then). Anything compared with
-a threshold reads `final_score()`, Jev's.
+a threshold reads `final_score()`, Jev's, which raises when Jev hasn't scored
+the chunk. `category_choice` and `category_confidence` (ClassifyCategoryNode)
+are Jev's category answer; `None` means it was never asked.
 
 The validation defaults read as "every check failed": refuse-before-LLM skips
 the validator, and `emit_signals` must not report passing checks nobody ran.
@@ -307,14 +309,14 @@ Tests pin routes on the compiled graph (`triage_graph.get_graph().edges`, see
 
 Each node module ends with its production instance. Nodes take no
 dependencies: they use the provider singletons built at the bottom of the
-provider modules (`db`, `embedder`, `shortlister`, `reranker`, `clients.chat`) directly.
+provider modules (`db`, `embedder`, `shortlister`, `reranker`, `classifier`, `clients.chat`) directly.
 
 ```python
 # nodes/rerank/node.py
 rerank = RerankNode()
 ```
 
-`graph/triage.py` imports those seven instances and routes them (§4.3). Each
+`graph/triage.py` imports those nine instances and routes them (§4.3). Each
 instance is named after its node's `name`, so the variable, the
 LangGraph node and the trace entry all read the same.
 
@@ -325,8 +327,8 @@ through the assembly or a node that merely passes it on. Tests that need a
 non-default value `monkeypatch.setattr(settings, ...)`.
 
 Tests that exercise a node swap its providers for the fakes in
-`tests/conftest.py` with the `use_db`, `use_embedder`, `use_shortlister` and
-`use_llm` fixtures, which patch every node module that reads that provider:
+`tests/conftest.py` with the `use_db`, `use_embedder`, `use_shortlister`,
+`use_reranker`, `use_classifier` and `use_llm` fixtures, which patch every node module that reads that provider:
 `use_db(fake_db()); emit_signals(state)` — the module's instance, never a
 fresh `EmitSignalsNode()`, which raises. Tests that exercise the builder wire a small graph of
 their own (`tests/test_compiler.py`). The production topology is pinned
@@ -389,7 +391,9 @@ input:             {"ticket": ..., "retrieval_floor": 0.30, ...}
 after injection:   {..., "injection_detected": False, ...}
 decide()        -> InjectionClear      -> HybridRetrieveNode
 after retrieve:    {..., "candidates": [...10]}
+after pool:        {..., "pool": [...shortlist_score set, cross-encoder order]}
 after rerank:      {..., "reranked": [top1.rerank_score=0.81, ...]}
+after category:    {..., "category_choice": "access", "category_confidence": 0.94}
 decide()        -> EvidenceAboveFloor  -> SelectFewshotsNode -> InferNode
 after infer:       {..., "proposal": None}                       # unparseable JSON
 after validate:    {..., "schema_valid": False, ...}
@@ -442,7 +446,7 @@ whatever `decide()` returns rather than on the graph's structure.
 
 ## 8. Accepted tradeoff
 
-Routing is no longer local to the node. Reading `RerankNode` does not tell
+Routing is no longer local to the node. Reading `ClassifyCategoryNode` does not tell
 you where `EvidenceBelowFloor` goes — you look it up at the bottom of
 `graph/triage.py`. We accept this: the route list fits on one screen, it is what you would draw on a
 whiteboard anyway, and it is what makes whole-graph validation possible. If it

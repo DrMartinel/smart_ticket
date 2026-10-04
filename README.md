@@ -58,9 +58,16 @@ See [`docs/status.md`](docs/status.md) for a component-by-component breakdown ag
 ┌──────▼──────┐  ┌─────▼───────┐
 │  ai-engine  │  │  PostgreSQL │
 │  FastAPI +  │──│  + pgvector │
-│  LangGraph  │  └─────────────┘
-│  READ-ONLY  │
-└─────────────┘
+│  LangGraph  │  │  + pg_search│
+│  READ-ONLY  │  └─────────────┘
+└──┬───────┬──┘
+   │       └──────────────┐
+┌──▼──────────────┐  ┌────▼──────────────────┐
+│ vLLM            │  │ Jev (hosted)          │
+│ chat · NER ·    │  │ rerank · category     │
+│ embed · cross-  │  │ masked text + KB only │
+│ encoder         │  └───────────────────────┘
+└─────────────────┘
 ```
 
 Three services with **structurally enforced** permission boundaries:
@@ -68,14 +75,15 @@ Three services with **structurally enforced** permission boundaries:
 | Service | Stack | Role |
 |---|---|---|
 | **core-api** | Django 6 · Django Ninja · Celery | Business logic, all routing decisions, HITL queue, audit log. The only service that writes business data. |
-| **ai-engine** | FastAPI · LangGraph | Hybrid retrieval (BM25 + vector → RRF), reranking, LLM inference, validation. Connects as the `ai_engine_ro` Postgres role with `SELECT`-only grants — it *cannot* write business tables even if compromised (ADR-0004). |
+| **ai-engine** | FastAPI · LangGraph | Hybrid retrieval (BM25 + vector → RRF), a cross-encoder shortlist, reranking and category choice by Jev, LLM inference, validation. The only client of every model (ADR-0012). Connects as the `ai_engine_ro` Postgres role with `SELECT`-only grants — it *cannot* write business tables even if compromised (ADR-0004). |
 | **web** | Next.js 15 · React 19 | Ticket submission, review queue, dashboards, KB governance. |
 
 | Infrastructure | Purpose |
 |---|---|
-| PostgreSQL 17 + pgvector | Relational data, 1024-dim HNSW vector indexes, `tsvector` full-text search |
+| PostgreSQL 17 + pgvector + pg_search | Relational data, 1024-dim HNSW vector indexes, BM25 full-text search (ParadeDB `pg_search`, ADR-0013) |
 | Redis 7 | Celery broker & result backend |
-| vLLM (`vllm` profile) | Self-hosted models: inference, PII NER, embeddings, rerank |
+| vLLM (`vllm` profile) | Self-hosted models: inference, PII NER, embeddings, the cross-encoder shortlister |
+| Jev (hosted, TypeSafe) | The reranker and the category classifier (ADR-0015, ADR-0017). Needs `JEV_API_KEY`; receives only masked ticket text and KB text |
 
 ---
 
@@ -85,7 +93,7 @@ Three services with **structurally enforced** permission boundaries:
 - **Trust score over self-confidence.** `llm_self_confidence` is logged but **never** routed on. Trust comes from externally verifiable signals: rerank scores, whether the quoted text actually exists in the retrieved chunk, whether a negation got flipped (ADR-0003).
 - **Fail toward humans.** Every degradation — LLM timeout, embedding outage, masking failure, weak retrieval, daily cost ceiling — routes to HITL. Never to auto-reply. A user waiting longer is acceptable; a user receiving a confident wrong answer is not.
 - **Authority lives on the KB, not in the model.** `kb_articles.auto_reply_allowed` defaults to `false`, is settable only by a manager with a logged reason, and is enforced by a DB `CHECK` constraint requiring a named approver (ADR-0002).
-- **Refuse before spending.** If reranked retrieval falls below the floor, the LLM is never called — cheaper *and* safer, since a model with no source is a model that invents one.
+- **Refuse before spending.** If Jev's top reranked score falls below the floor, the LLM is never called — cheaper *and* safer, since a model with no source is a model that invents one.
 - **Shadow mode first.** The same `route()` runs in both modes, so calibration data describes exactly what will happen when it's switched live.
 
 ---
@@ -114,28 +122,35 @@ smart_ticket/
 │   │   └── config/              #   settings/{base,development,production,test} · celery · thresholds.yaml
 │   ├── ai-engine/               # FastAPI + LangGraph
 │   │   └── src/ai_engine/
-│   │       ├── graph/nodes/     #   injection · rerank · fewshot · infer · validate · emit_signals,
-│   │       │   ├── retrieve/    #     and a folder per stage with helpers: bm25 · vector · rrf fusion
-│   │       │   ├── candidate_pool/ #  shortlister (cross-encoder) · link expansion
-│   │       │   └── rerank/      #     Jev reranker · the floor gate
-│   │       └── core/            #   settings · state · node base classes, and:
-│   │           ├── providers/   #     seams (ABCs) · embedders · rerankers · model clients
-│   │           └── prompts/     #     versioned prompts
+│   │       ├── main.py          #   HTTP routes: /v1/analyze, /v1/embed, /v1/pii/detect
+│   │       ├── schemas.py       #   the wire contract (mirrors core-api's dtos.py)
+│   │       ├── graph/           #   state.py · triage.py (the route list) · build/ (node, edge, graph, builder)
+│   │       │   └── nodes/       #   injection · fewshot · infer · validate · emit_signals,
+│   │       │       ├── retrieve/        # and a folder per stage with helpers: bm25 · vector · rrf fusion
+│   │       │       ├── candidate_pool/  # shortlister (cross-encoder) · link expansion
+│   │       │       ├── rerank/          # Jev reranker
+│   │       │       └── classify_category/ # Jev's category choice · the floor gate
+│   │       └── core/            #   infrastructure, never imports graph/:
+│   │           ├── config.py    #     settings (types only; values from .env)
+│   │           ├── db/          #     the read-only DB client and tables
+│   │           ├── providers/   #     embedders · PII NER · model clients (vLLM, Jev, chat) and their DTOs
+│   │           └── prompts/     #     versioned prompts (.md) and Jev questions (.json)
 │   └── web/                     # Next.js App Router
 │       ├── app/                 #   submit · queue · review/[id] · dashboard · kb · login
 │       ├── components/          #   TrustSignalsPanel · ReviewForm · NavBar
 │       └── lib/types/generated.ts
 ├── evals/                       # Eval harness — treated as code, gated in CI
-│   ├── golden/tickets.jsonl     #   150 synthetic cases (see SCHEMA.md)
-│   ├── suites/                  #   retrieval · classification · quote · refusal · injection · e2e
+│   ├── golden/tickets.jsonl     #   174 synthetic cases (see SCHEMA.md)
+│   ├── suites/                  #   retrieval · classification · quote · refusal · injection · masking · e2e
+│   ├── HISTORY.md · history/    #   every full run and probe: what it meant, and its numbers (+ dashboard.html)
 │   ├── calibration/             #   fit trust score · choose thresholds from PR curve
 │   └── baselines/baseline.json  #   committed; changes require review
 ├── docker-compose.yml           # the stack; reads .env (from .env.example)
 ├── .env.example                 # template for .env: every setting, its value and why
 ├── infra/
 │   ├── db/                      #   Postgres image (pgvector + pg_search)
-│   ├── migrations/sql/          #   extensions, HNSW indexes, CHECK constraints, RO role
-│   └── ci/eval-gate.yml
+│   └── migrations/sql/          #   extensions, HNSW indexes, CHECK constraints, RO role
+├── .github/workflows/           # lint · eval-gate · publish-images
 └── docs/
     ├── README.md                # documentation index + reading order — start here
     ├── onboarding.md            # day one: run it, submit a ticket, orient
@@ -145,7 +160,7 @@ smart_ticket/
     ├── testing.md               # test layers + eval harness
     ├── status.md                # implementation status vs spec + known gaps
     ├── TODO.md                  # prioritized open work
-    ├── adr/                     # 6 Architecture Decision Records
+    ├── adr/                     # 17 Architecture Decision Records
     └── runbooks/on-call.md      # when it breaks in production
 ```
 
@@ -167,6 +182,11 @@ The `vllm` compose profile downloads its models from Hugging Face on first start
 (`CHAT_MODEL`, `EMBED_MODEL`, and `RERANKER_MODEL` for `vllm-rerank`),
 cached in `HF_CACHE_DIR`. Without it every ticket still flows — masking fails
 closed to `MASK_FAILED` and everything goes to a human, by design.
+
+Reranking and the category need **Jev**, TypeSafe's hosted model: set
+`JEV_API_KEY` in `.env`. Without it every ticket that reaches retrieval fails
+to `ai_engine_unavailable`, a human. Only masked ticket text and KB text are
+sent.
 
 ---
 
@@ -262,7 +282,9 @@ services/core-api/config/thresholds.yaml
 | `routing.t_auto` | 0.88 | Trust minimum for auto-reply (target precision ≥ 0.95) |
 | `routing.t_route` | 0.72 | Trust minimum for auto-route (target precision ≥ 0.85) |
 | `routing.quote_match` | 0.95 | Minimum verbatim-quote match ratio |
-| `retrieval.floor` | 0.45 | **Cross-encoder** score below which the LLM is never called (ADR-0005) |
+| `retrieval.floor` | 0.30 🔧 | **Jev's** top reranked score below which the LLM is never called (ADR-0005, ADR-0015) |
+| `classification.min_confidence` | 0.65 🔧 | Jev's category confidence below which a route or clarify goes to a human (ADR-0017) |
+| `masking.ner_max_share` | 0.7 🔧 | Share of a ticket NER may mask beyond the regex hits before it is `mask_failed` |
 | `incident.min_count` | 5 | Similar tickets needed before mass-incident escalation |
 | `budget.max_latency_sec` | 300 | How long core-api waits on ai-engine; must exceed the per-call model ceiling |
 | `budget.daily_cost_ceiling_usd` | 50 | Daily spend cap — exceeding it routes everything to HITL |
@@ -278,6 +300,9 @@ Full list in [`.env.example`](.env.example). The ones that change behavior most:
 | `SHADOW_MODE` | `true` | Router records decisions without acting; everything still goes to HITL |
 | `EMBEDDING_PROVIDER` | `vllm` | ai-engine's embedder, which also embeds for core-api. `stub` = deterministic hash embeddings, no network (used by CI) |
 | `SHORTLIST_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
+| `JEV_API_KEY` | empty | Jev's key; required for any run that reaches retrieval. Tests use fakes |
+| `PROMPT_VERSION` · `PII_NER_PROMPT_VERSION` | `classify.v7` · `pii_ner.v2` | Which prompt files run |
+| `RERANK_PROMPT_VERSION` · `CATEGORY_QUESTION_VERSION` | `rerank_resolves.v1` · `category.v1` | Which Jev question files run |
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |
 | `MODEL_TIMEOUT_SEC` | `120` | Ceiling for one model call (NER, embeddings, inference); core-api's read timeout on NER and embedding calls to ai-engine |
@@ -298,18 +323,21 @@ Ticket submitted  ──►  PII Masking (INLINE, before any DB write)
                          ▼
                        ai-engine  (Celery, idempotent per ticket:attempt)
                          ├─ injection detection      ──► detected ──►  BLOCK (zero tokens spent)
-                         ├─ hybrid retrieval: BM25 + vector → RRF (k=60)
-                         ├─ cross-encoder rerank → top-3
-                         │     └─ below floor        ──► refuse, LLM never called
+                         ├─ hybrid retrieval: BM25 (pg_search) + vector → RRF (k=60)
+                         ├─ cross-encoder shortlist (+ chunks of linked pages) → top 15
+                         ├─ Jev reranks the 15 → top 3
+                         ├─ Jev chooses the category (ticket + the top page's title)
+                         │     └─ Jev's top-1 below floor ──► refuse, LLM never called
                          ├─ few-shot selection
-                         ├─ LLM inference (JSON schema, no retry)
+                         ├─ LLM inference (JSON-schema constrained, no retry)
                          └─ validation: exact quote → fuzzy ≥0.95 → in-top-k → negation check
                          ▼
                        Trust Scorer  (core-api — deliberately NOT in ai-engine)
                          ▼
                        Switch Router  (pure function, hard gates in order)
                          ├─ auto_reply   → KB-sourced answer     [requires kb.auto_reply_allowed]
-                         ├─ auto_route   → assign to team
+                         ├─ auto_route   → assign to Jev's category's team
+                         ├─ clarify      → ask which page they mean (a review item until the requester side exists)
                          ├─ hitl         → human review queue
                          ├─ block        → security alert
                          └─ escalate     → incident management
@@ -356,7 +384,7 @@ uv sync --all-packages                     # once — installs every workspace m
 uv run pytest                              # everything (unit + eval)
 cd services/core-api && make test          # core-api only
 uv run pytest services/ai-engine/tests -q
-uv run pytest evals/suites -q              # 8 eval suites
+uv run pytest evals/suites -q              # the eval suites
 ```
 
 > Use `uv sync --all-packages`, not a bare `uv sync`. The root project has no
@@ -375,7 +403,7 @@ Both sit at **100%**, and `make coverage` fails below that, as CI does. For mask
 
 ### Eval harness & CI gate
 
-150 synthetic Vietnamese/English cases at the spec §12.1 distribution (see [`evals/golden/SCHEMA.md`](evals/golden/SCHEMA.md)). They are **synthetic on purpose and explicitly not a substitute** for a hand-labeled set — treat a pass as *"the wiring didn't regress"*, not *"the model is good."*
+174 synthetic cases: 150 at the spec §12.1 distribution plus 24 edge cases (see [`evals/golden/SCHEMA.md`](evals/golden/SCHEMA.md)). The harness masks each ticket with core-api's own `mask()`, as production does. They are **synthetic on purpose and explicitly not a substitute** for a hand-labeled set — treat a pass as *"the wiring didn't regress"*, not *"the model is good."*
 
 ```bash
 uv run pytest evals/suites -q
@@ -385,7 +413,7 @@ uv run python evals/report.py --compare evals/baselines/baseline.json
 | Suite | Metric | Gate |
 |---|---|---|
 | Retrieval | Recall@3 | ≥ 0.90 |
-| Classification | F1 **per category** | ≥ 0.85 each |
+| Classification | F1 **per category**, on Jev's choice | ≥ 0.85 each |
 | Quote validation | Hallucination-catch precision | ≥ 0.95 |
 | Refusal | Out-of-KB refusal rate | ≥ 0.90 |
 | Injection | Detection recall | ≥ 0.95 |
@@ -393,7 +421,7 @@ uv run python evals/report.py --compare evals/baselines/baseline.json
 
 Per-category F1 is deliberately not averaged — a rare-but-serious category like `security` can sit at 0.4 while the mean still looks healthy.
 
-> **Known failing gate:** retrieval recall@3 is **0.767** on the 2026-10-01 baseline full run, while auto-reply precision is 1.00. What each means, and every run since, is in [`evals/HISTORY.md`](evals/HISTORY.md); earlier runs are in [`evals/HISTORY-archive.md`](evals/HISTORY-archive.md). Do not lower a floor to make CI green.
+> **Gate state:** the last full run (2026-10-04 (4)) passed every gate but per-category F1 (`security` 0.82 on the LLM's category); retrieval recall@3 is 0.917 and auto-reply precision 1.00. Jev now chooses the category and passes the classification suite alone, but `main` has no full run since. Every run, and what it meant, is in [`evals/HISTORY.md`](evals/HISTORY.md); earlier runs are in [`evals/HISTORY-archive.md`](evals/HISTORY-archive.md). Do not lower a floor to make CI green.
 
 ---
 
@@ -407,6 +435,17 @@ Per-category F1 is deliberately not averaged — a rare-but-serious category lik
 | [0004](docs/adr/0004-split-ai-engine.md) | ai-engine split out with read-only DB credentials |
 | [0005](docs/adr/0005-threshold-on-cross-encoder-not-fused-score.md) | Thresholds on cross-encoder scores, never on fused RRF ranks |
 | [0006](docs/adr/0006-runbook-always-hitl.md) | Runbook execution always requires human approval |
+| [0007](docs/adr/0007-langchain-owns-transport-only.md) | LangChain owns transport only |
+| [0008](docs/adr/0008-sqlalchemy-query-layer.md) | ai-engine queries through SQLAlchemy |
+| [0009](docs/adr/0009-self-hosted-vllm-backend.md) | Self-hosted vLLM as the model backend |
+| [0010](docs/adr/0010-no-shared-contracts.md) | No shared contracts package; wire schemas in both services |
+| [0011](docs/adr/0011-uuid-primary-keys.md) | UUID primary keys |
+| [0012](docs/adr/0012-ai-engine-is-the-only-vllm-client.md) | ai-engine is the only vLLM client |
+| [0013](docs/adr/0013-pg-search-bm25-and-keyword-agreement.md) | pg_search BM25 and keyword agreement |
+| [0014](docs/adr/0014-candidate-expansion-and-llm-reorder.md) | Candidate expansion through page links (Proposed) |
+| [0015](docs/adr/0015-jev-reranks-the-shortlist.md) | Jev reranks the cross-encoder's shortlist; thresholds read its score |
+| [0016](docs/adr/0016-clarify-branch.md) | A `clarify` branch (Proposed) |
+| [0017](docs/adr/0017-jev-classifies-the-category.md) | Jev chooses the category; the LLM's is log-only (Proposed) |
 
 ADR-0006 is flagged in the spec as the one most likely to erode once `automation_rate` becomes a KPI. Read it before proposing a bypass.
 
@@ -440,10 +479,11 @@ The two metrics most worth watching are counterintuitive: **`reopen_rate_after_a
 | API | Django 6.0 · Django Ninja · ninja-jwt |
 | AI pipeline | FastAPI 0.140 · LangGraph |
 | Task queue | Celery 5.6 · Redis 7 |
-| Database | PostgreSQL 17 · pgvector (HNSW) |
+| Database | PostgreSQL 17 · pgvector (HNSW) · ParadeDB pg_search (BM25) |
 | Embeddings | BGE-M3, 1024-dim (via vLLM) |
-| Shortlister | lexical (default) · BGE-Reranker-v2-M3 (optional) |
-| LLM | Qwen 3 8B AWQ for inference and PII NER (via vLLM) |
+| Shortlister | BGE-Reranker-v2-M3 cross-encoder (via vLLM, default) · lexical (CI) |
+| Reranker · category | Jev `jev-1.13.0` (TypeSafe System One, hosted) |
+| LLM | Qwen3 8B AWQ for inference and PII NER (via vLLM) |
 | Frontend | Next.js 15 · React 19 · Tailwind |
 | Tooling | uv workspace · pytest · Ruff |
 
