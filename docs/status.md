@@ -15,7 +15,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | Spec phases complete | **P0, P1** |
 | Phase in progress | **P2** — calibration scripts ready, awaiting ≥500 shadow pairs |
 | Unit tests | **503 passing** (247 core-api, 256 ai-engine), 2026-10-04 |
-| Eval suites | 9 files, 26 tests. Last full run (2026-10-04 (4), `classify.v6`): every gate passes but per-category F1, `security` at 0.82. Since then `classify.v7` and ADR-0017 (Jev chooses the category) are on `main` without a full run; the classification suite alone, with Jev, passes every category at ≥ 0.93 (2026-10-04 (6)). See [`evals/HISTORY.md`](../evals/HISTORY.md) |
+| Eval suites | 9 files, 26 tests. Last full run (2026-10-04 (8), `propose.v8`, Jev's category): every gate passes but auto-reply precision, 0.944 (34/36; g151 and g155 auto-replied instead of clarified). See [`evals/HISTORY.md`](../evals/HISTORY.md) |
 | Masking + router branch coverage | **100%** (`make coverage`) — the spec §14 P0 exit condition |
 | Operating mode | `SHADOW_MODE=true` — router decides, humans still handle everything |
 
@@ -95,8 +95,8 @@ See [TODO.md](TODO.md) item 4.
 Full runs are in [`evals/HISTORY.md`](../evals/HISTORY.md); runs before the 2026-10-01 baseline are in [`evals/HISTORY-archive.md`](../evals/HISTORY-archive.md).
 
 - **Retrieval recall@3** went from 0.767 (baseline) to **0.917** with link expansion and Jev (ADR-0014, ADR-0015), passing its 0.90 gate in every full run since 2026-10-02. Still missed: g011, g012, g048, g055, g056 ([`TODO.md`](TODO.md) item 9). `baselines/baseline.json` still holds old sample numbers, so `report.py --compare` flags the wrong things; compare with HISTORY.md.
-- **Auto-reply precision** reached 1.00 (27/27) with the clarify branch (2026-10-04 (4)).
-- **Per-category F1** failed that run on `security` (0.82, the LLM's category). Jev now chooses the category (ADR-0017); its suite run passes every category, but no full run has measured `classify.v7` and ADR-0017 together ([`TODO.md`](TODO.md) item 11).
+- **Auto-reply precision** reached 1.00 (27/27) with the clarify branch (2026-10-04 (4)), then fell to **0.944** (34/36) in (8): the underspecified g151 and g155 are auto-replied again. Whether `classify.v7` or `propose.v8` (no category section) caused it is not yet separated (HISTORY (8) follow-ups).
+- **Per-category F1** passes on Jev's choice (ADR-0017), every category ≥ 0.93; it failed on the LLM's `security` (0.82) in (4).
 
 **Do not lower a floor or drop a category to make CI green** — per-category F1 exists precisely so a rare category cannot hide behind a healthy average.
 

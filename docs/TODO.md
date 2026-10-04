@@ -360,7 +360,7 @@ The ADR is accepted. Ambiguous tickets reach `clarify` in the evals without lowe
 
 ### Work
 
-- A full eval run with it built, the end-to-end suite included, recorded in `evals/HISTORY.md`. The classification suite now scores Jev's choice at the real floor.
+- ~~A full eval run with it built~~ Done 2026-10-04 (8): category F1 passes on Jev's choice (every category ≥ 0.93); auto-reply precision fails (0.944), see that entry's follow-ups.
 - Re-measure on tickets `category.v1` was not written against (a held-out set or shadow data); the probe's 80/83 was measured on the set the question was tuned on.
 - Choose `classification.min_confidence` on shadow data, not the probe's 83 tickets.
 - ~~Re-decide `category_consistent`~~ Removed 2026-10-04: it was true for every proposal that parsed, so its route gate never fired and its trust weight moved into the intercept.

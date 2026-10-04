@@ -95,6 +95,89 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-04 (8): propose.v8, Jev's category, and core-api's own policy, full run
+
+**Verdict:** fails one gate. **Auto-reply precision 0.944 (34/36)**, under
+its 0.95 floor: the two underspecified tickets g151 and g155, which (4)
+had stopped guessing on, are auto-replied again. Everything else passes,
+category F1 now on Jev's choice (every category ≥ 0.93, `security` 1.00
+against 0.82 in (4)), and branch accuracy rises to **0.906** (from 0.860).
+Not like for like with (4): the prompt moved two versions (v7 was never
+run in full, so v7's and v8's effects can't be separated here), and Jev
+now chooses the category.
+
+| Configuration | |
+|---|---|
+| Code | `e9b9744` (`main`). The ai-engine image ran the same code before its last, behaviour-neutral commit step (types moved out of `schemas.py`) |
+| Prompts | **`propose.v8`** (was `classify.v6` in (4); renamed, no category section, no `proposed_category`) · `pii_ner.v2` · Jev `rerank_resolves.v1`, `category.v1` |
+| Since (4) | `classify.v7`; ADR-0017 (Jev chooses the category); redundant signals removed; ai-engine sends `EngineSignals`, core-api adds `policy` (`pipeline.trust_signals`; the harness does the same); few-shots reuse the retrieval embedding |
+| Models · KB · thresholds | as (4): Qwen3-8B-AWQ (`VLLM_CHAT_MAX_MODEL_LEN` 4096, GPU util 0.6) · bge-m3 · bge-reranker-v2-m3@main · `jev-1.13.0` · floor 0.30 · `classification.min_confidence` 0.65 |
+| Golden set | 174 cases, `c55afb92bc11` |
+| Duration | 24m50s every suite, plus 11m38s re-running `test_end_to_end.py` alone after a Jev 520 |
+
+| Metric | Value | Gate | (4) | |
+|---|---|---|---|---|
+| Retrieval recall@3 | 0.917 (55/60, MRR 0.872) | ≥ 0.90 | 0.917 (MRR 0.881) | ✅ |
+| Auto-reply precision | **0.944** (34/36) | ≥ 0.95 absolute | 1.00 (27/27) | ❌ |
+| Branch accuracy | **0.906** (155/171) | reported only | 0.860 (147/171) | — |
+| Refusal on out-of-KB | 1.00 (23/23) | ≥ 0.90 | 1.00 | ✅ |
+| Injection recall · quote validation | 1.00 · 1.00 | as before | 1.00 · 1.00 | ✅ |
+| F1 `access` · `hardware` · `network` · `other` · `security` · `software` (Jev) | 0.94 · 0.93 · 0.95 · 1.00 · 1.00 · 0.95 | ≥ 0.85 each | 0.97 · 0.93 · 0.95 · 0.90 · **0.82** · 0.95 (LLM) | ✅ |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | reported only | the same | — |
+| `gold_use` quoted · quote_missed · refused · other | 47 · 4 · 0 · 4 | reported only | 42 · 5 · 0 · 8 | — |
+
+### Findings
+
+**1. The two false auto-replies are g151 and g155**, both labeled `clarify`
+(ADR-0016): "I forgot my password, how do I reset it?" and "The client app
+keeps crashing on my laptop." Each passed every check (`all_checks_passed`):
+the LLM chose one page and quoted it correctly, so nothing downstream can
+tell a guess from an answer. In (4) neither was auto-replied. g152-g154 and
+g156 still reach a human (`retrieval_below_floor`, `kb_not_authorized`), so
+no labeled `clarify` ticket reached `clarify` in this run.
+
+**2. Clarify went to the wrong tickets.** g011, g069, g070, g071 and g072,
+labeled `hitl` (multi-issue or vague), got a question instead. The router
+lets a clarify through on Jev's category and the options check, so these
+count against branch accuracy, not precision; but they are the over-asking
+v7 was written to stop, and it is back.
+
+**3. More auto-replies, mostly right.** 36 proposed-and-approved
+auto-replies against 27; 34 correct. `gold_use` improves (47 quoted from the
+gold page, against 42), and fewer runs end with no usable proposal (4
+"other" against 8). Branch accuracy rises 0.860 → 0.906 even with findings
+1 and 2.
+
+**4. Context overflow is not gone.** 5 classify calls overflowed the
+4,096-token context (`all_llm_down`), at 4,097 tokens, after v8 removed
+~500 tokens. The overflow is the KB excerpts, not the prompt.
+
+**5. Category: Jev, as in (6).** The suite's numbers equal the
+classification-suite run (6), on the same tickets.
+
+**6. Jev failed once more** (a 520), the fifth today.
+
+**7. Unchanged:** g001 (`quote_source_not_in_topk`), g032
+(`negation_mismatch`), g035 (`trust_below_auto_threshold`), g165
+(`kb_not_authorized`), and g120 still reaching `auto_route` (CLAUDE.md
+"Current state").
+
+### Follow-ups
+
+- [ ] Attribute findings 1-2: a full run of `classify.v7` with ADR-0017 on
+      the same code, or v8 with the category section restored. The
+      category definitions may have been what kept the model from
+      guessing on g151/g155 (it had to name a category, which made it
+      weigh what the ticket was about).
+- [ ] Do not move the floor or relabel g151/g155 (rule 9).
+- [ ] propose.v8 also still ends with unfilled template placeholders
+      (`{{retrieved_chunks}}`, …) and says "just classify"; both cost
+      tokens and confuse, and were in v7 too.
+- [ ] Overflow: cap the KB excerpt length sent to the LLM, or raise the
+      context where the GPU allows (onboarding step 2).
+
+---
+
 ## 2026-10-04 (7): Jev's `score` against its `noul` as the reranker's question, probe
 
 **Verdict:** no reason to switch. Asked as a five-level `score` instead of

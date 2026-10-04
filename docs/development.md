@@ -130,7 +130,7 @@ Two invariants CI enforces that you should not work around:
 - **Masking and the router keep 100% branch coverage** (`make coverage`). For masking it is the P0 release gate.
 - **Per-category F1 ≥ 0.85, never averaged.** Averaging hides the rare-but-serious category.
 
-The last full run failed per-category F1 (`security`, on the LLM's category), which Jev now chooses; `main` has no full run since. That is a documented finding, not a broken checkout — see [`../evals/HISTORY.md`](../evals/HISTORY.md) and [`TODO.md`](TODO.md) item 11.
+The last full run fails auto-reply precision (0.944 against 0.95, 2026-10-04 (8)). That is a documented finding, not a broken checkout — see [`../evals/HISTORY.md`](../evals/HISTORY.md).
 
 ---
 

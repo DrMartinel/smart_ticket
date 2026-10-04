@@ -236,13 +236,12 @@ copies that directory — a new SQL file that isn't copied fails at container st
   are checked against `manifest.json`, and each auto-reply approval in
   `curation.json` is pinned to the SHA-256 of the reviewed text.
 - **Eval gates** ([`evals/HISTORY.md`](evals/HISTORY.md)): the last full run
-  (2026-10-04 (4), `classify.v6`) passed every gate but per-category F1
-  (`security` 0.82, the LLM's category): retrieval recall@3 0.917 (Jev,
-  ADR-0015; still missed g011, g012, g048, g055, g056, TODO item 9),
-  auto-reply precision 1.00 (n=27, with the clarify branch, ADR-0016).
-  Since then `propose.v8` (formerly `classify`) and ADR-0017 (Jev chooses the category) landed
-  without a full run; the classification suite alone passes every category
-  at ≥ 0.93 (2026-10-04 (6)). That suite now scores Jev's choice, which
+  (2026-10-04 (8), `propose.v8`, Jev's category) fails one gate,
+  **auto-reply precision 0.944** (34/36): g151 and g155, labeled `clarify`,
+  are auto-replied with every check passing. Every other gate passes:
+  retrieval recall@3 0.917 (still missed g011, g012, g048, g055, g056, TODO
+  item 9), per-category F1 ≥ 0.93 on Jev's choice, refusal and injection
+  1.00; branch accuracy 0.906. That suite now scores Jev's choice, which
   always names a category, so it no longer credits an `insufficient_context`
   refusal on an out-of-KB ticket; the refusal suite still does. Record
   every full run in `evals/HISTORY.md`; runs before the 2026-10-01 baseline

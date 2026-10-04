@@ -133,7 +133,7 @@ Two of these are deliberately not negotiable:
 
 ### Known failures
 
-The last full run (2026-10-04 (4)) failed one gate: per-category F1, `security` 0.82, on the LLM's category. Retrieval recall@3 is 0.917 and auto-reply precision 1.00. Jev has chosen the category since; the classification suite alone passes every category at ≥ 0.93 (2026-10-04 (6)), but `main` has had no full run since ([`TODO.md`](TODO.md) item 11).
+The last full run (2026-10-04 (8), `propose.v8`) fails one gate: auto-reply precision 0.944 (34/36), g151 and g155 auto-replied instead of clarified. Per-category F1, now on Jev's category, passes at ≥ 0.93; retrieval recall@3 is 0.917.
 
 **The classification suite scores Jev's choice at the real floor.** While the LLM chose the category, an `insufficient_context` refusal on an out-of-KB case counted as a correct `other`, so the suite didn't demand the opposite of the refusal suite (decided 2026-09-29 (2), [`evals/HISTORY-archive.md`](../evals/HISTORY-archive.md)). Jev names a category for every ticket, below the floor included, so nothing is credited any more; the refusal suite still scores refusals.
 

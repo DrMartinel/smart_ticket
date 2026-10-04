@@ -423,7 +423,7 @@ uv run python evals/report.py --compare evals/baselines/baseline.json
 
 Per-category F1 is deliberately not averaged — a rare-but-serious category like `security` can sit at 0.4 while the mean still looks healthy.
 
-> **Gate state:** the last full run (2026-10-04 (4)) passed every gate but per-category F1 (`security` 0.82 on the LLM's category); retrieval recall@3 is 0.917 and auto-reply precision 1.00. Jev now chooses the category and passes the classification suite alone, but `main` has no full run since. Every run, and what it meant, is in [`evals/HISTORY.md`](evals/HISTORY.md); earlier runs are in [`evals/HISTORY-archive.md`](evals/HISTORY-archive.md). Do not lower a floor to make CI green.
+> **Gate state:** the last full run (2026-10-04 (8), `propose.v8`) passes every gate but auto-reply precision, 0.944 against 0.95: two underspecified tickets are auto-replied instead of clarified. Retrieval recall@3 0.917, per-category F1 ≥ 0.93 on Jev's category, branch accuracy 0.906. Every run, and what it meant, is in [`evals/HISTORY.md`](evals/HISTORY.md); earlier runs are in [`evals/HISTORY-archive.md`](evals/HISTORY-archive.md). Do not lower a floor to make CI green.
 
 ---
 
