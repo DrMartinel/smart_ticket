@@ -183,6 +183,19 @@ footer { color: var(--muted); font-size: 12px; }
     </div>
   </section>
 
+  <section aria-labelledby="h-classifier" id="classifier-section">
+    <div class="sec-head">
+      <h2 id="h-classifier">Classifiers</h2>
+      <p class="sec-note">Which model should choose the ticket's category. Each row is one classifier on the classification
+        suite's tickets, one pass; ▼ marks a category below the 0.85 gate. Probes compare classifiers and are never gate
+        measurements; a suite run measures the one built into the pipeline.</p>
+    </div>
+    <div class="panel scroll"><div id="t-classifier"></div></div>
+    <div class="panel scroll" id="flag-panel"><p class="chart-title">Flag separation</p>
+      <p class="chart-sub">AUROC of a scored flag, tickets of one golden kind against clear KB-covered tickets (0.5 = chance)</p>
+      <div id="t-flags"></div></div>
+  </section>
+
   <section aria-labelledby="h-runs">
     <div class="sec-head">
       <h2 id="h-runs">Runs</h2>
@@ -443,10 +456,10 @@ footer { color: var(--muted); font-size: 12px; }
     // Fixed slot per scorer, so a colour always means the same re-orderer.
     const COLORS = { cross_encoder: "var(--s1)", laya: "var(--s2)", "qwen3-8b": "var(--s3)",
       "qwen3-reranker-4b/relevance": "var(--s4)", "qwen3-reranker-4b/resolves": "var(--s5)",
-      "jev/resolves": "var(--s6)", "jev/relevant": "var(--s7)" };
+      "jev/resolves": "var(--s6)", "jev/relevant": "var(--s7)", "jev/resolves-score": "var(--s3)" };
     const NAMES = { cross_encoder: "Cross-encoder order", laya: "Laya zero-shot re-orders", "qwen3-8b": "Qwen3-8B re-orders",
       "qwen3-reranker-4b/relevance": "Qwen3-Reranker-4B, “relevance”", "qwen3-reranker-4b/resolves": "Qwen3-Reranker-4B, “resolves”",
-      "jev/resolves": "Jev, “resolves”", "jev/relevant": "Jev, “relevant”" };
+      "jev/resolves": "Jev, “resolves”", "jev/relevant": "Jev, “relevant”", "jev/resolves-score": "Jev, “resolves” as a score" };
     const scorerOf = (m) => m.labels?.scorer ?? "cross_encoder";
     const present = new Set(metrics.filter((m) => m.metric === "retrieval_recall_at_3" && runById[m.run]?.kind === "probe").map(scorerOf));
     legend($("#probe-legend"), Object.entries(NAMES).filter(([k]) => present.has(k)).map(([k, v]) => [COLORS[k], v]));
@@ -456,7 +469,7 @@ footer { color: var(--muted); font-size: 12px; }
       "2026-10-01-probe-topk": "Top-5", "2026-10-01-probe-adr14-multichunk": "Multi-chunk (current)",
       "2026-10-01-probe-laya-baseline": "Laya re-order", "2026-10-01-probe-llm-reorder-baseline": "LLM re-order",
       "2026-10-02-probe-qwen3-reranker-4b": "Reranker 4B", "2026-10-02-probe-qwen3-reranker-4b-sole": "4B as only ranker",
-      "2026-10-02-probe-qwen3-reranker-4b-capped": "4B, capped pool", "2026-10-02-probe-jev": "Jev" };
+      "2026-10-02-probe-qwen3-reranker-4b-capped": "4B, capped pool", "2026-10-02-probe-jev": "Jev", "2026-10-04-probe-jev-score": "Jev score vs noul" };
     // A fresh ledger may have no probes yet: hide the section, not an empty chart.
     document.getElementById("probes-section").hidden = probeRuns.length === 0;
     let current = "all";
@@ -511,6 +524,33 @@ footer { color: var(--muted); font-size: 12px; }
       return { label: `${name} · ${shown(m.labels.pool)}`, a: ce?.value ?? 0, b: m.value, bColor: COLORS[m.labels.scorer] ?? "var(--s2)", bName: name,
         note: `Gold ranked first: cross-encoder ${f("cross_encoder")?.value}/${ce?.n}, ${name} ${f(m.labels.scorer)?.value}/${m.n}` };
     }), { a: { name: "Cross-encoder", color: "var(--s1)" }, b: { name: "Re-orderer", color: "var(--s2)" }, domain: [0.4, 1.0], labelWidth: 210 });
+
+    // Classifiers: category_f1 rows that carry a variant, from probes and suite runs
+    // (a full run's category_f1 has no variant and stays in the per-category table).
+    const clsRows = metrics.filter((m) => m.metric === "category_f1" && m.labels?.variant && ["probe", "suite_run"].includes(runById[m.run]?.kind));
+    document.getElementById("classifier-section").hidden = clsRows.length === 0;
+    if (clsRows.length) {
+      const clsCats = ["access", "network", "hardware", "software", "security", "other"];
+      const clsRuns = [...new Set(clsRows.map((m) => m.run))].sort((p, q) => order[p] - order[q]);
+      let html = `<table class="f1"><thead><tr><th>Classifier</th>${clsCats.map((c) => `<th class="num">${c}</th>`).join("")}<th class="num">Below gate</th></tr></thead><tbody>`;
+      for (const run of clsRuns) {
+        html += `<tr><td colspan="${clsCats.length + 2}" style="color:var(--muted);font-size:12px"><span class="pill kind-${esc(runById[run].kind)}">${esc(runById[run].kind.replace("_", " "))}</span> ${esc(runById[run].title)} · ${esc(runById[run].date)}</td></tr>`;
+        const variants = [...new Set(clsRows.filter((m) => m.run === run).map((m) => m.labels.variant))];
+        for (const v of variants) {
+          const cell = (c) => clsRows.find((m) => m.run === run && m.labels.variant === v && m.labels.category === c);
+          const below = clsCats.filter((c) => { const m = cell(c); return m && m.value < m.gate.value; }).length;
+          html += `<tr><td style="white-space:normal;min-width:220px">${esc(v)}</td>${clsCats.map((c) => { const m = cell(c);
+            return m ? `<td class="cell num ${m.value < m.gate.value ? "below" : ""}">${m.value.toFixed(2)}</td>` : `<td class="cell num" style="color:var(--muted)">—</td>`; }).join("")}
+            <td class="num">${below ? `<span class="pill fail">${below}</span>` : `<span class="pill pass">0</span>`}</td></tr>`;
+        }
+      }
+      $("#t-classifier").innerHTML = html + "</tbody></table>";
+      const flags = metrics.filter((m) => m.metric === "flag_auroc");
+      document.getElementById("flag-panel").hidden = flags.length === 0;
+      $("#t-flags").innerHTML = `<table class="f1"><thead><tr><th>Flag</th><th>Golden kind</th><th>Scorer</th><th class="num">n</th><th class="num">AUROC</th></tr></thead><tbody>`
+        + flags.map((m) => `<tr><td class="mono">${esc(m.labels.flag)}</td><td class="mono">${esc(m.labels.kind)}</td><td>${esc(m.labels.variant ?? "")}</td><td class="num">${m.n ?? ""}</td><td class="num">${m.value.toFixed(3)}</td></tr>`).join("")
+        + `</tbody></table>`;
+    }
 
     // Ledger
     const counts = metrics.reduce((a, m) => ((a[m.run] = (a[m.run] ?? 0) + 1), a), {});

@@ -95,6 +95,137 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-04 (7): Jev's `score` against its `noul` as the reranker's question, probe
+
+**Verdict:** no reason to switch. Asked as a five-level `score` instead of
+the shipped yes/no `noul`, Jev ranks the same shortlists to the same
+recall@3 (0.917) with the same five misses, and orders slightly worse (MRR
+0.868 against 0.879, gold page first 49 against 50 of 60). It separates
+out-of-KB tickets as perfectly as the noul, with a wider gap, but its top
+level saturates: 27 chunks score the maximum. Switching would also move the
+scale `retrieval.floor` and the trust signals are set on. The reranker keeps
+`rerank_resolves.v1` (ADR-0015). Probe, not a gate measurement.
+
+| Configuration | |
+|---|---|
+| Code | `0d1c21a` (`main`) + uncommitted ADR-0017 work (no retrieval code touched) |
+| Pairs | production's shortlist: the cross-encoder's top 15 (`RERANK_POOL`) of each ticket's links pool from entry 2026-10-02 (4)'s pools, 83 tickets (60 `kb_covered`, 23 `out_of_kb`), 1,235 pairs |
+| Ticket text | masked by core-api's `mask()` (`.probe/jev-classify/masked.json`); the 2026-10-02 probe sent raw text |
+| Jev | `jev-1.13.0` through ai-engine's client, inside its container; one question per request, as `JevReranker` asks: the shipped noul (`rerank_resolves.v1`) and the score below, both on every pair, the same session. 2,470 requests, no errors |
+| Score question | "How well does `passage` tell the user how to fix or resolve the problem described in `ticket`?", five levels, low to high: about something else · same product, not the problem · the problem or its causes, no fix · part of the fix, or the fix for a related case · the steps that fix it. Read as `score / 4`, so 0-1 like the noul |
+| Probe | `.probe/jev-score/` (gitignored): `question_score.json`, `prep.py`, `jev_rerank.py`, `analyze.py` |
+
+| Measure (shortlist of 15) | Noul (shipped) | Score | Noul, 2026-10-02 (raw text) |
+|---|---|---|---|
+| Recall@3 (KB-covered, n=60) | **0.917** | **0.917** | 0.917 |
+| MRR | 0.879 | 0.868 | 0.887 |
+| Missed | g011, g012, g048, g055, g056 | the same | the same |
+| Gold page vs the rest, AUROC (cross-encoder on the same shortlist: 0.681) | 0.832 | 0.817 | 0.831 |
+| Gold page ranked first (cross-encoder: 38) | 50 | 49 | 51 |
+| Refusal: top-1 AUROC, KB-covered vs out-of-KB | 1.000 | 1.000 | 1.000 |
+| KB-covered top-1: lowest · 10th pct · median | 0.44 · 0.71 · 0.93 | 0.65 · 0.85 · 0.99 | 0.48 · 0.71 · 0.93 |
+| Out-of-KB top-1: median · highest | 0.01 · 0.12 | 0.00 · 0.25 | 0.01 · 0.12 |
+| At the shipped floor 0.30: KB refused · out-of-KB admitted | 0 · 0 | 0 · 0 | 0 · 0 |
+| Median top-1 minus top-2 margin (KB) | 0.080 | 0.065 | — |
+| Chunks at the scale's maximum (≥ 0.995) | 0 | 27 | — |
+| Distinct values over 1,235 pairs | 98 | 327 | 97 |
+| Latency per request p50 · p95 | 227 · 286 ms | 228 · 296 ms | 237 · 293 ms |
+
+### Findings
+
+**1. The ranking doesn't change.** Same recall and the same five misses;
+the two put the same chunk first on 64 of 83 tickets, and where they differ
+the noul is slightly more often right (gold first 50 against 49, MRR 0.879
+against 0.868). A rubric with a "part of the fix" level was the reason to
+expect better ordering; it didn't show.
+
+**2. More values, not finer ranking.** The score is a weighted mean over
+five levels, so it takes 327 distinct values against the noul's 98 (two
+decimals). But its top level saturates: 27 chunks score 4.0, ties the noul
+doesn't have, and the median top-1 to top-2 margin is smaller (0.065
+against 0.080). Ties among the top four are about as common (59 against 65).
+
+**3. Refusal is as clean either way.** Both separate every KB-covered
+ticket from every out-of-KB one. The score's gap is wider (0.25 to 0.65
+against 0.12 to 0.44), but the noul's already leaves the 0.30 floor
+refusing nothing it shouldn't and admitting nothing it shouldn't. A floor
+on the score would have to be chosen again.
+
+**4. The noul is stable.** Against the 2026-10-02 scores, on raw text then
+and masked text now: mean change 0.008, 95th percentile 0.03, every
+ranking result the same.
+
+**5. Cost.** Same latency; the score question adds about 80 input tokens
+per request (764 against 684 median), so ~12% more per ticket.
+
+**Fitting:** one wording of the score question, written from the noul's
+criteria and TypeSafe's guidance (describe situations, not degrees), never
+tuned. A better rubric might do better; this one gives no reason to try
+before the reranker's real open problems (the five misses, calibration on
+Jev's scale, TODO items 4 and 9).
+
+---
+
+## 2026-10-04 (6): Jev chooses the category in the pipeline (ADR-0017), classification suite
+
+**Verdict:** ADR-0017 as built reproduces the probe. The classification
+suite, now scoring Jev's choice (`signals.classification.category_choice`)
+through the live pipeline at the real floor, gets 80 of 83 and clears the
+0.85 F1 floor in every category (lowest: hardware 0.93), the same count as
+the probe's best pass. One suite on the full set, not a full run: the
+end-to-end suite and every other gate still need a run with this built.
+
+| Configuration | |
+|---|---|
+| Code | `0d1c21a` (`main`) + uncommitted: ADR-0017 built (`ClassifyCategoryNode`, `TrustSignals.classification`, `category_low_confidence`) |
+| Prompt · question · graph | `classify.v7` · `category.v1` (the probe's `question_choice_page.json`, verbatim) · v1 |
+| Models | Qwen3-8B-AWQ (4096 context) · bge-m3 · bge-reranker-v2-m3@main · Jev `jev-1.13.0` |
+| Golden set | the classification suite's 83 (60 `kb_covered`, 23 `out_of_kb`), `EVAL_FULL_RUN=1` |
+| Thresholds | retrieval.floor 0.30 · classification.min_confidence 0.65 (not used by this suite) |
+
+| Category | Precision | Recall | F1 | Gate | Probe (5), title, pass 1 |
+|---|---|---|---|---|---|
+| access | 0.88 | 1.00 | 0.94 | ≥ 0.85 ✅ | 0.94 |
+| network | 0.91 | 1.00 | 0.95 | ≥ 0.85 ✅ | 0.95 |
+| hardware | 1.00 | 0.87 | 0.93 | ≥ 0.85 ✅ | 0.93 |
+| software | 1.00 | 0.90 | 0.95 | ≥ 0.85 ✅ | 0.95 |
+| security | 1.00 | 1.00 | 1.00 | ≥ 0.85 ✅ | 1.00 |
+| other | 1.00 | 1.00 | 1.00 | ≥ 0.85 ✅ | 1.00 |
+
+### Findings
+
+**1. The pipeline asks what the probe asked.** Same question, same page
+rule (the top Jev-scored page's title at or above 0.30, none below), same
+F1 in every category as the probe's pass 1. The misses, from the precision
+and recall: two `hardware` tickets and one `software` ticket, claimed as
+`access` (two) and `network` (one), the shape of the probe's (g032, g034,
+g042). The suite doesn't log ticket ids.
+
+**2. The scoring rule changed, not only the classifier.** The suite now runs
+at the real floor (the LLM's never ran below it) and no longer credits an
+`insufficient_context` refusal on an out-of-KB ticket with the truth, since
+Jev always names a category. `other` 1.00 is Jev choosing `other` for all 23
+out-of-KB tickets, not a credited refusal. Not comparable one for one with
+the LLM rows of earlier full runs.
+
+**3. Jev failed once more.** The first attempt stopped on a TLS error from
+Jev's API (`TLSV1_ALERT_DECODE_ERROR`, a 500 from ai-engine), the fourth
+Jev failure today; the suite stops at the first 500, so it was re-run
+whole. In production that ticket would have gone to a human as
+`ai_engine_unavailable`.
+
+**4. Fitting.** These are the 83 tickets the question was developed on: a
+reproduction of the probe, not an independent measurement.
+
+### Follow-ups
+
+- A full run (`EVAL_FULL_RUN=1`, every suite) with ADR-0017 built,
+  including end-to-end branch accuracy and how often `category_low_confidence`
+  fires.
+- A held-out measurement before accepting ADR-0017 (docs/TODO.md item 11).
+
+---
+
 ## 2026-10-04 (5): Jev as the category classifier, probe
 
 **Verdict:** Jev classifies as well as the LLM once it gets the same context.
