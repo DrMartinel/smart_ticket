@@ -309,6 +309,8 @@ Retrieval recall meets the gate against a reviewed baseline measured on this KB.
 
 ## 10. Ask the requester when a ticket is ambiguous (clarification branch)
 
+**Status (2026-10-04):** the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6`, the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
+
 **Priority:** Medium, after item 4 (it does not fix the failing auto-reply gate) · **Spec:** §5, §8 · **ADR:** new, to be written (not 0015, which is reserved for Jev)
 
 ### Problem
