@@ -233,8 +233,7 @@ def test_policy_is_read_from_the_database_when_a_kb_slug_is_present(fake_db, mak
 def test_signals_are_on_jevs_scale(fake_db, make_state, use_db):
     """Top-1, margin and the floor count are Jev's numbers, the scale the
     floor is set on; the cross-encoder's would score the ticket on one it
-    isn't. `scorer` says so explicitly: core-api reads a missing value as
-    the cross-encoder's."""
+    isn't."""
 
     use_db(fake_db())
     chunks = [
@@ -247,7 +246,6 @@ def test_signals_are_on_jevs_scale(fake_db, make_state, use_db):
     retrieval = out["signals"].retrieval
     assert (retrieval.rerank_top1, retrieval.rerank_margin) == (0.9, pytest.approx(0.4))
     assert retrieval.docs_above_floor == 1
-    assert retrieval.model_dump()["scorer"] == "jev"
 
 
 def test_jevs_category_is_forwarded(fake_db, make_state, use_db):

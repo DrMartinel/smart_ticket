@@ -52,7 +52,6 @@ ENUMS = {
     "Verdict": ["correct", "wrong", "partial", "not_applicable"],
     "UserRole": ["employee", "technician", "manager", "security"],
     "RiskTier": ["low", "medium", "high"],
-    "RerankScorer": ["cross_encoder", "lexical", "jev"],
 }
 
 REASON_CODES = [
@@ -62,7 +61,6 @@ REASON_CODES = [
     "schema_invalid",
     "mass_incident",
     "retrieval_below_floor",
-    "retrieval_floor_unset",
     "kb_not_authorized",
     "quote_invalid",
     "quote_source_not_in_topk",

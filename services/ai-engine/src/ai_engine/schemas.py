@@ -86,8 +86,6 @@ class ClarificationProposal(BaseModel):
 
     proposed_intent: Literal["clarify"]
     proposed_question: str = Field(min_length=10, max_length=300)
-    # The KB slugs the answer would choose between; the validator checks
-    # they were shown (GenerationSignals.clarify_options_in_topk).
     proposed_options: list[str] = Field(min_length=2)
     proposed_category: TicketCategory
     rationale: str
@@ -112,16 +110,8 @@ class LLMProposalEnvelope(RootModel[LLMProposal]):
 class RetrievalSignals(BaseModel):
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
-    # BM25's rank of the final top article, or None. A rank, never a BM25
-    # score; core-api decides what counts as agreement (ADR-0013).
     bm25_rank_of_top1: int | None = Field(default=None, ge=1)
-    # The legacy `bm25_keyword_hit` lives only in core-api's copy, for rows
-    # stored before ADR-0013. ai-engine must never set it.
     docs_above_floor: int = Field(ge=0)
-    # The scale of the scores above: always Jev's, the reranker
-    # (ADR-0015). Sent explicitly: core-api reads a missing value as the
-    # cross-encoder's, for rows stored before Jev.
-    scorer: Literal["jev"] = "jev"
 
 
 class GenerationSignals(BaseModel):

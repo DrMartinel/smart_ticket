@@ -107,10 +107,9 @@ For reply parsing, in `tests/test_providers.py`:
 ## 7. Calibration warning
 
 If the provider's output is compared against any threshold, for example a reranker
-score against `retrieval_floor`, then swapping providers changes the calibration.
-Give the class its own `scorer` (a new `RerankScorer` value in both services'
-wire schema), so only a floor set for it ever applies, and state that in the
-class docstring. Don't let the offline variant be selected by
+score against `retrieval_floor`, then swapping providers (or the question it is
+asked) changes the calibration: the threshold has to be chosen again on the new
+scale before the swap ships, and the class docstring says which threshold reads it. Don't let the offline variant be selected by
 default (ADR-0005).
 
 ## Done when

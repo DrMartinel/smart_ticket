@@ -6,7 +6,6 @@ hold that promise: no django_db marker needed anywhere in this file.
 
 from typing import Any
 
-import pytest
 from uuid import UUID
 
 from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQueue, route
@@ -86,7 +85,6 @@ def good_signals(**overrides) -> TrustSignals:
             rerank_margin=0.3,
             bm25_rank_of_top1=1,
             docs_above_floor=3,
-            scorer="jev",
         ),
         generation=GenerationSignals(
             schema_valid=True,
@@ -225,20 +223,6 @@ def test_below_retrieval_floor():
     d = route(signals, auto_reply_proposal(), kb(), TH)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
-
-
-@pytest.mark.parametrize("scorer", ["cross_encoder", "lexical"])
-def test_signals_not_on_jevs_scale_go_to_hitl_as_floor_unset(scorer):
-    """ADR-0005/0015: `retrieval.floor` is on Jev's scale. A top-1 on any
-    other (rows stored before Jev, a mis-deployed ai-engine) has no floor to
-    compare with: 0.9 here would clear Jev's 0.30 and admit evidence no
-    floor vouched for. Calling it "below floor" would misreport the cause."""
-
-    signals = good_signals(**{"retrieval.scorer": scorer})
-    d = route(signals, auto_reply_proposal(), kb(), TH)
-
-    assert d.branch is Branch.HITL
-    assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR_UNSET
 
 
 # ── Auto-reply branch ────────────────────────────────────────────────────

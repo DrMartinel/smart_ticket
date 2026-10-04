@@ -56,9 +56,11 @@ weighted mean over ordered levels) or a `choice`.
    `RankedChunk.final_score()`, which raises when Jev hasn't scored the
    chunk. `retrieval.floor` is on Jev's scale (0.30 🔧, the middle of the
    probe's 0.12-0.48 gap between the highest out-of-KB and lowest
-   KB-covered top-1). `RetrievalSignals.scorer` says which model's score the
-   signals carry; the router compares the floor only when it is `jev` and
-   sends anything else to a human as `retrieval_floor_unset`.
+   KB-covered top-1). (A `RetrievalSignals.scorer` field once named the
+   scale and sent anything not `jev` to a human as `retrieval_floor_unset`;
+   removed on 2026-10-04: no stored signals predate Jev, and it could not
+   see the change most likely to move the scale, a new question to the same
+   model. Changing the question or the model means choosing the floor again.)
 4. **A Jev failure fails the run.** No retry, a 429 included, and no
    fallback to the cross-encoder's order: its scores would be compared
    with a floor set on Jev's. ai-engine answers 500, and core-api sends the

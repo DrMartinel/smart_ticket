@@ -123,7 +123,6 @@ def _clarify_response(request_id: str):
 
     signals = _degraded_signals()
     signals.retrieval.rerank_top1 = 0.9
-    signals.retrieval.scorer = "jev"
     signals.generation.schema_valid = True
     signals.generation.clarify_options_in_topk = True
     # Jev's category, confident: without it the router sends the ticket to a

@@ -217,9 +217,9 @@ Selection happens once at startup and an
 unrecognized value is fatal — a typo used to fall through to the lexical
 shortlister, whose scores are a different calibration from the cross-encoder's
 (ADR-0005). Whatever the shortlister, the score thresholds read is Jev's
-(ADR-0015): `retrieval.floor` arrives per request in `AIRunRequest`, ai-engine
-reports `RetrievalSignals.scorer = "jev"`, and core-api's router compares the
-floor only for that scorer.
+(ADR-0015): `retrieval.floor` arrives per request in `AIRunRequest` for the
+refuse-before-LLM check, and core-api's router compares the same floor with
+`RetrievalSignals.rerank_top1`, Jev's top score.
 
 Two constraints on anything added here: `main.py` builds the graph at uvicorn
 import time, so no constructor may open a socket or load a model — every model
@@ -240,7 +240,6 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
      pii_level = critical ──► BLOCK    + alert security
      mass_incident        ──► ESCALATE   (before any duplicate logic)
      pii_level = mask_fail──► HITL       (queue: mask_failed, priority 1)
-     scorer ≠ jev         ──► HITL       (retrieval_floor_unset: no floor for that scale)
      retrieval < floor    ──► HITL       (before the schema gate: no LLM ran,
                                           so "no proposal" is a consequence,
                                           not the cause)

@@ -125,13 +125,8 @@ class LLMProposalEnvelope(RootModel[LLMProposal]):
     root: LLMProposal
 
 
-# The final reranker's scale: which model's score `rerank_top1` is on. ai-engine
-# always sends "jev" (ADR-0015); the others are for rows stored before it.
-# Separate calibrations, never compared across (ADR-0005).
-type RerankScorer = Literal["cross_encoder", "lexical", "jev"]
-
-
 class RetrievalSignals(BaseModel):
+    # Jev's scores, the reranker's (ADR-0015): the scale retrieval.floor is set on.
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
     # Where the final reranker's top article (Jev's when it runs) sits in
@@ -146,11 +141,6 @@ class RetrievalSignals(BaseModel):
     # deserialize and score as they did.
     bm25_keyword_hit: bool = False
     docs_above_floor: int = Field(ge=0)
-    # Which model's score `rerank_top1` and `rerank_margin` are on: always
-    # Jev's from ai-engine now (ADR-0015). The router compares the floor only
-    # when this is "jev", and sends anything else to HITL. Defaults to the
-    # cross-encoder so signals stored before ADR-0015 read as what they were.
-    scorer: RerankScorer = "cross_encoder"
 
 
 class GenerationSignals(BaseModel):
