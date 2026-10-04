@@ -268,13 +268,24 @@ services:
     deploy: *vllm-gpu
     networks: [smart-triage]
 
-  web:
+  admin-console:
     build:
-      context: ./services/web
+      context: ./services/admin-console
     environment:
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:?see .env.example}
     ports:
       - "3000:3000"
+    depends_on:
+      - core-api
+    networks: [smart-triage]
+
+  chat:
+    build:
+      context: ./services/chat
+    environment:
+      NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:?see .env.example}
+    ports:
+      - "3001:3001"
     depends_on:
       - core-api
     networks: [smart-triage]

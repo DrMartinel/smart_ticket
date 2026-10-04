@@ -1,4 +1,4 @@
-# Build contexts are the repo root (core-api, ai-engine) and services/web.
+# Build contexts are the repo root (core-api, ai-engine), services/admin-console and services/chat.
 # Env files never go into an image. .env holds real secrets; .env.example is
 # only the template it is copied from, never read as defaults. Containers get
 # every setting from compose, as environment variables.

@@ -2,12 +2,15 @@
 
 import { BookIcon, ShieldIcon, SparkleIcon, TicketIcon } from "./icons";
 
-// Questions the demo KB (AWS documentation, demo_kb/) can speak to.
+// Each one is answered by a page approved for auto-reply in
+// demo_kb/curation.json, worded after the golden set's auto-reply tickets
+// (g001, g016, g026, g042). A suggestion whose page is not approved can only
+// ever end in "Create a ticket"; change this list together with curation.json.
 const SUGGESTIONS = [
-  "I can't connect to my EC2 instance over SSH, the connection times out.",
-  "How do I reset the MFA device on my IAM user?",
-  "How can I give a teammate read-only access to one S3 bucket?",
-  "My Lambda function times out when it calls an external API.",
+  "I forgot my AWS access portal password and I'm locked out. How do I reset it?",
+  "The AWS VPN Client on my Windows laptop won't connect to the company VPN.",
+  "When I ssh to my Linux EC2 instance I get Connection timed out.",
+  "Our service gets an error saying it is not authorized to perform lambda:InvokeFunction.",
 ];
 
 export default function Welcome({ name, onPick }: { name: string; onPick: (text: string) => void }) {
