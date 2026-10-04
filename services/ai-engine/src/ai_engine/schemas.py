@@ -164,7 +164,7 @@ class AIRunRequest(BaseModel):
     ticket: TicketMasked
     # On Jev's scale, compared only with `rerank_score` (ADR-0005, ADR-0015).
     retrieval_floor: float = Field(ge=0, le=1)
-    prompt_version: str = "classify.v6"
+    prompt_version: str = "classify.v7"
 
 
 class AIRunResponse(BaseModel):
