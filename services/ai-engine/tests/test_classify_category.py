@@ -20,7 +20,7 @@ from ai_engine.graph.nodes.classify_category.classifier import (
 )
 from ai_engine.graph.nodes.classify_category.node import classify_category
 from ai_engine.graph.state import RankedChunk
-from ai_engine.schemas import TicketCategory
+from ai_engine.graph.ticket import TicketCategory
 
 _ARTICLE = UUID(int=10)
 

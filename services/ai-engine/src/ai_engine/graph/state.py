@@ -12,7 +12,9 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from ai_engine.schemas import LLMProposalEnvelope, TicketCategory, TicketMasked, TrustSignals
+from ai_engine.graph.nodes.emit_signals.signals import EngineSignals
+from ai_engine.graph.nodes.infer.proposals import LLMProposalEnvelope
+from ai_engine.graph.ticket import TicketCategory, TicketMasked
 
 
 class Candidate(BaseModel):
@@ -65,7 +67,7 @@ class TriageState(BaseModel):
     # HybridRetrieveNode
     bm25_article_ids: list[uuid.UUID] = []  # best first, for agreement
     candidates: list[Candidate] = []  # post-RRF
-    query_embedding: list[float] = []  # reused by link expansion
+    query_embedding: list[float] = []  # reused by link expansion and few-shots
 
     # CandidatePoolNode
     pool: list[RankedChunk] = []  # cross-encoder order, Jev's shortlist first
@@ -73,7 +75,7 @@ class TriageState(BaseModel):
     # RerankNode
     reranked: list[RankedChunk] = []  # Jev order, every one Jev-scored
 
-    # ClassifyCategoryNode (None: not run, which core-api routes to a human)
+    # ClassifyCategoryNode
     category_choice: TicketCategory | None = None
     category_confidence: float = 0.0
 
@@ -88,14 +90,12 @@ class TriageState(BaseModel):
     model_used: str | None = None
     degraded_reason: str | None = None
 
-    # ValidateNode (defaults read as "failed": refuse-before-LLM skips it)
-    schema_valid: bool = False
+    # ValidateNode
     quote_applicable: bool = False
     quote_match_ratio: float = 0.0
     quote_source_in_topk: bool = False
     negation_consistent: bool = False
-    category_consistent: bool = False
     clarify_options_in_topk: bool = False
 
     # EmitSignalsNode
-    signals: TrustSignals | None = None
+    signals: EngineSignals | None = None

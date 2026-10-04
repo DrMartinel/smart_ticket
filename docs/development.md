@@ -40,7 +40,7 @@ These are the ones a reviewer will actually push back on.
 
 ### 1. `proposed_` prefixes are load-bearing
 
-Anything the LLM authored carries the prefix. At the point of use, `draft.proposed_category` reads as *a suggestion*, while `ticket.category` reads as *a fact*. Don't strip the prefix "for consistency" — the asymmetry is the point.
+Anything the LLM authored carries the prefix. At the point of use, `proposal.proposed_intent` reads as *a suggestion*, while `decision.branch` reads as *a fact*. Don't strip the prefix "for consistency" — the asymmetry is the point.
 
 ### 2. No magic numbers
 
@@ -56,7 +56,7 @@ If you need data to make a routing decision, fetch it *before* the call and pass
 
 ### 4. Schemas live where they are used
 
-There is no shared contracts package (ADR-0010). A schema is defined in the module that uses it; `docs/architecture.md` §3 has the table. The ai-engine wire shapes (`AIRunRequest`, `AIRunResponse` and everything in them) exist in both services — core-api `infrastructure/dtos.py`, ai-engine `schemas.py` — so change **both** in the same PR. After a core-api schema change, regenerate the frontend types:
+There is no shared contracts package (ADR-0010). A schema is defined in the module that uses it; `docs/architecture.md` §3 has the table. The ai-engine wire shapes (`AIRunRequest`, `AIRunResponse` and everything in them) exist in both services — core-api `infrastructure/dtos.py`; ai-engine `schemas.py` (the HTTP bodies) and the graph types they carry (`graph/ticket.py`, `graph/nodes/infer/proposals.py`, `graph/nodes/emit_signals/signals.py`) — so change **both** in the same PR. After a core-api schema change, regenerate the frontend types:
 
 ```bash
 cd services/core-api && make types
@@ -64,7 +64,7 @@ cd services/core-api && make types
 
 Never hand-edit `services/web/lib/types/generated.ts`.
 
-Adding a field to a persisted schema? Give it a **default**, so rows written before the change still deserialize. `GenerationSignals.quote_applicable` is the worked example. The one deliberate exception is `TrustSignals.classification` (ADR-0017): no signals existed before it, so every producer must state Jev's answer.
+Adding a field to a persisted schema? Give it a **default**, so rows written before the change still deserialize. `GenerationSignals.quote_applicable` is the worked example. The one deliberate exception is `EngineSignals.classification` (ADR-0017): no signals existed before it, so every producer must state Jev's answer.
 
 ### 5. Degrade toward humans
 
@@ -97,7 +97,7 @@ Prompts and Jev's questions are versioned files in `services/ai-engine/src/ai_en
 
 | File | Setting | Used by |
 |---|---|---|
-| `classify.v*.md` | `PROMPT_VERSION` | `InferNode`, the classify LLM |
+| `propose.v*.md` (`classify.v*` up to v7) | `PROMPT_VERSION` | `InferNode`: the LLM proposes what to do with the ticket |
 | `pii_ner.v*.md` | `PII_NER_PROMPT_VERSION` | Tier-2 PII NER (`/v1/pii/detect`) |
 | `rerank_resolves.v*.json` | `RERANK_PROMPT_VERSION` | Jev, once per shortlisted chunk (ADR-0015) |
 | `category.v*.json` | `CATEGORY_QUESTION_VERSION` | Jev, the ticket's category (ADR-0017) |
@@ -144,7 +144,7 @@ The last full run failed per-category F1 (`security`, on the LLM's category), wh
 | Every ticket past the injection guard `ai_engine_unavailable` | Jev unreachable: `JEV_API_KEY` unset, or its API failing. By design there is no fallback |
 | Classify fails as `all_llm_down` on long tickets | The prompt plus chunks overflow `VLLM_CHAT_MAX_MODEL_LEN` (4096 in recorded runs); vLLM answers 400 |
 | Submit hangs for a long time | Connect and read timeouts collapsed into one. They're deliberately separate: 3s connect, 120s read |
-| All four generation checks ✗ | No LLM ran. Read the reason code above the panel — usually a degraded run |
+| Every generation check ✗ | No LLM ran. Read the reason code above the panel — usually a degraded run |
 | Unaccented Vietnamese matches nothing | `LexicalShortlister` folds diacritics (`_tokenize`). If this regresses, tickets typed without tone marks stop matching an accented KB |
 | Connecting to port 5432 / 6379 fails | Host ports are **5434** and **6380**; `db:5432` / `redis:6379` are internal only |
 | `column "id" is of type bigint but expression is of type uuid` | Your dev DB volume predates a `0001_initial` migration that was rewritten in place. Reset it: [`onboarding.md`](onboarding.md) step 7 |

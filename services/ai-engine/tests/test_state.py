@@ -55,11 +55,10 @@ def test_missing_validation_reads_as_every_check_failed(make_state):
     failed = make_state()
     assert not any(
         [
-            failed.schema_valid,
             failed.quote_applicable,
             failed.quote_source_in_topk,
             failed.negation_consistent,
-            failed.category_consistent,
+            failed.clarify_options_in_topk,
         ]
     )
     assert failed.quote_match_ratio == 0.0

@@ -7,7 +7,8 @@ including the negation-flip case that's the whole reason §6.4 exists.
 """
 
 from uuid import UUID
-from ai_engine.schemas import AutoReplyProposal, LLMProposalEnvelope, PIILevel, TicketMasked
+from ai_engine.graph.nodes.infer.proposals import AutoReplyProposal, LLMProposalEnvelope
+from ai_engine.graph.ticket import PIILevel, TicketMasked
 from ai_engine.graph.state import RankedChunk, TriageState
 
 from ai_engine.graph.nodes.validate import validate

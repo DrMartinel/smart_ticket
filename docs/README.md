@@ -35,7 +35,7 @@ If you remember nothing else, remember that split. Nearly every design decision 
 |---|---|---|
 | The routing decision | [`router.py`](../services/core-api/apps/tickets/utils/router.py) | Pure function. The only place a `Branch` is chosen. |
 | PII masking | [`masking.py`](../services/core-api/apps/tickets/utils/masking.py) | Runs inline before any DB write. 100% branch coverage is a release gate. |
-| ai-engine wire schema | core-api [`dtos.py`](../services/core-api/infrastructure/dtos.py) · ai-engine [`schemas.py`](../services/ai-engine/src/ai_engine/schemas.py) | No shared package: each schema lives in the module that uses it (ADR-0010). The frontend's types are generated from core-api's. |
+| ai-engine wire schema | core-api [`dtos.py`](../services/core-api/infrastructure/dtos.py) · ai-engine [`schemas.py`](../services/ai-engine/src/ai_engine/schemas.py) (HTTP bodies) and the graph types they carry | No shared package: each schema lives in the module that uses it (ADR-0010). The frontend's types are generated from core-api's. |
 | The AI pipeline | [`graph/triage.py`](../services/ai-engine/src/ai_engine/graph/triage.py) | The topology and the compiled graph; the generic `Edge`, `Graph` and LangGraph builder are in `graph/build/`. Refuses before calling the LLM when retrieval is weak. |
 | Prompts and Jev's questions | [`core/prompts/`](../services/ai-engine/src/ai_engine/core/prompts/) | Versioned, eval-gated like code. |
 | Every tunable number | [`thresholds.yaml`](../services/core-api/config/thresholds.yaml) | No magic numbers anywhere else. |

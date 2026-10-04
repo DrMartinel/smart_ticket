@@ -31,7 +31,7 @@ Every module reads top-down in the same order:
 2. `from __future__ import annotations`
 3. **Imports in three groups**, blank line between:
    stdlib → third-party → first-party (`apps.*`, `config.*`, `infrastructure.*` or `ai_engine.*`).
-   See `services/ai-engine/src/ai_engine/graph/nodes/infer.py`,
+   See `services/ai-engine/src/ai_engine/graph/nodes/infer/node.py`,
    `services/core-api/apps/tickets/utils/pipeline.py`.
 4. Module constants, then private helpers (`_name`), then the public class/functions.
 5. Import-time wiring (a singleton, a provider selected from settings) at the
@@ -47,9 +47,8 @@ most: things that stay green while being wrong.
 Good (from the code):
 
 ```python
-# `connect()` MUST stay inside the try: a DB outage here has to
-# produce deny-by-default, not a 500 out of the terminal node
-# that every path through the graph passes through.
+# A Jev failure raises: falling back to the cross-encoder's order
+# would put its scores against a floor set for Jev's.
 ```
 
 ```python
@@ -91,7 +90,7 @@ One line is fine when there is no contract beyond the name.
 - **One concept, one name, across services** (commit 3714f2d dropped the `VLLM_`
   prefix in core-api so its settings match ai-engine's `CHAT_MODEL`, `EMBED_MODEL`, …).
 - `_private` for module-internal helpers and constants. Safety values are never
-  knobs (the deny fallback of the KB-policy lookup in `EmitSignalsNode`).
+  knobs (the `(False, "high")` deny of `pipeline.trust_signals` when no KB page applies).
 - Test names are sentences describing behaviour:
   `test_embedder_failure_propagates_rather_than_returning_empty_candidates`.
 
@@ -162,8 +161,8 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
   only, with no default.
 - Read a setting **where it is used**; don't thread it through constructors.
 - Some numbers are deliberately **not** config, and say so in a comment:
-  - safety invariants (the `(False, "high")` deny fallback of the KB-policy
-    lookup in `EmitSignalsNode`);
+  - safety invariants (the `(False, "high")` deny of `pipeline.trust_signals`
+    when no KB page applies);
   - properties of a model or schema (`EMBED_DIM` — changing it needs a migration);
   - linguistic lexicons (`NEGATIONS` in `validate.py`, PII regexes in `patterns.py`).
 
@@ -181,7 +180,7 @@ something, splitting the decision out is usually the best refactor available.
 |---|---|---|
 | ai-engine | `core/` (settings, state, node base, providers, retrieval, db, prompts) · `graph/` (build + nodes) · `main.py` | `core/` never imports `graph/`. No writes, ever (ADR-0004). Details: `.claude/skills/ai-engine-feature/references/ai-engine-conventions.md` |
 | core-api | `apps/<app>/{views.py, request_schema.py, response_schema.py, models.py, utils.py or utils/, tasks.py, tests/}` · `apps/core` (shared foundation; imports no app) · `infrastructure/` · `config/settings/{base,development,production,test}.py` | `views.py` is thin (bind, validate, call a model method, manager method or util). Request bodies go in `request_schema.py`; every handler declares `response=` with an output Schema from `response_schema.py` (aliases for renamed fields, `resolve_<field>` for computed ones) and returns models, never hand-built dicts. The role gate is `apps/accounts/permissions.py`. Fat models: a write, decision or query that belongs to one entity is a method on it or its manager (`article.set_auto_reply_allowed`, `Ticket.objects.submit`, `ReviewItem.objects.for_queue`); logic that is no single model's behaviour goes in `utils` (pure decisions, text processing, the pipeline, cross-model aggregations like the metrics dashboard). `tasks.py` is only Celery entry points, because task names are module paths. `infrastructure/` is transport to other processes, never judgement. `router.py` is the only `Branch` chooser. `db_table` names mirror `infra/migrations/sql/`. |
-| wire schema | `services/core-api/infrastructure/dtos.py`, `services/ai-engine/src/ai_engine/schemas.py` | Defined once per service, kept identical by hand (ADR-0010). New persisted fields get a default. Regenerate TS after any change; never hand-edit `generated.ts`. |
+| wire schema | `services/core-api/infrastructure/dtos.py`; ai-engine `schemas.py` (HTTP bodies) with `graph/ticket.py`, `graph/nodes/infer/proposals.py`, `graph/nodes/emit_signals/signals.py` | Defined once per service, kept identical by hand (ADR-0010). New persisted fields get a default. Regenerate TS after any change; never hand-edit `generated.ts`. |
 | evals | `evals/suites`, `evals/golden`, `evals/baselines` | Never lower a floor, average per-category F1, or drop a category. |
 
 ## 12. Tests

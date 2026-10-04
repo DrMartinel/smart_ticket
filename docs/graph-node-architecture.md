@@ -97,12 +97,15 @@ ai-engine has four layers, and each imports only the ones below it
 (`tests/test_boundary.py`):
 
 - `main.py`: the HTTP routes.
+- `schemas.py`: the HTTP bodies only (`AIRunRequest`/`AIRunResponse`, the
+  embed and PII-detect bodies), built from the graph's types; mirrored in
+  core-api (ADR-0010). The graph never imports it.
 - `graph/`: the pipeline. `state.py` (`TriageState` and the value types in
-  it), `build/` (`node.py` with `BaseNode` and `Terminal`, plus the generic
-  builder), `triage.py` (the wiring) and `nodes/` (a node with helpers of its
-  own, such as retrieval or the shortlister, is a folder there).
-- `schemas.py`: the wire contract mirrored in core-api (ADR-0010); it imports
-  nothing else from ai-engine.
+  it), `ticket.py` (the masked ticket, its PII level, the categories),
+  `build/` (`node.py` with `BaseNode` and `Terminal`, plus the generic
+  builder), `triage.py` (the wiring) and `nodes/` (a node with helpers or
+  types of its own is a folder there: `infer/proposals.py` holds what the
+  LLM may propose, `emit_signals/signals.py` what ai-engine reports).
 - `core/`: infrastructure. `config.py` (settings), `providers/` (`embeddings.py`
   with its ABC, implementations and import-time selection; `pii.py`;
   `clients.py` and `dtos.py`, the model clients and their wire shapes),
@@ -113,7 +116,7 @@ ai-engine has four layers, and each imports only the ones below it
 
 One frozen pydantic model, `TriageState`, with every field flat — the injection
 verdict is `injection_detected`, and each
-validation check is its own field (`schema_valid`, `quote_match_ratio`, …).
+validation check is its own field (`quote_match_ratio`, `negation_consistent`, …).
 Nodes read fields as attributes
 (`state.reranked`) and return partial update dicts — returning a whole model
 would overwrite every field. Progressive-output fields default to what "this
@@ -396,7 +399,7 @@ after rerank:      {..., "reranked": [top1.rerank_score=0.81, ...]}
 after category:    {..., "category_choice": "access", "category_confidence": 0.94}
 decide()        -> EvidenceAboveFloor  -> SelectFewshotsNode -> InferNode
 after infer:       {..., "proposal": None}                       # unparseable JSON
-after validate:    {..., "schema_valid": False, ...}
+after validate:    {..., "quote_source_in_topk": False, ...}   # every check at "failed"
                    -> EmitSignalsNode -> Terminal -> END          # no retry: to HITL
 ```
 ---

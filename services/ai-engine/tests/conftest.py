@@ -23,7 +23,7 @@ from dotenv import dotenv_values
 from sqlalchemy.dialects import postgresql
 
 from ai_engine.core.config import ENV_FILE
-from ai_engine.schemas import PIILevel, TicketMasked
+from ai_engine.graph.ticket import PIILevel, TicketMasked
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.providers import embeddings
@@ -33,14 +33,14 @@ from ai_engine.core.providers.embeddings import Embedder
 from ai_engine.core.providers.pii import PiiDetector
 from ai_engine.graph.state import Candidate
 from ai_engine import main
-from ai_engine.graph.nodes import emit_signals as emit_signals_node, fewshot as fewshot_node
+from ai_engine.graph.nodes import fewshot as fewshot_node
 from ai_engine.graph.nodes.candidate_pool import node as candidate_pool_node
 from ai_engine.graph.nodes.candidate_pool import shortlister as shortlister_module
 from ai_engine.graph.nodes.candidate_pool.shortlister import Shortlister
 from ai_engine.graph.nodes.rerank import node as rerank_node
 from ai_engine.graph.nodes.classify_category import node as classify_category_node
 from ai_engine.graph.nodes.classify_category.classifier import CategoryChoice
-from ai_engine.schemas import TicketCategory
+from ai_engine.graph.ticket import TicketCategory
 from ai_engine.graph.nodes.rerank.reranker import Passage
 from ai_engine.graph.nodes.candidate_pool import links as links_module
 from ai_engine.graph.nodes.retrieve import bm25 as bm25_module
@@ -381,7 +381,7 @@ def fake_db():
 @pytest.fixture
 def use_db(monkeypatch):
     def use(fake):
-        for module in (bm25_module, vector_module, links_module, fewshot_node, emit_signals_node):
+        for module in (bm25_module, vector_module, links_module, fewshot_node):
             monkeypatch.setattr(module, "db", fake)
         return fake
 
@@ -391,7 +391,7 @@ def use_db(monkeypatch):
 @pytest.fixture
 def use_embedder(monkeypatch):
     def use(fake):
-        for module in (retrieve_node, fewshot_node, main):
+        for module in (retrieve_node, main):
             monkeypatch.setattr(module, "embedder", fake)
         return fake
 

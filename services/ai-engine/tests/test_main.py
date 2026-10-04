@@ -122,15 +122,9 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
     and neither scale can be calibrated against the other."""
 
     from ai_engine import main
-    from ai_engine.schemas import (
-        GenerationSignals,
-        PIILevel,
-        ClassificationSignals,
-        PolicySignals,
-        RetrievalSignals,
-        TrustSignals,
-    )
+    from ai_engine.graph.nodes.emit_signals.signals import EngineSignals, RetrievalSignals
     from ai_engine.graph.state import RankedChunk
+    from ai_engine.graph.nodes.emit_signals.signals import ClassificationSignals, GenerationSignals
 
     chunk = RankedChunk(
         chunk_id=UUID(int=1),
@@ -140,23 +134,16 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
         shortlist_score=0.7,
         rerank_score=0.95,
     )
-    signals = TrustSignals(
+    signals = EngineSignals(
         retrieval=RetrievalSignals(rerank_top1=0.95, rerank_margin=0.0, docs_above_floor=1),
         generation=GenerationSignals(
-            schema_valid=False,
+            quote_applicable=False,
             quote_match_ratio=0.0,
             quote_source_in_topk=False,
             negation_consistent=False,
-            category_consistent=False,
-        ),
-        policy=PolicySignals(
-            kb_auto_reply_allowed=False,
-            kb_risk_tier="high",
-            pii_level=PIILevel.ROUTINE,
-            injection_detected=False,
-            mass_incident=False,
         ),
         classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
+        injection_detected=False,
     )
     final = make_state(reranked=[chunk], signals=signals)
     monkeypatch.setattr(

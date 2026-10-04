@@ -123,10 +123,12 @@ smart_ticket/
 │   ├── ai-engine/               # FastAPI + LangGraph
 │   │   └── src/ai_engine/
 │   │       ├── main.py          #   HTTP routes: /v1/analyze, /v1/embed, /v1/pii/detect
-│   │       ├── schemas.py       #   the wire contract (mirrors core-api's dtos.py)
-│   │       ├── graph/           #   state.py · triage.py (the route list) · build/ (node, edge, graph, builder)
-│   │       │   └── nodes/       #   injection · fewshot · infer · validate · emit_signals,
-│   │       │       ├── retrieve/        # and a folder per stage with helpers: bm25 · vector · rrf fusion
+│   │       ├── schemas.py       #   the HTTP bodies (mirrors core-api's dtos.py), built from graph types
+│   │       ├── graph/           #   state.py · ticket.py · triage.py (the route list) · build/ (node, edge, graph, builder)
+│   │       │   └── nodes/       #   injection · fewshot · validate,
+│   │       │       ├── infer/           # and a folder per stage with helpers or types: node · proposals
+│   │       │       ├── emit_signals/    # node · signals
+│   │       │       ├── retrieve/        # bm25 · vector · rrf fusion
 │   │       │       ├── candidate_pool/  # shortlister (cross-encoder) · link expansion
 │   │       │       ├── rerank/          # Jev reranker
 │   │       │       └── classify_category/ # Jev's category choice · the floor gate
@@ -301,7 +303,7 @@ Full list in [`.env.example`](.env.example). The ones that change behavior most:
 | `EMBEDDING_PROVIDER` | `vllm` | ai-engine's embedder, which also embeds for core-api. `stub` = deterministic hash embeddings, no network (used by CI) |
 | `SHORTLIST_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
 | `JEV_API_KEY` | empty | Jev's key; required for any run that reaches retrieval. Tests use fakes |
-| `PROMPT_VERSION` · `PII_NER_PROMPT_VERSION` | `classify.v7` · `pii_ner.v2` | Which prompt files run |
+| `PROMPT_VERSION` · `PII_NER_PROMPT_VERSION` | `propose.v8` · `pii_ner.v2` | Which prompt files run |
 | `RERANK_PROMPT_VERSION` · `CATEGORY_QUESTION_VERSION` | `rerank_resolves.v1` · `category.v1` | Which Jev question files run |
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |

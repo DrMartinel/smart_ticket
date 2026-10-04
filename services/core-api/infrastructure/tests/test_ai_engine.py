@@ -21,12 +21,11 @@ from apps.tickets.utils.patterns import PIILevel
 from infrastructure.dtos import (
     EMBED_DIM,
     AIRunResponse,
-    GenerationSignals,
     ClassificationSignals,
-    PolicySignals,
+    EngineSignals,
+    GenerationSignals,
     RetrievalSignals,
     TicketMasked,
-    TrustSignals,
 )
 from infrastructure.ai_engine import AIEngineUnavailable, ai_engine
 
@@ -45,25 +44,17 @@ def _run_response(request_id: str) -> dict:
         prompt_version="test",
         model="n/a",
         proposal=None,
-        signals=TrustSignals(
-            retrieval=RetrievalSignals(
-                rerank_top1=0, rerank_margin=0, bm25_keyword_hit=False, docs_above_floor=0
-            ),
+        signals=EngineSignals(
+            retrieval=RetrievalSignals(rerank_top1=0, rerank_margin=0, docs_above_floor=0),
             generation=GenerationSignals(
-                schema_valid=False,
                 quote_match_ratio=0,
                 quote_source_in_topk=False,
+                quote_applicable=True,
+                clarify_options_in_topk=False,
                 negation_consistent=False,
-                category_consistent=False,
-            ),
-            policy=PolicySignals(
-                kb_auto_reply_allowed=False,
-                kb_risk_tier="high",
-                pii_level=PIILevel.ROUTINE,
-                injection_detected=False,
-                mass_incident=False,
             ),
             classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
+            injection_detected=False,
         ),
     ).model_dump(mode="json")
 

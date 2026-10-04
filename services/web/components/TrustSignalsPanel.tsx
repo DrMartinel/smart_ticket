@@ -16,18 +16,14 @@ interface TrustSignals {
     rerank_margin: number;
     /** Rank of the reranker's top article in BM25's own list (ADR-0013); null = absent. */
     bm25_rank_of_top1?: number | null;
-    /** Legacy: only set on signals stored before ADR-0013. */
-    bm25_keyword_hit?: boolean;
     docs_above_floor: number;
   };
   generation: {
-    schema_valid: boolean;
     quote_match_ratio: number;
     quote_source_in_topk: boolean;
     negation_consistent: boolean;
-    category_consistent: boolean;
-    /** False for proposals with no verbatim quote (route / runbook). */
-    quote_applicable?: boolean;
+    /** False for proposals with no verbatim quote (route / runbook / clarify). */
+    quote_applicable: boolean;
   };
   policy: {
     kb_auto_reply_allowed: boolean;
@@ -66,13 +62,8 @@ function Bar({ value, max = 1 }: { value: number; max?: number }) {
  * contributions above. Deciding it here too would copy a threshold into the
  * browser, where it would drift from the one that scored the ticket.
  */
-function KeywordRankChip({ rank, legacyHit }: { rank?: number | null; legacyHit?: boolean }) {
-  const text =
-    rank != null
-      ? `keyword search ranked it #${rank}`
-      : legacyHit
-        ? "keyword hit (legacy signal)"
-        : "keyword search didn't find it";
+function KeywordRankChip({ rank }: { rank?: number | null }) {
+  const text = rank != null ? `keyword search ranked it #${rank}` : "keyword search didn't find it";
   return (
     <span
       className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
@@ -147,8 +138,7 @@ export default function TrustSignalsPanel({
   ]);
   const aiDidNotRun = NO_MODEL_OUTPUT.has(routingDecision.reason_code);
 
-  // Older rows predate the flag; treat a present quote as the signal.
-  const quoteApplicable = generation.quote_applicable ?? generation.quote_match_ratio > 0;
+  const quoteApplicable = generation.quote_applicable;
 
   return (
     <div className="card flex flex-col gap-4 p-4">
@@ -214,7 +204,7 @@ export default function TrustSignalsPanel({
             <span className="w-10 shrink-0 text-right tabular-nums">{retrieval.rerank_margin.toFixed(2)}</span>
           </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
-            <KeywordRankChip rank={retrieval.bm25_rank_of_top1} legacyHit={retrieval.bm25_keyword_hit} />
+            <KeywordRankChip rank={retrieval.bm25_rank_of_top1} />
             <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
               {retrieval.docs_above_floor} docs above floor
             </span>
@@ -255,14 +245,12 @@ export default function TrustSignalsPanel({
           </div>
         ) : (
           <div className="flex flex-wrap gap-1.5">
-            <BoolChip ok={generation.schema_valid} label="schema valid" />
             <BoolChip
               ok={generation.quote_source_in_topk}
               label="quote in top-k"
               applicable={quoteApplicable}
             />
             <BoolChip ok={generation.negation_consistent} label="negation consistent" />
-            <BoolChip ok={generation.category_consistent} label="category consistent" />
             {quoteApplicable ? (
               <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 quote match {(generation.quote_match_ratio * 100).toFixed(0)}%

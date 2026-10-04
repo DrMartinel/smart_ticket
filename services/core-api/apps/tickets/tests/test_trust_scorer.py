@@ -37,11 +37,11 @@ def make_signals(**overrides) -> TrustSignals:
             rerank_top1=0.9, rerank_margin=0.3, bm25_rank_of_top1=1, docs_above_floor=3
         ),
         generation=GenerationSignals(
-            schema_valid=True,
             quote_match_ratio=1.0,
             quote_source_in_topk=True,
+            quote_applicable=True,
+            clarify_options_in_topk=False,
             negation_consistent=True,
-            category_consistent=True,
         ),
         policy=PolicySignals(
             kb_auto_reply_allowed=True,
@@ -190,20 +190,6 @@ def test_agreement_raises_trust():
     disagree = make_signals(**{"retrieval.bm25_rank_of_top1": None})
 
     assert score(agree, K).value > score(disagree, K).value
-
-
-def test_old_signals_without_a_rank_score_on_their_legacy_flag():
-    """Signals stored before ADR-0013 have no rank field. They must load and
-    score as they did (hard rule 4), not silently lose their flag."""
-
-    stored = make_signals().model_dump(mode="json")
-    del stored["retrieval"]["bm25_rank_of_top1"]
-    stored["retrieval"]["bm25_keyword_hit"] = True
-
-    old = TrustSignals(**stored)
-
-    assert old.retrieval.bm25_rank_of_top1 is None
-    assert keyword_agreement(old, K) is True
 
 
 def test_thresholds_without_keyword_agreement_k_fail_to_load():

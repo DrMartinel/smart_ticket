@@ -59,7 +59,7 @@ The third is the strongest, and it is why splitting `ai-engine` into its own ser
 
 **core-api owns all writes and all decisions.** It is the only service that can change business state. If you are adding a feature that decides something, it belongs here.
 
-**ai-engine has no authority.** It returns `TrustSignals` plus a proposal and nothing else. It was split out for four reasons, in ascending order of importance: dependency isolation (LangChain/LangGraph churn badly), differing scale profiles (RAM for models vs. I/O for API), independent deploys (change a prompt without restarting the gateway), and — the one that actually justifies the cost — **structural permission separation**.
+**ai-engine has no authority.** It returns its findings (`EngineSignals`) plus a proposal and nothing else; core-api adds the policy it knows itself (PII level, the KB page's authority, mass incidents) to make the `TrustSignals` its router reads. It was split out for four reasons, in ascending order of importance: dependency isolation (LangChain/LangGraph churn badly), differing scale profiles (RAM for models vs. I/O for API), independent deploys (change a prompt without restarting the gateway), and — the one that actually justifies the cost — **structural permission separation**.
 
 **web is a thin client.** No business logic. Its TypeScript types are generated from core-api's schemas, so a schema change that breaks the frontend fails at build rather than in production.
 
@@ -72,9 +72,10 @@ There is no shared schema package (ADR-0010). Each type is defined in the module
 | Types | core-api | ai-engine |
 |---|---|---|
 | `TicketIn` (`extra="forbid"`) | `apps/tickets/request_schema.py` | — |
-| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / clarification / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `PolicySignals`, `ClassificationSignals`, `TrustSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` |
-| `PIILevel` | `apps/tickets/utils/patterns.py` | `schemas.py` |
+| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / clarification / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `ClassificationSignals`, `EngineSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies only); the ticket types in `graph/ticket.py`, the proposals in `graph/nodes/infer/proposals.py`, the signals in `graph/nodes/emit_signals/signals.py` |
+| `PIILevel` | `apps/tickets/utils/patterns.py` | `graph/ticket.py` |
 | `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `RoutingDecision` | `apps/tickets/utils/router.py` | — |
+| `PolicySignals`, `TrustSignals` (ai-engine's findings plus core-api's policy; what the router and trust scorer read) | `infrastructure/dtos.py` | — |
 | `Thresholds` | `config/settings/base.py` | — |
 | `TrustScore` | `apps/tickets/utils/trust_scorer.py` | — |
 | `ReviewAction`, `Verdict` · `UserRole` | `apps/review/models.py` · `apps/accounts/models.py` | — |
@@ -230,6 +231,10 @@ construction.
 ### Stage 4 — Scoring and routing (core-api)
 
 ```
+EngineSignals (from ai-engine)
+   + policy core-api knows: PII level, its own KB read, mass incident
+   = TrustSignals                          ← pipeline.trust_signals()
+
 TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
                         │                     (so the LLM can't score itself)
                         ▼
@@ -247,7 +252,7 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
      insufficient_context ──► HITL       (retrieval_below_floor)
 
    The ticket's category is Jev's choice (signals.classification, ADR-0017),
-   never the LLM's proposed_category, which is log-only. Only clarify and
+   never the LLM's (proposals carry none since propose.v8). Only clarify and
    auto-route use it; an auto-reply takes its KB page's category.
 
    CLARIFY (ADR-0016), before trust: a question grants nothing
@@ -273,7 +278,6 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
 
      RouteProposal:
         Jev's confidence ≥ min?     no ──► HITL / category_low_confidence
-        category_consistent?        no ──► HITL / category_inconsistent
         trust ≥ t_route?            no ──► HITL / trust_below_route
                                     yes ──► AUTO_ROUTE (to Jev's category)
 ```

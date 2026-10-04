@@ -62,13 +62,27 @@ class TestEmbeddingFailureFailsOpenToHitl:
         assert ticket.status != "new"
 
 
+def _no_findings():
+    """ai-engine's signals with every check failed and nothing found."""
+
+    from infrastructure.dtos import EngineSignals
+
+    from apps.tickets.utils.pipeline import _degraded_signals
+
+    d = _degraded_signals()
+    return EngineSignals(
+        retrieval=d.retrieval,
+        generation=d.generation,
+        classification=d.classification,
+        injection_detected=False,
+    )
+
+
 def _llm_failed_response(reason: str, request_id: str):
     """What ai-engine returns when its chat LLM call failed: no proposal,
     and `reason` as the degraded_reason."""
 
     from infrastructure.dtos import AIRunResponse
-
-    from apps.tickets.utils.pipeline import _degraded_signals
 
     return AIRunResponse(
         request_id=request_id,
@@ -76,7 +90,7 @@ def _llm_failed_response(reason: str, request_id: str):
         prompt_version="test",
         model="n/a",
         proposal=None,
-        signals=_degraded_signals(),
+        signals=_no_findings(),
         degraded_reason=reason,
     )
 
@@ -119,11 +133,8 @@ def _clarify_response(request_id: str):
 
     from infrastructure.dtos import AIRunResponse, LLMProposalEnvelope, TicketCategory
 
-    from apps.tickets.utils.pipeline import _degraded_signals
-
-    signals = _degraded_signals()
+    signals = _no_findings()
     signals.retrieval.rerank_top1 = 0.9
-    signals.generation.schema_valid = True
     signals.generation.clarify_options_in_topk = True
     # Jev's category, confident: without it the router sends the ticket to a
     # human as category_low_confidence (ADR-0017).
@@ -142,7 +153,6 @@ def _clarify_response(request_id: str):
                     "client-vpn-user.windows-troubleshooting",
                     "workspaces-user.client_troubleshooting",
                 ],
-                "proposed_category": "software",
                 "rationale": "names no application",
             }
         ),

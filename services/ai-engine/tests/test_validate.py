@@ -8,12 +8,11 @@ from uuid import UUID
 
 import pytest
 
-from ai_engine.schemas import (
+from ai_engine.graph.nodes.infer.proposals import (
     AutoReplyProposal,
     ClarificationProposal,
     LLMProposalEnvelope,
     RouteProposal,
-    TicketCategory,
 )
 from ai_engine.graph.state import RankedChunk
 
@@ -42,12 +41,6 @@ def auto_reply(quote: str, kb_slug="ec2.TroubleshootingInstancesConnecting") -> 
     )
 
 
-def test_no_proposal_is_schema_invalid(make_state):
-    state = make_state(proposal=None, reranked=[])
-    out = validate(state)
-    assert out["schema_valid"] is False
-
-
 def test_no_proposal_reports_every_check_failed(make_state):
     """With no proposal nothing was checked, so nothing may read as passed:
     core-api scores and routes on these fields, and a stray True here
@@ -55,12 +48,10 @@ def test_no_proposal_reports_every_check_failed(make_state):
 
     out = validate(make_state(proposal=None, reranked=[]))
     assert out == {
-        "schema_valid": False,
         "quote_applicable": False,
         "quote_match_ratio": 0.0,
         "quote_source_in_topk": False,
         "negation_consistent": False,
-        "category_consistent": False,
         "clarify_options_in_topk": False,
     }
 
@@ -73,19 +64,16 @@ def test_route_proposal_skips_quote_check(make_state):
     proposal = LLMProposalEnvelope(
         root=RouteProposal(
             proposed_intent="route_to_team",
-            proposed_category=TicketCategory.NETWORK,
             rationale="r",
             self_confidence=90,
         )
     )
     state = make_state(proposal=proposal, reranked=[chunk(1, "some content")])
     assert validate(state) == {
-        "schema_valid": True,
         "quote_applicable": False,
         "quote_match_ratio": 0.0,
         "quote_source_in_topk": False,
         "negation_consistent": True,
-        "category_consistent": True,
         "clarify_options_in_topk": False,
     }
 
@@ -98,12 +86,10 @@ def test_exact_substring_match(make_state):
     quote = "Kiểm tra phím Caps Lock có đang bật không."
     state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
     assert validate(state) == {
-        "schema_valid": True,
         "quote_applicable": True,
         "quote_match_ratio": 1.0,
         "quote_source_in_topk": True,
         "negation_consistent": True,
-        "category_consistent": True,
         "clarify_options_in_topk": False,
     }
 
@@ -319,7 +305,6 @@ def _clarify(*options: str) -> LLMProposalEnvelope:
             proposed_intent="clarify",
             proposed_question="Which application keeps crashing?",
             proposed_options=list(options),
-            proposed_category=TicketCategory.SOFTWARE,
             rationale="the ticket names no application",
         )
     )
@@ -346,11 +331,9 @@ def test_clarify_options_shown_pass_with_every_other_check(make_state):
     category pass as for a route proposal."""
     state = make_state(proposal=_clarify("vpn.windows", "workspaces.client"), reranked=_SHOWN)
     assert validate(state) == {
-        "schema_valid": True,
         "quote_applicable": False,
         "quote_match_ratio": 0.0,
         "quote_source_in_topk": False,
         "negation_consistent": True,
-        "category_consistent": True,
         "clarify_options_in_topk": True,
     }

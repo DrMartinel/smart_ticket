@@ -1,8 +1,10 @@
 """
-ai-engine's layering: main.py → graph/ → schemas.py, and both → core/.
+ai-engine's layering: main.py → schemas.py → graph/ → core/.
 `core` is infrastructure (settings, prompts, DB, model clients) and must not
-reach up into the pipeline or the HTTP layer; `schemas` is the wire contract
-mirrored in core-api (ADR-0010) and depends on nothing in ai-engine. An
+reach up into the pipeline or the HTTP layer. `schemas` holds only the HTTP
+bodies, built from the graph's own types (the ticket, the proposal, the
+signals), so the graph never imports it: what the pipeline works in is its
+own, and the HTTP layer wraps it (mirrored in core-api, ADR-0010). An
 upward import is how a "foundation" quietly starts depending on the graph,
 and then can't be reused or tested without it.
 """
@@ -21,8 +23,8 @@ _SRC = Path(ai_engine.__file__).parent
 # Package (or module) -> the ai_engine modules it must never import.
 _FORBIDDEN = {
     "core": ("ai_engine.graph", "ai_engine.schemas", "ai_engine.main"),
-    "schemas.py": ("ai_engine.",),
-    "graph": ("ai_engine.main",),
+    "schemas.py": ("ai_engine.main", "ai_engine.core"),
+    "graph": ("ai_engine.main", "ai_engine.schemas"),
 }
 
 

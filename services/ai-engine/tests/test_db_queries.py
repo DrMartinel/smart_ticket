@@ -6,15 +6,10 @@ target each query's purpose, not the full SQL text.
 
 from __future__ import annotations
 
-from uuid import UUID
-
-from ai_engine.schemas import AutoReplyProposal, LLMProposalEnvelope
-from ai_engine.graph.state import RankedChunk
 
 from ai_engine.core.config import settings
 from ai_engine.graph.nodes.retrieve.bm25 import bm25_search
 from ai_engine.graph.nodes.retrieve.vector import vector_search
-from ai_engine.graph.nodes.emit_signals import emit_signals
 from ai_engine.graph.nodes.fewshot import select_fewshots
 
 
@@ -74,9 +69,7 @@ def test_bm25_error_code_boost_is_read_from_settings(fake_db, kb_row, monkeypatc
     assert hits[0].score == 6.0
 
 
-def test_fewshot_selection_excludes_retracted_and_expired_examples(
-    fake_db, fake_embedder, make_state, use_db, use_embedder
-):
+def test_fewshot_selection_excludes_retracted_and_expired_examples(fake_db, make_state, use_db):
     """A retracted example (its source ticket reopened) has a suspect label;
     showing it to the model teaches the mistake. Nothing else would notice
     these filters going missing.
@@ -84,8 +77,7 @@ def test_fewshot_selection_excludes_retracted_and_expired_examples(
 
     db = fake_db()
     use_db(db)
-    use_embedder(fake_embedder(vector=[0.3]))
-    select_fewshots(make_state())
+    select_fewshots(make_state(query_embedding=[0.3]))
     sql, params = _only_statement(db)
 
     assert "fewshot_examples.retracted_at IS NULL" in sql
@@ -93,38 +85,3 @@ def test_fewshot_selection_excludes_retracted_and_expired_examples(
     assert "fewshot_examples.embedding IS NOT NULL" in sql
     assert "ORDER BY fewshot_examples.embedding <=>" in sql
     assert settings.fewshot_k in params.values()
-
-
-def test_kb_policy_lookup_reads_only_active_articles_by_slug(fake_db, make_state, use_db):
-    """The policy lookup turns any exception into deny-by-default, so a
-    broken query never surfaces as an error. This is the only place it is
-    visible.
-    """
-
-    proposal = LLMProposalEnvelope(
-        root=AutoReplyProposal(
-            proposed_intent="auto_reply",
-            kb_slug="iam.id_credentials_mfa_lost-or-broken",
-            verbatim_quote="a quote long enough to be valid",
-            answer_draft="draft",
-            self_confidence=80.0,
-        )
-    )
-    chunk = RankedChunk(
-        chunk_id=UUID(int=1),
-        article_id=UUID(int=10),
-        article_slug="iam.id_credentials_mfa_lost-or-broken",
-        content="content",
-        shortlist_score=0.9,
-        rerank_score=0.9,
-    )
-
-    db = fake_db()
-    use_db(db)
-    emit_signals(make_state(reranked=[chunk], proposal=proposal))
-    sql, params = _only_statement(db)
-
-    assert sql.startswith("SELECT kb_articles.auto_reply_allowed, kb_articles.risk_tier")
-    assert "kb_articles.slug = %(slug_1)s" in sql
-    assert "kb_articles.is_active IS true" in sql
-    assert params == {"slug_1": "iam.id_credentials_mfa_lost-or-broken"}

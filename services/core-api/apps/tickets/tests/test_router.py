@@ -87,11 +87,11 @@ def good_signals(**overrides) -> TrustSignals:
             docs_above_floor=3,
         ),
         generation=GenerationSignals(
-            schema_valid=True,
             quote_match_ratio=1.0,
             quote_source_in_topk=True,
+            quote_applicable=True,
+            clarify_options_in_topk=False,
             negation_consistent=True,
-            category_consistent=True,
         ),
         policy=PolicySignals(
             kb_auto_reply_allowed=True,
@@ -137,7 +137,6 @@ def auto_reply_proposal(**overrides) -> LLMProposalEnvelope:
 def route_proposal(**overrides) -> LLMProposalEnvelope:
     base: dict[str, Any] = dict(
         proposed_intent="route_to_team",
-        proposed_category=TicketCategory.NETWORK,
         rationale="r",
         self_confidence=90,
     )
@@ -150,7 +149,6 @@ def runbook_proposal(**overrides) -> LLMProposalEnvelope:
         proposed_intent="runbook",
         runbook_id="RB-1",
         draft_payload={"a": 1},
-        proposed_category=TicketCategory.SOFTWARE,
         self_confidence=99,
     )
     base.update(overrides)
@@ -200,12 +198,6 @@ def test_mask_failed_goes_to_mask_failed_queue_priority_1():
 def test_no_proposal_is_schema_invalid():
     d = route(good_signals(), None, kb(), TH)
     assert d.branch is Branch.HITL
-    assert d.reason_code is ReasonCode.SCHEMA_INVALID
-
-
-def test_schema_invalid_generation_flag():
-    signals = good_signals(**{"generation.schema_valid": False})
-    d = route(signals, auto_reply_proposal(), kb(), TH)
     assert d.reason_code is ReasonCode.SCHEMA_INVALID
 
 
@@ -267,7 +259,6 @@ def test_auto_reply_trust_below_auto_threshold():
             "retrieval.rerank_margin": 0.0,
             "retrieval.bm25_rank_of_top1": None,
             "retrieval.docs_above_floor": 0,
-            "generation.category_consistent": False,
         }
     )
     d = route(signals, auto_reply_proposal(), kb(), TH)
@@ -329,11 +320,11 @@ def test_auto_route_at_min_confidence_routes():
     assert d.branch is Branch.AUTO_ROUTE
 
 
-def test_auto_route_goes_to_jevs_category_not_the_llms():
-    """ADR-0017: the team a ticket is routed to is Jev's choice. The LLM's
-    `proposed_category` stays in the proposal, log-only."""
+def test_auto_route_goes_to_jevs_category():
+    """ADR-0017: the team a ticket is routed to is Jev's choice; the
+    proposal carries no category since propose.v8."""
     signals = good_signals(**{"classification.category_choice": TicketCategory.HARDWARE})
-    d = route(signals, route_proposal(proposed_category=TicketCategory.NETWORK), None, TH)
+    d = route(signals, route_proposal(), None, TH)
     assert d.branch is Branch.AUTO_ROUTE
     assert d.category is TicketCategory.HARDWARE
 
@@ -347,16 +338,9 @@ def test_auto_reply_needs_no_jev_confidence():
     assert d.branch is Branch.AUTO_REPLY
 
 
-def test_auto_route_category_inconsistent():
-    signals = good_signals(**{"generation.category_consistent": False})
-    d = route(signals, route_proposal(), None, TH)
-    assert d.reason_code is ReasonCode.CATEGORY_INCONSISTENT
-
-
 def test_auto_route_trust_below_route_threshold():
-    # category_consistent must stay True (else CATEGORY_INCONSISTENT fires
-    # first); everything else — including the quote-related fields, which
-    # RouteProposal never checks — is at its weakest.
+    # Everything — including the quote-related fields, which RouteProposal
+    # never checks — is at its weakest.
     signals = good_signals(
         **{
             "retrieval.rerank_top1": 0.45,
@@ -468,7 +452,6 @@ def clarify_proposal(**overrides) -> LLMProposalEnvelope:
             "identity-center.resetpassword-accessportal",
             "iam.id_credentials_passwords_admin-change-user",
         ],
-        proposed_category=TicketCategory.ACCESS,
         rationale="the ticket names no system",
     )
     base.update(overrides)
@@ -493,17 +476,10 @@ def test_clarify_on_a_possible_security_incident_goes_to_a_human():
     assert d.reason_code is ReasonCode.CLARIFY_SECURITY
 
 
-def test_clarify_security_reads_jevs_category_not_the_llms():
-    """ADR-0017: the LLM's `proposed_category` decides nothing. An LLM
-    saying `security` doesn't hold a question Jev puts in `access`, and an
-    LLM saying `access` doesn't let through one Jev puts in `security`."""
-    llm_says_security = route(
-        good_signals(**{"generation.clarify_options_in_topk": True}),
-        clarify_proposal(proposed_category=TicketCategory.SECURITY),
-        None,
-        TH,
-    )
-    jev_says_security = route(
+def test_clarify_security_needs_no_confidence():
+    """A possible incident goes to a human even when Jev is unsure: the
+    security rule comes before the confidence gate."""
+    d = route(
         good_signals(
             **{
                 "generation.clarify_options_in_topk": True,
@@ -511,12 +487,11 @@ def test_clarify_security_reads_jevs_category_not_the_llms():
                 "classification.category_confidence": 0.3,
             }
         ),
-        clarify_proposal(proposed_category=TicketCategory.ACCESS),
+        clarify_proposal(),
         None,
         TH,
     )
-    assert llm_says_security.branch is Branch.CLARIFY
-    assert jev_says_security.reason_code is ReasonCode.CLARIFY_SECURITY
+    assert d.reason_code is ReasonCode.CLARIFY_SECURITY
 
 
 def test_clarify_on_a_category_jev_is_unsure_of_goes_to_a_human():

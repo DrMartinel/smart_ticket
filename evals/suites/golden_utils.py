@@ -118,4 +118,8 @@ def analyze(client: httpx.Client, subject: str, body: str, *, never_refuse: bool
     }
     resp = client.post("/v1/analyze", json=req)
     resp.raise_for_status()
-    return resp.json()
+    result = resp.json()
+    # The level masking found: core-api adds it to ai-engine's signals
+    # (`pipeline.trust_signals`), so the harness has to carry it too.
+    result["pii_level"] = masked.pii_level.value
+    return result

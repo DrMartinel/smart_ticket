@@ -36,15 +36,14 @@ SIGNALS = {
     "retrieval": {
         "rerank_top1": 0.9,
         "rerank_margin": 0.2,
-        "bm25_keyword_hit": True,
         "docs_above_floor": 2,
     },
     "generation": {
-        "schema_valid": True,
         "quote_match_ratio": 1.0,
         "quote_source_in_topk": True,
         "negation_consistent": True,
-        "category_consistent": True,
+        "quote_applicable": True,
+        "clarify_options_in_topk": False,
     },
     "policy": {
         "kb_auto_reply_allowed": True,

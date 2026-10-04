@@ -1,8 +1,8 @@
 """
 LLM inference node — spec §6.2 `infer`. Builds the prompt from retrieved
 chunks and few-shots, calls the LLM client, and parses the reply into
-`LLMProposalEnvelope`. A parse failure is not an exception: validate records
-`schema_valid=False` and the ticket goes to HITL.
+`LLMProposalEnvelope`. A parse failure is not an exception: `proposal` stays
+None, and core-api sends a run with no proposal to HITL as `schema_invalid`.
 """
 
 from __future__ import annotations
@@ -14,13 +14,13 @@ import logging
 
 from pydantic import ValidationError
 
-from ai_engine.schemas import LLMProposalEnvelope
+from ai_engine.graph.nodes.infer.proposals import LLMProposalEnvelope
 from ai_engine.graph.state import TriageState
 
 from ai_engine.graph.build.node import BaseNode
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import AllLLMDownError
-from ai_engine.core.prompts import CLASSIFY_PROMPT
+from ai_engine.core.prompts import PROPOSE_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,7 @@ class InferNode(BaseNode):
 
         try:
             result = clients.chat.complete(
-                CLASSIFY_PROMPT,
+                PROPOSE_PROMPT,
                 user_prompt,
                 schema_name="triage_proposal",
                 schema=_PROPOSAL_SCHEMA,

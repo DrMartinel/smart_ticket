@@ -13,14 +13,13 @@ import json
 import pytest
 
 from ai_engine.core.providers.clients import AllLLMDownError, LLMResult
-from ai_engine.schemas import LLMProposalEnvelope
-from ai_engine.core.prompts import CLASSIFY_PROMPT, load_system_prompt
-from ai_engine.graph.nodes.infer import infer
+from ai_engine.graph.nodes.infer.proposals import LLMProposalEnvelope
+from ai_engine.core.prompts import PROPOSE_PROMPT, load_system_prompt
+from ai_engine.graph.nodes.infer.node import infer
 
 _VALID_OUTPUT = json.dumps(
     {
         "proposed_intent": "route_to_team",
-        "proposed_category": "access",
         "rationale": "người dùng không đăng nhập được",
         "self_confidence": 70.0,
     }
@@ -111,7 +110,7 @@ def test_kb_slug_is_shown_to_the_model(fake_llm, make_state, make_candidate, mak
     assert "vpn-reset" in user_prompt
 
 
-def test_the_system_prompt_is_the_classify_prompt(fake_llm, make_state, make_node):
+def test_the_system_prompt_is_the_propose_prompt(fake_llm, make_state, make_node):
     """The prompt `settings.prompt_version` selects is the one sent, so
     `ai_runs.prompt_version` names what actually ran."""
 
@@ -120,7 +119,7 @@ def test_the_system_prompt_is_the_classify_prompt(fake_llm, make_state, make_nod
     make_node(llm)(make_state())
 
     [(system_prompt, _)] = llm.prompts
-    assert system_prompt == CLASSIFY_PROMPT
+    assert system_prompt == PROPOSE_PROMPT
 
 
 def test_the_reply_is_constrained_to_the_proposal_union(fake_llm, make_state, make_node):
@@ -139,9 +138,9 @@ def test_the_changelog_is_not_sent_to_the_model():
     """The prompt file's changelog is for people; sent, it took ~875 tokens
     of a 4096-token context on every classify call."""
 
-    assert "<!--" not in CLASSIFY_PROMPT
-    assert "Changelog" not in CLASSIFY_PROMPT
-    assert CLASSIFY_PROMPT.startswith("You are a triage assistant")
+    assert "<!--" not in PROPOSE_PROMPT
+    assert "Changelog" not in PROPOSE_PROMPT
+    assert PROPOSE_PROMPT.startswith("You are a triage assistant")
 
 
 def test_an_unclosed_changelog_fails_the_boot(tmp_path, monkeypatch):
@@ -163,3 +162,33 @@ def test_invalid_prompt_version_is_rejected():
 
     with pytest.raises(ValueError, match="invalid prompt version"):
         load_system_prompt("../../../etc/passwd")
+
+
+def test_a_reply_that_still_carries_a_category_parses(make_state, fake_llm, use_llm):
+    """A server that ignores the decoding schema, or an old few-shot, may
+    still write `proposed_category`. It decides nothing (ADR-0017), so an
+    extra key must not turn a good proposal into `schema_invalid`."""
+
+    reply = json.dumps(
+        {
+            "proposed_intent": "route_to_team",
+            "proposed_category": "access",
+            "rationale": "r",
+            "self_confidence": 70.0,
+        }
+    )
+    use_llm(fake_llm(result=_result(reply)))
+
+    out = infer(make_state())
+
+    assert out["proposal"] is not None
+    assert out["proposal"].root.proposed_intent == "route_to_team"
+
+
+def test_the_decoding_schema_asks_for_no_category():
+    """The schema vLLM decodes against: a category field in it would make the
+    model spend tokens on an answer nobody reads."""
+    schema = json.dumps(LLMProposalEnvelope.model_json_schema())
+
+    assert "proposed_category" not in schema
+    assert "proposed_subcategory" not in schema

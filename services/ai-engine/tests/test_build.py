@@ -12,9 +12,9 @@ from ai_engine.graph.nodes.classify_category.node import (
     ClassifyCategoryOutcome,
     classify_category,
 )
-from ai_engine.graph.nodes.emit_signals import EmitSignalsNode
+from ai_engine.graph.nodes.emit_signals.node import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
-from ai_engine.graph.nodes.infer import InferNode
+from ai_engine.graph.nodes.infer.node import InferNode
 from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome, injection
 from ai_engine.graph.state import RankedChunk
 from ai_engine.graph.nodes.rerank.node import RerankNode
@@ -158,15 +158,15 @@ def test_compiled_edges_are_exactly_the_triage_topology():
     }
 
 
-def test_the_classify_prompt_is_the_file_settings_prompt_version_names():
+def test_the_propose_prompt_is_the_file_settings_prompt_version_names():
     """Bumping settings.prompt_version must change the prompt that actually
-    runs, not just the version reported. InferNode sends CLASSIFY_PROMPT
+    runs, not just the version reported. InferNode sends PROPOSE_PROMPT
     (test_infer.py pins that)."""
 
     from ai_engine.core.config import settings
-    from ai_engine.core.prompts import CLASSIFY_PROMPT, PROMPT_DIR
+    from ai_engine.core.prompts import PROPOSE_PROMPT, PROMPT_DIR
 
     text = (PROMPT_DIR / f"{settings.prompt_version}.md").read_text()
     instructions = text.split("-->", 1)[1].strip() if text.startswith("<!--") else text
-    assert CLASSIFY_PROMPT.strip() == instructions
+    assert PROPOSE_PROMPT.strip() == instructions
     assert instructions != ""

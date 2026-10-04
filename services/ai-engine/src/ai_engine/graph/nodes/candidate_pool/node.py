@@ -40,7 +40,6 @@ def _scored(query: str, candidates: list[Candidate]) -> list[RankedChunk]:
 
 
 def _by_score(chunks: list[RankedChunk]) -> list[RankedChunk]:
-    # Stable: equal scores keep their incoming order.
     return sorted(chunks, key=lambda r: r.shortlist_score, reverse=True)
 
 
@@ -54,8 +53,6 @@ class CandidatePoolNode(BaseNode):
         pool = _by_score(_scored(query, candidates))
 
         seeds = list(dict.fromkeys(r.article_id for r in pool[: settings.link_expansion_seeds]))
-        # A DB failure raises: "no links" and "couldn't read links" are
-        # different facts.
         linked = linked_article_ids(seeds, max_per_seed=settings.link_expansion_max_links_per_seed)
         added = nearest_chunks(
             linked, state.query_embedding, per_article=settings.link_expansion_chunks_per_page

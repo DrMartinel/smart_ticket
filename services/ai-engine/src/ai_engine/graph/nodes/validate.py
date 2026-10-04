@@ -30,7 +30,7 @@ from collections import Counter
 
 from rapidfuzz import fuzz
 
-from ai_engine.schemas import AutoReplyProposal, ClarificationProposal
+from ai_engine.graph.nodes.infer.proposals import AutoReplyProposal, ClarificationProposal
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.config import settings
@@ -116,31 +116,27 @@ def _clarify_options_shown(state: TriageState) -> bool:
 
 
 class ValidateNode(BaseNode):
-    """Every exit returns all seven checks. A check left out would not fail
+    """Every exit returns all five checks. A check left out would not fail
     loudly: it reads as its "failed" state default, so a deliberate pass
-    (negation and category on a route proposal) would silently lower trust.
+    (negation on a route proposal) would silently lower trust.
     test_validate.py pins each exit's whole update."""
 
     def __call__(self, state: TriageState) -> dict[str, Any]:
         if state.proposal is None:
             return {
-                "schema_valid": False,
                 "quote_applicable": False,
                 "quote_match_ratio": 0.0,
                 "quote_source_in_topk": False,
                 "negation_consistent": False,
-                "category_consistent": False,
                 "clarify_options_in_topk": False,
             }
 
         if not isinstance(state.proposal.root, AutoReplyProposal):
             return {
-                "schema_valid": True,
                 "quote_applicable": False,
                 "quote_match_ratio": 0.0,
                 "quote_source_in_topk": False,
                 "negation_consistent": True,
-                "category_consistent": True,
                 "clarify_options_in_topk": _clarify_options_shown(state),
             }
 
@@ -168,12 +164,10 @@ class ValidateNode(BaseNode):
         )
 
         return {
-            "schema_valid": True,
             "quote_applicable": True,
             "quote_match_ratio": ratio,
             "quote_source_in_topk": in_topk,
             "negation_consistent": neg_ok,
-            "category_consistent": True,
             "clarify_options_in_topk": False,
         }
 

@@ -27,7 +27,8 @@ from __future__ import annotations
 
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier, route
-from infrastructure.dtos import TicketCategory, TrustSignals
+from apps.tickets.utils.pipeline import trust_signals
+from infrastructure.dtos import EngineSignals, TicketCategory
 from django.conf import settings
 
 from apps.kb.models import KbArticle
@@ -73,8 +74,8 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
 
     for case in cases:
         result = analyze(ai_engine_client, case["subject"], case["body"])
-        signals = TrustSignals(**result["signals"])
-        if signals.policy.pii_level is PIILevel.MASK_FAILED:
+        pii_level = PIILevel(result["pii_level"])
+        if pii_level is PIILevel.MASK_FAILED:
             mask_failed.append(case["id"])
         proposal_dict = result.get("proposal")
 
@@ -86,6 +87,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
 
         with django_db_blocker.unblock():
             kb_meta = _kb_meta_for(proposal_dict)
+        signals = trust_signals(EngineSignals(**result["signals"]), pii_level, kb_meta)
         decision = route(signals, proposal, kb_meta, settings.THRESHOLDS)
 
         expected_branch = case["truth"].get("expected_branch")

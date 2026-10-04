@@ -55,7 +55,8 @@ problem names other categories' parts.
    `classification.min_confidence` (🔧 `thresholds.yaml`), or with no choice
    at all, the ticket goes to a human under a new `ReasonCode`,
    `category_low_confidence`. The LLM's `proposed_category` is kept in the
-   proposal and logged, and decides nothing.
+   proposal and logged, and decides nothing. (Removed with `propose.v8`,
+   2026-10-04: the prompt no longer asks for a category at all.)
 4. **A Jev failure raises**, as in the rerank node: ai-engine answers 500 and
    core-api sends the ticket to a human as `ai_engine_unavailable`. No
    fallback to the LLM's category: a silent switch of classifier would hide
@@ -70,7 +71,7 @@ problem names other categories' parts.
   `decide()`: the category is needed on both sides of the floor, and the
   check that decides whether Jev sees a page is the one that decides
   whether the LLM runs. Refuse-before-LLM routes are unchanged.
-- The wire field is `TrustSignals.classification`
+- The wire field is `EngineSignals.classification` (`TrustSignals.classification` in core-api)
   (`ClassificationSignals`: `category_choice`, `category_confidence`),
   required, with no defaults: no signals were stored before it, so every
   producer states Jev's answer, `(None, 0.0)` when Jev wasn't asked. An
@@ -81,9 +82,11 @@ problem names other categories' parts.
   auto-reply takes its KB page's category, so an unsure Jev adds no human
   work there. The clarify security rule reads Jev's choice, whatever its
   confidence.
-- `category_consistent` is unchanged: `ValidateNode` sets it to true for
-  every non-auto-reply proposal, so it never compared the LLM's category
-  with anything on a route. Re-deciding it is still open (below).
+- `category_consistent` was removed on 2026-10-04, in both services, with
+  its router gate (`category_inconsistent`) and trust feature. `ValidateNode`
+  had set it to true for every proposal that parsed, so it never compared
+  the LLM's category with anything; its trust weight (0.6) moved into the
+  intercept, leaving every routing decision unchanged.
 
 ## Consequences
 
@@ -96,8 +99,8 @@ problem names other categories' parts.
 - `min_confidence` needs calibrating on shadow data. In the probe,
   confidence below 0.65 caught 2 of 3-4 misses for 2 correct tickets.
 - The classification suite measures Jev's choice instead of the LLM's.
-- `category_consistent` (the LLM's category against the KB page's) loses its
-  meaning for route proposals and needs re-deciding.
+- `category_consistent` (the LLM's category against the KB page's) lost its
+  meaning for route proposals; removed (As built, above).
 
 ## Not decided
 

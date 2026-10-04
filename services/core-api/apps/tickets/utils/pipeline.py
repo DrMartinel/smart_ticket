@@ -25,6 +25,7 @@ from django.utils import timezone
 
 from infrastructure.dtos import (
     AIRunResponse,
+    EngineSignals,
     GenerationSignals,
     LLMProposalEnvelope,
     ClassificationSignals,
@@ -57,16 +58,53 @@ logger = logging.getLogger(__name__)
 type TaskResult = dict[str, str | bool]
 
 
+def trust_signals(
+    engine: EngineSignals, pii_level: PIILevel, kb: KBArticleMeta | None
+) -> TrustSignals:
+    """ai-engine's findings plus the policy core-api knows itself: the
+    ticket's PII level and the KB page's authority, from core-api's own KB
+    read (ADR-0002; `kb` is None unless an auto-reply proposal names an
+    active page, and then auto-reply is denied). Pure."""
+    return TrustSignals(
+        retrieval=engine.retrieval,
+        generation=engine.generation,
+        classification=engine.classification,
+        policy=PolicySignals(
+            kb_auto_reply_allowed=kb.auto_reply_allowed if kb else False,
+            kb_risk_tier=kb.risk_tier.value if kb else RiskTier.HIGH.value,
+            pii_level=pii_level,
+            injection_detected=engine.injection_detected,
+            mass_incident=False,
+        ),
+        llm_self_confidence=engine.llm_self_confidence,
+    )
+
+
+def _kb_meta(proposal: LLMProposalEnvelope | None) -> KBArticleMeta | None:
+    """The KB page an auto-reply proposal names, if it is active. Authority
+    is read here, never taken from anything ai-engine reports (ADR-0002)."""
+    if proposal is None or proposal.root.proposed_intent != "auto_reply":
+        return None
+    kb = KbArticle.objects.filter(slug=proposal.root.kb_slug, is_active=True).first()
+    if kb is None:
+        return None
+    return KBArticleMeta(
+        id=kb.id,
+        slug=kb.slug,
+        category=TicketCategory(kb.category),
+        auto_reply_allowed=kb.auto_reply_allowed,
+        risk_tier=RiskTier(kb.risk_tier),
+    )
+
+
 def _degraded_signals() -> TrustSignals:
     return TrustSignals(
         # No rank: a degraded run has no retrieval, so no keyword agreement.
         retrieval=RetrievalSignals(rerank_top1=0.0, rerank_margin=0.0, docs_above_floor=0),
         generation=GenerationSignals(
-            schema_valid=False,
             quote_match_ratio=0.0,
             quote_source_in_topk=False,
             negation_consistent=False,
-            category_consistent=False,
         ),
         policy=PolicySignals(
             kb_auto_reply_allowed=False,
@@ -104,7 +142,7 @@ def _persist_ai_run(
 ) -> AiRun:
     trust = (
         compute_trust(signals, settings.THRESHOLDS.retrieval.keyword_agreement_k)
-        if signals.generation.schema_valid or proposal
+        if proposal is not None
         else None
     )
     try:
@@ -367,30 +405,20 @@ def ticket_process(ticket_id: str) -> TaskResult:
         ai_run = _persist_ai_run(
             ticket,
             idempotency_key,
-            resp.signals,
+            trust_signals(resp.signals, masked.pii_level, None),
             resp.proposal,
             resp=resp,
             degraded_reason=resp.degraded_reason,
         )
         return _finalize(ticket, ai_run, decision, trace_id)
 
-    kb_meta = None
-    if resp.proposal is not None and resp.proposal.root.proposed_intent == "auto_reply":
-        kb = KbArticle.objects.filter(slug=resp.proposal.root.kb_slug, is_active=True).first()
-        if kb:
-            kb_meta = KBArticleMeta(
-                id=kb.id,
-                slug=kb.slug,
-                category=TicketCategory(kb.category),
-                auto_reply_allowed=kb.auto_reply_allowed,
-                risk_tier=RiskTier(kb.risk_tier),
-            )
-
-    decision = router_service.route(resp.signals, resp.proposal, kb_meta, settings.THRESHOLDS)
+    kb_meta = _kb_meta(resp.proposal)
+    signals = trust_signals(resp.signals, masked.pii_level, kb_meta)
+    decision = router_service.route(signals, resp.proposal, kb_meta, settings.THRESHOLDS)
     ai_run = _persist_ai_run(
         ticket,
         idempotency_key,
-        resp.signals,
+        signals,
         resp.proposal,
         resp=resp,
         degraded_reason=resp.degraded_reason,

@@ -172,7 +172,7 @@ prompt that never passed the eval gate spec §12.3 requires.
 **Done when** `main.py` either returns `settings.prompt_version`, or rejects a
 request whose `prompt_version` does not match with a 400.
 
-### 6c. The same query is embedded twice per ticket
+### 6c. ~~The same query is embedded twice per ticket~~ Done 2026-10-04
 
 **Priority:** Low
 
@@ -180,12 +180,11 @@ request whose `prompt_version` does not match with a 400.
 `subject_masked\nbody_masked` string — two HTTP round-trips where one would
 do, on the latency-critical path.
 
-`TriageState.query_embedding` now exists (HybridRetrieveNode writes it, link
-expansion reads it), so the fix is `SelectFewshotsNode` reading it instead of
-embedding again. A caching decorator on the embedder is the **wrong** answer: the graph
+**Done 2026-10-04:** `SelectFewshotsNode` reads `TriageState.query_embedding`
+instead of embedding again. A caching decorator on the embedder is the **wrong** answer: the graph
 is built once at import and has no request scope, so such a cache would be
 process-lifetime and grow unboundedly across tickets. Related: since
-ADR-0017 the category is known before few-shot selection (`category_choice`),
+ADR-0017 the category is known before few-shot selection (`classification`),
 while the node still searches across all categories; whether to filter by
 it is an eval question, not part of this fix.
 
@@ -355,7 +354,7 @@ The ADR is accepted. Ambiguous tickets reach `clarify` in the evals without lowe
 
 ## 11. Accept or reject ADR-0017 (Jev chooses the category)
 
-**Status (2026-10-04):** built, [ADR-0017](adr/0017-jev-classifies-the-category.md) (Proposed): `ClassifyCategoryNode` asks Jev `category.v1`, `TrustSignals.classification` carries the answer, and `router.py` routes clarify and auto-route on Jev's choice, sending it to a human as `category_low_confidence` below `classification.min_confidence` (0.65 🔧). The LLM's `proposed_category` is log-only.
+**Status (2026-10-04):** built, [ADR-0017](adr/0017-jev-classifies-the-category.md) (Proposed): `ClassifyCategoryNode` asks Jev `category.v1`, `EngineSignals.classification` carries the answer, and `router.py` routes clarify and auto-route on Jev's choice, sending it to a human as `category_low_confidence` below `classification.min_confidence` (0.65 🔧). The LLM proposes no category (`propose.v8`).
 
 **Priority:** High · **Spec:** §8, §12.2 · **ADR:** 0017
 
@@ -364,7 +363,7 @@ The ADR is accepted. Ambiguous tickets reach `clarify` in the evals without lowe
 - A full eval run with it built, the end-to-end suite included, recorded in `evals/HISTORY.md`. The classification suite now scores Jev's choice at the real floor.
 - Re-measure on tickets `category.v1` was not written against (a held-out set or shadow data); the probe's 80/83 was measured on the set the question was tuned on.
 - Choose `classification.min_confidence` on shadow data, not the probe's 83 tickets.
-- Re-decide `category_consistent`: it is hard-coded true for every non-auto-reply proposal, so its route gate and trust feature have never compared anything.
+- ~~Re-decide `category_consistent`~~ Removed 2026-10-04: it was true for every proposal that parsed, so its route gate never fired and its trust weight moved into the intercept.
 
 ### Done when
 

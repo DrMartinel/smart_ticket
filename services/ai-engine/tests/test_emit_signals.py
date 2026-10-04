@@ -9,16 +9,13 @@ from uuid import UUID
 
 import pytest
 
-from ai_engine.schemas import AutoReplyProposal, LLMProposalEnvelope, PIILevel, RetrievalSignals
+from ai_engine.graph.nodes.infer.proposals import AutoReplyProposal, LLMProposalEnvelope
 from ai_engine.graph.state import RankedChunk
 
-from ai_engine.graph.nodes.emit_signals import emit_signals
+from ai_engine.graph.nodes.emit_signals.node import emit_signals
 
 
 def _auto_reply(kb_slug: str = "kb-a") -> LLMProposalEnvelope:
-    """An auto_reply proposal is the ONLY thing that produces a kb_slug, and
-    therefore the only state in which the policy lookup runs at all."""
-
     return LLMProposalEnvelope(
         root=AutoReplyProposal(
             proposed_intent="auto_reply",
@@ -39,36 +36,6 @@ def _chunk(chunk_id: int, score: float, slug: str = "kb-a") -> RankedChunk:
         shortlist_score=score,
         rerank_score=score,
     )
-
-
-def test_kb_policy_lookup_failure_denies_auto_reply(fake_db, make_state, use_db):
-    """A DB outage during the policy lookup must deny auto-reply, not raise.
-    This node is terminal, so raising yields no TrustSignals and core-api
-    gets a 500 instead of a ticket it can route to a human.
-    """
-
-    db = fake_db(error=RuntimeError("connection refused"))
-    use_db(db)
-    node = emit_signals
-
-    out = node(make_state(reranked=[_chunk(1, 0.9)], proposal=_auto_reply()))
-
-    assert out["signals"].policy.kb_auto_reply_allowed is False
-    assert out["signals"].policy.kb_risk_tier == "high"
-
-
-def test_missing_kb_slug_denies_without_touching_the_database(fake_db, make_state, use_db):
-    """No slug means there is nothing to look up — it must not be read as
-    "policy check passed"."""
-
-    db = fake_db(rows=[(True, "low")])
-    use_db(db)
-    node = emit_signals
-
-    out = node(make_state(reranked=[_chunk(1, 0.9)]))
-
-    assert out["signals"].policy.kb_auto_reply_allowed is False
-    assert db.events == []
 
 
 def test_docs_above_floor_uses_the_per_request_floor_from_state(fake_db, make_state, use_db):
@@ -156,15 +123,6 @@ def test_bm25_rank_is_the_one_based_position_of_the_top_article(fake_db, make_st
     assert out["signals"].retrieval.bm25_rank_of_top1 == 2
 
 
-def test_ai_engine_cannot_send_the_legacy_keyword_flag():
-    """core-api scores `legacy_flag or rank <= k`. If ai-engine ever sets the
-    legacy flag again, agreement stops depending on `k` at all. The field
-    lives only in core-api's copy (for signals stored before ADR-0013), so
-    ai-engine has nothing to set it with."""
-
-    assert "bm25_keyword_hit" not in RetrievalSignals.model_fields
-
-
 def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, use_db):
     """Refuse-before-LLM skips the validator. Absent validation must read as
     "the checks did not pass", never as "no checks were needed".
@@ -176,10 +134,8 @@ def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, u
 
     generation = node(make_state())["signals"].generation
 
-    assert generation.schema_valid is False
     assert generation.quote_source_in_topk is False
     assert generation.negation_consistent is False
-    assert generation.category_consistent is False
     assert generation.clarify_options_in_topk is False
 
 
@@ -193,41 +149,12 @@ def test_clarify_check_is_forwarded(fake_db, make_state, use_db):
     assert out["signals"].generation.clarify_options_in_topk is True
 
 
-def test_injection_verdict_is_forwarded_to_policy_signals(fake_db, make_state, use_db):
-    use_db(fake_db())
-    node = emit_signals
+def test_injection_verdict_is_forwarded(make_state):
+    """The router blocks on it (a hard gate); unforwarded, an injection would
+    be routed like any ticket."""
+    out = emit_signals(make_state(injection_detected=True))
 
-    out = node(make_state(injection_detected=True))
-
-    assert out["signals"].policy.injection_detected is True
-
-
-@pytest.mark.parametrize("level", [PIILevel.ROUTINE, PIILevel.SENSITIVE, PIILevel.CRITICAL])
-def test_pii_level_is_carried_from_the_ticket(level, fake_db, make_state, make_ticket, use_db):
-    use_db(fake_db())
-    node = emit_signals
-    ticket = make_ticket()
-    ticket = ticket.model_copy(update={"pii_level": level})
-
-    out = node(make_state(ticket=ticket))
-
-    assert out["signals"].policy.pii_level == level
-
-
-def test_policy_is_read_from_the_database_when_a_kb_slug_is_present(fake_db, make_state, use_db):
-    """Companion to the outage test: with a reachable DB the node reports the
-    KB row, so the outage test's False is attributable to the outage.
-    """
-
-    db = fake_db(rows=[(True, "low")])
-    use_db(db)
-    node = emit_signals
-
-    out = node(make_state(reranked=[_chunk(1, 0.9)], proposal=_auto_reply()))
-
-    assert db.events == ["open", "close"]
-    assert out["signals"].policy.kb_auto_reply_allowed is True
-    assert out["signals"].policy.kb_risk_tier == "low"
+    assert out["signals"].injection_detected is True
 
 
 def test_signals_are_on_jevs_scale(fake_db, make_state, use_db):
@@ -252,7 +179,7 @@ def test_jevs_category_is_forwarded(fake_db, make_state, use_db):
     """The router takes this as the ticket's category (ADR-0017). Dropped
     here, it would read as "not asked" and send every route to a human."""
 
-    from ai_engine.schemas import TicketCategory
+    from ai_engine.graph.ticket import TicketCategory
 
     use_db(fake_db())
 
@@ -275,3 +202,17 @@ def test_a_run_that_never_asked_jev_reports_no_category(fake_db, make_state, use
 
     assert out["signals"].classification.category_choice is None
     assert out["signals"].classification.category_confidence == 0.0
+
+
+def test_signals_read_nothing_outside_the_state(fake_db, make_state, use_db):
+    """The terminal node runs on every path and must not raise; a database
+    read here could (the KB authority lookup that once lived here needed a
+    deny-by-default fallback for exactly that). core-api reads the KB itself."""
+
+    db = fake_db(error=RuntimeError("connection refused"))
+    use_db(db)
+
+    out = emit_signals(make_state(reranked=[_chunk(1, 0.9)], proposal=_auto_reply()))
+
+    assert db.events == []
+    assert out["signals"].llm_self_confidence == 80.0

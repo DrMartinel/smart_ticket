@@ -49,8 +49,10 @@ usually cite the ADR or spec section that explains what breaks without it.
    possible here.
 4. **No shared contracts package (ADR-0010).** Each schema is defined in the
    module that uses it (the ADR has the table). The ai-engine wire shapes exist
-   in both services — core-api `infrastructure/dtos.py`, ai-engine
-   `schemas.py` — so change **both in the same PR**; until the cross-service
+   in both services — core-api `infrastructure/dtos.py`; in ai-engine,
+   `schemas.py` for the HTTP bodies and the graph's own `graph/ticket.py`,
+   `graph/nodes/infer/proposals.py` and `graph/nodes/emit_signals/signals.py`
+   for what they carry — so change **both in the same PR**; until the cross-service
    integration tests exist, nothing else catches drift. Never define routing or
    scoring types (`Branch`, `ReasonCode`, `TrustScore`, …) in ai-engine, and
    never put a type `router.py` needs in a Django `models.py`. After a core-api
@@ -58,7 +60,7 @@ usually cite the ADR or spec section that explains what breaks without it.
    `services/web/lib/types/generated.ts`. New fields on persisted schemas need
    a **default** so old rows still deserialize.
 5. **`proposed_` prefixes are load-bearing.** Don't strip them "for consistency."
-   The asymmetry between `draft.proposed_category` and `ticket.category` is the point.
+   The asymmetry between `proposal.proposed_intent` and `decision.branch` is the point.
 6. **`llm_self_confidence` never enters the trust score or routing** (ADR-0003).
    A test exists whose only job is to fail if someone adds it back.
 7. **`RunbookProposal` always goes to HITL** (ADR-0006). No threshold, no
@@ -154,7 +156,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Operational settings and their defaults (URLs, models, timeouts, top-k), for both services and compose | [.env.example](.env.example) |
 | The Docker stack | [docker-compose.yml](docker-compose.yml) (repo root; DB image and raw SQL in [infra/](infra/)) |
-| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [schemas.py](services/ai-engine/src/ai_engine/schemas.py) |
+| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [schemas.py](services/ai-engine/src/ai_engine/schemas.py) (HTTP bodies), [ticket.py](services/ai-engine/src/ai_engine/graph/ticket.py), [proposals.py](services/ai-engine/src/ai_engine/graph/nodes/infer/proposals.py), [signals.py](services/ai-engine/src/ai_engine/graph/nodes/emit_signals/signals.py) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
 | Prompts and Jev's questions (versioned `.md` / `.json`, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
@@ -238,7 +240,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
   (`security` 0.82, the LLM's category): retrieval recall@3 0.917 (Jev,
   ADR-0015; still missed g011, g012, g048, g055, g056, TODO item 9),
   auto-reply precision 1.00 (n=27, with the clarify branch, ADR-0016).
-  Since then `classify.v7` and ADR-0017 (Jev chooses the category) landed
+  Since then `propose.v8` (formerly `classify`) and ADR-0017 (Jev chooses the category) landed
   without a full run; the classification suite alone passes every category
   at ≥ 0.93 (2026-10-04 (6)). That suite now scores Jev's choice, which
   always names a category, so it no longer credits an `insufficient_context`
@@ -262,7 +264,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
   asks it one choice question after reranking; the router routes auto-route
   and clarify on that choice and sends it to a human below
   `classification.min_confidence` (0.65 🔧) as `category_low_confidence`.
-  The LLM's `proposed_category` is log-only. A Jev failure, reranking or
+  The LLM no longer proposes a category (`propose.v8`). A Jev failure, reranking or
   category, is a 500 → HITL `ai_engine_unavailable`, never a fallback.
 - **`clarify`** (ADR-0016, Proposed): the router can choose to ask the
   requester which shown page they mean; until the requester side exists it
@@ -281,7 +283,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | `ModuleNotFoundError: tests.*` on a whole-workspace run | core-api and ai-engine both have a package named `tests`. Handled by `--import-mode=importlib` in root `pyproject.toml` — don't remove it |
 | Every ticket `mask_failed` | ai-engine is down, or vllm-chat isn't reachable from it, or ai-engine's `CHAT_MODEL` doesn't match what it serves. **Never "fix" this by treating NER failure as no-PII-found** |
 | Submit hangs ~120s | Connect and read timeouts collapsed into one. Deliberately separate: 3s connect, 120s read (a cold model load legitimately takes 15–20s) |
-| All four generation checks ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
+| Every generation check ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
 | Unaccented Vietnamese matches nothing | Diacritic folding (`LexicalShortlister._tokenize`) regressed; `đ`/`Đ` need special handling |
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
 | `pg_search must be loaded via shared_preload_libraries`, or migrate fails at `dbextras.0003` | Postgres is the stock pgvector image, or started without the preload flag. Use compose's `db` (built from `infra/db/Dockerfile`, ADR-0013). **Never "fix" it by catching the BM25 error**: that silently makes retrieval vector-only again |

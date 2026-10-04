@@ -74,7 +74,6 @@ class ReasonCode(StrEnum):
     NEGATION_MISMATCH = "negation_mismatch"
     TRUST_BELOW_AUTO = "trust_below_auto_threshold"
     TRUST_BELOW_ROUTE = "trust_below_route_threshold"
-    CATEGORY_INCONSISTENT = "category_inconsistent"
     # Jev chose no category, or one it was unsure of (ADR-0017)
     CATEGORY_LOW_CONFIDENCE = "category_low_confidence"
     # clarify (ADR-0016)
@@ -225,7 +224,8 @@ def route(
     if signals.retrieval.rerank_top1 < th.retrieval_floor:
         return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
 
-    if proposal is None or not signals.generation.schema_valid:
+    # No proposal: the LLM's reply did not parse into one (or no LLM ran).
+    if proposal is None:
         return _hitl(ReasonCode.SCHEMA_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value)
 
     if isinstance(proposal.root, InsufficientContext):
@@ -304,8 +304,6 @@ def route(
     if isinstance(proposal.root, RouteProposal):
         if category is None:
             return _hitl(ReasonCode.CATEGORY_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value)
-        if not g.category_consistent:
-            return _hitl(ReasonCode.CATEGORY_INCONSISTENT, queue=ReviewQueue.LOW_CONFIDENCE.value)
         if trust < th.t_route:
             return _hitl(ReasonCode.TRUST_BELOW_ROUTE, queue=ReviewQueue.LOW_CONFIDENCE.value)
 

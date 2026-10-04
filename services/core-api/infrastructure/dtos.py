@@ -27,8 +27,9 @@ from apps.tickets.utils.patterns import PIILevel
 # until they exist, nothing does (ADR-0010).
 #
 # Every LLM-authored field carries a `proposed_` (or `self_`) prefix. When the
-# router reads `draft.proposed_category`, the name itself is the reminder
-# that it is a suggestion, not a decision (ADR-0001, ADR-0003). Only
+# router reads `proposal.proposed_intent`, the name itself is the reminder
+# that it is a suggestion, not a decision (ADR-0001, ADR-0003). Proposals
+# carry no category since propose.v8: Jev chooses it (ADR-0017), and only
 # router.py may write the non-prefixed `category` column on `tickets`.
 # `InsufficientContext` is a legitimate variant, not an error path: the
 # model needs a lawful way to say "I don't know", or it fabricates.
@@ -71,8 +72,6 @@ class AutoReplyProposal(BaseModel):
 
 class RouteProposal(BaseModel):
     proposed_intent: Literal["route_to_team"]
-    proposed_category: TicketCategory
-    proposed_subcategory: str | None = None
     rationale: str
     self_confidence: float = Field(ge=0, le=100)
 
@@ -81,7 +80,6 @@ class RunbookProposal(BaseModel):
     proposed_intent: Literal["runbook"]
     runbook_id: str
     draft_payload: dict[str, Any]  # NEVER executed directly
-    proposed_category: TicketCategory
     self_confidence: float = Field(ge=0, le=100)
 
 
@@ -100,7 +98,6 @@ class ClarificationProposal(BaseModel):
     # The KB slugs the answer would choose between; the validator checks
     # they were shown (GenerationSignals.clarify_options_in_topk).
     proposed_options: list[str] = Field(min_length=2)
-    proposed_category: TicketCategory
     rationale: str
 
 
@@ -129,26 +126,19 @@ class RetrievalSignals(BaseModel):
     # Jev's scores, the reranker's (ADR-0015): the scale retrieval.floor is set on.
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
-    # Where the final reranker's top article (Jev's when it runs) sits in
-    # BM25's own article ranking (1 = BM25's best), or None: not in BM25's list, nothing was
-    # reranked, or the row predates this field. A RANK, not a BM25 score:
+    # Where Jev's top article sits in BM25's own article ranking (1 = BM25's
+    # best), or None: not in BM25's list, or nothing was reranked. A RANK, not a BM25 score:
     # BM25 scores are query-dependent and mean nothing across tickets
     # (ADR-0013). The trust scorer turns it into agreement with
     # `retrieval.keyword_agreement_k` from thresholds.yaml.
     bm25_rank_of_top1: int | None = Field(default=None, ge=1)
-    # Legacy. The old "BM25 matched anything" flag, which ai-engine no longer
-    # sets. It stays, defaulted, so signals stored before ADR-0013 still
-    # deserialize and score as they did.
-    bm25_keyword_hit: bool = False
     docs_above_floor: int = Field(ge=0)
 
 
 class GenerationSignals(BaseModel):
-    schema_valid: bool
     quote_match_ratio: float = Field(ge=0, le=1)
     quote_source_in_topk: bool
     negation_consistent: bool
-    category_consistent: bool  # LLM category vs KB article category
 
     # Whether the quote checks above were applicable at all. Only an
     # AutoReplyProposal carries a verbatim quote; a route or runbook
@@ -157,11 +147,9 @@ class GenerationSignals(BaseModel):
     # are indistinguishable from a genuine validation failure — which
     # both mis-scores the ticket (see trust_scorer.extract_features) and
     # shows a reviewer two red ✗ marks for checks that never ran.
-    # Defaults True so older persisted signals deserialize unchanged.
     quote_applicable: bool = True
     # A clarify proposal's options are two or more distinct slugs of the
-    # chunks the model was shown (ADR-0016). False for every other proposal,
-    # and for rows stored before the clarify branch existed.
+    # chunks the model was shown (ADR-0016). False for every other proposal.
     clarify_options_in_topk: bool = False
 
 
@@ -177,19 +165,36 @@ class PolicySignals(BaseModel):
 
 class ClassificationSignals(BaseModel):
     """Jev's answer to the category question (ADR-0017). The router takes
-    `category_choice` as the ticket's category; the LLM's
-    `proposed_category` is log-only. No choice (None, 0.0) means Jev wasn't
+    `category_choice` as the ticket's category; the LLM proposes none
+    (propose.v8). No choice (None, 0.0) means Jev wasn't
     asked: a refusal at the injection guard, or a degraded run. The router
     sends that to a human wherever it needs a category.
 
-    No defaults, here or on `TrustSignals.classification`: no signals were
+    No defaults, here or on `EngineSignals.classification`: no signals were
     stored before ADR-0017, so every producer must say what Jev answered."""
 
     category_choice: TicketCategory | None
     category_confidence: float = Field(ge=0, le=1)
 
 
+class EngineSignals(BaseModel):
+    """What ai-engine found about one ticket: the wire shape of
+    `AIRunResponse.signals`. core-api adds what it knows itself (the PII
+    level, its own KB read, mass incidents) to build `TrustSignals`
+    (`apps/tickets/utils/pipeline.py::trust_signals`)."""
+
+    retrieval: RetrievalSignals
+    generation: GenerationSignals
+    classification: ClassificationSignals
+    injection_detected: bool
+    llm_self_confidence: float | None = None  # log-only, never used to route
+
+
 class TrustSignals(BaseModel):
+    """Everything the router and the trust scorer read about one run, and
+    what `ai_runs.trust_signals` stores. Built by core-api: ai-engine's
+    findings plus `policy`, which is core-api's own."""
+
     retrieval: RetrievalSignals
     generation: GenerationSignals
     policy: PolicySignals
@@ -206,7 +211,7 @@ class AIRunRequest(BaseModel):
     ticket: TicketMasked
     # thresholds.yaml `retrieval.floor`, on Jev's scale (ADR-0015).
     retrieval_floor: float = Field(ge=0, le=1)
-    prompt_version: str = "classify.v7"
+    prompt_version: str = "propose.v8"
 
 
 class AIRunResponse(BaseModel):
@@ -215,7 +220,7 @@ class AIRunResponse(BaseModel):
     prompt_version: str
     model: str
     proposal: LLMProposalEnvelope | None
-    signals: TrustSignals
+    signals: EngineSignals
     retrieved_chunks: list[dict[str, Any]] = []
     tokens_in: int = 0
     tokens_out: int = 0

@@ -1,164 +1,25 @@
 """
-ai-engine's wire contract: the bodies of POST /v1/analyze, /v1/embed and
-/v1/pii/detect. Mirrored in core-api's infrastructure/dtos.py, with no shared
-package: change both in the same PR (ADR-0010). The graph's own state is in
-graph/state.py.
+ai-engine's HTTP bodies: the requests and responses of POST /v1/analyze,
+/v1/embed and /v1/pii/detect, and nothing else. What they carry is the
+graph's: the ticket (graph/ticket.py), the proposal
+(graph/nodes/infer/proposals.py) and the signals
+(graph/nodes/emit_signals/signals.py). The graph never imports this module.
+Mirrored in core-api's infrastructure/dtos.py, with no shared package:
+change both in the same PR (ADR-0010).
 """
 
 from __future__ import annotations
 
+from typing import Any
 
-from enum import StrEnum
-from typing import Annotated, Any, Literal
+from pydantic import BaseModel, Field
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel
+from ai_engine.graph.nodes.emit_signals.signals import EngineSignals
+from ai_engine.graph.nodes.infer.proposals import LLMProposalEnvelope
+from ai_engine.graph.ticket import TicketMasked
 
 
 # --- POST /v1/analyze (spec §6) ------------------------------------------
-# No Branch, ReasonCode or TrustScore
-# here: ai-engine decides and scores nothing (ADR-0001, ADR-0003).
-# LLM-authored fields are prefixed `proposed_`/`self_`: suggestions, not
-# decisions.
-
-
-class PIILevel(StrEnum):
-    ROUTINE = "routine"  # proceeds
-    SENSITIVE = "sensitive"  # proceeds, flagged
-    CRITICAL = "critical"  # BLOCK
-    MASK_FAILED = "mask_failed"  # HITL
-
-
-class TicketCategory(StrEnum):
-    HARDWARE = "hardware"
-    SOFTWARE = "software"
-    NETWORK = "network"
-    ACCESS = "access"
-    SECURITY = "security"
-    OTHER = "other"
-
-
-class TicketMasked(BaseModel):
-    """The only ticket data that enters ai-engine. Frozen: masked content is
-    never edited downstream. `placeholder_keys` are keys only, never values."""
-
-    model_config = ConfigDict(frozen=True)
-
-    ticket_public_id: str
-    subject_masked: str
-    body_masked: str
-    pii_level: PIILevel
-    placeholder_keys: list[str] = Field(default_factory=list)
-
-
-class AutoReplyProposal(BaseModel):
-    proposed_intent: Literal["auto_reply"]
-    kb_slug: str
-    verbatim_quote: str = Field(min_length=10, max_length=500)
-    answer_draft: str
-    self_confidence: float = Field(ge=0, le=100)  # log-only, never routes (ADR-0003)
-
-
-class RouteProposal(BaseModel):
-    proposed_intent: Literal["route_to_team"]
-    proposed_category: TicketCategory
-    proposed_subcategory: str | None = None
-    rationale: str
-    self_confidence: float = Field(ge=0, le=100)
-
-
-class RunbookProposal(BaseModel):
-    proposed_intent: Literal["runbook"]
-    runbook_id: str
-    draft_payload: dict[str, Any]  # never executed directly (ADR-0006)
-    proposed_category: TicketCategory
-    self_confidence: float = Field(ge=0, le=100)
-
-
-class InsufficientContext(BaseModel):
-    proposed_intent: Literal["insufficient_context"]
-    missing_information: str
-
-
-class ClarificationProposal(BaseModel):
-    """Several shown KB pages answer different readings of the ticket, and it
-    doesn't say which (ADR-0016). A question for the requester, never an
-    answer: core-api's router decides whether it is asked."""
-
-    proposed_intent: Literal["clarify"]
-    proposed_question: str = Field(min_length=10, max_length=300)
-    proposed_options: list[str] = Field(min_length=2)
-    proposed_category: TicketCategory
-    rationale: str
-
-
-LLMProposal = Annotated[
-    AutoReplyProposal
-    | RouteProposal
-    | RunbookProposal
-    | InsufficientContext
-    | ClarificationProposal,
-    Field(discriminator="proposed_intent"),
-]
-
-
-class LLMProposalEnvelope(RootModel[LLMProposal]):
-    """The LLM's output is the union itself; `.root` is the narrowed variant."""
-
-    root: LLMProposal
-
-
-class RetrievalSignals(BaseModel):
-    rerank_top1: float = Field(ge=0, le=1)
-    rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
-    bm25_rank_of_top1: int | None = Field(default=None, ge=1)
-    docs_above_floor: int = Field(ge=0)
-
-
-class GenerationSignals(BaseModel):
-    schema_valid: bool
-    quote_match_ratio: float = Field(ge=0, le=1)
-    quote_source_in_topk: bool
-    negation_consistent: bool
-    category_consistent: bool  # LLM category vs KB article category
-    # False for route/runbook proposals, which have no quote: their zeroed
-    # quote checks must not read as failures. Defaulted for older rows.
-    quote_applicable: bool = True
-    # A clarify proposal's options are two or more distinct slugs of the
-    # chunks the model was shown (ADR-0016). False for every other proposal,
-    # and for rows stored before the clarify branch existed.
-    clarify_options_in_topk: bool = False
-
-
-class PolicySignals(BaseModel):
-    """Hard gates, deliberately NOT part of the trust score."""
-
-    kb_auto_reply_allowed: bool
-    kb_risk_tier: str
-    pii_level: PIILevel
-    injection_detected: bool
-    mass_incident: bool
-
-
-class ClassificationSignals(BaseModel):
-    """Jev's answer to the category question (ADR-0017). The router takes
-    `category_choice` as the ticket's category; the LLM's
-    `proposed_category` is log-only. No choice (None, 0.0) means Jev wasn't
-    asked: a refusal at the injection guard, or a degraded run. The router
-    sends that to a human wherever it needs a category.
-
-    No defaults, here or on `TrustSignals.classification`: no signals were
-    stored before ADR-0017, so every producer must say what Jev answered."""
-
-    category_choice: TicketCategory | None
-    category_confidence: float = Field(ge=0, le=1)
-
-
-class TrustSignals(BaseModel):
-    retrieval: RetrievalSignals
-    generation: GenerationSignals
-    policy: PolicySignals
-    classification: ClassificationSignals
-    llm_self_confidence: float | None = None  # log-only, never routes (ADR-0003)
 
 
 class AIRunRequest(BaseModel):
@@ -167,9 +28,8 @@ class AIRunRequest(BaseModel):
 
     request_id: str
     ticket: TicketMasked
-    # On Jev's scale, compared only with `rerank_score` (ADR-0005, ADR-0015).
     retrieval_floor: float = Field(ge=0, le=1)
-    prompt_version: str = "classify.v7"
+    prompt_version: str = "propose.v8"
 
 
 class AIRunResponse(BaseModel):
@@ -178,7 +38,7 @@ class AIRunResponse(BaseModel):
     prompt_version: str
     model: str
     proposal: LLMProposalEnvelope | None
-    signals: TrustSignals
+    signals: EngineSignals
     retrieved_chunks: list[dict[str, Any]] = []
     tokens_in: int = 0
     tokens_out: int = 0
@@ -197,7 +57,7 @@ class EmbedRequest(BaseModel):
 
 class EmbedResponse(BaseModel):
     vector: list[float]
-    model: str  # stored with the vector, so EMBED_MODEL needs no second copy
+    model: str
 
 
 class PiiDetectRequest(BaseModel):

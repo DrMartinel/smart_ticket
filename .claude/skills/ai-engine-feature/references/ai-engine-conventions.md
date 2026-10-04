@@ -15,8 +15,8 @@ disagrees with the code, the code wins; fix the doc.
 src/ai_engine/
   main.py          HTTP routes only. POST /v1/analyze: invoke the graph, shape the
                    response; POST /v1/embed, /v1/pii/detect: core-api's model calls (ADR-0012)
-  schemas.py       the wire contract, mirrored in core-api's dtos.py (ADR-0010).
-                   Imports nothing else from ai_engine
+  schemas.py       the HTTP bodies only (AIRunRequest/Response, embed, pii-detect),
+                   built from graph types; mirrored in core-api's dtos.py (ADR-0010)
   core/            infrastructure. Never imports graph/, schemas.py or main.py
     config.py      Settings: types only; values in the repo root's .env.example
     providers/     the providers more than one caller shares:
@@ -25,9 +25,10 @@ src/ai_engine/
                    clients.py (VLLMClient + JevClient on HttpClient, ChatClient + vllm_chat/openai_chat, and the chat/embed/rerank/ner/jev clients),
                    dtos.py (the request and reply shapes of the model servers)
     db/            client.py (the `db` singleton), tables.py (3 read-only tables, EMBED_DIM)
-    prompts/       <name>.v<N>.md; __init__.py loads each at import (CLASSIFY_PROMPT, ...)
-  graph/           the triage pipeline. Never imports main.py
+    prompts/       <name>.v<N>.md; __init__.py loads each at import (PROPOSE_PROMPT, ...)
+  graph/           the triage pipeline. Never imports main.py or schemas.py
     state.py       TriageState + the value types stored in it (Candidate, RankedChunk)
+    ticket.py      TicketMasked, PIILevel, TicketCategory: the ticket as it enters
     build/         generic, triage-agnostic graph machinery:
       node.py      BaseNode, SingleExit, Terminal
       edge.py      Edge: one route (source, outcome, target)
@@ -50,8 +51,10 @@ The layering is enforced by `tests/test_boundary.py`.
 
 A value type that sits in `TriageState` lives in `graph/state.py`, even if only
 one node produces it (`RankedChunk`, `Candidate`), so every node and the
-builder can import it. A type that crosses the HTTP boundary goes in
-`schemas.py` instead.
+builder can import it. A node's own output types sit beside it in its folder
+(`infer/proposals.py`, `emit_signals/signals.py`); the ticket's in
+`graph/ticket.py`. `schemas.py` holds only the HTTP bodies that carry them,
+and the graph never imports it (`tests/test_boundary.py`).
 
 ## The node contract
 
@@ -82,7 +85,7 @@ A node owns exactly four things: its **name** (derived from the class), its
 
 Exemplars: `graph/nodes/classify_category/node.py` (branching), `graph/nodes/injection.py`
 (branching, pure CPU), `graph/nodes/retrieve/node.py` (single-exit, providers),
-`graph/nodes/infer.py` (boot-time `__init__`, LLM failure).
+`graph/nodes/infer/node.py` (boot-time `__init__`, LLM failure).
 
 ## Providers: singletons, used directly
 
@@ -113,8 +116,8 @@ provider, or fail in confusing ways.
   arrives in `AIRunRequest` and is read **from state**.
 - A limit is not a threshold. `fusion_candidate_limit` slices a list ordered by RRF,
   and that's fine. Comparing an RRF *score* against a number is not (ADR-0005).
-- Safety fallbacks are **never** settings (the `(False, "high")` deny fallback of
-  the KB-policy lookup in `EmitSignalsNode`). Properties of a model or schema are commented constants
+- Safety fallbacks are **never** settings (the validation checks' "failed"
+  defaults in `TriageState`). Properties of a model or schema are commented constants
   (`EMBED_DIM`). Lexicons stay in code (`NEGATIONS`, `PATTERNS`).
 
 ## Failure semantics
@@ -126,8 +129,7 @@ dashboard can count. There are three shapes, and new code picks one on purpose:
 |---|---|---|---|
 | Infrastructure the node needs is down (DB, embedder, reranker) | **let it raise** | graph aborts → 500 → core-api `ai_engine_unavailable` → HITL | `HybridRetrieveNode`, `RerankNode` |
 | A failure the graph should carry forward and name | return `degraded_reason="<ReasonCode value>"`, leave outputs at safe defaults | `emit_signals` still runs; core-api maps the reason in `apps/tickets/utils/pipeline.py` | `InferNode` on `AllLLMDownError` → `"all_llm_down"` |
-| Bad model output | not an exception: `proposal=None` | `validate` records `schema_valid=False` → HITL | `InferNode` JSON/schema failure |
-| A best-effort, log-only lookup | catch broadly, return the **deny** value | signals are still emitted | the KB-policy lookup in `EmitSignalsNode` |
+| Bad model output | not an exception: `proposal=None` | core-api sees no proposal → HITL as `schema_invalid` | `InferNode` JSON/schema failure |
 
 What the node must **never** do: turn an infrastructure failure into an empty or
 "clean" result, such as `[]` candidates, a zero vector, or checks marked as passed.

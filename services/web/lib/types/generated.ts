@@ -17,7 +17,7 @@ export type UserRole = "employee" | "technician" | "manager" | "security";
 
 export type RiskTier = "low" | "medium" | "high";
 
-export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_inconsistent" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
+export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
 
 export interface TicketIn {
   subject: string;
@@ -43,8 +43,6 @@ export interface AutoReplyProposal {
 
 export interface RouteProposal {
   proposed_intent: "route_to_team";
-  proposed_category: TicketCategory;
-  proposed_subcategory?: string | null;
   rationale: string;
   self_confidence: number;
 }
@@ -53,7 +51,6 @@ export interface RunbookProposal {
   proposed_intent: "runbook";
   runbook_id: string;
   draft_payload: Record<string, unknown>;
-  proposed_category: TicketCategory;
   self_confidence: number;
 }
 
@@ -66,16 +63,13 @@ export interface RetrievalSignals {
   rerank_top1: number;
   rerank_margin: number;
   bm25_rank_of_top1?: number | null;
-  bm25_keyword_hit?: boolean;
   docs_above_floor: number;
 }
 
 export interface GenerationSignals {
-  schema_valid: boolean;
   quote_match_ratio: number;
   quote_source_in_topk: boolean;
   negation_consistent: boolean;
-  category_consistent: boolean;
   quote_applicable?: boolean;
   clarify_options_in_topk?: boolean;
 }
@@ -91,6 +85,14 @@ export interface PolicySignals {
 export interface ClassificationSignals {
   category_choice: TicketCategory | null;
   category_confidence: number;
+}
+
+export interface EngineSignals {
+  retrieval: RetrievalSignals;
+  generation: GenerationSignals;
+  classification: ClassificationSignals;
+  injection_detected: boolean;
+  llm_self_confidence?: number | null;
 }
 
 export interface TrustSignals {
@@ -142,7 +144,7 @@ export interface AIRunResponse {
   prompt_version: string;
   model: string;
   proposal: LLMProposalEnvelope | null;
-  signals: TrustSignals;
+  signals: EngineSignals;
   retrieved_chunks?: Record<string, unknown>[];
   tokens_in?: number;
   tokens_out?: number;

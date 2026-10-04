@@ -6,7 +6,7 @@ text, no DB/LLM/network involved, so this suite always runs, unlike the
 live-pipeline suites.
 """
 
-from ai_engine.schemas import PIILevel, TicketMasked
+from ai_engine.graph.ticket import PIILevel, TicketMasked
 from ai_engine.graph.state import TriageState
 from ai_engine.graph.nodes.injection import injection
 

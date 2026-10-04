@@ -6,7 +6,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 ## The core distinction
 
-**Proposal** — what the LLM produces. Never authoritative. Every LLM-authored field is prefixed `proposed_` (`proposed_intent`, `proposed_category`) so that at the point of use, the type itself reminds you this is a suggestion.
+**Proposal** — what the LLM produces. Never authoritative. Every LLM-authored field is prefixed `proposed_` (`proposed_intent`, `proposed_question`) so that at the point of use, the type itself reminds you this is a suggestion.
 
 **Decision** — what `router.py` produces. Deterministic, testable, and the only thing that causes anything to happen. Expressed as a `Branch`.
 
@@ -74,7 +74,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Jev** — TypeSafe's hosted System One model, the one model outside the deployment (ADR-0015). It answers structured questions about a JSON state: a **noul** (the probability a statement is true), a **score** (a position on ordered levels) or a **choice** (one option of several, with a probability each and a confidence). It receives only masked ticket text and KB text. ai-engine asks it two things:
 - **the reranker**: one noul per shortlisted chunk, "does this passage tell the user how to fix the problem?" Its answer is `rerank_score`, the score `retrieval.floor` and the trust signals read. Its order is final; the top 3 go on.
-- **the category**: one choice among the six categories, given the ticket and the title of the page that answers it (ADR-0017). The router routes on it; the LLM's `proposed_category` is log-only.
+- **the category**: one choice among the six categories, given the ticket and the title of the page that answers it (ADR-0017). The router routes on it; the LLM proposes no category (`propose.v8`).
 
 **Category confidence** — Jev's confidence in its category choice, low when its probability is spread over several categories. Below `classification.min_confidence` (0.65) a route or clarify goes to a human as `category_low_confidence`.
 

@@ -6,13 +6,13 @@ noticing. The eval gate is the test that catches it.
 
 Open these before writing: the current prompt in `core/prompts/` (the file
 `settings.prompt_version` points at), `core/prompts/__init__.py`, `core/config.py`,
-and the wire schema in both services: `schemas.py` here and
+and the wire schema in both services: `graph/nodes/infer/proposals.py` (and `schemas.py`) here and
 `services/core-api/infrastructure/dtos.py`.
 
 **Every prompt is loaded once, at import.** `core/prompts/__init__.py` reads each
 file its `*_PROMPT_VERSION` setting names and exposes it as a module constant:
-`CLASSIFY_PROMPT`, `PII_NER_PROMPT`, `RERANK_QUESTION`. Code that sends a prompt
-imports the constant (`from ai_engine.core.prompts import CLASSIFY_PROMPT`) and
+`PROPOSE_PROMPT`, `PII_NER_PROMPT`, `RERANK_QUESTION`. Code that sends a prompt
+imports the constant (`from ai_engine.core.prompts import PROPOSE_PROMPT`) and
 uses it as is. It never calls a loader or stores its own copy. A missing or
 malformed file fails the boot, not the first ticket. A **new** prompt gets a
 `<NAME>_PROMPT_VERSION` setting (settings code, `.env.example` and compose, see
@@ -31,7 +31,7 @@ CLAUDE.md) and one constant line at the bottom of `__init__.py`.
      `infrastructure/dtos.py`); change both.
 
    ⚠️ `main.py` reports `req.prompt_version` in the response, but `InferNode` sends
-   `CLASSIFY_PROMPT`, loaded from `settings.prompt_version`. If the two differ,
+   `PROPOSE_PROMPT`, loaded from `settings.prompt_version`. If the two differ,
    `ai_runs` records the wrong prompt.
    Keeping them equal is currently the only guard.
 3. **Keep the prompt within its authority.** A prompt may ask for a proposal. It

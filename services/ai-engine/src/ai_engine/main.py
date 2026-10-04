@@ -68,12 +68,8 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
         retrieval_floor=req.retrieval_floor,
     )
 
-    # invoke() returns a plain dict; re-validating gives typed access and the
-    # field defaults for anything no node set.
     final_state = TriageState.model_validate(triage_graph.invoke(initial_state))
 
-    # EmitSignalsNode is on every path (graph/build.py), so this means miswiring.
-    # Raising gives core-api a 500, which it sends to a human.
     if final_state.signals is None:
         raise RuntimeError("triage graph finished without emitting signals")
 

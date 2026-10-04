@@ -58,8 +58,8 @@ def _check_version(version: str) -> None:
 
 # --- The prompts --------------------------------------------------------------
 
-# InferNode's system prompt, the triage classification.
-CLASSIFY_PROMPT = load_system_prompt(settings.prompt_version)
+# InferNode's system prompt: the LLM proposes what to do with the ticket.
+PROPOSE_PROMPT = load_system_prompt(settings.prompt_version)
 # Tier-2 PII NER's system prompt (ADR-0012).
 PII_NER_PROMPT = load_system_prompt(settings.pii_ner_prompt_version)
 # The question Jev answers per chunk (ADR-0015).

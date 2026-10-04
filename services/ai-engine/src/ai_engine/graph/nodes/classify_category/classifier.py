@@ -1,8 +1,7 @@
 """
 The category classifier (ADR-0017), ClassifyCategoryNode's provider: Jev
 answers one choice question per ticket, which of the six categories it is.
-Its choice is the ticket's category; the LLM's `proposed_category` is
-log-only.
+Its choice is the ticket's category; the LLM proposes none (propose.v8).
 
 The state is the masked ticket and, when the ticket has one, the title of
 the KB page that answers it. Never the page's text: how to fix a problem
@@ -16,7 +15,7 @@ from typing import Any, NamedTuple
 
 from ai_engine.core.prompts import CATEGORY_QUESTION
 from ai_engine.core.providers import clients
-from ai_engine.schemas import TicketCategory
+from ai_engine.graph.ticket import TicketCategory
 
 # The key the question and its answer travel under. Not sent to the model.
 _QUESTION_ID = "category"

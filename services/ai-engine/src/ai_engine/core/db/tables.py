@@ -44,10 +44,6 @@ class KbArticle(Base):
     # `source_url`, and Jev sees the title with each passage (ADR-0015).
     title: Mapped[str]
     source_url: Mapped[str | None]
-    # Read for the log-only `TrustSignals.policy` block. The authoritative
-    # auto-reply check is core-api's (ADR-0002), never this read.
-    auto_reply_allowed: Mapped[bool]
-    risk_tier: Mapped[str]
     is_active: Mapped[bool]
 
 

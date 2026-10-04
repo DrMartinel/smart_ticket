@@ -52,9 +52,9 @@ describes patterns, and the code shows the current version of them. At a minimum
 
 - `services/ai-engine/src/ai_engine/graph/nodes/classify_category/node.py`: branching node
 - `services/ai-engine/src/ai_engine/graph/nodes/retrieve/node.py`: single-exit node that uses providers
-- `services/ai-engine/src/ai_engine/graph/nodes/emit_signals.py`: best-effort, deny-by-default
+- `services/ai-engine/src/ai_engine/graph/nodes/emit_signals/node.py`: terminal, reads only the state, "not run" reads as failed
 - `services/ai-engine/src/ai_engine/graph/triage.py`: the route list at the bottom
-- `services/ai-engine/src/ai_engine/graph/state.py`, `services/ai-engine/src/ai_engine/schemas.py` and `services/ai-engine/tests/conftest.py`
+- `services/ai-engine/src/ai_engine/graph/state.py`, `graph/ticket.py`, `graph/nodes/infer/proposals.py`, `graph/nodes/emit_signals/signals.py`, `services/ai-engine/src/ai_engine/schemas.py` and `services/ai-engine/tests/conftest.py`
 
 Look for existing helpers you can reuse before writing new ones.
 

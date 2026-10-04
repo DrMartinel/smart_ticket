@@ -5,9 +5,9 @@ it reaches core-api through the wire schema, which each service defines itself
 (ADR-0010). This recipe is for a new
 `TrustSignals` field, a new `AIRunResponse` field, or a new failure reason.
 
-Open these before writing: `schemas.py` (ai-engine's wire schema),
+Open these before writing: `graph/nodes/emit_signals/signals.py` (ai-engine's signal types), `schemas.py` (the HTTP bodies),
 `services/core-api/infrastructure/dtos.py` (core-api's),
-`services/core-api/apps/tickets/utils/router.py` (`ReasonCode`), `graph/nodes/emit_signals.py`, `main.py`,
+`services/core-api/apps/tickets/utils/router.py` (`ReasonCode`), `graph/nodes/emit_signals/node.py`, `main.py`,
 `services/core-api/apps/tickets/utils/pipeline.py`,
 `services/core-api/apps/tickets/utils/trust_scorer.py`, and `router.py`.
 
@@ -27,7 +27,8 @@ Do the steps in this order. Each one compiles on top of the one before.
    ```
 3. **ai-engine state and producer.** Add the state field under its producing node,
    and set it in that node (see `node.md`).
-4. **Forward it.** `EmitSignalsNode.__call__` builds `TrustSignals`, so copy the state
+4. **Forward it.** `EmitSignalsNode.__call__` builds `EngineSignals` (the wire shape;
+   core-api turns it into `TrustSignals` in `pipeline.trust_signals`), so copy the state
    field in there. If the field belongs on `AIRunResponse` instead, set it in
    `main.py`'s `analyze`.
 5. **core-api consumer.** Choose **one**:
@@ -58,9 +59,9 @@ Do the steps in this order. Each one compiles on top of the one before.
 
 - `llm_self_confidence` never becomes a feature, a gate, or a tiebreaker (ADR-0003).
   Its tests will fail if it does.
-- `TrustSignals.policy` from ai-engine is **informational**. The auto-reply authority
-  check is core-api's own KB read (ADR-0002). Don't make routing depend on
-  ai-engine's policy block.
+- `TrustSignals.policy` is core-api's own: ai-engine sends only `injection_detected`,
+  and core-api adds the PII level, the KB authority (its own read, ADR-0002) and
+  mass incidents. Don't add policy that core-api already knows to `EngineSignals`.
 - A refuse-before-LLM run never reaches `validate`. Make sure the new field's default
   is honest for that path, and check it with `make_state()` and no overrides.
 

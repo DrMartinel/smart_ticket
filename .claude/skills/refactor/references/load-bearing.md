@@ -17,7 +17,7 @@ Format: **what** — why it exists — *what guards it*.
 ## Repo-wide
 
 - **`proposed_` prefixes on LLM-authored fields.** The asymmetry between
-  `draft.proposed_category` and `ticket.category` is the point. *CLAUDE.md rule 5.*
+  `proposal.proposed_intent` and `decision.branch` is the point. *CLAUDE.md rule 5.*
 - **`router.py` pure, with thresholds passed in as a parameter.** No I/O, no global
   config, no default arguments. *ADR-0001; `services/core-api/apps/tickets/tests/test_router.py`
   (`test_route_is_deterministic_pure_function`).*
@@ -88,16 +88,16 @@ Format: **what** — why it exists — *what guards it*.
   another node with the same value compares equal.
   *`test_compiler.py::test_equal_valued_outcome_from_another_enum_raises`.*
 - **Validation-field defaults read "failed"**, and **every `ValidateNode` exit
-  returns all six checks.** `emit_signals` must never report checks that nobody ran
+  returns all five checks.** `emit_signals` must never report checks that nobody ran
   as passing, and a check an exit leaves out silently reads as failed (on a route
   proposal that lowers trust). *`test_state.py::test_missing_validation_reads_as_every_check_failed`;
   the whole-update assertions in `test_validate.py`, one per exit.*
-- **The KB-policy lookup in `EmitSignalsNode` falls back to `(False, "high")`, a
-  literal, not a setting.** No configuration may turn a failed lookup into
-  "auto-reply allowed". *`test_emit_signals.py::test_kb_policy_lookup_failure_denies_auto_reply`.*
-- **`db.first()` stays inside the `try` of the KB-policy lookup in `EmitSignalsNode`.**
-  A DB outage there must deny by default and not 500 the terminal node.
-  *`test_emit_signals.py::test_kb_policy_lookup_failure_denies_auto_reply`.*
+- **No KB page means `(False, "high")` in `pipeline.trust_signals`, a literal,
+  not a setting.** No configuration may turn a missing page into "auto-reply
+  allowed". *`apps/tickets/tests/test_trust_signals.py::test_no_kb_page_denies_auto_reply`.*
+- **`EmitSignalsNode` reads nothing outside the state.** It runs on every path
+  and must not raise; the KB authority is core-api's own read (ADR-0002).
+  *`test_emit_signals.py::test_signals_read_nothing_outside_the_state`.*
 - **`Candidate` carries no score.** RRF is derived from rank, so nothing may
   threshold on it. *ADR-0005; `graph/nodes/retrieve/fusion.py` docstring.*
 - **`RerankNode` sorts by Jev's score before truncating.**

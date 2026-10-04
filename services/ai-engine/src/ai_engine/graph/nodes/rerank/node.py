@@ -28,8 +28,6 @@ class RerankNode(BaseNode):
             return {"reranked": []}
 
         titles = article_titles(list({r.article_id for r in shortlist}))
-        # A Jev failure raises: falling back to the cross-encoder's order
-        # would put its scores against a floor set for Jev's.
         scores = reranker.score(
             state.ticket.subject_masked,
             state.ticket.body_masked,
@@ -38,8 +36,6 @@ class RerankNode(BaseNode):
         if len(scores) != len(shortlist):
             raise ValueError(f"Jev returned {len(scores)} scores for {len(shortlist)}")
 
-        # Jev's score goes beside the cross-encoder's, which stays. Stable:
-        # ties keep the cross-encoder's order.
         ranked = sorted(zip(scores, shortlist, strict=True), key=lambda p: p[0], reverse=True)
         rescored = [r.model_copy(update={"rerank_score": s}) for s, r in ranked]
         return {"reranked": rescored[: settings.rerank_top_n]}

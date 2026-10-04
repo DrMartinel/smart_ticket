@@ -47,7 +47,14 @@ The wire types (`AIRunRequest`, `AIRunResponse` and everything nested in them,
 plus `PIILevel` and `TicketCategory`) live in `schemas.py`, which imports
 nothing else from ai-engine; the graph's state (`graph/state.py`) builds on
 them. Putting them in `main.py` would create an import cycle, since the graph
-needs them and `main.py` imports the graph. ai-engine defines no `Branch`,
+needs them and `main.py` imports the graph.
+
+*Amended 2026-10-04:* the nested types moved into the graph that produces
+them: the ticket into `graph/ticket.py`, the proposals into
+`graph/nodes/infer/proposals.py`, the signals into
+`graph/nodes/emit_signals/signals.py`. `schemas.py` keeps only the HTTP
+bodies and imports those; the graph never imports `schemas.py`
+(`tests/test_boundary.py`). core-api's `dtos.py` still mirrors every shape. ai-engine defines no `Branch`,
 `ReasonCode`, `RoutingDecision` or `TrustScore`: it has no authority to route
 (ADR-0001) or to score itself (ADR-0003).
 

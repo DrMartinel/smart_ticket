@@ -73,7 +73,7 @@ memory`. Measured on an RTX 3060 (12 GiB):
   4096 in your `.env` (or give chat more of the card).
 - Below about 0.56 the weights (5.7 GiB) leave too little KV cache for 4096
   tokens, and 0.62 has frozen the host once. 0.6 is the working value.
-- A classify call whose prompt and chunks overflow the context fails as
+- A propose (LLM) call whose prompt and chunks overflow the context fails as
   `all_llm_down`, not as malformed output.
 
 Start them **one at a time**. Each measures free memory when it starts, so
@@ -168,8 +168,8 @@ negation_mismatch
 
 RETRIEVAL     rerank top1 0.75 · margin 0.42 · 1 doc above floor
 CATEGORY      access ████████░░ 0.94
-GENERATION    ✓ schema valid  ✓ quote in top-k
-              ✗ negation consistent  ✓ category consistent  quote match 100%
+GENERATION    ✓ quote in top-k
+              ✗ negation consistent  quote match 100%
 POLICY        ✓ KB auto-reply allowed · risk low · PII routine
 ```
 
@@ -240,7 +240,7 @@ You are ready to work on this when you can answer:
 | Every ticket is `mask_failed` | ai-engine is down, or vllm-chat is not running or not reachable from it | Step 2 |
 | Every ticket past the injection guard is `ai_engine_unavailable` | Jev unreachable: no `JEV_API_KEY`, or its API is failing (ai-engine logs the error) | Step 3 |
 | Submit hangs ~120s | Connect and read timeouts collapsed into one | Step 2; confirm `MODEL_CONNECT_TIMEOUT_SEC=3` |
-| All four generation checks show ✗ | No LLM ran — read the reason code above the panel | Usually vLLM not running |
+| Every generation check shows ✗ | No LLM ran — read the reason code above the panel | Usually vLLM not running |
 | Vietnamese ticket matches nothing | Was a real bug (diacritics); fixed. If it recurs, check `LexicalShortlister._tokenize` | — |
 | Port 5432/6379 conflict | You are looking at the wrong ports | Use **5434** / **6380** |
 | `core-api` exits on boot | `thresholds.yaml` unreadable or malformed | It is parsed into a Pydantic model at boot, on purpose — read the traceback |

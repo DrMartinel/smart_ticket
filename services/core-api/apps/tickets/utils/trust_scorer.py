@@ -36,7 +36,6 @@ FEATURES = [
     "quote_match_ratio",
     "quote_source_in_topk",
     "negation_consistent",
-    "category_consistent",
 ]
 # CHÚ Ý: llm_self_confidence is NOT in this list. On purpose. See ADR-0003.
 
@@ -67,17 +66,11 @@ QUOTE_FEATURES = ("quote_match_ratio", "quote_source_in_topk")
 
 
 def keyword_agreement(signals: TrustSignals, keyword_agreement_k: int) -> bool:
-    """The `bm25_keyword_hit` feature (ADR-0013): BM25 put the cross-encoder's
-    top article within its own top `k` articles. Two independent channels
-    choosing the same page corroborates the answer the model will quote.
-
-    The legacy flag is OR-ed in for signals stored before ADR-0013, which
-    carry no rank. ai-engine never sets it any more, so on new signals only
-    the rank counts.
-    """
-    r = signals.retrieval
-    rank = r.bm25_rank_of_top1
-    return r.bm25_keyword_hit or (rank is not None and rank <= keyword_agreement_k)
+    """The `bm25_keyword_hit` feature (ADR-0013): BM25 put Jev's top article
+    within its own top `k` articles. Two independent channels choosing the
+    same page corroborates the answer the model will quote."""
+    rank = signals.retrieval.bm25_rank_of_top1
+    return rank is not None and rank <= keyword_agreement_k
 
 
 def extract_features(signals: TrustSignals, keyword_agreement_k: int) -> dict[str, float]:
@@ -90,7 +83,6 @@ def extract_features(signals: TrustSignals, keyword_agreement_k: int) -> dict[st
         "quote_match_ratio": g.quote_match_ratio,
         "quote_source_in_topk": 1.0 if g.quote_source_in_topk else 0.0,
         "negation_consistent": 1.0 if g.negation_consistent else 0.0,
-        "category_consistent": 1.0 if g.category_consistent else 0.0,
     }
 
 

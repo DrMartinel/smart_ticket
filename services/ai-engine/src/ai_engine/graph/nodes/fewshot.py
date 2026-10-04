@@ -14,15 +14,14 @@ from ai_engine.core.config import settings
 from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import FewshotExample
 from ai_engine.graph.build.node import BaseNode
-from ai_engine.core.providers.embeddings import embedder
 from ai_engine.graph.state import TriageState
 
 
 class SelectFewshotsNode(BaseNode):
     def __call__(self, state: TriageState) -> dict[str, Any]:
-        ticket = state.ticket
-        query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
-        embedding = embedder.embed(query)
+        # The embedding HybridRetrieveNode made of the same ticket text: one
+        # embed call per ticket, not two.
+        embedding = state.query_embedding
 
         # Retracted (source ticket reopened, so its label is suspect) and
         # expired examples are not in the pool: the model would learn from them.

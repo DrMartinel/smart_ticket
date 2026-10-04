@@ -29,9 +29,9 @@ from ai_engine.graph.state import TriageState
 from ai_engine.graph.build.builder import GraphBuilder
 from ai_engine.graph.nodes.candidate_pool.node import candidate_pool
 from ai_engine.graph.nodes.classify_category.node import ClassifyCategoryOutcome, classify_category
-from ai_engine.graph.nodes.emit_signals import emit_signals
+from ai_engine.graph.nodes.emit_signals.node import emit_signals
 from ai_engine.graph.nodes.fewshot import select_fewshots
-from ai_engine.graph.nodes.infer import infer
+from ai_engine.graph.nodes.infer.node import infer
 from ai_engine.graph.nodes.injection import InjectionOutcome, injection
 from ai_engine.graph.nodes.rerank.node import rerank
 from ai_engine.graph.nodes.retrieve.node import hybrid_retrieve
@@ -47,7 +47,6 @@ _triage.route(candidate_pool, SingleExit.DONE, rerank)
 
 _triage.route(rerank, SingleExit.DONE, classify_category)
 
-# refuse-before-LLM
 _triage.route(classify_category, ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR, emit_signals)
 _triage.route(classify_category, ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR, select_fewshots)
 
