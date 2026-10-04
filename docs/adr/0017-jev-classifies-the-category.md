@@ -1,6 +1,7 @@
 # ADR-0017: Jev chooses the ticket's category; the LLM's category is log-only
 
-**Status:** Proposed. Supported by a probe on the golden set; not built.
+**Status:** Proposed. Supported by a probe on the golden set; built
+2026-10-04 (below), not yet measured end to end (*Before this is accepted*).
 **Date:** 2026-10-04
 **Builds on:** ADR-0001 (code decides, the LLM proposes), ADR-0015 (Jev, the
 reranker), ADR-0016 (the direction: the LLM writes, it doesn't decide)
@@ -48,7 +49,7 @@ problem names other categories' parts.
    `rerank_resolves.v1.json` (`category.v1.json`), loaded at boot.
 2. **The wire schema carries Jev's answer**, in both services:
    `category_choice` (a `TicketCategory` or none) and `category_confidence`
-   (0-1), defaulted for stored rows.
+   (0-1).
 3. **`router.py` decides with it.** The ticket's category, for `auto_route`
    and for `tickets.category`, is Jev's choice. Below
    `classification.min_confidence` (🔧 `thresholds.yaml`), or with no choice
@@ -59,6 +60,30 @@ problem names other categories' parts.
    core-api sends the ticket to a human as `ai_engine_unavailable`. No
    fallback to the LLM's category: a silent switch of classifier would hide
    the outage and change the calibration under the threshold.
+
+### As built
+
+- The question is `core/prompts/category.v1.json`, selected by
+  `CATEGORY_QUESTION_VERSION`, asked by `ClassifyCategoryNode`
+  (`graph/nodes/classify_category/`) after `rerank`.
+- That node also took over the floor check from `RerankNode`, as its
+  `decide()`: the category is needed on both sides of the floor, and the
+  check that decides whether Jev sees a page is the one that decides
+  whether the LLM runs. Refuse-before-LLM routes are unchanged.
+- The wire field is `TrustSignals.classification`
+  (`ClassificationSignals`: `category_choice`, `category_confidence`),
+  required, with no defaults: no signals were stored before it, so every
+  producer states Jev's answer, `(None, 0.0)` when Jev wasn't asked. An
+  exception to CLAUDE.md rule 4's default for new persisted fields, which
+  exists for rows that predate a field.
+- `classification.min_confidence` is 0.65 (🔧, from the probe). It gates
+  only the branches that act on the category, clarify and auto-route; an
+  auto-reply takes its KB page's category, so an unsure Jev adds no human
+  work there. The clarify security rule reads Jev's choice, whatever its
+  confidence.
+- `category_consistent` is unchanged: `ValidateNode` sets it to true for
+  every non-auto-reply proposal, so it never compared the LLM's category
+  with anything on a route. Re-deciding it is still open (below).
 
 ## Consequences
 

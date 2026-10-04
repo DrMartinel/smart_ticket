@@ -50,7 +50,7 @@ If you can't tell which recipe applies, ask. Don't guess.
 Before designing anything, open the live code the recipe points to. The skill
 describes patterns, and the code shows the current version of them. At a minimum:
 
-- `services/ai-engine/src/ai_engine/graph/nodes/rerank/node.py`: branching node
+- `services/ai-engine/src/ai_engine/graph/nodes/classify_category/node.py`: branching node
 - `services/ai-engine/src/ai_engine/graph/nodes/retrieve/node.py`: single-exit node that uses providers
 - `services/ai-engine/src/ai_engine/graph/nodes/emit_signals.py`: best-effort, deny-by-default
 - `services/ai-engine/src/ai_engine/graph/triage.py`: the route list at the bottom

@@ -1,6 +1,6 @@
 # Recipe: add a graph node
 
-Open these before writing: `graph/nodes/rerank/node.py` (branching), `graph/nodes/retrieve/node.py`
+Open these before writing: `graph/nodes/classify_category/node.py` (branching), `graph/nodes/retrieve/node.py`
 (single-exit, providers), `graph/triage.py` (the route list at the bottom),
 `graph/state.py`, `tests/conftest.py`, `tests/test_build.py`.
 

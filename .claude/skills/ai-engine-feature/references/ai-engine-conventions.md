@@ -41,7 +41,9 @@ src/ai_engine/
       candidate_pool/ node.py (CandidatePoolNode), links.py (link expansion;
                    RerankNode also reads `article_titles` from it), shortlister.py
                    (ABC + cross-encoder/lexical + import-time selection)
-      rerank/      node.py (RerankNode, the floor gate), reranker.py (JevReranker)
+      rerank/      node.py (RerankNode), reranker.py (JevReranker)
+      classify_category/ node.py (ClassifyCategoryNode: Jev's category, then
+                   the floor gate), classifier.py (JevCategoryClassifier)
 ```
 
 The layering is enforced by `tests/test_boundary.py`.
@@ -78,7 +80,7 @@ A node owns exactly four things: its **name** (derived from the class), its
   against module globals.
 - `decide()` runs **after** the update is merged, so it reads fresh state.
 
-Exemplars: `graph/nodes/rerank/node.py` (branching), `graph/nodes/injection.py`
+Exemplars: `graph/nodes/classify_category/node.py` (branching), `graph/nodes/injection.py`
 (branching, pure CPU), `graph/nodes/retrieve/node.py` (single-exit, providers),
 `graph/nodes/infer.py` (boot-time `__init__`, LLM failure).
 
@@ -92,6 +94,7 @@ Nodes import the provider singletons and call them. Nothing is passed in.
 | `embedder` | `from ai_engine.core.providers.embeddings import embedder` | the `use_embedder` fixture patches it per module |
 | `shortlister` | `from ai_engine.graph.nodes.candidate_pool.shortlister import shortlister` | the `use_shortlister` fixture patches it per module |
 | `reranker` (Jev) | `from ai_engine.graph.nodes.rerank.reranker import reranker` | the `use_reranker` fixture patches it per module |
+| `classifier` (Jev's category, ADR-0017) | `from ai_engine.graph.nodes.classify_category.classifier import classifier` | the `use_classifier` fixture patches it |
 | chat LLM | `from ai_engine.core.providers import clients`, then `clients.chat.complete(…)` | `use_llm` patches `clients.chat` once. Importing `chat` by name would bypass the patch |
 
 **When a node module starts reading a provider, add that module to the matching

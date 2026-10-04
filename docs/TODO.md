@@ -103,7 +103,7 @@ Left to do: the change to what the gate measures needs review by someone other t
 
 ### Problem
 
-Since 2026-10-03 Jev is the reranker on every run (ADR-0015, still to be written): the cross-encoder (`SHORTLIST_PROVIDER=vllm`, bge-reranker-v2-m3 on vllm-rerank) scores the fused candidates plus link-expanded chunks, and Jev re-scores its top 15. `retrieval.floor` is on **Jev's** scale and is compared only with Jev's top-1; the cross-encoder's score only orders the pool and picks the shortlist, so it no longer needs a floor of its own. Calibration is not done:
+Since 2026-10-03 Jev is the reranker on every run ([ADR-0015](adr/0015-jev-reranks-the-shortlist.md), written 2026-10-04): the cross-encoder (`SHORTLIST_PROVIDER=vllm`, bge-reranker-v2-m3 on vllm-rerank) scores the fused candidates plus link-expanded chunks, and Jev re-scores its top 15. `retrieval.floor` is on **Jev's** scale and is compared only with Jev's top-1; the cross-encoder's score only orders the pool and picks the shortlist, so it no longer needs a floor of its own. Calibration is not done:
 
 - `retrieval.floor = 0.30` (🔧) is the middle of the probe's 0.12-0.48 gap, chosen from **golden-set** data (evals/HISTORY.md 2026-10-02 (4)-(5)).
 - The trust coefficients, `t_auto` and `t_route` were hand-set for the cross-encoder's `rerank_top1` and margin; Jev's top-1 sits on a different distribution.
@@ -311,7 +311,7 @@ Retrieval recall meets the gate against a reviewed baseline measured on this KB.
 
 **Status (2026-10-04):** the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6`, the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
 
-**Priority:** Medium, after item 4 (it does not fix the failing auto-reply gate) · **Spec:** §5, §8 · **ADR:** new, to be written (not 0015, which is reserved for Jev)
+**Priority:** Medium, after item 4 (it does not fix the failing auto-reply gate) · **Spec:** §5, §8 · **ADR:** [0016](adr/0016-clarify-branch.md)
 
 ### Problem
 
@@ -337,3 +337,22 @@ The router can only guess (`auto_reply`) or hand the ticket off (`auto_route`, `
 ### Done when
 
 The ADR is accepted. Ambiguous tickets reach `clarify` in the evals without lowering auto-reply precision. Every clarification failure path has a test that ends in HITL with its `ReasonCode`. And shadow mode records `clarify` decisions so they can be compared with what technicians actually asked.
+
+---
+
+## 11. Accept or reject ADR-0017 (Jev chooses the category)
+
+**Status (2026-10-04):** built, [ADR-0017](adr/0017-jev-classifies-the-category.md) (Proposed): `ClassifyCategoryNode` asks Jev `category.v1`, `TrustSignals.classification` carries the answer, and `router.py` routes clarify and auto-route on Jev's choice, sending it to a human as `category_low_confidence` below `classification.min_confidence` (0.65 🔧). The LLM's `proposed_category` is log-only.
+
+**Priority:** High · **Spec:** §8, §12.2 · **ADR:** 0017
+
+### Work
+
+- A full eval run with it built, the end-to-end suite included, recorded in `evals/HISTORY.md`. The classification suite now scores Jev's choice at the real floor.
+- Re-measure on tickets `category.v1` was not written against (a held-out set or shadow data); the probe's 80/83 was measured on the set the question was tuned on.
+- Choose `classification.min_confidence` on shadow data, not the probe's 83 tickets.
+- Re-decide `category_consistent`: it is hard-coded true for every non-auto-reply proposal, so its route gate and trust feature have never compared anything.
+
+### Done when
+
+The ADR is accepted or superseded on a full run and a held-out measurement.

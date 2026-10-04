@@ -6,7 +6,7 @@ test turns red.
 
 Open these before writing: `docs/adr/0005-threshold-on-cross-encoder-not-fused-score.md`,
 `graph/nodes/retrieve/{node,bm25,vector,fusion}.py`, `graph/nodes/candidate_pool/{node,links}.py`,
-`graph/nodes/rerank/node.py`,
+`graph/nodes/rerank/node.py`, `graph/nodes/classify_category/node.py` (the floor gate),
 `graph/nodes/candidate_pool/shortlister.py`, `graph/nodes/rerank/reranker.py`,
 `tests/test_{retrieve,rerank,fusion,db_queries}.py`.
 

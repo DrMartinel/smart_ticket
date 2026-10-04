@@ -26,7 +26,7 @@ Every module reads top-down in the same order:
      transport failure must be treated as fail-open-to-human.
    - `services/core-api/apps/tickets/utils/router.py` — the only module allowed to
      choose a `Branch`, and why the gate order is load-bearing.
-   - `services/ai-engine/src/ai_engine/graph/nodes/rerank/node.py` — where refuse-before-LLM
+   - `services/ai-engine/src/ai_engine/graph/nodes/classify_category/node.py` — where refuse-before-LLM
      is decided, and which score thresholds may compare against.
 2. `from __future__ import annotations`
 3. **Imports in three groups**, blank line between:

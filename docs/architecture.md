@@ -144,6 +144,9 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
        ▼
    rerank            Jev re-scores the pool's top-15 ──► Jev's top-3
                      each chunk keeps both: shortlist_score, rerank_score
+       ▼
+   classify_category Jev chooses the category (ADR-0017): masked ticket +
+                     the top page's title if above the floor, else no page
        │
        ├─ EvidenceBelowFloor (Jev's top1 < retrieval.floor) ──► emit_signals   ← REFUSE BEFORE LLM
        │ EvidenceAboveFloor
@@ -180,7 +183,7 @@ invokes `triage_graph`. See
 Models are reached through two layers. The clients in
 `core/providers/clients.py` are the lower one and own each server's protocol:
 `VLLMClient` has `embed()`, `rerank()` and `complete_json()`, `JevClient` has
-`ask()`, and each builds its request and validates the reply against a
+`ask()` (yes/no) and `choose()` (one choice question), and each builds its request and validates the reply against a
 Pydantic DTO from `core/providers/dtos.py`. `ChatClient` does triage chat through `complete()` (LangChain;
 `vllm_chat` or `openai_chat` builds it). The providers
 (`core/providers/embeddings.py` and `pii.py`, and the shortlister and reranker
@@ -234,9 +237,14 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
                                           not the cause)
      no/invalid proposal  ──► HITL
 
+   The ticket's category is Jev's choice (signals.classification, ADR-0017),
+   never the LLM's proposed_category, which is log-only. Only clarify and
+   auto-route use it; an auto-reply takes its KB page's category.
+
    CLARIFY (ADR-0016), before trust: a question grants nothing
      ClarificationProposal:
-        proposed_category = security?   yes ──► HITL / clarify_security
+        Jev's category = security?      yes ──► HITL / clarify_security
+        Jev's confidence ≥ min?         no  ──► HITL / category_low_confidence
         clarify_options_in_topk?        no  ──► HITL / clarify_options_not_shown
                                         yes ──► CLARIFY (queue: clarification;
                                                 a person asks it, in shadow
@@ -255,9 +263,10 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
      RunbookProposal:                   ──► HITL, always. No exceptions.
 
      RouteProposal:
+        Jev's confidence ≥ min?     no ──► HITL / category_low_confidence
         category_consistent?        no ──► HITL / category_inconsistent
         trust ≥ t_route?            no ──► HITL / trust_below_route
-                                    yes ──► AUTO_ROUTE
+                                    yes ──► AUTO_ROUTE (to Jev's category)
 ```
 
 `route()` takes thresholds as a **parameter** rather than importing them. That is what makes every branch testable without a database, a model, or a network — and it lets the exact thresholds in force be snapshotted into `routing_decisions.thresholds_used`, so a post-incident analysis months later can recover what the bar actually was at the time.

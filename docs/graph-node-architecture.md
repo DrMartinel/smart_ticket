@@ -184,7 +184,7 @@ class BaseNode(ABC):
 ```
 
 A node with more than one exit defines its enum at module level and assigns
-it (`Outcome = RerankOutcome`) rather than nesting a `class Outcome`. An enum
+it (`Outcome = ClassifyCategoryOutcome`) rather than nesting a `class Outcome`. An enum
 with members cannot be subclassed, so a nested override is an unrelated class
 that type checkers report as an incompatible override.
 
@@ -227,9 +227,12 @@ comments trimmed here):
 _triage = GraphBuilder(entry=injection)
 _triage.route(injection, InjectionOutcome.INJECTION_DETECTED, emit_signals)
 _triage.route(injection, InjectionOutcome.INJECTION_CLEAR, hybrid_retrieve)
-_triage.route(hybrid_retrieve, SingleExit.DONE, rerank)
-_triage.route(rerank, RerankOutcome.EVIDENCE_BELOW_FLOOR, emit_signals)  # refuse-before-LLM
-_triage.route(rerank, RerankOutcome.EVIDENCE_ABOVE_FLOOR, select_fewshots)
+_triage.route(hybrid_retrieve, SingleExit.DONE, candidate_pool)
+_triage.route(candidate_pool, SingleExit.DONE, rerank)
+_triage.route(rerank, SingleExit.DONE, classify_category)  # Jev's category on every path (ADR-0017)
+# refuse-before-LLM
+_triage.route(classify_category, ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR, emit_signals)
+_triage.route(classify_category, ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR, select_fewshots)
 _triage.route(select_fewshots, SingleExit.DONE, infer)
 _triage.route(infer, SingleExit.DONE, validate)
 _triage.route(validate, SingleExit.DONE, emit_signals)  # no cycle: schema failure goes to HITL
@@ -333,28 +336,27 @@ literally by `tests/test_build.py`.
 
 ## 5. Writing a node
 
-A branching node (`nodes/rerank/node.py`, abridged):
+A branching node (`nodes/classify_category/node.py`, abridged):
 
 ```python
-class RerankOutcome(StrEnum):
+class ClassifyCategoryOutcome(StrEnum):
     EVIDENCE_ABOVE_FLOOR = "EvidenceAboveFloor"
     EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
 
-class RerankNode(BaseNode):
-    Outcome = RerankOutcome
+class ClassifyCategoryNode(BaseNode):
+    Outcome = ClassifyCategoryOutcome
 
     def __call__(self, state: TriageState) -> dict[str, Any]:
-        ...
-        scores = reranker.score(...)  # Jev, the module singleton
-        ...
-        return {"reranked": rescored[: settings.rerank_top_n]}
+        title = ...  # the top page's title, or None below the floor
+        choice = classifier.classify(..., title)  # Jev, the module singleton
+        return {"category_choice": choice.category, "category_confidence": choice.confidence}
 
-    def decide(self, state: TriageState) -> RerankOutcome:
+    def decide(self, state: TriageState) -> ClassifyCategoryOutcome:
         reranked = state.reranked
         if not reranked or reranked[0].final_score() < state.retrieval_floor:
-            return RerankOutcome.EVIDENCE_BELOW_FLOOR
-        return RerankOutcome.EVIDENCE_ABOVE_FLOOR
+            return ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
+        return ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR
 ```
 
 A single-exit node needs neither an `Outcome` nor a `decide()` — it inherits
@@ -464,7 +466,7 @@ step names and `get_graph()` output change. If a checkpointer is ever added,
 in-flight threads saved under the old name will not resume: drain or migrate
 before renaming.
 
-**Annotate `decide()` with the module-level enum** (`-> RerankOutcome`, not
+**Annotate `decide()` with the module-level enum** (`-> ClassifyCategoryOutcome`, not
 `-> Outcome`). LangGraph calls `get_type_hints()` on the router, which
 resolves annotations against module globals where a bare `Outcome` does not
 exist. Getting it wrong fails in `GraphBuilder.compile()` at startup, not at

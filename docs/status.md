@@ -78,6 +78,8 @@ This is the expected P1 state, not a defect. `evals/calibration/fit_trust_score.
 
 Every run shortlists, then reranks (ADR-0015): the `bge-reranker-v2-m3` cross-encoder on vllm-rerank (`SHORTLIST_PROVIDER=vllm`; `lexical` in CI) shortlists the candidates plus link-expanded chunks, and Jev, the reranker, scores its top 15. `retrieval.floor = 0.30` is on Jev's scale (🔧): chosen from golden-set data, not fitted. The trust coefficients were hand-set for the cross-encoder's scores, not Jev's. Treat refusal and trust behaviour as uncalibrated.
 
+Since ADR-0017 (Proposed, 2026-10-04) Jev also chooses the ticket's category, and auto-route and clarify act on it below `classification.min_confidence` = 0.65 (🔧, from one probe on the golden set) only via a human. Built and unit-tested; no full eval run yet ([TODO.md](TODO.md) item 11).
+
 See [TODO.md](TODO.md) item 4.
 
 ### Gap 4 — No external trace backend
