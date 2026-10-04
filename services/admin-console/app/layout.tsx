@@ -4,8 +4,8 @@ import { AuthProvider } from "@/lib/auth";
 import NavBar from "@/components/NavBar";
 
 export const metadata: Metadata = {
-  title: "Smart Ticket Triage",
-  description: "AI-assisted ITSM ticket triage — humans decide, AI proposes.",
+  title: "Smart Ticket · Admin Console",
+  description: "Review, routing and KB governance for Smart Ticket Triage. Humans decide, AI proposes.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

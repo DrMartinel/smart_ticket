@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 
 const LINKS = [
-  { href: "/submit", label: "Submit" },
   { href: "/queue", label: "Queue" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/kb", label: "Knowledge Base" },
@@ -21,8 +20,8 @@ export default function NavBar() {
     <header className="border-b" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
       <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-6">
-          <Link href="/submit" className="font-semibold">
-            Smart Ticket Triage
+          <Link href="/queue" className="font-semibold">
+            Smart Ticket · Admin
           </Link>
           <nav className="flex gap-4 text-sm">
             {LINKS.map((l) => (

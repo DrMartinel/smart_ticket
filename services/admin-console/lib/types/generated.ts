@@ -17,6 +17,8 @@ export type UserRole = "employee" | "technician" | "manager" | "security";
 
 export type RiskTier = "low" | "medium" | "high";
 
+export type ChatState = "thinking" | "answered" | "suggest_ticket" | "with_support";
+
 export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
 
 export interface TicketIn {
@@ -151,6 +153,25 @@ export interface AIRunResponse {
   cost_usd?: number;
   latency_ms?: number;
   degraded_reason?: string | null;
+}
+
+export interface ChatAskIn {
+  message: string;
+}
+
+export interface ChatAnswerOut {
+  text: string;
+  quote: string;
+  kb_title: string;
+  kb_url: string;
+}
+
+export interface ChatTurnOut {
+  public_id: string;
+  question_masked: string;
+  state: ChatState;
+  answer?: ChatAnswerOut | null;
+  created_at: string;
 }
 
 export type LLMProposal =

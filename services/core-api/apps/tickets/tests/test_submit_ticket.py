@@ -129,6 +129,7 @@ class TestSubmitPersistsOnlyMaskedText:
         assert entry.payload == {
             "ticket_public_id": ticket.public_id,
             "pii_level": PIILevel.ROUTINE.value,
+            "source": "form",
             "trace_id": "trace-abc",
         }
 

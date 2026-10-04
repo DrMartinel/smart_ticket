@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     "apps.fewshot",
     "apps.itsm_mock",
     "apps.metrics",
+    "apps.chat",
 ]
 
 MIDDLEWARE = [

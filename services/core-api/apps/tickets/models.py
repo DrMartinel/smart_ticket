@@ -11,6 +11,7 @@ import uuid
 
 from dataclasses import dataclass
 from datetime import timedelta
+from enum import StrEnum
 from typing import Literal, cast
 
 from asgiref.sync import async_to_sync
@@ -88,6 +89,16 @@ class IncidentManager(models.Manager["Incident"]):
             Ticket.objects.filter(id__in=[t.id for t in similar]).update(incident=incident)
 
         return incident
+
+
+class TicketSource(StrEnum):
+    """Where a ticket came from. A chat question is a ticket from the start,
+    so it is masked, analysed, routed and recorded like any other; what
+    differs is only who is asked before a routed handoff to support is
+    carried out (`pipeline.waits_for_requester`)."""
+
+    FORM = "form"
+    CHAT = "chat"
 
 
 class Incident(BaseModel):
@@ -175,7 +186,14 @@ class TicketManager(models.Manager["Ticket"]):
         std = mean**0.5
         return mean, std
 
-    def submit(self, *, reporter: User, ticket_in: TicketIn, trace_id: str | None) -> Ticket:
+    def submit(
+        self,
+        *,
+        reporter: User,
+        ticket_in: TicketIn,
+        trace_id: str | None,
+        source: TicketSource = TicketSource.FORM,
+    ) -> Ticket:
         """Ticket submission — spec §5. Masks, persists and enqueues one
         validated submission.
 
@@ -200,6 +218,7 @@ class TicketManager(models.Manager["Ticket"]):
                 body_masked=result.body_masked,
                 pii_level=result.pii_level.value,
                 pii_map={ph: str(entry.ref) for ph, entry in quarantine_entries.items()},
+                source=source.value,
             )
             PiiQuarantine.objects.bulk_create(
                 [
@@ -221,6 +240,7 @@ class TicketManager(models.Manager["Ticket"]):
                 payload={
                     "ticket_public_id": ticket.public_id,
                     "pii_level": ticket.pii_level,
+                    "source": ticket.source,
                     "trace_id": trace_id,
                 },
                 trace_id=trace_id,
@@ -252,6 +272,17 @@ class Ticket(BaseModel):
     pii_map = models.JSONField(default=dict)  # {"[EMAIL_1]": "<quarantine ref uuid>"}
 
     status = models.CharField(max_length=20, default="new")
+    source = models.CharField(
+        max_length=10,
+        choices=[(s.value, s.value) for s in TicketSource],
+        default=TicketSource.FORM.value,
+    )
+    # The router's decision for a chat ticket, recorded but not yet carried
+    # out while status="awaiting_requester": the requester is asked whether
+    # to hand it to support, and `pipeline.release_to_support` then executes
+    # exactly this decision. Never re-routed on release, so what was decided
+    # and what was done cannot drift apart. None once released.
+    held_decision = models.JSONField(null=True, blank=True)
     # Set ONLY by router.py, never directly from an LLM proposal (ADR-0001).
     category = models.CharField(
         max_length=20, choices=[(c.value, c.value) for c in TicketCategory], null=True, blank=True

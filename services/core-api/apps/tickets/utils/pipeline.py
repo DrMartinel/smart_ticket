@@ -17,6 +17,7 @@ side effect — so a worker dying mid-task cannot send a double auto-reply.
 from __future__ import annotations
 
 import logging
+import uuid
 
 import httpx
 from django.conf import settings
@@ -49,7 +50,7 @@ from apps.tickets.utils.patterns import PIILevel
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
-from apps.tickets.models import AiRun, RoutingDecision, Ticket
+from apps.tickets.models import AiRun, RoutingDecision, Ticket, TicketSource
 from apps.tickets.utils import router as router_service
 from apps.tickets.utils.trust_scorer import score as compute_trust
 
@@ -217,7 +218,12 @@ def _finalize(
                 trace_id=trace_id,
             )
 
-        _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
+        if ticket.source == TicketSource.CHAT.value and waits_for_requester(
+            decision, shadow, PIILevel(ticket.pii_level)
+        ):
+            _hold_for_requester(ticket, decision, trace_id)
+        else:
+            _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
 
     return {
         "ticket_public_id": ticket.public_id,
@@ -226,8 +232,99 @@ def _finalize(
     }
 
 
+# Decisions about a chat ticket that are carried out at once, never held for
+# the requester: each is a human looking at something that may already be
+# wrong (masking that failed, a security clarification ADR-0016 says "never
+# waits on a requester's answer"). The requester closing the tab must not be
+# able to keep those from support.
+_NEVER_HELD = frozenset({ReasonCode.PII_MASK_FAILED, ReasonCode.CLARIFY_SECURITY})
+# Checked on the ticket as well as the reason code: a degraded run (embedding
+# or ai-engine down, budget) never reaches the router, so a mask-failed
+# ticket arrives here as ai_engine_unavailable.
+_NEVER_HELD_PII = frozenset({PIILevel.MASK_FAILED, PIILevel.CRITICAL})
+
+
+def waits_for_requester(decision: Decision, shadow: bool, pii_level: PIILevel) -> bool:
+    """Whether a chat ticket's decision waits for the requester to ask for a
+    ticket before it is carried out. Pure.
+
+    Only an answer the requester can take or leave waits: a person reviewing,
+    a team taking it on, a clarifying question. BLOCK, ESCALATE, anything
+    raising a security alert and any ticket whose masking failed or found
+    critical PII go to support at once, as for a form ticket. A live
+    auto-reply never waits, it is the answer; a shadow-mode one does,
+    because shadow mode sends nothing (spec §14 P1). Any branch not named
+    here is carried out at once: an unknown case degrades toward humans,
+    never toward waiting on someone who may not come back.
+    """
+    if decision.alert_security or decision.reason_code in _NEVER_HELD:
+        return False
+    if pii_level in _NEVER_HELD_PII:
+        return False
+    if decision.branch is Branch.AUTO_REPLY:
+        return shadow
+    return decision.branch in (Branch.HITL, Branch.CLARIFY, Branch.AUTO_ROUTE)
+
+
+def _hold_for_requester(ticket: Ticket, decision: Decision, trace_id: str) -> None:
+    ticket.status = "awaiting_requester"
+    ticket.held_decision = decision.model_dump(mode="json")
+    ticket.save(update_fields=["status", "held_decision"])
+    AuditLog.objects.record(
+        "handoff_held_for_requester",
+        actor_type="system",
+        ticket_id=ticket.id,
+        payload={"ticket_public_id": ticket.public_id, "branch": decision.branch.value},
+        trace_id=trace_id,
+    )
+
+
+class NotAwaitingRequester(Exception):
+    """The ticket has no held decision to release: it is still being
+    analysed, was answered, or is already with support."""
+
+
+def release_to_support(
+    ticket_id: uuid.UUID, requester_id: uuid.UUID, trace_id: str | None
+) -> Ticket:
+    """The requester asked for a ticket: carry out the decision recorded for
+    it (`Ticket.held_decision`), exactly as `_finalize` would have, with the
+    shadow mode that decision was recorded under. Nothing is re-routed.
+
+    Locks the row, so a double click releases once; the second call raises
+    `NotAwaitingRequester`.
+    """
+    with transaction.atomic():
+        ticket = Ticket.objects.select_for_update().get(id=ticket_id)
+        if ticket.status != "awaiting_requester" or ticket.held_decision is None:
+            raise NotAwaitingRequester(ticket.public_id)
+
+        decision = Decision.model_validate(ticket.held_decision)
+        recorded = ticket.routing_decisions.order_by("-decided_at").first()
+        if recorded is None:
+            raise NotAwaitingRequester(ticket.public_id)
+
+        ticket.held_decision = None
+        ticket.save(update_fields=["held_decision"])
+        AuditLog.objects.record(
+            "requester_asked_for_ticket",
+            actor_type="human",
+            actor_id=requester_id,
+            ticket_id=ticket.id,
+            payload={"ticket_public_id": ticket.public_id, "branch": decision.branch.value},
+            trace_id=trace_id,
+        )
+        # kb=None: only a live auto-reply reads it, and that is never held.
+        _execute_or_enqueue(ticket, recorded.ai_run, decision, recorded.shadow_mode, None)
+    return ticket
+
+
 def _execute_or_enqueue(
-    ticket: Ticket, ai_run: AiRun, decision: Decision, shadow: bool, kb: KBArticleMeta | None
+    ticket: Ticket,
+    ai_run: AiRun | None,
+    decision: Decision,
+    shadow: bool,
+    kb: KBArticleMeta | None,
 ) -> None:
     branch = decision.branch
 

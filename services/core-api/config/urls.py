@@ -15,6 +15,7 @@ from apps.review.views import router as review_router
 from apps.fewshot.views import router as fewshot_router
 from apps.itsm_mock.views import router as itsm_router
 from apps.metrics.views import router as metrics_router
+from apps.chat.views import router as chat_router
 
 api = NinjaExtraAPI(title="Smart Ticket Triage — core-api", version="1.0.0")
 api.register_controllers(NinjaJWTDefaultController)
@@ -26,6 +27,7 @@ api.add_router("/review", review_router)
 api.add_router("/fewshot", fewshot_router)
 api.add_router("/itsm", itsm_router)
 api.add_router("/metrics", metrics_router)
+api.add_router("/chat", chat_router)
 
 urlpatterns = [
     path("api/", api.urls),
