@@ -180,6 +180,17 @@ def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, u
     assert generation.quote_source_in_topk is False
     assert generation.negation_consistent is False
     assert generation.category_consistent is False
+    assert generation.clarify_options_in_topk is False
+
+
+def test_clarify_check_is_forwarded(fake_db, make_state, use_db):
+    """core-api's router asks the question only on this signal (ADR-0016);
+    left unforwarded it would read as failed and the branch would never fire."""
+    use_db(fake_db())
+
+    out = emit_signals(make_state(clarify_options_in_topk=True))
+
+    assert out["signals"].generation.clarify_options_in_topk is True
 
 
 def test_injection_verdict_is_forwarded_to_policy_signals(fake_db, make_state, use_db):

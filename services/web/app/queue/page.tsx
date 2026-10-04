@@ -18,7 +18,7 @@ interface QueueItem {
   routing_decisions: { branch: string; reason_code: string }[];
 }
 
-const QUEUES = ["", "pii_verify", "low_confidence", "injection", "mask_failed", "runbook_approval"];
+const QUEUES = ["", "pii_verify", "low_confidence", "injection", "mask_failed", "runbook_approval", "clarification"];
 
 export default function QueuePage() {
   const user = useRequireAuth();

@@ -112,3 +112,63 @@ class TestLlmFailureKeepsItsReasonCode:
         ai_run = ticket.ai_runs.order_by("-id").first()
         assert ai_run is not None
         assert ai_run.degraded_reason == reason.value
+
+
+def _clarify_response(request_id: str):
+    """ai-engine proposing a question whose options it was shown."""
+
+    from infrastructure.dtos import AIRunResponse, LLMProposalEnvelope
+
+    from apps.tickets.utils.pipeline import _degraded_signals
+
+    signals = _degraded_signals()
+    signals.retrieval.rerank_top1 = 0.9
+    signals.retrieval.scorer = "jev"
+    signals.generation.schema_valid = True
+    signals.generation.clarify_options_in_topk = True
+    return AIRunResponse(
+        request_id=request_id,
+        graph_version="test",
+        prompt_version="test",
+        model="test",
+        proposal=LLMProposalEnvelope.model_validate(
+            {
+                "proposed_intent": "clarify",
+                "proposed_question": "Which application keeps crashing?",
+                "proposed_options": [
+                    "client-vpn-user.windows-troubleshooting",
+                    "workspaces-user.client_troubleshooting",
+                ],
+                "proposed_category": "software",
+                "rationale": "names no application",
+            }
+        ),
+        signals=signals,
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("shadow", [True, False])
+def test_clarify_reaches_a_person_in_the_clarification_queue(
+    shadow, employee_user, monkeypatch, settings
+):
+    """Nothing sends a question to the requester yet (ADR-0016), so live mode
+    must not act differently from shadow: a person gets the proposed
+    question. A clarify ticket left without a review item would be
+    invisible to every queue."""
+    from apps.tickets.models import IncidentVerdict
+
+    settings.SHADOW_MODE = shadow
+    ticket = make_ticket(employee_user)
+    monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
+    monkeypatch.setattr(Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique"))
+    monkeypatch.setattr(
+        ai_engine, "analyze", lambda masked, request_id: _clarify_response(request_id)
+    )
+
+    result = process_ticket.apply(args=(ticket.id,)).get()
+
+    assert result["branch"] == Branch.CLARIFY.value
+    ticket.refresh_from_db()
+    assert ticket.status == "pending_review"
+    assert list(ticket.review_items.values_list("queue", flat=True)) == ["clarification"]

@@ -30,7 +30,7 @@ from collections import Counter
 
 from rapidfuzz import fuzz
 
-from ai_engine.schemas import AutoReplyProposal
+from ai_engine.schemas import AutoReplyProposal, ClarificationProposal
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.config import settings
@@ -103,8 +103,20 @@ def _best_fuzzy(quote: str, topk: dict[uuid.UUID, str]) -> tuple[uuid.UUID | Non
     return best_id, best_ratio
 
 
+def _clarify_options_shown(state: TriageState) -> bool:
+    """A clarify proposal's options are two or more distinct slugs of the
+    chunks the model was shown (ADR-0016). A question choosing between pages
+    it never saw, or between one page and itself, is not a real choice."""
+
+    proposal = state.proposal.root if state.proposal else None
+    if not isinstance(proposal, ClarificationProposal):
+        return False
+    options = set(proposal.proposed_options)
+    return len(options) >= 2 and options <= {c.article_slug for c in state.reranked}
+
+
 class ValidateNode(BaseNode):
-    """Every exit returns all six checks. A check left out would not fail
+    """Every exit returns all seven checks. A check left out would not fail
     loudly: it reads as its "failed" state default, so a deliberate pass
     (negation and category on a route proposal) would silently lower trust.
     test_validate.py pins each exit's whole update."""
@@ -118,6 +130,7 @@ class ValidateNode(BaseNode):
                 "quote_source_in_topk": False,
                 "negation_consistent": False,
                 "category_consistent": False,
+                "clarify_options_in_topk": False,
             }
 
         if not isinstance(state.proposal.root, AutoReplyProposal):
@@ -128,6 +141,7 @@ class ValidateNode(BaseNode):
                 "quote_source_in_topk": False,
                 "negation_consistent": True,
                 "category_consistent": True,
+                "clarify_options_in_topk": _clarify_options_shown(state),
             }
 
         quote = normalize_ws(state.proposal.root.verbatim_quote)
@@ -160,6 +174,7 @@ class ValidateNode(BaseNode):
             "quote_source_in_topk": in_topk,
             "negation_consistent": neg_ok,
             "category_consistent": True,
+            "clarify_options_in_topk": False,
         }
 
 

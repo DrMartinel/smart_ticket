@@ -80,6 +80,7 @@ export interface GenerationSignals {
   negation_consistent: boolean;
   category_consistent: boolean;
   quote_applicable?: boolean;
+  clarify_options_in_topk?: boolean;
 }
 
 export interface PolicySignals {

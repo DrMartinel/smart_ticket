@@ -25,6 +25,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 | `hitl` | Send to the human review queue |
 | `block` | Refuse and alert security (injection, critical PII) |
 | `escalate` | Mass incident — hand to incident management |
+| `clarify` | The ticket fits several shown KB pages and doesn't say which: ask the requester (ADR-0016). A person asks it, for now |
 
 **HITL** — Human In The Loop. The review queue where anything uncertain goes. The system is deliberately biased toward sending work here.
 

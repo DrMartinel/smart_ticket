@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from uuid import UUID
 
-from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, route
+from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQueue, route
 from config.settings.base import (
     AlertThresholds,
     BudgetThresholds,
@@ -24,6 +24,7 @@ from apps.tickets.utils.patterns import PIILevel
 from infrastructure.dtos import (
     AutoReplyProposal,
     GenerationSignals,
+    ClarificationProposal,
     InsufficientContext,
     LLMProposalEnvelope,
     PolicySignals,
@@ -422,3 +423,74 @@ def test_keyword_agreement_k_comes_from_the_thresholds_passed_in():
 
     assert loose_trust is not None and strict_trust is not None
     assert loose_trust > strict_trust
+
+
+# --- clarify (ADR-0016) --------------------------------------------------------
+
+
+def clarify_proposal(**overrides) -> LLMProposalEnvelope:
+    base: dict[str, Any] = dict(
+        proposed_intent="clarify",
+        proposed_question="Which password do you need to reset?",
+        proposed_options=[
+            "identity-center.resetpassword-accessportal",
+            "iam.id_credentials_passwords_admin-change-user",
+        ],
+        proposed_category=TicketCategory.ACCESS,
+        rationale="the ticket names no system",
+    )
+    base.update(overrides)
+    return LLMProposalEnvelope(root=ClarificationProposal(**base))
+
+
+def test_clarify_on_a_possible_security_incident_goes_to_a_human():
+    """A possible incident never waits on a requester's answer, whatever
+    else checks out."""
+    d = route(
+        good_signals(**{"generation.clarify_options_in_topk": True}),
+        clarify_proposal(proposed_category=TicketCategory.SECURITY),
+        None,
+        TH,
+    )
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CLARIFY_SECURITY
+
+
+def test_clarify_with_options_not_shown_goes_to_a_human():
+    """The default of the signal: a question between pages the model never
+    saw is not asked. Also covers rows and runs where validation didn't run."""
+    d = route(good_signals(), clarify_proposal(), None, TH)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN
+
+
+def test_clarify_passes_hard_gates_first():
+    """An injection that proposes a question is still blocked."""
+    d = route(
+        good_signals(
+            **{"policy.injection_detected": True, "generation.clarify_options_in_topk": True}
+        ),
+        clarify_proposal(),
+        None,
+        TH,
+    )
+    assert d.branch is Branch.BLOCK
+
+
+def test_clarify_needs_no_trust_and_lands_in_the_clarification_queue():
+    """Low trust doesn't stop a question: asking grants nothing (ADR-0016).
+    The decision names the queue a person asks it from."""
+    signals = good_signals(
+        **{
+            "generation.clarify_options_in_topk": True,
+            "retrieval.rerank_top1": 0.31,
+            "retrieval.rerank_margin": 0.0,
+            "retrieval.bm25_rank_of_top1": None,
+        }
+    )
+    d = route(signals, clarify_proposal(), None, TH)
+    assert d.branch is Branch.CLARIFY
+    assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
+    assert d.queue is ReviewQueue.CLARIFICATION
+    assert d.category is TicketCategory.ACCESS
+    assert d.trust is None

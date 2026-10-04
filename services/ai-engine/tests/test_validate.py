@@ -8,7 +8,13 @@ from uuid import UUID
 
 import pytest
 
-from ai_engine.schemas import AutoReplyProposal, LLMProposalEnvelope, RouteProposal, TicketCategory
+from ai_engine.schemas import (
+    AutoReplyProposal,
+    ClarificationProposal,
+    LLMProposalEnvelope,
+    RouteProposal,
+    TicketCategory,
+)
 from ai_engine.graph.state import RankedChunk
 
 from ai_engine.graph.nodes.validate import validate
@@ -55,6 +61,7 @@ def test_no_proposal_reports_every_check_failed(make_state):
         "quote_source_in_topk": False,
         "negation_consistent": False,
         "category_consistent": False,
+        "clarify_options_in_topk": False,
     }
 
 
@@ -79,6 +86,7 @@ def test_route_proposal_skips_quote_check(make_state):
         "quote_source_in_topk": False,
         "negation_consistent": True,
         "category_consistent": True,
+        "clarify_options_in_topk": False,
     }
 
 
@@ -96,6 +104,7 @@ def test_exact_substring_match(make_state):
         "quote_source_in_topk": True,
         "negation_consistent": True,
         "category_consistent": True,
+        "clarify_options_in_topk": False,
     }
 
 
@@ -289,3 +298,59 @@ def test_a_negated_list_lead_in_governs_its_items(make_state):
     quote = "Delete the root user access keys."
     state = make_state(proposal=auto_reply(quote), reranked=[chunk(1, source)])
     assert validate(state)["negation_consistent"] is False
+
+
+# --- clarify proposals (ADR-0016) ----------------------------------------------
+
+
+def _slug_chunk(chunk_id: int, slug: str) -> RankedChunk:
+    return RankedChunk(
+        chunk_id=UUID(int=chunk_id),
+        article_id=UUID(int=chunk_id),
+        article_slug=slug,
+        content="content",
+        shortlist_score=0.9,
+    )
+
+
+def _clarify(*options: str) -> LLMProposalEnvelope:
+    return LLMProposalEnvelope(
+        root=ClarificationProposal(
+            proposed_intent="clarify",
+            proposed_question="Which application keeps crashing?",
+            proposed_options=list(options),
+            proposed_category=TicketCategory.SOFTWARE,
+            rationale="the ticket names no application",
+        )
+    )
+
+
+_SHOWN = [_slug_chunk(1, "vpn.windows"), _slug_chunk(2, "workspaces.client")]
+
+
+def test_clarify_options_not_shown_fail(make_state):
+    """A question choosing between pages the model never saw is a guess
+    dressed as a question; the router must not ask it."""
+    state = make_state(proposal=_clarify("vpn.windows", "invented.page"), reranked=_SHOWN)
+    assert validate(state)["clarify_options_in_topk"] is False
+
+
+def test_clarify_with_one_distinct_option_fails(make_state):
+    """Two options naming the same page is no choice at all."""
+    state = make_state(proposal=_clarify("vpn.windows", "vpn.windows"), reranked=_SHOWN)
+    assert validate(state)["clarify_options_in_topk"] is False
+
+
+def test_clarify_options_shown_pass_with_every_other_check(make_state):
+    """The whole update: a clarify proposal has no quote, and negation and
+    category pass as for a route proposal."""
+    state = make_state(proposal=_clarify("vpn.windows", "workspaces.client"), reranked=_SHOWN)
+    assert validate(state) == {
+        "schema_valid": True,
+        "quote_applicable": False,
+        "quote_match_ratio": 0.0,
+        "quote_source_in_topk": False,
+        "negation_consistent": True,
+        "category_consistent": True,
+        "clarify_options_in_topk": True,
+    }

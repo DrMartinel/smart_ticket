@@ -70,6 +70,7 @@ class EmitSignalsNode(BaseNode):
                 negation_consistent=state.negation_consistent,
                 category_consistent=state.category_consistent,
                 quote_applicable=state.quote_applicable,
+                clarify_options_in_topk=state.clarify_options_in_topk,
             ),
             policy=PolicySignals(
                 kb_auto_reply_allowed=kb_auto_reply_allowed,

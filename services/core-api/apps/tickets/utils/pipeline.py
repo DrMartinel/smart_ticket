@@ -220,6 +220,21 @@ def _execute_or_enqueue(
         )
         return
 
+    if branch is Branch.CLARIFY:
+        # In shadow mode and out of it: nothing sends a question to the
+        # requester yet (ADR-0016, "Not decided"). A person sees the proposed
+        # question in the clarification queue and asks it, edits it or
+        # ignores it, which is also the data that will judge the branch.
+        ticket.status = "pending_review"
+        ticket.save(update_fields=["status"])
+        ReviewItem.objects.create(
+            ticket=ticket,
+            ai_run=ai_run,
+            queue=ReviewQueue.CLARIFICATION.value,
+            priority=decision.priority,
+        )
+        return
+
     # branch is AUTO_REPLY or AUTO_ROUTE
     if shadow:
         # Same route() call as live mode (spec §8.2) — only the execution

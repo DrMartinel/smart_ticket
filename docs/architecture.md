@@ -234,6 +234,15 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
                                           not the cause)
      no/invalid proposal  ──► HITL
 
+   CLARIFY (ADR-0016), before trust: a question grants nothing
+     ClarificationProposal:
+        proposed_category = security?   yes ──► HITL / clarify_security
+        clarify_options_in_topk?        no  ──► HITL / clarify_options_not_shown
+                                        yes ──► CLARIFY (queue: clarification;
+                                                a person asks it, in shadow
+                                                mode and out of it, until the
+                                                requester side exists)
+
    TRUST-BASED
      AutoReplyProposal:
         kb.auto_reply_allowed?      no ──► HITL / kb_not_authorized

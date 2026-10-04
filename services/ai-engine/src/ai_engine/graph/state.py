@@ -91,6 +91,7 @@ class TriageState(BaseModel):
     quote_source_in_topk: bool = False
     negation_consistent: bool = False
     category_consistent: bool = False
+    clarify_options_in_topk: bool = False
 
     # EmitSignalsNode
     signals: TrustSignals | None = None

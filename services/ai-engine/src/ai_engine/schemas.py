@@ -79,8 +79,26 @@ class InsufficientContext(BaseModel):
     missing_information: str
 
 
+class ClarificationProposal(BaseModel):
+    """Several shown KB pages answer different readings of the ticket, and it
+    doesn't say which (ADR-0016). A question for the requester, never an
+    answer: core-api's router decides whether it is asked."""
+
+    proposed_intent: Literal["clarify"]
+    proposed_question: str = Field(min_length=10, max_length=300)
+    # The KB slugs the answer would choose between; the validator checks
+    # they were shown (GenerationSignals.clarify_options_in_topk).
+    proposed_options: list[str] = Field(min_length=2)
+    proposed_category: TicketCategory
+    rationale: str
+
+
 LLMProposal = Annotated[
-    AutoReplyProposal | RouteProposal | RunbookProposal | InsufficientContext,
+    AutoReplyProposal
+    | RouteProposal
+    | RunbookProposal
+    | InsufficientContext
+    | ClarificationProposal,
     Field(discriminator="proposed_intent"),
 ]
 
@@ -115,6 +133,10 @@ class GenerationSignals(BaseModel):
     # False for route/runbook proposals, which have no quote: their zeroed
     # quote checks must not read as failures. Defaulted for older rows.
     quote_applicable: bool = True
+    # A clarify proposal's options are two or more distinct slugs of the
+    # chunks the model was shown (ADR-0016). False for every other proposal,
+    # and for rows stored before the clarify branch existed.
+    clarify_options_in_topk: bool = False
 
 
 class PolicySignals(BaseModel):
@@ -142,7 +164,7 @@ class AIRunRequest(BaseModel):
     ticket: TicketMasked
     # On Jev's scale, compared only with `rerank_score` (ADR-0005, ADR-0015).
     retrieval_floor: float = Field(ge=0, le=1)
-    prompt_version: str = "classify.v5"
+    prompt_version: str = "classify.v6"
 
 
 class AIRunResponse(BaseModel):

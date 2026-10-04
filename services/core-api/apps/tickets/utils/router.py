@@ -24,6 +24,7 @@ from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.trust_scorer import score as compute_trust
 from infrastructure.dtos import (
     AutoReplyProposal,
+    ClarificationProposal,
     InsufficientContext,
     LLMProposalEnvelope,
     RouteProposal,
@@ -53,6 +54,9 @@ class Branch(StrEnum):
     HITL = "hitl"
     BLOCK = "block"
     ESCALATE = "escalate"
+    # Ask the requester which of the shown pages they mean (ADR-0016).
+    # Executed as human review until the requester side exists.
+    CLARIFY = "clarify"
 
 
 class ReasonCode(StrEnum):
@@ -74,6 +78,9 @@ class ReasonCode(StrEnum):
     TRUST_BELOW_AUTO = "trust_below_auto_threshold"
     TRUST_BELOW_ROUTE = "trust_below_route_threshold"
     CATEGORY_INCONSISTENT = "category_inconsistent"
+    # clarify (ADR-0016)
+    CLARIFY_SECURITY = "clarify_security"
+    CLARIFY_OPTIONS_NOT_SHOWN = "clarify_options_not_shown"
     # degraded
     AI_ENGINE_UNAVAILABLE = "ai_engine_unavailable"
     EMBEDDING_UNAVAILABLE = "embedding_unavailable"
@@ -92,6 +99,7 @@ class ReviewQueue(StrEnum):
     INJECTION = "injection"
     MASK_FAILED = "mask_failed"
     RUNBOOK_APPROVAL = "runbook_approval"
+    CLARIFICATION = "clarification"
 
 
 class RiskTier(StrEnum):
@@ -219,6 +227,28 @@ def route(
 
     if isinstance(proposal.root, InsufficientContext):
         return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
+
+    # ── Clarify: ask which of the shown pages the requester means (ADR-0016) ──
+    # Before trust on purpose: a question grants nothing and changes no
+    # system, and the trust score prices the risk of an automatic action.
+    if isinstance(proposal.root, ClarificationProposal):
+        if proposal.root.proposed_category is TicketCategory.SECURITY:
+            # Something may already be wrong. A human gets it now; it never
+            # waits on a requester's answer. A rule, not a threshold.
+            return _hitl(
+                ReasonCode.CLARIFY_SECURITY, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=2
+            )
+        if not signals.generation.clarify_options_in_topk:
+            return _hitl(
+                ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN, queue=ReviewQueue.LOW_CONFIDENCE.value
+            )
+        return RoutingDecision(
+            branch=Branch.CLARIFY,
+            reason_code=ReasonCode.ALL_CHECKS_PASSED,
+            reason_detail="all clarify checks passed",
+            category=proposal.root.proposed_category,
+            queue=ReviewQueue.CLARIFICATION,
+        )
 
     # ═══════════════ TRUST-BASED ROUTING ═══════════════
     trust = compute_trust(signals, th.retrieval.keyword_agreement_k).value
