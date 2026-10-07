@@ -11,6 +11,8 @@ and core-api's `manage.py load_demo_kb` loads it into `kb_articles`.
 | `manifest.json` | yes | Every page's slug, URL, category, title and SHA-256, plus `snapshot_sha256` for the whole set |
 | `curation.json` | yes | People's decisions: risk tier per category and per article, and which articles are approved for auto-reply |
 | `guides/<key>/*.md` | no | Every page of each guide, from its `sitemap.xml`, fetched as Markdown |
+| `associations/mentions.jsonl` | yes | Entities extracted per article by ai-engine's offline build (ADR-0018), raw |
+| `associations/entity_graph.jsonl` | yes | Article-to-article associations scored from `mentions.jsonl`, loaded by core-api |
 
 ## Use it
 
@@ -55,6 +57,47 @@ the pinned hash.
 
 Only articles whose `risk_tiers` entry is `low` can be approved (spec §14
 P4). The loader refuses anything else before loading a single page.
+
+## Entity associations
+
+Link expansion can follow associations other than authored links
+(ADR-0018). The `entity_graph` source is built offline by ai-engine, from
+the host, with LightRAG (`uv sync --all-packages --group build` first):
+
+```bash
+uv run python -m ai_engine.core.associations.build \
+    --working-dir <scratch dir> --out demo_kb/associations
+uv run python -m ai_engine.core.associations.build --sample 100 \
+    --working-dir <scratch dir> --out <scratch dir>   # the spike check
+uv run python -m ai_engine.core.associations.build --rescore-only \
+    --working-dir <scratch dir> --out demo_kb/associations
+```
+
+`load_demo_kb` loads `associations/entity_graph.jsonl` when it exists; on
+its own: `manage.py load_associations demo_kb/associations/entity_graph.jsonl --source entity_graph`.
+
+**`mentions.jsonl` is the contract between the extractor and everything
+after it.** One JSON object per line, sorted, one per (entity, type,
+article):
+
+```json
+{"entity": "SES Sandbox", "type": "concept", "article_slug": "ses.request-production-access"}
+```
+
+The rows are raw, as extracted: allowed types, aliases and the stoplist are
+applied when scoring, so changing them needs `--rescore-only`, not a new
+extraction. Replacing LightRAG means writing this file some other way;
+scoring, `entity_graph.jsonl` and the loader don't change.
+
+`entity_graph.jsonl` has one line per direction of each pair, keyed by
+slug:
+
+```json
+{"source_slug": "ses.verify-addresses-procedure", "target_slug": "ses.request-production-access", "score": 6.38, "evidence": ["SES Sandbox"], "build_id": "…"}
+```
+
+Both files are reviewed in a PR like `curation.json`: `evidence` names the
+shared entities behind each edge, so a bad one is visible in the diff.
 
 ## Licensing
 
