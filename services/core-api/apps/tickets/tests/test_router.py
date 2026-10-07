@@ -13,6 +13,7 @@ import pytest
 from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQueue, route
 from config.settings.base import (
     AlertThresholds,
+    AssociationThresholds,
     BudgetThresholds,
     ClassificationThresholds,
     FewshotThresholds,
@@ -72,6 +73,7 @@ def make_thresholds(**overrides) -> Thresholds:
         ),
         classification=ClassificationThresholds(min_confidence=0.65),
         masking=MaskingThresholds(ner_max_share=0.5),
+        associations=AssociationThresholds(embedding_neighbour_k=5),
     )
     base.update(overrides)
     return Thresholds(**base)

@@ -371,13 +371,14 @@ The ADR is accepted or superseded on a full run and a held-out measurement.
 
 ## 12. Association sources for link expansion (ADR-0018)
 
-**Status (2026-10-07):** phases 0-2 built: `kb_article_associations` with the `ai_engine_ro` grant, `authored_link` rows written at ingest and by `build_associations`, ai-engine reading the one source `ASSOCIATION_SOURCE` names, and the `pool_size` retrieval signal. Plan: the "LightRAG entity-graph associations" doc.
+**Status (2026-10-07):** phases 0-3 built: `kb_article_associations` with the `ai_engine_ro` grant, `authored_link` rows written at ingest and by `build_associations`, `embedding_neighbour` rows by `build_associations --source embedding_neighbour` (k in thresholds.yaml), ai-engine reading the one source `ASSOCIATION_SOURCE` names, and the `pool_size` retrieval signal. Plan: the "LightRAG entity-graph associations" doc.
 
 **Priority:** Medium · **Spec:** §6.3 · **ADR:** 0014, 0018
 
 ### Work
 
 - Run the parity script (`uv run python -m ai_engine.graph.nodes.candidate_pool.link_parity`) against the loaded demo KB and record it in `evals/HISTORY.md`; then delete `link_parity.py`, the last copy of the per-ticket regex.
+- Build the `embedding_neighbour` rows on the loaded demo KB (`manage.py build_associations --source embedding_neighbour`) before R2.
 - Eval runs R0-R3, one source each, with the plan's gates.
 
 ### Done when

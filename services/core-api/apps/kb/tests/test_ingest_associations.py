@@ -48,7 +48,13 @@ def test_reingest_drops_extracted_edges_both_ways_and_rereads_authored_links():
     article.save(update_fields=["body"])
     article.ingest()
 
-    assert _sources(source_article=article) == {AssociationSource.AUTHORED_LINK}
+    # No entity_graph edge survives. The neighbour source had been built, so
+    # the article's own neighbours were recomputed from its new vectors;
+    # other articles' edges to it wait for their next build.
+    assert _sources(source_article=article) == {
+        AssociationSource.AUTHORED_LINK,
+        AssociationSource.EMBEDDING_NEIGHBOUR,
+    }
     assert _sources(target_article=article) == set()
     assert _sources(source_article=other, target_article=third) == {AssociationSource.ENTITY_GRAPH}
 

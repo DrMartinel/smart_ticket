@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import uuid
 
+import numpy as np
 from django.conf import settings
 from django.db import models, transaction
+from django.db.models import Avg
 from django.utils import timezone
 from pgvector.django import VectorField
 
@@ -19,7 +21,13 @@ from infrastructure.dtos import TicketCategory
 from infrastructure.ai_engine import ai_engine
 
 from apps.accounts.models import User
-from apps.kb.utils.associations import build_id, link_scores, linked_urls
+from apps.kb.utils.associations import (
+    build_id,
+    link_scores,
+    linked_urls,
+    nearest_neighbours,
+    normalised,
+)
 from apps.kb.utils.chunking import chunk_sections, rough_token_count
 
 
@@ -364,9 +372,57 @@ class KbArticleAssociationManager(models.Manager["KbArticleAssociation"]):
         ]
         if articles is None:
             return self.replace_source(AssociationSource.AUTHORED_LINK, rows)
-        self.filter(
-            source=AssociationSource.AUTHORED_LINK, source_article__in=[a.id for a in articles]
-        ).delete()
+        return self._replace_outgoing(AssociationSource.AUTHORED_LINK, articles, rows)
+
+    @transaction.atomic
+    def rebuild_embedding_neighbours(
+        self, *, k: int, articles: list[KbArticle] | None = None
+    ) -> int:
+        """Rebuilds `embedding_neighbour` rows: each article's `k` nearest
+        other articles by the cosine between centroids, the mean of its
+        stored chunk vectors. For `articles`, their outgoing rows; for None,
+        every article's, replacing the whole source. Returns the number of
+        rows written.
+
+        No model call (ADR-0012): the vectors are already in `kb_chunks`.
+        Articles without embedded chunks get no rows and are nobody's
+        neighbour; inactive articles are kept, as for every source."""
+
+        centroids = list(
+            KbChunk.objects.filter(embedding__isnull=False)
+            .values("article_id")
+            .annotate(centroid=Avg("embedding", output_field=VectorField(dimensions=1024)))
+            .order_by("article_id")
+            .values_list("article_id", "centroid")
+        )
+        ids = [article_id for article_id, _ in centroids]
+        vectors = (
+            normalised(np.array([np.asarray(c, dtype=np.float64) for _, c in centroids]))
+            if ids
+            else np.empty((0, 0))
+        )
+        wanted = None if articles is None else {a.id for a in articles}
+        among = None if wanted is None else [i for i, a in enumerate(ids) if a in wanted]
+
+        build = build_id(AssociationSource.EMBEDDING_NEIGHBOUR, f"k={k}")
+        rows = [
+            KbArticleAssociation(
+                source_article_id=source,
+                target_article_id=target,
+                source=AssociationSource.EMBEDDING_NEIGHBOUR,
+                score=similarity,
+                build_id=build,
+            )
+            for source, target, similarity in nearest_neighbours(ids, vectors, k=k, among=among)
+        ]
+        if articles is None:
+            return self.replace_source(AssociationSource.EMBEDDING_NEIGHBOUR, rows)
+        return self._replace_outgoing(AssociationSource.EMBEDDING_NEIGHBOUR, articles, rows)
+
+    def _replace_outgoing(
+        self, source: str, articles: list[KbArticle], rows: list[KbArticleAssociation]
+    ) -> int:
+        self.filter(source=source, source_article__in=[a.id for a in articles]).delete()
         return len(self.bulk_create(rows))
 
     @transaction.atomic
@@ -374,14 +430,25 @@ class KbArticleAssociationManager(models.Manager["KbArticleAssociation"]):
         """After `article`'s text changed: edges drawn from the old text must
         not outlive it. `entity_graph` and `embedding_neighbour` rows go in
         both directions, until their next build; the article's own
-        `authored_link` rows are rebuilt from the new chunks."""
+        `authored_link` rows are rebuilt from the new chunks, and so are its
+        outgoing `embedding_neighbour` rows if that source has been built.
 
+        Only if built: during a first load from empty, rebuilding neighbours
+        per article would rank each one against a half-loaded KB, a scan of
+        every chunk per article, for rows `build_associations` replaces
+        anyway."""
+
+        neighbours_built = self.filter(source=AssociationSource.EMBEDDING_NEIGHBOUR).exists()
         stale = [AssociationSource.ENTITY_GRAPH, AssociationSource.EMBEDDING_NEIGHBOUR]
         self.filter(
             models.Q(source_article=article) | models.Q(target_article=article),
             source__in=stale,
         ).delete()
         self.rebuild_authored_links([article])
+        if neighbours_built:
+            self.rebuild_embedding_neighbours(
+                k=settings.THRESHOLDS.associations.embedding_neighbour_k, articles=[article]
+            )
 
 
 class KbArticleAssociation(BaseModel):

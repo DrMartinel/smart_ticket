@@ -246,6 +246,12 @@ class MaskingThresholds(BaseModel):
     ner_max_share: float = Field(gt=0, le=1)
 
 
+class AssociationThresholds(BaseModel):
+    # Neighbours per article for the embedding_neighbour source (ADR-0018).
+    # Read by `build_associations`, never by routing.
+    embedding_neighbour_k: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -261,6 +267,7 @@ class Thresholds(BaseModel):
     alerts: AlertThresholds
     classification: ClassificationThresholds
     masking: MaskingThresholds
+    associations: AssociationThresholds
 
     @property
     def retrieval_floor(self) -> float:

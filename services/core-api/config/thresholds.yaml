@@ -91,3 +91,10 @@ masking:
   # extreme case; pii_ner.v2 is the fix. Chosen from these few cases:
   # re-choose on shadow data.
   ner_max_share: 0.7
+
+associations:
+  # 🔧 Nearest articles kept per article for the `embedding_neighbour`
+  # association source (ADR-0018): cosine between article centroids, the
+  # no-LLM control the entity graph is measured against. A placeholder from
+  # the plan, not fitted; the eval run R2 judges it.
+  embedding_neighbour_k: 5
