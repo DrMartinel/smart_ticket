@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     link_expansion_seeds: int
     link_expansion_chunks_per_page: int
     link_expansion_max_links_per_seed: int
+    # The one association source expansion follows (ADR-0018), or "none".
+    # Sources are compared against each other, never followed together: their
+    # scores are on different scales.
+    association_source: Literal["authored_link", "embedding_neighbour", "entity_graph", "none"]
 
     # --- Reranker (Jev) ---
     rerank_pool: int

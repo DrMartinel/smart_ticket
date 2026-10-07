@@ -133,6 +133,11 @@ class RetrievalSignals(BaseModel):
     # `retrieval.keyword_agreement_k` from thresholds.yaml.
     bm25_rank_of_top1: int | None = Field(default=None, ge=1)
     docs_above_floor: int = Field(ge=0)
+    # Chunks the cross-encoder scored: fused candidates plus link expansion
+    # (ADR-0018). Reported so an eval can weigh expansion's cost; never read
+    # by the router or the trust scorer. Defaulted: signals stored before it
+    # existed still load.
+    pool_size: int = Field(default=0, ge=0)
 
 
 class GenerationSignals(BaseModel):

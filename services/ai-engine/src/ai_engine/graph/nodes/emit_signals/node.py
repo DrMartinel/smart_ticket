@@ -37,6 +37,7 @@ class EmitSignalsNode(BaseNode):
                 rerank_margin=rerank_margin,
                 bm25_rank_of_top1=bm25_rank_of_top1,
                 docs_above_floor=sum(1 for s in final if s >= state.retrieval_floor),
+                pool_size=len(state.pool),
             ),
             generation=GenerationSignals(
                 quote_applicable=state.quote_applicable,

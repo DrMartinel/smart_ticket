@@ -1,9 +1,10 @@
 """
 Candidate pool — the cross-encoder pass, and link expansion (ADR-0014
-decisions 1-2, ADR-0015). The cross-encoder scores the fused candidates; the
-articles of its top `link_expansion_seeds` chunks are the seeds; the pages
-they link to add their chunks nearest the ticket; the cross-encoder scores
-those too. The pool leaves in cross-encoder order, for RerankNode to cut to
+decisions 1-2, ADR-0015, ADR-0018). The cross-encoder scores the fused
+candidates; the articles of its top `link_expansion_seeds` chunks are the
+seeds; the articles associated with them (in the one source
+`ASSOCIATION_SOURCE` names) add their chunks nearest the ticket; the
+cross-encoder scores those too. The pool leaves in cross-encoder order, for RerankNode to cut to
 Jev's shortlist and re-score.
 
 Every score here is the cross-encoder's. Seeds come from its order, never

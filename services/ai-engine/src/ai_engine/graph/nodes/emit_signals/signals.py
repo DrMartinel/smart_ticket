@@ -17,6 +17,10 @@ class RetrievalSignals(BaseModel):
     rerank_margin: float = Field(ge=0, le=1)
     bm25_rank_of_top1: int | None = Field(default=None, ge=1)
     docs_above_floor: int = Field(ge=0)
+    # Chunks the cross-encoder scored for this ticket: the fused candidates
+    # plus what link expansion added (ADR-0014, ADR-0018). A cost figure for
+    # the eval, never a trust feature or a router input.
+    pool_size: int = Field(default=0, ge=0)
 
 
 class GenerationSignals(BaseModel):

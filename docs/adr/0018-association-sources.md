@@ -41,8 +41,11 @@ threshold, the trust score or the router. `ai_engine_ro` gets SELECT on it
 `linked_article_ids()` joins `kb_articles.is_active`, so deactivating or
 reactivating an article takes effect on the next ticket with no rebuild.
 
-**3. Three sources, chosen per deployment by `ASSOCIATION_SOURCES`** (a JSON
-list; `[]` turns expansion off):
+**3. Three sources; a deployment follows exactly one, `ASSOCIATION_SOURCE`**
+(`authored_link`, `embedding_neighbour`, `entity_graph`, or `none` to turn
+expansion off). Sources are compared against each other, not fused: their
+scores are on different scales, and combining them would need its own rule
+and its own evaluation.
 
 | Source | Built by | Model calls |
 |---|---|---|
@@ -80,8 +83,8 @@ which nothing scores.
 
 The table is what lets a KB without links get expansion at all, and it moves
 link extraction from every ticket to ingestion. Keeping each source's rows
-tagged lets one deployment run any combination and lets an eval withhold one
-source without editing the KB. Holding the extractor to an offline job and to
+tagged lets an eval switch from one source to another, links withheld,
+without editing the KB. Holding the extractor to an offline job and to
 article-to-article edges keeps every boundary where an earlier ADR put it:
 ai-engine still writes nothing (it hands core-api a file), no generated text
 reaches a requester, and the scores a threshold sees are unchanged.
@@ -96,6 +99,8 @@ reaches a requester, and the scores a threshold sees are unchanged.
 - **Skip inactive targets at write time.** Simpler rows, but every
   reactivation would need a rebuild or rescore; rejected for decision 2.
 - **A separate cap per source.** Possible later; the eval sweep comes first.
+- **Following several sources at once.** Their scores can't be ranked
+  together; left until one source has been chosen on its own merits.
 
 ## Consequences
 
@@ -114,7 +119,7 @@ reaches a requester, and the scores a threshold sees are unchanged.
    same links as the regex path, and R1's recall@3 matches the last full run.
 2. **Spike check:** `build --sample 100`, with a hand check of 20 entities and
    `ASSOCIATION_HUB_DF_MAX` chosen from the df histogram.
-3. **Eval runs R0-R4** (the plan's gates): `entity_graph` beats
-   `embedding_neighbour` with links withheld, loses no ticket against R0, adds
-   no auto-reply false positive against R1, keeps refusal and injection, and
-   reports `pool_size`.
+3. **Eval runs R0-R3** (the plan's gates), one source each: `entity_graph`
+   beats `embedding_neighbour`, loses no ticket against R0 (no expansion),
+   adds no auto-reply false positive against R1 (`authored_link`), keeps
+   refusal and injection, and reports `pool_size`.

@@ -6,6 +6,7 @@ to require an approver, never something the LLM can grant itself.
 
 from __future__ import annotations
 
+import uuid
 
 from django.conf import settings
 from django.db import models, transaction
@@ -18,7 +19,8 @@ from infrastructure.dtos import TicketCategory
 from infrastructure.ai_engine import ai_engine
 
 from apps.accounts.models import User
-from apps.kb.utils import chunk_sections, rough_token_count
+from apps.kb.utils.associations import build_id, link_scores, linked_urls
+from apps.kb.utils.chunking import chunk_sections, rough_token_count
 
 
 class KBGovernanceError(Exception):
@@ -182,7 +184,11 @@ class KbArticle(BaseModel):
     def ingest(self) -> list[KbChunk]:
         """(Re)chunks and (re)embeds this article. Existing chunks are
         replaced wholesale — simplest correct behavior for a KB whose update
-        cadence is "occasional edits by a KB owner", not high-frequency."""
+        cadence is "occasional edits by a KB owner", not high-frequency.
+
+        Called only when the text changed or the chunks are stale, so its
+        associations are refreshed here too (ADR-0018): edges drawn from the
+        old text are dropped, and its authored links re-read."""
 
         KbChunk.objects.filter(article=self).delete()
         chunks: list[KbChunk] = []
@@ -204,6 +210,7 @@ class KbArticle(BaseModel):
             chunks.append(chunk)
         # The BM25 index (idx_chunk_bm25, infra/migrations/sql/0005) is
         # maintained by pg_search on insert, so no separate step is needed.
+        KbArticleAssociation.objects.refresh_for(self)
         return chunks
 
     @transaction.atomic
@@ -302,6 +309,81 @@ class AssociationSource(models.TextChoices):
     ENTITY_GRAPH = "entity_graph"
 
 
+class KbArticleAssociationManager(models.Manager["KbArticleAssociation"]):
+    @transaction.atomic
+    def replace_source(self, source: str, rows: list[KbArticleAssociation]) -> int:
+        """Replaces every row of one source with `rows`, in one transaction,
+        so a reader sees the old set or the new one, never half of each.
+        Other sources are untouched. Returns the number of rows written."""
+
+        self.filter(source=source).delete()
+        return len(self.bulk_create(rows))
+
+    @transaction.atomic
+    def rebuild_authored_links(self, articles: list[KbArticle] | None = None) -> int:
+        """Rebuilds `authored_link` rows from chunk text: for `articles`, their
+        outgoing rows; for None, every article's, replacing the whole source.
+        Returns the number of rows written.
+
+        Targets resolve against every article with a `source_url`, active or
+        not: the read filters inactive ones, so reactivating needs no rebuild.
+        A link to a page not loaded yet resolves to nothing, which is why a
+        full load rebuilds at the end."""
+
+        article_by_url = dict(
+            KbArticle.objects.exclude(source_url="").values_list("source_url", "id")
+        )
+        sources = (
+            KbArticle.objects.exclude(source_url="")
+            if articles is None
+            else [a for a in articles if a.source_url]
+        )
+        base_url = {a.id: a.source_url for a in sources}
+        contents: dict[uuid.UUID, list[str]] = {article_id: [] for article_id in base_url}
+        for article_id, content in (
+            KbChunk.objects.filter(article_id__in=base_url)
+            .order_by("article_id", "chunk_index")
+            .values_list("article_id", "content")
+        ):
+            contents[article_id].append(content)
+
+        build = build_id(AssociationSource.AUTHORED_LINK)
+        rows = [
+            KbArticleAssociation(
+                source_article_id=article_id,
+                target_article_id=target,
+                source=AssociationSource.AUTHORED_LINK,
+                score=score,
+                evidence=[href],
+                build_id=build,
+            )
+            for article_id, url in base_url.items()
+            for target, score, href in link_scores(
+                linked_urls(url, contents[article_id]), article_by_url, own_id=article_id
+            )
+        ]
+        if articles is None:
+            return self.replace_source(AssociationSource.AUTHORED_LINK, rows)
+        self.filter(
+            source=AssociationSource.AUTHORED_LINK, source_article__in=[a.id for a in articles]
+        ).delete()
+        return len(self.bulk_create(rows))
+
+    @transaction.atomic
+    def refresh_for(self, article: KbArticle) -> None:
+        """After `article`'s text changed: edges drawn from the old text must
+        not outlive it. `entity_graph` and `embedding_neighbour` rows go in
+        both directions, until their next build; the article's own
+        `authored_link` rows are rebuilt from the new chunks."""
+
+        stale = [AssociationSource.ENTITY_GRAPH, AssociationSource.EMBEDDING_NEIGHBOUR]
+        self.filter(
+            models.Q(source_article=article) | models.Q(target_article=article),
+            source__in=stale,
+        ).delete()
+        self.rebuild_authored_links([article])
+
+
 class KbArticleAssociation(BaseModel):
     """One article pointing at another, for link expansion (ADR-0014
     decision 1, ADR-0018). ai-engine reads it through `ai_engine_ro`
@@ -328,6 +410,8 @@ class KbArticleAssociation(BaseModel):
     # What produced the row (source, policy version, snapshot, date), so an
     # edge can be traced to the build that made it.
     build_id = models.CharField(max_length=200)
+
+    objects = KbArticleAssociationManager()
 
     class Meta(BaseModel.Meta):
         db_table = "kb_article_associations"

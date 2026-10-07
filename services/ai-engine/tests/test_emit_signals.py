@@ -216,3 +216,15 @@ def test_signals_read_nothing_outside_the_state(fake_db, make_state, use_db):
 
     assert db.events == []
     assert out["signals"].llm_self_confidence == 80.0
+
+
+def test_pool_size_is_the_cross_encoders_batch(fake_db, make_state, use_db):
+    """`pool_size` reports how many chunks the cross-encoder scored, fused
+    candidates plus expansion (ADR-0018), so an eval can weigh expansion's
+    cost. It is the pool, not the reranked shortlist Jev saw."""
+    use_db(fake_db())
+    pool = [_chunk(i, 0.5) for i in range(1, 8)]
+
+    result = emit_signals(make_state(pool=pool, reranked=pool[:3]))
+
+    assert result["signals"].retrieval.pool_size == 7

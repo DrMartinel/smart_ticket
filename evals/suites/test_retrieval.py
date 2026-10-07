@@ -14,13 +14,17 @@ subsequently decided to do with those chunks (a model that retrieved the
 right article but still said "insufficient_context" is a generation
 problem, not a retrieval miss).
 
-It also reports, ungated, what the model did with the gold article when
-retrieval found it (`_gold_use`). The golden set has no expected quote, so
+It also reports, ungated, two things. The cross-encoder's batch per ticket
+(`pool_size`, median and max): link expansion's cost, which the ADR-0018
+eval plan compares across association sources. And what the model did with
+the gold article when retrieval found it (`_gold_use`). The golden set has no expected quote, so
 this is a proxy for "the chunk kept for the gold article held the answer":
 since per-article dedup (the rerank node) the LLM sees one chunk per article, and
 if that chunk only restates the problem the model can refuse or quote text
 it wasn't shown.
 """
+
+from statistics import median
 
 from suites.golden_utils import analyze, load_golden, record_metric, sample
 
@@ -51,9 +55,11 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
     reciprocal_ranks = []
     misses = []
     gold_use: dict[str, list[str]] = {"quoted": [], "quote_missed": [], "refused": [], "other": []}
+    pool_sizes: list[int] = []
 
     for case in cases:
         result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
+        pool_sizes.append(result["signals"]["retrieval"]["pool_size"])
         truth_slug = case["truth"]["kb_slug"]
         retrieved_slugs = [c["kb_slug"] for c in result.get("retrieved_chunks", [])]
 
@@ -71,12 +77,15 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
 
     print(f"\nRetrieval: recall={recall:.2%} mrr={mrr:.3f} n={len(cases)} misses={misses}")
     print(f"Gold article in context ({hits}): {gold_use}")
+    print(f"Cross-encoder batch: median={median(pool_sizes)} max={max(pool_sizes)}")
     record_metric(
         "retrieval_recall_at_3",
         recall,
         mrr=mrr,
         n=len(cases),
         gold_use={k: len(v) for k, v in gold_use.items()},
+        pool_size_median=median(pool_sizes),
+        pool_size_max=max(pool_sizes),
     )
     assert recall >= RECALL_THRESHOLD, (
         f"recall {recall:.2%} < {RECALL_THRESHOLD:.0%}, misses={misses}"

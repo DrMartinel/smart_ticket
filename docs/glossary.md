@@ -68,7 +68,9 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **RRF** — Reciprocal Rank Fusion, `score(d) = Σ 1/(k + rank_i(d))` with k=60. Combines the two result lists. **Never threshold on an RRF score** — it is a rank-derived value, not a similarity, and its absolute magnitude means nothing ([ADR-0005](adr/0005-threshold-on-cross-encoder-not-fused-score.md)).
 
-**Link expansion** — chunks of the KB pages linked from the shortlister's top 3 are added to the candidates (ADR-0014): the page with the fix is often one link away from the page that describes the symptom.
+**Link expansion** — chunks of the KB pages associated with the shortlister's top 3 are added to the candidates (ADR-0014): the page with the fix is often one link away from the page that describes the symptom. The associations live in `kb_article_associations`, tagged by source (ADR-0018).
+
+**Association source** — where an article association came from: `authored_link` (Markdown links, read at ingest), `embedding_neighbour` (nearest article centroids), or `entity_graph` (shared entities, from an offline LightRAG build). ai-engine follows exactly one, `ASSOCIATION_SOURCE`; sources are compared, never fused (ADR-0018).
 
 **Shortlister** — a cross-encoder (bge-reranker-v2-m3 on vLLM) that scores each (ticket, chunk) pair and orders the pool; its top 15 (`RERANK_POOL`) are Jev's shortlist. Its score (`shortlist_score`) only orders; **no threshold reads it**. The `lexical` provider is a dependency-free token-overlap stand-in for CI and offline dev, not a substitute for retrieval quality.
 

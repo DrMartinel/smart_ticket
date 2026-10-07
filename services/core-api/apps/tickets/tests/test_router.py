@@ -8,6 +8,8 @@ from typing import Any
 
 from uuid import UUID
 
+import pytest
+
 from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQueue, route
 from config.settings.base import (
     AlertThresholds,
@@ -271,6 +273,15 @@ def test_auto_reply_all_checks_pass():
     assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
     assert d.kb_slug == "identity-center.resetpassword-accessportal"
     assert d.trust is not None
+
+
+@pytest.mark.parametrize("pool_size", [0, 10, 300])
+def test_pool_size_never_changes_the_branch(pool_size):
+    """`pool_size` reports link expansion's cost (ADR-0018). A bigger
+    cross-encoder batch is not evidence for or against an answer."""
+    d = route(good_signals(**{"retrieval.pool_size": pool_size}), auto_reply_proposal(), kb(), TH)
+    assert d.branch is Branch.AUTO_REPLY
+    assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
 
 
 # ── Runbook: ALWAYS HITL, no threshold escape hatch (ADR-0006) ─────────

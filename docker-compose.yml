@@ -183,6 +183,7 @@ services:
       LINK_EXPANSION_SEEDS: ${LINK_EXPANSION_SEEDS:?see .env.example}
       LINK_EXPANSION_CHUNKS_PER_PAGE: ${LINK_EXPANSION_CHUNKS_PER_PAGE:?see .env.example}
       LINK_EXPANSION_MAX_LINKS_PER_SEED: ${LINK_EXPANSION_MAX_LINKS_PER_SEED:?see .env.example}
+      ASSOCIATION_SOURCE: ${ASSOCIATION_SOURCE:?see .env.example}
       RERANK_POOL: ${RERANK_POOL:?see .env.example}
       JEV_BASE_URL: ${JEV_BASE_URL:?see .env.example}
       JEV_MODEL: ${JEV_MODEL:?see .env.example}

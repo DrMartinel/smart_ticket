@@ -73,6 +73,16 @@ def test_llm_self_confidence_does_not_change_score():
     assert score(s1, K).value == score(s2, K).value
 
 
+def test_pool_size_does_not_change_score():
+    """`pool_size` is the cross-encoder's batch, reported so evals can weigh
+    link expansion's cost (ADR-0018). It says how much work retrieval did,
+    not whether it found the answer, and must never move trust."""
+    small = make_signals(**{"retrieval.pool_size": 10})
+    large = make_signals(**{"retrieval.pool_size": 300})
+    assert score(small, K).value == score(large, K).value
+    assert not any("pool" in f for f in FEATURES)
+
+
 def test_score_is_deterministic():
     s = make_signals()
     assert score(s, K).value == score(s, K).value
