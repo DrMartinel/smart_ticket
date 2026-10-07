@@ -98,3 +98,9 @@ django_settings_module = "config.settings.test"
 [[tool.mypy.overrides]]
 module = ["sklearn", "sklearn.*"]
 ignore_missing_imports = true
+
+# LightRAG ships no type information. Only ai-engine's offline entity_graph
+# build imports it (ADR-0018).
+[[tool.mypy.overrides]]
+module = ["lightrag", "lightrag.*"]
+ignore_missing_imports = true

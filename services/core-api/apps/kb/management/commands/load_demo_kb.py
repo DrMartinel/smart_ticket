@@ -28,11 +28,12 @@ from pathlib import Path
 from typing import Any
 
 from django.conf import settings
+from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from apps.accounts.models import User
-from apps.kb.models import KbArticle, KbArticleAssociation
+from apps.kb.models import AssociationSource, KbArticle, KbArticleAssociation
 from apps.kb.utils.chunking import clean_markdown
 from apps.tickets.utils.router import RiskTier
 from infrastructure.dtos import TicketCategory
@@ -151,6 +152,16 @@ class Command(BaseCommand):
         # rebuild in `ingest` misses links to pages loaded after it. One full
         # rebuild at the end resolves them all.
         counts["authored_links"] = KbArticleAssociation.objects.rebuild_authored_links()
+        # The offline entity_graph build's output, when one is committed
+        # (ADR-0018). Loaded after the pages so its slugs resolve.
+        entity_graph = root / "associations" / "entity_graph.jsonl"
+        if entity_graph.exists():
+            call_command(
+                "load_associations",
+                str(entity_graph),
+                source=AssociationSource.ENTITY_GRAPH,
+                stdout=self.stdout,
+            )
 
         if approver is not None:
             hashes = {p.slug: p.sha256 for p in pages}

@@ -79,6 +79,13 @@ class Settings(BaseSettings):
     # scores are on different scales.
     association_source: Literal["authored_link", "embedding_neighbour", "entity_graph", "none"]
 
+    # --- Entity-graph associations: the offline build only (ADR-0018) ---
+    association_hub_df_max: int
+    association_per_article_cap: int
+    lightrag_llm_max_async: int
+    lightrag_max_gleaning: int
+    entity_policy_version: str
+
     # --- Reranker (Jev) ---
     rerank_pool: int
     jev_base_url: str

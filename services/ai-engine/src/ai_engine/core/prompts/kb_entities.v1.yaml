@@ -1,0 +1,38 @@
+# Entity policy for the offline entity_graph build (ADR-0018). Versioned and
+# reviewed like a prompt: ENTITY_POLICY_VERSION names the file in use, and
+# the version is part of every row's build_id.
+#
+# Two kinds of rule, deliberately kept apart:
+#
+# - `entity_types_guidance` is sent to the model (LightRAG's extraction
+#   prompt). Changing it changes what is extracted, so the whole KB must be
+#   re-extracted: the build does that when the version changes.
+# - `allowed_types`, `aliases` and `stoplist` are applied when scoring
+#   mentions.jsonl. Changing them needs only `build --rescore-only`, no model
+#   call, so anything likely to be tuned belongs here.
+
+entity_types_guidance: |
+  This text is IT support documentation. Extract only entities a support
+  ticket could be about, and classify each with one of these types:
+
+  - Service: a cloud service, product or feature (Amazon SES, IAM Identity Center, S3 bucket policy)
+  - Restriction: a limit, quota, sandbox, requirement or permission boundary (SES sandbox, sending quota, MFA requirement)
+  - Symptom: an error, failure or observable problem (AccessDenied error, bounced email, throttling)
+  - Action: something a person does to fix or configure (request production access, verify an identity, rotate a key)
+  - Setting: a configuration value, policy, role or option (DKIM record, trust policy, password policy)
+
+  Do not extract people, teams, support channels, durations, UI screens or
+  menus, or URLs. Name every entity in English, as the documentation names
+  it, without a leading article.
+
+# Types kept when scoring; LightRAG lowercases the model's types.
+allowed_types: [service, restriction, symptom, action, setting]
+
+# Alias -> canonical name, compared case-insensitively. Empty until the spike
+# check's hand review shows which names drift.
+aliases: {}
+
+# Entity names never used for an edge, compared case-insensitively. Empty
+# until the spike check: generic names that link everything are cut by
+# ASSOCIATION_HUB_DF_MAX already.
+stoplist: []

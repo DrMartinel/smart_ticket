@@ -26,7 +26,7 @@ def load_system_prompt(version: str) -> str:
     (evals/HISTORY.md 2026-10-04 (4)). Only a comment that opens the file is
     removed: the instructions themselves are never touched."""
 
-    _check_version(version)
+    check_version(version)
     text = (PROMPT_DIR / f"{version}.md").read_text()
     if text.startswith("<!--"):
         end = text.find("-->")
@@ -41,14 +41,14 @@ def load_question(version: str) -> dict[str, Any]:
     core/prompts/rerank_resolves.v1.json: a TypeSafe question object, sent
     as is."""
 
-    _check_version(version)
+    check_version(version)
     question = json.loads((PROMPT_DIR / f"{version}.json").read_text())
     if not isinstance(question, dict) or not question.get("instructions"):
         raise ValueError(f"question {version!r} has no instructions")
     return question
 
 
-def _check_version(version: str) -> None:
+def check_version(version: str) -> None:
     if "/" in version or "\\" in version or ".." in version:
         # Pre-emptive: AIRunRequest.prompt_version is caller-supplied. If
         # per-request prompt selection ever lands, it must not be able to

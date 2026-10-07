@@ -11,7 +11,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 
 ## Authority & safety
 
-- [regression] No node writes to a database. No `session.add/commit/flush/delete`, no `create_all`. Only the three granted tables are read (ADR-0004).
+- [regression] No node writes to a database. No `session.add/commit/flush/delete`, no `create_all`. Only the four granted tables are read (ADR-0004, ADR-0018).
 - [regression] ai-engine chooses no `Branch`, computes no trust score, and doesn't check auto-reply authority. Those are core-api's job (ADR-0001, ADR-0002).
 - [regression] `llm_self_confidence` is only forwarded, never used (ADR-0003).
 - [regression] Any retrieval threshold compares against Jev's score (`final_score()`, ADR-0015), never the cross-encoder's or an RRF score. `Candidate` has no score field (ADR-0005).

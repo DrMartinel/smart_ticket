@@ -64,7 +64,7 @@ jobs:
       # Settings come only from .env (or the env); the template is the
       # shipped config. Job-level env: entries still win over it.
       - run: cp .env.example .env
-      - run: uv sync --all-packages
+      - run: uv sync --all-packages --group build
       - name: Postgres (pgvector + pg_search, ADR-0013)
         run: docker compose up -d --wait db
 
