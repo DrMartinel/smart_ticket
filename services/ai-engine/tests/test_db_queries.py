@@ -30,6 +30,7 @@ def test_vector_search_orders_by_cosine_distance_over_embedded_chunks_only(fake_
     sql, params = _only_statement(db)
 
     assert "kb_chunks.embedding IS NOT NULL" in sql
+    assert "kb_articles.is_active IS true" in sql
     assert "ORDER BY kb_chunks.embedding <=> %(embedding_1)s" in sql
     assert "JOIN kb_articles ON kb_articles.id = kb_chunks.article_id" in sql
     assert params["embedding_1"] == [0.1, 0.2]
@@ -50,6 +51,7 @@ def test_bm25_search_uses_match_disjunction_and_ranks_by_bm25_score(fake_db, use
     assert "kb_chunks.content ||| %(content_1)s" in sql
     assert "kb_chunks.section_title ||| %(section_title_1)s" in sql
     assert "pdb.score(kb_chunks.id) AS score" in sql
+    assert "kb_articles.is_active IS true" in sql
     assert "ORDER BY score DESC" in sql
     assert "plainto_tsquery" not in sql
     assert "ts_rank" not in sql

@@ -56,6 +56,9 @@ def bm25_search(query_text: str) -> list[LexicalHit]:
                 KbChunk.section_title.op("|||", is_comparison=True)(query_text),
             )
         )
+        # A deactivated article is out of the KB: it must not be retrieved,
+        # and so can't become a link-expansion seed either.
+        .where(KbArticle.is_active.is_(True))
         .order_by(score.desc())
         .limit(settings.bm25_top_k)
     )
