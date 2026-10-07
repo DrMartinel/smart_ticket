@@ -98,6 +98,30 @@ class KbArticleManager(models.Manager["KbArticle"]):
             return article, True
         return article, fields_changed
 
+    @transaction.atomic
+    def sync_active_from_source(self, loaded_slugs: set[str]) -> tuple[int, int]:
+        """After a full load of an external source, deactivates the
+        source-loaded articles it no longer has and reactivates the ones it
+        has again. Returns `(deactivated, reactivated)`.
+
+        Only articles with a `source_url` are considered: one created through
+        the API was never in any snapshot, and a reload must not hide it.
+        `loaded_slugs` are the pages actually loaded this time, so a page
+        skipped for a hash mismatch is not revived with stale text. Callers
+        pass the WHOLE source: a partial load (`--limit`) would deactivate
+        everything it skipped."""
+
+        from_source = self.exclude(source_url="")
+        deactivated = (
+            from_source.filter(is_active=True)
+            .exclude(slug__in=loaded_slugs)
+            .update(is_active=False)
+        )
+        reactivated = from_source.filter(is_active=False, slug__in=loaded_slugs).update(
+            is_active=True
+        )
+        return deactivated, reactivated
+
 
 class KbArticle(BaseModel):
     # KB-0142, or `iam.id_credentials_mfa` for the demo KB.
@@ -263,6 +287,66 @@ class KbChunk(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["article", "chunk_index"], name="uq_kb_chunk_article_index"
+            ),
+        ]
+
+
+class AssociationSource(models.TextChoices):
+    """Where an association came from (ADR-0018). ai-engine's
+    `ASSOCIATION_SOURCES` picks which ones link expansion follows, so a
+    deployment, or an eval with links withheld, can drop one without
+    editing the KB."""
+
+    AUTHORED_LINK = "authored_link"
+    EMBEDDING_NEIGHBOUR = "embedding_neighbour"
+    ENTITY_GRAPH = "entity_graph"
+
+
+class KbArticleAssociation(BaseModel):
+    """One article pointing at another, for link expansion (ADR-0014
+    decision 1, ADR-0018). ai-engine reads it through `ai_engine_ro`
+    (infra/migrations/sql/0006) and never writes it.
+
+    Rows are kept for inactive targets: the read joins `is_active`, so a
+    reactivated article is followed again with no rebuild."""
+
+    source_article = models.ForeignKey(
+        KbArticle, on_delete=models.CASCADE, related_name="associations_out"
+    )
+    target_article = models.ForeignKey(
+        KbArticle, on_delete=models.CASCADE, related_name="associations_in"
+    )
+    source = models.CharField(max_length=20, choices=AssociationSource.choices)
+    # Orders one seed's targets within one source, higher first, and nothing
+    # else: never a threshold, a trust feature or a router input. The scales
+    # differ by source (document order, cosine, summed IDF).
+    score = models.FloatField()
+    # Why the edge exists, for the person reviewing it: the link href, or
+    # the shared entity names.
+    evidence = models.JSONField(default=list)
+    reviewed = models.BooleanField(default=False)
+    # What produced the row (source, policy version, snapshot, date), so an
+    # edge can be traced to the build that made it.
+    build_id = models.CharField(max_length=200)
+
+    class Meta(BaseModel.Meta):
+        db_table = "kb_article_associations"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_article", "target_article", "source"],
+                name="uq_kb_association_pair_source",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(source_article=models.F("target_article")),
+                name="chk_kb_association_not_self",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                "source_article",
+                "source",
+                models.F("score").desc(),
+                name="idx_kb_association_seed",
             ),
         ]
 

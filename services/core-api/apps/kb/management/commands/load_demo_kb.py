@@ -11,6 +11,8 @@ Reads two tracked files:
 Every page is checked against the SHA-256 in the manifest before it is
 loaded, so the KB in the database is exactly the snapshot the manifest
 names. Reloading is idempotent: unchanged articles are not re-embedded.
+A full load (no `--limit`) also deactivates snapshot articles the manifest
+no longer lists, and reactivates ones it lists again.
 
 Auto-reply approval goes through `KbArticle.set_auto_reply_allowed` with a
 named manager and a reason, like any approval (ADR-0002). Each approval in
@@ -109,6 +111,7 @@ class Command(BaseCommand):
                 + ", ".join(sorted(uncovered))
             )
         counts = {"created_or_updated": 0, "unchanged": 0, "missing": 0, "hash_mismatch": 0}
+        loaded: set[str] = set()
         for i, page in enumerate(pages, 1):
             file = root / page.path
             if not file.exists():
@@ -132,12 +135,21 @@ class Command(BaseCommand):
                 source_url=page.url,
             )
             counts["created_or_updated" if changed else "unchanged"] += 1
+            loaded.add(page.slug)
             if i % 100 == 0:
                 self.stdout.write(f"  {i}/{len(pages)}")
 
+        # Pages that left the snapshot stop being retrievable, and pages back
+        # in it start again. Never after a partial load: `--limit` skips most
+        # of the manifest, and would deactivate everything it skipped.
+        if options["limit"] is None:
+            counts["deactivated"], counts["reactivated"] = (
+                KbArticle.objects.sync_active_from_source(loaded)
+            )
+
         if approver is not None:
-            loaded = {p.slug: p.sha256 for p in pages}
-            self._apply_approvals(curation.auto_reply, loaded, approver)
+            hashes = {p.slug: p.sha256 for p in pages}
+            self._apply_approvals(curation.auto_reply, hashes, approver)
 
         self.stdout.write(
             self.style.SUCCESS(

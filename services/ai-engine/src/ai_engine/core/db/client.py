@@ -4,9 +4,10 @@ single instance; query code runs each read through `db.all` or `db.first`
 and never opens a session itself.
 
 Connects as `ai_engine_ro`, SELECT-only on kb_articles, kb_chunks and
-fewshot_examples (0004_grants_and_audit_lockdown.sql). A query against any
-business table fails at the database (ADR-0004) — never extend this beyond
-those three. Queries are SQLAlchemy 2.0 against `tables.py` (ADR-0008).
+fewshot_examples (0004_grants_and_audit_lockdown.sql) and
+kb_article_associations (0006_association_grant.sql, ADR-0018). A query
+against any business table fails at the database (ADR-0004) — never extend
+this beyond those four. Queries are SQLAlchemy 2.0 against `tables.py` (ADR-0008).
 """
 
 from __future__ import annotations

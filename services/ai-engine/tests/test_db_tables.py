@@ -12,8 +12,9 @@ from pathlib import Path
 import ai_engine
 from ai_engine.core.db.tables import Base
 
-# Exactly the SELECT grant in infra/migrations/sql/0004_grants_and_audit_lockdown.sql.
-_GRANTED_TABLES = {"kb_articles", "kb_chunks", "fewshot_examples"}
+# Exactly the SELECT grants in infra/migrations/sql/0004_grants_and_audit_lockdown.sql
+# and 0006_association_grant.sql.
+_GRANTED_TABLES = {"kb_articles", "kb_chunks", "fewshot_examples", "kb_article_associations"}
 
 _WRITE_CALL = re.compile(
     r"\b(create_all|drop_all)\s*\(|\bsession\.(add|add_all|delete|merge|flush|commit)\s*\("

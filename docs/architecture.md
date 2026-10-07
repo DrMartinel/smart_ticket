@@ -328,6 +328,7 @@ REVOKE UPDATE, DELETE ON audit_log FROM app_user;
 
 -- ai-engine physically cannot write business tables
 GRANT SELECT ON kb_articles, kb_chunks, fewshot_examples TO ai_engine_ro;
+GRANT SELECT ON kb_article_associations TO ai_engine_ro;  -- link expansion, ADR-0018
 ```
 
 ---
