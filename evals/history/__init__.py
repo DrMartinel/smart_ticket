@@ -176,6 +176,14 @@ METRICS: dict[str, MetricSpec] = {
         labels=_PROBE_LABELS,
         description="Mean reciprocal rank of the gold article in the returned pages.",
     ),
+    "pool_size": MetricSpec(
+        unit="count",
+        higher_is_better=False,
+        labels=("stat",),
+        description="Chunks the cross-encoder scored per ticket (fused candidates plus "
+        "link expansion), median or max over the kb_covered tickets: expansion's cost "
+        "(ADR-0018, test_retrieval). Ungated.",
+    ),
     "gold_use": MetricSpec(
         unit="count",
         higher_is_better=None,

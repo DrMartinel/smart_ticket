@@ -188,6 +188,7 @@ services:
       ASSOCIATION_PER_ARTICLE_CAP: ${ASSOCIATION_PER_ARTICLE_CAP:?see .env.example}
       LIGHTRAG_LLM_MAX_ASYNC: ${LIGHTRAG_LLM_MAX_ASYNC:?see .env.example}
       LIGHTRAG_MAX_GLEANING: ${LIGHTRAG_MAX_GLEANING:?see .env.example}
+      LIGHTRAG_CHUNK_TOKENS: ${LIGHTRAG_CHUNK_TOKENS:?see .env.example}
       ENTITY_POLICY_VERSION: ${ENTITY_POLICY_VERSION:?see .env.example}
       RERANK_POOL: ${RERANK_POOL:?see .env.example}
       JEV_BASE_URL: ${JEV_BASE_URL:?see .env.example}

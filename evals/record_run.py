@@ -77,6 +77,9 @@ def metrics_from_results(results: dict[str, Any], run_id: str) -> list[Metric]:
                 add("retrieval_mrr", entry["mrr"], n)
             for outcome, count in entry.get("gold_use", {}).items():
                 add("gold_use", count, outcome=outcome)
+            for stat in ("median", "max"):
+                if f"pool_size_{stat}" in entry:
+                    add("pool_size", entry[f"pool_size_{stat}"], n, stat=stat)
         elif name == "per_category_f1":
             # The suite's headline "value" is the minimum; recording it as
             # its own row would invite averaging-style charts (rule 9).

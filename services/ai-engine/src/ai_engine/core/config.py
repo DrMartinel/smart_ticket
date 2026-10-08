@@ -84,6 +84,7 @@ class Settings(BaseSettings):
     association_per_article_cap: int
     lightrag_llm_max_async: int
     lightrag_max_gleaning: int
+    lightrag_chunk_tokens: int
     entity_policy_version: str
 
     # --- Reranker (Jev) ---

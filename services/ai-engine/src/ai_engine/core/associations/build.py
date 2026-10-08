@@ -88,10 +88,12 @@ def read_articles() -> list[Article]:
 
 
 def content_key(policy_version: str, body: str) -> str:
-    """What an extraction depends on: the text and the guidance the model
-    was given. Either changing means extracting again."""
+    """What an extraction depends on: the text, the guidance the model was
+    given, and how the text was chunked. Any of them changing means
+    extracting again."""
 
-    return hashlib.sha256(f"{policy_version}\n{body}".encode()).hexdigest()
+    extraction = f"{policy_version}\nchunk={settings.lightrag_chunk_tokens}"
+    return hashlib.sha256(f"{extraction}\n{body}".encode()).hexdigest()
 
 
 class State:

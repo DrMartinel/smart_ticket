@@ -107,6 +107,7 @@ def make_rag(
         embedding_func=EmbeddingFunc(embedding_dim=EMBED_DIM, func=embed),
         llm_model_max_async=settings.lightrag_llm_max_async,
         entity_extract_max_gleaning=settings.lightrag_max_gleaning,
+        chunk_token_size=settings.lightrag_chunk_tokens,
         entity_extraction_use_json=True,
         addon_params={"entity_types_guidance": guidance, "language": "English"},
     )
