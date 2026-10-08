@@ -8,7 +8,18 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import pytest
+
 from ai_engine.graph.nodes.candidate_pool.node import candidate_pool
+
+
+@pytest.fixture(autouse=True)
+def _no_associations(fake_db, use_db):
+    """Link expansion reads associations from the database. These tests are
+    about the shortlister's order, so expansion finds nothing here, instead
+    of quietly reading whatever a local Postgres holds (test_links.py covers
+    expansion)."""
+    use_db(fake_db())
 
 
 def test_output_order_follows_the_reranker_not_the_rrf_order(
