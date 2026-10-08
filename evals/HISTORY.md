@@ -162,11 +162,41 @@ within noise for one run each.
 
 ### Follow-ups
 
-- [ ] R3 (`entity_graph`, caps 3 / 5 / 10): needs the LightRAG build. The
-  spike check found LightRAG's prompt overflowing vllm-chat's 4,096 tokens
-  (fixed: 500-token chunks, no gleaning), and the full build at ~60-90
-  generated tokens/s is estimated at 60+ GPU hours; the 100-article spike
-  runs next to measure it.
+- [ ] R3 (`entity_graph`, caps 3 / 5 / 10): needs the full LightRAG build
+  (~26 GPU hours by the spike below), not started.
+
+### The spike check (ADR-0018), after these runs
+
+Not an eval: the offline entity_graph build on a fixed random 100 articles
+(`build --sample 100`, seed 0), to measure it and hand-check what it
+extracts before the full build. Five attempts, each fixing what the last
+showed:
+
+| Attempt | Extraction | Articles failed | Model calls · time | Finding |
+|---|---|---|---|---|
+| 1 | LightRAG defaults: 1,200-token chunks, gleaning 1 | stopped at 1 of 3 | — | 3,024-token prompt; replies cut off at the 4,096-token context |
+| 2 | 500-token chunks | stopped at 1 of 4 | — | gleaning's re-ask sends the first reply as history: 3,791-token prompt |
+| 3 | + gleaning 0 | stopped at 2 of 8 | — | replies alone overflow: ~8 entities and ~7 relationships per chunk, a sentence each |
+| 4 | + policy v2 asks for terse replies, no relationships | stopped at 4 of 30 | 26 articles in 26 min | the model ignored both requests |
+| 5 | + v2's JSON schema, enforced by guided decoding (≤ 25 entities, 60-char descriptions, no relationships) | **0 of 100** | 665 · 43 min | about twice as fast |
+| 6 | policy v3: also excludes code identifiers, field names, file and package names, people | **0 of 100** | 680 · 46 min | the run kept |
+
+- **Rate:** ~28 s per article with v3, so ~26 GPU hours for the 3,542
+  articles, vllm-chat busy throughout.
+- **Hand check of 20 random entities:** v2 had ~11 useful (Auto Scaling,
+  Network ACLs, "public access to SQS queue", ec2:DescribeInstances); the
+  rest were code identifiers (OrderId, node_modules, TableName) and one
+  person's name typed as a restriction. v3 has ~13 useful (Bounced email,
+  Dedicated Hosts, Malware Scan, EC2/NetworkPortUnusual, Infinite Loops);
+  dotted field names (`finding_info.tags`) and vague ones ("Open") remain.
+  Identifier-like names fall from 803 of 3,656 to 713 of 3,562.
+- **Name drift:** 370 names differed only in case ("AWS accounts" /
+  "AWS Accounts"); scoring now merges them (`6aaa0b9`). Near-duplicates
+  ("EC2" / "Amazon EC2", "Tag" / "Tags") are left for the alias map.
+- **df on 100 articles** (v3): 3,217 entities on one article, 205 on two,
+  the most common "AWS CLI" on 26. A sample this size can't place
+  `ASSOCIATION_HUB_DF_MAX` (50) on the full KB: chosen from the full build's
+  histogram instead.
 - [ ] Category F1 below (8) on `access` and `software` with expansion off as
   well as on: find which tickets moved.
 
