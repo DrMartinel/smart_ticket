@@ -89,6 +89,47 @@ def test_jev_scores_only_the_cross_encoders_shortlist(jev, make_state, monkeypat
     assert [p.text for p in passages] == ["c1", "c2"]
 
 
+def _on_page(chunk_id: int, page: int) -> RankedChunk:
+    return _ranked(chunk_id, 1 - chunk_id / 100).model_copy(update={"article_id": UUID(int=page)})
+
+
+def test_the_shortlist_holds_at_most_n_chunks_of_a_page_and_fills_from_deeper(
+    jev, make_state, monkeypatch
+):
+    """Unlimited, one page's 4th and 5th chunks took Jev's slots, and the
+    page that resolved the ticket, ranked lower by the shortlister, was cut
+    (g052, g053 in the 2026-10-08 probe). Limited, the next pages fill the
+    freed slots, still in the shortlister's order."""
+    monkeypatch.setattr(settings, "rerank_pool", 4)
+    monkeypatch.setattr(settings, "rerank_max_chunks_per_page", 2)
+    fake = jev(scores=[0.1, 0.2, 0.3, 0.4])
+    pool = [
+        _on_page(1, 7),
+        _on_page(2, 7),
+        _on_page(3, 7),
+        _on_page(4, 8),
+        _on_page(5, 7),
+        _on_page(6, 9),
+    ]
+
+    rerank(make_state(pool=pool))
+
+    [(_, _, passages)] = fake.calls
+    assert [p.text for p in passages] == ["c1", "c2", "c4", "c6"]
+
+
+def test_a_limit_of_rerank_pool_is_todays_plain_slice(jev, make_state, monkeypatch):
+    """The shipped value (= RERANK_POOL) changes nothing."""
+    monkeypatch.setattr(settings, "rerank_pool", 3)
+    monkeypatch.setattr(settings, "rerank_max_chunks_per_page", 3)
+    fake = jev(scores=[0.1, 0.2, 0.3])
+
+    rerank(make_state(pool=[_on_page(i, 7) for i in range(1, 6)]))
+
+    [(_, _, passages)] = fake.calls
+    assert [p.text for p in passages] == ["c1", "c2", "c3"]
+
+
 def test_jev_orders_and_scores_keeping_the_cross_encoder_score(jev, make_state, monkeypatch):
     """Jev's order and score are final: the chunk the cross-encoder ranked
     last but Jev first leads `reranked`. Each chunk keeps its cross-encoder

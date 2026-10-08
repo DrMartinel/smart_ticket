@@ -90,6 +90,7 @@ class Settings(BaseSettings):
 
     # --- Reranker (Jev) ---
     rerank_pool: int
+    rerank_max_chunks_per_page: int
     jev_base_url: str
     jev_model: str
     jev_api_key: SecretStr | None = None
