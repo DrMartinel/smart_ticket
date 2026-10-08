@@ -21,6 +21,7 @@ import pytest
 pytest.importorskip("lightrag", reason="the build group: uv sync --all-packages --group build")
 
 from ai_engine.core.associations import build  # noqa: E402
+from ai_engine.core.config import settings  # noqa: E402
 from ai_engine.core.db.tables import EMBED_DIM  # noqa: E402
 
 VERIFY, PROD, SMTP = (uuid.UUID(int=i) for i in (1, 2, 3))
@@ -94,7 +95,9 @@ def test_a_build_exports_mentions_and_the_scored_graph(articles, tmp_path):
         ("ses.prod", "ses.verify"),
     }
     assert graph[0]["evidence"] == ["SES Sandbox"]
-    assert graph[0]["build_id"].startswith("entity_graph:kb_entities.v1:mentions-")
+    assert graph[0]["build_id"].startswith(
+        f"entity_graph:{settings.entity_policy_version}:mentions-"
+    )
 
 
 def test_a_failed_article_means_no_file_exit_1_and_a_rerun_retries_only_it(
@@ -150,3 +153,38 @@ def test_a_sample_and_a_full_build_never_share_a_working_dir(articles, tmp_path,
 
     assert _run(tmp_path, ScriptedChat()) == 1
     assert "sample:2" in capsys.readouterr().err
+
+
+class RecordingChat:
+    def __init__(self) -> None:
+        self.kwargs: list[dict[str, Any]] = []
+
+    async def ainvoke(self, messages: list[Any], **kwargs: Any) -> SimpleNamespace:
+        self.kwargs.append(kwargs)
+        return SimpleNamespace(content='{"entities": [], "relationships": []}')
+
+
+def test_a_json_request_is_decoded_against_the_policys_bounded_schema():
+    """Asking Qwen for terse replies did not work: 13% of the spike's
+    articles still overflowed the context mid-reply. The bound is enforced
+    by guided decoding instead, from the versioned policy."""
+    import asyncio
+
+    from ai_engine.core.associations.adapter import ModelCalls, llm_func
+    from ai_engine.core.associations.policy import load_entity_policy
+
+    limits = load_entity_policy("kb_entities.v2").limits
+    assert limits is not None
+    chat = RecordingChat()
+    complete = llm_func(chat, ModelCalls(), limits)  # type: ignore[arg-type]
+
+    asyncio.run(complete("extract", response_format={"type": "json_object"}))
+    asyncio.run(complete("summarize these descriptions"))
+
+    schema = chat.kwargs[0]["response_format"]["json_schema"]["schema"]["properties"]
+    assert schema["relationships"]["maxItems"] == 0
+    assert schema["entities"]["maxItems"] == limits.max_entities_per_chunk
+    assert schema["entities"]["items"]["properties"]["description"]["maxLength"] == (
+        limits.description_max_chars
+    )
+    assert chat.kwargs[1] == {}  # a plain-text call is left alone

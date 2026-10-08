@@ -22,6 +22,7 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from lightrag import LightRAG
 from lightrag.utils import EmbeddingFunc
 
+from ai_engine.core.associations.policy import ExtractionLimits
 from ai_engine.core.config import settings
 from ai_engine.core.db.tables import EMBED_DIM
 from ai_engine.core.providers import clients
@@ -53,10 +54,55 @@ def _messages(
     return [*messages, HumanMessage(prompt)]
 
 
-def llm_func(chat_model: BaseChatModel, calls: ModelCalls) -> Callable[..., Any]:
+def extraction_schema(limits: ExtractionLimits) -> dict[str, Any]:
+    """The reply LightRAG's JSON extraction may give, as a `response_format`
+    vLLM decodes against: entities with a short description, and no
+    relationships. Unbounded, Qwen wrote a sentence per entity and per
+    relationship and ran out of context on dense pages (the 2026-10-08
+    spike); the build reads only names and types."""
+
+    entity = {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string", "minLength": 1},
+            "type": {"type": "string", "minLength": 1},
+            # LightRAG drops an entity whose description is empty.
+            "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": limits.description_max_chars,
+            },
+        },
+        "required": ["name", "type", "description"],
+        "additionalProperties": False,
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "entities": {
+                "type": "array",
+                "items": entity,
+                "maxItems": limits.max_entities_per_chunk,
+            },
+            "relationships": {"type": "array", "maxItems": 0},
+        },
+        "required": ["entities", "relationships"],
+        "additionalProperties": False,
+    }
+    return {"type": "json_schema", "json_schema": {"name": "entities", "schema": schema}}
+
+
+def llm_func(
+    chat_model: BaseChatModel, calls: ModelCalls, limits: ExtractionLimits | None = None
+) -> Callable[..., Any]:
     """LightRAG's `llm_model_func`: one call, no retry (ADR-0007). A failure
     raises, and LightRAG marks the document `failed`; the build then stops
-    rather than export a graph missing that article."""
+    rather than export a graph missing that article.
+
+    With `limits`, LightRAG's request for any JSON object becomes the bounded
+    `extraction_schema`: its JSON requests are entity extractions."""
+
+    bounded = extraction_schema(limits) if limits else None
 
     async def complete(
         prompt: str,
@@ -66,6 +112,8 @@ def llm_func(chat_model: BaseChatModel, calls: ModelCalls) -> Callable[..., Any]
     ) -> str:
         calls.llm += 1
         response_format = kwargs.get("response_format")
+        if bounded and response_format == {"type": "json_object"}:
+            response_format = bounded
         extra = {"response_format": response_format} if response_format else {}
         reply = await chat_model.ainvoke(
             _messages(prompt, system_prompt, history_messages), **extra
@@ -91,6 +139,7 @@ def make_rag(
     *,
     guidance: str,
     calls: ModelCalls,
+    limits: ExtractionLimits | None = None,
     chat_model: BaseChatModel | None = None,
     embed: Callable[..., Any] = _embed,
 ) -> LightRAG:
@@ -103,7 +152,7 @@ def make_rag(
         # Explicit: LightRAG would otherwise read a WORKSPACE env var and move
         # its files into a subdirectory the next build wouldn't look in.
         workspace="",
-        llm_model_func=llm_func(chat_model or clients.extraction_chat_model(), calls),
+        llm_model_func=llm_func(chat_model or clients.extraction_chat_model(), calls, limits),
         embedding_func=EmbeddingFunc(embedding_dim=EMBED_DIM, func=embed),
         llm_model_max_async=settings.lightrag_llm_max_async,
         entity_extract_max_gleaning=settings.lightrag_max_gleaning,

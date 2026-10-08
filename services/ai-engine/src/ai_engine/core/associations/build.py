@@ -240,7 +240,9 @@ async def extract(
     working_dir.mkdir(parents=True, exist_ok=True)
     state = State(working_dir / STATE_FILE, scope)
     calls = ModelCalls()
-    rag = make_rag(working_dir, guidance=policy.guidance, calls=calls, **rag_overrides)
+    rag = make_rag(
+        working_dir, guidance=policy.guidance, calls=calls, limits=policy.limits, **rag_overrides
+    )
     await rag.initialize_storages()
     try:
         failed = await sync(rag, articles, state, policy.version)

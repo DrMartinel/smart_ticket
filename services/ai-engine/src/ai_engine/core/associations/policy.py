@@ -16,10 +16,19 @@ from ai_engine.core.prompts import PROMPT_DIR, check_version
 
 
 @dataclass(frozen=True)
+class ExtractionLimits:
+    """Bounds on one extraction reply, enforced by guided decoding."""
+
+    max_entities_per_chunk: int
+    description_max_chars: int
+
+
+@dataclass(frozen=True)
 class LoadedPolicy:
     version: str
     guidance: str
     scoring: EntityPolicy
+    limits: ExtractionLimits | None
 
 
 def load_entity_policy(version: str) -> LoadedPolicy:
@@ -31,9 +40,12 @@ def load_entity_policy(version: str) -> LoadedPolicy:
     guidance = raw.get("entity_types_guidance") if isinstance(raw, dict) else None
     if not isinstance(guidance, str) or not guidance.strip():
         raise ValueError(f"entity policy {version!r} has no entity_types_guidance")
+    schema = raw.get("extraction_schema")
     return LoadedPolicy(
         version=version,
         guidance=guidance.strip(),
+        # v1 predates the schema: its replies are unbounded.
+        limits=ExtractionLimits(**schema) if schema else None,
         scoring=EntityPolicy(
             allowed_types=frozenset(raw["allowed_types"]),
             aliases=dict(raw.get("aliases") or {}),
