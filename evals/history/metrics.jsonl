@@ -606,3 +606,27 @@
 {"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":1.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-08-full-r2-embedding-neighbour","metric":"pool_size","value":43.5,"n":60,"labels":{"stat":"median"}}
 {"run":"2026-10-08-full-r2-embedding-neighbour","metric":"pool_size","value":79.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"retrieval_recall_at_3","value":0.8,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"retrieval_mrr","value":0.7333333333333333,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"gold_use","value":40.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"gold_use","value":8.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"pool_size","value":30.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"pool_size","value":52.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"retrieval_recall_at_3","value":0.8,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"retrieval_mrr","value":0.7444444444444444,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"gold_use","value":40.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"gold_use","value":8.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"pool_size","value":41.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"pool_size","value":77.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.85,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"retrieval_mrr","value":0.7916666666666666,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":46.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":5.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"pool_size","value":73.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"pool_size","value":128.0,"n":60,"labels":{"stat":"max"}}

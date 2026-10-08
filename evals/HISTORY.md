@@ -95,6 +95,60 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-08 (2): entity_graph on the golden neighbourhood, built on DeepSeek (ADR-0018, ADR-0019), probe
+
+**Verdict:** a design signal, not a gate measurement. With the entity graph
+at cap 10, recall@3 is **0.850**: above embedding neighbours (0.800), no
+ticket lost against no expansion (0.783), every recovery traceable to a
+sensible shared entity; still below authored links (0.917). At caps 3 and 5
+it ties embedding neighbours (0.800) and loses g037. The graph covers only
+262 articles, so these numbers are optimistic (below).
+
+| Configuration | |
+|---|---|
+| Code | `c9dd87a` (`main`). The probe scripts are outside the repo (`~/.cache/smart-ticket-lightrag/probe/`) |
+| Graph | entity policy `kb_entities.v3` on **DeepSeek `deepseek-flash`** (ADR-0019; no schema enforced, thinking off), 500-token chunks, no gleaning, 16 concurrent. 262 articles: the 60 `kb_covered` tickets' gold pages and seeds (the articles of the cross-encoder's top 3 with expansion off) plus the seeds' embedding neighbours. 18,009 mentions, 5,184 associations; N and df counted over these 262 |
+| Build | 2 of 262 articles came back empty (DeepSeek's documented JSON-mode quirk); the build stopped as designed and a re-run retried them. ~7 min, ~$0.70 off-peak (estimated from the replies) |
+| Runs | retrieval suite only (60 `kb_covered`), `ASSOCIATION_SOURCE=entity_graph`, `LINK_EXPANSION_MAX_LINKS_PER_SEED` 3 / 5 / 10. Masking and the propose call ran on DeepSeek too; recall@3 is on Jev's top 3 and does not depend on the chat model |
+| Compared with | R0-R2 in the entry below (full KB, Qwen for masking) |
+
+| | R3 cap 3 | R3 cap 5 | R3 cap 10 | R0 none | R1 authored_link | R2 embedding_neighbour |
+|---|---|---|---|---|---|---|
+| Recall@3 | 0.800 (MRR 0.733) | 0.800 (MRR 0.744) | **0.850** (MRR 0.792) | 0.783 | 0.917 | 0.800 |
+| Recovered against R0 | g046, g048 | g008, g046 | g008, g046, g050, g051 | — | 8 | g008 |
+| Lost against R0 | **g037** | **g037** | none | — | none | none |
+| `pool_size` median · max | 30.5 · 52 | 41.5 · 77 | 73 · 128 | 10 · 10 | 51 · 170 | 43.5 · 79 |
+
+### Findings
+
+**1. The recoveries are the mechanism, not noise.** Each traces to the
+seed-to-gold edge's evidence: g046, g048 and g050 reach *Request production
+access* through "Amazon SES Sandbox", "Production Access" and "Identity
+Verification" (the plan's worked example); g008 reaches *MFA lost or broken*
+through "Resynchronize MFA Device" and "Deactivate MFA Device"; g051 reaches
+*compromised EC2* through "EC2 Finding Types" and "Malware".
+
+**2. g048 is recovered at cap 3 only.** It is one of authored links' five
+misses: the entity graph reaches a page links do not. At higher caps other
+associated pages outrank it.
+
+**3. g037 is lost to competition, not to a bad edge.** Its gold page is
+itself a seed; at caps 3 and 5 the added chunks push it out of Jev's top 3.
+At cap 10 it holds.
+
+**4. Optimistic by construction.** Only 262 articles are in the graph, the
+gold pages among them, so a seed's associations compete with far fewer pages
+than on the full KB, and df is counted over 262 pages, not 3,542. Embedding
+neighbours (R2) ran on the full KB. A full build is needed before R3 can be
+a real measurement against the gates.
+
+### Follow-ups
+
+- [ ] The full entity_graph build on DeepSeek (3,542 articles; at this
+  probe's rate ~1.5 h and ~$10, off-peak), then R3 at cap 10 (and 3, 5)
+  as full runs with every gate.
+- [ ] `ASSOCIATION_HUB_DF_MAX` from the full build's df histogram.
+
 ## 2026-10-08: association sources R0-R2, one source at a time (ADR-0018), full runs
 
 **Verdict:** the associations table changed nothing: with authored links (R1)
