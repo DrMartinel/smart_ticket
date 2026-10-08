@@ -371,19 +371,18 @@ The ADR is accepted or superseded on a full run and a held-out measurement.
 
 ## 12. Association sources for link expansion (ADR-0018)
 
-**Status (2026-10-07):** phases 0-4 built: `kb_article_associations` with the `ai_engine_ro` grant, `authored_link` rows written at ingest and by `build_associations`, `embedding_neighbour` rows by `build_associations --source embedding_neighbour` (k in thresholds.yaml), ai-engine reading the one source `ASSOCIATION_SOURCE` names, the `pool_size` retrieval signal, and the offline LightRAG build (`python -m ai_engine.core.associations.build`, unit-tested with a scripted model only) with core-api's `load_associations`. Plan: the "LightRAG entity-graph associations" doc.
+**Status (2026-10-08):** phases 0-4 built. Parity of the table path with the old per-ticket regex: 3,542 articles, 0 differ. Eval runs R0-R2 done (`evals/HISTORY.md` 2026-10-08): no expansion 0.783, authored links 0.917 (unchanged from 2026-10-04), embedding neighbours 0.800. The spike check passed on entity policy v3 (0 failures of 100, 46 min). Plan: the "LightRAG entity-graph associations" doc.
 
 **Priority:** Medium · **Spec:** §6.3 · **ADR:** 0014, 0018
 
 ### Work
 
-- Run the parity script (`uv run python -m ai_engine.graph.nodes.candidate_pool.link_parity`) against the loaded demo KB and record it in `evals/HISTORY.md`; then delete `link_parity.py`, the last copy of the per-ticket regex.
-- The spike check: `build --sample 100` on the live stack, a hand check of 20 entities, `ASSOCIATION_HUB_DF_MAX` from its df histogram, and aliases or stoplist entries in `kb_entities.v1.yaml` if the check shows drift; record it in `evals/HISTORY.md`.
-- The full build over the 3,542 pages; commit `demo_kb/associations/mentions.jsonl` and `entity_graph.jsonl` for review.
-- Build the `embedding_neighbour` rows on the loaded demo KB (`manage.py build_associations --source embedding_neighbour`) before R2.
-- Eval runs R0-R3, one source each, with the plan's gates.
+- Delete `candidate_pool/link_parity.py`, the last copy of the per-ticket regex: parity has run.
+- The full build over the 3,542 pages (~26 GPU hours, vllm-chat busy throughout): `uv run python -m ai_engine.core.associations.build --working-dir <dir> --out demo_kb/associations`; commit `mentions.jsonl` and `entity_graph.jsonl` for review.
+- Choose `ASSOCIATION_HUB_DF_MAX` from the full build's df histogram, and aliases for near-duplicates ("EC2" / "Amazon EC2"); `--rescore-only`, then `manage.py load_associations`.
+- R3 (`ASSOCIATION_SOURCE=entity_graph`) at caps 3, 5 and 10, with the plan's gates.
+- Category F1 below 2026-10-04 on `access` and `software`, with expansion on and off: find which tickets moved.
 
 ### Done when
 
-ADR-0018 is accepted or superseded on the eval runs, and the regex path is gone.
-
+ADR-0018 is accepted or superseded on R3, and the regex path is gone.

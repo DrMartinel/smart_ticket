@@ -169,7 +169,7 @@ within noise for one run each.
 
 Not an eval: the offline entity_graph build on a fixed random 100 articles
 (`build --sample 100`, seed 0), to measure it and hand-check what it
-extracts before the full build. Five attempts, each fixing what the last
+extracts before the full build. Six attempts, each fixing what the last
 showed:
 
 | Attempt | Extraction | Articles failed | Model calls · time | Finding |
