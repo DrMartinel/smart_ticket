@@ -95,6 +95,55 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-08 (3): entity_graph with cosine scoring, same neighbourhood (ADR-0018), probe
+
+**Verdict:** scoring, not coverage, was holding the entity graph back. Same
+extraction as (2), re-scored with `ASSOCIATION_SCORING=idf_cosine` (no model
+call): at cap 10 recall@3 rises from 0.850 to **0.900**, losing no ticket
+against no expansion, with a smaller pool; one ticket short of authored
+links (0.917), and it recovers g056, which authored links miss. Still a
+probe: the same 262-article graph as (2), so still optimistic.
+
+| Configuration | |
+|---|---|
+| Code | `c9dd87a` plus the uncommitted `idf_cosine` option, committed after this entry |
+| Graph | (2)'s `mentions.jsonl` re-scored: each pair's summed `ln(N / df)` divided by `sqrt(|A| * |B|)`, the two articles' entity counts. 5,184 associations, as in (2) |
+| Runs | retrieval suite only, caps 5 and 10. Cap 5 ran twice: the first run stopped at Jev's API answering 529 (overloaded) |
+
+| | Cosine cap 5 | **Cosine cap 10** | Sum cap 10 (2) | R0 none | R1 authored_link | R2 embedding_neighbour |
+|---|---|---|---|---|---|---|
+| Recall@3 | 0.817 (MRR 0.781) | **0.900** (MRR 0.831) | 0.850 | 0.783 | 0.917 | 0.800 |
+| Recovered against R0 | g046, g051, g056, g058, g060 | g008, g046, g050, g051, g056, g058, g060 | 4 | — | 8 | g008 |
+| Lost against R0 | **g035, g037, g039** | none | none | — | none | none |
+| `pool_size` median · max | 39 · 78 | 65.5 · 131 | 73 · 128 | 10 · 10 | 51 · 170 | 43.5 · 79 |
+
+### Findings
+
+**1. Cosine fixes the ordering the probe diagnosed.** Summed IDF let
+catalogue pages sharing dozens of entities (GuardDuty finding-type lists,
+scores 95-199) outrank the page that answers. Normalised, the
+compromised-credentials page reaches 4th-8th from its seeds (was 11th-17th)
+through "Compromised Credentials", "AWS Credentials" and "Access Key ID",
+recovering g056, g058 and g060.
+
+**2. The remaining gap to authored links is the shortlister.** g052 and
+g053's gold page now ranks 4th among its seed's associations (was 8th), but
+the cross-encoder places its chunks 20th-24th of ~62, outside the 15 Jev
+sees; with authored links they are 12th-13th of 32.
+
+**3. Cap 5's three losses happen at Jev, and need checking.** g035, g037 and
+g039's gold page is 1st-3rd in the pool in every configuration, so Jev
+always sees it, yet it leaves Jev's top 3 at cap 5 and not at cap 10. Either
+Jev's choice depends on which other chunks share its 15, or its hosted
+scores vary between runs; until a repeat run tells which, single-ticket
+differences of this size are not evidence.
+
+### Follow-ups
+
+- [ ] Repeat one configuration to measure Jev's run-to-run variance.
+- [ ] Decide the default `ASSOCIATION_SCORING` (shipped `idf_sum`).
+- [ ] The full build, then R3 with cosine at cap 10 as a full run.
+
 ## 2026-10-08 (2): entity_graph on the golden neighbourhood, built on DeepSeek (ADR-0018, ADR-0019), probe
 
 **Verdict:** a design signal, not a gate measurement. With the entity graph

@@ -630,3 +630,19 @@
 {"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":5.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"pool_size","value":73.0,"n":60,"labels":{"stat":"median"}}
 {"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"pool_size","value":128.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"retrieval_recall_at_3","value":0.8166666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"retrieval_mrr","value":0.7805555555555556,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"gold_use","value":45.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"pool_size","value":39.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"retrieval_mrr","value":0.8305555555555556,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"gold_use","value":1.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"gold_use","value":11.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"pool_size","value":65.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"pool_size","value":131.0,"n":60,"labels":{"stat":"max"}}
