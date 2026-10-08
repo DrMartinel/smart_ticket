@@ -145,8 +145,14 @@ def make_rag(
 ) -> LightRAG:
     """A LightRAG over `working_dir`, extracting with `guidance` (the entity
     policy's) in JSON mode. Construction opens no connection; the caller
-    awaits `initialize_storages()`."""
+    awaits `initialize_storages()`.
 
+    `limits` bound the reply through vLLM's guided decoding. DeepSeek refuses
+    a `json_schema` reply (ADR-0019), so there LightRAG's plain `json_object`
+    request goes through unbounded; its 1M-token context leaves room."""
+
+    if settings.chat_client_provider == "deepseek":
+        limits = None
     return LightRAG(
         working_dir=str(working_dir),
         # Explicit: LightRAG would otherwise read a WORKSPACE env var and move

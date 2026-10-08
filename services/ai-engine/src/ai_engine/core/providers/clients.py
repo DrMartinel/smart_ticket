@@ -12,6 +12,9 @@ errors, ordering).
   runs on httpx2), for `chat`. `vllm_chat` / `openai_chat` build it.
 - `extraction_chat_model()`: the same chat model, bare, for the offline
   entity_graph build (ADR-0018), which sends LightRAG's own prompts.
+- `deepseek_model()` / `deepseek_chat()`: DeepSeek's hosted API (ADR-0019)
+  on the `CLOUD_*` settings, behind triage, PII NER and the build when
+  `CHAT_CLIENT_PROVIDER=deepseek`.
 
 No retries anywhere, SDK ones included (`max_retries=0`): a failed call goes
 straight to HITL. Every client is built at import and opens no socket until
@@ -75,6 +78,10 @@ _JSON_OBJECT = {"type": "json_object"}
 
 VLLM_COST_PER_1K_TOKENS = 0.0
 OPENAI_COST_PER_1K_TOKENS = 0.003
+# DeepSeek's peak output rate ($1.20 per million, deepseek-flash, 2026-10). A
+# blended number like the others, at the peak output rate so the daily cost
+# ceiling never under-counts (input and off-peak hours are cheaper).
+DEEPSEEK_COST_PER_1K_TOKENS = 0.0012
 
 
 def _split_timeout(http_module: Any) -> Any:
@@ -332,6 +339,45 @@ def openai_chat() -> ChatClient:
     )
 
 
+def deepseek_model(*, json_mode: bool, temperature: float | None = None) -> BaseChatModel:
+    """A chat model on DeepSeek's OpenAI-compatible API (ADR-0019), from the
+    `CLOUD_*` settings. Measured against the live API on 2026-10-08:
+
+    - thinking is ON unless disabled per request, and its tokens are billed
+      as output (46 against 5 for the same reply), so it is disabled;
+    - `json_schema` replies are refused (400), so a JSON reply is
+      `json_object`, and the caller validates it;
+    - SDK retries off, like every client here.
+
+    A missing key, model or base URL fails the boot."""
+    from langchain_openai import ChatOpenAI
+
+    if not settings.cloud_api_key or not settings.cloud_model or not settings.cloud_base_url:
+        raise ValueError("deepseek chat requires CLOUD_API_KEY, CLOUD_MODEL and CLOUD_BASE_URL")
+    return ChatOpenAI(
+        model=settings.cloud_model,
+        api_key=SecretStr(settings.cloud_api_key),
+        base_url=settings.cloud_base_url,
+        model_kwargs={"response_format": _JSON_OBJECT} if json_mode else {},
+        extra_body={"thinking": {"type": "disabled"}},
+        max_completion_tokens=settings.cloud_max_output_tokens,
+        temperature=temperature,
+        timeout=_split_timeout(httpx2),
+        max_retries=0,
+    )
+
+
+def deepseek_chat() -> ChatClient:
+    """Triage's chat model on DeepSeek (ADR-0019): plain JSON mode, since
+    DeepSeek decodes against no schema; infer.py validates the reply."""
+    return ChatClient(
+        model=settings.cloud_model or "",
+        chat_model=deepseek_model(json_mode=True),
+        cost_per_1k_tokens=DEEPSEEK_COST_PER_1K_TOKENS,
+        constrains_schema=False,
+    )
+
+
 def extraction_chat_model() -> BaseChatModel:
     """The chat model the offline entity_graph build sends LightRAG's
     prompts to (ADR-0018): the same server and model as triage (ADR-0012),
@@ -341,6 +387,9 @@ def extraction_chat_model() -> BaseChatModel:
     history when it gleans. Never used on the request path."""
     from langchain_openai import ChatOpenAI
 
+    if settings.chat_client_provider == "deepseek":
+        # LightRAG asks for json_object itself, per call.
+        return deepseek_model(json_mode=False)
     if settings.chat_client_provider == "openai":
         if not settings.cloud_api_key or not settings.cloud_model:
             raise ValueError("openai chat requires CLOUD_API_KEY and CLOUD_MODEL")
@@ -376,3 +425,5 @@ match settings.chat_client_provider:
         chat = openai_chat()
     case "vllm":
         chat = vllm_chat(model=settings.chat_model, base_url=settings.chat_base_url)
+    case "deepseek":
+        chat = deepseek_chat()

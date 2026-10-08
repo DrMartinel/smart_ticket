@@ -6,7 +6,9 @@ ticket text.
 
 Two rules follow from that:
 - Raw text goes only to the self-hosted `clients.ner` client, never to
-  `clients.chat`, which may be a cloud provider.
+  `clients.chat`, which may be a cloud provider. The one exception is
+  `CHAT_CLIENT_PROVIDER=deepseek` (ADR-0019, evaluation only), which sends
+  raw ticket text to DeepSeek's hosted API by explicit decision.
 - No error message, log line or exception carries the text or the model's
   output. The model's output IS the PII.
 
@@ -18,9 +20,13 @@ can have (CLAUDE.md rule 3). Without vLLM, masking fails closed to
 
 from __future__ import annotations
 
+import json
 from abc import ABC, abstractmethod
 from typing import Any
 
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from ai_engine.core.config import settings
 from ai_engine.core.prompts import PII_NER_PROMPT
 from ai_engine.core.providers import clients
 
@@ -73,6 +79,32 @@ class VllmPiiDetector(PiiDetector):
         return [str(x) for x in parsed]
 
 
-# --- The detector, built once when this module is imported (no I/O) ----------
+class DeepSeekPiiDetector(PiiDetector):
+    """NER on DeepSeek's hosted API (ADR-0019): raw ticket text leaves the
+    machine. DeepSeek decodes against no schema, so the reply is a plain
+    JSON object, validated here, at temperature 0 for repeatable masking.
+    Calls the model directly rather than through `ChatClient`, whose errors
+    quote the reply. Stateless."""
 
-pii_detector: PiiDetector = VllmPiiDetector()
+    def __init__(self) -> None:
+        self._model = clients.deepseek_model(json_mode=True, temperature=_GREEDY)
+
+    def detect(self, text: str) -> list[str]:
+        try:
+            reply = self._model.invoke([SystemMessage(PII_NER_PROMPT), HumanMessage(text)])
+            parsed: Any = json.loads(reply.content if isinstance(reply.content, str) else "")
+        except Exception as e:
+            raise PiiDetectionError(f"NER call failed: {type(e).__name__}") from None
+        spans = parsed.get("spans") if isinstance(parsed, dict) else None
+        if not isinstance(spans, list):
+            raise PiiDetectionError("unexpected NER reply shape")
+        return [str(x) for x in spans]
+
+
+# --- The detector, built once when this module is imported (no I/O) ----------
+# On DeepSeek only does NER leave the machine (ADR-0019); under `openai`,
+# triage is in the cloud but raw text still goes to the local vLLM.
+
+pii_detector: PiiDetector = (
+    DeepSeekPiiDetector() if settings.chat_client_provider == "deepseek" else VllmPiiDetector()
+)

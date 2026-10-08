@@ -11,8 +11,11 @@ from pydantic import SecretStr, ValidationError
 
 from ai_engine.core.config import Settings, settings
 from ai_engine.core.providers.clients import (
+    DEEPSEEK_COST_PER_1K_TOKENS,
     OPENAI_COST_PER_1K_TOKENS,
     VLLM_COST_PER_1K_TOKENS,
+    deepseek_chat,
+    extraction_chat_model,
     openai_chat,
     vllm_chat,
 )
@@ -291,3 +294,53 @@ def test_openai_client_authenticates_with_its_api_key(cloud_key, monkeypatch):
     assert isinstance(chat, ChatOpenAI)
     assert isinstance(chat.openai_api_key, SecretStr)
     assert chat.openai_api_key.get_secret_value() == "secret"
+
+
+# --- DeepSeek (ADR-0019) -----------------------------------------------------
+
+
+def test_deepseek_is_selected_and_billed_at_its_rate(monkeypatch, reload_clients):
+    _chat_on(monkeypatch, "deepseek", "https://api.deepseek.com")
+    m = reload_clients()
+
+    assert (m.chat.model, m.chat.cost_per_1k_tokens) == ("test-model", DEEPSEEK_COST_PER_1K_TOKENS)
+    assert str(m.chat.chat_model.root_client.base_url).startswith("https://api.deepseek.com")
+
+
+def test_deepseek_turns_thinking_off_asks_for_json_and_never_retries(monkeypatch):
+    """Measured against the live API (2026-10-08): thinking is on unless
+    disabled, and billed as output (46 tokens against 5 for one reply);
+    `json_schema` is refused with a 400, so the reply is `json_object` and
+    nothing may claim the server constrained it."""
+    _chat_on(monkeypatch, "deepseek", "https://api.deepseek.com")
+    llm = deepseek_chat()
+    chat = llm.chat_model
+    assert isinstance(chat, ChatOpenAI)
+
+    assert chat.extra_body == {"thinking": {"type": "disabled"}}
+    assert chat.model_kwargs["response_format"] == {"type": "json_object"}
+    assert chat.max_retries == 0
+    assert chat.max_tokens == settings.cloud_max_output_tokens
+    assert llm.constrains_schema is False
+
+
+@pytest.mark.parametrize("missing", ["cloud_api_key", "cloud_model", "cloud_base_url"])
+def test_deepseek_without_its_key_model_or_url_is_fatal(missing, monkeypatch, reload_clients):
+    """Without a base URL the OpenAI SDK would send the key to OpenAI."""
+    _chat_on(monkeypatch, "deepseek", "https://api.deepseek.com")
+    monkeypatch.setattr(settings, missing, None)
+
+    with pytest.raises(ValueError, match="deepseek chat requires"):
+        reload_clients()
+
+
+def test_the_build_extracts_on_deepseek_without_a_forced_reply_format(monkeypatch):
+    """LightRAG asks for `json_object` per call; a model-level format would
+    also force it on LightRAG's plain-text calls."""
+    _chat_on(monkeypatch, "deepseek", "https://api.deepseek.com")
+    chat = extraction_chat_model()
+    assert isinstance(chat, ChatOpenAI)
+
+    assert chat.model_kwargs == {}
+    assert chat.extra_body == {"thinking": {"type": "disabled"}}
+    assert chat.max_retries == 0

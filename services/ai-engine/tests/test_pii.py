@@ -125,6 +125,109 @@ def test_ner_client_is_the_self_hosted_chat_server(reload_clients, monkeypatch):
     assert m.ner.base_url == settings.chat_base_url
 
 
+# --- DeepSeek (ADR-0019): raw text leaves the machine, by decision -------------
+
+
+class _ScriptedModel:
+    """Stands in for DeepSeek's chat model: returns `content` or raises."""
+
+    def __init__(self, content: object = None, error: Exception | None = None) -> None:
+        self.content, self.error = content, error
+        self.calls: list[list] = []
+
+    def invoke(self, messages):
+        self.calls.append(messages)
+        if self.error:
+            raise self.error
+        return type("Reply", (), {"content": self.content})()
+
+
+@pytest.fixture
+def deepseek_ner(monkeypatch):
+    from ai_engine.core.providers import pii
+
+    def use(model: _ScriptedModel) -> pii.DeepSeekPiiDetector:
+        monkeypatch.setattr(pii.clients, "deepseek_model", lambda **_: model)
+        return pii.DeepSeekPiiDetector()
+
+    return use
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        _ScriptedModel(error=RuntimeError("down")),
+        _ScriptedModel(content=""),
+        _ScriptedModel(content="I could not find any"),
+        _ScriptedModel(content=json.dumps(["anh Tuấn"])),
+        _ScriptedModel(content=json.dumps({"error": "no"})),
+        _ScriptedModel(content=[_SECRET_REPLY]),
+    ],
+    ids=["call fails", "empty", "not json", "bare list", "no spans", "not a string"],
+)
+def test_deepseek_failures_raise_rather_than_reading_as_no_pii(deepseek_ner, model):
+    """DeepSeek decodes against no schema, and its JSON mode 'may
+    occasionally return empty content' (its docs). None of these may come
+    back as [], which core-api would file as a clean ticket."""
+    with pytest.raises(PiiDetectionError):
+        deepseek_ner(model).detect(_RAW)
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        _ScriptedModel(content=f"Found: {_SECRET_REPLY}"),
+        _ScriptedModel(error=ValueError(f"bad reply {_SECRET_REPLY}")),
+    ],
+    ids=["not json", "error quoting the reply"],
+)
+def test_deepseek_errors_and_tracebacks_never_carry_the_text_or_reply(deepseek_ner, model):
+    with pytest.raises(PiiDetectionError) as caught:
+        deepseek_ner(model).detect(_RAW)
+
+    logged = "".join(traceback.format_exception(caught.value))
+    assert _RAW not in logged and _SECRET_REPLY not in logged
+
+
+def test_deepseek_ner_reads_spans_greedily(monkeypatch):
+    """Sampled, the same ticket masks differently call to call (g148)."""
+    from ai_engine.core.providers import pii
+
+    built = {}
+    model = _ScriptedModel(content=json.dumps({"spans": [_SECRET_REPLY]}))
+    monkeypatch.setattr(pii.clients, "deepseek_model", lambda **kw: built.update(kw) or model)
+
+    assert pii.DeepSeekPiiDetector().detect(_RAW) == [_SECRET_REPLY]
+    assert built == {"json_mode": True, "temperature": 0.0}
+    system, user = model.calls[0]
+    assert (system.content, user.content) == (pii.PII_NER_PROMPT, _RAW)
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected"),
+    [
+        ("vllm", "VllmPiiDetector"),
+        ("openai", "VllmPiiDetector"),
+        ("deepseek", "DeepSeekPiiDetector"),
+    ],
+)
+def test_only_deepseek_sends_raw_text_off_the_machine(provider, expected, monkeypatch):
+    """Under `openai`, triage is in the cloud but NER stays local; only the
+    DeepSeek evaluation setup (ADR-0019) moves NER too."""
+    import importlib
+
+    from ai_engine.core.providers import pii
+
+    monkeypatch.setattr(settings, "chat_client_provider", provider)
+    monkeypatch.setattr(pii.clients, "deepseek_model", lambda **_: _ScriptedModel())
+    saved = dict(vars(pii))
+    try:
+        reloaded = importlib.reload(pii)
+        assert type(reloaded.pii_detector).__name__ == expected
+    finally:
+        vars(pii).update(saved)
+
+
 # --- behaviour ------------------------------------------------------------------
 
 

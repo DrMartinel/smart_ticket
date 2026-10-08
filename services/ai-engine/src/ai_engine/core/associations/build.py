@@ -87,14 +87,21 @@ def read_articles() -> list[Article]:
     return [Article(id=i, slug=s, body=b, is_active=a) for i, s, b, a in rows]
 
 
+def extraction_model() -> str:
+    """The provider and model extracting, e.g. `deepseek:deepseek-flash`."""
+
+    provider = settings.chat_client_provider
+    return f"{provider}:{settings.chat_model if provider == 'vllm' else settings.cloud_model}"
+
+
 def content_key(policy_version: str, body: str) -> str:
-    """What an extraction depends on: the text, the guidance the model was
-    given, how the text was chunked and how many gleaning passes ran. Any of
-    them changing means extracting again."""
+    """What an extraction depends on: the text, the model and the guidance
+    it was given, how the text was chunked and how many gleaning passes ran.
+    Any of them changing means extracting again."""
 
     extraction = (
-        f"{policy_version}\nchunk={settings.lightrag_chunk_tokens}"
-        f"\ngleaning={settings.lightrag_max_gleaning}"
+        f"{policy_version}\nmodel={extraction_model()}"
+        f"\nchunk={settings.lightrag_chunk_tokens}\ngleaning={settings.lightrag_max_gleaning}"
     )
     return hashlib.sha256(f"{extraction}\n{body}".encode()).hexdigest()
 
@@ -238,7 +245,9 @@ async def extract(
     **rag_overrides: Any,
 ) -> tuple[list[Mention], ModelCalls]:
     working_dir.mkdir(parents=True, exist_ok=True)
-    state = State(working_dir / STATE_FILE, scope)
+    # The model is part of the scope: LightRAG caches replies by prompt text,
+    # so another model in this directory would get this one's replies back.
+    state = State(working_dir / STATE_FILE, f"{scope}:{extraction_model()}")
     calls = ModelCalls()
     rag = make_rag(
         working_dir, guidance=policy.guidance, calls=calls, limits=policy.limits, **rag_overrides

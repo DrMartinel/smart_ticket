@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(validation_alias="AI_ENGINE_DB_MAX_OVERFLOW")
 
     # --- Models ---
-    chat_client_provider: Literal["vllm", "openai"]
+    chat_client_provider: Literal["vllm", "openai", "deepseek"]
     chat_base_url: str
     chat_model: str
     embed_base_url: str

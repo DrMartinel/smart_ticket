@@ -188,3 +188,40 @@ def test_a_json_request_is_decoded_against_the_policys_bounded_schema():
         limits.description_max_chars
     )
     assert chat.kwargs[1] == {}  # a plain-text call is left alone
+
+
+def test_on_deepseek_no_schema_is_sent(monkeypatch, tmp_path):
+    """DeepSeek refuses a `json_schema` reply with a 400 (ADR-0019): every
+    extraction would fail. LightRAG's own `json_object` request goes through."""
+    from ai_engine.core.associations import adapter
+    from ai_engine.core.associations.policy import load_entity_policy
+
+    seen = {}
+    monkeypatch.setattr(settings, "chat_client_provider", "deepseek")
+    monkeypatch.setattr(
+        adapter,
+        "llm_func",
+        lambda model, calls, limits=None: seen.update(limits=limits) or (lambda: None),
+    )
+
+    adapter.make_rag(
+        tmp_path,
+        guidance="g",
+        calls=adapter.ModelCalls(),
+        limits=load_entity_policy("kb_entities.v2").limits,
+        chat_model=RecordingChat(),  # type: ignore[arg-type]
+        embed=_embed,
+    )
+
+    assert seen == {"limits": None}
+
+
+def test_another_model_never_reuses_a_working_dir(articles, tmp_path, monkeypatch, capsys):
+    """LightRAG caches replies by prompt text, so a second model in the same
+    directory would get the first one's replies back as its own."""
+    assert _run(tmp_path, ScriptedChat()) == 0
+    monkeypatch.setattr(settings, "chat_client_provider", "deepseek")
+    monkeypatch.setattr(settings, "cloud_model", "deepseek-flash")
+
+    assert _run(tmp_path, ScriptedChat()) == 1
+    assert "deepseek:deepseek-flash" in capsys.readouterr().err
