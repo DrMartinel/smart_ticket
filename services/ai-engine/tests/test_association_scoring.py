@@ -114,6 +114,21 @@ def test_apply_policy_keeps_allowed_types_folds_aliases_and_drops_the_stoplist()
     ]
 
 
+def test_names_that_differ_only_in_case_are_one_entity():
+    """Split apart, "AWS accounts" on one page and "AWS Accounts" on another
+    each look like a rarer entity, and the two pages are not linked."""
+    policy = EntityPolicy(allowed_types=frozenset({"service"}), aliases={}, stoplist=frozenset())
+    mentions = [Mention("AWS accounts", "service", "a"), Mention("AWS Accounts", "service", "b")]
+
+    folded = apply_policy(mentions, policy)
+
+    assert {m.entity for m in folded} == {"AWS Accounts"}  # the spelling that sorts first
+    assert {(r.source_slug, r.target_slug) for r in _score(folded, {"a", "b", "c"})} == {
+        ("a", "b"),
+        ("b", "a"),
+    }
+
+
 def test_df_histogram_counts_active_articles_per_entity():
     mentions = [
         Mention("x", "service", "a"),

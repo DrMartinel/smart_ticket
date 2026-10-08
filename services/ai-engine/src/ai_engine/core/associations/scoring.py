@@ -57,21 +57,34 @@ class AssociationRow:
 
 def apply_policy(mentions: Iterable[Mention], policy: EntityPolicy) -> list[Mention]:
     """Mentions of allowed types, with aliases folded into their canonical
-    name and stoplisted names dropped. Types, aliases and the stoplist are
-    compared case-insensitively; the canonical name keeps its spelling."""
+    name, names that differ only in case merged, and stoplisted names
+    dropped. Types, aliases and the stoplist are compared case-insensitively.
+
+    Case variants ("AWS accounts", "AWS Accounts") are one entity: the
+    extractor names the same concept differently from page to page (370 such
+    names in the 2026-10-08 spike), and split apart each looks rarer than it
+    is, so the pages sharing it would not be linked. The merged entity is
+    spelled as the variant that sorts first, so a rebuild names it the same."""
 
     aliases = {alias.casefold(): name for alias, name in policy.aliases.items()}
     stoplist = {name.casefold() for name in policy.stoplist}
     allowed = {t.casefold() for t in policy.allowed_types}
-    kept: set[Mention] = set()
-    for m in mentions:
-        if m.type.casefold() not in allowed:
-            continue
-        name = aliases.get(m.entity.casefold(), m.entity)
-        if name.casefold() in stoplist:
-            continue
-        kept.add(Mention(entity=name, type=m.type, article_slug=m.article_slug))
-    return sorted(kept)
+    kept = [
+        (aliases.get(m.entity.casefold(), m.entity), m)
+        for m in mentions
+        if m.type.casefold() in allowed
+    ]
+    spellings: dict[str, set[str]] = defaultdict(set)
+    for name, _ in kept:
+        spellings[name.casefold()].add(name)
+    canonical = {folded: min(names) for folded, names in spellings.items()}
+    return sorted(
+        {
+            Mention(entity=canonical[name.casefold()], type=m.type, article_slug=m.article_slug)
+            for name, m in kept
+            if name.casefold() not in stoplist
+        }
+    )
 
 
 def score_associations(
