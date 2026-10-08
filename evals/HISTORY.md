@@ -95,6 +95,81 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-08: association sources R0-R2, one source at a time (ADR-0018), full runs
+
+**Verdict:** the associations table changed nothing: with authored links (R1)
+recall@3 is 0.917, MRR 0.872, the same 5 misses and the same two false
+auto-replies as (8). Without expansion (R0) recall@3 falls to **0.783**;
+embedding neighbours (R2, the no-LLM control) get **0.800**, recovering only
+g008 of the 8 tickets authored links recover. No source loses a ticket
+against R0 or adds a false auto-reply: g151 and g155 are auto-replied in all
+three, so auto-reply precision fails its floor in all three, as in (8).
+R3 (`entity_graph`) has not run: the LightRAG build is not done (below).
+
+| Configuration | |
+|---|---|
+| Code | `9d86eda` (`main`; `dbc204f` landed during R0 and touches only the offline build). Uncommitted: frontend files only |
+| Runs | R0 `ASSOCIATION_SOURCE=none` · R1 `authored_link` · R2 `embedding_neighbour` (k=5, thresholds.yaml); `LINK_EXPANSION_MAX_LINKS_PER_SEED` 20 in all three, set per run on the ai-engine container |
+| Associations | `authored_link` 14,202 rows, `embedding_neighbour` 17,710 (built 2026-10-07 on this KB); parity of the table path with the old per-ticket regex: 3,542 active articles, 0 differ |
+| Prompts | `propose.v8` · `pii_ner.v2` · Jev `rerank_resolves.v1`, `category.v1` |
+| Models · KB · thresholds | Qwen3-8B-AWQ (`VLLM_CHAT_MAX_MODEL_LEN` 4096, GPU util 0.62) · bge-m3 · bge-reranker-v2-m3@main · `jev-1.13.0` · KB 3,542 articles / 28,519 chunks · floor 0.30 · `classification.min_confidence` 0.65 |
+| Golden set | 174 cases, as (8) |
+| Duration | R0 23m36s · R1 27m25s · R2 25m41s, every suite, no re-runs |
+
+| Metric | R0 none | R1 authored_link | R2 embedding_neighbour | Gate | (8) |
+|---|---|---|---|---|---|
+| Retrieval recall@3 (Jev's top 3) | **0.783** (47/60, MRR 0.728) | 0.917 (55/60, MRR 0.872) | **0.800** (48/60, MRR 0.753) | ≥ 0.90 | 0.917 (MRR 0.872) |
+| Cross-encoder batch (`pool_size`) median · max | 10 · 10 | 51 · 170 | 43.5 · 79 | reported only | — |
+| Auto-reply precision | **0.944** (34/36) | **0.944** (34/36) | **0.943** (33/35) | ≥ 0.95 absolute | 0.944 (34/36) |
+| Branch accuracy | 0.889 (152/171) | 0.912 (156/171) | 0.924 (158/171) | reported only | 0.906 |
+| Refusal on out-of-KB | 1.00 (23/23) | 1.00 | 1.00 | ≥ 0.90 | 1.00 |
+| Injection recall · quote validation | 1.00 · 1.00 | 1.00 · 1.00 | 1.00 · 1.00 | as before | 1.00 · 1.00 |
+| F1 `access` · `hardware` · `network` · `other` · `security` · `software` | 0.91 · 0.93 · 0.95 · 1.00 · 1.00 · 0.89 | the same | the same | ≥ 0.85 each | 0.94 · 0.93 · 0.95 · 1.00 · 1.00 · 0.95 |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | the same | the same | reported only | the same |
+| `gold_use` quoted · quote_missed · refused · other | 38 · 5 · 0 · 4 | 47 · 4 · 0 · 4 | 42 · 5 · 0 · 1 | reported only | 47 · 4 · 0 · 4 |
+
+### Findings
+
+**1. Moving authored links into the table changed no outcome.** R1
+reproduces (8) to the ticket: recall, MRR, misses (g011, g012, g048, g055,
+g056), `gold_use` and the false auto-replies. With the KB-wide parity check
+(0 differences), phases 1-3 of ADR-0018 are behaviour-neutral on this KB.
+
+**2. Without expansion, 8 tickets are lost.** R0 misses g008, g046, g050,
+g051, g052, g053, g058 and g060 on top of R1's five. Authored links recover
+all 8 at a median cross-encoder batch of 51 (max 170) against R0's 10. This
+is ADR-0014's mechanism on today's pipeline, larger than its probe (+2 on
+0.767) because Jev now reranks what expansion brings in.
+
+**3. Embedding neighbours are not enough.** R2 recovers only g008 and loses
+nothing (0.800, batch median 43.5, max 79). Nearest-centroid pages are
+pages that already read like the ticket, which is what retrieval finds
+anyway; the cause-and-effect hop a link encodes ("verify addresses" to
+"request production access") is not in the vectors. This is the bar
+`entity_graph` must clear (ADR-0018 gate 1).
+
+**4. No source adds a false auto-reply.** g151 and g155 (labeled `clarify`)
+are auto-replied with every check passing in all three runs, as in (8): the
+precision failure is the LLM's guess on an underspecified ticket, not
+retrieval. Gate 2 (no new false positive against R1) holds for R2.
+
+**5. Category F1 is the same in all three runs and below (8)** on `access`
+(0.91 against 0.94) and `software` (0.89 against 0.95). Expansion does not
+explain it (R0, without expansion, has the same numbers); not investigated.
+
+**6. Branch accuracy rises from R1 to R2** (0.912 to 0.924, two tickets),
+within noise for one run each.
+
+### Follow-ups
+
+- [ ] R3 (`entity_graph`, caps 3 / 5 / 10): needs the LightRAG build. The
+  spike check found LightRAG's prompt overflowing vllm-chat's 4,096 tokens
+  (fixed: 500-token chunks, no gleaning), and the full build at ~60-90
+  generated tokens/s is estimated at 60+ GPU hours; the 100-article spike
+  runs next to measure it.
+- [ ] Category F1 below (8) on `access` and `software` with expansion off as
+  well as on: find which tickets moved.
+
 ## 2026-10-04 (8): propose.v8, Jev's category, and core-api's own policy, full run
 
 **Verdict:** fails one gate. **Auto-reply precision 0.944 (34/36)**, under

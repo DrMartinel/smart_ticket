@@ -540,3 +540,69 @@
 {"run":"2026-10-04-full-propose-v8","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-04-full-propose-v8","metric":"branch_accuracy","value":0.9064327485380117,"n":171}
 {"run":"2026-10-04-full-propose-v8","metric":"auto_reply_precision","value":0.9444444444444444,"n":36,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":0.9090909090909091,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":0.888888888888889,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"branch_accuracy","value":0.8888888888888888,"n":171}
+{"run":"2026-10-08-full-r0-none","metric":"auto_reply_precision","value":0.9444444444444444,"n":36,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-08-full-r0-none","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-08-full-r0-none","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-08-full-r0-none","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-08-full-r0-none","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-08-full-r0-none","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-08-full-r0-none","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-08-full-r0-none","metric":"retrieval_recall_at_3","value":0.7833333333333333,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-full-r0-none","metric":"retrieval_mrr","value":0.7277777777777777,"n":60}
+{"run":"2026-10-08-full-r0-none","metric":"gold_use","value":38.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-full-r0-none","metric":"gold_use","value":5.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-full-r0-none","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-full-r0-none","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-full-r0-none","metric":"pool_size","value":10.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-full-r0-none","metric":"pool_size","value":10.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":0.9090909090909091,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":0.888888888888889,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"branch_accuracy","value":0.9122807017543859,"n":171}
+{"run":"2026-10-08-full-r1-authored-link","metric":"auto_reply_precision","value":0.9444444444444444,"n":36,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-08-full-r1-authored-link","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-08-full-r1-authored-link","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-08-full-r1-authored-link","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"retrieval_mrr","value":0.8722222222222222,"n":60}
+{"run":"2026-10-08-full-r1-authored-link","metric":"gold_use","value":47.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"gold_use","value":4.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"pool_size","value":170.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":0.9090909090909091,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":0.888888888888889,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"branch_accuracy","value":0.9239766081871345,"n":171}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"auto_reply_precision","value":0.9428571428571428,"n":35,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"retrieval_recall_at_3","value":0.8,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"retrieval_mrr","value":0.7527777777777778,"n":60}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":5.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":1.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"pool_size","value":43.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"pool_size","value":79.0,"n":60,"labels":{"stat":"max"}}
