@@ -95,6 +95,47 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-08 (5): a page-diverse Jev shortlist, authored links and cosine entity_graph, probe
+
+**Verdict:** no gain. `RERANK_MAX_CHUNKS_PER_PAGE=2` (at most 2 of a page's
+chunks among Jev's 15) gets g052 into Jev's shortlist, and Jev picks it, but
+both sources lose g035: authored links 0.917 to 0.900, the cosine entity
+graph unchanged at 0.900 (+g052, -g035). The setting ships at 15, no limit.
+
+| Configuration | |
+|---|---|
+| Code | `e916ba4` (`main`): the setting, shipped at 15 |
+| Runs | retrieval suite only, `RERANK_MAX_CHUNKS_PER_PAGE=2`: `authored_link` cap 20, and (3)'s cosine `entity_graph` cap 10. Masking and propose on DeepSeek, unlike R1 (Qwen): recall@3 is on Jev's top 3 and comparable, `gold_use` is not |
+
+| | Authored links | + max 2 per page | Cosine entity graph, cap 10 | + max 2 per page |
+|---|---|---|---|---|
+| Recall@3 | 0.917 (MRR 0.872) | 0.900 (MRR 0.856) | 0.900 (MRR 0.831) | 0.900 (MRR 0.842) |
+| Change | | -g035 | | +g052, -g035 |
+
+### Findings
+
+**1. The page-diverse shortlist works as designed and still doesn't pay.**
+It brings deeper pages to Jev: g052's remediation page reaches Jev and is
+chosen. g053 and g011, which the local pool check predicted it would also
+rescue, reach Jev and are not chosen.
+
+**2. g035 may be a labelling question.** In every configuration that shows
+Jev more distinct pages (cosine cap 5, 2 expansion chunks per page, this
+shortlist), g035 ("Login to my WorkSpace takes forever") loses its gold page
+(the user guide's *client troubleshooting*) to the admin guide's *Amazon
+WorkSpaces troubleshooting*, *restart* and *rebuild WorkSpace*. The admin
+troubleshooting page is arguably a correct answer too: a candidate for the
+multi-gold review, not evidence against either source.
+
+**Correction to (4), finding 2:** the rerank node does not keep one chunk
+per page in its top 3; it takes Jev's top 3 chunks, which may share a page.
+The rest of that finding (the losses depend on what else is in Jev's 15)
+stands.
+
+### Follow-ups
+
+- [ ] g035 in the multi-gold review (`evals/golden`, TODO item 8).
+
 ## 2026-10-08 (4): cosine entity_graph, 2 chunks per page and a repeat run (ADR-0018), probe
 
 **Verdict:** Jev is deterministic: an identical re-run of (3)'s cosine cap 10

@@ -662,3 +662,19 @@
 {"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"gold_use","value":14.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"pool_size","value":65.5,"n":60,"labels":{"stat":"median"}}
 {"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"pool_size","value":131.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"retrieval_mrr","value":0.8555555555555556,"n":60}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"gold_use","value":12.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"pool_size","value":165.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"retrieval_mrr","value":0.8416666666666667,"n":60}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"gold_use","value":47.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"gold_use","value":7.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"pool_size","value":65.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"pool_size","value":131.0,"n":60,"labels":{"stat":"max"}}
