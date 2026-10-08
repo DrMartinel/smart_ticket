@@ -95,6 +95,52 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-08 (4): cosine entity_graph, 2 chunks per page and a repeat run (ADR-0018), probe
+
+**Verdict:** Jev is deterministic: an identical re-run of (3)'s cosine cap 10
+reproduces it ticket for ticket (0.900, MRR 0.831, the same six misses), so
+single-ticket differences between configurations here are real, not noise.
+Two expansion chunks per page instead of five halves the pool but costs
+recall (0.867): it neither recovers g052/g053 nor keeps g035/g039.
+
+| Configuration | |
+|---|---|
+| Code | `ff7656a` (`main`); the probe graph and harness as (3) |
+| Runs | retrieval suite only, `entity_graph`, cosine, cap 10: `LINK_EXPANSION_CHUNKS_PER_PAGE` 2, then 5 again (a repeat of (3)) |
+
+| | Cosine cap 10, 5 chunks/page (3) | **Repeat** | 2 chunks/page | R1 authored_link |
+|---|---|---|---|---|
+| Recall@3 | 0.900 (MRR 0.831) | **0.900 (MRR 0.831)** | 0.867 (MRR 0.839) | 0.917 |
+| Misses | g011, g012, g048, g052, g053, g055 | **the same** | the same + g035, g039 | g011, g012, g048, g055, g056 |
+| `pool_size` median · max | 65.5 · 131 | 65.5 · 131 | 33.5 · 59 | 51 · 170 |
+
+### Findings
+
+**1. The gap to authored links is the shortlister's 15-chunk cut.** g052 and
+g053's gold chunk scores the same under every source (0.715 and 0.588), but
+the entity graph adds 12-13 chunks from sibling GuardDuty pages that
+describe findings (finding-types-active, -retired, -iam, finding-format,
+malware protection), which the cross-encoder ranks above the remediation
+page: the 15th chunk's score rises from 0.451 (authored links) to 0.838, and
+the gold chunk falls to 23rd-24th. Jev never sees it; with authored links it
+does (12th-13th), and picks it. Two chunks per page only moves it to 19th of
+33: the siblings' best chunks still outrank it. This is ADR-0014's finding:
+the cross-encoder judges *about*, not *resolves*.
+
+**2. g035, g037 and g039 are lost at Jev, by configuration.** Their gold page
+is 1st-3rd in the pool in every configuration, so Jev always sees it, and
+the repeat shows Jev's scores do not vary. Jev scores each chunk on its own
+and the top 3 keep one chunk per page, so a configuration that brings more
+distinct pages into Jev's 15 (cap 5, or 2 chunks per page) gives more pages
+a chance to outscore the gold one.
+
+### Follow-ups
+
+- [ ] The lever left for g052/g053 is a larger Jev shortlist (`RERANK_POOL`
+  15 to ~25, ~65% more Jev calls per ticket), or keeping catalogue siblings
+  out of a seed's associations.
+- [ ] The full build, then R3 (cosine, cap 10, 5 chunks per page) as a full run.
+
 ## 2026-10-08 (3): entity_graph with cosine scoring, same neighbourhood (ADR-0018), probe
 
 **Verdict:** scoring, not coverage, was holding the entity graph back. Same
