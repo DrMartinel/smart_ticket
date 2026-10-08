@@ -201,6 +201,7 @@ def score(
         [
             "entity_graph",
             policy.version,
+            settings.association_scoring,
             f"mentions-{hashlib.sha256(contents.encode()).hexdigest()[:12]}",
             datetime.now(UTC).date().isoformat(),
         ]
@@ -211,6 +212,7 @@ def score(
         hub_df_max=settings.association_hub_df_max,
         per_article_cap=settings.association_per_article_cap,
         build_id=build_id,
+        method=settings.association_scoring,
     )
 
 

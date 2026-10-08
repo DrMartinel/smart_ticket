@@ -82,6 +82,7 @@ class Settings(BaseSettings):
     # --- Entity-graph associations: the offline build only (ADR-0018) ---
     association_hub_df_max: int
     association_per_article_cap: int
+    association_scoring: Literal["idf_sum", "idf_cosine"]
     lightrag_llm_max_async: int
     lightrag_max_gleaning: int
     lightrag_chunk_tokens: int

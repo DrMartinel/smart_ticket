@@ -129,6 +129,29 @@ def test_names_that_differ_only_in_case_are_one_entity():
     }
 
 
+def test_cosine_lets_the_answering_page_outrank_a_catalogue_page():
+    """The 2026-10-08 probe: GuardDuty catalogue pages listing dozens of
+    finding types shared many entities with each other (scores 95-199), and
+    the remediation page, sharing a few, ranked 8th (24). Summed IDF rewards
+    sharing many entities; cosine rewards sharing a large part of both."""
+    findings = [f"Finding:{i}" for i in range(12)]
+    mentions = [Mention(f, "symptom", "seed") for f in findings + ["Malware"]]
+    mentions += [
+        Mention(f, "symptom", "catalogue") for f in findings + [f"Other:{i}" for i in range(300)]
+    ]
+    mentions += [Mention("Malware", "symptom", "remediation")]
+    active = {"seed", "catalogue", "remediation"} | {f"filler{i}" for i in range(50)}
+
+    def order(method):
+        rows = score_associations(
+            mentions, active, hub_df_max=50, per_article_cap=5, build_id="b", method=method
+        )
+        return [r.target_slug for r in rows if r.source_slug == "seed"]
+
+    assert order("idf_sum") == ["catalogue", "remediation"]
+    assert order("idf_cosine") == ["remediation", "catalogue"]
+
+
 def test_df_histogram_counts_active_articles_per_entity():
     mentions = [
         Mention("x", "service", "a"),

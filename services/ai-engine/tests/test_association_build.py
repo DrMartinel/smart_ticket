@@ -96,7 +96,7 @@ def test_a_build_exports_mentions_and_the_scored_graph(articles, tmp_path):
     }
     assert graph[0]["evidence"] == ["SES Sandbox"]
     assert graph[0]["build_id"].startswith(
-        f"entity_graph:{settings.entity_policy_version}:mentions-"
+        f"entity_graph:{settings.entity_policy_version}:{settings.association_scoring}:mentions-"
     )
 
 
@@ -219,6 +219,7 @@ def test_on_deepseek_no_schema_is_sent(monkeypatch, tmp_path):
 def test_another_model_never_reuses_a_working_dir(articles, tmp_path, monkeypatch, capsys):
     """LightRAG caches replies by prompt text, so a second model in the same
     directory would get the first one's replies back as its own."""
+    monkeypatch.setattr(settings, "chat_client_provider", "vllm")
     assert _run(tmp_path, ScriptedChat()) == 0
     monkeypatch.setattr(settings, "chat_client_provider", "deepseek")
     monkeypatch.setattr(settings, "cloud_model", "deepseek-flash")

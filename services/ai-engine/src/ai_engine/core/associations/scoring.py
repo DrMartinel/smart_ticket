@@ -22,6 +22,7 @@ import math
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True, order=True)
@@ -94,6 +95,7 @@ def score_associations(
     hub_df_max: int,
     per_article_cap: int,
     build_id: str,
+    method: Literal["idf_sum", "idf_cosine"] = "idf_sum",
 ) -> list[AssociationRow]:
     """Rows for every pair of articles sharing a non-hub entity, the top
     `per_article_cap` targets per source article, in a stable order.
@@ -101,11 +103,21 @@ def score_associations(
     df and N count ACTIVE articles only, so scores describe the KB a ticket
     can reach. Inactive articles still get rows (ai-engine's read hides
     them until they are reactivated), but an entity no active article
-    mentions has no df and links nothing."""
+    mentions has no df and links nothing.
+
+    `method`: `idf_sum` adds `ln(N / df)` per shared entity. `idf_cosine`
+    divides that by `sqrt(|A| * |B|)`, the two articles' entity counts: a
+    catalogue page listing dozens of finding types otherwise outscores the
+    page that remediates them just by sharing more entities (the 2026-10-08
+    probe: 95-199 against 24)."""
 
     articles_by_entity: dict[str, set[str]] = defaultdict(set)
+    entity_count: dict[str, int] = defaultdict(int)
     for m in mentions:
         articles_by_entity[m.entity].add(m.article_slug)
+    for slugs in articles_by_entity.values():
+        for slug in slugs:
+            entity_count[slug] += 1
 
     n = len(active_slugs)
     pair_score: dict[tuple[str, str], float] = defaultdict(float)
@@ -123,6 +135,8 @@ def score_associations(
 
     targets: dict[str, list[tuple[float, str]]] = defaultdict(list)
     for (source, target), score in pair_score.items():
+        if method == "idf_cosine":
+            score /= math.sqrt(entity_count[source] * entity_count[target])
         targets[source].append((score, target))
 
     rows: list[AssociationRow] = []
