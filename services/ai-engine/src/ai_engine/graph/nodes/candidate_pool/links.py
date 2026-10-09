@@ -14,6 +14,7 @@ time, so reactivating an article needs no rebuild.
 from __future__ import annotations
 
 import uuid
+from typing import NamedTuple
 
 from sqlalchemy import func, select
 
@@ -23,13 +24,18 @@ from ai_engine.core.db.tables import KbArticle, KbArticleAssociation, KbChunk
 from ai_engine.graph.state import Candidate
 
 
-def linked_article_ids(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[uuid.UUID]:
-    """Active articles associated with `seed_ids` in the configured source,
+class Association(NamedTuple):
+    seed: uuid.UUID
+    target: uuid.UUID
+    score: float
+
+
+def associations(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[Association]:
+    """Each seed's associations in the configured source to active articles,
     seeds first to last, each seed's targets by descending score (document
-    order, for authored links), at most `max_per_seed` per seed, each article
-    once. A target that is another seed or a fused candidate is kept, since
-    that page may have better chunks than the ones retrieved (the caller
-    de-duplicates chunks). `score` only orders; it is never compared with a
+    order, for authored links), at most `max_per_seed` per seed. Self-pairs
+    are dropped. `score` only orders (and, in the two-lane shortlist, weighs
+    a seed's targets against each other); it is never compared with a
     threshold (ADR-0005)."""
 
     if not seed_ids or settings.association_source == "none":
@@ -39,6 +45,7 @@ def linked_article_ids(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[
         select(
             association.source_article_id,
             association.target_article_id,
+            association.score,
             func.row_number()
             .over(
                 partition_by=association.source_article_id,
@@ -56,23 +63,30 @@ def linked_article_ids(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[
         .subquery()
     )
     rows = db.all(
-        select(ranked.c.source_article_id, ranked.c.target_article_id)
+        select(ranked.c.source_article_id, ranked.c.target_article_id, ranked.c.score)
         .where(ranked.c.rank <= max_per_seed)
         .order_by(ranked.c.source_article_id, ranked.c.rank)
     )
 
-    targets_by_seed: dict[uuid.UUID, list[uuid.UUID]] = {seed: [] for seed in seed_ids}
-    for seed, target in rows:
+    by_seed: dict[uuid.UUID, list[Association]] = {seed: [] for seed in seed_ids}
+    for seed, target, score in rows:
         # The table's CHECK forbids self-pairs; skipped here as well, so a
         # seed never expands to itself whatever wrote the row.
         if target != seed:
-            targets_by_seed[seed].append(target)
+            by_seed[seed].append(Association(seed, target, float(score)))
+    return [a for seed in seed_ids for a in by_seed[seed]]
+
+
+def linked_article_ids(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[uuid.UUID]:
+    """Active articles associated with `seed_ids`, in `associations()`'s
+    order, each article once. A target that is another seed or a fused
+    candidate is kept, since that page may have better chunks than the ones
+    retrieved (the caller de-duplicates chunks)."""
 
     linked: list[uuid.UUID] = []
-    for seed in seed_ids:
-        for target in targets_by_seed[seed]:
-            if target not in linked:
-                linked.append(target)
+    for a in associations(seed_ids, max_per_seed=max_per_seed):
+        if a.target not in linked:
+            linked.append(a.target)
     return linked
 
 

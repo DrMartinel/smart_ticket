@@ -57,14 +57,14 @@ def test_seed_order_then_score_order_each_target_once(fake_db, source, use_db):
     function must restore the cross-encoder's seed order, and keep a target
     two seeds share only where it first appears."""
     source("authored_link")
-    use_db(fake_db([(SEED_A, T2), (SEED_A, T3), (SEED_B, T1), (SEED_B, T2)]))
+    use_db(fake_db([(SEED_A, T2, 0.9), (SEED_A, T3, 0.5), (SEED_B, T1, 0.8), (SEED_B, T2, 0.4)]))
 
     assert linked_article_ids([SEED_B, SEED_A], max_per_seed=2) == [T1, T2, T3]
 
 
 def test_a_self_pair_is_never_followed(fake_db, source, use_db):
     source("authored_link")
-    use_db(fake_db([(SEED_A, SEED_A), (SEED_A, T1)]))
+    use_db(fake_db([(SEED_A, SEED_A, 1.0), (SEED_A, T1, 0.5)]))
 
     assert linked_article_ids([SEED_A], max_per_seed=5) == [T1]
 
@@ -73,7 +73,7 @@ def test_source_none_returns_nothing_without_a_query(fake_db, source, use_db):
     """R0 in the eval: expansion off. Not a query that happens to find
     nothing, which would still cost a round trip per ticket."""
     source("none")
-    db = use_db(fake_db([(SEED_A, T1)]))
+    db = use_db(fake_db([(SEED_A, T1, 1.0)]))
 
     assert linked_article_ids([SEED_A], max_per_seed=5) == []
     assert db.sessions == []

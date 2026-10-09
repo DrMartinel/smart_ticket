@@ -13,9 +13,9 @@ meaning "unset".
 """
 
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The repo root's .env, from services/ai-engine/src/ai_engine/core/config.py.
@@ -91,11 +91,26 @@ class Settings(BaseSettings):
     # --- Reranker (Jev) ---
     rerank_pool: int
     rerank_max_chunks_per_page: int
+    # Which chunks fill Jev's shortlist: one pool in cross-encoder order, or a
+    # seed lane and a graph lane with their own slots (two_lane.py).
+    shortlist_strategy: Literal["single_pool", "two_lane"]
+    shortlist_seed_quota: int
+    shortlist_graph_quota: int
     jev_base_url: str
     jev_model: str
     jev_api_key: SecretStr | None = None
     rerank_prompt_version: str
     category_question_version: str
+
+    @model_validator(mode="after")
+    def _two_lane_quotas_fill_the_shortlist(self) -> Self:
+        """The lanes split Jev's shortlist: a mismatch would quietly score
+        fewer chunks than RERANK_POOL, or more. Fatal at boot."""
+        if self.shortlist_strategy == "two_lane" and (
+            self.shortlist_seed_quota + self.shortlist_graph_quota != self.rerank_pool
+        ):
+            raise ValueError("SHORTLIST_SEED_QUOTA + SHORTLIST_GRAPH_QUOTA must equal RERANK_POOL")
+        return self
 
 
 settings = Settings()  # type: ignore[call-arg]  # every value comes from .env or the env
