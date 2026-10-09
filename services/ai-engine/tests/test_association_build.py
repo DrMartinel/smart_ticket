@@ -226,3 +226,57 @@ def test_another_model_never_reuses_a_working_dir(articles, tmp_path, monkeypatc
 
     assert _run(tmp_path, ScriptedChat()) == 1
     assert "deepseek:deepseek-flash" in capsys.readouterr().err
+
+
+def test_a_resume_processes_queued_articles_instead_of_deleting_them(
+    articles, tmp_path, monkeypatch
+):
+    """An aborted batch leaves its articles queued (pending), never extracted.
+    Deleting them rewrites the whole graph file per article: on the full KB,
+    about 8 a minute, hours for the 1,955 a dropped connection left queued
+    (2026-10-10). Their queued text is current, so the queue runs them."""
+    import asyncio
+
+    from lightrag import LightRAG
+    from lightrag.kg.shared_storage import finalize_share_data
+
+    from ai_engine.core.associations.adapter import FILE_PATH_PREFIX, ModelCalls, make_rag
+
+    monkeypatch.setattr(settings, "chat_client_provider", "vllm")
+    working = tmp_path / "w"
+    working.mkdir()
+
+    async def queue_without_processing() -> None:
+        rag = make_rag(
+            working, guidance="g", calls=ModelCalls(), chat_model=ScriptedChat(), embed=_embed
+        )  # type: ignore[arg-type]
+        await rag.initialize_storages()
+        try:
+            await rag.apipeline_enqueue_documents(
+                [body for _, _, body, _ in ARTICLES],
+                ids=[str(i) for i, *_ in ARTICLES],
+                file_paths=[f"{FILE_PATH_PREFIX}{i}" for i, *_ in ARTICLES],
+            )
+        finally:
+            await rag.finalize_storages()
+            finalize_share_data()
+
+    asyncio.run(queue_without_processing())
+    deleted: list[str] = []
+    real_delete = LightRAG.adelete_by_doc_id
+
+    async def recording_delete(self, doc_id, *args, **kwargs):
+        deleted.append(doc_id)
+        return await real_delete(self, doc_id, *args, **kwargs)
+
+    monkeypatch.setattr(LightRAG, "adelete_by_doc_id", recording_delete)
+    chat = ScriptedChat()
+
+    assert _run(tmp_path, chat) == 0
+    assert deleted == []
+    assert chat.calls > 0
+    graph = _lines(tmp_path / "out" / build.GRAPH_FILE)
+    assert {(r["source_slug"], r["target_slug"]) for r in graph} == {
+        ("ses.verify", "ses.prod"),
+        ("ses.prod", "ses.verify"),
+    }

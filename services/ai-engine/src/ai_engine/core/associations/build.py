@@ -146,10 +146,27 @@ async def sync(
         if statuses.get(doc_id) == DocStatus.PROCESSED
     }
 
-    # Anything LightRAG holds that isn't current goes first: gone, changed,
-    # failed, or a duplicate record. Re-inserting a known id would only add
-    # a failed duplicate, so a retry is always delete, then insert.
+    # A document still queued (pending) when a run stopped was never
+    # extracted, so it has nothing in the graph to undo: if its queued text is
+    # still the article's, LightRAG's queue picks it up. Deleting it instead
+    # rewrites the whole graph file per document (~8 a minute on the full KB,
+    # 2026-10-10), hours for an interrupted batch.
+    body = {str(a.id): a.body for a in articles}
+    queued = {
+        doc_id
+        for doc_id, status in statuses.items()
+        if status == DocStatus.PENDING
+        and doc_id in body
+        and ((await rag.full_docs.get_by_id(doc_id)) or {}).get("content") == body[doc_id]
+    }
+
+    # Anything else LightRAG holds that isn't current goes first: gone,
+    # changed, failed, interrupted, or a duplicate record. Re-inserting a
+    # known id would only add a failed duplicate, so a retry is always delete,
+    # then insert.
     for doc_id in statuses:
+        if doc_id in queued:
+            continue
         if doc_id not in wanted or state.documents.get(doc_id) != wanted[doc_id]:
             result = await rag.adelete_by_doc_id(doc_id)
             if result.status not in ("success", "not_found"):
@@ -157,16 +174,20 @@ async def sync(
             state.documents.pop(doc_id, None)
             state.save()
 
-    todo = [a for a in articles if state.documents.get(str(a.id)) != wanted[str(a.id)]]
+    stale = [a for a in articles if state.documents.get(str(a.id)) != wanted[str(a.id)]]
+    todo = [a for a in stale if str(a.id) not in queued]
     if todo:
+        # Processes the queue too: the queued documents go with these.
         await rag.ainsert(
             [a.body for a in todo],
             ids=[str(a.id) for a in todo],
             file_paths=[f"{FILE_PATH_PREFIX}{a.id}" for a in todo],
         )
+    elif queued:
+        await rag.apipeline_process_enqueue_documents()
     processed = await rag.doc_status.get_docs_by_statuses([DocStatus.PROCESSED])
     failed = []
-    for a in todo:
+    for a in stale:
         doc_id = str(a.id)
         if doc_id in processed:
             state.documents[doc_id] = wanted[doc_id]
