@@ -95,6 +95,48 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-09: the two-lane shortlist (seed lane + graph lane), probe
+
+**Verdict:** at seed 10 / graph 5 the two-lane shortlist does not beat the
+single pool on either source, but it reaches what nothing else did: for the
+cosine entity graph it recovers g048, g052 and g053 (g048 has never been
+recovered by authored links), and it cuts the cross-encoder's batch about
+3x. Its graph lane, 5 pages of 1 chunk, is too narrow: g008 and g050 are
+lost, and Jev-stage crowding costs g035 and g037 again.
+
+| Configuration | |
+|---|---|
+| Code | `3f07985` (`main`): `SHORTLIST_STRATEGY=two_lane`, `SHORTLIST_SEED_QUOTA` 10, `SHORTLIST_GRAPH_QUOTA` 5, shipped as `single_pool` |
+| Algorithm | The fused candidates (10) are the seed lane, cross-encoded. Each linked page adds its one chunk nearest the ticket to the graph lane, ordered by max over parent seeds of (seed article's best cross-encoder score x edge weight), edge weight = association score / the ticket's highest. No minimum graph score (ADR-0005); a short lane's slots go to the other |
+| Runs | retrieval suite only: `authored_link` cap 20, and the cosine probe `entity_graph` cap 10 of (3); chat and masking on DeepSeek |
+
+| | Authored links | + two-lane | Cosine entity graph, cap 10 | + two-lane |
+|---|---|---|---|---|
+| Recall@3 | **0.917** (MRR 0.872) | 0.867 (MRR 0.803) | **0.900** (MRR 0.831) | 0.883 (MRR 0.819) |
+| Change | | -g008, -g050, -g060 | | **+g048, +g052, +g053**, -g008, -g035, -g037, -g050 |
+| Gold page in Jev's 15 (local check) | 57/60 | 55/60 | 55/60 | 57/60 |
+| `pool_size` median · max | 51 · 170 | 19 · 44 | 65.5 · 131 | 21 · 35 |
+
+### Findings
+
+**1. The graph lane does what the design intends.** For the entity graph,
+the remediation page of g052 and g053, cut by the cross-encoder in the
+single pool, reaches Jev through its own slots and is chosen; so is g048's.
+
+**2. Five one-chunk slots are too few.** The single pool let up to 10 linked
+pages in with 5 chunks each; the graph lane holds 5 pages. g008 and g050's
+fix pages rank below the 5th propagated page. For authored links (up to 20
+links per seed, weighted only by document position) it costs three tickets.
+
+**3. More distinct pages at Jev cost seeds again.** g035 and g037's gold
+page is a seed in the shortlist, but the graph lane's extra pages outscore
+it, as with the page-diverse shortlist in (5).
+
+### Follow-ups
+
+- [ ] A wider graph lane for the entity graph (graph quota 7, or 2 chunks
+  per graph page) to keep g008 and g050; it trades against finding 3.
+
 ## 2026-10-08 (5): a page-diverse Jev shortlist, authored links and cosine entity_graph, probe
 
 **Verdict:** no gain. `RERANK_MAX_CHUNKS_PER_PAGE=2` (at most 2 of a page's
