@@ -197,16 +197,34 @@ async def sync(
     return failed
 
 
+def twins(articles: list[Article]) -> dict[uuid.UUID, Article]:
+    """Copy id -> original, for articles whose text is identical to an
+    earlier one by slug: the same page under two URLs (15 pairs in the demo
+    KB, iam_example_* / sts_example_*). LightRAG refuses the second as a
+    duplicate, every run, so only the original is extracted and the copy is
+    given its entities: same text, same entities."""
+
+    first: dict[str, Article] = {}
+    copies: dict[uuid.UUID, Article] = {}
+    for a in sorted(articles, key=lambda a: a.slug):
+        original = first.setdefault(a.body, a)
+        if original is not a:
+            copies[a.id] = original
+    return copies
+
+
 async def export_mentions(rag: LightRAG, articles: list[Article]) -> list[Mention]:
-    """Every (entity, type, article) LightRAG extracted. Read from its
-    per-document entity lists, not from the graph's nodes: a node's
-    `file_path` list is capped (75 by default), so a common entity would
-    look rarer than it is and df would be wrong."""
+    """Every (entity, type, article) LightRAG extracted, a copy given its
+    original's (`twins`). Read from its per-document entity lists, not from
+    the graph's nodes: a node's `file_path` list is capped (75 by default),
+    so a common entity would look rarer than it is and df would be wrong."""
 
     graph = rag.chunk_entity_relation_graph
+    copies = twins(articles)
     mentions: set[Mention] = set()
     for a in articles:
-        row = await rag.full_entities.get_by_id(str(a.id))
+        source = copies.get(a.id, a)
+        row = await rag.full_entities.get_by_id(str(source.id))
         for name in (row or {}).get("entity_names", []):
             node = await graph.get_node(name)
             entity_type = (node or {}).get("entity_type") or "unknown"
@@ -227,6 +245,14 @@ def score(
             datetime.now(UTC).date().isoformat(),
         ]
     )
+    # Twins share every entity, so each would be the other's strongest
+    # association: an edge to the same text, wasting a slot.
+    slug = {a.id: a.slug for a in articles}
+    twin_pairs = {
+        pair
+        for copy_id, original in twins(articles).items()
+        for pair in ((slug[copy_id], original.slug), (original.slug, slug[copy_id]))
+    }
     return score_associations(
         apply_policy(mentions, policy.scoring),
         {a.slug for a in articles if a.is_active},
@@ -234,6 +260,7 @@ def score(
         per_article_cap=settings.association_per_article_cap,
         build_id=build_id,
         method=settings.association_scoring,
+        excluded_pairs=frozenset(twin_pairs),
     )
 
 
@@ -277,7 +304,8 @@ async def extract(
     )
     await rag.initialize_storages()
     try:
-        failed = await sync(rag, articles, state, policy.version)
+        copies = twins(articles)
+        failed = await sync(rag, [a for a in articles if a.id not in copies], state, policy.version)
         if failed:
             raise BuildFailed(
                 f"{len(failed)} of {len(articles)} articles failed extraction: {', '.join(failed)}. "

@@ -96,6 +96,7 @@ def score_associations(
     per_article_cap: int,
     build_id: str,
     method: Literal["idf_sum", "idf_cosine"] = "idf_sum",
+    excluded_pairs: frozenset[tuple[str, str]] = frozenset(),
 ) -> list[AssociationRow]:
     """Rows for every pair of articles sharing a non-hub entity, the top
     `per_article_cap` targets per source article, in a stable order.
@@ -109,7 +110,10 @@ def score_associations(
     divides that by `sqrt(|A| * |B|)`, the two articles' entity counts: a
     catalogue page listing dozens of finding types otherwise outscores the
     page that remediates them just by sharing more entities (the 2026-10-08
-    probe: 95-199 against 24)."""
+    probe: 95-199 against 24).
+
+    `excluded_pairs` (source, target) never become rows, before ranking, so
+    they take no slot: twin pages with identical text (build.twins)."""
 
     articles_by_entity: dict[str, set[str]] = defaultdict(set)
     entity_count: dict[str, int] = defaultdict(int)
@@ -129,7 +133,7 @@ def score_associations(
         weight = math.log(n / df)
         for source in slugs:
             for target in slugs:
-                if source != target:
+                if source != target and (source, target) not in excluded_pairs:
                     pair_score[source, target] += weight
                     pair_evidence[source, target].append((weight, entity))
 

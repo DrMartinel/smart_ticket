@@ -280,3 +280,30 @@ def test_a_resume_processes_queued_articles_instead_of_deleting_them(
         ("ses.verify", "ses.prod"),
         ("ses.prod", "ses.verify"),
     }
+
+
+def test_a_copy_with_identical_text_mirrors_its_original_without_linking_to_it(
+    articles, tmp_path, monkeypatch
+):
+    """15 demo-KB pages exist under two URLs with the same text. LightRAG
+    refuses the second as a duplicate on every run, so the build could never
+    export. The copy takes the original's entities, and the twin edge, which
+    would always rank first, is dropped."""
+    monkeypatch.setattr(settings, "chat_client_provider", "vllm")
+    verify_body = articles[0][2]
+    articles.append((uuid.UUID(int=4), "ses.verify-copy", verify_body, True))
+
+    assert _run(tmp_path, ScriptedChat()) == 0
+
+    mentions = _lines(tmp_path / "out" / build.MENTIONS_FILE)
+    graph = {
+        (r["source_slug"], r["target_slug"]) for r in _lines(tmp_path / "out" / build.GRAPH_FILE)
+    }
+    assert {
+        "entity": "SES Sandbox",
+        "type": "restriction",
+        "article_slug": "ses.verify-copy",
+    } in mentions
+    assert ("ses.verify-copy", "ses.prod") in graph
+    assert ("ses.verify", "ses.verify-copy") not in graph
+    assert ("ses.verify-copy", "ses.verify") not in graph
