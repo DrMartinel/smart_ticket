@@ -1,7 +1,7 @@
 """
 Article associations for link expansion (ADR-0014 decision 1, ADR-0018):
-the pure parts. Pulling links out of chunk text and ranking article
-centroids, with no database access; the rows are written by
+the pure parts. Pulling links out of chunk text, with no database access;
+the rows are written by
 `KbArticleAssociation.objects`.
 
 `resolve_link` and the link pattern are a port of ai-engine's
@@ -18,8 +18,6 @@ import uuid
 from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from urllib.parse import urldefrag, urljoin
-
-import numpy as np
 
 # The target of a Markdown link: `[text](target)` or `[text](target "title")`.
 _LINK = re.compile(r"\]\(([^)\s]+)")
@@ -69,38 +67,7 @@ def link_scores(
     return rows
 
 
-def nearest_neighbours(
-    ids: list[uuid.UUID], centroids: np.ndarray, *, k: int, among: Iterable[int] | None = None
-) -> list[tuple[uuid.UUID, uuid.UUID, float]]:
-    """`(source, target, cosine)` for each article's `k` nearest other
-    articles by centroid. `centroids` is one row per id, already
-    L2-normalised, so a dot product is the cosine. `among` limits which
-    rows get neighbours (all by default); every row can BE one. Ties break
-    on the target id, so a rebuild gives the same rows."""
-
-    if len(ids) < 2 or k < 1:
-        return []
-    id_rank = np.empty(len(ids), dtype=np.int64)
-    id_rank[sorted(range(len(ids)), key=lambda i: ids[i])] = np.arange(len(ids))
-    rows: list[tuple[uuid.UUID, uuid.UUID, float]] = []
-    for i in range(len(ids)) if among is None else among:
-        similarity = centroids @ centroids[i]
-        similarity[i] = -np.inf  # never its own neighbour
-        # lexsort's LAST key is the primary one: similarity descending,
-        # then id order.
-        nearest = np.lexsort((id_rank, -similarity))[: min(k, len(ids) - 1)]
-        rows.extend((ids[i], ids[j], float(similarity[j])) for j in nearest)
-    return rows
-
-
-def normalised(vectors: np.ndarray) -> np.ndarray:
-    """Rows scaled to unit length; a zero row stays zero rather than NaN."""
-
-    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-    return np.divide(vectors, norms, out=np.zeros_like(vectors), where=norms > 0)
-
-
 def build_id(source: str, *parts: str) -> str:
-    """What made a row, e.g. `embedding_neighbour:k=5:2026-10-07`."""
+    """What made a row, e.g. `authored_link:2026-10-07`."""
 
     return ":".join([source, *parts, datetime.now(UTC).date().isoformat()])

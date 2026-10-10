@@ -37,9 +37,8 @@ def test_reingest_drops_extracted_edges_both_ways_and_rereads_authored_links():
     for a, slug in ((article, "verify"), (other, "prod")):
         a.source_url = f"https://docs.aws.amazon.com/ses/{slug}.html"
         a.save(update_fields=["source_url"])
-    for kind in (AssociationSource.ENTITY_GRAPH, AssociationSource.EMBEDDING_NEIGHBOUR):
-        _edge(article, other, kind)
-        _edge(other, article, kind)
+    _edge(article, other, AssociationSource.ENTITY_GRAPH)
+    _edge(other, article, AssociationSource.ENTITY_GRAPH)
     # An edge between two other articles is none of this article's business.
     third = _article("smtp", "smtp credentials")
     _edge(other, third, AssociationSource.ENTITY_GRAPH)
@@ -48,13 +47,9 @@ def test_reingest_drops_extracted_edges_both_ways_and_rereads_authored_links():
     article.save(update_fields=["body"])
     article.ingest()
 
-    # No entity_graph edge survives. The neighbour source had been built, so
-    # the article's own neighbours were recomputed from its new vectors;
-    # other articles' edges to it wait for their next build.
-    assert _sources(source_article=article) == {
-        AssociationSource.AUTHORED_LINK,
-        AssociationSource.EMBEDDING_NEIGHBOUR,
-    }
+    # No entity_graph edge survives; the authored links are reread from
+    # the new text.
+    assert _sources(source_article=article) == {AssociationSource.AUTHORED_LINK}
     assert _sources(target_article=article) == set()
     assert _sources(source_article=other, target_article=third) == {AssociationSource.ENTITY_GRAPH}
 

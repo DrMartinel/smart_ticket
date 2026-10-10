@@ -77,9 +77,7 @@ class Settings(BaseSettings):
     # The one association source expansion follows (ADR-0018), or "none".
     # Sources are compared against each other, never followed together: their
     # scores are on different scales.
-    association_source: Literal[
-        "authored_link", "embedding_neighbour", "entity_graph", "remedy_pointer", "none"
-    ]
+    association_source: Literal["authored_link", "entity_graph", "remedy_pointer", "none"]
 
     # --- Entity-graph associations: the offline build only (ADR-0018) ---
     association_hub_df_max: int
