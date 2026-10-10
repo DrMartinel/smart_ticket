@@ -199,6 +199,7 @@ services:
       JEV_BASE_URL: ${JEV_BASE_URL:?see .env.example}
       JEV_MODEL: ${JEV_MODEL:?see .env.example}
       JEV_API_KEY: ${JEV_API_KEY:-}
+      JEV_MAX_CONCURRENCY: ${JEV_MAX_CONCURRENCY:?see .env.example}
       RERANK_PROMPT_VERSION: ${RERANK_PROMPT_VERSION:?see .env.example}
       CATEGORY_QUESTION_VERSION: ${CATEGORY_QUESTION_VERSION:?see .env.example}
     ports:

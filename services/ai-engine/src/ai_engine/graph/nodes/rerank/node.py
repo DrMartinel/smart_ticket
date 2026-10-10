@@ -9,6 +9,10 @@ page (ADR-0015); Jev's order and `rerank_score` are
 final, and its top `rerank_top_n` go on. The floor is compared only with
 `rerank_score`, never with the cross-encoder's or fusion's RRF score
 (ADR-0005).
+
+Under `SHORTLIST_PROVIDER=none` there is no cross-encoder order: the pool
+arrives already scored by Jev (CandidatePoolNode), and this node only cuts
+its top `rerank_top_n`.
 """
 
 from __future__ import annotations
@@ -45,26 +49,36 @@ def jev_shortlist(pool: list[RankedChunk], *, size: int, per_page: int) -> list[
     return taken
 
 
+def jev_scored(state: TriageState, chunks: list[RankedChunk]) -> list[RankedChunk]:
+    """`chunks` with Jev's `rerank_score`, in Jev's order. Raises on any
+    failure, or on a reply that doesn't score every chunk: never a partial
+    list."""
+
+    if not chunks:
+        return []
+    titles = article_titles(list({r.article_id for r in chunks}))
+    scores = reranker.score(
+        state.ticket.subject_masked,
+        state.ticket.body_masked,
+        [Passage(titles.get(r.article_id, ""), r.content) for r in chunks],
+    )
+    if len(scores) != len(chunks):
+        raise ValueError(f"Jev returned {len(scores)} scores for {len(chunks)}")
+    ranked = sorted(zip(scores, chunks, strict=True), key=lambda p: p[0], reverse=True)
+    return [r.model_copy(update={"rerank_score": s}) for s, r in ranked]
+
+
 class RerankNode(BaseNode):
     def __call__(self, state: TriageState) -> dict[str, Any]:
+        if settings.shortlist_provider == "none":
+            # CandidatePoolNode had Jev score the whole pool, in Jev's order:
+            # no shortlist to cut, no second call.
+            return {"reranked": state.pool[: settings.rerank_top_n]}
+
         shortlist = jev_shortlist(
             state.pool, size=settings.rerank_pool, per_page=settings.rerank_max_chunks_per_page
         )
-        if not shortlist:
-            return {"reranked": []}
-
-        titles = article_titles(list({r.article_id for r in shortlist}))
-        scores = reranker.score(
-            state.ticket.subject_masked,
-            state.ticket.body_masked,
-            [Passage(titles.get(r.article_id, ""), r.content) for r in shortlist],
-        )
-        if len(scores) != len(shortlist):
-            raise ValueError(f"Jev returned {len(scores)} scores for {len(shortlist)}")
-
-        ranked = sorted(zip(scores, shortlist, strict=True), key=lambda p: p[0], reverse=True)
-        rescored = [r.model_copy(update={"rerank_score": s}) for s, r in ranked]
-        return {"reranked": rescored[: settings.rerank_top_n]}
+        return {"reranked": jev_scored(state, shortlist)[: settings.rerank_top_n]}
 
 
 rerank = RerankNode()

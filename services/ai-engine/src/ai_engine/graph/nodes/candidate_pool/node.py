@@ -13,6 +13,12 @@ seeds instead (`two_lane.py`): the pool leaves with that shortlist first.
 
 Every score here is the cross-encoder's or derived from it, and only orders.
 Seeds come from its order, never from RRF's (ADR-0005).
+
+Under `SHORTLIST_PROVIDER=none` there is no cross-encoder: Jev scores the
+fused candidates, the articles of Jev's top `link_expansion_seeds` chunks
+are the seeds, and Jev scores the chunks expansion adds. The pool leaves
+in Jev's order with every chunk scored; RerankNode makes no call of its
+own.
 """
 
 from __future__ import annotations
@@ -33,6 +39,7 @@ from ai_engine.graph.nodes.candidate_pool.two_lane import (
     propagated,
     two_lane_shortlist,
 )
+from ai_engine.graph.nodes.rerank.node import jev_scored
 from ai_engine.graph.state import Candidate, RankedChunk, TriageState
 
 
@@ -40,6 +47,8 @@ def _scored(query: str, candidates: list[Candidate]) -> list[RankedChunk]:
     """The candidates with their cross-encoder scores, in input order. A
     shortlister failure raises: the pool is never silently smaller."""
 
+    if shortlister is None:
+        raise RuntimeError("no shortlister: SHORTLIST_PROVIDER=none scores with Jev")
     scores = shortlister.score(query, [c.content for c in candidates])
     return [
         RankedChunk(
@@ -84,11 +93,54 @@ def _two_lane_pool(
     return lanes.shortlist + lanes.rest
 
 
+def _by_jev(state: TriageState, candidates: list[Candidate]) -> list[RankedChunk]:
+    """`candidates` scored by Jev, in its order. `shortlist_score` carries
+    the same score: there is no other, and the field has no "unset"."""
+
+    unscored = [
+        RankedChunk(
+            chunk_id=c.chunk_id,
+            article_id=c.article_id,
+            article_slug=c.article_slug,
+            content=c.content,
+            shortlist_score=0.0,
+        )
+        for c in candidates
+    ]
+    return [
+        r.model_copy(update={"shortlist_score": r.rerank_score})
+        for r in jev_scored(state, unscored)
+    ]
+
+
+def _jev_pool(state: TriageState) -> list[RankedChunk]:
+    """The pool with no shortlister: Jev scores the fused candidates, its
+    top chunks' articles seed expansion, and Jev scores what expansion adds.
+    A failure in either pass raises: never a pool with unscored chunks."""
+
+    pool = _by_jev(state, state.candidates)
+    seeds = list(dict.fromkeys(r.article_id for r in pool[: settings.link_expansion_seeds]))
+    linked = linked_article_ids(seeds, max_per_seed=settings.link_expansion_max_links_per_seed)
+    seen = {c.chunk_id for c in state.candidates}
+    added = [
+        c
+        for c in nearest_chunks(
+            linked, state.query_embedding, per_article=settings.link_expansion_chunks_per_page
+        )
+        if c.chunk_id not in seen
+    ]
+    if not added:
+        return pool
+    return sorted(pool + _by_jev(state, added), key=lambda r: r.final_score(), reverse=True)
+
+
 class CandidatePoolNode(BaseNode):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         candidates = state.candidates
         if not candidates:
             return {"pool": []}
+        if settings.shortlist_provider == "none":
+            return {"pool": _jev_pool(state)}
 
         query = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
         pool = _by_score(_scored(query, candidates))

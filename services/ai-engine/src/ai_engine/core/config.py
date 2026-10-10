@@ -99,6 +99,10 @@ class Settings(BaseSettings):
     jev_base_url: str
     jev_model: str
     jev_api_key: SecretStr | None = None
+    # Jev requests in flight at once, per scoring call. Jev is asked one
+    # question per chunk; under SHORTLIST_PROVIDER=none a ticket's whole pool
+    # (up to ~170 chunks) is scored, and a 429 fails the run.
+    jev_max_concurrency: int
     rerank_prompt_version: str
     category_question_version: str
 
@@ -110,6 +114,16 @@ class Settings(BaseSettings):
             self.shortlist_seed_quota + self.shortlist_graph_quota != self.rerank_pool
         ):
             raise ValueError("SHORTLIST_SEED_QUOTA + SHORTLIST_GRAPH_QUOTA must equal RERANK_POOL")
+        return self
+
+    @model_validator(mode="after")
+    def _two_lane_needs_a_shortlister(self) -> Self:
+        """The two lanes are ordered by cross-encoder scores; with no
+        shortlister there are none, and Jev scores the whole pool anyway."""
+        if self.shortlist_provider == "none" and self.shortlist_strategy == "two_lane":
+            raise ValueError(
+                "SHORTLIST_STRATEGY=two_lane needs a shortlister, not SHORTLIST_PROVIDER=none"
+            )
         return self
 
 

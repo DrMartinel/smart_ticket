@@ -37,6 +37,14 @@ def test_unknown_reranker_provider_raises_rather_than_falling_back_to_lexical(
         reload_shortlister()
 
 
+def test_shortlist_provider_none_selects_no_shortlister(monkeypatch, reload_shortlister):
+    """`none`: Jev scores the whole pool (CandidatePoolNode). It must be
+    chosen by name; an unknown value still fails above."""
+
+    monkeypatch.setattr(settings, "shortlist_provider", "none")
+    assert reload_shortlister().shortlister is None
+
+
 def test_unknown_embedding_provider_raises(monkeypatch, reload_embeddings):
     """Same failure shape as above: silently embedding with the wrong
     provider produces plausible-looking vectors and quietly bad recall."""

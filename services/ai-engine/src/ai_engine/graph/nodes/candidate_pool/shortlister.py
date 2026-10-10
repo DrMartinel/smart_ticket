@@ -66,11 +66,17 @@ class LexicalShortlister(Shortlister):
 # order the pool, and so pick Jev's shortlist, by token overlap with nothing
 # looking broken.
 
-shortlister: Shortlister
+# "none": no shortlister. Jev scores the whole pool (CandidatePoolNode).
+
+shortlister: Shortlister | None
 match settings.shortlist_provider:
     case "lexical":
         shortlister = LexicalShortlister()
     case "vllm":
         shortlister = CrossEncoderShortlister()
+    case "none":
+        shortlister = None
     case other:
-        raise ValueError(f"unknown shortlist_provider: {other!r} (expected 'vllm' or 'lexical')")
+        raise ValueError(
+            f"unknown shortlist_provider: {other!r} (expected 'vllm', 'lexical' or 'none')"
+        )
