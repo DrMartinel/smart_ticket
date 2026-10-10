@@ -95,6 +95,56 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10 (9): full run, authored links with one chunk per page (control for (8))
+
+**Verdict:** the control passes every gate too: auto-reply precision
+**1.00** (31/31), recall@3 0.900, F1 >= 0.93, refusal and injection 1.00;
+branch accuracy 0.906. So (8)'s precision fix does not come from
+`remedy_pointer`: it comes from the one-chunk-per-page limit or the DeepSeek
+chat model, which both runs share. g151 and g155 are not auto-replied here
+either, and the extra `clarify` routes appear with authored links as well.
+Between the two sources, remedy pointers score one ticket more on retrieval
+and on branch accuracy.
+
+| Configuration | |
+|---|---|
+| Code | `bf6fff4` (`main`), as (8) but `ASSOCIATION_SOURCE=authored_link` |
+| Runs | cap 20, `RERANK_TOP_N_PER_PAGE=1`, cross-encoder shortlister, single pool; DeepSeek chat and NER, as (8) |
+| Duration | 23m06s, every suite, no re-runs |
+
+| Metric | Authored links + 1 per page | Remedy pointers + 1 per page (8) | Gate |
+|---|---|---|---|
+| Retrieval recall@3 | 0.900 (MRR 0.875) | **0.917** (MRR 0.872) | >= 0.90 |
+| Auto-reply precision | **1.00** (31/31) | **1.00** (30/30) | >= 0.95 absolute |
+| Branch accuracy | 0.906 (155/171) | 0.918 (157/171) | reported only |
+| Per-category F1 | 0.94 · 0.93 · 0.95 · 1.00 · 1.00 · 0.95 | the same | >= 0.85 each |
+| Refusal · injection · quote validation · masking | 1.00 · 1.00 · 1.00 · as (8) | the same | as before |
+
+### Findings
+
+**1. The precision gate is fixed by what both runs share.** That is the
+per-page limit, the DeepSeek chat model, or both: separating those two
+needs one of them changed alone (Qwen with the limit, or DeepSeek without
+it).
+
+**2. More `clarify` routes come from the same shared change.** g013, g022,
+g024, g032, g039, g071, g072, g082 and g150 go to clarify against their
+labels here; (8) has six of them.
+
+**3. Retrieval moved by one ticket between identical retrieval settings.**
+Authored links with the limit scored 0.917 in (4)'s retrieval suite and
+0.900 here (g050 lost). Jev is deterministic; the masked ticket text comes
+from DeepSeek's NER, which can differ from run to run. One ticket (1.7
+points) is inside that noise, so the sources' retrieval difference here is
+not a finding.
+
+**4. Remaining differences are single tickets.** g002 fails the proposal
+schema here only (a DeepSeek reply), and g030 and g167 hit
+`kb_not_authorized`; (8) has its own single-ticket differences (g005, g034,
+g057, g153, g165).
+
+---
+
 ## 2026-10-10 (8): full run, remedy_pointer with one chunk per page
 
 **Verdict:** every gate passes, the first full run to do so since the

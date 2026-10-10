@@ -774,3 +774,25 @@
 {"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"gold_use","value":14.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"pool_size","value":21.0,"n":60,"labels":{"stat":"median"}}
 {"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"pool_size","value":73.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":0.9375,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":0.9473684210526316,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"branch_accuracy","value":0.9064327485380117,"n":171}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"auto_reply_precision","value":1.0,"n":31,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"retrieval_mrr","value":0.875,"n":60}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":39.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":15.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"pool_size","value":165.0,"n":60,"labels":{"stat":"max"}}
