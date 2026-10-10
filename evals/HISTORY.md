@@ -95,6 +95,55 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10 (6): remedy_pointer, symptom-to-fix-page pointers, retrieval suite
+
+**Verdict:** the new source passes the retrieval gate: recall@3 **0.900**
+(MRR 0.856), against the entity graph's 0.817 and authored links' 0.917,
+with a pool less than half authored links' (median 21 chunks against 51).
+It links every page the entity graph failed to reach in (5) (g051-g053,
+g060), from text with its hyperlinks stripped. It misses authored links'
+five tickets plus g050, whose only connection is a hyperlink on "the Amazon
+SES sandbox".
+
+| Configuration | |
+|---|---|
+| Code | `bc015aa` (`main`): `ASSOCIATION_SOURCE=remedy_pointer`, cap 20, cross-encoder shortlister and Jev as shipped |
+| Graph | `kb_remedies.v1` on DeepSeek (`deepseek-flash`), 3,542 pages in 4,746 sections of up to 3,000 tokens, links stripped to their text: 20,695 (symptom, remedy, where) pairs, 5,871 naming another page. Names resolved 2,788 exact, 360 by embedding (`REMEDY_RESOLVE_MIN_SIMILARITY` 0.85, from the spike's hand check: 25 of 27 right), 1,980 unresolved, 65 ambiguous. 2,933 pointer edges from 1,296 pages. About 7 minutes; three re-runs retried 9, then 1, then 0 failed sections |
+| Runs | the local stage check of (5) on the new source, then the retrieval suite. Masking and propose on DeepSeek |
+
+| | Entity graph (1) | Remedy pointers | Authored links (R1) |
+|---|---|---|---|
+| Recall@3 | 0.817 (MRR 0.739) | **0.900** (MRR 0.856) | 0.917 (MRR 0.872) |
+| Misses | 11 | g011, g012, g048, g050, g055, g056 | g011, g012, g048, g055, g056 |
+| `pool_size` median · max | 78 · 139 | **21 · 73** | 51 · 170 |
+| Never linked (stage check) | 7 | 3: g012, g050, g055 | 2: g012, g055 |
+| In Jev's 15, not its top 3 | 2 | 3: g011, g048, g056 | 2: g048, g056 |
+
+### Findings
+
+**1. The pointer is the relation the tickets needed.** The finding-type
+catalogue now points straight at its remediation page, with the evidence
+the model read: "EC2 instance acting as Tor relay -> assume instance
+compromised and take remediation actions" ranks `guardduty.compromised-ec2`
+first among `guardduty_finding-types-ec2`'s targets (29th in the entity
+graph).
+
+**2. What it misses, prose cannot say.** g050's seed reaches the gold page
+only through a hyperlink on the words "the Amazon SES sandbox"; with links
+stripped the sentence names no page. g012 and g055 are missed by authored
+links too.
+
+**3. The remaining losses are at Jev.** g048's gold page is the first
+pointer of two seeds and g056's the second of one; both reach Jev's 15 and
+lose its top 3. g056's top 3 is one page three times, the case (4)'s
+one-chunk-per-page limit addresses.
+
+**4. Smaller pools.** A page names a few fix pages (2.3 on average), not
+the 20 links an authored page can carry, so the cross-encoder scores 21
+chunks per ticket at the median instead of 51.
+
+---
+
 ## 2026-10-10 (5): where the entity graph loses, a local stage check
 
 **Verdict:** the graph links the wrong pages. Of the full entity graph's 11

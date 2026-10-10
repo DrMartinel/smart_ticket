@@ -736,3 +736,11 @@
 {"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"pool_size","value":139.0,"n":60,"labels":{"stat":"max"}}
 {"run":"2026-10-10-probe-stage-check-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.8166666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
 {"run":"2026-10-10-probe-stage-check-authored-link-cap20","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"retrieval_mrr","value":0.8555555555555556,"n":60}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"gold_use","value":44.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"gold_use","value":10.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"pool_size","value":21.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"pool_size","value":73.0,"n":60,"labels":{"stat":"max"}}
