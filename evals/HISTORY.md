@@ -95,6 +95,42 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10 (7): remedy_pointer with one chunk per page in Jev's top 3, retrieval suite
+
+**Verdict:** recall@3 **0.917** (MRR 0.872), equal to authored links (R1)
+on both numbers, with a pool of 21 chunks at the median against 51. The
+limit recovers g056, whose top 3 in (6) was one page three times; authored
+links have never recovered g056. The two sources now miss different
+tickets: remedy pointers miss g050 (connected only by a hyperlink),
+authored links miss g056.
+
+| Configuration | |
+|---|---|
+| Code | `f0483be` (`main`): (6)'s configuration with `RERANK_TOP_N_PER_PAGE=1` |
+| Runs | retrieval suite only. Masking and propose on DeepSeek |
+
+| | Remedy pointers (6) | + 1 per page | Authored links (R1) | Authored links + 1 per page (4) |
+|---|---|---|---|---|
+| Recall@3 | 0.900 (MRR 0.856) | **0.917** (MRR 0.872) | **0.917** (MRR 0.872) | **0.917** (MRR 0.872) |
+| Misses | g011, g012, g048, g050, g055, g056 | g011, g012, g048, g050, g055 | g011, g012, g048, g055, g056 | g011, g012, g048, g055, g056 |
+| `pool_size` median · max | 21 · 73 | 21 · 73 | 51 · 170 | 51 · 165 |
+
+### Findings
+
+**1. A tie on the gate, at less than half the cross-encoder's batch.**
+Built from prose alone, the pointers match the hyperlinks.
+
+**2. The misses are complementary.** g050 needs the hyperlink; g056 needs
+the pointer ("Potentially compromised AWS credentials detected -> Remediate
+potentially compromised AWS credentials"). Following both is not
+allowed (ADR-0018: one source at a time); combining them would need a new
+decision.
+
+**3. The rest is shared.** g011, g012, g048 and g055 are missed by both;
+(5) and (6) place them at Jev (g011, g048) or before the pool (g012, g055).
+
+---
+
 ## 2026-10-10 (6): remedy_pointer, symptom-to-fix-page pointers, retrieval suite
 
 **Verdict:** the new source passes the retrieval gate: recall@3 **0.900**
