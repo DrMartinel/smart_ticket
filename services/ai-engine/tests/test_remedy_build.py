@@ -335,3 +335,16 @@ def test_the_shipped_policy_loads():
 
     assert policy.strip_links is True
     assert policy.limits.max_pairs_per_section > 0
+
+
+def test_a_sampled_page_can_point_to_a_page_outside_the_sample(kb, tmp_path, monkeypatch):
+    """The spike extracts a sample, but a pointer's target can be any KB
+    page: resolving against the sample alone drops real pointers as
+    unresolved."""
+
+    monkeypatch.setattr(build, "sample", lambda articles, size, include: [articles[0]])
+
+    assert _run(tmp_path, ScriptedChat(), "--sample", "1") == 0
+
+    edges = _lines(tmp_path / "out" / build.POINTERS_FILE)
+    assert [(r["source_slug"], r["target_slug"]) for r in edges] == [("gd.findings", "gd.fix")]

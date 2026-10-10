@@ -191,8 +191,8 @@ def pointers(
     policy: RemedyPolicy,
     embed: Callable[[list[str]], list[list[float]]],
 ) -> tuple[list[AssociationRow], list[ResolutionRow]]:
-    """Resolve every named page and score the edges, at most
-    `ASSOCIATION_PER_ARTICLE_CAP` targets per page."""
+    """Resolve every named page against `articles` (the whole KB) and score
+    the edges, at most `ASSOCIATION_PER_ARTICLE_CAP` targets per page."""
 
     index = PageIndex(
         [Page(a.slug, titles[a.slug], a.body) for a in articles],
@@ -282,6 +282,9 @@ def run(
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     articles, titles = read_pages()
+    # Every page is a possible target, sampled or not: a sampled page may
+    # point anywhere in the KB.
+    every_page = articles
     started = time.monotonic()
     calls = 0
 
@@ -301,7 +304,7 @@ def run(
             return 1
         write_jsonl(out / PAIRS_FILE, pairs)
 
-    rows, resolutions = pointers(pairs, articles, titles, policy, embed or default_embed)
+    rows, resolutions = pointers(pairs, every_page, titles, policy, embed or default_embed)
     write_jsonl(out / RESOLUTIONS_FILE, resolutions)
     write_jsonl(out / POINTERS_FILE, rows)
 
