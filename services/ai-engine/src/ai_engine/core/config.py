@@ -77,22 +77,14 @@ class Settings(BaseSettings):
     # The one association source expansion follows (ADR-0018), or "none".
     # Sources are compared against each other, never followed together: their
     # scores are on different scales.
-    association_source: Literal["authored_link", "entity_graph", "remedy_pointer", "none"]
+    association_source: Literal["authored_link", "entity_graph", "none"]
 
     # --- Entity-graph associations: the offline build only (ADR-0018) ---
-    association_hub_df_max: int
     association_per_article_cap: int
-    association_scoring: Literal["idf_sum", "idf_cosine"]
-    lightrag_llm_max_async: int
-    lightrag_max_gleaning: int
-    lightrag_chunk_tokens: int
-    entity_policy_version: str
-
-    # --- Remedy-pointer associations: the offline build only (ADR-0018) ---
-    remedy_policy_version: str
-    remedy_section_tokens: int
-    remedy_llm_max_async: int
-    remedy_resolve_min_similarity: float
+    entity_graph_policy_version: str
+    entity_graph_section_tokens: int
+    entity_graph_llm_max_async: int
+    entity_graph_resolve_min_similarity: float
 
     # --- Reranker (Jev) ---
     rerank_pool: int

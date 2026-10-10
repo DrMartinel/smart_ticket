@@ -1,8 +1,6 @@
 """
-The entity policy (`core/prompts/kb_entities.v*.yaml`, ADR-0018), selected by
-`ENTITY_POLICY_VERSION`. Its `entity_types_guidance` goes to the extraction
-model; the rest is applied when scoring. Loaded by the build only, so the
-served app never parses it.
+The entity-graph policy (`core/prompts/kb_entity_graph.v*.yaml`), selected
+by `ENTITY_GRAPH_POLICY_VERSION`. Loaded by the build only.
 """
 
 from __future__ import annotations
@@ -11,44 +9,40 @@ from dataclasses import dataclass
 
 import yaml
 
-from ai_engine.core.associations.scoring import EntityPolicy
 from ai_engine.core.prompts import PROMPT_DIR, check_version
 
 
 @dataclass(frozen=True)
-class ExtractionLimits:
-    """Bounds on one extraction reply, enforced by guided decoding."""
+class ReplyLimits:
+    """Bounds on one reply, checked when it is parsed."""
 
-    max_entities_per_chunk: int
-    description_max_chars: int
+    max_pairs_per_section: int
+    symptom_max_chars: int
+    remedy_max_chars: int
+    page_max_chars: int
 
 
 @dataclass(frozen=True)
-class LoadedPolicy:
+class EntityGraphPolicy:
     version: str
-    guidance: str
-    scoring: EntityPolicy
-    limits: ExtractionLimits | None
+    instructions: str
+    limits: ReplyLimits
+    strip_links: bool
+    aliases: dict[str, str]
 
 
-def load_entity_policy(version: str) -> LoadedPolicy:
-    """Resolve "kb_entities.v1" to core/prompts/kb_entities.v1.yaml. A
-    missing file or field fails before any article is sent to the model."""
+def load_policy(version: str) -> EntityGraphPolicy:
+    """Resolve "kb_entity_graph.v1" to core/prompts/kb_entity_graph.v1.yaml. A
+    missing file or field fails before any section is sent to the model."""
 
     check_version(version)
     raw = yaml.safe_load((PROMPT_DIR / f"{version}.yaml").read_text(encoding="utf-8"))
-    guidance = raw.get("entity_types_guidance") if isinstance(raw, dict) else None
-    if not isinstance(guidance, str) or not guidance.strip():
-        raise ValueError(f"entity policy {version!r} has no entity_types_guidance")
-    schema = raw.get("extraction_schema")
-    return LoadedPolicy(
+    if not isinstance(raw, dict) or not str(raw.get("instructions") or "").strip():
+        raise ValueError(f"entity-graph policy {version!r} has no instructions")
+    return EntityGraphPolicy(
         version=version,
-        guidance=guidance.strip(),
-        # v1 predates the schema: its replies are unbounded.
-        limits=ExtractionLimits(**schema) if schema else None,
-        scoring=EntityPolicy(
-            allowed_types=frozenset(raw["allowed_types"]),
-            aliases=dict(raw.get("aliases") or {}),
-            stoplist=frozenset(raw.get("stoplist") or []),
-        ),
+        instructions=raw["instructions"].strip(),
+        limits=ReplyLimits(**raw["reply_limits"]),
+        strip_links=bool(raw["strip_links"]),
+        aliases=dict(raw.get("aliases") or {}),
     )

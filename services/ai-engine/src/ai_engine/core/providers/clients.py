@@ -10,11 +10,10 @@ errors, ordering).
   and `choose()` (one choice question). `jev`.
 - `ChatClient`: the triage chat model through LangChain (whose OpenAI SDK
   runs on httpx2), for `chat`. `vllm_chat` / `openai_chat` build it.
-- `extraction_chat_model()`: the same chat model, bare, for the offline
-  entity_graph build (ADR-0018), which sends LightRAG's own prompts.
 - `deepseek_model()` / `deepseek_chat()`: DeepSeek's hosted API (ADR-0019)
-  on the `CLOUD_*` settings, behind triage, PII NER and the build when
-  `CHAT_CLIENT_PROVIDER=deepseek`.
+  on the `CLOUD_*` settings, behind triage and PII NER when
+  `CHAT_CLIENT_PROVIDER=deepseek`, and always behind the offline
+  entity_graph build (ADR-0018).
 
 No retries anywhere, SDK ones included (`max_retries=0`): a failed call goes
 straight to HITL. Every client is built at import and opens no socket until
@@ -375,39 +374,6 @@ def deepseek_chat() -> ChatClient:
         chat_model=deepseek_model(json_mode=True),
         cost_per_1k_tokens=DEEPSEEK_COST_PER_1K_TOKENS,
         constrains_schema=False,
-    )
-
-
-def extraction_chat_model() -> BaseChatModel:
-    """The chat model the offline entity_graph build sends LightRAG's
-    prompts to (ADR-0018): the same server and model as triage (ADR-0012),
-    thinking and retries off, split timeouts. Unlike `ChatClient` it forces
-    no reply format and takes whole conversations, because LightRAG asks for
-    its own (`json_object` in its JSON extraction mode) and re-asks with the
-    history when it gleans. Never used on the request path."""
-    from langchain_openai import ChatOpenAI
-
-    if settings.chat_client_provider == "deepseek":
-        # LightRAG asks for json_object itself, per call.
-        return deepseek_model(json_mode=False)
-    if settings.chat_client_provider == "openai":
-        if not settings.cloud_api_key or not settings.cloud_model:
-            raise ValueError("openai chat requires CLOUD_API_KEY and CLOUD_MODEL")
-        return ChatOpenAI(
-            model=settings.cloud_model,
-            api_key=SecretStr(settings.cloud_api_key),
-            base_url=settings.cloud_base_url,
-            max_completion_tokens=settings.cloud_max_output_tokens,
-            timeout=_split_timeout(httpx2),
-            max_retries=0,
-        )
-    return ChatOpenAI(
-        model=settings.chat_model,
-        api_key=SecretStr("EMPTY"),
-        base_url=settings.chat_base_url,
-        extra_body={"chat_template_kwargs": {"enable_thinking": False}},
-        timeout=_split_timeout(httpx2),
-        max_retries=0,
     )
 
 

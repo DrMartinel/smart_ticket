@@ -15,7 +15,6 @@ from ai_engine.core.providers.clients import (
     OPENAI_COST_PER_1K_TOKENS,
     VLLM_COST_PER_1K_TOKENS,
     deepseek_chat,
-    extraction_chat_model,
     openai_chat,
     vllm_chat,
 )
@@ -332,15 +331,3 @@ def test_deepseek_without_its_key_model_or_url_is_fatal(missing, monkeypatch, re
 
     with pytest.raises(ValueError, match="deepseek chat requires"):
         reload_clients()
-
-
-def test_the_build_extracts_on_deepseek_without_a_forced_reply_format(monkeypatch):
-    """LightRAG asks for `json_object` per call; a model-level format would
-    also force it on LightRAG's plain-text calls."""
-    _chat_on(monkeypatch, "deepseek", "https://api.deepseek.com")
-    chat = extraction_chat_model()
-    assert isinstance(chat, ChatOpenAI)
-
-    assert chat.model_kwargs == {}
-    assert chat.extra_body == {"thinking": {"type": "disabled"}}
-    assert chat.max_retries == 0

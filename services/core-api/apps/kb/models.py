@@ -309,9 +309,8 @@ class AssociationSource(models.TextChoices):
     editing the KB."""
 
     AUTHORED_LINK = "authored_link"
-    ENTITY_GRAPH = "entity_graph"
     # Pages a page names as where a problem's fix is written (offline build).
-    REMEDY_POINTER = "remedy_pointer"
+    ENTITY_GRAPH = "entity_graph"
 
 
 class KbArticleAssociationManager(models.Manager["KbArticleAssociation"]):

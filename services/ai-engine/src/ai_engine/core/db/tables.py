@@ -46,8 +46,8 @@ class KbArticle(Base):
     title: Mapped[str]
     source_url: Mapped[str | None]
     is_active: Mapped[bool]
-    # Read only by the offline entity_graph and remedy_pointer builds
-    # (ADR-0018), which extract per article; the request path reads chunks.
+    # Read only by the offline entity_graph build (ADR-0018), which extracts
+    # per article; the request path reads chunks.
     body: Mapped[str]
 
 

@@ -1,16 +1,16 @@
-# Remedy policy for the offline remedy_pointer build (ADR-0018 amendment,
-# 2026-10-10). Versioned and reviewed like a prompt: REMEDY_POLICY_VERSION
-# names the file in use, and the version is part of every row's build_id and
-# of every cached reply's key.
+# The prompt for the offline entity_graph build (ADR-0018). Versioned and
+# reviewed like a prompt: ENTITY_GRAPH_POLICY_VERSION names the file in use,
+# and the version is part of every row's build_id and of every cached reply's
+# key.
 #
-# The entity graph linked pages by shared vocabulary and missed the relation
-# support tickets need: "for this problem, the fix is on that page" (the
-# 2026-10-10 stage check, evals/HISTORY.md). This policy asks for exactly
-# that relation, per page section: a symptom, its remedy, and where the
-# remedy is written, this page or a page the text names.
+# It asks for the relation support tickets need, per page section: a
+# symptom, its remedy, and where the remedy is written, this page or a page
+# the text names. A shared-vocabulary graph missed it: the page that fixes a
+# ticket shares few entities with the page that points to it
+# (evals/HISTORY.md 2026-10-10 (5)).
 #
 # Never edit a version a build has used: make the next one. Cached replies
-# are keyed by this version, so an in-place edit would mix two policies'
+# are keyed by this version, so an in-place edit would mix two versions'
 # replies in one graph.
 
 instructions: |

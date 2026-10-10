@@ -32,7 +32,8 @@ dev = [
 # Dockerfile syncs with --no-dev, which installs no group. CI syncs it so the
 # build's tests and type checks run.
 build = [
-    "lightrag-hku==1.5.7",
+    "pyyaml>=6.0",
+    "tiktoken>=0.8",
 ]
 
 [build-system]

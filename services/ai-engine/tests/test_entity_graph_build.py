@@ -1,5 +1,5 @@
 """
-The offline `remedy_pointer` build (ADR-0018 amendment): sections in, one
+The offline `entity_graph` build (ADR-0018): sections in, one
 model call per section, (symptom, remedy, where) pairs out, named pages
 resolved to KB pages, pointer edges scored. The model, the database and the
 embedder are fakes. What these pin, failure paths first: a failed section
@@ -18,11 +18,11 @@ from typing import Any
 
 import pytest
 
-from ai_engine.core.associations.remedies import build
-from ai_engine.core.associations.remedies.extract import Pair, parse_reply
-from ai_engine.core.associations.remedies.policy import ReplyLimits, load_remedy_policy
-from ai_engine.core.associations.remedies.resolve import Page, PageIndex, normalize
-from ai_engine.core.associations.remedies.sections import split_sections, strip_links
+from ai_engine.core.associations import build
+from ai_engine.core.associations.extract import Pair, parse_reply
+from ai_engine.core.associations.policy import ReplyLimits, load_policy
+from ai_engine.core.associations.resolve import Page, PageIndex, normalize
+from ai_engine.core.associations.sections import split_sections, strip_links
 from ai_engine.core.config import settings
 
 LIMITS = ReplyLimits(
@@ -275,7 +275,7 @@ def test_a_failed_section_exports_nothing_and_a_rerun_asks_only_for_it(kb, tmp_p
 
     assert _run(tmp_path, ScriptedChat(failing=("Sending fails",))) == 1
     assert "ses.sandbox" in capsys.readouterr().err
-    assert not (tmp_path / "out" / build.POINTERS_FILE).exists()
+    assert not (tmp_path / "out" / build.GRAPH_FILE).exists()
     assert not (tmp_path / "out" / build.PAIRS_FILE).exists()
 
     retry = ScriptedChat()
@@ -306,13 +306,12 @@ def test_pointer_edges_link_the_problem_page_to_the_fix_page(kb, tmp_path):
     assert _run(tmp_path, chat) == 0
 
     edges = {
-        (r["source_slug"], r["target_slug"]): r
-        for r in _lines(tmp_path / "out" / build.POINTERS_FILE)
+        (r["source_slug"], r["target_slug"]): r for r in _lines(tmp_path / "out" / build.GRAPH_FILE)
     }
     assert set(edges) == {("gd.findings", "gd.fix"), ("gd.findings-copy", "gd.fix")}
     assert edges["gd.findings", "gd.fix"]["evidence"] == ["backdoor finding -> isolate"]
     assert edges["gd.findings", "gd.fix"]["build_id"].startswith(
-        f"remedy_pointer:{settings.remedy_policy_version}:pairs-"
+        f"entity_graph:{settings.entity_graph_policy_version}:pairs-"
     )
     assert sum("Backdoor" in s for s in chat.sections) == 1
 
@@ -331,7 +330,7 @@ def test_rescore_only_needs_no_model(kb, tmp_path, monkeypatch):
 
 
 def test_the_shipped_policy_loads():
-    policy = load_remedy_policy(settings.remedy_policy_version)
+    policy = load_policy(settings.entity_graph_policy_version)
 
     assert policy.strip_links is True
     assert policy.limits.max_pairs_per_section > 0
@@ -346,7 +345,7 @@ def test_a_sampled_page_can_point_to_a_page_outside_the_sample(kb, tmp_path, mon
 
     assert _run(tmp_path, ScriptedChat(), "--sample", "1") == 0
 
-    edges = _lines(tmp_path / "out" / build.POINTERS_FILE)
+    edges = _lines(tmp_path / "out" / build.GRAPH_FILE)
     assert [(r["source_slug"], r["target_slug"]) for r in edges] == [("gd.findings", "gd.fix")]
 
 
@@ -374,7 +373,7 @@ def test_a_second_unusable_reply_still_fails_the_section(kb, tmp_path):
     args = build.parse_args(["--working-dir", str(tmp_path / "w"), "--out", str(tmp_path / "out")])
 
     assert build.run(args, chat_model=OnceBroken(), retry_model=OnceBroken(), embed=_no_match) == 1
-    assert not (tmp_path / "out" / build.POINTERS_FILE).exists()
+    assert not (tmp_path / "out" / build.GRAPH_FILE).exists()
 
 
 def test_the_same_pair_both_here_and_on_another_page_exports(kb, tmp_path):

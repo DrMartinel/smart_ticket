@@ -20,7 +20,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, create_model
 
-from ai_engine.core.associations.remedies.policy import RemedyPolicy, ReplyLimits
+from ai_engine.core.associations.policy import EntityGraphPolicy, ReplyLimits
 
 
 class PageRef(BaseModel):
@@ -43,14 +43,14 @@ def reply_model(limits: ReplyLimits) -> type[BaseModel]:
     validation: never silently cut short."""
 
     pair = create_model(
-        "RemedyPairReply",
+        "PairReply",
         __config__=ConfigDict(extra="forbid"),
         symptom=(str, Field(min_length=1, max_length=limits.symptom_max_chars)),
         remedy=(str, Field(min_length=1, max_length=limits.remedy_max_chars)),
         remedy_location=(Literal["this_page"] | PageRef, ...),
     )
     return create_model(
-        "RemedyReply",
+        "Reply",
         __config__=ConfigDict(extra="forbid"),
         pairs=(list[pair], Field(max_length=limits.max_pairs_per_section)),  # type: ignore[valid-type]
     )
@@ -113,7 +113,7 @@ class Extraction:
 async def extract(
     sections: dict[str, str],
     *,
-    policy: RemedyPolicy,
+    policy: EntityGraphPolicy,
     chat_model: BaseChatModel,
     cache: ReplyCache,
     max_async: int,

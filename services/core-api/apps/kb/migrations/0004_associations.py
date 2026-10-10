@@ -25,7 +25,6 @@ class Migration(migrations.Migration):
                     models.CharField(
                         choices=[
                             ("authored_link", "Authored Link"),
-                            ("embedding_neighbour", "Embedding Neighbour"),
                             ("entity_graph", "Entity Graph"),
                         ],
                         max_length=20,

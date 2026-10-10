@@ -5,7 +5,7 @@ Amazon EC2 instance") resolved to one KB page, deterministically:
 1. exact: the normalized name equals a page title, then an H1/H2 heading,
    or an alias's canonical title (the policy's `aliases`);
 2. embedding: otherwise, the page title nearest the name by cosine, if at
-   least `REMEDY_RESOLVE_MIN_SIMILARITY`;
+   least `ENTITY_GRAPH_RESOLVE_MIN_SIMILARITY`;
 3. otherwise unresolved: dropped and counted, never guessed.
 
 Several exact matches prefer the source page's own guide; still several is

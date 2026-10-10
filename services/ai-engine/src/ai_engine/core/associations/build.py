@@ -1,25 +1,27 @@
 """
 The offline `entity_graph` build (ADR-0018). Run from the host, after
-`uv sync --all-packages --group build`:
+`uv sync --all-packages --group build`, with `CLOUD_*` naming DeepSeek
+(ADR-0019):
 
     uv run python -m ai_engine.core.associations.build --working-dir DIR --out demo_kb/associations
-    uv run python -m ai_engine.core.associations.build --sample 100 --working-dir DIR --out DIR
+    uv run python -m ai_engine.core.associations.build --sample 150 --working-dir DIR --out DIR
     uv run python -m ai_engine.core.associations.build --rescore-only --out demo_kb/associations
 
-1. Reads every article, active or not, through `ai_engine_ro`. The graph
-   keeps inactive articles, so deactivating or reactivating one never costs
-   a model call; scoring decides what counts.
-2. Syncs LightRAG's working directory with them: a new article is
-   extracted; a changed one (or one extracted under another policy version)
-   is deleted and extracted again; a hard-deleted one is deleted, which
-   rebuilds shared entities from LightRAG's cache with no model call.
-3. Fails resumably. If any article's extraction failed, it lists them,
-   writes no file and exits 1: an exported graph silently missing articles
-   would look complete. The state file records only articles that were
-   extracted, so a re-run retries just the rest.
-4. Exports `mentions.jsonl` (the extractor-neutral contract) and scores it
-   into `entity_graph.jsonl` (`scoring.py`), for core-api's
-   `load_associations`.
+1. Reads every article through `ai_engine_ro` and cuts each into sections
+   (`sections.py`), links stripped to their text when the policy says so.
+2. Asks the model for each section's (symptom, remedy, where) pairs,
+   from the reply cache where it has them (`extract.py`). A page whose text
+   is identical to another's is not sent: it is given its original's pairs.
+3. Fails resumably: any failed section lists its pages, writes no file and
+   exits 1; a re-run asks only for what is missing.
+4. Exports `entity_graph_pairs.jsonl` (every pair, by page), resolves each
+   named page (`resolve.py`, every resolution in
+   `entity_graph_resolutions.jsonl` for the hand check), and writes
+   `entity_graph.jsonl` for core-api's `load_associations`.
+
+An edge A -> B: page A names a problem whose remedy, the text says, is on
+page B. Its score is the number of distinct (symptom, remedy) pairs
+pointing from A to B; it only orders A's targets (ADR-0005).
 
 Writes no database row (ADR-0004): core-api loads the file.
 """
@@ -35,41 +37,34 @@ import random
 import sys
 import time
 import uuid
+from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from lightrag import LightRAG
-from lightrag.base import DocStatus
-from lightrag.kg.shared_storage import (
-    commit_manual_retry_request,
-    finalize_share_data,
-    get_namespace_data,
-    get_namespace_lock,
-    get_pipeline_ingress,
-)
+from langchain_core.language_models import BaseChatModel
 from sqlalchemy import select
 
-from ai_engine.core.associations.adapter import FILE_PATH_PREFIX, ModelCalls, make_rag
-from ai_engine.core.associations.policy import LoadedPolicy, load_entity_policy
-from ai_engine.core.associations.scoring import (
-    AssociationRow,
-    Mention,
-    apply_policy,
-    df_histogram,
-    score_associations,
-)
+from ai_engine.core.associations.extract import ReplyCache, extract, section_key
+from ai_engine.core.associations.policy import EntityGraphPolicy, load_policy
+from ai_engine.core.associations.resolve import Page, PageIndex, Resolution
+from ai_engine.core.associations.sections import split_sections, strip_links
 from ai_engine.core.config import settings
 from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import KbArticle
 
-STATE_FILE = "kb_state.json"
-MENTIONS_FILE = "mentions.jsonl"
+PAIRS_FILE = "entity_graph_pairs.jsonl"
+RESOLUTIONS_FILE = "entity_graph_resolutions.jsonl"
 GRAPH_FILE = "entity_graph.jsonl"
-# The spike check's sample is drawn with a fixed seed, so a re-run extracts
-# the same articles (and resumes instead of starting over).
+CACHE_FILE = "entity_graph_replies.jsonl"
+# The spike's sample is drawn with a fixed seed, so a re-run extracts the
+# same articles (and is served from the cache).
 SAMPLE_SEED = 0
+# The tokenizer sections are measured with. DeepSeek's own differs a little;
+# the budget is a size, not a hard limit of the model.
+TOKENIZER = "o200k_base"
 
 
 @dataclass(frozen=True)
@@ -81,175 +76,51 @@ class Article:
 
 
 class BuildFailed(Exception):
-    """Some articles were not extracted. Nothing was exported."""
+    """Some sections were not extracted. Nothing was exported."""
 
 
-def read_articles() -> list[Article]:
-    rows = db.all(
-        select(KbArticle.id, KbArticle.slug, KbArticle.body, KbArticle.is_active).order_by(
-            KbArticle.slug
-        )
-    )
-    return [Article(id=i, slug=s, body=b, is_active=a) for i, s, b, a in rows]
+@dataclass(frozen=True)
+class AssociationRow:
+    """One line of `entity_graph.jsonl`: one direction of one pair, the
+    shape core-api's `load_associations` reads."""
+
+    source_slug: str
+    target_slug: str
+    score: float
+    evidence: tuple[str, ...]
+    build_id: str
 
 
-def extraction_model() -> str:
-    """The provider and model extracting, e.g. `deepseek:deepseek-flash`."""
+@dataclass(frozen=True)
+class PagePair:
+    """One line of `entity_graph_pairs.jsonl`: a pair found on one page."""
 
-    provider = settings.chat_client_provider
-    return f"{provider}:{settings.chat_model if provider == 'vllm' else settings.cloud_model}"
+    article_slug: str
+    symptom: str
+    remedy: str
+    page: str | None
 
-
-def content_key(policy_version: str, body: str) -> str:
-    """What an extraction depends on: the text, the model and the guidance
-    it was given, how the text was chunked and how many gleaning passes ran.
-    Any of them changing means extracting again."""
-
-    extraction = (
-        f"{policy_version}\nmodel={extraction_model()}"
-        f"\nchunk={settings.lightrag_chunk_tokens}\ngleaning={settings.lightrag_max_gleaning}"
-    )
-    return hashlib.sha256(f"{extraction}\n{body}".encode()).hexdigest()
+    def order(self) -> tuple[str, str, str, str]:
+        # "This page" (None) sorts first; None and str don't compare.
+        return (self.article_slug, self.symptom, self.remedy, self.page or "")
 
 
-class State:
-    """`{article_id: content_key}` for the articles LightRAG extracted, in
-    the working directory beside its storages. `scope` stops a sample and a
-    full build from sharing a directory: syncing one would delete the
-    other's articles."""
+@dataclass(frozen=True)
+class ResolutionRow:
+    """One line of `entity_graph_resolutions.jsonl`."""
 
-    def __init__(self, path: Path, scope: str) -> None:
-        self.path = path
-        raw: dict[str, Any] = (
-            json.loads(path.read_text()) if path.exists() else {"scope": scope, "documents": {}}
-        )
-        if raw["scope"] != scope:
-            raise BuildFailed(
-                f"{path.parent} holds a {raw['scope']!r} build, not {scope!r}: use another --working-dir"
-            )
-        self.scope = scope
-        self.documents: dict[str, str] = raw["documents"]
-
-    def save(self) -> None:
-        _write_atomically(self.path, json.dumps({"scope": self.scope, "documents": self.documents}))
-
-
-# The statuses LightRAG's queue picks up again on its own, as pending or as
-# interrupted mid-flight (its `_AUTO_RESUME_DOC_STATUSES`). Failed is not one.
-_RESUMED_BY_THE_QUEUE = frozenset(
-    {DocStatus.PENDING, DocStatus.PROCESSING, DocStatus.PARSING, DocStatus.ANALYZING}
-)
-
-
-async def sync(
-    rag: LightRAG, articles: list[Article], state: State, policy_version: str
-) -> list[str]:
-    """Brings LightRAG in line with `articles`. Returns the ids whose
-    extraction failed (empty when everything is current)."""
-
-    wanted = {str(a.id): content_key(policy_version, a.body) for a in articles}
-    records = await rag.doc_status.get_docs_by_statuses(list(DocStatus))
-    statuses = {doc_id: record.status for doc_id, record in records.items()}
-    # A state entry LightRAG doesn't hold as processed is not done.
-    state.documents = {
-        doc_id: key
-        for doc_id, key in state.documents.items()
-        if statuses.get(doc_id) == DocStatus.PROCESSED
-    }
-
-    # A document still queued (pending) when a run stopped was never
-    # extracted, so it has nothing in the graph to undo: if its queued text is
-    # still the article's, LightRAG's queue picks it up. Deleting it instead
-    # rewrites the whole graph file per document (~8 a minute on the full KB,
-    # 2026-10-10), hours for an interrupted batch.
-    # A document that failed before any chunk was written (the model or
-    # embedder unreachable mid-batch: 140 when Docker restarted, 2026-10-10)
-    # is the same: nothing to undo, so it is retried in place instead. So is
-    # one a stopped run left mid-flight before writing a chunk (114 of 116
-    # at the 2026-10-10 pause): LightRAG's queue resumes those statuses itself.
-    body = {str(a.id): a.body for a in articles}
-    retried = {
-        doc_id
-        for doc_id, record in records.items()
-        if record.status == DocStatus.FAILED and not record.chunks_list
-    }
-    resumed = {
-        doc_id
-        for doc_id, record in records.items()
-        if record.status in _RESUMED_BY_THE_QUEUE and not record.chunks_list
-    }
-    queued = {
-        doc_id
-        for doc_id in statuses
-        if (doc_id in resumed or doc_id in retried)
-        and doc_id in body
-        and ((await rag.full_docs.get_by_id(doc_id)) or {}).get("content") == body[doc_id]
-    }
-
-    # Anything else LightRAG holds that isn't current goes first: gone,
-    # changed, failed, interrupted, or a duplicate record. Re-inserting a
-    # known id would only add a failed duplicate, so a retry is always delete,
-    # then insert.
-    for doc_id in statuses:
-        if doc_id in queued:
-            continue
-        if doc_id not in wanted or state.documents.get(doc_id) != wanted[doc_id]:
-            result = await rag.adelete_by_doc_id(doc_id)
-            if result.status not in ("success", "not_found"):
-                raise BuildFailed(f"could not delete {doc_id}: {result.message}")
-            state.documents.pop(doc_id, None)
-            state.save()
-
-    if retried & queued:
-        await _retry_failed_in_place(rag)
-    stale = [a for a in articles if state.documents.get(str(a.id)) != wanted[str(a.id)]]
-    todo = [a for a in stale if str(a.id) not in queued]
-    if todo:
-        # Processes the queue too: the queued documents go with these.
-        await rag.ainsert(
-            [a.body for a in todo],
-            ids=[str(a.id) for a in todo],
-            file_paths=[f"{FILE_PATH_PREFIX}{a.id}" for a in todo],
-        )
-    elif queued:
-        await rag.apipeline_process_enqueue_documents()
-    processed = await rag.doc_status.get_docs_by_statuses([DocStatus.PROCESSED])
-    failed = []
-    for a in stale:
-        doc_id = str(a.id)
-        if doc_id in processed:
-            state.documents[doc_id] = wanted[doc_id]
-        else:
-            failed.append(doc_id)
-    state.save()
-    return failed
-
-
-async def _retry_failed_in_place(rag: LightRAG) -> None:
-    """Asks LightRAG's queue to put its failed documents back to pending and
-    run them, from their stored text: what its server's
-    `/documents/reprocess_failed` does. The next processing run serves it.
-    `sync` calls it only once every failed document left is one it wants
-    retried; the rest were deleted first."""
-
-    workspace = rag.workspace
-    refusal = await commit_manual_retry_request(
-        await get_namespace_data("pipeline_status", workspace=workspace),
-        get_namespace_lock("pipeline_status", workspace=workspace),
-        await get_pipeline_ingress(workspace),
-        uuid.uuid4().hex,
-        {},
-    )
-    if refusal:
-        raise BuildFailed(f"LightRAG refused to retry failed documents: {refusal}")
+    source_slug: str
+    name: str
+    target_slug: str | None
+    method: str
+    similarity: float | None
 
 
 def twins(articles: list[Article]) -> dict[uuid.UUID, Article]:
     """Copy id -> original, for articles whose text is identical to an
     earlier one by slug: the same page under two URLs (15 pairs in the demo
-    KB, iam_example_* / sts_example_*). LightRAG refuses the second as a
-    duplicate, every run, so only the original is extracted and the copy is
-    given its entities: same text, same entities."""
+    KB, iam_example_* / sts_example_*). Only the original is sent to the
+    model; the copy is given its pairs: same text, same pairs."""
 
     first: dict[str, Article] = {}
     copies: dict[uuid.UUID, Article] = {}
@@ -260,175 +131,281 @@ def twins(articles: list[Article]) -> dict[uuid.UUID, Article]:
     return copies
 
 
-async def export_mentions(rag: LightRAG, articles: list[Article]) -> list[Mention]:
-    """Every (entity, type, article) LightRAG extracted, a copy given its
-    original's (`twins`). Read from its per-document entity lists, not from
-    the graph's nodes: a node's `file_path` list is capped (75 by default),
-    so a common entity would look rarer than it is and df would be wrong."""
+def write_jsonl(path: Path, rows: list[Any]) -> None:
+    """Never a half-written file where a reader (or core-api) would find it."""
 
-    graph = rag.chunk_entity_relation_graph
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(
+        "".join(json.dumps(asdict(r), ensure_ascii=False, sort_keys=True) + "\n" for r in rows),
+        encoding="utf-8",
+    )
+    os.replace(tmp, path)
+
+
+def model_id() -> str:
+    """The model extracting, part of every cached reply's key. Always
+    DeepSeek (ADR-0019): the build builds its own client, whatever
+    CHAT_CLIENT_PROVIDER serves triage."""
+
+    return f"deepseek:{settings.cloud_model}"
+
+
+def read_pages() -> tuple[list[Article], dict[str, str]]:
+    rows = db.all(
+        select(
+            KbArticle.id, KbArticle.slug, KbArticle.title, KbArticle.body, KbArticle.is_active
+        ).order_by(KbArticle.slug)
+    )
+    articles = [Article(id=i, slug=s, body=b, is_active=a) for i, s, _, b, a in rows]
+    return articles, {s: t for _, s, t, _, _ in rows}
+
+
+def token_counter() -> Callable[[str], int]:
+    import tiktoken
+
+    encoding = tiktoken.get_encoding(TOKENIZER)
+    return lambda text: len(encoding.encode(text, disallowed_special=()))
+
+
+def sections_of(body: str, policy: EntityGraphPolicy, count: Callable[[str], int]) -> list[str]:
+    text = strip_links(body) if policy.strip_links else body
+    return split_sections(text, max_tokens=settings.entity_graph_section_tokens, count=count)
+
+
+def extract_pairs(
+    articles: list[Article],
+    working_dir: Path,
+    policy: EntityGraphPolicy,
+    chat_model: BaseChatModel,
+    retry_model: BaseChatModel | None = None,
+) -> tuple[list[PagePair], int]:
+    """Every page's pairs, a copy given its original's. Raises BuildFailed
+    naming the pages with a failed section."""
+
+    working_dir.mkdir(parents=True, exist_ok=True)
+    count = token_counter()
+    model = model_id()
     copies = twins(articles)
-    mentions: set[Mention] = set()
+    keys_by_slug: dict[str, list[str]] = {}
+    texts: dict[str, str] = {}
+    for a in articles:
+        if a.id in copies:
+            continue
+        keys = []
+        for text in sections_of(a.body, policy, count):
+            key = section_key(policy.version, model, settings.entity_graph_section_tokens, text)
+            texts[key] = text
+            keys.append(key)
+        keys_by_slug[a.slug] = keys
+
+    result = asyncio.run(
+        extract(
+            texts,
+            policy=policy,
+            chat_model=chat_model,
+            cache=ReplyCache(working_dir / CACHE_FILE),
+            max_async=settings.entity_graph_llm_max_async,
+            retry_model=retry_model,
+        )
+    )
+    if result.failed:
+        pages = sorted(
+            s for s, keys in keys_by_slug.items() if any(k in result.failed for k in keys)
+        )
+        reasons = Counter(why.split(":")[0] for why in result.failed.values())
+        raise BuildFailed(
+            f"{len(result.failed)} of {len(texts)} sections failed ({dict(reasons)}), on "
+            f"{len(pages)} pages: {', '.join(pages[:20])}{' ...' if len(pages) > 20 else ''}. "
+            "Nothing was exported; re-run to retry them."
+        )
+
+    slug_of = {a.id: a.slug for a in articles}
+    pairs: set[PagePair] = set()
     for a in articles:
         source = copies.get(a.id, a)
-        row = await rag.full_entities.get_by_id(str(source.id))
-        for name in (row or {}).get("entity_names", []):
-            node = await graph.get_node(name)
-            entity_type = (node or {}).get("entity_type") or "unknown"
-            mentions.add(Mention(entity=name, type=entity_type, article_slug=a.slug))
-    return sorted(mentions)
+        for key in keys_by_slug[slug_of[source.id]]:
+            for p in result.pairs[key]:
+                pairs.add(PagePair(a.slug, p.symptom, p.remedy, p.page))
+    return sorted(pairs, key=PagePair.order), result.calls
 
 
-def score(
-    mentions: list[Mention], articles: list[Article], policy: LoadedPolicy
-) -> list[AssociationRow]:
-    contents = "".join(json.dumps(asdict(m), sort_keys=True) + "\n" for m in mentions)
-    build_id = ":".join(
-        [
-            "entity_graph",
-            policy.version,
-            settings.association_scoring,
-            f"mentions-{hashlib.sha256(contents.encode()).hexdigest()[:12]}",
-            datetime.now(UTC).date().isoformat(),
-        ]
+def default_embed(texts: list[str]) -> list[list[float]]:
+    from concurrent.futures import ThreadPoolExecutor
+
+    from ai_engine.core.providers.embeddings import embedder
+
+    with ThreadPoolExecutor(max_workers=settings.entity_graph_llm_max_async) as pool:
+        return list(pool.map(embedder.embed, texts))
+
+
+def pointers(
+    pairs: list[PagePair],
+    articles: list[Article],
+    titles: dict[str, str],
+    policy: EntityGraphPolicy,
+    embed: Callable[[list[str]], list[list[float]]],
+) -> tuple[list[AssociationRow], list[ResolutionRow]]:
+    """Resolve every named page against `articles` (the whole KB) and score
+    the edges, at most `ASSOCIATION_PER_ARTICLE_CAP` targets per page."""
+
+    index = PageIndex(
+        [Page(a.slug, titles[a.slug], a.body) for a in articles],
+        aliases=policy.aliases,
+        embed=embed,
+        min_similarity=settings.entity_graph_resolve_min_similarity,
     )
-    # Twins share every entity, so each would be the other's strongest
-    # association: an edge to the same text, wasting a slot.
+    named = [(p.page, p.article_slug) for p in pairs if p.page is not None]
+    resolved: dict[tuple[str, str], Resolution] = index.resolve_all(named)
+
     slug = {a.id: a.slug for a in articles}
     twin_pairs = {
         pair
         for copy_id, original in twins(articles).items()
         for pair in ((slug[copy_id], original.slug), (original.slug, slug[copy_id]))
     }
-    return score_associations(
-        apply_policy(mentions, policy.scoring),
-        {a.slug for a in articles if a.is_active},
-        hub_df_max=settings.association_hub_df_max,
-        per_article_cap=settings.association_per_article_cap,
-        build_id=build_id,
-        method=settings.association_scoring,
-        excluded_pairs=frozenset(twin_pairs),
+    evidence: dict[tuple[str, str], set[str]] = defaultdict(set)
+    by_embedding: set[tuple[str, str]] = set()
+    for p in pairs:
+        if p.page is None:
+            continue
+        r = resolved[p.page, p.article_slug]
+        if r.target is None or r.target == p.article_slug:
+            continue
+        if (p.article_slug, r.target) in twin_pairs:
+            continue
+        evidence[p.article_slug, r.target].add(f"{p.symptom} -> {p.remedy}")
+        if r.method == "embedding":
+            by_embedding.add((p.article_slug, r.target))
+
+    contents = "".join(json.dumps(asdict(p), sort_keys=True) + "\n" for p in pairs)
+    build_id = ":".join(
+        [
+            "entity_graph",
+            policy.version,
+            f"pairs-{hashlib.sha256(contents.encode()).hexdigest()[:12]}",
+            datetime.now(UTC).date().isoformat(),
+        ]
     )
+    targets: dict[str, list[tuple[str, set[str]]]] = defaultdict(list)
+    for (source, target), found in evidence.items():
+        targets[source].append((target, found))
+    rows = []
+    for source in sorted(targets):
+        # More distinct pairs first; an exact resolution before an embedding
+        # one; the slug breaks ties, so a rebuild writes the same file.
+        ranked = sorted(
+            targets[source],
+            key=lambda tf: (-len(tf[1]), (source, tf[0]) in by_embedding, tf[0]),
+        )[: settings.association_per_article_cap]
+        for target, found in ranked:
+            rows.append(
+                AssociationRow(source, target, float(len(found)), tuple(sorted(found)), build_id)
+            )
 
-
-def _write_atomically(path: Path, text: str) -> None:
-    """Never a half-written file where a reader (or core-api) would find it."""
-
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
-
-
-def write_jsonl(path: Path, rows: list[Any]) -> None:
-    _write_atomically(
-        path,
-        "".join(json.dumps(asdict(r), ensure_ascii=False, sort_keys=True) + "\n" for r in rows),
+    resolutions = sorted(
+        (
+            ResolutionRow(
+                source,
+                name,
+                r.target,
+                r.method,
+                None if r.similarity is None else round(r.similarity, 4),
+            )
+            for (name, source), r in resolved.items()
+        ),
+        key=lambda r: (r.source_slug, r.name),
     )
+    return rows, resolutions
 
 
-def read_mentions(path: Path) -> list[Mention]:
+def read_pairs(path: Path) -> list[PagePair]:
     return [
-        Mention(**json.loads(line))
+        PagePair(**json.loads(line))
         for line in path.read_text(encoding="utf-8").splitlines()
         if line
     ]
 
 
-async def extract(
-    articles: list[Article],
-    working_dir: Path,
-    scope: str,
-    policy: LoadedPolicy,
-    **rag_overrides: Any,
-) -> tuple[list[Mention], ModelCalls]:
-    working_dir.mkdir(parents=True, exist_ok=True)
-    # The model is part of the scope: LightRAG caches replies by prompt text,
-    # so another model in this directory would get this one's replies back.
-    state = State(working_dir / STATE_FILE, f"{scope}:{extraction_model()}")
-    calls = ModelCalls()
-    rag = make_rag(
-        working_dir, guidance=policy.guidance, calls=calls, limits=policy.limits, **rag_overrides
-    )
-    await rag.initialize_storages()
-    try:
-        copies = twins(articles)
-        failed = await sync(rag, [a for a in articles if a.id not in copies], state, policy.version)
-        if failed:
-            raise BuildFailed(
-                f"{len(failed)} of {len(articles)} articles failed extraction: {', '.join(failed)}. "
-                "Nothing was exported; re-run to retry them."
-            )
-        return await export_mentions(rag, articles), calls
-    finally:
-        await rag.finalize_storages()
-        # LightRAG keeps its storages' data process-global, keyed by
-        # namespace and workspace, not by working directory: a second
-        # extraction in this process would otherwise see this one's.
-        finalize_share_data()
-
-
-def run(args: argparse.Namespace, **rag_overrides: Any) -> int:
-    policy = load_entity_policy(settings.entity_policy_version)
+def run(
+    args: argparse.Namespace,
+    *,
+    chat_model: BaseChatModel | None = None,
+    retry_model: BaseChatModel | None = None,
+    embed: Callable[[list[str]], list[list[float]]] | None = None,
+) -> int:
+    policy = load_policy(settings.entity_graph_policy_version)
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    articles = read_articles()
+    articles, titles = read_pages()
+    # Every page is a possible target, sampled or not: a sampled page may
+    # point anywhere in the KB.
+    every_page = articles
     started = time.monotonic()
+    calls = 0
 
     if args.rescore_only:
-        mentions = read_mentions(out / MENTIONS_FILE)
-        calls = ModelCalls()
+        pairs = read_pairs(out / PAIRS_FILE)
     else:
-        scope = "full"
         if args.sample is not None:
-            articles = sorted(
-                random.Random(SAMPLE_SEED).sample(articles, min(args.sample, len(articles))),
-                key=lambda a: a.slug,
-            )
-            scope = f"sample:{args.sample}"
+            articles = sample(articles, args.sample, args.include)
+        if chat_model is None:
+            from ai_engine.core.providers.clients import deepseek_model
+
+            chat_model = deepseek_model(json_mode=True, temperature=0)
+            retry_model = deepseek_model(json_mode=True)
         try:
-            mentions, calls = asyncio.run(
-                extract(articles, Path(args.working_dir), scope, policy, **rag_overrides)
+            pairs, calls = extract_pairs(
+                articles, Path(args.working_dir), policy, chat_model, retry_model
             )
         except BuildFailed as e:
             print(f"build failed: {e}", file=sys.stderr)
             return 1
-        write_jsonl(out / MENTIONS_FILE, mentions)
+        write_jsonl(out / PAIRS_FILE, pairs)
 
-    rows = score(mentions, articles, policy)
+    rows, resolutions = pointers(pairs, every_page, titles, policy, embed or default_embed)
+    write_jsonl(out / RESOLUTIONS_FILE, resolutions)
     write_jsonl(out / GRAPH_FILE, rows)
 
-    active = {a.slug for a in articles if a.is_active}
+    methods = Counter(r.method for r in resolutions)
+    named = sum(p.page is not None for p in pairs)
     print(
-        f"{len(articles)} articles ({len(active)} active), {len(mentions)} mentions of "
-        f"{len({m.entity for m in mentions})} entities, {len(rows)} associations, "
-        f"{calls.llm} model calls, {time.monotonic() - started:.0f}s"
+        f"{len(articles)} articles, {len(pairs)} pairs ({named} naming another page), "
+        f"resolutions {dict(methods)}, {len(rows)} pointer edges from "
+        f"{len({r.source_slug for r in rows})} pages, {calls} model calls, "
+        f"{time.monotonic() - started:.0f}s"
     )
-    if args.sample is not None:
-        print(
-            f"df histogram (active articles per entity: entities): {df_histogram(mentions, active)}"
-        )
     return 0
+
+
+def sample(articles: list[Article], size: int, include: list[str]) -> list[Article]:
+    """`size` random articles (fixed seed, so a re-run resumes), plus every
+    slug in `include`: the spike needs the pages the stage check is about."""
+
+    wanted = set(include)
+    chosen = {a.slug for a in random.Random(SAMPLE_SEED).sample(articles, min(size, len(articles)))}
+    return [a for a in articles if a.slug in chosen or a.slug in wanted]
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0] if __doc__ else None)
+    parser.add_argument("--out", required=True, help="where the entity_graph*.jsonl files go")
+    parser.add_argument("--working-dir", help="the reply cache")
+    parser.add_argument("--sample", type=int, help="extract this many random articles (the spike)")
     parser.add_argument(
-        "--out", required=True, help="where mentions.jsonl and entity_graph.jsonl go"
-    )
-    parser.add_argument("--working-dir", help="LightRAG's storages and the build state")
-    parser.add_argument(
-        "--sample", type=int, help="extract this many random articles (the spike check)"
+        "--include", nargs="*", default=[], help="slugs always in the sample (with --sample)"
     )
     parser.add_argument(
         "--rescore-only",
         action="store_true",
-        help="score the existing mentions.jsonl; no model call",
+        help="resolve and score the existing entity_graph_pairs.jsonl; no model call",
     )
     args = parser.parse_args(argv)
     if not args.rescore_only and not args.working_dir:
         parser.error("--working-dir is required unless --rescore-only")
     if args.rescore_only and args.sample is not None:
-        parser.error("--rescore-only scores the existing mentions; it takes no --sample")
+        parser.error("--rescore-only scores the existing pairs; it takes no --sample")
+    if args.include and args.sample is None:
+        parser.error("--include needs --sample")
     return args
 
 
