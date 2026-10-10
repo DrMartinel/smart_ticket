@@ -95,6 +95,53 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10: entity_graph on the full KB, retrieval suite
+
+**Verdict:** the probe's 0.900 does not hold on the full graph. With every
+page extracted, the cosine entity graph at cap 10 scores recall@3 **0.817**
+(MRR 0.739), below the 0.90 floor and close to no expansion (R0, 0.783).
+It still recovers g046, g056 and g058, but loses g008, g050, g051 and g060,
+which the 262-article probe graph recovered, and g037. The probe was
+optimistic, as (2) and (3) said it might be: its graph held few pages, so a
+seed's few targets were mostly relevant ones.
+
+| Configuration | |
+|---|---|
+| Code | `50e32f4` (`main`) |
+| Graph | full DeepSeek build (`deepseek-flash`, `kb_entities.v3`), all 3,542 articles: 75,599 entities, 67,443 associations, `idf_cosine`, hub cut 50, cap 20 per article. Build id `entity_graph:kb_entities.v3:idf_cosine:mentions-6cc4d7ccb1a3:2026-10-10` |
+| Runs | retrieval suite only, `ASSOCIATION_SOURCE=entity_graph`, `LINK_EXPANSION_MAX_LINKS_PER_SEED=10`, single pool, `RERANK_MAX_CHUNKS_PER_PAGE=15`. Masking and propose on DeepSeek, as in (3) |
+
+| | No expansion (R0) | Authored links, cap 20 (R1) | Probe entity graph, cap 10 (3) | Full entity graph, cap 10 |
+|---|---|---|---|---|
+| Recall@3 | 0.783 (MRR 0.728) | **0.917** (MRR 0.872) | 0.900 (MRR 0.831) | 0.817 (MRR 0.739) |
+| Misses | 13 | g011, g012, g048, g055, g056 | g011, g012, g048, g052, g053, g055 | g008, g011, g012, g037, g048, g050, g051, g052, g053, g055, g060 |
+| `pool_size` median · max | | 51 · 170 | 65.5 · 131 | 78 · 139 |
+
+### Findings
+
+**1. The gold page is often reachable, so reach is not the only loss.**
+Taking R0's top three pages for each lost ticket as stand-ins for its seeds
+(the run does not log seeds): g008's gold page is the first target of
+`iam.console_sign-in-mfa`, and g050's is the second target of
+`ses.sending-authorization-identity-owner-tasks-verification`. The pool is
+larger (median 78 against 65.5), and the gold page loses at the
+cross-encoder or at Jev to more linked pages.
+
+**2. Some links the probe had are gone.** g051's gold page
+(`guardduty.compromised-ec2`) is not among the 20 targets of any of those
+three pages. `guardduty.guardduty_finding-types-ec2`, a catalogue page,
+shares its entities with many more pages in the full graph.
+
+### Follow-ups
+
+- Measure locally which stage loses each ticket (gold page in the pool, in
+  Jev's 15, in Jev's top 3), as for the two-lane probe, before tuning.
+- A smaller cap narrows the pool, but on the probe graph cap 5 scored 0.817
+  against cap 10's 0.900 (2026-10-08 (3)), losing seeds to crowding; untested
+  on the full graph.
+
+---
+
 ## 2026-10-09: the two-lane shortlist (seed lane + graph lane), probe
 
 **Verdict:** at seed 10 / graph 5 the two-lane shortlist does not beat the
