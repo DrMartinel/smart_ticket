@@ -95,6 +95,48 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10 (4): one chunk per page in Jev's top 3, retrieval suite
+
+**Verdict:** a small gain at best. With `RERANK_TOP_N_PER_PAGE=1`, authored
+links are unchanged (**0.917**, MRR 0.872, the same five misses as R1), and
+the full entity graph rises from (1)'s 0.817 to **0.833** (MRR 0.758) by
+recovering g037. The tickets whose top 3 were one page three times now get
+three pages, but the gold page is not among them: it is not in Jev's top
+three distinct pages either.
+
+| Configuration | |
+|---|---|
+| Code | `56b0a14` (`main`): `RERANK_TOP_N_PER_PAGE` (shipped at 3, no limit), set to 1. Cross-encoder shortlister and Jev reranker, as shipped |
+| Runs | retrieval suite only: authored links cap 20 (as R1), and (1)'s full entity graph cap 10. Masking and propose on DeepSeek |
+
+| | Authored links (R1) | + 1 per page | Full entity graph (1) | + 1 per page |
+|---|---|---|---|---|
+| Recall@3 | **0.917** (MRR 0.872) | **0.917** (MRR 0.872) | 0.817 (MRR 0.739) | 0.833 (MRR 0.758) |
+| Change | | none | | +g037 |
+| `pool_size` median · max | 51 · 170 | 51 · 165 | 78 · 139 | 78 · 139 |
+
+### Findings
+
+**1. Repeated pages were filling slots, not hiding the gold page.** g053's
+top 3 was `guardduty.guardduty_finding-types-ec2` three times; it is now
+that page, `findings-runtime-monitoring` and `guardduty_finding-types-retired`,
+and still not `guardduty.compromised-ec2`. Same for g052 and g060.
+
+**2. g037 gains from the slot.** Its top 3 held
+`ec2.instance-stop-methods` twice; the freed slot goes to the gold page
+`ec2.TroubleshootingInstancesStopping`.
+
+**3. Authored links never repeated a page in a hit-or-miss position.** No
+ticket's result changed, and MRR is identical.
+
+### Follow-ups
+
+- The setting ships at 3. Setting it to 1 costs nothing measured and gains
+  one entity-graph ticket; whether to ship 1 is a separate decision, as it
+  also changes which pages the LLM is given as context.
+
+---
+
 ## 2026-10-10 (3): Jev as the only reranker, authored links, retrieval suite
 
 **Verdict:** on authored links too, dropping the cross-encoder costs recall:

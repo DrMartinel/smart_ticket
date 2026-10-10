@@ -718,3 +718,19 @@
 {"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"gold_use","value":9.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"pool_size","value":57.5,"n":60,"labels":{"stat":"median"}}
 {"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"pool_size","value":209.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"retrieval_mrr","value":0.8722222222222222,"n":60}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"gold_use","value":13.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"pool_size","value":165.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.8333333333333334,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"retrieval_mrr","value":0.7583333333333333,"n":60}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":40.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":10.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"pool_size","value":139.0,"n":60,"labels":{"stat":"max"}}
