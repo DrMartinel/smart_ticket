@@ -1,7 +1,7 @@
 """
-Load an association file built offline (ADR-0018), today ai-engine's
-`entity_graph.jsonl`, into `kb_article_associations`, replacing that
-source's rows in one transaction.
+Load an association file built offline (ADR-0018), ai-engine's
+`entity_graph.jsonl` or `remedy_pointers.jsonl`, into
+`kb_article_associations`, replacing that source's rows in one transaction.
 
 The file is keyed by slug and may be older than the database: a slug it
 names may have been deleted since. Unknown slugs and self-pairs are skipped
@@ -39,7 +39,11 @@ class Command(BaseCommand):
         parser.add_argument(
             "path", help="the .jsonl file, e.g. demo_kb/associations/entity_graph.jsonl"
         )
-        parser.add_argument("--source", required=True, choices=[AssociationSource.ENTITY_GRAPH])
+        parser.add_argument(
+            "--source",
+            required=True,
+            choices=[AssociationSource.ENTITY_GRAPH, AssociationSource.REMEDY_POINTER],
+        )
 
     def handle(self, *args: Any, **options: Any) -> None:
         path = Path(options["path"])

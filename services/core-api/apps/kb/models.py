@@ -315,6 +315,8 @@ class AssociationSource(models.TextChoices):
     AUTHORED_LINK = "authored_link"
     EMBEDDING_NEIGHBOUR = "embedding_neighbour"
     ENTITY_GRAPH = "entity_graph"
+    # Pages a page names as where a problem's fix is written (offline build).
+    REMEDY_POINTER = "remedy_pointer"
 
 
 class KbArticleAssociationManager(models.Manager["KbArticleAssociation"]):

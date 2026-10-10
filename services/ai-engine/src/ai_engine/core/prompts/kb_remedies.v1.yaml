@@ -1,0 +1,53 @@
+# Remedy policy for the offline remedy_pointer build (ADR-0018 amendment,
+# 2026-10-10). Versioned and reviewed like a prompt: REMEDY_POLICY_VERSION
+# names the file in use, and the version is part of every row's build_id and
+# of every cached reply's key.
+#
+# The entity graph linked pages by shared vocabulary and missed the relation
+# support tickets need: "for this problem, the fix is on that page" (the
+# 2026-10-10 stage check, evals/HISTORY.md). This policy asks for exactly
+# that relation, per page section: a symptom, its remedy, and where the
+# remedy is written, this page or a page the text names.
+#
+# Never edit a version a build has used: make the next one. Cached replies
+# are keyed by this version, so an in-place edit would mix two policies'
+# replies in one graph.
+
+instructions: |
+  You read one section of IT support documentation and list the problems it
+  helps solve.
+
+  For each problem the section describes or implies, give:
+  - "symptom": what the user sees or reports, in a few words (an error, a
+    failure, a finding, a limit hit, unexpected behaviour).
+  - "remedy": what fixes or resolves it, in a few words.
+  - "remedy_location": where the steps of that remedy are written.
+    Use "this_page" when this section (or its page) gives the steps itself.
+    Use {"page": "<name>"} when the text sends the reader to another page,
+    document or section for the fix ("see ...", "for more information,
+    see ...", "to remediate, follow ..."). Write <name> exactly as the text
+    names it. Never invent a page the text does not name.
+
+  Only list problems a support ticket could be about. Skip pure concepts,
+  pricing, history and reference tables with no problem in them. An empty
+  list is a correct answer.
+
+  Reply with one JSON object: {"pairs": [{"symptom": "...", "remedy": "...",
+  "remedy_location": "this_page"}, ...]}. At most 30 pairs.
+
+# Bounds on one reply, checked when it is parsed. A reply over them fails
+# its section (re-run to retry); it is never cut short.
+reply_limits:
+  max_pairs_per_section: 30
+  symptom_max_chars: 200
+  remedy_max_chars: 300
+  page_max_chars: 200
+
+# Replace Markdown links with their text before a section is sent, so the
+# graph is built from what the prose names, never from a URL: what a KB with
+# no hyperlinks would give it.
+strip_links: true
+
+# Target name -> canonical page title, compared after normalization. Empty
+# until the spike's hand check shows names that drift.
+aliases: {}

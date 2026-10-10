@@ -92,7 +92,9 @@ def test_the_read_only_dsn_is_never_core_apis(env_template, no_env_vars, tmp_pat
         Settings(_env_file=_write_env(tmp_path, values))  # type: ignore[call-arg]
 
 
-@pytest.mark.parametrize("value", ["authored_link", "embedding_neighbour", "entity_graph", "none"])
+@pytest.mark.parametrize(
+    "value", ["authored_link", "embedding_neighbour", "entity_graph", "remedy_pointer", "none"]
+)
 def test_association_source_accepts_one_source_or_none(env_template, no_env_vars, tmp_path, value):
     values = {k: v or "" for k, v in env_template.items()}
 

@@ -382,6 +382,7 @@ The ADR is accepted or superseded on a full run and a held-out measurement.
 - Choose `ASSOCIATION_HUB_DF_MAX` from the full build's df histogram, and aliases for near-duplicates ("EC2" / "Amazon EC2"); `--rescore-only`, then `manage.py load_associations`.
 - R3 (`ASSOCIATION_SOURCE=entity_graph`) at caps 3, 5 and 10, with the plan's gates.
 - Category F1 below 2026-10-04 on `access` and `software`, with expansion on and off: find which tickets moved.
+- `remedy_pointer` (amendment, 2026-10-10): the spike (`--sample 150` with the stage check's gold pages and seeds), a hand check of ~30 pairs and resolutions to set `REMEDY_RESOLVE_MIN_SIMILARITY`, the full build, then the stage check and the retrieval suite against authored links.
 
 ### Done when
 

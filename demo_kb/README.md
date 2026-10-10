@@ -76,6 +76,26 @@ uv run python -m ai_engine.core.associations.build --rescore-only \
 `load_demo_kb` loads `associations/entity_graph.jsonl` when it exists; on
 its own: `manage.py load_associations demo_kb/associations/entity_graph.jsonl --source entity_graph`.
 
+### Remedy pointers
+
+The `remedy_pointer` source (ADR-0018 amendment) is built offline too, on
+DeepSeek, with no LightRAG: per page section, the model names each problem,
+its remedy, and the page the text says the remedy is on.
+
+```bash
+uv run python -m ai_engine.core.associations.remedies.build \
+    --working-dir <scratch dir> --out demo_kb/associations
+uv run python -m ai_engine.core.associations.remedies.build --sample 150 \
+    --include <slug> ... --working-dir <scratch dir> --out <scratch dir>   # the spike
+uv run python -m ai_engine.core.associations.remedies.build --rescore-only \
+    --out demo_kb/associations
+```
+
+It writes `remedy_pairs.jsonl` (every pair, by page), `remedy_resolutions.jsonl`
+(how each named page resolved: exact, embedding, ambiguous or unresolved) and
+`remedy_pointers.jsonl`, loaded with
+`manage.py load_associations demo_kb/associations/remedy_pointers.jsonl --source remedy_pointer`.
+
 **`mentions.jsonl` is the contract between the extractor and everything
 after it.** One JSON object per line, sorted, one per (entity, type,
 article):

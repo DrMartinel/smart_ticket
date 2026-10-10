@@ -130,3 +130,22 @@ def test_load_demo_kb_loads_a_committed_entity_graph(tmp_path):
     load(tmp_path)
 
     assert _pairs() == {("ec2.ssh", "iam.mfa")}
+
+
+def test_remedy_pointers_load_under_their_own_source_and_leave_the_entity_graph_alone(tmp_path):
+    """Sources are compared, never mixed (ADR-0018): loading remedy_pointer
+    replaces only its own rows."""
+
+    _article("findings")
+    _article("fix")
+    _load(tmp_path, [_line("findings", "fix")])
+    path = tmp_path / "remedy_pointers.jsonl"
+    line = _line("fix", "findings") | {
+        "build_id": "remedy_pointer:kb_remedies.v1:pairs-abc:2026-10-10"
+    }
+    path.write_text(json.dumps(line) + "\n")
+
+    call_command("load_associations", str(path), source="remedy_pointer", stdout=StringIO())
+
+    assert _pairs(AssociationSource.REMEDY_POINTER) == {("fix", "findings")}
+    assert _pairs(AssociationSource.ENTITY_GRAPH) == {("findings", "fix")}

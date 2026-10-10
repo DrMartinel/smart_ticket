@@ -123,3 +123,28 @@ reaches a requester, and the scores a threshold sees are unchanged.
    beats `embedding_neighbour`, loses no ticket against R0 (no expansion),
    adds no auto-reply false positive against R1 (`authored_link`), keeps
    refusal and injection, and reports `pool_size`.
+
+## Amendment, 2026-10-10: the `remedy_pointer` source
+
+The full entity graph scored recall@3 0.817 against authored links' 0.917,
+and a local stage check (`evals/HISTORY.md` 2026-10-10 (5)) found why: 7 of
+its 11 misses never reach the pool, because the page that fixes the ticket
+shares few non-hub entities with the page that points to it. Support
+tickets need a pointer ("to remediate, see ..."), which shared vocabulary
+does not express.
+
+A fourth source, `remedy_pointer`, extracts that relation directly. Per
+page section, DeepSeek lists (symptom, remedy, where the remedy is written:
+this page or a page the text names), under a versioned policy
+(`core/prompts/kb_remedies.v*.yaml`). A named page resolves to a KB page by
+exact title or heading, then by embedding above
+`REMEDY_RESOLVE_MIN_SIMILARITY`; anything else is dropped and counted. An
+edge A -> B means page A names a problem whose fix is on page B, scored by
+the number of distinct pairs pointing that way. Links are stripped to their
+text before extraction, so the graph is what the prose says, as a KB with
+no hyperlinks would give it: authored links are not copied in.
+
+It does not use LightRAG: one JSON call per section, replies cached by
+content, so a rebuild sends only changed sections. That supersedes the
+"commit to LightRAG" choice for this source only; `entity_graph` keeps it.
+It is compared with the other sources one at a time, like them.
