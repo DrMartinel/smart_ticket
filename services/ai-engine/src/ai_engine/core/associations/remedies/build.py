@@ -125,6 +125,7 @@ def extract_pairs(
     working_dir: Path,
     policy: RemedyPolicy,
     chat_model: BaseChatModel,
+    retry_model: BaseChatModel | None = None,
 ) -> tuple[list[PagePair], int]:
     """Every page's pairs, a copy given its original's. Raises BuildFailed
     naming the pages with a failed section."""
@@ -152,6 +153,7 @@ def extract_pairs(
             chat_model=chat_model,
             cache=ReplyCache(working_dir / CACHE_FILE),
             max_async=settings.remedy_llm_max_async,
+            retry_model=retry_model,
         )
     )
     if result.failed:
@@ -276,6 +278,7 @@ def run(
     args: argparse.Namespace,
     *,
     chat_model: BaseChatModel | None = None,
+    retry_model: BaseChatModel | None = None,
     embed: Callable[[list[str]], list[list[float]]] | None = None,
 ) -> int:
     policy = load_remedy_policy(settings.remedy_policy_version)
@@ -297,8 +300,11 @@ def run(
             from ai_engine.core.providers.clients import deepseek_model
 
             chat_model = deepseek_model(json_mode=True, temperature=0)
+            retry_model = deepseek_model(json_mode=True)
         try:
-            pairs, calls = extract_pairs(articles, Path(args.working_dir), policy, chat_model)
+            pairs, calls = extract_pairs(
+                articles, Path(args.working_dir), policy, chat_model, retry_model
+            )
         except BuildFailed as e:
             print(f"build failed: {e}", file=sys.stderr)
             return 1

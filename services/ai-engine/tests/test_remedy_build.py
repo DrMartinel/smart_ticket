@@ -348,3 +348,30 @@ def test_a_sampled_page_can_point_to_a_page_outside_the_sample(kb, tmp_path, mon
 
     edges = _lines(tmp_path / "out" / build.POINTERS_FILE)
     assert [(r["source_slug"], r["target_slug"]) for r in edges] == [("gd.findings", "gd.fix")]
+
+
+class OnceBroken(ScriptedChat):
+    """Replies with malformed JSON, as DeepSeek did for one section at
+    temperature 0, every time it was asked."""
+
+    async def ainvoke(self, messages, **kw):
+        self.sections.append(str(messages[-1].content))
+        return SimpleNamespace(content='{"pairs": [{bad json')
+
+
+def test_an_unusable_reply_is_asked_once_more_of_the_retry_model(kb, tmp_path):
+    """Temperature 0 replays the same broken reply on every run, so the
+    section could never be built; the retry model's reply is used."""
+
+    args = build.parse_args(["--working-dir", str(tmp_path / "w"), "--out", str(tmp_path / "out")])
+    retry = ScriptedChat()
+
+    assert build.run(args, chat_model=OnceBroken(), retry_model=retry, embed=_no_match) == 0
+    assert len(retry.sections) == 3
+
+
+def test_a_second_unusable_reply_still_fails_the_section(kb, tmp_path):
+    args = build.parse_args(["--working-dir", str(tmp_path / "w"), "--out", str(tmp_path / "out")])
+
+    assert build.run(args, chat_model=OnceBroken(), retry_model=OnceBroken(), embed=_no_match) == 1
+    assert not (tmp_path / "out" / build.POINTERS_FILE).exists()

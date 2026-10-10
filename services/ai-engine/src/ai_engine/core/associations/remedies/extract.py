@@ -117,22 +117,36 @@ async def extract(
     chat_model: BaseChatModel,
     cache: ReplyCache,
     max_async: int,
+    retry_model: BaseChatModel | None = None,
 ) -> Extraction:
     """Pairs for every section (`{key: text}`), from the cache where it has
     them. A section whose call or reply fails is listed in `failed` and not
-    cached; the caller exports nothing while any remain."""
+    cached; the caller exports nothing while any remain.
+
+    A reply that fails validation is asked once more of `retry_model`
+    (the same model at its default temperature): at temperature 0 the model
+    replays the same malformed reply on every run, as it did for one
+    section of the full build (2026-10-10), so a re-run alone never fixes
+    it. A second unusable reply fails the section."""
 
     result = Extraction()
     limit = asyncio.Semaphore(max_async)
+    messages = lambda text: [SystemMessage(content=policy.instructions), HumanMessage(content=text)]  # noqa: E731
+
+    async def ask(model: BaseChatModel, text: str) -> list[Pair]:
+        result.calls += 1
+        reply = await model.ainvoke(messages(text))
+        return parse_reply(_text(reply.content), policy.limits)
 
     async def one(key: str, text: str) -> None:
         async with limit:
-            result.calls += 1
             try:
-                reply = await chat_model.ainvoke(
-                    [SystemMessage(content=policy.instructions), HumanMessage(content=text)]
-                )
-                pairs = parse_reply(_text(reply.content), policy.limits)
+                try:
+                    pairs = await ask(chat_model, text)
+                except ValueError:
+                    if retry_model is None:
+                        raise
+                    pairs = await ask(retry_model, text)
             except Exception as e:  # noqa: BLE001 - recorded, retried on the next run
                 result.failed[key] = f"{type(e).__name__}: {e}"[:300]
                 return
