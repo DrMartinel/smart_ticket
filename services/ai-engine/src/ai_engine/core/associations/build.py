@@ -42,7 +42,13 @@ from typing import Any
 
 from lightrag import LightRAG
 from lightrag.base import DocStatus
-from lightrag.kg.shared_storage import finalize_share_data
+from lightrag.kg.shared_storage import (
+    commit_manual_retry_request,
+    finalize_share_data,
+    get_namespace_data,
+    get_namespace_lock,
+    get_pipeline_ingress,
+)
 from sqlalchemy import select
 
 from ai_engine.core.associations.adapter import FILE_PATH_PREFIX, ModelCalls, make_rag
@@ -135,10 +141,8 @@ async def sync(
     extraction failed (empty when everything is current)."""
 
     wanted = {str(a.id): content_key(policy_version, a.body) for a in articles}
-    statuses = {
-        doc_id: status.status
-        for doc_id, status in (await rag.doc_status.get_docs_by_statuses(list(DocStatus))).items()
-    }
+    records = await rag.doc_status.get_docs_by_statuses(list(DocStatus))
+    statuses = {doc_id: record.status for doc_id, record in records.items()}
     # A state entry LightRAG doesn't hold as processed is not done.
     state.documents = {
         doc_id: key
@@ -151,11 +155,19 @@ async def sync(
     # still the article's, LightRAG's queue picks it up. Deleting it instead
     # rewrites the whole graph file per document (~8 a minute on the full KB,
     # 2026-10-10), hours for an interrupted batch.
+    # A document that failed before any chunk was written (the model or
+    # embedder unreachable mid-batch: 140 when Docker restarted, 2026-10-10)
+    # is the same: nothing to undo, so it is retried in place instead.
     body = {str(a.id): a.body for a in articles}
+    retried = {
+        doc_id
+        for doc_id, record in records.items()
+        if record.status == DocStatus.FAILED and not record.chunks_list
+    }
     queued = {
         doc_id
         for doc_id, status in statuses.items()
-        if status == DocStatus.PENDING
+        if (status == DocStatus.PENDING or doc_id in retried)
         and doc_id in body
         and ((await rag.full_docs.get_by_id(doc_id)) or {}).get("content") == body[doc_id]
     }
@@ -174,6 +186,8 @@ async def sync(
             state.documents.pop(doc_id, None)
             state.save()
 
+    if retried & queued:
+        await _retry_failed_in_place(rag)
     stale = [a for a in articles if state.documents.get(str(a.id)) != wanted[str(a.id)]]
     todo = [a for a in stale if str(a.id) not in queued]
     if todo:
@@ -195,6 +209,25 @@ async def sync(
             failed.append(doc_id)
     state.save()
     return failed
+
+
+async def _retry_failed_in_place(rag: LightRAG) -> None:
+    """Asks LightRAG's queue to put its failed documents back to pending and
+    run them, from their stored text: what its server's
+    `/documents/reprocess_failed` does. The next processing run serves it.
+    `sync` calls it only once every failed document left is one it wants
+    retried; the rest were deleted first."""
+
+    workspace = rag.workspace
+    refusal = await commit_manual_retry_request(
+        await get_namespace_data("pipeline_status", workspace=workspace),
+        get_namespace_lock("pipeline_status", workspace=workspace),
+        await get_pipeline_ingress(workspace),
+        uuid.uuid4().hex,
+        {},
+    )
+    if refusal:
+        raise BuildFailed(f"LightRAG refused to retry failed documents: {refusal}")
 
 
 def twins(articles: list[Article]) -> dict[uuid.UUID, Article]:

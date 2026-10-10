@@ -282,6 +282,69 @@ def test_a_resume_processes_queued_articles_instead_of_deleting_them(
     }
 
 
+def test_a_resume_retries_articles_that_failed_before_extraction_in_place(
+    articles, tmp_path, monkeypatch
+):
+    """An article that failed before any chunk was written (the model or
+    embedder unreachable: 140 when Docker restarted mid-batch, 2026-10-10)
+    has nothing in the graph to undo. Deleting it rewrites the whole graph
+    file, about 1.5 a minute by then; LightRAG's own retry runs it from its
+    stored text instead."""
+    import asyncio
+
+    from lightrag import LightRAG
+    from lightrag.base import DocStatus
+    from lightrag.kg.shared_storage import finalize_share_data
+
+    from ai_engine.core.associations.adapter import FILE_PATH_PREFIX, ModelCalls, make_rag
+
+    monkeypatch.setattr(settings, "chat_client_provider", "vllm")
+    working = tmp_path / "w"
+    working.mkdir()
+
+    async def queue_and_fail_one_before_chunking() -> None:
+        rag = make_rag(
+            working, guidance="g", calls=ModelCalls(), chat_model=ScriptedChat(), embed=_embed
+        )  # type: ignore[arg-type]
+        await rag.initialize_storages()
+        try:
+            await rag.apipeline_enqueue_documents(
+                [body for _, _, body, _ in ARTICLES],
+                ids=[str(i) for i, *_ in ARTICLES],
+                file_paths=[f"{FILE_PATH_PREFIX}{i}" for i, *_ in ARTICLES],
+            )
+            [record] = await rag.doc_status.get_by_ids([str(SMTP)])
+            await rag.doc_status.upsert(
+                {
+                    str(SMTP): {
+                        **record,
+                        "status": DocStatus.FAILED,
+                        "chunks_list": [],
+                        "error_msg": "Cancelled by internal error: connection refused",
+                    }
+                }
+            )
+            await rag.doc_status.index_done_callback()
+        finally:
+            await rag.finalize_storages()
+            finalize_share_data()
+
+    asyncio.run(queue_and_fail_one_before_chunking())
+    deleted: list[str] = []
+    real_delete = LightRAG.adelete_by_doc_id
+
+    async def recording_delete(self, doc_id, *args, **kwargs):
+        deleted.append(doc_id)
+        return await real_delete(self, doc_id, *args, **kwargs)
+
+    monkeypatch.setattr(LightRAG, "adelete_by_doc_id", recording_delete)
+
+    assert _run(tmp_path, ScriptedChat()) == 0
+    assert deleted == []
+    mentions = _lines(tmp_path / "out" / build.MENTIONS_FILE)
+    assert {"entity": "SMTP Credentials", "type": "setting", "article_slug": "ses.smtp"} in mentions
+
+
 def test_a_copy_with_identical_text_mirrors_its_original_without_linking_to_it(
     articles, tmp_path, monkeypatch
 ):
