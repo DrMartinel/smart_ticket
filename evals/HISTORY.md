@@ -95,6 +95,39 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10 (3): Jev as the only reranker, authored links, retrieval suite
+
+**Verdict:** on authored links too, dropping the cross-encoder costs recall:
+**0.867** (MRR 0.822) against R1's 0.917 (MRR 0.872) with it. It keeps
+R1's five misses and adds g008, g035 and g060, recovering none. With (2)
+this answers the question for both sources: the cross-encoder in front of
+Jev helps, and Jev seeing the whole pool does not.
+
+| Configuration | |
+|---|---|
+| Code | `75e374a` (`main`): `SHORTLIST_PROVIDER=none`, as in (2) |
+| Runs | retrieval suite only, `ASSOCIATION_SOURCE=authored_link`, cap 20 as in R1. Masking and propose on DeepSeek; R1 ran them on Qwen, which leaves recall@3 (Jev's top 3) comparable |
+
+| | Authored links, cross-encoder + Jev (R1, 2026-10-08) | Authored links, Jev only |
+|---|---|---|
+| Recall@3 | **0.917** (MRR 0.872) | 0.867 (MRR 0.822) |
+| Misses | g011, g012, g048, g055, g056 | + g008, g035, g060 |
+| `pool_size` median · max | 51 · 170 | 57.5 · 209 (every chunk scored by Jev) |
+
+### Findings
+
+**1. The same two losses as (2).** g035 loses its gold page to
+`workspaces-admin.web-access`, as in (2). g008 and g060 have one page twice
+in their top 3 (`iam.id_credentials_mfa_sync`,
+`guardduty.guardduty_finding-types-s3`), so a slot that could have held the
+gold page holds a page already counted.
+
+**2. The pool is larger without the cross-encoder.** Its seeds come from
+Jev's order, so they differ; the median pool is 57.5 chunks against 51,
+the largest 209 against 170, all scored by Jev.
+
+---
+
 ## 2026-10-10 (2): Jev as the only reranker, full entity_graph, retrieval suite
 
 **Verdict:** without the cross-encoder, recall@3 falls to **0.783** (MRR
