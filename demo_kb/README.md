@@ -11,8 +11,9 @@ and core-api's `manage.py load_demo_kb` loads it into `kb_articles`.
 | `manifest.json` | yes | Every page's slug, URL, category, title and SHA-256, plus `snapshot_sha256` for the whole set |
 | `curation.json` | yes | People's decisions: risk tier per category and per article, and which articles are approved for auto-reply |
 | `guides/<key>/*.md` | no | Every page of each guide, from its `sitemap.xml`, fetched as Markdown |
-| `associations/mentions.jsonl` | yes | Entities extracted per article by ai-engine's offline build (ADR-0018), raw |
-| `associations/entity_graph.jsonl` | yes | Article-to-article associations scored from `mentions.jsonl`, loaded by core-api |
+| `associations/entity_graph_pairs.jsonl` | yes | (symptom, remedy, where) pairs extracted per page by ai-engine's offline build (ADR-0018) |
+| `associations/entity_graph_resolutions.jsonl` | yes | How each page the pairs name resolved to a KB page: exact, embedding, ambiguous or unresolved |
+| `associations/entity_graph.jsonl` | yes | Page-to-page pointer edges built from the pairs, loaded by core-api |
 
 ## Use it
 
@@ -60,64 +61,44 @@ P4). The loader refuses anything else before loading a single page.
 
 ## Entity associations
 
-Link expansion can follow associations other than authored links
-(ADR-0018). The `entity_graph` source is built offline by ai-engine, from
-the host, with LightRAG (`uv sync --all-packages --group build` first):
+Link expansion can follow the entity graph instead of authored links
+(`ASSOCIATION_SOURCE=entity_graph`, ADR-0018): pointers from a page that
+names a problem to the page the text says has its fix. It is built offline
+by ai-engine, from the host, on DeepSeek (`CLOUD_*`, ADR-0019), after
+`uv sync --all-packages --group build`:
 
 ```bash
 uv run python -m ai_engine.core.associations.build \
     --working-dir <scratch dir> --out demo_kb/associations
-uv run python -m ai_engine.core.associations.build --sample 100 \
-    --working-dir <scratch dir> --out <scratch dir>   # the spike check
+uv run python -m ai_engine.core.associations.build --sample 150 \
+    --include <slug> ... --working-dir <scratch dir> --out <scratch dir>   # a spike
 uv run python -m ai_engine.core.associations.build --rescore-only \
-    --working-dir <scratch dir> --out demo_kb/associations
+    --out demo_kb/associations   # re-resolve and re-score; no model call
 ```
 
-`load_demo_kb` loads `associations/entity_graph.jsonl` when it exists; on
-its own: `manage.py load_associations demo_kb/associations/entity_graph.jsonl --source entity_graph`.
+`<scratch dir>` holds the reply cache: a rebuild sends only new or changed
+sections. `load_demo_kb` loads `associations/entity_graph.jsonl` when it
+exists; on its own:
+`manage.py load_associations demo_kb/associations/entity_graph.jsonl --source entity_graph`.
 
-### Remedy pointers
-
-The `remedy_pointer` source (ADR-0018 amendment) is built offline too, on
-DeepSeek, with no LightRAG: per page section, the model names each problem,
-its remedy, and the page the text says the remedy is on.
-
-```bash
-uv run python -m ai_engine.core.associations.remedies.build \
-    --working-dir <scratch dir> --out demo_kb/associations
-uv run python -m ai_engine.core.associations.remedies.build --sample 150 \
-    --include <slug> ... --working-dir <scratch dir> --out <scratch dir>   # the spike
-uv run python -m ai_engine.core.associations.remedies.build --rescore-only \
-    --out demo_kb/associations
-```
-
-It writes `remedy_pairs.jsonl` (every pair, by page), `remedy_resolutions.jsonl`
-(how each named page resolved: exact, embedding, ambiguous or unresolved) and
-`remedy_pointers.jsonl`, loaded with
-`manage.py load_associations demo_kb/associations/remedy_pointers.jsonl --source remedy_pointer`.
-
-**`mentions.jsonl` is the contract between the extractor and everything
-after it.** One JSON object per line, sorted, one per (entity, type,
-article):
+**`entity_graph_pairs.jsonl` is the contract between the extractor and
+everything after it.** One JSON object per line, one per pair found on a
+page; `page` is null when the remedy is on the page itself:
 
 ```json
-{"entity": "SES Sandbox", "type": "concept", "article_slug": "ses.request-production-access"}
+{"article_slug": "guardduty.guardduty_finding-types-ec2", "symptom": "EC2 instance acting as Tor relay", "remedy": "Assume instance compromised and take remediation actions", "page": "Remediating a potentially compromised Amazon EC2 instance"}
 ```
 
-The rows are raw, as extracted: allowed types, aliases and the stoplist are
-applied when scoring, so changing them needs `--rescore-only`, not a new
-extraction. Replacing LightRAG means writing this file some other way;
-scoring, `entity_graph.jsonl` and the loader don't change.
-
-`entity_graph.jsonl` has one line per direction of each pair, keyed by
-slug:
+`entity_graph.jsonl` has one line per edge, keyed by slug; `score` is the
+number of distinct pairs pointing that way:
 
 ```json
-{"source_slug": "ses.verify-addresses-procedure", "target_slug": "ses.request-production-access", "score": 6.38, "evidence": ["SES Sandbox"], "build_id": "…"}
+{"source_slug": "guardduty.guardduty_finding-types-ec2", "target_slug": "guardduty.compromised-ec2", "score": 2.0, "evidence": ["EC2 instance acting as Tor relay -> Assume instance compromised and take remediation actions", "…"], "build_id": "entity_graph:kb_entity_graph.v1:pairs-…"}
 ```
 
-Both files are reviewed in a PR like `curation.json`: `evidence` names the
-shared entities behind each edge, so a bad one is visible in the diff.
+The files are reviewed in a PR like `curation.json`: `evidence` names the
+pairs behind each edge, and the resolutions file shows how each named page
+was matched, so a bad edge is visible in the diff.
 
 ## Licensing
 

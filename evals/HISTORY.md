@@ -143,6 +143,17 @@ schema here only (a DeepSeek reply), and g030 and g167 hit
 `kb_not_authorized`; (8) has its own single-ticket differences (g005, g034,
 g057, g153, g165).
 
+
+> **Note (2026-10-10, later): the code was simplified after these runs.**
+> The source these entries call `remedy_pointer` is now `entity_graph`
+> (`kb_remedies.v1` renamed `kb_entity_graph.v1`, `REMEDY_*` settings
+> `ENTITY_GRAPH_*`; the extracted pairs are unchanged). The entries' LightRAG
+> `entity_graph` ((1), (2), (5)) and `embedding_neighbour` (R2) were removed,
+> and so were `RERANK_MAX_CHUNKS_PER_PAGE`, `RERANK_TOP_N_PER_PAGE`,
+> `SHORTLIST_PROVIDER=none` and `SHORTLIST_STRATEGY=two_lane`. The all-gates
+> runs (8) and (9) used `RERANK_TOP_N_PER_PAGE=1`, so they do not describe
+> the shipped pipeline; (6), recall@3 0.900, is the entity graph without it.
+
 ---
 
 ## 2026-10-10 (8): full run, remedy_pointer with one chunk per page

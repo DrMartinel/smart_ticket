@@ -371,19 +371,16 @@ The ADR is accepted or superseded on a full run and a held-out measurement.
 
 ## 12. Association sources for link expansion (ADR-0018)
 
-**Status (2026-10-08):** phases 0-4 built. Parity of the table path with the old per-ticket regex: 3,542 articles, 0 differ. Eval runs R0-R2 done (`evals/HISTORY.md` 2026-10-08): no expansion 0.783, authored links 0.917 (unchanged from 2026-10-04), embedding neighbours 0.800. The spike check passed on entity policy v3 (0 failures of 100, 46 min). Plan: the "LightRAG entity-graph associations" doc.
+**Status (2026-10-10):** built and measured (`evals/HISTORY.md` 2026-10-08 to 2026-10-10). Parity of the table path with the old per-ticket regex: 3,542 articles, 0 differ. Two sources remain: `authored_link` (recall@3 0.917) and `entity_graph`, the DeepSeek pointer build (0.900, pool median 21 chunks against 51). The LightRAG shared-entity graph (0.817) and embedding neighbours (0.800) were removed.
 
 **Priority:** Medium · **Spec:** §6.3 · **ADR:** 0014, 0018
 
 ### Work
 
 - Delete `candidate_pool/link_parity.py`, the last copy of the per-ticket regex: parity has run.
-- The full build over the 3,542 pages (~26 GPU hours, vllm-chat busy throughout): `uv run python -m ai_engine.core.associations.build --working-dir <dir> --out demo_kb/associations`; commit `mentions.jsonl` and `entity_graph.jsonl` for review.
-- Choose `ASSOCIATION_HUB_DF_MAX` from the full build's df histogram, and aliases for near-duplicates ("EC2" / "Amazon EC2"); `--rescore-only`, then `manage.py load_associations`.
-- R3 (`ASSOCIATION_SOURCE=entity_graph`) at caps 3, 5 and 10, with the plan's gates.
 - Category F1 below 2026-10-04 on `access` and `software`, with expansion on and off: find which tickets moved.
-- `remedy_pointer` (amendment, 2026-10-10): built and measured (recall@3 0.900, `evals/HISTORY.md` 2026-10-10 (6)). Left: with `RERANK_TOP_N_PER_PAGE=1` (g056's top 3 is one page), a full run before any switch, and committing `remedy_pairs.jsonl` / `remedy_pointers.jsonl` for review.
+- Choose the shipped source for the demo KB, then a full run with it on the shipped pipeline (the all-gates run of 2026-10-10 (8) used a one-chunk-per-page limit since removed).
 
 ### Done when
 
-ADR-0018 is accepted or superseded on R3, and the regex path is gone.
+ADR-0018 is accepted or superseded, and the regex path is gone.

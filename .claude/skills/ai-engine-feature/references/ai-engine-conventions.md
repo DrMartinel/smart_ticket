@@ -25,9 +25,9 @@ src/ai_engine/
                    clients.py (VLLMClient + JevClient on HttpClient, ChatClient + vllm_chat/openai_chat, and the chat/embed/rerank/ner/jev clients),
                    dtos.py (the request and reply shapes of the model servers)
     db/            client.py (the `db` singleton), tables.py (4 read-only tables, EMBED_DIM)
-    associations/  the offline entity_graph build (ADR-0018): LightRAG adapter,
-                   pure scoring, the build CLI. Never imported on the request path;
-                   LightRAG is in the `build` dependency group only
+    associations/  the offline entity_graph build (ADR-0018): sections, DeepSeek
+                   extraction with a reply cache, page resolution, the build CLI.
+                   Never imported on the request path
     prompts/       <name>.v<N>.md; __init__.py loads each at import (PROPOSE_PROMPT, ...)
   graph/           the triage pipeline. Never imports main.py or schemas.py
     state.py       TriageState + the value types stored in it (Candidate, RankedChunk)
