@@ -702,3 +702,11 @@
 {"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"gold_use","value":10.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"median"}}
 {"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"pool_size","value":139.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.7833333333333333,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"retrieval_mrr","value":0.725,"n":60}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"gold_use","value":38.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"gold_use","value":9.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"pool_size","value":130.0,"n":60,"labels":{"stat":"max"}}

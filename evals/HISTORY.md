@@ -95,6 +95,53 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10 (2): Jev as the only reranker, full entity_graph, retrieval suite
+
+**Verdict:** without the cross-encoder, recall@3 falls to **0.783** (MRR
+0.725), level with no expansion at all (R0) and below (1)'s 0.817 with the
+cross-encoder. Jev seeing every chunk recovers g008 but loses g035, g037,
+g039 and g056: shown more pages, it prefers a neighbour of the page that
+fixes the ticket, the crowding (5) and the two-lane probe found. Several
+top-3s are one page's chunks three times, a slot cost no per-page limit
+prevents on this path.
+
+| Configuration | |
+|---|---|
+| Code | `ec62f13` (`main`): `SHORTLIST_PROVIDER=none`. Jev scores the fused candidates, the articles of Jev's top 3 chunks seed expansion, Jev scores the chunks expansion adds; its top 3 go on. `JEV_MAX_CONCURRENCY=16` |
+| Graph | (1)'s full entity graph, `ASSOCIATION_SOURCE=entity_graph`, cap 10, 5 chunks per linked page |
+| Runs | retrieval suite only. Masking and propose on DeepSeek, as in (1) |
+
+| | No expansion (R0) | Full entity graph, cross-encoder (1) | Full entity graph, Jev only |
+|---|---|---|---|
+| Recall@3 | 0.783 (MRR 0.728) | 0.817 (MRR 0.739) | 0.783 (MRR 0.725) |
+| Misses | 13 | g008, g011, g012, g037, g048, g050, g051, g052, g053, g055, g060 | g011, g012, g035, g037, g039, g048, g050, g051, g052, g053, g055, g056, g060 |
+| `pool_size` median · max | | 78 · 139 | 78 · 130 (every chunk scored by Jev) |
+
+### Findings
+
+**1. Jev's own seeds do not help.** The pool is the same size as (1)'s,
+and the tickets the entity graph should recover (g050-g053, g060) are still
+missed. For g051-g053 and g060 the top 3 are finding-type catalogue pages
+(`guardduty.guardduty_finding-types-ec2` three times for g052 and g053);
+g048 and g050 get SES quota and SMTP pages.
+
+**2. Jev alone is crowded too.** g035, g037 and g039, hits in (1), lose
+their gold page to a neighbour (`ec2.instance-stop-methods`,
+`workspaces-admin.web-access`) once Jev sees the whole pool.
+
+**3. Repeated pages cost slots.** g052, g053, g055 and g060 each have one
+page in all three slots. Recall@3 counts pages, so the second and third
+chunks of a page add nothing.
+
+### Follow-ups
+
+- A per-page limit on Jev's top 3 (one chunk per page) is untested; it
+  would give two more pages a slot on every ticket above.
+- Whether each lost gold page was in the pool at all is not logged; a
+  local check would separate "not reached" from "ranked below".
+
+---
+
 ## 2026-10-10: entity_graph on the full KB, retrieval suite
 
 **Verdict:** the probe's 0.900 does not hold on the full graph. With every
