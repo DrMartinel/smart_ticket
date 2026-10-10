@@ -158,3 +158,31 @@ def test_truncation_uses_the_configured_top_n(jev, make_state, monkeypatch):
     out = rerank(make_state(pool=pool))
 
     assert [r.chunk_id for r in out["reranked"]] == [UUID(int=2), UUID(int=4)]
+
+
+def test_one_chunk_per_page_fills_the_top_n_from_deeper_pages(jev, make_state, monkeypatch):
+    """Recall@3 counts pages: with RERANK_TOP_N_PER_PAGE=1 a page's second
+    chunk gives way to the next page in Jev's order, rather than holding a
+    slot (2026-10-10: g052 and g053 had one page in all three)."""
+
+    monkeypatch.setattr(settings, "rerank_top_n", 3)
+    monkeypatch.setattr(settings, "rerank_top_n_per_page", 1)
+    jev(scores=[0.9, 0.8, 0.7, 0.6])
+    pool = [_on_page(1, 1), _on_page(2, 1), _on_page(3, 2), _on_page(4, 3)]
+
+    reranked = rerank(make_state(pool=pool))["reranked"]
+
+    assert [r.chunk_id.int for r in reranked] == [1, 3, 4]
+
+
+def test_a_per_page_limit_of_top_n_keeps_jevs_plain_top_n(jev, make_state, monkeypatch):
+    """The shipped value (3, = RERANK_TOP_N) must change nothing."""
+
+    monkeypatch.setattr(settings, "rerank_top_n", 3)
+    monkeypatch.setattr(settings, "rerank_top_n_per_page", 3)
+    jev(scores=[0.9, 0.8, 0.7, 0.6])
+    pool = [_on_page(1, 1), _on_page(2, 1), _on_page(3, 1), _on_page(4, 3)]
+
+    reranked = rerank(make_state(pool=pool))["reranked"]
+
+    assert [r.chunk_id.int for r in reranked] == [1, 2, 3]

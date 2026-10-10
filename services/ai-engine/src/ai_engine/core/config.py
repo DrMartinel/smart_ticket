@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     bm25_error_code_boost: float
     vector_top_k: int
     rerank_top_n: int
+    # At most this many of the top `rerank_top_n` chunks from one page.
+    rerank_top_n_per_page: int
     fewshot_k: int
     fusion_candidate_limit: int
     quote_fuzzy_threshold: float

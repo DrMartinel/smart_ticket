@@ -177,3 +177,22 @@ def test_jev_requests_in_flight_never_exceed_the_limit(monkeypatch):
 
     assert scores == [0.5] * 12
     assert peak[0] == 3
+
+
+def test_the_per_page_limit_applies_without_a_shortlister(
+    jev_only, make_candidate, make_state, monkeypatch
+):
+    """Same cut on this path: the top 3 of Jev's whole-pool order hold at
+    most RERANK_TOP_N_PER_PAGE chunks of one page."""
+
+    monkeypatch.setattr(settings, "rerank_top_n", 2)
+    monkeypatch.setattr(settings, "rerank_top_n_per_page", 1)
+    jev_only(ScriptedJev([0.9, 0.8, 0.7]))
+    same_page = make_candidate(2, "b").model_copy(update={"article_id": UUID(int=10)})
+    pool = candidate_pool(
+        make_state(candidates=[make_candidate(1, "a"), same_page, make_candidate(3, "c")])
+    )["pool"]
+
+    reranked = rerank(make_state(pool=pool))["reranked"]
+
+    assert [r.chunk_id.int for r in reranked] == [1, 3]

@@ -177,6 +177,7 @@ services:
       BM25_ERROR_CODE_BOOST: ${BM25_ERROR_CODE_BOOST:?see .env.example}
       VECTOR_TOP_K: ${VECTOR_TOP_K:?see .env.example}
       RERANK_TOP_N: ${RERANK_TOP_N:?see .env.example}
+      RERANK_TOP_N_PER_PAGE: ${RERANK_TOP_N_PER_PAGE:?see .env.example}
       FEWSHOT_K: ${FEWSHOT_K:?see .env.example}
       FUSION_CANDIDATE_LIMIT: ${FUSION_CANDIDATE_LIMIT:?see .env.example}
       QUOTE_FUZZY_THRESHOLD: ${QUOTE_FUZZY_THRESHOLD:?see .env.example}
