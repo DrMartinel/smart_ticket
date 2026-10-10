@@ -95,6 +95,63 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10 (8): full run, remedy_pointer with one chunk per page
+
+**Verdict:** every gate passes, the first full run to do so since the
+2026-10-01 baseline: auto-reply precision **1.00** (30/30; every earlier
+run failed it at 0.94), retrieval recall@3 **0.917** (MRR 0.872),
+per-category F1 >= 0.93, refusal and injection 1.00; branch accuracy 0.918.
+**Not like for like with R1** (2026-10-08): masking and propose ran on
+DeepSeek here and on Qwen there, so the generation metrics move with the
+model as well as with the source and the per-page limit. Retrieval
+(Jev's top 3) is comparable.
+
+| Configuration | |
+|---|---|
+| Code | `c23922a` (`main`). Uncommitted: frontend files and two Dockerfiles, none in the eval's path |
+| Runs | `ASSOCIATION_SOURCE=remedy_pointer` (the full build of (6)), `LINK_EXPANSION_MAX_LINKS_PER_SEED` 20, `RERANK_TOP_N_PER_PAGE=1`, cross-encoder shortlister, single pool |
+| Prompts | `propose.v8` · `pii_ner.v2` · Jev `rerank_resolves.v1`, `category.v1` · remedy policy `kb_remedies.v1` |
+| Models · KB · thresholds | DeepSeek `deepseek-flash` (chat and NER, ADR-0019) · bge-m3 · bge-reranker-v2-m3@main · `jev-1.13.0` · KB 3,542 articles / 28,519 chunks · floor 0.30 · `classification.min_confidence` 0.65 · `t_auto` 0.88, `t_route` 0.72 |
+| Golden set | 174 cases, as R1 |
+| Duration | 21m45s, every suite, no re-runs |
+
+| Metric | This run | R1 authored_link (Qwen) | Gate |
+|---|---|---|---|
+| Retrieval recall@3 (Jev's top 3) | **0.917** (55/60, MRR 0.872) | 0.917 (MRR 0.872) | >= 0.90 |
+| Cross-encoder batch (`pool_size`) median · max | 21 · 73 | 51 · 170 | reported only |
+| Auto-reply precision | **1.00** (30/30) | 0.944 (34/36) | >= 0.95 absolute |
+| Branch accuracy | 0.918 (157/171) | 0.912 (156/171) | reported only |
+| Refusal on out-of-KB | 1.00 (23/23) | 1.00 | >= 0.90 |
+| Injection recall · quote validation | 1.00 · 1.00 | 1.00 · 1.00 | as before |
+| F1 `access` · `hardware` · `network` · `other` · `security` · `software` | 0.94 · 0.93 · 0.95 · 1.00 · 1.00 · 0.95 | 0.91 · 0.93 · 0.95 · 1.00 · 1.00 · 0.89 | >= 0.85 each |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | the same | reported only |
+
+### Findings
+
+**1. g151 and g155 are no longer auto-replied.** Both are labelled
+`clarify` and were the two false positives behind every failed precision
+gate since 2026-10-04; here neither is a mismatch. Auto-replies fall from
+36 to 30.
+
+**2. More tickets go to `clarify`.** g022, g031, g032, g072, g082 and g150
+are routed to clarify against their labels (auto_reply or hitl). A likely
+cause, not measured: clarify asks the requester which shown page they mean,
+and with one chunk per page Jev's top 3 always shows three distinct pages.
+The model change could also contribute; separating the two needs this
+configuration on Qwen, or authored links with the limit on DeepSeek.
+
+**3. Retrieval is unchanged from the retrieval-suite runs.** The same five
+misses as (7) (g011, g012, g048, g050, g055).
+
+### Follow-ups
+
+- Separate the per-page limit's effect on routing from the model's:
+  authored links with `RERANK_TOP_N_PER_PAGE=1`, full run, on DeepSeek.
+- A baseline proposal needs review by someone other than its author
+  (CLAUDE.md rule 9); this entry proposes none.
+
+---
+
 ## 2026-10-10 (7): remedy_pointer with one chunk per page in Jev's top 3, retrieval suite
 
 **Verdict:** recall@3 **0.917** (MRR 0.872), equal to authored links (R1)
