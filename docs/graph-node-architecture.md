@@ -141,9 +141,7 @@ What LangGraph (1.2.9) does with a pydantic schema, pinned in
 `list[RankedChunk]`. These types live in `graph/state.py`, not in their
 nodes, so every node and the builder can import them. A `RankedChunk` carries one
 score per reranking stage: `shortlist_score` (set by CandidatePoolNode)
-and `rerank_score` (set by RerankNode, None until then). Under
-`SHORTLIST_PROVIDER=none` CandidatePoolNode has Jev score every chunk, sets
-both to Jev's score, and RerankNode only cuts. Anything compared with
+and `rerank_score` (set by RerankNode, None until then). Anything compared with
 a threshold reads `final_score()`, Jev's, which raises when Jev hasn't scored
 the chunk. `category_choice` and `category_confidence` (ClassifyCategoryNode)
 are Jev's category answer; `None` means it was never asked.

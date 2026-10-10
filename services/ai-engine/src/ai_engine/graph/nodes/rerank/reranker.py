@@ -5,9 +5,8 @@ the trust signals read (ADR-0005).
 
 Jev (TypeSafe's hosted System One model) is asked one yes/no question per
 chunk, "does this passage fix the ticket's problem?", and answers with a
-probability (a Noul). One request per chunk, in parallel up to
-`jev_max_concurrency`: the shape the probe measured (evals/HISTORY.md
-2026-10-02 (4)).
+probability (a Noul). One request per chunk, in parallel: the shape the
+probe measured (evals/HISTORY.md 2026-10-02 (4)).
 """
 
 from __future__ import annotations
@@ -15,7 +14,6 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple
 
-from ai_engine.core.config import settings
 from ai_engine.core.prompts import RERANK_QUESTION
 from ai_engine.core.providers import clients
 
@@ -50,8 +48,7 @@ class JevReranker:
         if not passages:
             return []
         ticket = {"subject": subject, "body": body}
-        workers = min(len(passages), settings.jev_max_concurrency)
-        with ThreadPoolExecutor(max_workers=workers) as pool:
+        with ThreadPoolExecutor(max_workers=len(passages)) as pool:
             # `map` re-raises the first failure when its result is read, so
             # one failed passage fails the whole list.
             return list(pool.map(lambda p: self._score_one(ticket, p), passages))

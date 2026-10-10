@@ -114,16 +114,3 @@ def test_association_source_refuses_anything_else_at_boot(
 
     with pytest.raises(ValidationError, match="association_source"):
         Settings(_env_file=_write_env(tmp_path, {**values, "ASSOCIATION_SOURCE": value}))  # type: ignore[call-arg]
-
-
-def test_two_lane_without_a_shortlister_refuses_to_boot(env_template, no_env_vars, tmp_path):
-    """The two lanes are ordered by cross-encoder scores. With
-    SHORTLIST_PROVIDER=none there are none, so the combination must stop the
-    boot rather than build lanes from zeros."""
-
-    values = {k: v or "" for k, v in env_template.items()}
-    values |= {"SHORTLIST_PROVIDER": "none", "SHORTLIST_STRATEGY": "two_lane"}
-    values |= {"SHORTLIST_SEED_QUOTA": "10", "SHORTLIST_GRAPH_QUOTA": "5", "RERANK_POOL": "15"}
-
-    with pytest.raises(ValidationError, match="needs a shortlister"):
-        Settings(_env_file=_write_env(tmp_path, values))  # type: ignore[call-arg]

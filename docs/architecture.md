@@ -148,9 +148,6 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
                      associated with its top-3 seeds, from the one source
                      ASSOCIATION_SOURCE names (ADR-0014/0015/0018)
                      ──► pool, in cross-encoder order
-                     (SHORTLIST_PROVIDER=none, an experiment: Jev scores the
-                     candidates, seeds from Jev's top-3, Jev scores the added
-                     chunks ──► pool in Jev order; rerank only cuts the top-3)
        ▼
    rerank            Jev re-scores the pool's top-15 ──► Jev's top-3
                      each chunk keeps both: shortlist_score, rerank_score

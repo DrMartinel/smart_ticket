@@ -136,12 +136,3 @@ need every chunk in one request and has no per-chunk score to threshold.
 - **A `score` question** (above).
 - **Fall back to the cross-encoder's order when Jev fails.** Rejected in
   decision 4.
-
-## Note, 2026-10-10: `SHORTLIST_PROVIDER=none`, an experiment
-
-A setting, not a decision: with no cross-encoder, Jev scores the fused
-candidates, the articles of *Jev's* top chunks seed link expansion, and Jev
-scores the chunks expansion adds (two passes, `JEV_MAX_CONCURRENCY` requests
-at a time). It differs from "Jev ranking the whole pool" above in where the
-seeds come from. The cross-encoder stays the shipped default; results are in
-`evals/HISTORY.md`, and dropping it would supersede this ADR's decision 1.

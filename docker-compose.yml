@@ -177,7 +177,6 @@ services:
       BM25_ERROR_CODE_BOOST: ${BM25_ERROR_CODE_BOOST:?see .env.example}
       VECTOR_TOP_K: ${VECTOR_TOP_K:?see .env.example}
       RERANK_TOP_N: ${RERANK_TOP_N:?see .env.example}
-      RERANK_TOP_N_PER_PAGE: ${RERANK_TOP_N_PER_PAGE:?see .env.example}
       FEWSHOT_K: ${FEWSHOT_K:?see .env.example}
       FUSION_CANDIDATE_LIMIT: ${FUSION_CANDIDATE_LIMIT:?see .env.example}
       QUOTE_FUZZY_THRESHOLD: ${QUOTE_FUZZY_THRESHOLD:?see .env.example}
@@ -197,14 +196,9 @@ services:
       REMEDY_LLM_MAX_ASYNC: ${REMEDY_LLM_MAX_ASYNC:?see .env.example}
       REMEDY_RESOLVE_MIN_SIMILARITY: ${REMEDY_RESOLVE_MIN_SIMILARITY:?see .env.example}
       RERANK_POOL: ${RERANK_POOL:?see .env.example}
-      RERANK_MAX_CHUNKS_PER_PAGE: ${RERANK_MAX_CHUNKS_PER_PAGE:?see .env.example}
-      SHORTLIST_STRATEGY: ${SHORTLIST_STRATEGY:?see .env.example}
-      SHORTLIST_SEED_QUOTA: ${SHORTLIST_SEED_QUOTA:?see .env.example}
-      SHORTLIST_GRAPH_QUOTA: ${SHORTLIST_GRAPH_QUOTA:?see .env.example}
       JEV_BASE_URL: ${JEV_BASE_URL:?see .env.example}
       JEV_MODEL: ${JEV_MODEL:?see .env.example}
       JEV_API_KEY: ${JEV_API_KEY:-}
-      JEV_MAX_CONCURRENCY: ${JEV_MAX_CONCURRENCY:?see .env.example}
       RERANK_PROMPT_VERSION: ${RERANK_PROMPT_VERSION:?see .env.example}
       CATEGORY_QUESTION_VERSION: ${CATEGORY_QUESTION_VERSION:?see .env.example}
     ports:

@@ -13,9 +13,9 @@ meaning "unset".
 """
 
 from pathlib import Path
-from typing import Literal, Self
+from typing import Literal
 
-from pydantic import Field, SecretStr, model_validator
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The repo root's .env, from services/ai-engine/src/ai_engine/core/config.py.
@@ -66,8 +66,6 @@ class Settings(BaseSettings):
     bm25_error_code_boost: float
     vector_top_k: int
     rerank_top_n: int
-    # At most this many of the top `rerank_top_n` chunks from one page.
-    rerank_top_n_per_page: int
     fewshot_k: int
     fusion_candidate_limit: int
     quote_fuzzy_threshold: float
@@ -100,41 +98,11 @@ class Settings(BaseSettings):
 
     # --- Reranker (Jev) ---
     rerank_pool: int
-    rerank_max_chunks_per_page: int
-    # Which chunks fill Jev's shortlist: one pool in cross-encoder order, or a
-    # seed lane and a graph lane with their own slots (two_lane.py).
-    shortlist_strategy: Literal["single_pool", "two_lane"]
-    shortlist_seed_quota: int
-    shortlist_graph_quota: int
     jev_base_url: str
     jev_model: str
     jev_api_key: SecretStr | None = None
-    # Jev requests in flight at once, per scoring call. Jev is asked one
-    # question per chunk; under SHORTLIST_PROVIDER=none a ticket's whole pool
-    # (up to ~170 chunks) is scored, and a 429 fails the run.
-    jev_max_concurrency: int
     rerank_prompt_version: str
     category_question_version: str
-
-    @model_validator(mode="after")
-    def _two_lane_quotas_fill_the_shortlist(self) -> Self:
-        """The lanes split Jev's shortlist: a mismatch would quietly score
-        fewer chunks than RERANK_POOL, or more. Fatal at boot."""
-        if self.shortlist_strategy == "two_lane" and (
-            self.shortlist_seed_quota + self.shortlist_graph_quota != self.rerank_pool
-        ):
-            raise ValueError("SHORTLIST_SEED_QUOTA + SHORTLIST_GRAPH_QUOTA must equal RERANK_POOL")
-        return self
-
-    @model_validator(mode="after")
-    def _two_lane_needs_a_shortlister(self) -> Self:
-        """The two lanes are ordered by cross-encoder scores; with no
-        shortlister there are none, and Jev scores the whole pool anyway."""
-        if self.shortlist_provider == "none" and self.shortlist_strategy == "two_lane":
-            raise ValueError(
-                "SHORTLIST_STRATEGY=two_lane needs a shortlister, not SHORTLIST_PROVIDER=none"
-            )
-        return self
 
 
 settings = Settings()  # type: ignore[call-arg]  # every value comes from .env or the env
