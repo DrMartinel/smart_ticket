@@ -134,6 +134,13 @@ class State:
         _write_atomically(self.path, json.dumps({"scope": self.scope, "documents": self.documents}))
 
 
+# The statuses LightRAG's queue picks up again on its own, as pending or as
+# interrupted mid-flight (its `_AUTO_RESUME_DOC_STATUSES`). Failed is not one.
+_RESUMED_BY_THE_QUEUE = frozenset(
+    {DocStatus.PENDING, DocStatus.PROCESSING, DocStatus.PARSING, DocStatus.ANALYZING}
+)
+
+
 async def sync(
     rag: LightRAG, articles: list[Article], state: State, policy_version: str
 ) -> list[str]:
@@ -157,17 +164,24 @@ async def sync(
     # 2026-10-10), hours for an interrupted batch.
     # A document that failed before any chunk was written (the model or
     # embedder unreachable mid-batch: 140 when Docker restarted, 2026-10-10)
-    # is the same: nothing to undo, so it is retried in place instead.
+    # is the same: nothing to undo, so it is retried in place instead. So is
+    # one a stopped run left mid-flight before writing a chunk (114 of 116
+    # at the 2026-10-10 pause): LightRAG's queue resumes those statuses itself.
     body = {str(a.id): a.body for a in articles}
     retried = {
         doc_id
         for doc_id, record in records.items()
         if record.status == DocStatus.FAILED and not record.chunks_list
     }
+    resumed = {
+        doc_id
+        for doc_id, record in records.items()
+        if record.status in _RESUMED_BY_THE_QUEUE and not record.chunks_list
+    }
     queued = {
         doc_id
-        for doc_id, status in statuses.items()
-        if (status == DocStatus.PENDING or doc_id in retried)
+        for doc_id in statuses
+        if (doc_id in resumed or doc_id in retried)
         and doc_id in body
         and ((await rag.full_docs.get_by_id(doc_id)) or {}).get("content") == body[doc_id]
     }

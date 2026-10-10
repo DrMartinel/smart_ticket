@@ -282,14 +282,16 @@ def test_a_resume_processes_queued_articles_instead_of_deleting_them(
     }
 
 
-def test_a_resume_retries_articles_that_failed_before_extraction_in_place(
-    articles, tmp_path, monkeypatch
+@pytest.mark.parametrize("status", ["failed", "parsing", "analyzing", "processing"])
+def test_a_resume_redoes_articles_stopped_before_a_chunk_was_written_in_place(
+    articles, tmp_path, monkeypatch, status
 ):
     """An article that failed before any chunk was written (the model or
-    embedder unreachable: 140 when Docker restarted mid-batch, 2026-10-10)
-    has nothing in the graph to undo. Deleting it rewrites the whole graph
-    file, about 1.5 a minute by then; LightRAG's own retry runs it from its
-    stored text instead."""
+    embedder unreachable: 140 when Docker restarted mid-batch, 2026-10-10),
+    or that a stopped run left mid-flight with none written (114 at that
+    day's pause), has nothing in the graph to undo. Deleting it rewrites
+    the whole graph file, about 1.5 a minute by then; LightRAG's own retry
+    or its queue runs it from its stored text instead."""
     import asyncio
 
     from lightrag import LightRAG
@@ -318,7 +320,7 @@ def test_a_resume_retries_articles_that_failed_before_extraction_in_place(
                 {
                     str(SMTP): {
                         **record,
-                        "status": DocStatus.FAILED,
+                        "status": DocStatus(status),
                         "chunks_list": [],
                         "error_msg": "Cancelled by internal error: connection refused",
                     }
