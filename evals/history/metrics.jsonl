@@ -734,3 +734,5 @@
 {"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":10.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"median"}}
 {"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"pool_size","value":139.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-probe-stage-check-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.8166666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-probe-stage-check-authored-link-cap20","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}

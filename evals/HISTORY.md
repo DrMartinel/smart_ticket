@@ -95,6 +95,59 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-10 (5): where the entity graph loses, a local stage check
+
+**Verdict:** the graph links the wrong pages. Of the full entity graph's 11
+misses in (1), **7 never reach the pool**: the gold page is not among any
+seed's targets. Authored links reach 5 of those 7 (g050-g053, g060) **from
+the same seeds**: the seeds come from the cross-encoder before expansion,
+so they are identical for both sources. The shortlister and Jev account for
+the other 4, as many as authored links lose there. The pages that fix
+these tickets share few entities with the pages that point to them: no hub
+cut brings one within reach.
+
+| Configuration | |
+|---|---|
+| Code | `12ce8fb` (`main`), shipped pipeline: cross-encoder shortlister, Jev's 15, Jev's top 3, `RERANK_TOP_N_PER_PAGE=3` |
+| Method | Local replay of the pipeline on the 60 KB-covered tickets (raw subject and body, as the suite sends them), with Jev called only when the gold page reached its 15. It reproduces the suite's misses exactly for both sources: (1) for the entity graph, R1 for authored links. Script outside the repo (`~/.cache/smart-ticket-lightrag/probe/stages.py`) |
+| Sources | `entity_graph` cap 10 (the full build, `idf_cosine`, hub cut 50), `authored_link` cap 20 |
+
+| Where the gold page is lost | Entity graph | Authored links |
+|---|---|---|
+| Never linked from the seeds (not in the pool) | **7**: g012, g050, g051, g052, g053, g055, g060 | 2: g012, g055 |
+| Cut by the cross-encoder from Jev's 15 | 2: g008, g011 | 1: g011 |
+| In Jev's 15, not in Jev's top 3 | 2: g037, g048 | 2: g048, g056 |
+| Recall@3 | 0.817 | 0.917 |
+
+### Findings
+
+**1. The fix pages share little with the pages that point to them.**
+`guardduty.guardduty_finding-types-ec2` links to the remediation page
+`guardduty.compromised-ec2` (authored link, rank 2), but the two share six
+entities, four of them hubs ("EC2 Instance", "Security Group",
+"GUARDDUTY"), and what is left is "Malware" (13 pages) and "Suppression
+Rules" (19). The gold page ranks 29th among the catalogue page's 394
+targets. For g060, `guardduty-attack-sequence-finding-types` shares only
+"AWS CloudTrail" (149 pages) with `guardduty.compromised-creds`.
+
+**2. No hub cut fixes it.** Re-scoring those seed-gold pairs at hub cuts
+50, 100, 200, 500 and none, the best rank any gold page reaches is 12th
+(finding-types-ec2 to compromised-ec2, hub cut 500 or none), still outside
+cap 10; most stay at 20-115th or unlinked.
+
+**3. An authored link is the relation these tickets need.** A finding page
+says "to remediate, see this page": a pointer, not shared vocabulary.
+Entity co-mention scores topical overlap, so it ranks other finding and
+monitoring pages, which share far more entities, above the remediation page.
+
+**4. The other losses are shared, or crowding.** g011, g012, g048 and g055
+are missed by both sources. g008 is a fused candidate (7th) that the entity
+graph's larger pool pushes to 41st of 75, out of Jev's 15. g037's gold page
+is 1st in the pool and 5th for Jev, behind a second chunk of
+`ec2.instance-stop-methods`: (4)'s one-per-page limit recovers it.
+
+---
+
 ## 2026-10-10 (4): one chunk per page in Jev's top 3, retrieval suite
 
 **Verdict:** a small gain at best. With `RERANK_TOP_N_PER_PAGE=1`, authored
