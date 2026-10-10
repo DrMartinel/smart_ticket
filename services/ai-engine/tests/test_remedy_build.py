@@ -375,3 +375,19 @@ def test_a_second_unusable_reply_still_fails_the_section(kb, tmp_path):
 
     assert build.run(args, chat_model=OnceBroken(), retry_model=OnceBroken(), embed=_no_match) == 1
     assert not (tmp_path / "out" / build.POINTERS_FILE).exists()
+
+
+def test_the_same_pair_both_here_and_on_another_page_exports(kb, tmp_path):
+    """A page can give a remedy and also name another page for it; the two
+    pairs differ only in where. Sorting them must not compare None with a
+    name (the full build's export crashed on it)."""
+
+    class BothPlaces(ScriptedChat):
+        async def ainvoke(self, messages, **kw):
+            pairs = [
+                {"symptom": "s", "remedy": "r", "remedy_location": "this_page"},
+                {"symptom": "s", "remedy": "r", "remedy_location": {"page": "Fixing instances"}},
+            ]
+            return SimpleNamespace(content=json.dumps({"pairs": pairs}))
+
+    assert _run(tmp_path, BothPlaces()) == 0

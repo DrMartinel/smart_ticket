@@ -69,7 +69,7 @@ CACHE_FILE = "remedy_replies.jsonl"
 TOKENIZER = "o200k_base"
 
 
-@dataclass(frozen=True, order=True)
+@dataclass(frozen=True)
 class PagePair:
     """One line of `remedy_pairs.jsonl`: a pair found on one page."""
 
@@ -77,6 +77,10 @@ class PagePair:
     symptom: str
     remedy: str
     page: str | None
+
+    def order(self) -> tuple[str, str, str, str]:
+        # "This page" (None) sorts first; None and str don't compare.
+        return (self.article_slug, self.symptom, self.remedy, self.page or "")
 
 
 @dataclass(frozen=True)
@@ -174,7 +178,7 @@ def extract_pairs(
         for key in keys_by_slug[slug_of[source.id]]:
             for p in result.pairs[key]:
                 pairs.add(PagePair(a.slug, p.symptom, p.remedy, p.page))
-    return sorted(pairs), result.calls
+    return sorted(pairs, key=PagePair.order), result.calls
 
 
 def default_embed(texts: list[str]) -> list[list[float]]:
