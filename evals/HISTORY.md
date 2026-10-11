@@ -95,6 +95,145 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-11 (5): HyDE, the drafted answer, retrieval suite
+
+**Verdict:** recall@3 **0.850** (MRR 0.762, strict **0.796**) on the
+500-ticket set, against 0.748 for the same suite before the retrieval changes
+of (3)-(5) ((2)): +10 points, still below the 0.90 gate. The original 60
+hold at 0.917; the 440 drafted tickets rise from 0.725 to 0.841. It
+reproduces (4)'s replay of the same design (0.858) within the drafts'
+run-to-run noise (finding 2).
+
+| Configuration | |
+|---|---|
+| Code | `db101c4` (`main`), ADR-0020 and ADR-0021: `draft_answer` → vector search on the ticket + BM25 and vector search on the draft → first 10 pages, one chunk each; each page also brings its 2 chunks nearest the draft; expansion takes linked pages' chunks nearest the draft; the cross-encoder and Jev score against the ticket |
+| Runs | `ASSOCIATION_SOURCE=authored_link`, cap 20, `RERANK_POOL` 15. `CHAT_CLIENT_PROVIDER=deepseek` (ADR-0019, evaluation only: masking NER, the draft and the proposal on `deepseek-flash`; Qwen stopped) |
+| Prompts | `hyde_draft.v1` (temperature 0) · `pii_ner.v2` · `propose.v8` · Jev `rerank_resolves.v1` |
+| Golden set | `c6057fddb3b8`, 500 `kb_covered` |
+| Duration | 49m42s, retrieval suite only. Two earlier attempts ended with no score (finding 3) |
+
+| | Before (2) | HyDE, this run | Replay of the design ((4), `td`) |
+|---|---|---|---|
+| Recall@3, all 500 | 0.748 | **0.850** | 0.858 |
+| Strict | 0.676 | **0.796** | 0.812 |
+| MRR | 0.680 | 0.762 | |
+| Original 60 · drafted 440 | 0.917 · 0.725 | 0.917 · 0.841 | 0.917 · |
+| `pool_size` median · max | 48 · 253 | 59 · 180 | |
+| `retrieval_errors` | | 0 | |
+
+### Findings
+
+**1. The replay's gain holds on the real code with drafts written live.**
+Misses on the original 60: g012, g048, g053, g055, g056.
+
+**2. DeepSeek's draft is not repeatable at temperature 0.** Asked three
+times for g469's draft, it wrote three different passages, one of them
+invalid JSON. The same ticket can retrieve differently between runs, so a
+difference of a few tickets between two HyDE runs is noise.
+
+**3. A malformed draft is a ticket for a person, as designed.** g469's
+draft quoted a CLI argument containing JSON (`--tenancy-config
+'{"TenantIsolationMode":"PER_TENANT"}'`) without escaping its quotes; the
+node raised and the request returned 500. Any ticket whose answer quotes
+inline JSON can do this. The owner kept fail → HITL (no retry). That
+attempt, and one before it ended by a Jev TLS error at ticket ~480, aborted
+the suite with no score; the suite now counts a 5xx ticket as a miss and
+lists it (`retrieval_errors`, `45371cd`). This run had none.
+
+### Follow-ups
+
+- Measure HyDE with Qwen drafting (`CHAT_CLIENT_PROVIDER=vllm`), the
+  production default: every number here is DeepSeek's.
+- `ASSOCIATION_SOURCE=entity_graph` under HyDE: not measured.
+- A full run (classification, refusal, end-to-end) on this code.
+- The draft call's tokens and Jev's spend are not in `cost_usd`.
+
+---
+
+## 2026-10-11 (4): retrieval replays on 500 tickets: page candidates, BM25 on the ticket, HyDE variants, probe
+
+**Verdict:** a drafted answer (HyDE) is the change worth shipping: as extra
+search lists plus a chunk pick it takes recall@3 from 0.736 to **0.858**
+(strict 0.674 → 0.812). Removing BM25 on the ticket and making candidates
+pages are neutral on their own. Scoring against the draft, three drafts, a
+mixed shortlist and a deeper Jev shortlist each move recall by under a point
+or lose.
+
+| Configuration | |
+|---|---|
+| Method | Local replays of retrieval → cross-encoder → link expansion (authored links, cap 20) → Jev's 15 → Jev's top 3, every KB-covered ticket's raw text (as the earlier stage checks; the suite's masked text matched within one ticket in a hundred). Drafts: DeepSeek `deepseek-flash`, temperature 0, generated once and cached (`hyde_draft.v1`'s instructions, plain text); multi-drafts asked for three passages. Scripts and per-ticket results were in the session scratchpad and were lost when the machine crashed; the drafts and reviewer verdicts survive in `~/.cache/smart-ticket-golden/` |
+| Golden set | `c6057fddb3b8`, 500 `kb_covered` |
+
+| Variant | Recall@3 | Strict |
+|---|---|---|
+| Control: ticket BM25 + vector, 10 pages, best-fused chunk | 0.736 | 0.674 |
+| No BM25 on the ticket (the shipped nodes at `43bb4aa`) | 0.748 | 0.682 |
+| `pick`: draft picks each page's 3 chunks | 0.778 | |
+| `lists`: + BM25 and vector search on the draft | 0.826 | |
+| `both`: lists + pick | 0.848 | |
+| **`td`: lists + best-fused chunk + 2 nearest the draft** (shipped, ADR-0021) | **0.858** | **0.812** |
+| `multi`: three drafts | 0.850 | 0.780 |
+| `multi_td` | 0.844 | 0.770 |
+| `td`, cross-encoder scores against the draft | 0.816 | 0.740 |
+| `td`, Jev's 15 = top 8 by ticket + top by draft | 0.866 | 0.800 |
+| `td`, Jev's shortlist 20 | 0.864 | 0.802 |
+
+### Findings
+
+**1. The ticket's words, not the pipeline's depth, were the gap.** Offline,
+the gold page reached the 10 candidate pages for 76% of tickets on the
+ticket alone and 94% with the draft's lists. BM25 on the ticket found it in
+its top 10 pages for 57%, vector search for 81%; BM25 on the draft, written
+in the KB's vocabulary, is the strongest single list.
+
+**2. Pages alone don't pay.** One chunk per page (suite, (3)) gained 22
+tickets and lost 23: the best-fused chunk is often not the one that
+answers. It pays once the draft picks the page's other chunks.
+
+**3. The draft is a good chooser and a poor judge.** Scoring the
+cross-encoder against the draft rescued 25 of `td`'s misses and broke 46 of
+its hits. Three drafts rescued 13 of the 20 single-draft losses and broke as
+many. The mixed shortlist and a shortlist of 20 tie with `td` (+4 and +3
+tickets) at a second cross-encoder pass or a third more Jev calls; the owner
+kept `RERANK_POOL` at 15.
+
+**4. Where `td` still loses** (stage check of its 71 misses): 20 never
+reach the candidates (the draft names the best-known feature, DKIM for an
+S/MIME ticket); 18 are cut before Jev's 15; 32 are in Jev's 15 and lose its
+top 3. Reviewer subagents judged 19 of those 32 unlisted alternative pages
+and 2 bad labels (g056, g441); none were relabelled (rule 9: found by
+looking at misses only).
+
+### Follow-ups
+
+- The 32 Jev-stage misses: a blind review of hits and misses alike for
+  acceptable pages, if the owner wants the labels revisited.
+- g056 is flagged as a bad label twice; it is an original-60 ticket, under
+  the two-human review rule.
+
+---
+
+## 2026-10-11 (3): page-level fusion candidates, retrieval suite
+
+**Verdict:** recall@3 **0.746** (MRR 0.667, strict 0.688) against (2)'s
+0.748: neutral. `FUSION_CANDIDATE_LIMIT` now counts pages, one chunk each
+(`96a6732`), at `RRF_BM25_WEIGHT` 1.0 (plain RRF). 22 tickets gained, 23
+lost: almost every lost ticket had several of its gold page's chunks in the
+10 chunk candidates and now keeps only the best-fused one.
+
+| Configuration | |
+|---|---|
+| Code | `96a6732` (`main`), as (2) otherwise: authored links cap 20, Qwen masking |
+| Duration | 35m35s, retrieval suite only |
+
+| | (2) chunks | Pages |
+|---|---|---|
+| Recall@3 | 0.748 | 0.746 |
+| Strict | 0.676 | 0.688 |
+| `pool_size` median · max | 48 · 253 | 60 · 194 |
+
+---
+
 ## 2026-10-11 (2): authored links on the 500-ticket golden set, retrieval suite (control for (1))
 
 **Verdict:** authored links score recall@3 **0.748** (MRR 0.680, strict

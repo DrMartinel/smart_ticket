@@ -814,3 +814,41 @@
 {"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":72.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-11-suite-authored-link-golden500","metric":"pool_size","value":48.0,"n":500,"labels":{"stat":"median"}}
 {"run":"2026-10-11-suite-authored-link-golden500","metric":"pool_size","value":253.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"retrieval_recall_at_3","value":0.746,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"retrieval_mrr","value":0.667,"n":500}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"retrieval_recall_at_3_strict","value":0.688,"n":500}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"gold_use","value":298.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"gold_use","value":7.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"gold_use","value":68.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"pool_size","value":60.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"pool_size","value":194.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"retrieval_recall_at_3","value":0.85,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"retrieval_mrr","value":0.762,"n":500}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"retrieval_recall_at_3_strict","value":0.796,"n":500}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"retrieval_errors","value":0.0,"n":500}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"gold_use","value":324.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"gold_use","value":2.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"gold_use","value":12.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"gold_use","value":87.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"pool_size","value":59.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"pool_size","value":180.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-11-probe-control","metric":"retrieval_recall_at_3","value":0.736,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-control","metric":"retrieval_recall_at_3_strict","value":0.674,"n":500}
+{"run":"2026-10-11-probe-vector-only","metric":"retrieval_recall_at_3","value":0.748,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-vector-only","metric":"retrieval_recall_at_3_strict","value":0.682,"n":500}
+{"run":"2026-10-11-probe-pick","metric":"retrieval_recall_at_3","value":0.778,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-lists","metric":"retrieval_recall_at_3","value":0.826,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-both","metric":"retrieval_recall_at_3","value":0.848,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td","metric":"retrieval_recall_at_3","value":0.858,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td","metric":"retrieval_recall_at_3_strict","value":0.812,"n":500}
+{"run":"2026-10-11-probe-multi","metric":"retrieval_recall_at_3","value":0.85,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-multi","metric":"retrieval_recall_at_3_strict","value":0.78,"n":500}
+{"run":"2026-10-11-probe-multi-td","metric":"retrieval_recall_at_3","value":0.844,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-multi-td","metric":"retrieval_recall_at_3_strict","value":0.77,"n":500}
+{"run":"2026-10-11-probe-td-ce-draft","metric":"retrieval_recall_at_3","value":0.816,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td-ce-draft","metric":"retrieval_recall_at_3_strict","value":0.74,"n":500}
+{"run":"2026-10-11-probe-td-ce-mix","metric":"retrieval_recall_at_3","value":0.866,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td-ce-mix","metric":"retrieval_recall_at_3_strict","value":0.8,"n":500}
+{"run":"2026-10-11-probe-td-pool20","metric":"retrieval_recall_at_3","value":0.864,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td-pool20","metric":"retrieval_recall_at_3_strict","value":0.802,"n":500}
