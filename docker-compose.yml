@@ -158,6 +158,8 @@ services:
       # From .env. The model names are the same variables the vllm-* servers
       # below load, so ai-engine asks for what they serve.
       CHAT_CLIENT_PROVIDER: ${CHAT_CLIENT_PROVIDER:?see .env.example}
+      DRAFT_CLIENT_PROVIDER: ${DRAFT_CLIENT_PROVIDER:?see .env.example}
+      NER_CLIENT_PROVIDER: ${NER_CLIENT_PROVIDER:?see .env.example}
       CHAT_MODEL: ${CHAT_MODEL:?see .env.example}
       EMBED_MODEL: ${EMBED_MODEL:?see .env.example}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:?see .env.example}

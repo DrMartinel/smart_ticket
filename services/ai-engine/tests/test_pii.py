@@ -207,18 +207,17 @@ def test_deepseek_ner_reads_spans_greedily(monkeypatch):
     ("provider", "expected"),
     [
         ("vllm", "VllmPiiDetector"),
-        ("openai", "VllmPiiDetector"),
         ("deepseek", "DeepSeekPiiDetector"),
     ],
 )
-def test_only_deepseek_sends_raw_text_off_the_machine(provider, expected, monkeypatch):
-    """Under `openai`, triage is in the cloud but NER stays local; only the
-    DeepSeek evaluation setup (ADR-0019) moves NER too."""
+def test_only_ner_set_to_deepseek_sends_raw_text_off_the_machine(provider, expected, monkeypatch):
+    """NER reads the raw ticket, so only its own setting may move it to
+    DeepSeek (ADR-0019, evaluation only)."""
     import importlib
 
     from ai_engine.core.providers import pii
 
-    monkeypatch.setattr(settings, "chat_client_provider", provider)
+    monkeypatch.setattr(settings, "ner_client_provider", provider)
     monkeypatch.setattr(pii.clients, "deepseek_model", lambda **_: _ScriptedModel())
     saved = dict(vars(pii))
     try:
@@ -282,3 +281,23 @@ def test_ner_decodes_greedily(serve_ner):
 
     _, payload = ner.sent[0]
     assert payload["temperature"] == 0.0
+
+
+@pytest.mark.parametrize("other", ["chat_client_provider", "draft_client_provider"])
+def test_the_proposal_or_draft_on_deepseek_keeps_ner_local(other, monkeypatch):
+    """Before NER had its own setting, CHAT_CLIENT_PROVIDER=deepseek moved
+    the raw ticket to DeepSeek too, as a side effect of choosing the
+    proposal's model. Raw text must stay local unless NER itself is pointed
+    at DeepSeek."""
+    import importlib
+
+    from ai_engine.core.providers import pii
+
+    monkeypatch.setattr(settings, other, "deepseek")
+    monkeypatch.setattr(settings, "ner_client_provider", "vllm")
+    saved = dict(vars(pii))
+    try:
+        reloaded = importlib.reload(pii)
+        assert type(reloaded.pii_detector).__name__ == "VllmPiiDetector"
+    finally:
+        vars(pii).update(saved)

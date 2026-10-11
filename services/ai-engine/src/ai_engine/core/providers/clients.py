@@ -395,10 +395,19 @@ jev = JevClient(
     base_url=settings.jev_base_url, api_key=settings.jev_api_key, model=settings.jev_model
 )
 
-match settings.chat_client_provider:
-    case "openai":
-        chat = openai_chat()
-    case "vllm":
-        chat = vllm_chat(model=settings.chat_model, base_url=settings.chat_base_url)
-    case "deepseek":
-        chat = deepseek_chat()
+
+def _chat_on(provider: str) -> ChatClient:
+    match provider:
+        case "openai":
+            return openai_chat()
+        case "vllm":
+            return vllm_chat(model=settings.chat_model, base_url=settings.chat_base_url)
+        case "deepseek":
+            return deepseek_chat()
+    raise ValueError(f"unknown chat provider {provider!r}")
+
+
+# The proposal (InferNode) and the drafted answer (DraftAnswerNode, ADR-0021)
+# each on the provider their own setting names.
+chat = _chat_on(settings.chat_client_provider)
+draft = _chat_on(settings.draft_client_provider)

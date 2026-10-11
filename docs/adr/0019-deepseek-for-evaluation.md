@@ -27,6 +27,12 @@ OpenAI-compatible API (`deepseek-flash`, on the `CLOUD_*` settings):
    evaluation on synthetic tickets. Under `openai`, NER still stays local.
 3. **The entity_graph build** sends public KB text.
 
+> **Amended 2026-10-12:** each job now has its own setting. The proposal
+> follows `CHAT_CLIENT_PROVIDER`, the drafted answer `DRAFT_CLIENT_PROVIDER`
+> (ADR-0021), and PII NER `NER_CLIENT_PROVIDER` (`vllm` or `deepseek`). Raw
+> ticket text reaches DeepSeek only with `NER_CLIENT_PROVIDER=deepseek`;
+> `CHAT_CLIENT_PROVIDER=deepseek` alone no longer moves NER.
+
 Measured against the live API (2026-10-08) and enforced in code:
 
 - thinking is on unless disabled per request, and billed as output, so every

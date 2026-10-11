@@ -256,8 +256,11 @@ copies that directory — a new SQL file that isn't copied fails at container st
   retrieval fuses vector search on the ticket with BM25 and vector search on
   the draft, and each page's chunks nearest the draft join the pool. The
   cross-encoder and Jev still score against the ticket. A failed draft is a
-  500 → HITL. It runs on `CHAT_CLIENT_PROVIDER`: measured on DeepSeek
-  drafts only (eval-only, ADR-0019); Qwen's drafting is unmeasured.
+  500 → HITL. Each model job has its own setting: the proposal
+  `CHAT_CLIENT_PROVIDER`, the draft `DRAFT_CLIENT_PROVIDER`, PII NER
+  `NER_CLIENT_PROVIDER` (raw text leaves only with `deepseek` there,
+  ADR-0019). Measured on DeepSeek drafts only; Qwen's drafting is
+  unmeasured.
 - Every run shortlists, then reranks: the shortlister, a cross-encoder (`vllm`,
   bge-reranker-v2-m3; `lexical` for CI/offline), orders the fused candidates plus
   link-expanded chunks, and **Jev**, the reranker (hosted, needs `JEV_API_KEY`),

@@ -37,7 +37,13 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(validation_alias="AI_ENGINE_DB_MAX_OVERFLOW")
 
     # --- Models ---
+    # One model choice per job. The proposal (InferNode) runs on
+    # `chat_client_provider`, the drafted answer (ADR-0021) on its own, and
+    # PII NER, which reads RAW ticket text, on its own: raw text reaches
+    # DeepSeek only when NER is pointed there explicitly (ADR-0019).
     chat_client_provider: Literal["vllm", "openai", "deepseek"]
+    draft_client_provider: Literal["vllm", "openai", "deepseek"]
+    ner_client_provider: Literal["vllm", "deepseek"]
     chat_base_url: str
     chat_model: str
     embed_base_url: str

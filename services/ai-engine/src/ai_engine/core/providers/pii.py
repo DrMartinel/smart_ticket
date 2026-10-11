@@ -7,8 +7,10 @@ ticket text.
 Two rules follow from that:
 - Raw text goes only to the self-hosted `clients.ner` client, never to
   `clients.chat`, which may be a cloud provider. The one exception is
-  `CHAT_CLIENT_PROVIDER=deepseek` (ADR-0019, evaluation only), which sends
-  raw ticket text to DeepSeek's hosted API by explicit decision.
+  `NER_CLIENT_PROVIDER=deepseek` (ADR-0019, evaluation only), which sends
+  raw ticket text to DeepSeek's hosted API by explicit decision. It has its
+  own setting so that pointing the proposal or the draft at DeepSeek never
+  sends raw text there as a side effect.
 - No error message, log line or exception carries the text or the model's
   output. The model's output IS the PII.
 
@@ -102,9 +104,9 @@ class DeepSeekPiiDetector(PiiDetector):
 
 
 # --- The detector, built once when this module is imported (no I/O) ----------
-# On DeepSeek only does NER leave the machine (ADR-0019); under `openai`,
-# triage is in the cloud but raw text still goes to the local vLLM.
+# NER leaves the machine only when its own setting says DeepSeek (ADR-0019),
+# whatever model the proposal or the draft runs on.
 
 pii_detector: PiiDetector = (
-    DeepSeekPiiDetector() if settings.chat_client_provider == "deepseek" else VllmPiiDetector()
+    DeepSeekPiiDetector() if settings.ner_client_provider == "deepseek" else VllmPiiDetector()
 )

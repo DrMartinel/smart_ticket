@@ -331,3 +331,27 @@ def test_deepseek_without_its_key_model_or_url_is_fatal(missing, monkeypatch, re
 
     with pytest.raises(ValueError, match="deepseek chat requires"):
         reload_clients()
+
+
+def test_the_draft_and_the_proposal_each_follow_their_own_provider(monkeypatch, reload_clients):
+    """The proposal can stay on DeepSeek while the draft runs on the local
+    vLLM (ADR-0021): one setting per job, never one for both."""
+
+    _chat_on(monkeypatch, "openai")
+    monkeypatch.setattr(settings, "draft_client_provider", "vllm")
+    m = reload_clients()
+
+    assert m.chat.cost_per_1k_tokens == OPENAI_COST_PER_1K_TOKENS
+    assert m.draft.model == settings.chat_model
+    assert m.draft.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
+
+
+@pytest.mark.parametrize(
+    ("field", "value"), [("draft_client_provider", "qwen"), ("ner_client_provider", "openai")]
+)
+def test_an_unknown_draft_or_ner_provider_fails_the_boot(field, value):
+    """NER takes only vllm or deepseek: no other provider has been approved
+    to read raw ticket text."""
+
+    with pytest.raises(ValidationError, match=field):
+        Settings(**{field: value})

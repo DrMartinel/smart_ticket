@@ -1,5 +1,6 @@
 """
-Drafted answer — HyDE (ADR-0021). The chat model writes the documentation
+Drafted answer — HyDE (ADR-0021). The draft model (`DRAFT_CLIENT_PROVIDER`,
+apart from the proposal's) writes the documentation
 passage it expects would answer the ticket, and retrieval searches with it
 as well as the ticket: a ticket describes symptoms in the requester's words,
 the page that fixes it names features and settings, and the draft is written
@@ -35,7 +36,7 @@ _DRAFT_SCHEMA = {
 class DraftAnswerNode(BaseNode):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         ticket = state.ticket
-        result = clients.chat.complete(
+        result = clients.draft.complete(
             DRAFT_PROMPT,
             f"Subject: {ticket.subject_masked}\n\n{ticket.body_masked}",
             schema_name="draft_answer",

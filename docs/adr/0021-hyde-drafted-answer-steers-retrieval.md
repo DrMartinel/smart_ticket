@@ -18,7 +18,8 @@ alone found the gold page among its 10 candidate pages for 76% of the 500
 ## Decision
 
 1. **`DraftAnswerNode` runs after the injection guard, before retrieval.**
-   The triage chat model (`CHAT_CLIENT_PROVIDER`) writes, from the masked
+   The draft model (`DRAFT_CLIENT_PROVIDER`, its own setting since
+   2026-10-12, apart from the proposal's) writes, from the masked
    ticket, the documentation passage it expects would answer it
    (`core/prompts/hyde_draft.v1.md`, `DRAFT_TEMPERATURE` 0), and the
    embedder embeds it.
@@ -60,8 +61,8 @@ calls).
 - One more model call per ticket, before retrieval: latency and, on a cloud
   provider, cost. Its tokens are not yet added to the run's `tokens_in` /
   `cost_usd`.
-- **The drafting model is the triage chat model.** Every number above is
-  from DeepSeek drafts. With `CHAT_CLIENT_PROVIDER=deepseek` the ticket goes
+- **The drafting model has its own setting** (`DRAFT_CLIENT_PROVIDER`).
+  Every number above is from DeepSeek drafts. With `DRAFT_CLIENT_PROVIDER=deepseek` the ticket goes
   to DeepSeek, which ADR-0019 allows for evaluation only; production's
   default is the local Qwen, whose drafting is unmeasured. Shipping beyond
   evaluation needs Qwen measured, or a decision superseding ADR-0019.

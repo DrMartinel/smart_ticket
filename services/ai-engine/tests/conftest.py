@@ -461,6 +461,17 @@ def use_llm(monkeypatch):
 
 
 @pytest.fixture
+def use_draft_llm(monkeypatch):
+    """The drafted answer's own model (DRAFT_CLIENT_PROVIDER, ADR-0021)."""
+
+    def use(fake):
+        monkeypatch.setattr(clients, "draft", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
 def make_state():
     return _make_state
 

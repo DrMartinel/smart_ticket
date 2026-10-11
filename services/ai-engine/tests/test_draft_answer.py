@@ -22,9 +22,9 @@ def _reply(text: str) -> LLMResult:
 
 
 @pytest.fixture
-def run(use_llm, use_embedder, fake_llm, fake_embedder, make_state):
+def run(use_draft_llm, use_embedder, fake_llm, fake_embedder, make_state):
     def go(reply=None, error=None, **state):
-        llm = use_llm(fake_llm(result=reply, error=error))
+        llm = use_draft_llm(fake_llm(result=reply, error=error))
         embedder = use_embedder(fake_embedder(vector=[0.4]))
         return draft_answer(make_state(**state)), llm, embedder
 
@@ -79,3 +79,19 @@ def test_the_draft_and_its_embedding_are_returned(run):
 
     assert out == {"draft_text": "SES bounces", "draft_embedding": [0.4]}
     assert embedder.calls == ["SES bounces"]
+
+
+def test_the_draft_runs_on_its_own_model_never_the_proposals(
+    use_draft_llm, use_llm, use_embedder, fake_llm, fake_embedder, make_state
+):
+    """The draft and the proposal have separate model settings: the proposal
+    can stay on a cloud model while the draft runs locally, or the reverse."""
+
+    draft_model = use_draft_llm(fake_llm(result=_reply('{"draft": "SES bounces"}')))
+    proposal_model = use_llm(fake_llm(error=AssertionError("the proposal's model was called")))
+    use_embedder(fake_embedder(vector=[0.4]))
+
+    draft_answer(make_state())
+
+    assert len(draft_model.prompts) == 1
+    assert proposal_model.prompts == []
