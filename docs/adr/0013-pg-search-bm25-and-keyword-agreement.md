@@ -1,6 +1,6 @@
 # ADR-0013: Lexical retrieval uses pg_search BM25, and `bm25_keyword_hit` means agreement
 
-**Status:** Proposed
+**Status:** Proposed; BM25 on the ticket and `bm25_keyword_hit` superseded by [ADR-0020](0020-no-bm25-on-the-ticket.md) (2026-10-11)
 **Date:** 2026-09-29
 **Departs from:** spec §6.3 (`ts_rank_cd` over a `tsvector` column) and spec §4.4 (`bm25_keyword_hit` left undefined beyond `bool`)
 

@@ -64,9 +64,9 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 ## Retrieval
 
-**Hybrid retrieval** — BM25 (keyword) and vector (semantic) search run in parallel, then fused. Each catches what the other misses: exact error codes vs. paraphrase.
+**Hybrid retrieval** — BM25 (keyword) and vector (semantic) search run in parallel, then fused. Since ADR-0020 only vector search runs on the ticket: keyword matching on a ticket's symptom wording found the wrong pages more often than the right ones.
 
-**RRF** — Reciprocal Rank Fusion, `score(d) = w/(k + rank_bm25(d)) + 1/(k + rank_vector(d))` with k=60 and BM25's weight w (`RRF_BM25_WEIGHT`). Combines the two result lists. **Never threshold on an RRF score** — it is a rank-derived value, not a similarity, and its absolute magnitude means nothing ([ADR-0005](adr/0005-threshold-on-cross-encoder-not-fused-score.md)).
+**RRF** — Reciprocal Rank Fusion, `score(d) = Σ 1/(k + rank_i(d))` over the ranked lists, with k=60. Today the ticket's vector list alone (ADR-0020). **Never threshold on an RRF score** — it is a rank-derived value, not a similarity, and its absolute magnitude means nothing ([ADR-0005](adr/0005-threshold-on-cross-encoder-not-fused-score.md)).
 
 **Link expansion** — chunks of the KB pages associated with the shortlister's top 3 are added to the candidates (ADR-0014): the page with the fix is often one link away from the page that describes the symptom. The associations live in `kb_article_associations`, tagged by source (ADR-0018).
 

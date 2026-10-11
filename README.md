@@ -75,7 +75,7 @@ Three services with **structurally enforced** permission boundaries:
 | Service | Stack | Role |
 |---|---|---|
 | **core-api** | Django 6 · Django Ninja · Celery | Business logic, all routing decisions, HITL queue, audit log. The only service that writes business data. |
-| **ai-engine** | FastAPI · LangGraph | Hybrid retrieval (BM25 + vector → RRF), a cross-encoder shortlist, reranking and category choice by Jev, LLM inference, validation. The only client of every model (ADR-0012). Connects as the `ai_engine_ro` Postgres role with `SELECT`-only grants — it *cannot* write business tables even if compromised (ADR-0004). |
+| **ai-engine** | FastAPI · LangGraph | Retrieval (vector search on the ticket → RRF, ADR-0020), a cross-encoder shortlist, reranking and category choice by Jev, LLM inference, validation. The only client of every model (ADR-0012). Connects as the `ai_engine_ro` Postgres role with `SELECT`-only grants — it *cannot* write business tables even if compromised (ADR-0004). |
 | **web** | Next.js 15 · React 19 | Ticket submission, review queue, dashboards, KB governance. |
 
 | Infrastructure | Purpose |
@@ -325,7 +325,7 @@ Ticket submitted  ──►  PII Masking (INLINE, before any DB write)
                          ▼
                        ai-engine  (Celery, idempotent per ticket:attempt)
                          ├─ injection detection      ──► detected ──►  BLOCK (zero tokens spent)
-                         ├─ hybrid retrieval: BM25 (pg_search) + vector → RRF (k=60)
+                         ├─ retrieval: vector search on the ticket → RRF (k=60), 10 pages
                          ├─ cross-encoder shortlist (+ chunks of linked pages) → top 15
                          ├─ Jev reranks the 15 → top 3
                          ├─ Jev chooses the category (ticket + the top page's title)
@@ -443,7 +443,7 @@ Per-category F1 is deliberately not averaged — a rare-but-serious category lik
 | [0010](docs/adr/0010-no-shared-contracts.md) | No shared contracts package; wire schemas in both services |
 | [0011](docs/adr/0011-uuid-primary-keys.md) | UUID primary keys |
 | [0012](docs/adr/0012-ai-engine-is-the-only-vllm-client.md) | ai-engine is the only vLLM client |
-| [0013](docs/adr/0013-pg-search-bm25-and-keyword-agreement.md) | pg_search BM25 and keyword agreement |
+| [0013](docs/adr/0013-pg-search-bm25-and-keyword-agreement.md) | pg_search BM25 and keyword agreement (BM25 on the ticket superseded by 0020) |
 | [0014](docs/adr/0014-candidate-expansion-and-llm-reorder.md) | Candidate expansion through page links (Proposed) |
 | [0015](docs/adr/0015-jev-reranks-the-shortlist.md) | Jev reranks the cross-encoder's shortlist; thresholds read its score |
 | [0016](docs/adr/0016-clarify-branch.md) | A `clarify` branch (Proposed) |

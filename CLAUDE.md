@@ -249,9 +249,9 @@ copies that directory — a new SQL file that isn't copied fails at container st
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
-  Since ADR-0013 the `bm25_keyword_hit` feature (BM25/vector agreement,
-  `retrieval.keyword_agreement_k`) is live for the first time, and it lifts
-  a high-risk access request (g120) over `t_route`. Another reason P3 waits.
+  The `bm25_keyword_hit` feature is gone with BM25 on the ticket (ADR-0020,
+  Proposed): retrieval is vector search on the ticket, and the remaining
+  hand-set features score every ticket.
 - Every run shortlists, then reranks: the shortlister, a cross-encoder (`vllm`,
   bge-reranker-v2-m3; `lexical` for CI/offline), orders the fused candidates plus
   link-expanded chunks, and **Jev**, the reranker (hosted, needs `JEV_API_KEY`),
@@ -285,7 +285,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Every generation check ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
 | Unaccented Vietnamese matches nothing | Diacritic folding (`LexicalShortlister._tokenize`) regressed; `đ`/`Đ` need special handling |
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
-| `pg_search must be loaded via shared_preload_libraries`, or migrate fails at `dbextras.0003` | Postgres is the stock pgvector image, or started without the preload flag. Use compose's `db` (built from `infra/db/Dockerfile`, ADR-0013). **Never "fix" it by catching the BM25 error**: that silently makes retrieval vector-only again |
+| `pg_search must be loaded via shared_preload_libraries`, or migrate fails at `dbextras.0003` | Postgres is the stock pgvector image, or started without the preload flag. Use compose's `db` (built from `infra/db/Dockerfile`, ADR-0013). Retrieval no longer runs BM25 on the ticket (ADR-0020), but the index and its migration stay |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | `ImproperlyConfigured: X is not set` (core-api), `Field required` on `Settings` (ai-engine), or compose's `required variable X is missing a value` | No root `.env` (`cp .env.example .env`), or yours predates X: copy its line from `.env.example`. A new setting goes in `.env.example` too; never a default in code |
 | Behaviour differs from a teammate's on the same commit (prompt, model, top-k) | Your `.env` holds an old value that `.env.example` has since changed: diff the two |
@@ -339,5 +339,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (nineteen
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).
