@@ -47,10 +47,6 @@ def make_thresholds(**overrides) -> Thresholds:
         retrieval=RetrievalThresholds(
             floor=0.30,
             margin=0.08,
-            bm25_top_k=20,
-            vector_top_k=20,
-            rrf_k=60,
-            rerank_top_n=3,
             keyword_agreement_k=3,
         ),
         incident=IncidentThresholds(

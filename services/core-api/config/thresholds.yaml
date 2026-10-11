@@ -29,14 +29,13 @@ retrieval:
   # on this scale.
   floor: 0.30
   margin: 0.08         # below this → downgrade trust, log "KB ambiguous"
-  bm25_top_k: 20
-  vector_top_k: 20
-  rrf_k: 60             # standard constant from the RRF paper; do not tune
-  rerank_top_n: 3
+  # Retrieval sizes (BM25_TOP_K, VECTOR_TOP_K, RRF_K, RERANK_TOP_N) are
+  # ai-engine's, in .env.example: it never reads this file.
   # 🔧 The `bm25_keyword_hit` trust feature: the cross-encoder's top article
   # is within BM25's top k ARTICLES (ADR-0013). Agreement between two
   # independent retrieval channels, compared on RANK, never on a BM25 score.
-  # Set equal to rerank_top_n as a strict start; fit it from shadow pairs.
+  # Set equal to RERANK_TOP_N (.env.example) as a strict start; fit it
+  # from shadow pairs.
   keyword_agreement_k: 3
 
 incident:
