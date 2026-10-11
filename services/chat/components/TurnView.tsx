@@ -79,6 +79,46 @@ function Reply({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AnswerText({ text }: { text: string }) {
+  const parts = splitSteps(text);
+  if (!parts) return <p className="whitespace-pre-wrap break-words">{text}</p>;
+  return (
+    <div className="flex flex-col gap-2 break-words">
+      {parts.intro && <p>{parts.intro}</p>}
+      <ol className="list-decimal space-y-1 pl-5 marker:text-[var(--text-muted)]">
+        {parts.steps.map((step, i) => (
+          <li key={i}>{step}</li>
+        ))}
+      </ol>
+      {parts.outro && <p>{parts.outro}</p>}
+    </div>
+  );
+}
+
+// The model writes steps inline ("…these steps: 1. Do this. 2. Do that.").
+// Only markers numbered 1, 2, 3… in order count as steps, so a stray
+// "Windows 10. " never splits the text; fewer than two leaves it as written.
+// The last step keeps its first sentence, and whatever follows it ("If the
+// issue persists, …") is the closing paragraph, not part of the step.
+function splitSteps(text: string): { intro: string; steps: string[]; outro: string } | null {
+  if (text.includes("\n")) return null;
+  const marks: { start: number; end: number }[] = [];
+  const marker = /(?:^|\s)(\d{1,2})\.\s+/g;
+  for (let m = marker.exec(text); m; m = marker.exec(text)) {
+    if (Number(m[1]) === marks.length + 1) marks.push({ start: m.index, end: m.index + m[0].length });
+  }
+  if (marks.length < 2) return null;
+
+  const steps = marks.map((mk, i) => text.slice(mk.end, marks[i + 1]?.start ?? text.length).trim());
+  const last = steps[steps.length - 1].match(/^(.*?[.!?])\s+([A-Z][\s\S]*)$/);
+  let outro = "";
+  if (last) {
+    steps[steps.length - 1] = last[1];
+    outro = last[2];
+  }
+  return { intro: text.slice(0, marks[0].start).trim(), steps, outro };
+}
+
 function Thinking({ label, slow = false }: { label: string; slow?: boolean }) {
   return (
     <div role="status" className="flex flex-col gap-1">
@@ -116,7 +156,7 @@ function Outcome({
       if (!turn.answer) return <p>Answered.</p>;
       return (
         <div className="flex flex-col gap-3">
-          <p className="whitespace-pre-wrap break-words">{turn.answer.text}</p>
+          <AnswerText text={turn.answer.text} />
           <figure className="rounded-xl border-l-[3px] border-[var(--accent)] bg-[var(--surface-2)] px-3 py-2">
             <blockquote className="text-sm italic text-[var(--text-muted)]">“{turn.answer.quote}”</blockquote>
             <figcaption className="mt-1.5 flex items-center gap-1.5 text-xs font-medium">
