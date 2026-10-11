@@ -100,7 +100,6 @@ def _kb_meta(proposal: LLMProposalEnvelope | None) -> KBArticleMeta | None:
 
 def _degraded_signals() -> TrustSignals:
     return TrustSignals(
-        # No rank: a degraded run has no retrieval, so no keyword agreement.
         retrieval=RetrievalSignals(rerank_top1=0.0, rerank_margin=0.0, docs_above_floor=0),
         generation=GenerationSignals(
             quote_match_ratio=0.0,
@@ -141,11 +140,7 @@ def _persist_ai_run(
     resp: AIRunResponse | None = None,
     degraded_reason: str | None = None,
 ) -> AiRun:
-    trust = (
-        compute_trust(signals, settings.THRESHOLDS.retrieval.keyword_agreement_k)
-        if proposal is not None
-        else None
-    )
+    trust = compute_trust(signals) if proposal is not None else None
     try:
         with transaction.atomic():
             return AiRun.objects.create(

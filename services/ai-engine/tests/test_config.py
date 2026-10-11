@@ -112,13 +112,3 @@ def test_association_source_refuses_anything_else_at_boot(
 
     with pytest.raises(ValidationError, match="association_source"):
         Settings(_env_file=_write_env(tmp_path, {**values, "ASSOCIATION_SOURCE": value}))  # type: ignore[call-arg]
-
-
-def test_a_negative_bm25_weight_stops_the_boot(env_template, no_env_vars, tmp_path):
-    """A negative weight would push every BM25 match down the fused order
-    instead of up, silently, with no failure anywhere downstream."""
-
-    values = {k: v or "" for k, v in env_template.items()}
-
-    with pytest.raises(ValidationError, match="rrf_bm25_weight"):
-        Settings(_env_file=_write_env(tmp_path, {**values, "RRF_BM25_WEIGHT": "-0.5"}))  # type: ignore[call-arg]

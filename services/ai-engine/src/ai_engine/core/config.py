@@ -62,11 +62,7 @@ class Settings(BaseSettings):
 
     # --- Retrieval ---
     rrf_k: int
-    # BM25's vote in fusion, against vector search's 1. Orders only; a
-    # negative weight would push BM25's matches down instead of up.
-    rrf_bm25_weight: float = Field(ge=0)
     bm25_top_k: int
-    bm25_error_code_boost: float
     vector_top_k: int
     rerank_top_n: int
     fewshot_k: int

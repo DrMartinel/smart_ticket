@@ -59,18 +59,6 @@ def test_bm25_search_uses_match_disjunction_and_ranks_by_bm25_score(fake_db, use
     assert settings.bm25_top_k in params.values()
 
 
-def test_bm25_error_code_boost_is_read_from_settings(fake_db, kb_row, monkeypatch, use_db):
-    """The boost is a tunable, so it lives in Settings (hard rule 2), and a
-    chunk containing the ticket's error code moves ahead of one that doesn't."""
-
-    monkeypatch.setattr(settings, "bm25_error_code_boost", 5.0)
-    use_db(fake_db(rows=[kb_row(1, "generic text", 3.0), kb_row(2, "fix for ERR-4042", 1.0)]))
-    hits = bm25_search("ERR-4042")
-
-    assert [h.content for h in hits] == ["fix for ERR-4042", "generic text"]
-    assert hits[0].score == 6.0
-
-
 def test_fewshot_selection_excludes_retracted_and_expired_examples(fake_db, make_state, use_db):
     """A retracted example (its source ticket reopened) has a suspect label;
     showing it to the model teaches the mistake. Nothing else would notice

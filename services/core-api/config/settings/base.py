@@ -195,9 +195,6 @@ class RetrievalThresholds(BaseModel):
     # On Jev's scale, the final reranker on every run (ADR-0015).
     floor: float = Field(ge=0, le=1)
     margin: float = Field(ge=0, le=1)
-    # No default on purpose: a thresholds file without it fails at boot
-    # rather than scoring trust with a number nobody chose (hard rule 2).
-    keyword_agreement_k: int = Field(ge=1)
 
 
 class IncidentThresholds(BaseModel):

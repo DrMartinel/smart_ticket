@@ -65,7 +65,6 @@ class TriageState(BaseModel):
     injection_detected: bool = False
 
     # HybridRetrieveNode
-    bm25_article_ids: list[uuid.UUID] = []  # best first, for agreement
     candidates: list[Candidate] = []  # post-RRF
     query_embedding: list[float] = []  # reused by link expansion and few-shots
 

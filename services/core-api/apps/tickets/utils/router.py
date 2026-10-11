@@ -262,7 +262,7 @@ def route(
         )
 
     # ═══════════════ TRUST-BASED ROUTING ═══════════════
-    trust = compute_trust(signals, th.retrieval.keyword_agreement_k).value
+    trust = compute_trust(signals).value
     g = signals.generation
 
     # ── Branch A: auto-reply ──

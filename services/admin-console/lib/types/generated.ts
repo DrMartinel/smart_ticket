@@ -64,7 +64,6 @@ export interface InsufficientContext {
 export interface RetrievalSignals {
   rerank_top1: number;
   rerank_margin: number;
-  bm25_rank_of_top1?: number | null;
   docs_above_floor: number;
   pool_size?: number;
 }

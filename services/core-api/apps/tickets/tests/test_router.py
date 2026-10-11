@@ -47,7 +47,6 @@ def make_thresholds(**overrides) -> Thresholds:
         retrieval=RetrievalThresholds(
             floor=0.30,
             margin=0.08,
-            keyword_agreement_k=3,
         ),
         incident=IncidentThresholds(
             similarity=0.85, window_minutes=15, min_count=5, sigma_multiplier=3.0
@@ -81,7 +80,6 @@ def good_signals(**overrides) -> TrustSignals:
         retrieval=RetrievalSignals(
             rerank_top1=0.9,
             rerank_margin=0.3,
-            bm25_rank_of_top1=1,
             docs_above_floor=3,
         ),
         generation=GenerationSignals(
@@ -255,7 +253,6 @@ def test_auto_reply_trust_below_auto_threshold():
         **{
             "retrieval.rerank_top1": 0.45,
             "retrieval.rerank_margin": 0.0,
-            "retrieval.bm25_rank_of_top1": None,
             "retrieval.docs_above_floor": 0,
         }
     )
@@ -352,7 +349,6 @@ def test_auto_route_trust_below_route_threshold():
         **{
             "retrieval.rerank_top1": 0.45,
             "retrieval.rerank_margin": 0.0,
-            "retrieval.bm25_rank_of_top1": None,
             "retrieval.docs_above_floor": 0,
             "generation.quote_match_ratio": 0.0,
             "generation.quote_source_in_topk": False,
@@ -430,22 +426,6 @@ def test_unhandled_proposal_type_degrades_to_hitl_rather_than_falling_through():
 
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.SCHEMA_INVALID
-
-
-def test_keyword_agreement_k_comes_from_the_thresholds_passed_in():
-    """The router is pure (hard rule 1): `k` must come from the `th` it is
-    given, not from settings. Otherwise a replay against
-    `routing_decisions.thresholds_used` would silently score with today's `k`.
-    Rank 2 agrees under k=3 and not under k=1, so trust must differ."""
-
-    signals = good_signals(**{"retrieval.bm25_rank_of_top1": 2})
-    strict = make_thresholds(retrieval=TH.retrieval.model_copy(update={"keyword_agreement_k": 1}))
-
-    loose_trust = route(signals, route_proposal(), None, TH).trust
-    strict_trust = route(signals, route_proposal(), None, strict).trust
-
-    assert loose_trust is not None and strict_trust is not None
-    assert loose_trust > strict_trust
 
 
 # --- clarify (ADR-0016) --------------------------------------------------------
@@ -546,7 +526,6 @@ def test_clarify_needs_no_trust_and_lands_in_the_clarification_queue():
             "generation.clarify_options_in_topk": True,
             "retrieval.rerank_top1": 0.31,
             "retrieval.rerank_margin": 0.0,
-            "retrieval.bm25_rank_of_top1": None,
         }
     )
     d = route(signals, clarify_proposal(), None, TH)

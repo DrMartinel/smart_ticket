@@ -14,8 +14,6 @@ interface TrustSignals {
   retrieval: {
     rerank_top1: number;
     rerank_margin: number;
-    /** Rank of the reranker's top article in BM25's own list (ADR-0013); null = absent. */
-    bm25_rank_of_top1?: number | null;
     docs_above_floor: number;
   };
   generation: {
@@ -55,24 +53,6 @@ function Bar({ value, max = 1 }: { value: number; max?: number }) {
   );
 }
 
-/**
- * Where keyword search (BM25) ranked the article the reranker chose. Neutral
- * on purpose, no ✓/✗: whether that rank counts as agreement is core-api's
- * decision (`rank <= k`, k in thresholds.yaml), shown in the trust
- * contributions above. Deciding it here too would copy a threshold into the
- * browser, where it would drift from the one that scored the ticket.
- */
-function KeywordRankChip({ rank }: { rank?: number | null }) {
-  const text = rank != null ? `keyword search ranked it #${rank}` : "keyword search didn't find it";
-  return (
-    <span
-      className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-      title="Position of the reranker's top article in the keyword (BM25) results. Agreement is scored in the trust contributions."
-    >
-      {text}
-    </span>
-  );
-}
 
 /**
  * `applicable={false}` renders a neutral "–" instead of a red ✗. Some
@@ -204,7 +184,6 @@ export default function TrustSignalsPanel({
             <span className="w-10 shrink-0 text-right tabular-nums">{retrieval.rerank_margin.toFixed(2)}</span>
           </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
-            <KeywordRankChip rank={retrieval.bm25_rank_of_top1} />
             <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
               {retrieval.docs_above_floor} docs above floor
             </span>
