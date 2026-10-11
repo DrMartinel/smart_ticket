@@ -481,14 +481,14 @@ footer { color: var(--muted); font-size: 12px; }
         title: `${r.title}  ·  ${r.date}`,
         rows: metrics.filter((m) => m.run === r.id && isRecall(m)).map((m) => {
           const recd = sib(m, "misses_recovered"), lost = sib(m, "cases_lost");
-          const label = shown((m.labels.variant ?? "").replace(/^production, |^links, /, (s) => s === "links, " ? "+ links, " : ""))
+          const label = shown((m.labels?.variant ?? "").replace(/^production, |^links, /, (s) => s === "links, " ? "+ links, " : ""))
             .replace("Qwen3-8B ", "").replace("Laya re-orders ", "Laya ").replace("Qwen3-Reranker-4B ", "4B ").replace(/Jev “(\w+)”(,)? /, "Jev $1 ").replace(/(Jev \w+) top (\d+) above floor$/, "$1 re-orders top $2")
             .replace(/(Jev \w+) ranks the whole pool$/, "$1 ranks all").replace(/(Jev \w+) ranks cross-encoder top/, "$1 ranks CE top")
             .replace("qwen3-reranker-4b/resolves ranks the whole pool", "4B “resolves” ranks all").replace("cross_encoder ranks the whole pool", "cross-encoder ranks all")
             .replace(/cross-encoder top (\S+) → 4B “resolves” ranks/, "4B ranks CE top $1").replace("cross_encoder", "shown in CE order").replace("both_agree", "both orders agree");
           return {
             v: m.value, scorer: scorerOf(m), label: label.length > 38 ? label.slice(0, 37) + "…" : label,
-            tip: `<b>${esc(shown(m.labels.variant ?? ""))}: ${m.value.toFixed(3)}</b>`
+            tip: `<b>${esc(shown(m.labels?.variant ?? ""))}: ${m.value.toFixed(3)}</b>`
               + `<div class="t-row">${Math.round(m.value * (m.n ?? 60))} of ${m.n ?? 60} · baseline ${runBase(m.run).toFixed(3)}${m.metric === "retrieval_recall_at_k" ? ` · recall over ${m.labels.k} chunks, not @3` : ""}</div>`
               + (recd ? `<div class="t-row">Recovered ${recd.value}: ${recd.cases?.length ? esc(recd.cases.join(", ")) : "none"}</div>` : "")
               + (lost ? `<div class="t-row">Lost ${lost.value}: ${lost.cases?.length ? esc(lost.cases.join(", ")) : "none"}</div>` : ""),
