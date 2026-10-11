@@ -279,6 +279,9 @@ services:
   admin-console:
     build:
       context: ./services/admin-console
+      # Baked into the browser bundle at build time (see its Dockerfile).
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:?see .env.example}
     environment:
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:?see .env.example}
     ports:
@@ -290,6 +293,9 @@ services:
   chat:
     build:
       context: ./services/chat
+      # Baked into the browser bundle at build time (see its Dockerfile).
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:?see .env.example}
     environment:
       NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE:?see .env.example}
     ports:
