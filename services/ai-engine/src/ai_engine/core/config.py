@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     graph_version: str
     prompt_version: str
     pii_ner_prompt_version: str
+    draft_prompt_version: str
 
     # --- Retrieval ---
     rrf_k: int
@@ -69,6 +70,13 @@ class Settings(BaseSettings):
     # Distinct pages, not chunks: each page keeps its best-fused chunk.
     fusion_candidate_limit: int
     quote_fuzzy_threshold: float
+
+    # --- Drafted answer (HyDE, ADR-0021) ---
+    # 0 keeps a ticket's draft, and so its retrieval, the same on every run.
+    draft_temperature: float = Field(ge=0)
+    # Chunks per candidate page picked by nearness to the draft, beside the
+    # page's best-fused chunk.
+    draft_chunks_per_page: int = Field(ge=0)
 
     # --- Link expansion ---
     link_expansion_seeds: int

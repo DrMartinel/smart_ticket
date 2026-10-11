@@ -64,9 +64,13 @@ class TriageState(BaseModel):
     # InjectionNode
     injection_detected: bool = False
 
+    # DraftAnswerNode (ADR-0021): steers retrieval only, never shown or scored.
+    draft_text: str = ""
+    draft_embedding: list[float] = []
+
     # HybridRetrieveNode
     candidates: list[Candidate] = []  # post-RRF
-    query_embedding: list[float] = []  # reused by link expansion and few-shots
+    query_embedding: list[float] = []  # the ticket's; reused by few-shots
 
     # CandidatePoolNode
     pool: list[RankedChunk] = []  # cross-encoder order, Jev's shortlist first

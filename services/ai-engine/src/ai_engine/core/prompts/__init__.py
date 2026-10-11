@@ -62,6 +62,8 @@ def check_version(version: str) -> None:
 PROPOSE_PROMPT = load_system_prompt(settings.prompt_version)
 # Tier-2 PII NER's system prompt (ADR-0012).
 PII_NER_PROMPT = load_system_prompt(settings.pii_ner_prompt_version)
+# DraftAnswerNode's system prompt: the passage that steers retrieval (ADR-0021).
+DRAFT_PROMPT = load_system_prompt(settings.draft_prompt_version)
 # The question Jev answers per chunk (ADR-0015).
 RERANK_QUESTION = load_question(settings.rerank_prompt_version)
 # The choice question Jev answers once per ticket: its category (ADR-0017).

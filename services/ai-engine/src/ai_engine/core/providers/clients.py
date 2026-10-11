@@ -255,11 +255,20 @@ class ChatClient:
         self.constrains_schema = constrains_schema
 
     def complete(
-        self, system_prompt: str, user_prompt: str, *, schema_name: str, schema: dict[str, Any]
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+        temperature: float | None = None,
     ) -> LLMResult:
         """One call, no retry, its reply decoded against `schema` where the
-        server can. Any failure raises `AllLLMDownError`."""
+        server can. Any failure raises `AllLLMDownError`. `temperature`
+        None leaves the server's default."""
         constrained: dict[str, Any] = {}
+        if temperature is not None:
+            constrained["temperature"] = temperature
         if self.constrains_schema:
             constrained["response_format"] = {
                 "type": "json_schema",

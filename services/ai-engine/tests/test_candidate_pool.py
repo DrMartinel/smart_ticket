@@ -93,3 +93,100 @@ def test_query_sent_to_the_reranker_is_the_masked_ticket(
     query, passages = shortlister.calls[0]
     assert query == "subj\nbody"
     assert passages == ["a"]
+
+
+# --- the drafted answer (ADR-0021) ------------------------------------------
+
+
+def _nearest_rows(rows):
+    """A fake DB answering `nearest_chunks` (the windowed query) with `rows`
+    and recording the embedding each such query was sent."""
+
+    sent = []
+
+    def answer(sql, params):
+        if "row_number" in sql and "kb_chunks" in sql:
+            sent.append(next(v for v in params.values() if isinstance(v, list)))
+            return rows
+        return []
+
+    return answer, sent
+
+
+def test_each_page_brings_its_chunks_nearest_the_draft_once_each(
+    fake_db, fake_shortlister, make_candidate, make_state, use_db, use_shortlister
+):
+    """The best-fused chunk alone often isn't the one that answers the
+    ticket; the draft's nearest chunks of the same page are (2026-10-11:
+    +12 points recall@3 with the draft). A chunk already in the candidates
+    must not be scored twice."""
+
+    a, b = make_candidate(1, "a1"), make_candidate(2, "b1")
+    answer, _ = _nearest_rows(
+        [
+            (UUID(int=1), a.article_id, a.article_slug, "a1"),
+            (UUID(int=3), a.article_id, a.article_slug, "a3"),
+        ]
+    )
+    use_db(fake_db(rows=answer))
+    shortlister = use_shortlister(fake_shortlister(scores=[0.1, 0.2, 0.3]))
+
+    candidate_pool(make_state(candidates=[a, b]))
+
+    _, passages = shortlister.calls[0]
+    assert passages == ["a1", "b1", "a3"]
+
+
+def test_the_cross_encoder_scores_against_the_ticket_never_the_draft(
+    fake_shortlister, make_candidate, make_state, make_ticket, use_shortlister
+):
+    """The draft chooses what is looked at; the ticket judges it. Scoring
+    against the draft lost 4 points of recall@3 on 500 tickets (2026-10-11),
+    and it would put the drafting model's words where the requester's belong."""
+
+    shortlister = use_shortlister(fake_shortlister(scores=[0.5]))
+
+    candidate_pool(
+        make_state(
+            candidates=[make_candidate(1, "a")],
+            ticket=make_ticket("subj", "body"),
+            draft_text="a drafted passage",
+        )
+    )
+
+    query, _ = shortlister.calls[0]
+    assert query == "subj\nbody"
+
+
+def test_expansion_and_the_page_pick_both_take_chunks_nearest_the_draft(
+    fake_db, fake_shortlister, make_candidate, make_state, monkeypatch, use_db, use_shortlister
+):
+    """Both chunk choices follow the draft, as measured; the ticket's own
+    embedding (`query_embedding`) is for few-shots only."""
+
+    from ai_engine.graph.nodes.candidate_pool import node as pool_node
+
+    answer, sent = _nearest_rows([])
+    use_db(fake_db(rows=answer))
+    use_shortlister(fake_shortlister(scores=[0.5]))
+    monkeypatch.setattr(pool_node, "linked_article_ids", lambda seeds, max_per_seed: [UUID(int=99)])
+
+    candidate_pool(
+        make_state(
+            candidates=[make_candidate(1, "a")], draft_embedding=[0.7], query_embedding=[0.1]
+        )
+    )
+
+    assert sent == [[0.7], [0.7]]
+
+
+def test_the_pool_without_a_draft_raises(
+    fake_shortlister, make_candidate, make_state, use_shortlister
+):
+    """Expansion and the page pick would otherwise run on an empty
+    embedding: a wiring bug that must fail, not shrink the pool."""
+
+    use_shortlister(fake_shortlister(scores=[0.5]))
+
+    with pytest.raises(ValueError, match="drafted answer"):
+        candidate_pool(make_state(candidates=[make_candidate(1, "a")], draft_embedding=[]))
