@@ -64,6 +64,8 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 ## Retrieval
 
+**HyDE (drafted answer)** — Hypothetical Document Embeddings. Before retrieval, the chat model writes the documentation passage it expects would answer the ticket (`DraftAnswerNode`); retrieval searches with it as well as the ticket, and it picks each candidate page's chunks. It only steers what is looked at: the cross-encoder and Jev score against the ticket, and the draft is never shown or quoted ([ADR-0021](adr/0021-hyde-drafted-answer-steers-retrieval.md)).
+
 **Hybrid retrieval** — BM25 (keyword) and vector (semantic) search run in parallel, then fused. Since ADR-0020 only vector search runs on the ticket: keyword matching on a ticket's symptom wording found the wrong pages more often than the right ones.
 
 **RRF** — Reciprocal Rank Fusion, `score(d) = Σ 1/(k + rank_i(d))` over the ranked lists, with k=60. Today the ticket's vector list alone (ADR-0020). **Never threshold on an RRF score** — it is a rank-derived value, not a similarity, and its absolute magnitude means nothing ([ADR-0005](adr/0005-threshold-on-cross-encoder-not-fused-score.md)).

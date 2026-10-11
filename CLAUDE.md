@@ -250,8 +250,14 @@ copies that directory — a new SQL file that isn't copied fails at container st
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
   The `bm25_keyword_hit` feature is gone with BM25 on the ticket (ADR-0020,
-  Proposed): retrieval is vector search on the ticket, and the remaining
-  hand-set features score every ticket.
+  Proposed), and the remaining hand-set features score every ticket.
+- **Retrieval drafts first** (HyDE, ADR-0021, Proposed): `draft_answer` has
+  the chat model write the passage it expects would answer the ticket;
+  retrieval fuses vector search on the ticket with BM25 and vector search on
+  the draft, and each page's chunks nearest the draft join the pool. The
+  cross-encoder and Jev still score against the ticket. A failed draft is a
+  500 → HITL. It runs on `CHAT_CLIENT_PROVIDER`: measured on DeepSeek
+  drafts only (eval-only, ADR-0019); Qwen's drafting is unmeasured.
 - Every run shortlists, then reranks: the shortlister, a cross-encoder (`vllm`,
   bge-reranker-v2-m3; `lexical` for CI/offline), orders the fused candidates plus
   link-expanded chunks, and **Jev**, the reranker (hosted, needs `JEV_API_KEY`),
@@ -339,5 +345,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-one
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

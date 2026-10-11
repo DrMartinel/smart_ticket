@@ -231,7 +231,8 @@ comments trimmed here):
 ```python
 _triage = GraphBuilder(entry=injection)
 _triage.route(injection, InjectionOutcome.INJECTION_DETECTED, emit_signals)
-_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, hybrid_retrieve)
+_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, draft_answer)  # HyDE (ADR-0021)
+_triage.route(draft_answer, SingleExit.DONE, hybrid_retrieve)
 _triage.route(hybrid_retrieve, SingleExit.DONE, candidate_pool)
 _triage.route(candidate_pool, SingleExit.DONE, rerank)
 _triage.route(rerank, SingleExit.DONE, classify_category)  # Jev's category on every path (ADR-0017)
@@ -392,7 +393,8 @@ fails the schema:
 ```
 input:             {"ticket": ..., "retrieval_floor": 0.30, ...}
 after injection:   {..., "injection_detected": False, ...}
-decide()        -> InjectionClear      -> HybridRetrieveNode
+decide()        -> InjectionClear      -> DraftAnswerNode
+after draft:       {..., "draft_text": "...", "draft_embedding": [...]}
 after retrieve:    {..., "candidates": [...10]}
 after pool:        {..., "pool": [...shortlist_score set, cross-encoder order]}
 after rerank:      {..., "reranked": [top1.rerank_score=0.81, ...]}

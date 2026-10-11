@@ -141,13 +141,19 @@ The baseline is rolling and per-category, so "unusual" means unusual *for this o
 injection ──► InjectionDetected ──► emit_signals   (zero tokens spent)
        │ InjectionClear
        ▼
-   hybrid_retrieve   vector top-20 on the ticket ──► RRF (k=60) ──► top-10 pages,
+   draft_answer      the chat model writes the documentation passage it expects
+                     would answer the ticket (HyDE, ADR-0021); steers retrieval
+                     only, never shown, quoted or scored. Fails → 500 → HITL
+       ▼
+   hybrid_retrieve   vector top-20 on the ticket ∥ BM25 top-20 on the draft ∥
+                     vector top-20 on the draft ──► RRF (k=60) ──► top-10 pages,
                      one chunk each (no BM25 on the ticket, ADR-0020)
        ▼
-   candidate_pool    cross-encoder scores the candidates, plus chunks of pages
-                     associated with its top-3 seeds, from the one source
-                     ASSOCIATION_SOURCE names (ADR-0014/0015/0018)
-                     ──► pool, in cross-encoder order
+   candidate_pool    each page: its best-fused chunk + its 2 chunks nearest the
+                     draft; the cross-encoder scores them against the TICKET,
+                     plus linked pages' chunks nearest the draft, from the
+                     seeds' associations in ASSOCIATION_SOURCE
+                     (ADR-0014/0015/0018/0021) ──► pool, in cross-encoder order
        ▼
    rerank            Jev re-scores the pool's top-15 ──► Jev's top-3
                      each chunk keeps both: shortlist_score, rerank_score
