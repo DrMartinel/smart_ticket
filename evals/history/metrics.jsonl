@@ -796,3 +796,21 @@
 {"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":15.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-10-full-authored-link-one-per-page","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
 {"run":"2026-10-10-full-authored-link-one-per-page","metric":"pool_size","value":165.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"retrieval_recall_at_3","value":0.72,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"retrieval_mrr","value":0.662,"n":500}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"retrieval_recall_at_3_strict","value":0.646,"n":500}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"gold_use","value":277.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"gold_use","value":8.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"gold_use","value":75.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"pool_size","value":20.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"pool_size","value":94.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"retrieval_recall_at_3","value":0.748,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"retrieval_mrr","value":0.6796666666666666,"n":500}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"retrieval_recall_at_3_strict","value":0.676,"n":500}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":290.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":1.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":11.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":72.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"pool_size","value":48.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"pool_size","value":253.0,"n":500,"labels":{"stat":"max"}}

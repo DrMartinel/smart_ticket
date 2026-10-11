@@ -95,6 +95,106 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-11 (2): authored links on the 500-ticket golden set, retrieval suite (control for (1))
+
+**Verdict:** authored links score recall@3 **0.748** (MRR 0.680, strict
+0.676), against the entity graph's 0.720 on the same 500 tickets: both fail
+the 0.90 gate by a wide margin. On the original 60 tickets this reproduces
+R1 exactly (0.917, the same five misses). Ticket by ticket, 25 are missed by
+the entity graph only and 11 by authored links only (McNemar p ≈ 0.03), so
+on this set authored links' lead is real, not one ticket of noise.
+
+| Configuration | |
+|---|---|
+| Code | as (1), `ASSOCIATION_SOURCE=authored_link` |
+| Duration | 34m14s, retrieval suite only |
+
+| | Entity graph (1) | Authored links | Gate |
+|---|---|---|---|
+| Recall@3, all 500 (any acceptable page) | 0.720 | **0.748** | >= 0.90 |
+| Recall@3 strict (gold page only) | 0.646 | 0.676 | reported only |
+| MRR | 0.662 | 0.680 | reported only |
+| Original 60 | 0.900 | 0.917 | |
+| Drafted 440 | 0.695 | 0.725 | |
+| `pool_size` median · max | 20 · 94 | 48 · 253 | reported only |
+
+### Findings
+
+**1. Most misses are shared.** 115 tickets are missed by both sources, 25
+by the entity graph only, 11 by authored links only. What limits recall on
+this set is mostly not the association source.
+
+**2. The entity graph is never ahead by guide.** Drafted-ticket recall,
+entity graph against authored links: ec2 0.70 / 0.76, ses 0.64 / 0.69,
+workspaces-admin 0.70 / 0.78, identity-center 0.68 / 0.71,
+client-vpn-admin 0.42 / 0.50; level on the other seven guides.
+
+**3. The 60-ticket comparison understated the gap.** On the original 60 the
+sources differ by one ticket (g050), inside run-to-run noise ((9) finding
+3). At 500 tickets the difference is 14 tickets net.
+
+### Follow-ups
+
+- Read the 115 shared misses before acting on either number (see (1)'s
+  follow-ups); a fix found there helps both sources.
+- The choice of shipped source (ADR-0018 *Before this is accepted* #2)
+  should use these numbers, not the 60-ticket ones.
+
+---
+
+## 2026-10-11: entity graph on the 500-ticket golden set, retrieval suite
+
+**Verdict:** recall@3 **0.720** (MRR 0.662), strict 0.646, failing the 0.90
+gate. **Not like for like with any earlier run:** the golden set grew from
+60 `kb_covered` tickets to 500 (`e0ef0f8`: 440 drafted by DeepSeek and
+reviewed by subagents, `evals/golden/SCHEMA.md`). On the original 60 the
+entity graph reproduces (6) exactly (0.900, the same six misses); the 440
+drafted tickets score 0.695. The new tickets are harder, not the pipeline
+worse.
+
+| Configuration | |
+|---|---|
+| Code | `e0ef0f8` (`main`), the simplified pipeline: cross-encoder shortlister, Jev's 15, Jev's top 3, no per-page limit. Uncommitted: frontend files, two Dockerfiles, `.env.example`, `docker-compose.yml` and the dashboard, none in the eval's path |
+| Runs | `ASSOCIATION_SOURCE=entity_graph` (`kb_entity_graph.v1`, the build of (6): 2,933 edges), `LINK_EXPANSION_MAX_LINKS_PER_SEED` 20 |
+| Prompts | `propose.v8` · `pii_ner.v2` · Jev `rerank_resolves.v1` |
+| Models · KB · thresholds | Qwen3-8B-AWQ (masking) · bge-m3 · bge-reranker-v2-m3@main · `jev-1.13.0` · KB 3,542 articles / 28,519 chunks · floor 0.30 (unused: `never_refuse`) |
+| Golden set | `c6057fddb3b8`, 614 cases, 500 `kb_covered` (134 with acceptable pages) |
+| Duration | 29m32s, retrieval suite only |
+
+| Slice | n | Misses | Recall@3 |
+|---|---|---|---|
+| Original 60 | 60 | 6 (g011, g012, g048, g050, g055, g056) | 0.900 |
+| Drafted 440 | 440 | 134 | 0.695 |
+| All (gated) | 500 | 140 | **0.720** (strict 0.646) |
+
+### Findings
+
+**1. The pipeline did not change; the set did.** The original 60 give the
+same number and misses as (6). The drop is all in the drafted tickets,
+written to avoid the page's own wording and aimed at pages sampled across
+each guide, many of them narrow (one CLI example, one setting).
+
+**2. Recall by guide on the drafted tickets** runs from 0.60 (iam, 78
+tickets) and 0.64 (ses, 36) to 0.81 (lambda, 57); client-vpn-admin 0.42
+and client-vpn-user 0.33 rest on 12 and 3 tickets.
+
+**3. Some misses may be unlisted alternatives.** In several, a top-3 page
+looks like it resolves the ticket too and no reviewer named it: g344
+(`DeleteUserPolicy` CLI example) retrieves `access_policies_manage-delete-cli`,
+g335 retrieves `id_groups_manage_attach-policy`. Not counted; 43 misses
+already had named alternatives and reached none of them.
+
+### Follow-ups
+
+- Read the misses and sort them into unlisted alternatives and real
+  retrieval losses before changing anything. Alternatives added after
+  seeing misses must be marked as such: relabelling on misses inflates
+  recall by construction (CLAUDE.md rule 9).
+- The 0.90 gate was set on 60 authored tickets; whether it fits this set is
+  a baseline question for a reviewer other than the author, not this entry.
+
+---
+
 ## 2026-10-10 (9): full run, authored links with one chunk per page (control for (8))
 
 **Verdict:** the control passes every gate too: auto-reply precision
