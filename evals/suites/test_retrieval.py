@@ -52,6 +52,7 @@ def _gold_use(result: dict, truth_slug: str) -> str:
 def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
     cases = sample(load_golden("kb_covered"))
     hits = 0
+    strict_hits = 0
     reciprocal_ranks = []
     misses = []
     gold_use: dict[str, list[str]] = {"quoted": [], "quote_missed": [], "refused": [], "other": []}
@@ -61,27 +62,37 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
         result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
         pool_sizes.append(result["signals"]["retrieval"]["pool_size"])
         truth_slug = case["truth"]["kb_slug"]
+        # Pages that answer the ticket as well as its gold page
+        # (`acceptable_kb_slugs`, SCHEMA.md): a hit on one is a hit.
+        accepted = [truth_slug, *case["truth"].get("acceptable_kb_slugs", [])]
         retrieved_slugs = [c["kb_slug"] for c in result.get("retrieved_chunks", [])]
+        strict_hits += truth_slug in retrieved_slugs
 
-        if truth_slug in retrieved_slugs:
+        found = next((s for s in retrieved_slugs if s in accepted), None)
+        if found is not None:
             hits += 1
-            rank = retrieved_slugs.index(truth_slug) + 1
+            rank = retrieved_slugs.index(found) + 1
             reciprocal_ranks.append(1 / rank)
-            gold_use[_gold_use(result, truth_slug)].append(case["id"])
+            gold_use[_gold_use(result, found)].append(case["id"])
         else:
             reciprocal_ranks.append(0.0)
             misses.append((case["id"], truth_slug, retrieved_slugs))
 
     recall = hits / len(cases)
+    recall_strict = strict_hits / len(cases)
     mrr = sum(reciprocal_ranks) / len(cases)
 
-    print(f"\nRetrieval: recall={recall:.2%} mrr={mrr:.3f} n={len(cases)} misses={misses}")
+    print(
+        f"\nRetrieval: recall={recall:.2%} strict={recall_strict:.2%} mrr={mrr:.3f} "
+        f"n={len(cases)} misses={misses}"
+    )
     print(f"Gold article in context ({hits}): {gold_use}")
     print(f"Cross-encoder batch: median={median(pool_sizes)} max={max(pool_sizes)}")
     record_metric(
         "retrieval_recall_at_3",
         recall,
         mrr=mrr,
+        strict=recall_strict,
         n=len(cases),
         gold_use={k: len(v) for k, v in gold_use.items()},
         pool_size_median=median(pool_sizes),

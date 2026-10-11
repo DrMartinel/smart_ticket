@@ -170,6 +170,13 @@ METRICS: dict[str, MetricSpec] = {
         description="Gold article among the k chunks a variant would show the classify model "
         "(label k). Not comparable with retrieval_recall_at_3 unless k is 3; no gate.",
     ),
+    "retrieval_recall_at_3_strict": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
+        description="As retrieval_recall_at_3, counting only the ticket's gold page, never "
+        "its acceptable_kb_slugs. Reported beside the gated number so the effect of the "
+        "acceptable pages (2026-10-11) stays visible; no gate.",
+    ),
     "retrieval_mrr": MetricSpec(
         unit="ratio",
         higher_is_better=True,
