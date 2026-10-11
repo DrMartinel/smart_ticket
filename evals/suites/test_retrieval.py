@@ -22,9 +22,18 @@ this is a proxy for "the chunk kept for the gold article held the answer":
 since per-article dedup (the rerank node) the LLM sees one chunk per article, and
 if that chunk only restates the problem the model can refuse or quote text
 it wasn't shown.
+
+A ticket ai-engine answers with a 5xx (a failed draft, a Jev or DeepSeek
+outage) counts as a miss and is listed in `errors`: in production it goes to
+a person with no retrieval, so it can only lower recall, never raise it. One
+such ticket used to abort the whole 500-ticket run with no score. Anything
+else (a 4xx, ai-engine unreachable) still fails the run: those are harness or
+stack faults, not tickets.
 """
 
 from statistics import median
+
+import httpx
 
 from suites.golden_utils import analyze, load_golden, record_metric, sample
 
@@ -57,9 +66,18 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
     misses = []
     gold_use: dict[str, list[str]] = {"quoted": [], "quote_missed": [], "refused": [], "other": []}
     pool_sizes: list[int] = []
+    errors: list[str] = []
 
     for case in cases:
-        result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
+        try:
+            result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code < 500:
+                raise
+            errors.append(case["id"])
+            reciprocal_ranks.append(0.0)
+            misses.append((case["id"], case["truth"]["kb_slug"], ["<error>"]))
+            continue
         pool_sizes.append(result["signals"]["retrieval"]["pool_size"])
         truth_slug = case["truth"]["kb_slug"]
         # Pages that answer the ticket as well as its gold page
@@ -84,7 +102,7 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
 
     print(
         f"\nRetrieval: recall={recall:.2%} strict={recall_strict:.2%} mrr={mrr:.3f} "
-        f"n={len(cases)} misses={misses}"
+        f"n={len(cases)} errors={errors} misses={misses}"
     )
     print(f"Gold article in context ({hits}): {gold_use}")
     print(f"Cross-encoder batch: median={median(pool_sizes)} max={max(pool_sizes)}")
@@ -97,6 +115,7 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
         gold_use={k: len(v) for k, v in gold_use.items()},
         pool_size_median=median(pool_sizes),
         pool_size_max=max(pool_sizes),
+        errors=len(errors),
     )
     assert recall >= RECALL_THRESHOLD, (
         f"recall {recall:.2%} < {RECALL_THRESHOLD:.0%}, misses={misses}"

@@ -177,6 +177,13 @@ METRICS: dict[str, MetricSpec] = {
         "its acceptable_kb_slugs. Reported beside the gated number so the effect of the "
         "acceptable pages (2026-10-11) stays visible; no gate.",
     ),
+    "retrieval_errors": MetricSpec(
+        unit="count",
+        higher_is_better=False,
+        description="KB-covered tickets ai-engine answered with a 5xx in the retrieval "
+        "suite (a failed draft, a Jev or DeepSeek outage). Each also counts as a "
+        "retrieval miss; no gate.",
+    ),
     "retrieval_mrr": MetricSpec(
         unit="ratio",
         higher_is_better=True,

@@ -83,6 +83,8 @@ def metrics_from_results(results: dict[str, Any], run_id: str) -> list[Metric]:
                 add("retrieval_mrr", entry["mrr"], n)
             if "strict" in entry:
                 add("retrieval_recall_at_3_strict", entry["strict"], n)
+            if "errors" in entry:
+                add("retrieval_errors", entry["errors"], n)
             for outcome, count in entry.get("gold_use", {}).items():
                 add("gold_use", count, outcome=outcome)
             for stat in ("median", "max"):
