@@ -141,7 +141,8 @@ The baseline is rolling and per-category, so "unusual" means unusual *for this o
 injection ──► InjectionDetected ──► emit_signals   (zero tokens spent)
        │ InjectionClear
        ▼
-   hybrid_retrieve   BM25 top-20 ∥ vector top-20 ──► RRF (k=60) ──► top-10
+   hybrid_retrieve   BM25 top-20 ∥ vector top-20 ──► RRF (k=60, BM25 weighted
+                     by RRF_BM25_WEIGHT) ──► top-10 pages, one chunk each
                      (pg_search BM25, ADR-0013; records BM25's article order)
        ▼
    candidate_pool    cross-encoder scores the candidates, plus chunks of pages

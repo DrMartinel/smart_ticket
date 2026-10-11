@@ -123,6 +123,70 @@ def test_bm25_article_ids_are_deduplicated_in_bm25_order(
     assert out["bm25_article_ids"] == [a, b]
 
 
+def test_candidates_are_one_chunk_per_page_in_fused_order(
+    fake_db, fake_embedder, make_state, make_node
+):
+    """Three chunks of page A ahead of page B must leave A once, with its
+    best-fused chunk, then B. Without the dedupe A fills the slots: the
+    10 candidates held 7 distinct pages at the median (2026-10-11)."""
+
+    a, b = UUID(int=100), UUID(int=200)
+    vector_rows = [
+        (UUID(int=1), a, "kb-a", "a1", 0.9),
+        (UUID(int=2), a, "kb-a", "a2", 0.8),
+        (UUID(int=3), a, "kb-a", "a3", 0.7),
+        (UUID(int=4), b, "kb-b", "b1", 0.6),
+    ]
+
+    def rows(sql, params):
+        return [] if "|||" in sql else vector_rows
+
+    out = make_node(fake_db(rows=rows), fake_embedder())(make_state())
+
+    assert [c.chunk_id for c in out["candidates"]] == [UUID(int=1), UUID(int=4)]
+
+
+def test_the_candidate_limit_counts_pages_not_chunks(
+    fake_db, fake_embedder, make_state, monkeypatch, make_node
+):
+    """With a limit of 2, pages A, A, B, C give A and B: a limit counted in
+    chunks would give A twice and lose B."""
+
+    monkeypatch.setattr(settings, "fusion_candidate_limit", 2)
+    a, b, c = UUID(int=100), UUID(int=200), UUID(int=300)
+    vector_rows = [
+        (UUID(int=1), a, "kb-a", "a1", 0.9),
+        (UUID(int=2), a, "kb-a", "a2", 0.8),
+        (UUID(int=3), b, "kb-b", "b1", 0.7),
+        (UUID(int=4), c, "kb-c", "c1", 0.6),
+    ]
+
+    def rows(sql, params):
+        return [] if "|||" in sql else vector_rows
+
+    out = make_node(fake_db(rows=rows), fake_embedder())(make_state())
+
+    assert [x.article_id for x in out["candidates"]] == [a, b]
+
+
+def test_bm25_article_ids_keep_every_page_bm25_found_whatever_the_weight(
+    fake_db, fake_embedder, make_state, monkeypatch, make_node
+):
+    """The keyword-agreement trust feature reads BM25's own hits (ADR-0013).
+    Down-weighting BM25 in fusion must not change what it reports."""
+
+    monkeypatch.setattr(settings, "rrf_bm25_weight", 0.0)
+    a, b = UUID(int=100), UUID(int=200)
+    bm25_rows = [(UUID(int=1), a, "kb-a", "a1", 9.0), (UUID(int=2), b, "kb-b", "b1", 8.0)]
+
+    def rows(sql, params):
+        return bm25_rows if "|||" in sql else []
+
+    out = make_node(fake_db(rows=rows), fake_embedder())(make_state())
+
+    assert out["bm25_article_ids"] == [a, b]
+
+
 def test_candidates_capped_at_the_configured_limit(
     fake_db, fake_embedder, kb_row, make_state, monkeypatch, make_node
 ):

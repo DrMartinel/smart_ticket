@@ -1,9 +1,14 @@
 """
 Reciprocal Rank Fusion — spec §6.3.
 
-    score(d) = Σ 1 / (k + rank_i(d))
+    score(d) = w / (k + rank_bm25(d)) + 1 / (k + rank_vector(d))
 
-k=60 is the standard constant from the RRF paper, not meant to be tuned. The
+k=60 is the standard constant from the RRF paper, not meant to be tuned.
+w is BM25's vote (`rrf_bm25_weight`). A ticket describes symptoms in its own
+words, which keyword matching finds less often than the embedding does.
+Once w / (k + 1) < 1 / (k + vector_top_k) (w < 0.76 at k=60 and top k 20), a
+chunk only BM25 found can't outrank one vector search found, so BM25 only
+reorders the chunks both lists agree on. The
 output is an ORDERED list only: the fused score sorts and is deliberately not
 carried on `Candidate`, so nothing can threshold against it (ADR-0005).
 """
@@ -22,11 +27,12 @@ def reciprocal_rank_fusion(
     bm25_hits: list[LexicalHit], vector_hits: list[VectorHit]
 ) -> list[Candidate]:
     k = settings.rrf_k
+    w = settings.rrf_bm25_weight
     scores: dict[uuid.UUID, float] = {}
     meta: dict[uuid.UUID, tuple[uuid.UUID, str, str]] = {}
 
     for rank, hit in enumerate(bm25_hits, start=1):
-        scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + 1.0 / (k + rank)
+        scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + w / (k + rank)
         meta[hit.chunk_id] = (hit.article_id, hit.article_slug, hit.content)
 
     for rank, vhit in enumerate(vector_hits, start=1):
