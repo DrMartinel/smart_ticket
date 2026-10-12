@@ -321,7 +321,7 @@ Retrieval recall meets the gate against a reviewed baseline measured on this KB.
 
 ## 10. Ask the requester when a ticket is ambiguous (clarification branch)
 
-**Status (2026-10-04):** the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6` (`v7` since), the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
+**Status (2026-10-12):** the requester side is built for chat tickets, [ADR-0023](adr/0023-requester-answers-the-clarifying-question.md) (Proposed): the question is shown, the answer masked and re-run, one round, then a person (`clarify_round_cap`); unanswered after `clarification.wait_minutes` (60 🔧) the chat offers a ticket instead of sending it to support (the owner's choice). **Left:** a live run, golden cases for the second run, and form tickets (no channel back). Earlier, 2026-10-04: the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6` (`v7` since), the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
 
 **Priority:** Medium · **Spec:** §5, §8 · **ADR:** [0016](adr/0016-clarify-branch.md)
 

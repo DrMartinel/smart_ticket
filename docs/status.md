@@ -44,7 +44,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §6.4 | Validator (quote → fuzzy → in-top-k → negation) | ✅ | Negation check verified catching a real `negation_mismatch` live; also checks a clarify proposal's options were shown |
 | §7 | Trust scorer, outside ai-engine | ⚠️ Uncalibrated | Works, but coefficients are a hand-set prior — see [Gap 2](#gap-2-trust-score-is-an-uncalibrated-prior) |
 | §8 | Switch router — pure function, hard gates ordered | ✅ | Every branch unit-tested with no DB/LLM/network |
-| §8 | `clarify` branch (ADR-0016, Proposed) | ⚠️ Partial | The router can choose to ask the requester; executed as a review item in the `clarification` queue. The requester side (sending, replies) is not built |
+| §8 | `clarify` branch (ADR-0016, ADR-0023, Proposed) | ⚠️ Unit-tested only | A live chat ticket shows the requester the question, with the options' page titles; the answer is masked like a ticket and the pipeline runs again on question and answer. One question, then a human (`clarify_round_cap`); unanswered after 60 min 🔧, a ticket is offered. Form tickets and shadow mode: a review item in the `clarification` queue. Not yet run on a live ticket, and no eval covers the second run |
 | §8.2 | Shadow mode | ✅ | Same `route()` in both modes |
 | §9 | Incident detector (adaptive baseline + 3σ) | ✅ | Concurrent-worker dedup serialized by a Postgres advisory lock |
 | §10.1 | Circuit breaker | ❌ Removed | Deliberately dropped to simplify; every LLM failure is `all_llm_down` → HITL |

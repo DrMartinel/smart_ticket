@@ -286,6 +286,8 @@ services/core-api/config/thresholds.yaml
 | `routing.quote_match` | 0.95 | Minimum verbatim-quote match ratio |
 | `retrieval.floor` | 0.30 🔧 | **Jev's** top reranked score below which the LLM is never called (ADR-0005, ADR-0015) |
 | `classification.min_confidence` | 0.65 🔧 | Jev's category confidence below which a route or clarify goes to a human (ADR-0017) |
+| `clarification.max_rounds` | 1 | Questions a chat ticket may ask its requester before a person takes it (ADR-0023) |
+| `clarification.wait_minutes` | 60 🔧 | How long a question stays open before the chat offers a ticket instead |
 | `masking.ner_max_share` | 0.7 🔧 | Share of a ticket NER may mask beyond the regex hits before it is `mask_failed` |
 | `incident.min_count` | 5 | Similar tickets needed before mass-incident escalation |
 | `budget.max_latency_sec` | 300 | How long core-api waits on ai-engine; must exceed the per-call model ceiling |
@@ -343,7 +345,7 @@ Ticket submitted  ──►  PII Masking (INLINE, before any DB write)
                        Switch Router  (pure function, hard gates in order)
                          ├─ auto_reply   → KB-sourced answer     [requires kb.auto_reply_allowed]
                          ├─ auto_route   → assign to Jev's category's team
-                         ├─ clarify      → ask which page they mean (a review item until the requester side exists)
+                         ├─ clarify      → ask which page they mean (in the chat; a review item for form tickets)
                          ├─ hitl         → human review queue
                          ├─ block        → security alert
                          └─ escalate     → incident management
@@ -457,6 +459,7 @@ Per-category F1 is deliberately not averaged — a rare-but-serious category lik
 | [0020](docs/adr/0020-no-bm25-on-the-ticket.md) | No BM25 on the ticket; the keyword-agreement trust feature removed |
 | [0021](docs/adr/0021-hyde-drafted-answer-steers-retrieval.md) | A drafted answer steers retrieval (HyDE) |
 | [0022](docs/adr/0022-deepseek-drafts-in-production.md) | The drafted answer runs on DeepSeek in production |
+| [0023](docs/adr/0023-requester-answers-the-clarifying-question.md) | The requester answers the clarifying question (Proposed) |
 
 ADR-0006 is flagged in the spec as the one most likely to erode once `automation_rate` becomes a KPI. Read it before proposing a bypass.
 

@@ -2,7 +2,7 @@
 
 **Status:** Proposed. The decision path is implemented and measured; how the
 question reaches the requester, and what happens with the answer, is not
-decided here (*Not decided*).
+decided here (*Not decided*): for chat tickets, see ADR-0023.
 **Date:** 2026-10-04
 **Builds on:** ADR-0001 (code decides, the LLM proposes), ADR-0002 (auto-reply
 authority lives on KB rows), ADR-0006 (runbooks always go to a human)

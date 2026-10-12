@@ -268,10 +268,16 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
         Jev's category = security?      yes ──► HITL / clarify_security
         Jev's confidence ≥ min?         no  ──► HITL / category_low_confidence
         clarify_options_in_topk?        no  ──► HITL / clarify_options_not_shown
-                                        yes ──► CLARIFY (queue: clarification;
-                                                a person asks it, in shadow
-                                                mode and out of it, until the
-                                                requester side exists)
+        clarifications_asked ≥ max?     yes ──► HITL / clarify_round_cap
+                                                (queue: clarification)
+                                        no  ──► CLARIFY (queue: clarification)
+
+   A live chat ticket's CLARIFY asks the requester (ADR-0023): the decision
+   is held, the question and the options' page titles are shown, and the
+   answer is masked like a ticket, appended to the body, and run through
+   the whole pipeline again. Unanswered after clarification.wait_minutes,
+   the chat offers a ticket. A form ticket, or any ticket in shadow mode,
+   gets a review item in the clarification queue for a person to ask.
 
    TRUST-BASED
      AutoReplyProposal:

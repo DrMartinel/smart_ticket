@@ -279,9 +279,12 @@ copies that directory — a new SQL file that isn't copied fails at container st
   `classification.min_confidence` (0.65 🔧) as `category_low_confidence`.
   The LLM no longer proposes a category (`propose.v8`). A Jev failure, reranking or
   category, is a 500 → HITL `ai_engine_unavailable`, never a fallback.
-- **`clarify`** (ADR-0016, Proposed): the router can choose to ask the
-  requester which shown page they mean; until the requester side exists it
-  is a review item in the `clarification` queue.
+- **`clarify`** (ADR-0016, ADR-0023, Proposed): the router can choose to
+  ask the requester which shown page they mean. A live chat ticket shows
+  the question; the answer is masked like a ticket and the pipeline runs
+  again, and a second `clarify` goes to a person (`clarify_round_cap`).
+  Unanswered after `clarification.wait_minutes`, the chat offers a ticket.
+  Form tickets and shadow mode: a review item in the `clarification` queue.
 - PII quarantine **write** path is done; the **read** path is not. Currently fails
   safe (nobody can read raw PII). **Do not add a `decrypt()` call without writing
   the `PiiAccessLog` row in the same transaction, with a mandatory non-empty reason.**
@@ -353,5 +356,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-two
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-three
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).
