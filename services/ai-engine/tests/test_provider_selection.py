@@ -103,6 +103,7 @@ def test_each_vllm_client_is_built_from_config_for_its_own_server(monkeypatch, r
     base URL."""
 
     monkeypatch.setattr(settings, "chat_client_provider", "vllm")
+    monkeypatch.setattr(settings, "draft_client_provider", "vllm")
     m = reload_clients()
 
     assert m.embed.base_url == settings.embed_base_url
@@ -131,6 +132,9 @@ def cloud_key(monkeypatch):
 
 def _chat_on(monkeypatch, provider, cloud_base_url=None):
     monkeypatch.setattr(settings, "chat_client_provider", provider)
+    # The draft builds at the same reload: pinned local, so these tests read
+    # the proposal's provider and not a developer's .env draft setting.
+    monkeypatch.setattr(settings, "draft_client_provider", "vllm")
     monkeypatch.setattr(settings, "cloud_api_key", "key")
     monkeypatch.setattr(settings, "cloud_model", "test-model")
     monkeypatch.setattr(settings, "cloud_base_url", cloud_base_url)
