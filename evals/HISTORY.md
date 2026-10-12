@@ -95,6 +95,45 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-12 (5): one page per slot, paired on identical inputs, probe
+
+**Verdict:** one page per slot in Jev's top 5 never loses a ticket and gains
+1-2 points: recall@5 0.904 → **0.914** and 0.902 → **0.906**, recall@3
+0.866 → 0.876 and 0.854 → 0.872, strict@3 +2.0 and +2.4 points, in two
+passes with no ticket lost in 1,000 paired comparisons. Shipped:
+`RERANK_TOP_N_PER_PAGE=1`. (4)'s +18 / -13 swing was draft noise.
+
+| Configuration | |
+|---|---|
+| Method | The real nodes (`draft_answer` on DeepSeek, `hybrid_retrieve`, `candidate_pool` on the entity graph), Jev on the 15, raw ticket text; both selections (no limit, one page per slot) scored from the same Jev ranking of the same ticket, so draft noise cancels. Two passes with fresh drafts. Jev's scores cached on disk by (model, question, ticket, passage). Script, cache and results in `~/.cache/smart-ticket-lightrag/probe/` |
+| Code | `5c24bae` (`main`) |
+
+| | Pass 1 | Pass 2 |
+|---|---|---|
+| Recall@5: no limit → one page | 0.904 → 0.914 (+5, -0) | 0.902 → 0.906 (+2, -0) |
+| Recall@3: no limit → one page | 0.866 → 0.876 (+5, -0) | 0.854 → 0.872 (+9, -0) |
+| Strict@3: no limit → one page | 0.798 → 0.818 (+10, -0) | 0.790 → 0.814 (+12, -0) |
+| Errors · Jev calls (cache hits) | 0 · 7,496 (0) | 0 · 1,912 (5,586) |
+
+### Findings
+
+**1. It cannot lose on the same ranking.** Dropping a page's second chunk
+only moves later pages up; the gold page's first chunk keeps its place or
+rises. The cost is on the generation side: the proposal sees one chunk per
+page, which a full end-to-end run should check.
+
+**2. Draft noise, measured.** Between the passes about 15 tickets go from
+hit to miss at recall@5 and about 15 the other way; totals move about a
+point. A single run is ±1 point.
+
+**3. Recall@5 sits at the gate:** 0.902-0.914 across (4) and both passes.
+
+**4. The cache cut Jev calls by 75%** on the second pass. Earlier the same
+day Jev's credit ran out (402) on the first of four planned suite runs:
+about 150,000 Jev calls had gone to experiments since the last top-up.
+
+---
+
 ## 2026-10-12 (4): DeepSeek drafting on the entity graph, Jev's top 5, with and without one page per slot, retrieval suite
 
 **Verdict:** the best retrieval yet. DeepSeek drafting on the entity graph

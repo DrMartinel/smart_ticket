@@ -906,3 +906,15 @@
 {"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"gold_use","value":136.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"pool_size","value":30.0,"n":500,"labels":{"stat":"median"}}
 {"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"pool_size","value":100.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-12-probe-paired-pass1-nolimit","metric":"retrieval_recall_at_5","value":0.904,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-probe-paired-pass1-nolimit","metric":"retrieval_recall_at_3","value":0.866,"n":500}
+{"run":"2026-10-12-probe-paired-pass1-nolimit","metric":"retrieval_recall_at_3_strict","value":0.798,"n":500}
+{"run":"2026-10-12-probe-paired-pass1-onepage","metric":"retrieval_recall_at_5","value":0.914,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-probe-paired-pass1-onepage","metric":"retrieval_recall_at_3","value":0.876,"n":500}
+{"run":"2026-10-12-probe-paired-pass1-onepage","metric":"retrieval_recall_at_3_strict","value":0.818,"n":500}
+{"run":"2026-10-12-probe-paired-pass2-nolimit","metric":"retrieval_recall_at_5","value":0.902,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-probe-paired-pass2-nolimit","metric":"retrieval_recall_at_3","value":0.854,"n":500}
+{"run":"2026-10-12-probe-paired-pass2-nolimit","metric":"retrieval_recall_at_3_strict","value":0.79,"n":500}
+{"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_5","value":0.906,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_3","value":0.872,"n":500}
+{"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_3_strict","value":0.814,"n":500}
