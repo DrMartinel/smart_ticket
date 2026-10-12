@@ -117,7 +117,9 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
     if top_n >= 5:
         print(f"Recall@5: {hits_at_5 / len(cases):.2%}")
     print(f"Gold article in context ({hits}): {gold_use}")
-    print(f"Cross-encoder batch: median={median(pool_sizes)} max={max(pool_sizes)}")
+    print(
+        f"Cross-encoder batch: median={median(pool_sizes or [0])} max={max(pool_sizes, default=0)}"
+    )
     record_metric(
         "retrieval_recall_at_3",
         recall,
@@ -125,8 +127,9 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
         strict=recall_strict,
         n=len(cases),
         gold_use={k: len(v) for k, v in gold_use.items()},
-        pool_size_median=median(pool_sizes),
-        pool_size_max=max(pool_sizes),
+        # Every ticket can error (a reranker outage): report 0, not crash.
+        pool_size_median=median(pool_sizes or [0]),
+        pool_size_max=max(pool_sizes, default=0),
         errors=len(errors),
         **({"recall_at_5": hits_at_5 / len(cases)} if top_n >= 5 else {}),
     )
