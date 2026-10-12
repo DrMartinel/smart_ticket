@@ -20,6 +20,7 @@ from apps.tickets.utils.masking import (
     _apply,
     _spans_to_hits,
     mask,
+    mask_reply,
     llm_ner,
     ner_share,
     regex_scan,
@@ -303,7 +304,7 @@ PLACEHOLDER = re.compile(r"\[[A-Z_]+_\d+\]")
 def _mask_body(body: str, ner_spans: list[str]):
     """`_apply` on regex hits plus NER `ner_spans`, the hits `mask` merges."""
     hits = regex_scan(body) + _spans_to_hits(body, ner_spans)
-    _, masked, placeholder_map, _ = _apply(TicketIn(subject="Help please", body=body), [], hits)
+    (masked,), placeholder_map, _ = _apply([(body, hits)], counters={})
     return masked, placeholder_map, hits
 
 
@@ -362,7 +363,7 @@ class TestOverlappingHits:
         blocks the ticket."""
         body = "my password: Summer2024! fails on the portal"
         hits = regex_scan(body) + _spans_to_hits(body, ["my password"])
-        _, masked, _, _ = _apply(TicketIn(subject="Help please", body=body), [], hits)
+        (masked,), _, _ = _apply([(body, hits)], counters={})
         assert masked == "[PASSWORD_1] fails on the portal"
 
     def test_regex_label_beats_freeform_on_the_same_value(self):
@@ -375,7 +376,7 @@ class TestOverlappingHits:
         body = "call anh Tuan0909123456 now"
         hits = regex_scan(body) + _spans_to_hits(body, ["anh Tuan"])
         assert hits[0].end == hits[1].start or hits[1].end == hits[0].start
-        _, masked, _, _ = _apply(TicketIn(subject="Help please", body=body), [], hits)
+        (masked,), _, _ = _apply([(body, hits)], counters={})
         assert masked == "call [FREEFORM_1][PHONE_VN_1] now"
         _assert_masked_exactly(body, masked, hits)
 
@@ -485,3 +486,65 @@ def _fake_ner(spans: list[str]):
         return [s for s in spans if s in text]
 
     return fake
+
+
+def run_mask_reply(text: str, taken: list[str], ner_max_share: float = NER_MAX_SHARE):
+    return async_to_sync(mask_reply)(text, ner_max_share, taken)
+
+
+class TestMaskReply:
+    """A requester's answer to a clarifying question (ADR-0023) is appended
+    to an already-masked ticket, so it must be masked the same way and must
+    not reuse the ticket's placeholder numbers: `[EMAIL_1]` in the answer
+    read as the ticket's `[EMAIL_1]` would point a reviewer's quarantine
+    lookup at the wrong person's value."""
+
+    @pytest.fixture
+    def ner_finds(self, monkeypatch):
+        def finds(spans: list[str]):
+            async def fake_ner(*a, **kw):
+                return spans
+
+            monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+
+        return finds
+
+    def test_numbering_continues_past_the_tickets_own(self, ner_finds):
+        ner_finds([])
+        r = run_mask_reply("use b.tran@company.com", ["[EMAIL_1]", "[EMAIL_2]", "[PHONE_VN_1]"])
+        assert r.text_masked == "use [EMAIL_3]"
+        assert r.placeholder_map == {"[EMAIL_3]": "b.tran@company.com"}
+        assert r.pii_level is PIILevel.ROUTINE
+
+    def test_a_label_the_ticket_never_used_starts_at_one(self, ner_finds):
+        ner_finds([])
+        r = run_mask_reply("call 0912345678", ["[EMAIL_1]"])
+        assert r.text_masked == "call [PHONE_VN_1]"
+
+    def test_freeform_answer_is_masked(self, ner_finds):
+        ner_finds(["Mr. Hung"])
+        r = run_mask_reply("the portal Mr. Hung set up", ["[FREEFORM_1]"])
+        assert r.text_masked == "the portal [FREEFORM_2] set up"
+
+    def test_critical_answer_is_critical_before_ner(self, monkeypatch):
+        async def must_not_run(*a, **kw):
+            raise AssertionError("NER must not run on a critical answer")
+
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", must_not_run)
+        r = run_mask_reply("the one where password: hunter2 works", [])
+        assert r.pii_level is PIILevel.CRITICAL
+        assert "hunter2" not in r.text_masked
+
+    def test_ner_failure_is_mask_failed_never_clean(self, monkeypatch):
+        async def raise_error(*a, **kw):
+            raise NERError("simulated")
+
+        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", raise_error)
+        r = run_mask_reply("the access portal, ask an.nguyen@company.com", [])
+        assert r.pii_level is PIILevel.MASK_FAILED
+        assert "an.nguyen@company.com" not in r.text_masked
+
+    def test_an_answer_ner_masks_wholesale_is_mask_failed(self, ner_finds):
+        ner_finds(["the access portal one"])
+        r = run_mask_reply("the access portal one", [])
+        assert r.pii_level is PIILevel.MASK_FAILED

@@ -184,3 +184,95 @@ class TestAnswer:
 
         assert body["state"] == "suggest_ticket"
         assert body["answer"] is None
+
+
+def _asked_chat_ticket(reporter, *, asked_minutes_ago: int = 0) -> Ticket:
+    """A live chat ticket whose clarify decision is held and whose question
+    is open, as the pipeline leaves it (ADR-0023)."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.tickets.models import TicketClarification
+
+    ticket = Ticket.objects.create(
+        public_id="TKT-CHAT-CLR",
+        reporter=reporter,
+        subject_masked="The client app keeps crashing",
+        body_masked="The client app keeps crashing on my laptop.",
+        pii_level=PIILevel.ROUTINE.value,
+        source=TicketSource.CHAT.value,
+        status="awaiting_requester",
+        held_decision={"branch": "clarify", "reason_code": "all_checks_passed"},
+    )
+    asked = TicketClarification.objects.create(
+        ticket=ticket,
+        question="Which application keeps crashing?",
+        options=[
+            {"slug": "client-vpn-user.windows-troubleshooting", "title": "AWS VPN Client"},
+            {"slug": "workspaces-user.client_troubleshooting", "title": "WorkSpaces client"},
+        ],
+        ticket_body_masked=ticket.body_masked,
+    )
+    TicketClarification.objects.filter(id=asked.id).update(
+        asked_at=timezone.now() - timedelta(minutes=asked_minutes_ago)
+    )
+    return ticket
+
+
+def answer(client, public_id: str, text: str):
+    return client.post(
+        f"/api/chat/tickets/{public_id}/clarify", {"answer": text}, content_type="application/json"
+    )
+
+
+@pytest.mark.django_db
+class TestClarify:
+    def test_open_question_shows_with_page_titles_never_slugs(self, employee_user, api_as):
+        _asked_chat_ticket(employee_user)
+
+        body = api_as(employee_user).get("/api/chat/tickets/TKT-CHAT-CLR").json()
+
+        assert body["state"] == "clarify"
+        assert body["clarification"] == {
+            "question": "Which application keeps crashing?",
+            "options": ["AWS VPN Client", "WorkSpaces client"],
+            "answer_masked": None,
+        }
+
+    def test_answer_shows_the_original_question_and_thinks_again(
+        self, employee_user, api_as, ner_finds_nothing, enqueued
+    ):
+        ticket = _asked_chat_ticket(employee_user)
+
+        response = answer(api_as(employee_user), "TKT-CHAT-CLR", "AWS VPN Client")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["state"] == "thinking"
+        # What the requester typed, not the body with the answer appended.
+        assert body["question_masked"] == "The client app keeps crashing on my laptop."
+        assert body["clarification"]["answer_masked"] == "AWS VPN Client"
+        assert enqueued == [str(ticket.id)]
+
+    def test_expired_question_offers_a_ticket_and_refuses_an_answer(
+        self, employee_user, api_as, settings, enqueued
+    ):
+        wait = settings.THRESHOLDS.clarification.wait_minutes
+        _asked_chat_ticket(employee_user, asked_minutes_ago=wait)
+        client = api_as(employee_user)
+
+        assert client.get("/api/chat/tickets/TKT-CHAT-CLR").json()["state"] == "suggest_ticket"
+        assert answer(client, "TKT-CHAT-CLR", "AWS VPN Client").status_code == 409
+        assert enqueued == []
+
+    def test_another_requester_cannot_answer(self, employee_user, technician_user, api_as):
+        _asked_chat_ticket(employee_user)
+
+        assert answer(api_as(technician_user), "TKT-CHAT-CLR", "VPN").status_code == 404
+
+    def test_an_empty_answer_is_rejected_before_masking(self, employee_user, api_as, enqueued):
+        _asked_chat_ticket(employee_user)
+
+        assert answer(api_as(employee_user), "TKT-CHAT-CLR", "   ").status_code == 422
+        assert enqueued == []

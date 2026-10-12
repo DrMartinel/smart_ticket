@@ -54,8 +54,8 @@ class Branch(StrEnum):
     HITL = "hitl"
     BLOCK = "block"
     ESCALATE = "escalate"
-    # Ask the requester which of the shown pages they mean (ADR-0016).
-    # Executed as human review until the requester side exists.
+    # Ask the requester which of the shown pages they mean (ADR-0016). A live
+    # chat ticket asks the requester (ADR-0023); otherwise human review.
     CLARIFY = "clarify"
 
 
@@ -79,6 +79,9 @@ class ReasonCode(StrEnum):
     # clarify (ADR-0016)
     CLARIFY_SECURITY = "clarify_security"
     CLARIFY_OPTIONS_NOT_SHOWN = "clarify_options_not_shown"
+    # The requester already answered a question and the ticket is still
+    # ambiguous: one question, then a human (ADR-0023).
+    CLARIFY_ROUND_CAP = "clarify_round_cap"
     # degraded
     AI_ENGINE_UNAVAILABLE = "ai_engine_unavailable"
     EMBEDDING_UNAVAILABLE = "embedding_unavailable"
@@ -253,6 +256,10 @@ def route(
             return _hitl(
                 ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN, queue=ReviewQueue.LOW_CONFIDENCE.value
             )
+        if p.clarifications_asked >= th.clarification.max_rounds:
+            # Asked already, answered, and still ambiguous. Asking again
+            # could loop on a requester who can't say more; a person can.
+            return _hitl(ReasonCode.CLARIFY_ROUND_CAP, queue=ReviewQueue.CLARIFICATION.value)
         return RoutingDecision(
             branch=Branch.CLARIFY,
             reason_code=ReasonCode.ALL_CHECKS_PASSED,

@@ -165,10 +165,10 @@ def _clarify_response(request_id: str):
 def test_clarify_reaches_a_person_in_the_clarification_queue(
     shadow, employee_user, monkeypatch, settings
 ):
-    """Nothing sends a question to the requester yet (ADR-0016), so live mode
-    must not act differently from shadow: a person gets the proposed
-    question. A clarify ticket left without a review item would be
-    invisible to every queue."""
+    """A form ticket has no way to reach its requester (only a live chat
+    ticket asks, ADR-0023), so live mode must not act differently from
+    shadow: a person gets the proposed question. A clarify ticket left
+    without a review item would be invisible to every queue."""
     from apps.tickets.models import IncidentVerdict
 
     settings.SHADOW_MODE = shadow

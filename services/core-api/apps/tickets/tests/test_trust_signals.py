@@ -54,7 +54,7 @@ def test_no_kb_page_denies_auto_reply():
     """No active page for the proposal (or no auto-reply proposal at all)
     must never read as authority granted: deny, at the highest risk tier."""
 
-    policy = trust_signals(_engine(), PIILevel.ROUTINE, None).policy
+    policy = trust_signals(_engine(), PIILevel.ROUTINE, None, clarifications_asked=0).policy
 
     assert (policy.kb_auto_reply_allowed, policy.kb_risk_tier) == (False, "high")
 
@@ -63,14 +63,27 @@ def test_an_injection_ai_engine_found_reaches_the_policy_gate():
     """The router blocks on `policy.injection_detected`; dropped here, an
     injection would be routed like any ticket."""
 
-    assert trust_signals(_engine(injection=True), PIILevel.ROUTINE, None).policy.injection_detected
+    assert trust_signals(
+        _engine(injection=True), PIILevel.ROUTINE, None, clarifications_asked=0
+    ).policy.injection_detected
+
+
+def test_the_questions_already_asked_reach_the_router():
+    """The router's round cap reads `policy.clarifications_asked`
+    (ADR-0023); dropped here, it would read 0 and ask the requester again."""
+
+    policy = trust_signals(_engine(), PIILevel.ROUTINE, None, clarifications_asked=1).policy
+
+    assert policy.clarifications_asked == 1
 
 
 # --- behaviour ------------------------------------------------------------------
 
 
 def test_kb_authority_is_core_apis_own_read():
-    policy = trust_signals(_engine(), PIILevel.ROUTINE, _kb(allowed=True, tier=RiskTier.LOW)).policy
+    policy = trust_signals(
+        _engine(), PIILevel.ROUTINE, _kb(allowed=True, tier=RiskTier.LOW), clarifications_asked=0
+    ).policy
 
     assert (policy.kb_auto_reply_allowed, policy.kb_risk_tier) == (True, "low")
 
@@ -79,7 +92,7 @@ def test_the_pii_level_is_the_tickets_and_mass_incident_is_not_set_here():
     """The PII level comes from core-api's masking; a mass incident never
     reaches ai-engine (the pipeline routes it before), so it is False."""
 
-    policy = trust_signals(_engine(), PIILevel.SENSITIVE, None).policy
+    policy = trust_signals(_engine(), PIILevel.SENSITIVE, None, clarifications_asked=0).policy
 
     assert policy.pii_level is PIILevel.SENSITIVE
     assert policy.mass_incident is False
@@ -88,7 +101,7 @@ def test_the_pii_level_is_the_tickets_and_mass_incident_is_not_set_here():
 def test_ai_engines_findings_pass_through_unchanged():
     engine = _engine()
 
-    signals = trust_signals(engine, PIILevel.ROUTINE, None)
+    signals = trust_signals(engine, PIILevel.ROUTINE, None, clarifications_asked=0)
 
     assert signals.retrieval == engine.retrieval
     assert signals.generation == engine.generation

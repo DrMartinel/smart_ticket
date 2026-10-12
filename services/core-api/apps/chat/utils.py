@@ -7,9 +7,14 @@ pipeline already did.
 
 from __future__ import annotations
 
-from apps.chat.response_schema import ChatAnswerOut, ChatState, ChatTurnOut
+from apps.chat.response_schema import (
+    ChatAnswerOut,
+    ChatClarificationOut,
+    ChatState,
+    ChatTurnOut,
+)
 from apps.kb.models import KbArticle
-from apps.tickets.models import Ticket
+from apps.tickets.models import Ticket, TicketClarification
 from apps.tickets.request_schema import TicketIn
 from infrastructure.dtos import AutoReplyProposal
 
@@ -25,11 +30,15 @@ def ticket_in_from_message(message: str) -> TicketIn:
 
 
 def chat_turn(ticket: Ticket) -> ChatTurnOut:
+    asked = ticket.clarifications.order_by("-asked_at").first()
     return ChatTurnOut(
         public_id=ticket.public_id,
-        question_masked=ticket.body_masked,
+        # What the requester typed: an answer is appended to the body for
+        # the next run and for reviewers, and is shown as its own reply.
+        question_masked=asked.ticket_body_masked if asked else ticket.body_masked,
         state=_state(ticket),
         answer=_answer(ticket) if ticket.status == "auto_replied" else None,
+        clarification=_clarification(asked) if asked else None,
         created_at=ticket.created_at,
     )
 
@@ -40,8 +49,18 @@ def _state(ticket: Ticket) -> ChatState:
     if ticket.status == "auto_replied":
         return ChatState.ANSWERED
     if ticket.status == "awaiting_requester":
+        if ticket.open_clarification() is not None:
+            return ChatState.CLARIFY
         return ChatState.SUGGEST_TICKET
     return ChatState.WITH_SUPPORT
+
+
+def _clarification(asked: TicketClarification) -> ChatClarificationOut:
+    return ChatClarificationOut(
+        question=asked.question,
+        options=[o["title"] for o in asked.options],
+        answer_masked=asked.answer_masked,
+    )
 
 
 def _answer(ticket: Ticket) -> ChatAnswerOut | None:

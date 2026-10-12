@@ -14,6 +14,7 @@ from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQ
 from config.settings.base import (
     AlertThresholds,
     BudgetThresholds,
+    ClarificationThresholds,
     ClassificationThresholds,
     FewshotThresholds,
     IncidentThresholds,
@@ -66,6 +67,7 @@ def make_thresholds(**overrides) -> Thresholds:
             trust_score_std_min=0.08,
         ),
         classification=ClassificationThresholds(min_confidence=0.65),
+        clarification=ClarificationThresholds(max_rounds=1, wait_minutes=60),
         masking=MaskingThresholds(ner_max_share=0.5),
     )
     base.update(overrides)
@@ -535,3 +537,58 @@ def test_clarify_needs_no_trust_and_lands_in_the_clarification_queue():
     # Jev's category (good_signals: network), not the proposal's (access).
     assert d.category is TicketCategory.NETWORK
     assert d.trust is None
+
+
+# --- the round cap (ADR-0023) ------------------------------------------------
+
+
+def test_clarify_after_the_requester_answered_goes_to_a_human():
+    """The requester answered one question and the ticket is still
+    ambiguous. Asking again could loop on someone who can't say more; a
+    person gets it, from the clarification queue, where the question and
+    the answer are both in front of them."""
+    signals = good_signals(
+        **{"generation.clarify_options_in_topk": True, "policy.clarifications_asked": 1}
+    )
+    d = route(signals, clarify_proposal(), None, TH)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CLARIFY_ROUND_CAP
+    assert d.queue is ReviewQueue.CLARIFICATION
+
+
+def test_no_rounds_allowed_means_no_question_is_ever_asked():
+    """max_rounds 0 turns the branch off: every clarify proposal goes to a
+    human, the safe direction for the setting."""
+    signals = good_signals(**{"generation.clarify_options_in_topk": True})
+    d = route(
+        signals,
+        clarify_proposal(),
+        None,
+        make_thresholds(clarification=ClarificationThresholds(max_rounds=0, wait_minutes=60)),
+    )
+    assert d.reason_code is ReasonCode.CLARIFY_ROUND_CAP
+
+
+@pytest.mark.parametrize(
+    "proposal, branch",
+    [(auto_reply_proposal(), Branch.AUTO_REPLY), (route_proposal(), Branch.AUTO_ROUTE)],
+    ids=["auto_reply", "auto_route"],
+)
+def test_an_answered_question_does_not_change_other_branches(proposal, branch):
+    """After the answer, the second run may reach any branch: the cap is
+    on asking again, not on answering."""
+    signals = good_signals(**{"policy.clarifications_asked": 1})
+    d = route(signals, proposal, kb(), TH)
+    assert d.branch is branch
+
+
+def test_security_beats_the_round_cap():
+    signals = good_signals(
+        **{
+            "classification.category_choice": TicketCategory.SECURITY,
+            "generation.clarify_options_in_topk": True,
+            "policy.clarifications_asked": 1,
+        }
+    )
+    d = route(signals, clarify_proposal(), None, TH)
+    assert d.reason_code is ReasonCode.CLARIFY_SECURITY

@@ -20,12 +20,14 @@ import logging
 import uuid
 
 import httpx
+from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from infrastructure.dtos import (
     AIRunResponse,
+    ClarificationProposal,
     EngineSignals,
     GenerationSignals,
     LLMProposalEnvelope,
@@ -45,12 +47,21 @@ from apps.tickets.utils.router import (
     RiskTier,
     RoutingDecision as Decision,
 )
+from apps.tickets.utils.masking import mask_reply
 from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.utils.crypto import build_quarantine_entries
 
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
-from apps.tickets.models import AiRun, RoutingDecision, Ticket, TicketSource
+from apps.tickets.models import (
+    AiRun,
+    PiiQuarantine,
+    RoutingDecision,
+    Ticket,
+    TicketClarification,
+    TicketSource,
+)
 from apps.tickets.utils import router as router_service
 from apps.tickets.utils.trust_scorer import score as compute_trust
 
@@ -60,12 +71,17 @@ type TaskResult = dict[str, str | bool]
 
 
 def trust_signals(
-    engine: EngineSignals, pii_level: PIILevel, kb: KBArticleMeta | None
+    engine: EngineSignals,
+    pii_level: PIILevel,
+    kb: KBArticleMeta | None,
+    *,
+    clarifications_asked: int,
 ) -> TrustSignals:
     """ai-engine's findings plus the policy core-api knows itself: the
-    ticket's PII level and the KB page's authority, from core-api's own KB
+    ticket's PII level, the KB page's authority, from core-api's own KB
     read (ADR-0002; `kb` is None unless an auto-reply proposal names an
-    active page, and then auto-reply is denied). Pure."""
+    active page, and then auto-reply is denied), and how many questions the
+    ticket has asked its requester (ADR-0023). Pure."""
     return TrustSignals(
         retrieval=engine.retrieval,
         generation=engine.generation,
@@ -76,6 +92,7 @@ def trust_signals(
             pii_level=pii_level,
             injection_detected=engine.injection_detected,
             mass_incident=False,
+            clarifications_asked=clarifications_asked,
         ),
         llm_self_confidence=engine.llm_self_confidence,
     )
@@ -217,6 +234,8 @@ def _finalize(
             decision, shadow, PIILevel(ticket.pii_level)
         ):
             _hold_for_requester(ticket, decision, trace_id)
+            if decision.branch is Branch.CLARIFY and not shadow:
+                _ask_requester(ticket, ai_run, trace_id)
         else:
             _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
 
@@ -272,6 +291,115 @@ def _hold_for_requester(ticket: Ticket, decision: Decision, trace_id: str) -> No
         payload={"ticket_public_id": ticket.public_id, "branch": decision.branch.value},
         trace_id=trace_id,
     )
+
+
+def _ask_requester(ticket: Ticket, ai_run: AiRun, trace_id: str) -> None:
+    """A live chat ticket's `clarify` decision: the requester is shown the
+    proposed question (ADR-0023). The decision stays held, so the requester
+    can still ask for a person instead and `release_to_support` carries it
+    out as before. Shadow mode asks nothing: it sends nothing (spec §14 P1)."""
+    proposal = ClarificationProposal.model_validate(ai_run.proposed_draft)
+    # Titles from the KB, in the order the model gave the options. The
+    # validator checked each was among the chunks shown, which come from
+    # active pages; one deactivated since is left out, not shown untitled.
+    titles = dict(
+        KbArticle.objects.filter(slug__in=proposal.proposed_options, is_active=True).values_list(
+            "slug", "title"
+        )
+    )
+    TicketClarification.objects.create(
+        ticket=ticket,
+        ai_run=ai_run,
+        question=proposal.proposed_question,
+        options=[
+            {"slug": slug, "title": titles[slug]}
+            for slug in proposal.proposed_options
+            if slug in titles
+        ],
+        ticket_body_masked=ticket.body_masked,
+    )
+    AuditLog.objects.record(
+        "clarification_asked",
+        actor_type="system",
+        ticket_id=ticket.id,
+        payload={"ticket_public_id": ticket.public_id},
+        trace_id=trace_id,
+    )
+
+
+class NotAwaitingAnswer(Exception):
+    """The ticket asked no question that is still open: never asked, already
+    answered, past `clarification.wait_minutes`, or handed to support."""
+
+
+# Worst first: an answer can only make the ticket's PII level worse. The
+# order follows the router's gates, critical before mask-failed.
+_PII_SEVERITY = [PIILevel.CRITICAL, PIILevel.MASK_FAILED, PIILevel.SENSITIVE, PIILevel.ROUTINE]
+
+
+def _worse(a: PIILevel, b: PIILevel) -> PIILevel:
+    return min(a, b, key=_PII_SEVERITY.index)
+
+
+def answer_clarification(
+    ticket_id: uuid.UUID, requester_id: uuid.UUID, answer: str, trace_id: str | None
+) -> Ticket:
+    """The requester answered the open question (ADR-0023). The answer is
+    masked like a ticket, its PII quarantined, and the question and the
+    masked answer appended to the ticket's body; the held decision is
+    dropped and the pipeline runs again on the whole of it, every gate
+    included: an answer carrying a password, an injection or PII the masker
+    can't handle is caught there exactly as in a ticket.
+
+    Masking calls the NER model, so it runs before the row is locked; the
+    lock then re-checks, so a double submit masks twice but answers once
+    (the second raises `NotAwaitingAnswer`).
+    """
+    ticket = Ticket.objects.get(id=ticket_id)
+    if ticket.open_clarification() is None:
+        raise NotAwaitingAnswer(ticket.public_id)
+    masked = async_to_sync(mask_reply)(
+        answer, settings.THRESHOLDS.masking.ner_max_share, list(ticket.pii_map)
+    )
+    quarantine = build_quarantine_entries(masked.placeholder_map)
+
+    with transaction.atomic():
+        ticket = Ticket.objects.select_for_update().get(id=ticket_id)
+        clarification = ticket.open_clarification()
+        if clarification is None:
+            raise NotAwaitingAnswer(ticket.public_id)
+
+        clarification.answer_masked = masked.text_masked
+        clarification.answered_at = timezone.now()
+        clarification.save(update_fields=["answer_masked", "answered_at"])
+        PiiQuarantine.objects.store(ticket, quarantine)
+        ticket.pii_map = {**ticket.pii_map, **{ph: str(e.ref) for ph, e in quarantine.items()}}
+        ticket.pii_level = _worse(PIILevel(ticket.pii_level), masked.pii_level).value
+        ticket.body_masked = (
+            f"{ticket.body_masked}\n\n"
+            f"Asked: {clarification.question}\n"
+            f"Answered: {masked.text_masked}"
+        )
+        ticket.status = "new"
+        ticket.held_decision = None
+        ticket.save(
+            update_fields=["pii_map", "pii_level", "body_masked", "status", "held_decision"]
+        )
+        AuditLog.objects.record(
+            "clarification_answered",
+            actor_type="human",
+            actor_id=requester_id,
+            ticket_id=ticket.id,
+            payload={"ticket_public_id": ticket.public_id, "pii_level": ticket.pii_level},
+            trace_id=trace_id,
+        )
+
+    # After commit, as in `Ticket.objects.submit`: a worker must find the
+    # answer when it looks the ticket up.
+    from apps.tickets import tasks
+
+    tasks.process_ticket.delay(str(ticket.id))
+    return ticket
 
 
 class NotAwaitingRequester(Exception):
@@ -464,6 +592,9 @@ def ticket_process(ticket_id: str) -> TaskResult:
         return _finalize(ticket, ai_run, decision, trace_id)
 
     # ── Call ai-engine ──
+    # Questions asked so far, answered or not: the router asks no more past
+    # `clarification.max_rounds` (ADR-0023).
+    clarifications_asked = ticket.clarifications.count()
     masked = TicketMasked(
         ticket_public_id=ticket.public_id,
         subject_masked=ticket.subject_masked,
@@ -497,7 +628,9 @@ def ticket_process(ticket_id: str) -> TaskResult:
         ai_run = _persist_ai_run(
             ticket,
             idempotency_key,
-            trust_signals(resp.signals, masked.pii_level, None),
+            trust_signals(
+                resp.signals, masked.pii_level, None, clarifications_asked=clarifications_asked
+            ),
             resp.proposal,
             resp=resp,
             degraded_reason=resp.degraded_reason,
@@ -505,7 +638,9 @@ def ticket_process(ticket_id: str) -> TaskResult:
         return _finalize(ticket, ai_run, decision, trace_id)
 
     kb_meta = _kb_meta(resp.proposal)
-    signals = trust_signals(resp.signals, masked.pii_level, kb_meta)
+    signals = trust_signals(
+        resp.signals, masked.pii_level, kb_meta, clarifications_asked=clarifications_asked
+    )
     decision = router_service.route(signals, resp.proposal, kb_meta, settings.THRESHOLDS)
     ai_run = _persist_ai_run(
         ticket,

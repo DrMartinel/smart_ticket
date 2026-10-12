@@ -233,6 +233,13 @@ class ClassificationThresholds(BaseModel):
     min_confidence: float = Field(ge=0, le=1)
 
 
+class ClarificationThresholds(BaseModel):
+    # Questions asked of a requester per ticket, then a human (ADR-0023).
+    max_rounds: int = Field(ge=0)
+    # How long a chat question stays open before a ticket is offered instead.
+    wait_minutes: int = Field(ge=1)
+
+
 class MaskingThresholds(BaseModel):
     # Above this share of a ticket's text, NER's spans (beyond the regex
     # hits) make the ticket MASK_FAILED instead of passing it on over-masked.
@@ -253,6 +260,7 @@ class Thresholds(BaseModel):
     budget: BudgetThresholds
     alerts: AlertThresholds
     classification: ClassificationThresholds
+    clarification: ClarificationThresholds
     masking: MaskingThresholds
 
     @property

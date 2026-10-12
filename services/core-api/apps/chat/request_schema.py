@@ -15,3 +15,13 @@ class ChatAskIn(Schema):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     message: str = Field(min_length=10, max_length=10_000)
+
+
+class ChatClarifyIn(Schema):
+    """The requester's answer to the question (ADR-0023): a tapped option's
+    title or what they typed. Short answers are fine ("the VPN one"); it is
+    masked and appended to the ticket, so it shares the body's ceiling."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    answer: str = Field(min_length=1, max_length=2_000)

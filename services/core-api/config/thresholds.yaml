@@ -71,6 +71,17 @@ classification:
   # probe: re-choose on shadow data before P3.
   min_confidence: 0.65
 
+clarification:
+  # Questions a ticket may ask its requester (ADR-0023). After this many, a
+  # clarify proposal goes to a human as `clarify_round_cap`: a requester
+  # whose answer was still ambiguous is not asked again.
+  max_rounds: 1
+  # 🔧 How long a question stays open in the chat. After it, the requester is
+  # offered a ticket instead (the user's choice, 2026-10-12): nothing goes to
+  # support unless they ask. Chosen as "step away and come back"; re-choose
+  # from shadow data on how long requesters take to answer.
+  wait_minutes: 60
+
 masking:
   # 🔧 Share of a ticket's text (subject + body) that tier-2 NER's free-form
   # spans may cover beyond what the regex tier masked. Above it the ticket is

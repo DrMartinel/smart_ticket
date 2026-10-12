@@ -87,7 +87,10 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
 
         with django_db_blocker.unblock():
             kb_meta = _kb_meta_for(proposal_dict)
-        signals = trust_signals(EngineSignals(**result["signals"]), pii_level, kb_meta)
+        # Golden tickets are single-turn: none has asked its requester anything.
+        signals = trust_signals(
+            EngineSignals(**result["signals"]), pii_level, kb_meta, clarifications_asked=0
+        )
         decision = route(signals, proposal, kb_meta, settings.THRESHOLDS)
 
         expected_branch = case["truth"].get("expected_branch")

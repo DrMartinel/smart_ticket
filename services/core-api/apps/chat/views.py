@@ -2,7 +2,8 @@
 The requester's chat. A question is submitted as a ticket (masked inline,
 then the usual pipeline); the chat polls for the outcome and, when the
 outcome is a handoff to support, asks the requester before carrying it out
-(`pipeline.waits_for_requester`). Every endpoint sees only the caller's own
+(`pipeline.waits_for_requester`). A clarifying question is answered here
+too, and the answer re-runs the pipeline (ADR-0023). Every endpoint sees only the caller's own
 chat tickets.
 """
 
@@ -14,11 +15,16 @@ from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 
 from apps.accounts.permissions import AuthedRequest
-from apps.chat.request_schema import ChatAskIn
+from apps.chat.request_schema import ChatAskIn, ChatClarifyIn
 from apps.chat.response_schema import ChatTurnOut
 from apps.chat.utils import chat_turn, ticket_in_from_message
 from apps.tickets.models import Ticket, TicketSource
-from apps.tickets.utils.pipeline import NotAwaitingRequester, release_to_support
+from apps.tickets.utils.pipeline import (
+    NotAwaitingAnswer,
+    NotAwaitingRequester,
+    answer_clarification,
+    release_to_support,
+)
 
 router = Router(tags=["chat"])
 
@@ -63,4 +69,16 @@ def create_ticket(request: AuthedRequest, public_id: str) -> ChatTurnOut:
         ticket = release_to_support(ticket.id, request.auth.id, getattr(request, "trace_id", None))
     except NotAwaitingRequester as e:
         raise HttpError(409, "this question is not waiting for a ticket") from e
+    return chat_turn(ticket)
+
+
+@router.post("/tickets/{public_id}/clarify", auth=JWTAuth(), response=ChatTurnOut)
+def clarify(request: AuthedRequest, public_id: str, payload: ChatClarifyIn) -> ChatTurnOut:
+    ticket = _own_chat_ticket(request, public_id)
+    try:
+        ticket = answer_clarification(
+            ticket.id, request.auth.id, payload.answer, getattr(request, "trace_id", None)
+        )
+    except NotAwaitingAnswer as e:
+        raise HttpError(409, "this question is no longer waiting for an answer") from e
     return chat_turn(ticket)

@@ -160,6 +160,11 @@ class PolicySignals(BaseModel):
     pii_level: PIILevel
     injection_detected: bool
     mass_incident: bool
+    # Questions this ticket has already asked its requester (ADR-0023),
+    # counted by core-api from its own rows before routing. The router sends
+    # a clarify proposal past `clarification.max_rounds` to a human. 0 for
+    # signals stored before requesters could be asked, which is what they were.
+    clarifications_asked: int = Field(default=0, ge=0)
 
 
 class ClassificationSignals(BaseModel):
