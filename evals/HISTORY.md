@@ -217,7 +217,8 @@ specific feature less often; see (3).
 Qwen drafting costs nothing on the hand-authored tickets. One of the five
 misses is g030, a Jev TLS error (`TLSV1_ALERT_DECODE_ERROR`) counted as a
 miss; it hit in every earlier run. Not the gate's measurement: the 440
-drafted tickets were left out (`EVAL_EXCLUDE_TAGS=drafted`).
+drafted tickets were left out by a one-off local filter on the
+`drafted` tag, not kept in the repo.
 
 | Configuration | |
 |---|---|
