@@ -109,4 +109,8 @@ results no longer describe the shipped pipeline.
 ## Before this is accepted
 
 1. Review of the measurements in `evals/HISTORY.md` 2026-10-08 to 2026-10-10.
-2. A choice of the shipped source for the demo KB (today `authored_link`).
+2. A choice of the shipped source for the demo KB. **Chosen 2026-10-12:
+   `entity_graph`** (the owner's decision). Under the drafted answer
+   (ADR-0021) the sources tie on recall@3 on 500 tickets (0.816 entity graph,
+   0.810 authored links), at about half the cross-encoder's batch, and the
+   entity graph needs no hyperlinks (`evals/HISTORY.md` 2026-10-12).
