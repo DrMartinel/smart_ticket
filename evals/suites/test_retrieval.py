@@ -67,6 +67,8 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
     gold_use: dict[str, list[str]] = {"quoted": [], "quote_missed": [], "refused": [], "other": []}
     pool_sizes: list[int] = []
     errors: list[str] = []
+    hits_at_5 = 0
+    top_n = 0
 
     for case in cases:
         try:
@@ -83,7 +85,12 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
         # Pages that answer the ticket as well as its gold page
         # (`acceptable_kb_slugs`, SCHEMA.md): a hit on one is a hit.
         accepted = [truth_slug, *case["truth"].get("acceptable_kb_slugs", [])]
-        retrieved_slugs = [c["kb_slug"] for c in result.get("retrieved_chunks", [])]
+        shown = [c["kb_slug"] for c in result.get("retrieved_chunks", [])]
+        # Recall@3 reads the first 3 whatever RERANK_TOP_N is; a run with
+        # RERANK_TOP_N 5 also reports recall@5 (spec §12.2 names @5).
+        retrieved_slugs = shown[:3]
+        hits_at_5 += any(s in accepted for s in shown[:5])
+        top_n = max(top_n, len(shown))
         strict_hits += truth_slug in retrieved_slugs
 
         found = next((s for s in retrieved_slugs if s in accepted), None)
@@ -104,6 +111,8 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
         f"\nRetrieval: recall={recall:.2%} strict={recall_strict:.2%} mrr={mrr:.3f} "
         f"n={len(cases)} errors={errors} misses={misses}"
     )
+    if top_n >= 5:
+        print(f"Recall@5: {hits_at_5 / len(cases):.2%}")
     print(f"Gold article in context ({hits}): {gold_use}")
     print(f"Cross-encoder batch: median={median(pool_sizes)} max={max(pool_sizes)}")
     record_metric(
@@ -116,6 +125,7 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
         pool_size_median=median(pool_sizes),
         pool_size_max=max(pool_sizes),
         errors=len(errors),
+        **({"recall_at_5": hits_at_5 / len(cases)} if top_n >= 5 else {}),
     )
     assert recall >= RECALL_THRESHOLD, (
         f"recall {recall:.2%} < {RECALL_THRESHOLD:.0%}, misses={misses}"

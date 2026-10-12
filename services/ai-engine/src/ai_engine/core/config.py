@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     bm25_top_k: int
     vector_top_k: int
     rerank_top_n: int
+    # At most this many of Jev's top `rerank_top_n` from one page.
+    rerank_top_n_per_page: int = Field(ge=1)
     fewshot_k: int
     # Distinct pages, not chunks: each page keeps its best-fused chunk.
     fusion_candidate_limit: int
