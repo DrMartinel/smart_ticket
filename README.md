@@ -325,9 +325,13 @@ Ticket submitted  ──►  PII Masking (INLINE, before any DB write)
                          ▼
                        ai-engine  (Celery, idempotent per ticket:attempt)
                          ├─ injection detection      ──► detected ──►  BLOCK (zero tokens spent)
-                         ├─ retrieval: vector search on the ticket → RRF (k=60), 10 pages
-                         ├─ cross-encoder shortlist (+ chunks of linked pages) → top 15
-                         ├─ Jev reranks the 15 → top 3
+                         ├─ drafted answer (HyDE): the passage that would answer the ticket,
+                         │     steers retrieval only, never shown        ──► fails ──► HITL
+                         ├─ retrieval: vector on the ticket + BM25 and vector on the draft
+                         │     → RRF (k=60) → 10 pages, + each page's chunks nearest the draft
+                         ├─ cross-encoder shortlist vs the ticket (+ chunks of entity-graph
+                         │     linked pages) → top 15
+                         ├─ Jev reranks the 15 → top 5, one page per slot
                          ├─ Jev chooses the category (ticket + the top page's title)
                          │     └─ Jev's top-1 below floor ──► refuse, LLM never called
                          ├─ few-shot selection
@@ -448,6 +452,11 @@ Per-category F1 is deliberately not averaged — a rare-but-serious category lik
 | [0015](docs/adr/0015-jev-reranks-the-shortlist.md) | Jev reranks the cross-encoder's shortlist; thresholds read its score |
 | [0016](docs/adr/0016-clarify-branch.md) | A `clarify` branch (Proposed) |
 | [0017](docs/adr/0017-jev-classifies-the-category.md) | Jev chooses the category; the LLM's is log-only (Proposed) |
+| [0018](docs/adr/0018-association-sources.md) | Association sources for link expansion: authored links or an entity graph (entity graph shipped) |
+| [0019](docs/adr/0019-deepseek-for-evaluation.md) | DeepSeek's hosted API, for evaluation (draft superseded by 0022) |
+| [0020](docs/adr/0020-no-bm25-on-the-ticket.md) | No BM25 on the ticket; the keyword-agreement trust feature removed |
+| [0021](docs/adr/0021-hyde-drafted-answer-steers-retrieval.md) | A drafted answer steers retrieval (HyDE) |
+| [0022](docs/adr/0022-deepseek-drafts-in-production.md) | The drafted answer runs on DeepSeek in production |
 
 ADR-0006 is flagged in the spec as the one most likely to erode once `automation_rate` becomes a KPI. Read it before proposing a bypass.
 

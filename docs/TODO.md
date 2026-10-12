@@ -294,7 +294,7 @@ Two things to decide before starting, not during:
 
 ## 9. Retrieval recall on the AWS demo KB
 
-**Status (2026-10-04):** the gate passes. Link expansion and Jev as the reranker ([ADR-0014](adr/0014-candidate-expansion-and-llm-reorder.md), [ADR-0015](adr/0015-jev-reranks-the-shortlist.md)) took recall@3 from 0.767 to **0.917** in every full run since 2026-10-02 (5). Five tickets are still missed: g011, g012, g048, g055, g056. The history below is from the baseline.
+**Status (2026-10-12):** on the 500-ticket set the gate is now **recall@5** (spec §12.2), and it passes: **0.906-0.914** with the drafted answer (ADR-0021/0022), the entity graph and one page per slot; recall@3 0.872-0.876 (`evals/HISTORY.md` 2026-10-12 (5)). Open: review of the gate change (rule 9), a full run on this pipeline, the circularity caveat (the 440 drafted tickets were written by DeepSeek, which also drafts), and about 20 likely unlisted alternative pages among the misses (no relabelling). Before: **Status (2026-10-04):** the gate passes. Link expansion and Jev as the reranker ([ADR-0014](adr/0014-candidate-expansion-and-llm-reorder.md), [ADR-0015](adr/0015-jev-reranks-the-shortlist.md)) took recall@3 from 0.767 to **0.917** in every full run since 2026-10-02 (5). Five tickets are still missed: g011, g012, g048, g055, g056. The history below is from the baseline.
 
 **Priority:** Medium (was High while the gate failed) · **Spec:** §12.2 · **ADR:** 0005
 
