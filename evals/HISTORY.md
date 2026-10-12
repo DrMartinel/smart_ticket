@@ -95,6 +95,95 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-12 (3): where the 82 shared misses are lost, a stage check
+
+**Verdict:** of the 82 tickets both sources missed in (2), **52 never reach
+the candidates** (the draft heads elsewhere), 4 are cut by the
+cross-encoder, and **25 sit in Jev's 15 outside its top 3**, 20 of them at
+rank 4 or 5. Recall@5 would be well above recall@3; one page per slot in
+Jev's top 3 would rescue 9.
+
+| Configuration | |
+|---|---|
+| Method | The real nodes (`draft_answer` on Qwen, `hybrid_retrieve`, `candidate_pool` on the entity graph), then Jev scoring all 15, raw ticket text, on the 82 shared misses of (2). Script and results in `~/.cache/smart-ticket-lightrag/probe/` (outside the repo) |
+
+| Where the gold page is lost | Count |
+|---|---|
+| Not among the 10 candidate pages, not brought in by expansion | **52** |
+| In the pool, cut from Jev's 15 (pool ranks 17-22) | 4 |
+| In Jev's 15, ranked 4th (14), 5th (6), 6th-11th (5) | **25** |
+| Hit on this re-run (g471) | 1 |
+
+### Findings
+
+**1. The draft is the bottleneck.** Qwen's drafts name the wrong feature
+(g208: Reserved Instances for a Capacity Reservations ticket) or invent
+detail (g180: an "AWS Managed Services console" for Client VPN).
+
+**2. Recall@k past 3 has not been measured since 2026-10-01** (`rerank_top_n`
+5 gained nothing then: misses ranked 6th or lower). Here 20 of 82 rank 4-5.
+
+**3. One page per slot.** In 11 of the 25, one page holds two of Jev's top 3;
+counting distinct pages, 9 of the 25 rank within the top 3.
+
+---
+
+## 2026-10-12 (2): entity graph vs authored links, Qwen drafting, retrieval suite
+
+**Verdict:** the sources tie on recall@3: entity graph **0.816**, authored
+links **0.810** (10 tickets missed only by the entity graph, 13 only by
+authored links), at half the cross-encoder's batch (median 29 chunks vs
+59). The owner made `entity_graph` the shipped source (`6675eb8`, ADR-0018).
+Drafting on Qwen keeps about 60% of HyDE's gain: 0.810 against DeepSeek
+drafting's 0.850 ((5), authored links; 33 tickets missed only with Qwen, 13
+only with DeepSeek).
+
+| Configuration | |
+|---|---|
+| Code | `5fb0f2e` (`main`): HyDE, `CHAT_CLIENT_PROVIDER=deepseek` (the proposal), `DRAFT_CLIENT_PROVIDER=vllm` and `NER_CLIENT_PROVIDER=vllm` (Qwen3-8B-AWQ, 4,096 context), cap 20, `RERANK_POOL` 15 |
+| Duration | 52m27s (entity graph), 56m11s (authored links), retrieval suite only |
+
+| | Entity graph | Authored links | Authored links, DeepSeek drafting ((5)) |
+|---|---|---|---|
+| Recall@3 | **0.816** | 0.810 | 0.850 |
+| Strict | 0.758 | 0.764 | 0.796 |
+| MRR | 0.731 | 0.730 | 0.762 |
+| Original 60 · drafted 440 | 0.917 · 0.802 | 0.933 · 0.793 | 0.917 · 0.841 |
+| `pool_size` median · max | **29 · 109** | 59 · 216 | 59 · 180 |
+| `retrieval_errors` | 0 | 0 | 0 |
+
+### Findings
+
+**1. Under HyDE the association source no longer moves recall.** Before
+HyDE authored links led (0.748 vs 0.720, (2) of 2026-10-11). Per guide the
+two are level except `vpc` (0.87 vs 0.80) and `client-vpn-admin` (0.83 vs
+0.75), both small.
+
+**2. The drafting model is the larger lever.** Qwen's smaller drafts find the
+specific feature less often; see (3).
+
+---
+
+## 2026-10-12: Qwen drafting on the 60 hand-authored tickets, retrieval suite
+
+**Verdict:** **0.917** (55/60), as before HyDE and with DeepSeek drafting:
+Qwen drafting costs nothing on the hand-authored tickets. One of the five
+misses is g030, a Jev TLS error (`TLSV1_ALERT_DECODE_ERROR`) counted as a
+miss; it hit in every earlier run. Not the gate's measurement: the 440
+drafted tickets were left out (`EVAL_EXCLUDE_TAGS=drafted`).
+
+| Configuration | |
+|---|---|
+| Code | as (2), authored links |
+| Duration | 7m09s |
+
+| | Before HyDE | DeepSeek drafting | Qwen drafting |
+|---|---|---|---|
+| Recall@3, original 60 | 0.917 | 0.917 | 0.917 |
+| Misses | g011 g012 g048 g055 g056 | g012 g048 g053 g055 g056 | g012 g030 (error) g048 g055 g056 |
+
+---
+
 ## 2026-10-11 (5): HyDE, the drafted answer, retrieval suite
 
 **Verdict:** recall@3 **0.850** (MRR 0.762, strict **0.796**) on the

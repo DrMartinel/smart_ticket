@@ -852,3 +852,35 @@
 {"run":"2026-10-11-probe-td-ce-mix","metric":"retrieval_recall_at_3_strict","value":0.8,"n":500}
 {"run":"2026-10-11-probe-td-pool20","metric":"retrieval_recall_at_3","value":0.864,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
 {"run":"2026-10-11-probe-td-pool20","metric":"retrieval_recall_at_3_strict","value":0.802,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"retrieval_mrr","value":0.8472222222222222,"n":60}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"retrieval_recall_at_3_strict","value":0.9166666666666666,"n":60}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"retrieval_errors","value":1.0,"n":60}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"gold_use","value":47.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"gold_use","value":8.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"pool_size","value":65.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"pool_size","value":172.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"retrieval_recall_at_3","value":0.816,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"retrieval_mrr","value":0.7313333333333334,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"retrieval_recall_at_3_strict","value":0.758,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"retrieval_errors","value":0.0,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"gold_use","value":305.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"gold_use","value":6.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"gold_use","value":97.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"pool_size","value":29.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"pool_size","value":109.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"retrieval_recall_at_3","value":0.81,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"retrieval_mrr","value":0.7303333333333334,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"retrieval_recall_at_3_strict","value":0.764,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"retrieval_errors","value":0.0,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"gold_use","value":312.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"gold_use","value":6.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"gold_use","value":87.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"pool_size","value":59.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"pool_size","value":216.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-12-probe-stage-check-82","metric":"retrieval_recall_at_k","value":0.25609756097560976,"n":82,"labels":{"k":"5"}}
+{"run":"2026-10-12-probe-stage-check-82","metric":"retrieval_recall_at_k","value":0.3048780487804878,"n":82,"labels":{"k":"10"}}
