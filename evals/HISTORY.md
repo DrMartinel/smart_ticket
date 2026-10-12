@@ -95,6 +95,70 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-12 (6): full run on the current pipeline
+
+**Verdict:** retrieval passes its gate at its best yet, recall@5 **0.912**
+(recall@3 0.882, strict 0.822) on 500 tickets. **Auto-reply precision fails
+by one ticket, 0.941** (32/34): g151 and g155, the false positives of every
+run since 2026-10-04, are fixed; the two new ones are drafted tickets whose
+label only knows their own, unapproved page (finding 1). **Per-category F1
+was not measured:** the classification suite stopped on a Jev TLS error
+about 150 tickets in. Refusal, injection, quote validation and masking pass;
+branch accuracy 0.930. **Not like for like with (8) of 2026-10-04:** 614
+cases against 174, retrieval gated at @5 against @3, a different pipeline.
+
+| Configuration | |
+|---|---|
+| Code | `bef00b9` (`main`): HyDE (`hyde_draft.v1`), `ASSOCIATION_SOURCE=entity_graph` cap 20, `RERANK_POOL` 15, `RERANK_TOP_N` 5, `RERANK_TOP_N_PER_PAGE` 1. `DRAFT_CLIENT_PROVIDER=deepseek`, `CHAT_CLIENT_PROVIDER=deepseek` (`propose.v8`), `NER_CLIENT_PROVIDER=vllm` (Qwen3-8B-AWQ, `pii_ner.v2`). Jev `rerank_resolves.v1`, `category.v1` |
+| Golden set | `c6057fddb3b8`, 614 cases (500 `kb_covered`) |
+| Duration | 2h16m29s, every suite, no re-runs; 4 server errors, all Jev TLS (`TLSV1_ALERT_DECODE_ERROR`) |
+
+| Metric | This run | (8) of 2026-10-04 | Gate |
+|---|---|---|---|
+| **Retrieval recall@5** | **0.912** (500, 1 error) | — | >= 0.90 |
+| Retrieval recall@3 · strict · MRR | 0.882 · 0.822 · 0.776 | 0.917 (60) | reported |
+| **Auto-reply precision** | **0.941** (32/34) | 0.944 (34/36) | >= 0.95 absolute |
+| Branch accuracy | 0.930 (611) | 0.906 (171) | reported |
+| Per-category F1 | not measured (suite stopped) | >= 0.93 | >= 0.85 each |
+| Refusal · injection · quote validation | 1.00 · 1.00 · 1.00 | the same | as before |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | the same | reported |
+| `pool_size` median · max | 29 · 108 | 51 · 170 | reported |
+
+### Findings
+
+**1. The auto-reply false positives are a labelling artefact more than an
+error.** Every drafted ticket expects `hitl` because its own gold page is
+not approved; an auto-reply from a *different*, approved page scores as a
+false positive even when it answers. g219 ("Can't SSH into my new EC2
+instance … it keeps timing out", gold `ec2.creating-security-group`) was
+auto-replied from the approved `ec2.TroubleshootingInstancesConnecting`,
+quoting "Check your security group rules." g421's proposal is not
+repeatable: re-run, it was a runbook. No relabelling (rule 9).
+
+**2. Classification stops on its first error.** The retrieval suite counts
+a 5xx ticket as a miss since 2026-10-11; classification and end-to-end do
+not, so one Jev TLS error voided per-category F1.
+
+**3. Jev's TLS errors recur:** 4 in this run, 3 more on 2026-10-11/12.
+
+**4. `report.py` flags recall@3 against `baseline.json`'s stale sample
+value (1.000)**, as `docs/status.md` notes; the baseline needs another
+reviewer to change.
+
+**5. Mismatches by kind:** 24 `hitl` labels routed to `clarify`, 8 to
+`auto_route`, 4 `auto_reply` labels to `clarify`, 3 `clarify` to `hitl`,
+2 `auto_reply` to `hitl`, 2 `hitl` to `auto_reply`.
+
+### Follow-ups
+
+- Classification and end-to-end count a 5xx as a miss, as retrieval does;
+  then re-run classification.
+- The labels of drafted tickets that an approved page also answers (rule 9:
+  reviewed by someone other than the author).
+- Jev's TLS errors: a retry or TLS setting, as its own decision.
+
+---
+
 ## 2026-10-12 (5): one page per slot, paired on identical inputs, probe
 
 **Verdict:** one page per slot in Jev's top 5 never loses a ticket and gains

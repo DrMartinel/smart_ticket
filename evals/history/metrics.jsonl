@@ -918,3 +918,22 @@
 {"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_5","value":0.906,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
 {"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_3","value":0.872,"n":500}
 {"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_3_strict","value":0.814,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"branch_accuracy","value":0.9296235679214403,"n":611}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"auto_reply_precision","value":0.9411764705882353,"n":34,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"masking_overmask_rate","value":0.0,"n":1842}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"masking_consistency","value":1.0,"n":614}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_3","value":0.882,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_mrr","value":0.7763333333333333,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_3_strict","value":0.822,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_5","value":0.912,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_errors","value":1.0,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":293.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":2.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":13.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":133.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"pool_size","value":29.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"pool_size","value":108.0,"n":500,"labels":{"stat":"max"}}
