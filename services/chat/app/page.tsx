@@ -12,7 +12,7 @@ import { SparkleIcon } from "@/components/icons";
 export default function ChatPage() {
   const { user, loading, logout } = useAuth();
   const router = useRouter();
-  const { turns, loaded, ask, createTicket, creating, retry } = useConversation(!!user);
+  const { turns, loaded, ask, createTicket, creating, answer, answering, retry } = useConversation(!!user);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -63,6 +63,8 @@ export default function ChatPage() {
                 turn={t}
                 onCreateTicket={createTicket}
                 creating={t.kind === "server" && creating === t.turn.public_id}
+                onAnswer={answer}
+                answering={t.kind === "server" && answering === t.turn.public_id}
                 onRetry={retry}
               />
             </div>

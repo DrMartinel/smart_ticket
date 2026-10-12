@@ -1,6 +1,7 @@
 "use client";
 
-import type { ChatTurnOut } from "@/lib/types/generated";
+import { useState } from "react";
+import type { ChatClarificationOut, ChatTurnOut } from "@/lib/types/generated";
 import { SLOW_AFTER_MS, type Turn } from "@/lib/conversation";
 import { BookIcon, CheckIcon, ShieldIcon, SparkleIcon, TicketIcon } from "./icons";
 
@@ -12,11 +13,15 @@ export default function TurnView({
   onCreateTicket,
   creating,
   onRetry,
+  onAnswer,
+  answering,
 }: {
   turn: Turn;
   onCreateTicket: (publicId: string) => void;
   creating: boolean;
   onRetry: (key: string) => void;
+  onAnswer: (publicId: string, answer: string) => void;
+  answering: boolean;
 }) {
   if (turn.kind === "sending") {
     return (
@@ -43,13 +48,111 @@ export default function TurnView({
   }
 
   const t = turn.turn;
+  const asked = t.state === "clarify" ? null : t.clarification;
   return (
     <>
       <Question text={t.question_masked} masked={PLACEHOLDER.test(t.question_masked)} />
+      {asked && (
+        // A question asked earlier: answered, or closed unanswered. Shown
+        // as the exchange it was, before what came of it.
+        <>
+          <Reply>
+            <p>{asked.question}</p>
+          </Reply>
+          {asked.answer_masked && (
+            <Question text={asked.answer_masked} masked={PLACEHOLDER.test(asked.answer_masked)} />
+          )}
+        </>
+      )}
       <Reply>
-        <Outcome turn={t} startedAt={turn.startedAt} onCreateTicket={onCreateTicket} creating={creating} />
+        {t.state === "clarify" && t.clarification ? (
+          <ClarifyCard
+            clarification={t.clarification}
+            onAnswer={(text) => onAnswer(t.public_id, text)}
+            answering={answering}
+            onCreateTicket={() => onCreateTicket(t.public_id)}
+            creating={creating}
+          />
+        ) : (
+          <Outcome turn={t} startedAt={turn.startedAt} onCreateTicket={onCreateTicket} creating={creating} />
+        )}
       </Reply>
     </>
+  );
+}
+
+// The router chose to ask which of the shown pages the requester means
+// (ADR-0023). Tapping a page answers with its title; typing is for anything
+// else. Asking for a person instead carries out the held decision.
+function ClarifyCard({
+  clarification,
+  onAnswer,
+  answering,
+  onCreateTicket,
+  creating,
+}: {
+  clarification: ChatClarificationOut;
+  onAnswer: (text: string) => void;
+  answering: boolean;
+  onCreateTicket: () => void;
+  creating: boolean;
+}) {
+  const [text, setText] = useState("");
+  const busy = answering || creating;
+  const send = () => {
+    const answer = text.trim();
+    if (answer && !busy) onAnswer(answer);
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p>{clarification.question}</p>
+      {clarification.options.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {clarification.options.map((title) => (
+            <button
+              key={title}
+              onClick={() => onAnswer(title)}
+              disabled={busy}
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-left text-sm transition hover:border-[var(--accent)] disabled:opacity-50"
+            >
+              {title}
+            </button>
+          ))}
+        </div>
+      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          send();
+        }}
+        className="flex gap-2"
+      >
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          maxLength={2000}
+          disabled={busy}
+          placeholder="Or describe it in your own words"
+          aria-label="Your answer"
+          className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+        />
+        <button
+          type="submit"
+          disabled={busy || !text.trim()}
+          className="brand-gradient rounded-xl px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {answering ? "Sending…" : "Send"}
+        </button>
+      </form>
+      <button
+        onClick={onCreateTicket}
+        disabled={busy}
+        className="self-start text-xs text-[var(--text-muted)] underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        {creating ? "Creating ticket…" : "Talk to a person instead"}
+      </button>
+    </div>
   );
 }
 
@@ -175,6 +278,10 @@ function Outcome({
           </p>
         </div>
       );
+
+    case "clarify":
+      // Rendered by ClarifyCard; reached only without the question itself.
+      return <p>Please answer the question above.</p>;
 
     case "suggest_ticket":
       return (
