@@ -259,8 +259,13 @@ copies that directory — a new SQL file that isn't copied fails at container st
   500 → HITL. Each model job has its own setting: the proposal
   `CHAT_CLIENT_PROVIDER`, the draft `DRAFT_CLIENT_PROVIDER`, PII NER
   `NER_CLIENT_PROVIDER` (raw text leaves only with `deepseek` there,
-  ADR-0019). Measured on DeepSeek drafts only; Qwen's drafting is
-  unmeasured.
+  ADR-0019). Production drafts on DeepSeek (ADR-0022; the template ships
+  `vllm` so a copy boots without a key): recall@3 0.866 vs 0.816 on Qwen.
+- **The retrieval gate is recall@5** since 2026-10-12, as spec §12.2 names
+  it: the proposal is shown Jev's top 5 (`RERANK_TOP_N=5`). Latest, entity
+  graph and DeepSeek drafting: recall@5 0.900, recall@3 0.866 (reported,
+  ungated). `report.py`'s baseline comparison still reads recall@3:
+  changing `baseline.json` needs a reviewer other than the author.
 - Every run shortlists, then reranks: the shortlister, a cross-encoder (`vllm`,
   bge-reranker-v2-m3; `lexical` for CI/offline), orders the fused candidates plus
   link-expanded chunks, and **Jev**, the reranker (hosted, needs `JEV_API_KEY`),
@@ -348,5 +353,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-one
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-two
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).
