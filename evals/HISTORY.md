@@ -95,6 +95,53 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-12 (4): DeepSeek drafting on the entity graph, Jev's top 5, with and without one page per slot, retrieval suite
+
+**Verdict:** the best retrieval yet. DeepSeek drafting on the entity graph
+scores recall@3 **0.866** and recall@5 **0.900**; with one page per slot in
+Jev's top 5, **0.876** and **0.914** (strict 0.826). Against Qwen drafting
+on the same source ((2), 0.816) DeepSeek drafting is worth +5 points. One
+page per slot nets +5 tickets (+18 / -13), within the drafts' run-to-run
+noise ((5) of 2026-10-11), so it is not established. Recall@3 is still
+below 0.90; recall@5, the measure spec §12.2 names, reaches it.
+
+| Configuration | |
+|---|---|
+| Code | `b621e3a` (`main`): `ASSOCIATION_SOURCE=entity_graph`, cap 20, `RERANK_POOL` 15, **`RERANK_TOP_N=5`** (the suite scores @3 on the first three), `RERANK_TOP_N_PER_PAGE` 5 (no limit) / 1. `DRAFT_CLIENT_PROVIDER=deepseek`, `CHAT_CLIENT_PROVIDER=deepseek`, `NER_CLIENT_PROVIDER=vllm` (Qwen) |
+| Duration | 46m27s (no limit), 45m07s (one per page), retrieval suite only |
+
+| Entity graph | Qwen drafting, top 3 ((2)) | DeepSeek drafting, top 5 | + one page per slot |
+|---|---|---|---|
+| Recall@3 | 0.816 | 0.866 | **0.876** |
+| Recall@5 | | 0.900 | **0.914** |
+| Strict @3 | 0.758 | 0.804 | 0.826 |
+| MRR | 0.731 | 0.780 | 0.781 |
+| Original 60 · drafted 440 | 0.917 · 0.802 | 0.917 · 0.859 | 0.917 · 0.870 |
+| `pool_size` median · max | 29 · 109 | 30 · 100 | 30 · 100 |
+| `retrieval_errors` | 0 | 0 | 1 (g543, Jev TLS) |
+
+### Findings
+
+**1. The drafting model is worth five points.** DeepSeek's drafts name the
+specific feature more often than Qwen3-8B's ((3) finding 1).
+
+**2. Recall@5 clears 0.90.** Showing the proposal five chunks instead of
+three is a change to what the LLM may quote, not only to the metric:
+`RERANK_TOP_N` stays 3 until decided.
+
+**3. Jev's TLS errors recur:** g543 here, g030 in (1), one on 2026-10-11:
+three in about 2,000 tickets, each a ticket for a person in production.
+
+### Follow-ups
+
+- Shipping DeepSeek drafting sends masked tickets to DeepSeek outside
+  evaluation: a decision superseding ADR-0019 for the draft.
+- One page per slot needs repeat runs to separate its effect from draft
+  noise.
+- The circularity caveat stands: the 440 tickets were written by DeepSeek.
+
+---
+
 ## 2026-10-12 (3): where the 82 shared misses are lost, a stage check
 
 **Verdict:** of the 82 tickets both sources missed in (2), **52 never reach
