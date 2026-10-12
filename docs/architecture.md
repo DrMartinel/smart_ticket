@@ -155,7 +155,7 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
                      seeds' associations in ASSOCIATION_SOURCE
                      (ADR-0014/0015/0018/0021) ──► pool, in cross-encoder order
        ▼
-   rerank            Jev re-scores the pool's top-15 ──► Jev's top-3, at most
+   rerank            Jev re-scores the pool's top-15 ──► Jev's top-5, at most
                      RERANK_TOP_N_PER_PAGE from one page
                      each chunk keeps both: shortlist_score, rerank_score
        ▼

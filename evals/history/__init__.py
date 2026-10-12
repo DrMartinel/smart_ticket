@@ -77,18 +77,26 @@ class MetricSpec(BaseModel):
     labels: tuple[str, ...] = ()
 
 
-_RECALL_GATE = Gate(op=">=", value=0.90, basis="spec §12.2, test_retrieval")
+_RECALL_GATE = Gate(op=">=", value=0.90, basis="spec §12.2 (recall@5), test_retrieval")
 _PROBE_LABELS = ("pool", "seeds", "k", "order", "scorer")
 
 METRICS: dict[str, MetricSpec] = {
     # --- gated by the eval suites -------------------------------------------
-    "retrieval_recall_at_3": MetricSpec(
+    "retrieval_recall_at_5": MetricSpec(
         unit="ratio",
         higher_is_better=True,
         gate=_RECALL_GATE,
+        description="KB-covered tickets whose gold article (or an acceptable page) is among "
+        "Jev's top 5 chunks, the ones the proposal is shown (RERANK_TOP_N 5). The gated "
+        "retrieval measure since 2026-10-12, as spec §12.2 names it; recall@3 before.",
+    ),
+    "retrieval_recall_at_3": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
         labels=_PROBE_LABELS,
-        description="KB-covered tickets whose gold article is among the rerank_top_n (3) "
-        "pages returned. Recorded as retrieval_recall_at_5 before 2026-09-29; same measure.",
+        description="KB-covered tickets whose gold article is among the first 3 chunks "
+        "returned. Gated until 2026-10-12, reported since (the gate moved to recall@5). "
+        "Recorded as retrieval_recall_at_5 before 2026-09-29; same measure as @3.",
     ),
     "auto_reply_precision": MetricSpec(
         unit="ratio",

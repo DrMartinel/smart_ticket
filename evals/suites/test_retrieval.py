@@ -38,6 +38,9 @@ import httpx
 from suites.golden_utils import analyze, load_golden, record_metric, sample
 
 RECALL_THRESHOLD = 0.90
+# The gate is recall@5, as spec §12.2 names it: the proposal is shown Jev's
+# top RERANK_TOP_N (5) chunks. Recall@3 is still reported, ungated.
+GATED_K = 5
 
 
 def _gold_use(result: dict, truth_slug: str) -> str:
@@ -127,6 +130,11 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
         errors=len(errors),
         **({"recall_at_5": hits_at_5 / len(cases)} if top_n >= 5 else {}),
     )
-    assert recall >= RECALL_THRESHOLD, (
-        f"recall {recall:.2%} < {RECALL_THRESHOLD:.0%}, misses={misses}"
+    assert top_n >= GATED_K, (
+        f"the gate is recall@{GATED_K} but the pipeline showed {top_n} chunks: "
+        f"set RERANK_TOP_N >= {GATED_K}"
+    )
+    recall_at_5 = hits_at_5 / len(cases)
+    assert recall_at_5 >= RECALL_THRESHOLD, (
+        f"recall@5 {recall_at_5:.2%} < {RECALL_THRESHOLD:.0%}, misses@3={misses}"
     )

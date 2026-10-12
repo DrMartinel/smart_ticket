@@ -84,7 +84,7 @@ def metrics_from_results(results: dict[str, Any], run_id: str) -> list[Metric]:
             if "strict" in entry:
                 add("retrieval_recall_at_3_strict", entry["strict"], n)
             if "recall_at_5" in entry:
-                add("retrieval_recall_at_k", entry["recall_at_5"], n, k="5")
+                add("retrieval_recall_at_5", entry["recall_at_5"], n)
             if "errors" in entry:
                 add("retrieval_errors", entry["errors"], n)
             for outcome, count in entry.get("gold_use", {}).items():

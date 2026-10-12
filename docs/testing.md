@@ -117,7 +117,7 @@ fail when the invariant they describe is broken.
 
 | Suite | Metric | Gate |
 |---|---|---|
-| `test_retrieval` | Recall@3 (the spec says @5; the pipeline returns `rerank_top_n` = 3) | ≥ 0.90 |
+| `test_retrieval` | Recall@5, as the spec names it (`RERANK_TOP_N` = 5); recall@3 reported beside it, ungated | ≥ 0.90 |
 | `test_classification` | F1 **per category**, on Jev's category choice (ADR-0017) | ≥ 0.85 each |
 | `test_quote_validation` | Hallucination-catch precision | ≥ 0.95 |
 | `test_refusal` | Out-of-KB refusal rate | ≥ 0.90 |
