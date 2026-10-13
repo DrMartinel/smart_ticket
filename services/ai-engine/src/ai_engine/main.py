@@ -79,7 +79,10 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
     return AIRunResponse(
         request_id=req.request_id,
         graph_version=settings.graph_version,
-        prompt_version=req.prompt_version,
+        # The prompt InferNode loaded (`settings.prompt_version`), not the
+        # request's field: core-api never sets that, so its default was
+        # recorded for every run whatever actually ran.
+        prompt_version=settings.prompt_version,
         model=final_state.model_used or "n/a",
         proposal=final_state.proposal,
         signals=final_state.signals,
