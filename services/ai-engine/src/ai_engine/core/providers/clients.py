@@ -9,8 +9,8 @@ errors, ordering).
 - `JevClient` (on `HttpClient`): TypeSafe's hosted Jev, `ask()` (yes/no)
   and `choose()` (one choice question). `jev`.
 - `ChatClient`: the triage chat model through LangChain (whose OpenAI SDK
-  runs on httpx2), for `chat`. `vllm_chat` / `openai_chat` build it.
-- `deepseek_model()` / `deepseek_chat()`: DeepSeek's hosted API (ADR-0019)
+  runs on httpx2), for `chat` and `draft`. `ChatClient.for_provider` builds it.
+- `ChatClient.deepseek_model()` / `ChatClient.on_deepseek()`: DeepSeek's hosted API (ADR-0019)
   on the `CLOUD_*` settings, behind triage and PII NER when
   `CHAT_CLIENT_PROVIDER=deepseek`, and always behind the offline
   entity_graph build (ADR-0018).
@@ -25,7 +25,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import cached_property
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import httpx
 import httpx2
@@ -50,6 +50,9 @@ from ai_engine.core.providers.dtos import (
     RerankRequest,
     ResponseFormat,
 )
+
+if TYPE_CHECKING:
+    from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +80,7 @@ _JSON_OBJECT = {"type": "json_object"}
 
 VLLM_COST_PER_1K_TOKENS = 0.0
 OPENAI_COST_PER_1K_TOKENS = 0.003
-# DeepSeek's peak output rate ($1.20 per million, deepseek-flash, 2026-10). A
-# blended number like the others, at the peak output rate so the daily cost
-# ceiling never under-counts (input and off-peak hours are cheaper).
+# DeepSeek's peak output rate per 1k tokens (ADR-0019).
 DEEPSEEK_COST_PER_1K_TOKENS = 0.0012
 
 
@@ -234,7 +235,7 @@ class JevChoice(NamedTuple):
 
 class ChatClient:
     """The triage chat model (InferNode), on whichever provider
-    `chat_client_provider` selects: see `vllm_chat` and `openai_chat`.
+    `chat_client_provider` selects: see `for_provider`.
 
     `constrains_schema`: whether the server decodes against a JSON Schema
     (vLLM's guided decoding). Where it does, a reply can only take the
@@ -297,93 +298,96 @@ class ChatClient:
             logger.warning("LLM call failed: %s", e)
             raise AllLLMDownError(str(e)) from e
 
+    @classmethod
+    def on_vllm(cls, *, model: str, base_url: str) -> ChatClient:
+        """Chat on a self-hosted vLLM server: JSON replies, Qwen's thinking off,
+        SDK retries off, billed as free."""
+        from langchain_openai import ChatOpenAI
 
-def vllm_chat(*, model: str, base_url: str) -> ChatClient:
-    """Chat on a self-hosted vLLM server: JSON replies, Qwen's thinking off,
-    SDK retries off, billed as free."""
-    from langchain_openai import ChatOpenAI
-
-    return ChatClient(
-        model=model,
-        chat_model=ChatOpenAI(
+        return cls(
             model=model,
-            api_key=SecretStr("EMPTY"),
-            base_url=base_url,
-            model_kwargs={"response_format": _JSON_OBJECT},
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
-            timeout=_split_timeout(httpx2),
-            max_retries=0,
-        ),
-        cost_per_1k_tokens=VLLM_COST_PER_1K_TOKENS,
-        constrains_schema=True,
-    )
+            chat_model=ChatOpenAI(
+                model=model,
+                api_key=SecretStr("EMPTY"),
+                base_url=base_url,
+                model_kwargs={"response_format": _JSON_OBJECT},
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                timeout=_split_timeout(httpx2),
+                max_retries=0,
+            ),
+            cost_per_1k_tokens=VLLM_COST_PER_1K_TOKENS,
+            constrains_schema=True,
+        )
 
+    @classmethod
+    def on_openai(cls) -> ChatClient:
+        """Chat on OpenAI's cloud API: JSON replies, SDK retries off, output
+        capped. A missing key or model fails the boot."""
+        from langchain_openai import ChatOpenAI
 
-def openai_chat() -> ChatClient:
-    """Chat on OpenAI's cloud API: JSON replies, SDK retries off, output
-    capped. A missing key or model fails the boot."""
-    from langchain_openai import ChatOpenAI
+        if not settings.cloud_api_key:
+            raise ValueError("openai chat requires CLOUD_API_KEY")
+        if not settings.cloud_model:
+            raise ValueError("openai chat requires CLOUD_MODEL")
+        return cls(
+            model=settings.cloud_model,
+            chat_model=ChatOpenAI(
+                model=settings.cloud_model,
+                api_key=SecretStr(settings.cloud_api_key),
+                base_url=settings.cloud_base_url,
+                model_kwargs={"response_format": _JSON_OBJECT},
+                max_completion_tokens=settings.cloud_max_output_tokens,
+                timeout=_split_timeout(httpx2),
+                max_retries=0,
+            ),
+            cost_per_1k_tokens=OPENAI_COST_PER_1K_TOKENS,
+            # OpenAI's json_schema mode takes only a strict subset of JSON Schema
+            # (every property required, no oneOf), which the proposal union isn't.
+            # Plain JSON mode, and infer.py's validation catches the rest.
+            constrains_schema=False,
+        )
 
-    if not settings.cloud_api_key:
-        raise ValueError("openai chat requires CLOUD_API_KEY")
-    if not settings.cloud_model:
-        raise ValueError("openai chat requires CLOUD_MODEL")
-    return ChatClient(
-        model=settings.cloud_model,
-        chat_model=ChatOpenAI(
+    @classmethod
+    def on_deepseek(cls) -> ChatClient:
+        """Builds a chat client on DeepSeek (ADR-0019)."""
+        chat_model = cls.deepseek_model(json_mode=True)
+        return cls(
+            model=chat_model.model_name,
+            chat_model=chat_model,
+            cost_per_1k_tokens=DEEPSEEK_COST_PER_1K_TOKENS,
+            constrains_schema=False,
+        )
+
+    @classmethod
+    def for_provider(cls, provider: str) -> ChatClient:
+        """Builds the chat client for `provider`."""
+        match provider:
+            case "openai":
+                return cls.on_openai()
+            case "vllm":
+                return cls.on_vllm(model=settings.chat_model, base_url=settings.chat_base_url)
+            case "deepseek":
+                return cls.on_deepseek()
+        raise ValueError(f"unknown chat provider {provider!r}")
+
+    @staticmethod
+    def deepseek_model(*, json_mode: bool, temperature: float | None = None) -> ChatOpenAI:
+        """Builds a chat model on DeepSeek's API from the `CLOUD_*` settings (ADR-0019)."""
+        from langchain_openai import ChatOpenAI
+
+        if not settings.cloud_api_key or not settings.cloud_model or not settings.cloud_base_url:
+            raise ValueError("deepseek chat requires CLOUD_API_KEY, CLOUD_MODEL and CLOUD_BASE_URL")
+        return ChatOpenAI(
             model=settings.cloud_model,
             api_key=SecretStr(settings.cloud_api_key),
             base_url=settings.cloud_base_url,
-            model_kwargs={"response_format": _JSON_OBJECT},
+            model_kwargs={"response_format": _JSON_OBJECT} if json_mode else {},
+            extra_body={"thinking": {"type": "disabled"}},
             max_completion_tokens=settings.cloud_max_output_tokens,
+            temperature=temperature,
             timeout=_split_timeout(httpx2),
             max_retries=0,
-        ),
-        cost_per_1k_tokens=OPENAI_COST_PER_1K_TOKENS,
-        # OpenAI's json_schema mode takes only a strict subset of JSON Schema
-        # (every property required, no oneOf), which the proposal union isn't.
-        # Plain JSON mode, and infer.py's validation catches the rest.
-        constrains_schema=False,
-    )
-
-
-def deepseek_model(*, json_mode: bool, temperature: float | None = None) -> BaseChatModel:
-    """A chat model on DeepSeek's OpenAI-compatible API (ADR-0019), from the
-    `CLOUD_*` settings. Measured against the live API on 2026-10-08:
-
-    - thinking is ON unless disabled per request, and its tokens are billed
-      as output (46 against 5 for the same reply), so it is disabled;
-    - `json_schema` replies are refused (400), so a JSON reply is
-      `json_object`, and the caller validates it;
-    - SDK retries off, like every client here.
-
-    A missing key, model or base URL fails the boot."""
-    from langchain_openai import ChatOpenAI
-
-    if not settings.cloud_api_key or not settings.cloud_model or not settings.cloud_base_url:
-        raise ValueError("deepseek chat requires CLOUD_API_KEY, CLOUD_MODEL and CLOUD_BASE_URL")
-    return ChatOpenAI(
-        model=settings.cloud_model,
-        api_key=SecretStr(settings.cloud_api_key),
-        base_url=settings.cloud_base_url,
-        model_kwargs={"response_format": _JSON_OBJECT} if json_mode else {},
-        extra_body={"thinking": {"type": "disabled"}},
-        max_completion_tokens=settings.cloud_max_output_tokens,
-        temperature=temperature,
-        timeout=_split_timeout(httpx2),
-        max_retries=0,
-    )
-
-
-def deepseek_chat() -> ChatClient:
-    """Triage's chat model on DeepSeek (ADR-0019): plain JSON mode, since
-    DeepSeek decodes against no schema; infer.py validates the reply."""
-    return ChatClient(
-        model=settings.cloud_model or "",
-        chat_model=deepseek_model(json_mode=True),
-        cost_per_1k_tokens=DEEPSEEK_COST_PER_1K_TOKENS,
-        constrains_schema=False,
-    )
+        )
 
 
 # --- Clients, built at import (no I/O) ----------------------------------------
@@ -396,18 +400,7 @@ jev = JevClient(
 )
 
 
-def _chat_on(provider: str) -> ChatClient:
-    match provider:
-        case "openai":
-            return openai_chat()
-        case "vllm":
-            return vllm_chat(model=settings.chat_model, base_url=settings.chat_base_url)
-        case "deepseek":
-            return deepseek_chat()
-    raise ValueError(f"unknown chat provider {provider!r}")
-
-
 # The proposal (InferNode) and the drafted answer (DraftAnswerNode, ADR-0021)
 # each on the provider their own setting names.
-chat = _chat_on(settings.chat_client_provider)
-draft = _chat_on(settings.draft_client_provider)
+chat = ChatClient.for_provider(settings.chat_client_provider)
+draft = ChatClient.for_provider(settings.draft_client_provider)

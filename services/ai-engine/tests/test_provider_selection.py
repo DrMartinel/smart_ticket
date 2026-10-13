@@ -14,9 +14,7 @@ from ai_engine.core.providers.clients import (
     DEEPSEEK_COST_PER_1K_TOKENS,
     OPENAI_COST_PER_1K_TOKENS,
     VLLM_COST_PER_1K_TOKENS,
-    deepseek_chat,
-    openai_chat,
-    vllm_chat,
+    ChatClient,
 )
 from ai_engine.core.db import client as db_client
 from ai_engine.core.db.client import SqlAlchemySessionSource
@@ -123,7 +121,7 @@ def test_each_vllm_client_is_built_from_config_for_its_own_server(monkeypatch, r
 
 @pytest.fixture
 def cloud_key(monkeypatch):
-    """openai_chat refuses to build without a key and a model."""
+    """ChatClient.on_openai refuses to build without a key and a model."""
 
     monkeypatch.setattr(settings, "cloud_api_key", "k")
     monkeypatch.setattr(settings, "cloud_model", "test-model")
@@ -222,13 +220,13 @@ def test_openai_asks_for_json_without_sdk_retries_and_capped_output(cloud_key):
     not to, and this system does not retry. The output cap stops a runaway
     generation from running until the read timeout."""
 
-    chat = openai_chat().chat_model
+    chat = ChatClient.on_openai().chat_model
     assert isinstance(chat, ChatOpenAI)
 
     assert chat.model_kwargs["response_format"] == {"type": "json_object"}
     assert chat.max_retries == 0
     assert chat.max_tokens == settings.cloud_max_output_tokens
-    assert openai_chat().constrains_schema is False
+    assert ChatClient.on_openai().constrains_schema is False
 
 
 def test_provider_attributes_are_resolved_at_construction(cloud_key):
@@ -237,8 +235,8 @@ def test_provider_attributes_are_resolved_at_construction(cloud_key):
     call succeeds.
     """
 
-    vllm = vllm_chat(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
-    openai = openai_chat()
+    vllm = ChatClient.on_vllm(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
+    openai = ChatClient.on_openai()
 
     assert vllm.model == "Qwen/Qwen3-8B-AWQ"
     assert vllm.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
@@ -254,7 +252,7 @@ def test_vllm_llm_asks_for_json_without_thinking_or_sdk_retries():
     would add minutes of latency; SDK retries would silently retry. Self-hosted,
     so billed as free."""
 
-    llm = vllm_chat(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
+    llm = ChatClient.on_vllm(model="Qwen/Qwen3-8B-AWQ", base_url="http://localhost:8100/v1")
     chat = llm.chat_model
     assert isinstance(chat, ChatOpenAI)
 
@@ -288,12 +286,12 @@ def test_all_vllm_providers_open_no_connections(monkeypatch, reload_clients):
     assert opened == []
 
 
-# --- openai_chat ---------------------------------------------------------------
+# --- ChatClient.on_openai ---------------------------------------------------------------
 
 
 def test_openai_client_authenticates_with_its_api_key(cloud_key, monkeypatch):
     monkeypatch.setattr(settings, "cloud_api_key", "secret")
-    chat = openai_chat().chat_model
+    chat = ChatClient.on_openai().chat_model
     assert isinstance(chat, ChatOpenAI)
     assert isinstance(chat.openai_api_key, SecretStr)
     assert chat.openai_api_key.get_secret_value() == "secret"
@@ -316,7 +314,7 @@ def test_deepseek_turns_thinking_off_asks_for_json_and_never_retries(monkeypatch
     `json_schema` is refused with a 400, so the reply is `json_object` and
     nothing may claim the server constrained it."""
     _chat_on(monkeypatch, "deepseek", "https://api.deepseek.com")
-    llm = deepseek_chat()
+    llm = ChatClient.on_deepseek()
     chat = llm.chat_model
     assert isinstance(chat, ChatOpenAI)
 
@@ -359,3 +357,8 @@ def test_an_unknown_draft_or_ner_provider_fails_the_boot(field, value):
 
     with pytest.raises(ValidationError, match=field):
         Settings(**{field: value})
+
+
+def test_an_unknown_chat_provider_raises_rather_than_falling_back():
+    with pytest.raises(ValueError, match="unknown chat provider"):
+        ChatClient.for_provider("bogus")

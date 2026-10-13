@@ -147,7 +147,7 @@ def deepseek_ner(monkeypatch):
     from ai_engine.core.providers import pii
 
     def use(model: _ScriptedModel) -> pii.DeepSeekPiiDetector:
-        monkeypatch.setattr(pii.clients, "deepseek_model", lambda **_: model)
+        monkeypatch.setattr(pii.clients.ChatClient, "deepseek_model", lambda **_: model)
         return pii.DeepSeekPiiDetector()
 
     return use
@@ -195,7 +195,9 @@ def test_deepseek_ner_reads_spans_greedily(monkeypatch):
 
     built = {}
     model = _ScriptedModel(content=json.dumps({"spans": [_SECRET_REPLY]}))
-    monkeypatch.setattr(pii.clients, "deepseek_model", lambda **kw: built.update(kw) or model)
+    monkeypatch.setattr(
+        pii.clients.ChatClient, "deepseek_model", lambda **kw: built.update(kw) or model
+    )
 
     assert pii.DeepSeekPiiDetector().detect(_RAW) == [_SECRET_REPLY]
     assert built == {"json_mode": True, "temperature": 0.0}
@@ -218,7 +220,7 @@ def test_only_ner_set_to_deepseek_sends_raw_text_off_the_machine(provider, expec
     from ai_engine.core.providers import pii
 
     monkeypatch.setattr(settings, "ner_client_provider", provider)
-    monkeypatch.setattr(pii.clients, "deepseek_model", lambda **_: _ScriptedModel())
+    monkeypatch.setattr(pii.clients.ChatClient, "deepseek_model", lambda **_: _ScriptedModel())
     saved = dict(vars(pii))
     try:
         reloaded = importlib.reload(pii)

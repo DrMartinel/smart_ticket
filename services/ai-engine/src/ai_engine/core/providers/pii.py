@@ -89,7 +89,7 @@ class DeepSeekPiiDetector(PiiDetector):
     quote the reply. Stateless."""
 
     def __init__(self) -> None:
-        self._model = clients.deepseek_model(json_mode=True, temperature=_GREEDY)
+        self._model = clients.ChatClient.deepseek_model(json_mode=True, temperature=_GREEDY)
 
     def detect(self, text: str) -> list[str]:
         try:

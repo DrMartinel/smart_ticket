@@ -178,9 +178,9 @@ async def _run(jobs, model) -> list[dict]:
 
 
 def _model():
-    from ai_engine.core.providers.clients import deepseek_model
+    from ai_engine.core.providers.clients import ChatClient
 
-    return deepseek_model(json_mode=True, temperature=0.7)
+    return ChatClient.deepseek_model(json_mode=True, temperature=0.7)
 
 
 def cmd_draft(args: argparse.Namespace) -> int:

@@ -349,10 +349,10 @@ def run(
         if args.sample is not None:
             articles = sample(articles, args.sample, args.include)
         if chat_model is None:
-            from ai_engine.core.providers.clients import deepseek_model
+            from ai_engine.core.providers.clients import ChatClient
 
-            chat_model = deepseek_model(json_mode=True, temperature=0)
-            retry_model = deepseek_model(json_mode=True)
+            chat_model = ChatClient.deepseek_model(json_mode=True, temperature=0)
+            retry_model = ChatClient.deepseek_model(json_mode=True)
         try:
             pairs, calls = extract_pairs(
                 articles, Path(args.working_dir), policy, chat_model, retry_model
