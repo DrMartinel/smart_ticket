@@ -26,7 +26,7 @@ pre-calibration threshold should gate.
 from __future__ import annotations
 
 from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier, route
+from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier, Router
 from apps.tickets.utils.pipeline import trust_signals
 from infrastructure.dtos import EngineSignals, TicketCategory
 from django.conf import settings
@@ -91,7 +91,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
         signals = trust_signals(
             EngineSignals(**result["signals"]), pii_level, kb_meta, clarifications_asked=0
         )
-        decision = route(signals, proposal, kb_meta, settings.THRESHOLDS)
+        decision = Router(settings.THRESHOLDS).route(signals, proposal, kb_meta)
 
         expected_branch = case["truth"].get("expected_branch")
         if expected_branch is not None:

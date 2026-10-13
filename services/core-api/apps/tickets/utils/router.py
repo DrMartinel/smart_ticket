@@ -1,8 +1,9 @@
 """
 Switch Router — spec §8. The only module allowed to decide `Branch`
-(ADR-0001). Pure function: no I/O, no side effects, no imported globals —
-`thresholds` and `kb` are always parameters, which is what makes 100%
-branch coverage possible with plain unit tests.
+(ADR-0001). `Router` is pure: a frozen object built from the thresholds, with
+no I/O, no side effects and no imported globals — `thresholds` and `kb` are
+always passed in, which is what makes 100% branch coverage possible with plain
+unit tests.
 
 Hard gates run in a specific order (spec §8, table §8.1) and that order is
 load-bearing: mass_incident is checked BEFORE anything duplicate-related,
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import uuid
 
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -133,193 +135,237 @@ class RoutingDecision(BaseModel):
     draft_payload: dict[str, Any] | None = None
     alert_security: bool = False
 
+    @classmethod
+    def block(
+        cls, reason_code: ReasonCode, *, detail: str = "", alert_security: bool = False
+    ) -> RoutingDecision:
+        """Builds a BLOCK decision."""
 
-def _block(
-    reason_code: ReasonCode, *, detail: str = "", alert_security: bool = False
-) -> RoutingDecision:
-    return RoutingDecision(
-        branch=Branch.BLOCK,
-        reason_code=reason_code,
-        reason_detail=detail or reason_code.value,
-        gate_failed=reason_code.value,
-        alert_security=alert_security,
-    )
+        return cls(
+            branch=Branch.BLOCK,
+            reason_code=reason_code,
+            reason_detail=detail or reason_code.value,
+            gate_failed=reason_code.value,
+            alert_security=alert_security,
+        )
 
+    @classmethod
+    def escalate(cls, reason_code: ReasonCode, *, detail: str = "") -> RoutingDecision:
+        """Builds an ESCALATE decision."""
 
-def _escalate(reason_code: ReasonCode, *, detail: str = "") -> RoutingDecision:
-    return RoutingDecision(
-        branch=Branch.ESCALATE,
-        reason_code=reason_code,
-        reason_detail=detail or reason_code.value,
-        gate_failed=reason_code.value,
-    )
+        return cls(
+            branch=Branch.ESCALATE,
+            reason_code=reason_code,
+            reason_detail=detail or reason_code.value,
+            gate_failed=reason_code.value,
+        )
 
+    @classmethod
+    def hitl(
+        cls,
+        reason_code: ReasonCode,
+        *,
+        queue: str,
+        detail: str = "",
+        priority: int = 3,
+        draft_payload: dict[str, Any] | None = None,
+        gate_failed: str | None = None,
+    ) -> RoutingDecision:
+        """Builds a HITL decision for `queue`."""
 
-def _hitl(
-    reason_code: ReasonCode,
-    *,
-    queue: str,
-    detail: str = "",
-    priority: int = 3,
-    draft_payload: dict[str, Any] | None = None,
-    gate_failed: str | None = None,
-) -> RoutingDecision:
-    return RoutingDecision(
-        branch=Branch.HITL,
-        reason_code=reason_code,
-        reason_detail=detail or reason_code.value,
-        gate_failed=gate_failed,
-        queue=ReviewQueue(queue),
-        priority=priority,
-        draft_payload=draft_payload,
-    )
-
-
-def _confident_category(signals: TrustSignals, th: Thresholds) -> TicketCategory | None:
-    """Jev's category, when it chose one with at least
-    `classification.min_confidence` (ADR-0017). The LLM's
-    `proposed_category` is never a fallback: it is log-only, and a silent
-    switch of classifier would route on a category nobody calibrated."""
-
-    c = signals.classification
-    if c.category_choice is None or c.category_confidence < th.classification.min_confidence:
-        return None
-    return c.category_choice
+        return cls(
+            branch=Branch.HITL,
+            reason_code=reason_code,
+            reason_detail=detail or reason_code.value,
+            gate_failed=gate_failed,
+            queue=ReviewQueue(queue),
+            priority=priority,
+            draft_payload=draft_payload,
+        )
 
 
-def route(
-    signals: TrustSignals,
-    proposal: LLMProposalEnvelope | None,
-    kb: KBArticleMeta | None,
-    th: Thresholds,
-) -> RoutingDecision:
-    """Pure function. No I/O, no side effects. Every branch is testable
-    without a database, an LLM, or a network call."""
+@dataclass(frozen=True)
+class Router:
+    """Chooses the `Branch` for a ticket's signals and proposal, under `thresholds`."""
 
-    # ═══════════════ HARD GATES — order has meaning ═══════════════
-    p = signals.policy
+    thresholds: Thresholds
 
-    if p.injection_detected:
-        return _block(ReasonCode.INJECTION_DETECTED, alert_security=True)
+    def route(
+        self,
+        signals: TrustSignals,
+        proposal: LLMProposalEnvelope | None,
+        kb: KBArticleMeta | None,
+    ) -> RoutingDecision:
+        """Chooses the branch for one ticket."""
 
-    if p.pii_level is PIILevel.CRITICAL:
-        return _block(ReasonCode.PII_CRITICAL, alert_security=True)
+        th = self.thresholds
 
-    if p.mass_incident:
-        # BEFORE any duplicate logic. 40 identical tickets in 10 minutes
-        # is not something to dedupe quietly — it's an outage to escalate.
-        return _escalate(ReasonCode.MASS_INCIDENT)
+        # ═══════════════ HARD GATES — order has meaning ═══════════════
+        p = signals.policy
 
-    if p.pii_level is PIILevel.MASK_FAILED:
-        return _hitl(ReasonCode.PII_MASK_FAILED, queue=ReviewQueue.MASK_FAILED.value, priority=1)
+        if p.injection_detected:
+            return RoutingDecision.block(ReasonCode.INJECTION_DETECTED, alert_security=True)
 
-    # Retrieval floor is checked BEFORE the schema gate, because when the
-    # graph refuses before ever calling the LLM (spec §6.2's
-    # refuse-before-LLM edge) there is no proposal to validate — so the
-    # schema gate would fire first and label the ticket SCHEMA_INVALID for
-    # what was really "the KB had nothing close enough". Both land in the
-    # same HITL queue, so this changes no behavior; what it fixes is the
-    # reason_code, and reason_code is the entire basis for "which reason
-    # sent the most tickets to review this week" (spec §4.1). A gate that
-    # reports the wrong cause is worse than no gate, because the dashboard
-    # built on it quietly lies.
-    # retrieval.floor and rerank_top1 are both on Jev's scale (ADR-0015).
-    if signals.retrieval.rerank_top1 < th.retrieval_floor:
-        return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
+        if p.pii_level is PIILevel.CRITICAL:
+            return RoutingDecision.block(ReasonCode.PII_CRITICAL, alert_security=True)
 
-    # No proposal: the LLM's reply did not parse into one (or no LLM ran).
-    if proposal is None:
-        return _hitl(ReasonCode.SCHEMA_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value)
+        if p.mass_incident:
+            # BEFORE any duplicate logic. 40 identical tickets in 10 minutes
+            # is not something to dedupe quietly — it's an outage to escalate.
+            return RoutingDecision.escalate(ReasonCode.MASS_INCIDENT)
 
-    if isinstance(proposal.root, InsufficientContext):
-        return _hitl(ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value)
-
-    # The ticket's category is Jev's, never the LLM's `proposed_category`
-    # (ADR-0017). Only the branches that act on it check its confidence:
-    # an auto-reply takes its KB page's category instead.
-    category = _confident_category(signals, th)
-
-    # ── Clarify: ask which of the shown pages the requester means (ADR-0016) ──
-    # Before trust on purpose: a question grants nothing and changes no
-    # system, and the trust score prices the risk of an automatic action.
-    if isinstance(proposal.root, ClarificationProposal):
-        if signals.classification.category_choice is TicketCategory.SECURITY:
-            # Something may already be wrong. A human gets it now; it never
-            # waits on a requester's answer. A rule, not a threshold: Jev's
-            # confidence doesn't matter, a human gets it either way.
-            return _hitl(
-                ReasonCode.CLARIFY_SECURITY, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=2
+        if p.pii_level is PIILevel.MASK_FAILED:
+            return RoutingDecision.hitl(
+                ReasonCode.PII_MASK_FAILED, queue=ReviewQueue.MASK_FAILED.value, priority=1
             )
-        if category is None:
-            return _hitl(ReasonCode.CATEGORY_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value)
-        if not signals.generation.clarify_options_in_topk:
-            return _hitl(
-                ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN, queue=ReviewQueue.LOW_CONFIDENCE.value
+
+        # Retrieval floor is checked BEFORE the schema gate, because when the
+        # graph refuses before ever calling the LLM (spec §6.2's
+        # refuse-before-LLM edge) there is no proposal to validate — so the
+        # schema gate would fire first and label the ticket SCHEMA_INVALID for
+        # what was really "the KB had nothing close enough". Both land in the
+        # same HITL queue, so this changes no behavior; what it fixes is the
+        # reason_code, and reason_code is the entire basis for "which reason
+        # sent the most tickets to review this week" (spec §4.1). A gate that
+        # reports the wrong cause is worse than no gate, because the dashboard
+        # built on it quietly lies.
+        # retrieval.floor and rerank_top1 are both on Jev's scale (ADR-0015).
+        if signals.retrieval.rerank_top1 < th.retrieval_floor:
+            return RoutingDecision.hitl(
+                ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value
             )
-        if p.clarifications_asked >= th.clarification.max_rounds:
-            # Asked already, answered, and still ambiguous. Asking again
-            # could loop on a requester who can't say more; a person can.
-            return _hitl(ReasonCode.CLARIFY_ROUND_CAP, queue=ReviewQueue.CLARIFICATION.value)
-        return RoutingDecision(
-            branch=Branch.CLARIFY,
-            reason_code=ReasonCode.ALL_CHECKS_PASSED,
-            reason_detail="all clarify checks passed",
-            category=category,
-            queue=ReviewQueue.CLARIFICATION,
+
+        # No proposal: the LLM's reply did not parse into one (or no LLM ran).
+        if proposal is None:
+            return RoutingDecision.hitl(
+                ReasonCode.SCHEMA_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value
+            )
+
+        if isinstance(proposal.root, InsufficientContext):
+            return RoutingDecision.hitl(
+                ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value
+            )
+
+        # The ticket's category is Jev's, never the LLM's `proposed_category`
+        # (ADR-0017). Only the branches that act on it check its confidence:
+        # an auto-reply takes its KB page's category instead.
+        category = self._confident_category(signals)
+
+        # ── Clarify: ask which of the shown pages the requester means (ADR-0016) ──
+        # Before trust on purpose: a question grants nothing and changes no
+        # system, and the trust score prices the risk of an automatic action.
+        if isinstance(proposal.root, ClarificationProposal):
+            if signals.classification.category_choice is TicketCategory.SECURITY:
+                # Something may already be wrong. A human gets it now; it never
+                # waits on a requester's answer. A rule, not a threshold: Jev's
+                # confidence doesn't matter, a human gets it either way.
+                return RoutingDecision.hitl(
+                    ReasonCode.CLARIFY_SECURITY, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=2
+                )
+            if category is None:
+                return RoutingDecision.hitl(
+                    ReasonCode.CATEGORY_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+            if not signals.generation.clarify_options_in_topk:
+                return RoutingDecision.hitl(
+                    ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+            if p.clarifications_asked >= th.clarification.max_rounds:
+                # Asked already, answered, and still ambiguous. Asking again
+                # could loop on a requester who can't say more; a person can.
+                return RoutingDecision.hitl(
+                    ReasonCode.CLARIFY_ROUND_CAP, queue=ReviewQueue.CLARIFICATION.value
+                )
+            return RoutingDecision(
+                branch=Branch.CLARIFY,
+                reason_code=ReasonCode.ALL_CHECKS_PASSED,
+                reason_detail="all clarify checks passed",
+                category=category,
+                queue=ReviewQueue.CLARIFICATION,
+            )
+
+        # ═══════════════ TRUST-BASED ROUTING ═══════════════
+        trust = compute_trust(signals).value
+        g = signals.generation
+
+        # ── Branch A: auto-reply ──
+        if isinstance(proposal.root, AutoReplyProposal):
+            # Authority comes from KB METADATA, not from the LLM. The model
+            # cannot grant itself permission to auto-reply (ADR-0002).
+            if kb is None or not kb.auto_reply_allowed:
+                return RoutingDecision.hitl(
+                    ReasonCode.KB_NOT_AUTHORIZED, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+
+            if not g.quote_source_in_topk:
+                return RoutingDecision.hitl(
+                    ReasonCode.QUOTE_SOURCE_MISMATCH, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+            if g.quote_match_ratio < th.quote_match:
+                return RoutingDecision.hitl(
+                    ReasonCode.QUOTE_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+            if not g.negation_consistent:
+                return RoutingDecision.hitl(
+                    ReasonCode.NEGATION_MISMATCH, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+            if trust < th.t_auto:
+                return RoutingDecision.hitl(
+                    ReasonCode.TRUST_BELOW_AUTO, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+
+            return RoutingDecision(
+                branch=Branch.AUTO_REPLY,
+                reason_code=ReasonCode.ALL_CHECKS_PASSED,
+                reason_detail="all auto-reply checks passed",
+                kb_slug=kb.slug,
+                trust=trust,
+            )
+
+        # ── Runbook: ALWAYS through HITL, no exceptions (ADR-0006) ──
+        if isinstance(proposal.root, RunbookProposal):
+            # No trust comparison in this branch, ever. This is a write to a
+            # real system; no threshold is high enough to skip a human here.
+            return RoutingDecision.hitl(
+                ReasonCode.ALL_CHECKS_PASSED,
+                queue=ReviewQueue.RUNBOOK_APPROVAL.value,
+                detail="runbook proposals always require human approval",
+                draft_payload=proposal.root.draft_payload,
+            )
+
+        # ── Branch B: auto-route ──
+        if isinstance(proposal.root, RouteProposal):
+            if category is None:
+                return RoutingDecision.hitl(
+                    ReasonCode.CATEGORY_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+            if trust < th.t_route:
+                return RoutingDecision.hitl(
+                    ReasonCode.TRUST_BELOW_ROUTE, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+
+            return RoutingDecision(
+                branch=Branch.AUTO_ROUTE,
+                reason_code=ReasonCode.ALL_CHECKS_PASSED,
+                reason_detail="all auto-route checks passed",
+                category=category,
+                trust=trust,
+            )
+
+        return RoutingDecision.hitl(
+            ReasonCode.SCHEMA_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value
         )
 
-    # ═══════════════ TRUST-BASED ROUTING ═══════════════
-    trust = compute_trust(signals).value
-    g = signals.generation
+    def _confident_category(self, signals: TrustSignals) -> TicketCategory | None:
+        """Jev's category, when it chose one with at least
+        `classification.min_confidence` (ADR-0017). The LLM's
+        `proposed_category` is never a fallback: it is log-only, and a silent
+        switch of classifier would route on a category nobody calibrated."""
 
-    # ── Branch A: auto-reply ──
-    if isinstance(proposal.root, AutoReplyProposal):
-        # Authority comes from KB METADATA, not from the LLM. The model
-        # cannot grant itself permission to auto-reply (ADR-0002).
-        if kb is None or not kb.auto_reply_allowed:
-            return _hitl(ReasonCode.KB_NOT_AUTHORIZED, queue=ReviewQueue.LOW_CONFIDENCE.value)
-
-        if not g.quote_source_in_topk:
-            return _hitl(ReasonCode.QUOTE_SOURCE_MISMATCH, queue=ReviewQueue.LOW_CONFIDENCE.value)
-        if g.quote_match_ratio < th.quote_match:
-            return _hitl(ReasonCode.QUOTE_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value)
-        if not g.negation_consistent:
-            return _hitl(ReasonCode.NEGATION_MISMATCH, queue=ReviewQueue.LOW_CONFIDENCE.value)
-        if trust < th.t_auto:
-            return _hitl(ReasonCode.TRUST_BELOW_AUTO, queue=ReviewQueue.LOW_CONFIDENCE.value)
-
-        return RoutingDecision(
-            branch=Branch.AUTO_REPLY,
-            reason_code=ReasonCode.ALL_CHECKS_PASSED,
-            reason_detail="all auto-reply checks passed",
-            kb_slug=kb.slug,
-            trust=trust,
-        )
-
-    # ── Runbook: ALWAYS through HITL, no exceptions (ADR-0006) ──
-    if isinstance(proposal.root, RunbookProposal):
-        # No trust comparison in this branch, ever. This is a write to a
-        # real system; no threshold is high enough to skip a human here.
-        return _hitl(
-            ReasonCode.ALL_CHECKS_PASSED,
-            queue=ReviewQueue.RUNBOOK_APPROVAL.value,
-            detail="runbook proposals always require human approval",
-            draft_payload=proposal.root.draft_payload,
-        )
-
-    # ── Branch B: auto-route ──
-    if isinstance(proposal.root, RouteProposal):
-        if category is None:
-            return _hitl(ReasonCode.CATEGORY_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value)
-        if trust < th.t_route:
-            return _hitl(ReasonCode.TRUST_BELOW_ROUTE, queue=ReviewQueue.LOW_CONFIDENCE.value)
-
-        return RoutingDecision(
-            branch=Branch.AUTO_ROUTE,
-            reason_code=ReasonCode.ALL_CHECKS_PASSED,
-            reason_detail="all auto-route checks passed",
-            category=category,
-            trust=trust,
-        )
-
-    return _hitl(ReasonCode.SCHEMA_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value)
+        c = signals.classification
+        if (
+            c.category_choice is None
+            or c.category_confidence < self.thresholds.classification.min_confidence
+        ):
+            return None
+        return c.category_choice

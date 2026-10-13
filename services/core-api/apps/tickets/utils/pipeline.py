@@ -45,6 +45,7 @@ from apps.tickets.utils.router import (
     ReasonCode,
     ReviewQueue,
     RiskTier,
+    Router,
     RoutingDecision as Decision,
 )
 from apps.tickets.utils.masking import mask_reply
@@ -62,7 +63,6 @@ from apps.tickets.models import (
     TicketClarification,
     TicketSource,
 )
-from apps.tickets.utils import router as router_service
 from apps.tickets.utils.trust_scorer import score as compute_trust
 
 logger = logging.getLogger(__name__)
@@ -203,7 +203,7 @@ def _finalize(
             reason_code=decision.reason_code.value,
             reason_detail=decision.reason_detail,
             gate_failed=decision.gate_failed,
-            thresholds_used=settings.THRESHOLDS.model_dump(mode="json"),
+            thresholds_used=router.thresholds.model_dump(mode="json"),
             shadow_mode=shadow,
         )
 
@@ -216,7 +216,7 @@ def _finalize(
                 "branch": decision.branch.value,
                 "reason_code": decision.reason_code.value,
                 "shadow_mode": shadow,
-                "thresholds_version": settings.THRESHOLDS.version,
+                "thresholds_version": router.thresholds.version,
             },
             trace_id=trace_id,
         )
@@ -627,7 +627,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
         # incident must never receive an (possibly wrong) auto-reply.
         signals = _degraded_signals()
         signals.policy.mass_incident = True
-        decision = router_service.route(signals, None, None, settings.THRESHOLDS)
+        decision = router.route(signals, None, None)
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="mass_incident_short_circuit"
         )
@@ -697,7 +697,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
     signals = trust_signals(
         resp.signals, masked.pii_level, kb_meta, clarifications_asked=clarifications_asked
     )
-    decision = router_service.route(signals, resp.proposal, kb_meta, settings.THRESHOLDS)
+    decision = router.route(signals, resp.proposal, kb_meta)
     ai_run = _persist_ai_run(
         ticket,
         idempotency_key,
@@ -707,3 +707,8 @@ def ticket_process(ticket_id: str) -> TaskResult:
         degraded_reason=resp.degraded_reason,
     )
     return _finalize(ticket, ai_run, decision, trace_id, kb=kb_meta)
+
+
+# --- the router, built from the thresholds loaded at startup ---
+
+router = Router(settings.THRESHOLDS)
