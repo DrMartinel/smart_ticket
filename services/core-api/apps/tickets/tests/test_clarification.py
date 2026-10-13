@@ -200,8 +200,10 @@ class TestAsking:
         ticket_process(str(ticket.id))
 
         ticket.refresh_from_db()
-        assert ticket.status == "awaiting_requester"
+        assert ticket.status == "pending_review"
+        assert ticket.held_decision is None
         assert not ticket.clarifications.exists()
+        assert list(ticket.review_items.values_list("queue", flat=True)) == ["clarification"]
 
     def test_asking_for_a_person_instead_reaches_the_clarification_queue(
         self, employee_user, kb_pages, engine_always_clarifies, live

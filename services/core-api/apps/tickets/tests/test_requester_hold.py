@@ -53,11 +53,22 @@ class TestWaitsForRequester:
         decision = _decision(Branch.AUTO_REPLY, ReasonCode.ALL_CHECKS_PASSED, kb_slug="kb-1")
         assert waits_for_requester(decision, False, PIILevel.ROUTINE) is False
 
-    def test_shadow_auto_reply_waits(self):
-        """Shadow mode sends nothing (spec §14 P1), the chat included: the
-        requester is offered a ticket instead of the answer."""
-        decision = _decision(Branch.AUTO_REPLY, ReasonCode.ALL_CHECKS_PASSED, kb_slug="kb-1")
-        assert waits_for_requester(decision, True, PIILevel.ROUTINE) is True
+    @pytest.mark.parametrize(
+        "decision",
+        [
+            _decision(Branch.AUTO_REPLY, ReasonCode.ALL_CHECKS_PASSED, kb_slug="kb-1"),
+            _decision(Branch.HITL, ReasonCode.TRUST_BELOW_AUTO, queue=ReviewQueue.LOW_CONFIDENCE),
+            _decision(
+                Branch.HITL, ReasonCode.AI_ENGINE_UNAVAILABLE, queue=ReviewQueue.LOW_CONFIDENCE
+            ),
+            _decision(Branch.AUTO_ROUTE, ReasonCode.ALL_CHECKS_PASSED),
+            _decision(Branch.CLARIFY, ReasonCode.ALL_CHECKS_PASSED),
+        ],
+        ids=["auto_reply", "hitl", "degraded", "auto_route", "clarify"],
+    )
+    def test_shadow_mode_never_waits(self, decision):
+        """Checks that no decision waits for the requester in shadow mode."""
+        assert waits_for_requester(decision, True, PIILevel.ROUTINE) is False
 
     @pytest.mark.parametrize(
         "decision",
@@ -71,8 +82,8 @@ class TestWaitsForRequester:
         ],
         ids=["hitl", "degraded", "auto_route", "clarify"],
     )
-    def test_ordinary_handoffs_wait(self, decision):
-        assert waits_for_requester(decision, True, PIILevel.ROUTINE) is True
+    def test_live_ordinary_handoffs_wait(self, decision):
+        assert waits_for_requester(decision, False, PIILevel.ROUTINE) is True
 
 
 @pytest.fixture
@@ -110,7 +121,25 @@ def _submit(user, source: TicketSource) -> Ticket:
 @pytest.mark.django_db
 class TestHoldAndRelease:
     """With the test ai-engine offline for analysis, every ticket is routed
-    HITL as ai_engine_unavailable: an ordinary handoff."""
+    HITL as ai_engine_unavailable: an ordinary handoff. Live mode unless a
+    test says otherwise."""
+
+    @pytest.fixture(autouse=True)
+    def live(self, settings):
+        settings.SHADOW_MODE = False
+
+    def test_shadow_chat_ticket_goes_straight_to_review(
+        self, employee_user, ner_finds_nothing, no_celery, settings
+    ):
+        settings.SHADOW_MODE = True
+        ticket = _submit(employee_user, TicketSource.CHAT)
+
+        ticket_process(str(ticket.id))
+
+        ticket.refresh_from_db()
+        assert ticket.status == "pending_review"
+        assert ticket.held_decision is None
+        assert ticket.review_items.exists()
 
     def test_chat_ticket_waits_without_a_review_item(
         self, employee_user, ner_finds_nothing, no_celery

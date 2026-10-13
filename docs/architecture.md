@@ -311,6 +311,8 @@ SHADOW_MODE=false ──► execute the decision
 
 The same `route()` runs in both. That identity is the whole point: shadow data describes the real behavior, with no divergence introduced by a separate code path.
 
+A live chat ticket's HITL, AUTO_ROUTE or CLARIFY decision is held (`awaiting_requester`) until the requester asks for a ticket, so a requester who got what they needed doesn't create work for support. Decisions that must reach a person (a block, an escalation, a security alert, failed masking, critical PII) are never held. In shadow mode nothing is held: every chat ticket reaches a reviewer at once, so every decision gets a human label, not only those whose requester gave up on the bot.
+
 ---
 
 ## 5. Data model

@@ -228,10 +228,8 @@ def _finalize(
         if ticket.source == TicketSource.CHAT.value and waits_for_requester(
             decision, shadow, PIILevel(ticket.pii_level)
         ):
-            if (
-                decision.branch is Branch.CLARIFY
-                and not shadow
-                and not clarifications.ask(ticket, ai_run, trace_id)
+            if decision.branch is Branch.CLARIFY and not clarifications.ask(
+                ticket, ai_run, trace_id
             ):
                 # Fewer than two pages to offer: carried out as for a form ticket.
                 _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
@@ -263,21 +261,16 @@ def waits_for_requester(decision: Decision, shadow: bool, pii_level: PIILevel) -
     """Whether a chat ticket's decision waits for the requester to ask for a
     ticket before it is carried out. Pure.
 
-    Only an answer the requester can take or leave waits: a person reviewing,
-    a team taking it on, a clarifying question. BLOCK, ESCALATE, anything
-    raising a security alert and any ticket whose masking failed or found
-    critical PII go to support at once, as for a form ticket. A live
-    auto-reply never waits, it is the answer; a shadow-mode one does,
-    because shadow mode sends nothing (spec §14 P1). Any branch not named
-    here is carried out at once: an unknown case degrades toward humans,
-    never toward waiting on someone who may not come back.
+    In live mode, a HITL, AUTO_ROUTE or CLARIFY decision waits unless it
+    raises a security alert, has a never-held reason code, or the ticket's
+    PII level is never held. In shadow mode nothing waits.
     """
+    if shadow:
+        return False
     if decision.alert_security or decision.reason_code in _NEVER_HELD:
         return False
     if pii_level in _NEVER_HELD_PII:
         return False
-    if decision.branch is Branch.AUTO_REPLY:
-        return shadow
     return decision.branch in (Branch.HITL, Branch.CLARIFY, Branch.AUTO_ROUTE)
 
 

@@ -34,6 +34,11 @@ def enqueued(monkeypatch):
     return ids
 
 
+@pytest.fixture
+def live(settings):
+    settings.SHADOW_MODE = False
+
+
 def ask(client, message: str):
     return client.post("/api/chat/ask", {"message": message}, content_type="application/json")
 
@@ -67,6 +72,22 @@ class TestAsk:
 
 
 @pytest.mark.django_db
+class TestShadowMode:
+    def test_question_goes_to_support_without_a_suggestion(
+        self, employee_user, api_as, ner_finds_nothing, enqueued, settings
+    ):
+        settings.SHADOW_MODE = True
+        client = api_as(employee_user)
+        public_id = ask(client, "My VPN keeps timing out since this morning").json()["public_id"]
+        ticket_process(enqueued[0])
+
+        assert client.get(f"/api/chat/tickets/{public_id}").json()["state"] == "with_support"
+        assert ReviewItem.objects.filter(ticket__public_id=public_id).count() == 1
+        assert client.post(f"/api/chat/tickets/{public_id}/create-ticket").status_code == 409
+
+
+@pytest.mark.django_db
+@pytest.mark.usefixtures("live")
 class TestSuggestAndCreateTicket:
     def test_handoff_is_suggested_then_created_once(
         self, employee_user, api_as, ner_finds_nothing, enqueued
@@ -88,6 +109,7 @@ class TestSuggestAndCreateTicket:
 
 
 @pytest.mark.django_db
+@pytest.mark.usefixtures("live")
 class TestOwnership:
     def test_another_requesters_conversation_is_not_found(
         self, employee_user, technician_user, api_as, ner_finds_nothing, enqueued
