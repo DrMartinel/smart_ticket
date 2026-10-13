@@ -1,9 +1,6 @@
 """
-ai-engine's read-only role on `kb_article_associations` (ADR-0018,
-infra/migrations/sql/0006), against the real Dockerized Postgres. Link
-expansion reads the table as `ai_engine_ro`; a missing grant would fail
-only on the first ticket that expanded, and a write grant would end
-ADR-0004's boundary, which Postgres alone enforces.
+Checks `ai_engine_ro`'s grants against the Dockerized Postgres: it can read,
+insert and delete `kb_article_associations`, and write nothing else.
 """
 
 from __future__ import annotations
@@ -53,19 +50,43 @@ def test_ai_engine_role_can_read_associations(association):
         assert cursor.fetchall() == [("entity_graph", 6.38)]
 
 
+def test_ai_engine_role_can_replace_associations(association):
+    with _as_ai_engine() as cursor:
+        cursor.execute(
+            "INSERT INTO kb_article_associations (id, source_article_id, target_article_id,"
+            " source, score, evidence, reviewed, build_id) SELECT gen_random_uuid(),"
+            " target_article_id, source_article_id, source, score, evidence, reviewed, build_id"
+            " FROM kb_article_associations"
+        )
+        cursor.execute("DELETE FROM kb_article_associations WHERE source = 'entity_graph'")
+
+    assert not KbArticleAssociation.objects.exists()
+
+
 @pytest.mark.parametrize(
     "sql",
     [
-        "INSERT INTO kb_article_associations (id, source_article_id, target_article_id, source,"
-        " score, evidence, reviewed, build_id) SELECT gen_random_uuid(), target_article_id,"
-        " source_article_id, source, score, evidence, reviewed, build_id"
-        " FROM kb_article_associations",
         "UPDATE kb_article_associations SET reviewed = true",
-        "DELETE FROM kb_article_associations",
+        "UPDATE kb_articles SET auto_reply_allowed = true",
+        "DELETE FROM kb_articles",
+        "DELETE FROM kb_chunks",
+        "DELETE FROM tickets",
+        "DELETE FROM routing_decisions",
+        "DELETE FROM ai_runs",
+        "DELETE FROM audit_log",
     ],
-    ids=["insert", "update", "delete"],
+    ids=[
+        "update-associations",
+        "update-kb_articles",
+        "delete-kb_articles",
+        "delete-kb_chunks",
+        "delete-tickets",
+        "delete-routing_decisions",
+        "delete-ai_runs",
+        "delete-audit_log",
+    ],
 )
-def test_ai_engine_role_cannot_write_associations(association, sql):
+def test_ai_engine_role_writes_nothing_else(association, sql):
     with _as_ai_engine() as cursor:
         # The savepoint rolls back the failed statement, so RESET ROLE runs
         # in a usable transaction.

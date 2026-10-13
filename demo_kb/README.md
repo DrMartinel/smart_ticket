@@ -73,13 +73,18 @@ uv run python -m ai_engine.core.associations.build \
 uv run python -m ai_engine.core.associations.build --sample 150 \
     --include <slug> ... --working-dir <scratch dir> --out <scratch dir>   # a spike
 uv run python -m ai_engine.core.associations.build --rescore-only \
-    --out demo_kb/associations   # re-resolve and re-score; no model call
+    --out demo_kb/associations   # re-resolve, re-score and write; no model call
 ```
 
 `<scratch dir>` holds the reply cache: a rebuild sends only new or changed
-sections. `load_demo_kb` loads `associations/entity_graph.jsonl` when it
-exists; on its own:
-`manage.py load_associations demo_kb/associations/entity_graph.jsonl --source entity_graph`.
+sections. A full build and `--rescore-only` replace every `entity_graph` row
+of `kb_article_associations` in one transaction (ADR-0025); a `--sample`
+spike writes files only. `load_demo_kb` loads no entity-graph edge, so
+**after a load, run the `--rescore-only` line** (it needs the embedder up,
+as the load does) or link expansion on `ASSOCIATION_SOURCE=entity_graph`
+finds nothing. A database migrated before 2026-10-13 lacks the write
+grant: reset its volume, or run
+`GRANT INSERT, DELETE ON kb_article_associations TO ai_engine_ro;`.
 
 **`entity_graph_pairs.jsonl` is the contract between the extractor and
 everything after it.** One JSON object per line, one per pair found on a

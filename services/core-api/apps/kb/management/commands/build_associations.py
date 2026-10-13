@@ -2,8 +2,8 @@
 Rebuild the `authored_link` association source (ADR-0018) from the Markdown
 links in every article's chunk text, replacing its rows in one transaction.
 
-`entity_graph` is built offline by ai-engine and loaded with
-`load_associations`; this command never calls a model.
+`entity_graph` rows are written by ai-engine's offline build; this command
+never calls a model.
 """
 
 from __future__ import annotations

@@ -4,9 +4,8 @@ Partial query descriptions of the four tables `ai_engine_ro` may read
 ai-engine uses are declared.
 
 - Never call `create_all()` / `drop_all()`: these are not full definitions.
-- Never instantiate these classes or `session.add()` them: ai-engine has no
-  write authority.
-- Never add a table outside the SELECT grants in
+- Never instantiate these classes or `session.add()` them.
+- Never add a table outside the grants in
   0004_grants_and_audit_lockdown.sql and 0006_association_grant.sql.
 
 `tests/test_db_tables.py` pins the table set and the absence of DDL/write
@@ -65,9 +64,7 @@ class KbChunk(Base):
 
 
 class KbArticleAssociation(Base):
-    """Which articles link expansion follows from a seed (ADR-0018). core-api
-    writes every row; `score` only orders one seed's targets within one
-    source, and is never compared with a threshold."""
+    """Which articles link expansion follows from a seed (ADR-0018)."""
 
     __tablename__ = "kb_article_associations"
 
@@ -76,6 +73,9 @@ class KbArticleAssociation(Base):
     target_article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
     source: Mapped[str]
     score: Mapped[float]
+    evidence: Mapped[Any] = mapped_column(JSONB)
+    reviewed: Mapped[bool]
+    build_id: Mapped[str]
 
 
 class FewshotExample(Base):

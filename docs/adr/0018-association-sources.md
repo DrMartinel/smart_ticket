@@ -6,6 +6,7 @@
 **Builds on:** ADR-0014 decision 1 (an article-associations layer feeds
 candidate expansion) and its *Before this is accepted* #3 (a KB-agnostic
 association source)
+**Amended by:** ADR-0025 (decision 5: the build writes its own rows)
 **Touches:** ADR-0004 (ai-engine's read-only role: one more SELECT grant),
 ADR-0002 (auto-reply quotes approved KB text only), ADR-0005 / ADR-0015 (which
 score a threshold may see), ADR-0019 (DeepSeek for evaluation)
@@ -41,7 +42,7 @@ scores are on different scales, so they are never followed together.
 | Source | Built by | Model calls |
 |---|---|---|
 | `authored_link` | core-api, at ingest and by `build_associations --source authored_link` | none |
-| `entity_graph` | ai-engine's offline build, loaded by core-api's `load_associations` | offline only, never per ticket |
+| `entity_graph` | ai-engine's offline build, which writes its rows (ADR-0025) | offline only, never per ticket |
 
 **4. The entity graph is a graph of pointers from a problem to its fix.**
 Per page section (up to `ENTITY_GRAPH_SECTION_TOKENS`), DeepSeek lists
@@ -56,7 +57,9 @@ names a problem whose fix, the text says, is on page B; its score is the
 number of distinct (symptom, remedy) pairs pointing that way, and its
 `evidence` is those pairs (ADR-0002: never shown to a requester).
 
-**5. The build runs offline, on DeepSeek, and writes no row.** One JSON call
+**5. The build runs offline, on DeepSeek, and writes no row.** *(Amended
+by ADR-0025: the build now replaces its `entity_graph` rows itself, and
+`load_associations` is gone.)* One JSON call
 per section, replies cached by (prompt version, model, section budget,
 section text), so a rebuild sends only new or changed sections; a failed
 section exports nothing and is all a re-run asks for. It hands core-api

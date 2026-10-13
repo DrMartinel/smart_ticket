@@ -1,6 +1,7 @@
 # ADR-0004: `ai-engine` is a separate service from `core-api`
 
-**Status:** Accepted
+**Status:** Accepted; reason 1 superseded for `kb_article_associations` by
+[ADR-0025](0025-ai-engine-writes-the-entity-graph.md) (2026-10-13)
 **Date:** 2026-07-27
 
 ## Context

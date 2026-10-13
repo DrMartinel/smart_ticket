@@ -3,22 +3,24 @@ The only place ai-engine opens a DB session. `db`, at the bottom, is the
 single instance; query code runs each read through `db.all` or `db.first`
 and never opens a session itself.
 
-Connects as `ai_engine_ro`, SELECT-only on kb_articles, kb_chunks and
-fewshot_examples (0004_grants_and_audit_lockdown.sql) and
-kb_article_associations (0006_association_grant.sql, ADR-0018). A query
-against any business table fails at the database (ADR-0004) — never extend
-this beyond those four. Queries are SQLAlchemy 2.0 against `tables.py` (ADR-0008).
+Connects as `ai_engine_ro`: SELECT on kb_articles, kb_chunks and
+fewshot_examples (0004_grants_and_audit_lockdown.sql), and SELECT, INSERT and
+DELETE on kb_article_associations (0006_association_grant.sql). A query against any
+business table fails at the database (ADR-0004) — never extend this beyond
+those four. Queries are SQLAlchemy 2.0 against `tables.py` (ADR-0008).
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sqlalchemy import Executable, Row, create_engine, make_url
 from sqlalchemy.orm import Session
 
 from ai_engine.core.config import settings
+
+type WriteStep = tuple[Executable, Sequence[Mapping[str, Any]] | None]
 
 
 def _psycopg3_url(url: str) -> str:
@@ -52,9 +54,6 @@ class SqlAlchemySessionSource:
             pool_pre_ping=True,
         )
 
-    # Never committed: each session's implicit transaction is rolled back on
-    # close. ai-engine has nothing to commit (ADR-0004).
-
     def all(self, statement: Executable) -> Sequence[Row[Any]]:
         with Session(self._engine) as session:
             return session.execute(statement).all()
@@ -62,6 +61,16 @@ class SqlAlchemySessionSource:
     def first(self, statement: Executable) -> Row[Any] | None:
         with Session(self._engine) as session:
             return session.execute(statement).first()
+
+    def write(self, steps: Sequence[WriteStep]) -> None:
+        """Runs the statements in one transaction and commits."""
+
+        with Session(self._engine) as session, session.begin():
+            for statement, rows in steps:
+                if rows is None:
+                    session.execute(statement)
+                elif rows:
+                    session.execute(statement, list(rows))
 
 
 db = SqlAlchemySessionSource()

@@ -22,7 +22,7 @@ src/ai_engine/
     providers/     the providers more than one caller shares:
                    embeddings.py (ABC + impls + import-time selection),
                    pii.py (Tier-2 PII NER, the only code that sees raw text),
-                   clients.py (VLLMClient + JevClient on HttpClient, ChatClient + vllm_chat/openai_chat, and the chat/embed/rerank/ner/jev clients),
+                   clients.py (VLLMClient + JevClient on HttpClient, ChatClient (built per provider by ChatClient.for_provider), and the chat/draft/embed/rerank/ner/jev clients),
                    dtos.py (the request and reply shapes of the model servers)
     db/            client.py (the `db` singleton), tables.py (4 read-only tables, EMBED_DIM)
     associations/  the offline entity_graph build (ADR-0018): sections, DeepSeek
@@ -151,10 +151,13 @@ gets no signals at all.
 - Use SQLAlchemy 2.0 `select()` against `core/db/tables.py`. Declare only the columns
   you read.
 - The role is `ai_engine_ro`, which has SELECT on `kb_articles`, `kb_chunks`,
-  `fewshot_examples` and `kb_article_associations` (ADR-0018) and **nothing else**. A new table means a new grant in
+  `fewshot_examples` and `kb_article_associations` (ADR-0018), plus INSERT and
+  DELETE on `kb_article_associations` for the offline entity-graph build only
+  (ADR-0025), and **nothing else**. A new table means a new grant in
   `infra/migrations/sql/` *and* an ADR-0004 conversation. It is not a code change.
-- No `session.add/commit/flush/delete`, and no `create_all`.
-  `tests/test_db_tables.py` greps the source for these.
+- No `session.add/commit/flush/delete`, and no `create_all`. The one write is
+  `db.write` from `core/associations/build.py`; `tests/test_db_tables.py` greps
+  the source for all of these.
 
 ## State (`graph/state.py`)
 
@@ -177,6 +180,7 @@ gets no signals at all.
 
 - Decide a `Branch`, score trust, or check auto-reply authority. core-api does all of
   those (ADR-0001, ADR-0002).
-- Write to any database (ADR-0004).
+- Write to any database on the request path (ADR-0004). The offline
+  entity-graph build's `db.write` is the one exception (ADR-0025).
 - Feed `llm_self_confidence` into anything but the log-only field (ADR-0003).
 - Retry a model call, fall back to another provider, or cycle the graph.

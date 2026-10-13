@@ -275,13 +275,21 @@ class FakeSessionSource:
     as each real read borrows its own connection. `error` makes every read
     raise, which is how the DB-outage failure paths get exercised. `events`
     records open/close ordering so a test can prove no connection is held
-    across an HTTP round-trip."""
+    across an HTTP round-trip. `write` records each call's statements in
+    `writes`."""
 
-    def __init__(self, rows: Rows = (), error: Exception | None = None):
+    def __init__(
+        self,
+        rows: Rows = (),
+        error: Exception | None = None,
+        write_error: Exception | None = None,
+    ):
         self._rows = rows if callable(rows) else list(rows)
         self._error = error
+        self._write_error = write_error
         self.events: list[str] = []
         self.sessions: list[_FakeSession] = []
+        self.writes: list[list[tuple[str, list[dict[str, Any]] | None]]] = []
 
     def all(self, statement):
         with self._session() as session:
@@ -290,6 +298,19 @@ class FakeSessionSource:
     def first(self, statement):
         with self._session() as session:
             return session.execute(statement).first()
+
+    def write(self, steps):
+        if self._write_error is not None:
+            raise self._write_error
+        self.writes.append(
+            [
+                (
+                    str(statement.compile(dialect=postgresql.dialect())),
+                    None if rows is None else [dict(r) for r in rows],
+                )
+                for statement, rows in steps
+            ]
+        )
 
     @contextmanager
     def _session(self):

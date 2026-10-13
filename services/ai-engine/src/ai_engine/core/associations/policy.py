@@ -1,6 +1,5 @@
 """
-The entity-graph policy (`core/prompts/kb_entity_graph.v*.yaml`), selected
-by `ENTITY_GRAPH_POLICY_VERSION`. Loaded by the build only.
+The entity-graph policy, read from `core/prompts/kb_entity_graph.v*.yaml`.
 """
 
 from __future__ import annotations
@@ -24,25 +23,26 @@ class ReplyLimits:
 
 @dataclass(frozen=True)
 class EntityGraphPolicy:
+    """The entity-graph prompt, reply bounds, link stripping and page aliases."""
+
     version: str
     instructions: str
     limits: ReplyLimits
     strip_links: bool
     aliases: dict[str, str]
 
+    @classmethod
+    def load(cls, version: str) -> EntityGraphPolicy:
+        """Loads `core/prompts/<version>.yaml`."""
 
-def load_policy(version: str) -> EntityGraphPolicy:
-    """Resolve "kb_entity_graph.v1" to core/prompts/kb_entity_graph.v1.yaml. A
-    missing file or field fails before any section is sent to the model."""
-
-    check_version(version)
-    raw = yaml.safe_load((PROMPT_DIR / f"{version}.yaml").read_text(encoding="utf-8"))
-    if not isinstance(raw, dict) or not str(raw.get("instructions") or "").strip():
-        raise ValueError(f"entity-graph policy {version!r} has no instructions")
-    return EntityGraphPolicy(
-        version=version,
-        instructions=raw["instructions"].strip(),
-        limits=ReplyLimits(**raw["reply_limits"]),
-        strip_links=bool(raw["strip_links"]),
-        aliases=dict(raw.get("aliases") or {}),
-    )
+        check_version(version)
+        raw = yaml.safe_load((PROMPT_DIR / f"{version}.yaml").read_text(encoding="utf-8"))
+        if not isinstance(raw, dict) or not str(raw.get("instructions") or "").strip():
+            raise ValueError(f"entity-graph policy {version!r} has no instructions")
+        return cls(
+            version=version,
+            instructions=raw["instructions"].strip(),
+            limits=ReplyLimits(**raw["reply_limits"]),
+            strip_links=bool(raw["strip_links"]),
+            aliases=dict(raw.get("aliases") or {}),
+        )
