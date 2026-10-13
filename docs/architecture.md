@@ -155,14 +155,17 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
                      seeds' associations in ASSOCIATION_SOURCE
                      (ADR-0014/0015/0018/0021) ──► pool, in cross-encoder order
        ▼
-   rerank            Jev re-scores the pool's top-15 ──► Jev's top-5, at most
-                     RERANK_TOP_N_PER_PAGE from one page
+   rerank            Jev answers one choice question over the pool's top-15:
+                     which passage fixes the problem, or none (ADR-0026)
+                     ──► Jev's top-5 by probability, at most
+                     RERANK_TOP_N_PER_PAGE from one page; ties keep the
+                     cross-encoder's order. Also its choice and confidence.
                      each chunk keeps both: shortlist_score, rerank_score
        ▼
    classify_category Jev chooses the category (ADR-0017): masked ticket +
                      the top page's title if above the floor, else no page
        │
-       ├─ EvidenceBelowFloor (Jev's top1 < retrieval.floor) ──► emit_signals   ← REFUSE BEFORE LLM
+       ├─ EvidenceBelowFloor (Jev chose none, or its top1 < retrieval.floor) ──► emit_signals   ← REFUSE BEFORE LLM
        │ EvidenceAboveFloor
        ▼
    select_fewshots   nearest few-shot examples by embedding, across categories
@@ -198,7 +201,7 @@ invokes `triage_graph`. See
 Models are reached through two layers. The clients in
 `core/providers/clients.py` are the lower one and own each server's protocol:
 `VLLMClient` has `embed()`, `rerank()` and `complete_json()`, `JevClient` has
-`ask()` (yes/no) and `choose()` (one choice question), and each builds its request and validates the reply against a
+`choose()` (one choice question), and each builds its request and validates the reply against a
 Pydantic DTO from `core/providers/dtos.py`. `ChatClient` does triage chat through `complete()` (LangChain;
 `ChatClient.for_provider` builds it, through `on_vllm`, `on_openai` or `on_deepseek`). The providers
 (`core/providers/embeddings.py` and `pii.py`, and the shortlister, the reranker
@@ -226,7 +229,7 @@ Selection happens once at startup and an
 unrecognized value is fatal — a typo used to fall through to the lexical
 shortlister, whose scores are a different calibration from the cross-encoder's
 (ADR-0005). Whatever the shortlister, the score thresholds read is Jev's
-(ADR-0015): `retrieval.floor` arrives per request in `AIRunRequest` for the
+(ADR-0015, ADR-0026): `retrieval.floor` arrives per request in `AIRunRequest` for the
 refuse-before-LLM check, and core-api's router compares the same floor with
 `RetrievalSignals.rerank_top1`, Jev's top score.
 
@@ -287,6 +290,9 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
         quote_source_in_topk?       no ──► HITL / quote_source_mismatch
         quote_match ≥ threshold?    no ──► HITL / quote_invalid
         negation_consistent?        no ──► HITL / negation_mismatch
+        cites Jev's rerank choice?  no ──► HITL / rerank_disagrees
+        Jev's rerank confidence
+          ≥ min_rerank_confidence?  no ──► HITL / rerank_low_confidence
         trust ≥ t_auto?             no ──► HITL / trust_below_auto
                                     yes ──► AUTO_REPLY
 
@@ -377,7 +383,7 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 | When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What the model is asked | `ai-engine/core/prompts/*.md` — versioned, and eval-gated like code |
-| What Jev is asked | `ai-engine/core/prompts/*.json` (`rerank_resolves.v*`, `category.v*`) — versioned and eval-gated the same way |
+| What Jev is asked | `ai-engine/core/prompts/*.json` (`rerank_choice.v*`, `category.v*`) — versioned and eval-gated the same way |
 | What counts as PII | `tickets/utils/patterns.py` (regex) or ai-engine's NER prompt `core/prompts/pii_ner.v*.md` |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` (Jev's question), `classification.min_confidence` in `thresholds.yaml` |

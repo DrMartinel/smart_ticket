@@ -354,15 +354,14 @@ class ClassifyCategoryNode(BaseNode):
     Outcome = ClassifyCategoryOutcome
 
     def __call__(self, state: TriageState) -> dict[str, Any]:
-        title = ...  # the top page's title, or None below the floor
+        title = ...  # the top page's title, or None below the floor or on `none`
         choice = classifier.classify(..., title)  # Jev, the module singleton
         return {"category_choice": choice.category, "category_confidence": choice.confidence}
 
     def decide(self, state: TriageState) -> ClassifyCategoryOutcome:
-        reranked = state.reranked
-        if not reranked or reranked[0].final_score() < state.retrieval_floor:
-            return ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
-        return ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR
+        if self._evidence_above_floor(state):  # Jev chose a passage, top1 >= floor
+            return ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR
+        return ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
 ```
 
 A single-exit node needs neither an `Outcome` nor a `decide()` — it inherits

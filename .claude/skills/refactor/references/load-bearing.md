@@ -136,10 +136,21 @@ guard and that comment is later trimmed, the entry is the record.
   another node with the same value compares equal.
   *`test_compiler.py::test_equal_valued_outcome_from_another_enum_raises`.*
 - **Validation-field defaults read "failed"**, and **every `ValidateNode` exit
-  returns all five checks.** `emit_signals` must never report checks that nobody ran
+  returns all six checks.** `emit_signals` must never report checks that nobody ran
   as passing, and a check an exit leaves out silently reads as failed (on a route
   proposal that lowers trust). *`test_state.py::test_missing_validation_reads_as_every_check_failed`;
   the whole-update assertions in `test_validate.py`, one per exit.*
+- **Jev's rerank choice gates (ADR-0026).** `rerank_confidence` defaults to 0.0
+  and `cited_is_rerank_choice` to False, so a run that never reported them
+  cannot auto-reply. Jev choosing `none` is below the floor in ai-engine
+  and, through `rerank_chose_none`, in the router, so the ticket is counted
+  as `retrieval_below_floor`, not `schema_invalid`. A reply missing a
+  passage's probability raises instead of scoring 0. Equal probabilities keep
+  the cross-encoder's order (a stable sort), the only order among Jev's
+  near-zero ranks. *`test_router.py::test_rerank_signals_left_at_their_defaults_never_auto_reply`,
+  `test_router.py::test_jev_choosing_none_is_retrieval_floor_not_schema_invalid`,
+  `test_providers.py::test_a_reply_missing_a_passages_probability_raises`,
+  `test_rerank.py::test_equal_jev_scores_keep_the_cross_encoder_order`.*
 - **No KB page means `(False, "high")` in `pipeline.trust_signals`, a literal,
   not a setting.** No configuration may turn a missing page into "auto-reply
   allowed". *`apps/tickets/tests/test_trust_signals.py::test_no_kb_page_denies_auto_reply`.*

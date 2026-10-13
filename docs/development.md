@@ -99,7 +99,7 @@ Prompts and Jev's questions are versioned files in `services/ai-engine/src/ai_en
 |---|---|---|
 | `propose.v*.md` (`classify.v*` up to v7) | `PROMPT_VERSION` | `InferNode`: the LLM proposes what to do with the ticket |
 | `pii_ner.v*.md` | `PII_NER_PROMPT_VERSION` | Tier-2 PII NER (`/v1/pii/detect`) |
-| `rerank_resolves.v*.json` | `RERANK_PROMPT_VERSION` | Jev, once per shortlisted chunk (ADR-0015) |
+| `rerank_choice.v*.json` | `RERANK_PROMPT_VERSION` | Jev, once per ticket over the shortlist (ADR-0026) |
 | `category.v*.json` | `CATEGORY_QUESTION_VERSION` | Jev, the ticket's category (ADR-0017) |
 
 Bump the version in the filename and the setting in the root `.env.example` (and your `.env`). A prompt's changelog goes in a leading `<!-- … -->` comment, which the loader strips so it is never sent. **Prompt and question changes go through the eval gate exactly like code changes** — that is the entire reason `evals/` lives in this repo and runs in CI. A Jev question changes the scale its answers are on: a new rerank question means re-choosing `retrieval.floor`, a new category question `classification.min_confidence`.

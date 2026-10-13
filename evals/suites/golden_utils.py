@@ -83,7 +83,8 @@ def record_metric(name: str, value: float, **extra) -> None:
 
 def analyze(client: httpx.Client, subject: str, body: str, *, never_refuse: bool = False) -> dict:
     """POST /v1/analyze with thresholds.yaml's floor, or 0.0 when
-    `never_refuse`, so the model always answers.
+    `never_refuse`, so the model answers unless Jev chose no passage
+    (ADR-0026).
 
     The ticket goes through core-api's own `mask()` first and ai-engine gets
     what `pipeline.py` sends it: the masked text and the PII level masking

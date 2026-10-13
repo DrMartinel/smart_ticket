@@ -286,7 +286,7 @@ Two things to decide before starting, not during:
   is currently plausible-looking and wrong.
 
 - **Jev's spend is not counted.** `ai_runs.cost_usd` is the chat model's
-  cost only; the up-to-16 Jev requests per ticket (15 rerank, 1 category,
+  cost only; the 2 Jev requests per ticket (1 rerank over the shortlist, 1 category,
   about $0.042 per million input tokens) are not in it, so
   `budget.daily_cost_ceiling_usd` does not see them.
 
@@ -384,3 +384,19 @@ The ADR is accepted or superseded on a full run and a held-out measurement.
 ### Done when
 
 ADR-0018 is accepted or superseded.
+
+## 13. Accept or reject ADR-0026 (Jev reranks with one choice question)
+
+**Status (2026-10-13):** built and unit-tested, [ADR-0026](adr/0026-jev-reranks-with-one-choice-question.md) (Proposed): `RERANK_PROMPT_VERSION=rerank_choice.v1`, one choice over the shortlist plus `none`; an auto-reply must cite Jev's choice with confidence ≥ `retrieval.min_rerank_confidence` (0.9 🔧). Probe only (recall@5 0.919 → 0.929 on the same pools); no eval run, at the owner's call.
+
+**Priority:** High, before P3 · **Spec:** §6.3, §7.1 · **ADR:** 0005, 0015, 0026
+
+### Work
+
+- A full eval run with `rerank_choice.v1`; explain every gate's movement.
+- Re-choose `retrieval.floor`, `retrieval.margin`, `clarification.option_margin` and `retrieval.min_rerank_confidence` on choice-scale data (item 4); every one was set on the noul scale.
+- A clarify signal from the choice (a reworded "one / several / none" question was dropped after it said `several` on 37 of 60 clear tickets).
+
+### Done when
+
+ADR-0026 is accepted or superseded on a full run, and no Jev-scale threshold is still on the noul scale.

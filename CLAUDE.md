@@ -315,8 +315,12 @@ copies that directory — a new SQL file that isn't copied fails at container st
 - Every run shortlists, then reranks: the shortlister, a cross-encoder (`vllm`,
   bge-reranker-v2-m3; `lexical` for CI/offline), orders the fused candidates plus
   link-expanded chunks, and **Jev**, the reranker (hosted, needs `JEV_API_KEY`),
-  scores its top 15 (`RERANK_POOL`). `retrieval.floor` is on *Jev's* scale (0.30 🔧, chosen from
-  golden-set data). Trust coefficients and `t_auto`/`t_route` were hand-set for
+  answers one choice question over its top 15 (`RERANK_POOL`, ADR-0026,
+  Proposed): each chunk's probability is its score, and `none` is below the
+  floor. An auto-reply must cite Jev's chosen page with confidence ≥
+  `retrieval.min_rerank_confidence` (0.9 🔧), else HITL `rerank_disagrees` /
+  `rerank_low_confidence`. `retrieval.floor` (0.30 🔧) and the margins were
+  chosen on the old noul scale and are not yet re-chosen. Trust coefficients and `t_auto`/`t_route` were hand-set for
   the cross-encoder's `rerank_top1`: another reason P3 waits. Every ticket's
   *masked* text goes to Jev's API.
 - **Jev also chooses the category** (ADR-0017, Proposed): `classify_category`
@@ -416,5 +420,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-five
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-six
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

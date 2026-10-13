@@ -307,7 +307,7 @@ Full list in [`.env.example`](.env.example). The ones that change behavior most:
 | `SHORTLIST_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
 | `JEV_API_KEY` | empty | Jev's key; required for any run that reaches retrieval. Tests use fakes |
 | `PROMPT_VERSION` · `PII_NER_PROMPT_VERSION` | `propose.v9` · `pii_ner.v2` | Which prompt files run |
-| `RERANK_PROMPT_VERSION` · `CATEGORY_QUESTION_VERSION` | `rerank_resolves.v1` · `category.v1` | Which Jev question files run |
+| `RERANK_PROMPT_VERSION` · `CATEGORY_QUESTION_VERSION` | `rerank_choice.v1` · `category.v1` | Which Jev question files run |
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |
 | `MODEL_TIMEOUT_SEC` | `120` | Ceiling for one model call (NER, embeddings, inference); core-api's read timeout on NER and embedding calls to ai-engine |

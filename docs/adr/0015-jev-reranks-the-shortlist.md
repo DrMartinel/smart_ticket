@@ -9,7 +9,8 @@ open items below are what acceptance still needs.
 RRF), ADR-0014 (candidate expansion through page links)
 **Touches:** ADR-0009 and ADR-0012 (every model self-hosted behind
 ai-engine), ADR-0001 (code decides)
-**Superseded in part by:** nothing. ADR-0017 adds a second Jev question,
+**Superseded in part by:** ADR-0026 (decision 2 and "Why a noul": Jev
+reranks with one choice question). ADR-0017 adds a second Jev question,
 the category, on the same client.
 
 ## Context
