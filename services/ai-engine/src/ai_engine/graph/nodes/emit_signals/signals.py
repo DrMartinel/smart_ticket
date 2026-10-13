@@ -18,6 +18,10 @@ class RetrievalSignals(BaseModel):
     docs_above_floor: int = Field(ge=0)
     # Chunks the cross-encoder scored: fused candidates plus link expansion (ADR-0018).
     pool_size: int = Field(default=0, ge=0)
+    # Jev's confidence in its rerank choice (ADR-0026); 0.0: not asked.
+    rerank_confidence: float = Field(default=0.0, ge=0, le=1)
+    # Jev chose `none` over the shortlist: refused before the LLM (ADR-0026).
+    rerank_chose_none: bool = False
 
 
 class GenerationSignals(BaseModel):
@@ -26,6 +30,8 @@ class GenerationSignals(BaseModel):
     negation_consistent: bool
     quote_applicable: bool = True
     clarify_options_in_topk: bool = False
+    # The auto-reply cites, and quotes, the page Jev chose when reranking (ADR-0026).
+    cited_is_rerank_choice: bool = False
 
 
 class ClassificationSignals(BaseModel):

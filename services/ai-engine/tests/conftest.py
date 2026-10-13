@@ -43,7 +43,7 @@ from ai_engine.graph.nodes.rerank import node as rerank_node
 from ai_engine.graph.nodes.classify_category import node as classify_category_node
 from ai_engine.graph.nodes.classify_category.classifier import CategoryChoice
 from ai_engine.graph.ticket import TicketCategory
-from ai_engine.graph.nodes.rerank.reranker import Passage
+from ai_engine.graph.nodes.rerank.reranker import Passage, RerankChoice
 from ai_engine.graph.nodes.candidate_pool import links as links_module
 from ai_engine.graph.nodes.retrieve import bm25 as bm25_module
 from ai_engine.graph.nodes.retrieve import node as retrieve_node
@@ -174,18 +174,30 @@ class FakeShortlister(Shortlister):
 
 class FakeReranker:
     """Like FakeShortlister: `scores` are consumed positionally, so a test can
-    invert the cross-encoder's order. Records (subject, body, passages)."""
+    invert the cross-encoder's order. Jev's choice is the first top-scored
+    passage unless `chooses_none`. Records (subject, body, passages)."""
 
-    def __init__(self, scores: list[float] | None = None, error: Exception | None = None):
+    def __init__(
+        self,
+        scores: list[float] | None = None,
+        error: Exception | None = None,
+        *,
+        confidence: float = 0.95,
+        chooses_none: bool = False,
+    ):
         self.calls: list[tuple[str, str, list[Passage]]] = []
         self._scores = scores if scores is not None else []
         self._error = error
+        self._confidence = confidence
+        self._chooses_none = chooses_none
 
-    def score(self, subject: str, body: str, passages: list[Passage]) -> list[float]:
+    def rank(self, subject: str, body: str, passages: list[Passage]) -> RerankChoice:
         self.calls.append((subject, body, list(passages)))
         if self._error is not None:
             raise self._error
-        return list(self._scores[: len(passages)])
+        scores = list(self._scores[: len(passages)])
+        choice = None if self._chooses_none or not scores else scores.index(max(scores))
+        return RerankChoice(scores=scores, choice=choice, confidence=self._confidence)
 
 
 class FakeClassifier:
@@ -360,6 +372,9 @@ def _make_state(**overrides) -> TriageState:
         "draft_embedding": [0.2],
     }
     state.update(overrides)
+    # Jev chose its top chunk's page, unless the test says otherwise.
+    if state.get("reranked") and "rerank_choice" not in overrides:
+        state["rerank_choice"] = state["reranked"][0].article_slug
     return TriageState(**state)
 
 

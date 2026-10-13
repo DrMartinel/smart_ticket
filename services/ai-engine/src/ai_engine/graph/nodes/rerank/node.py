@@ -3,10 +3,11 @@ Final rerank node — spec §6.3. Jev's scores are the ones the floor and the
 trust signals read; ClassifyCategoryNode, next, compares the floor and
 decides refuse-before-LLM (spec §6.2).
 
-The pool arrives in cross-encoder order (CandidatePoolNode). Jev scores its
-top `rerank_pool` chunks (ADR-0015); Jev's order and `rerank_score` are
-final, and its top `rerank_top_n` go on, at most `rerank_top_n_per_page`
-from one page. The floor is compared only with
+The pool arrives in cross-encoder order (CandidatePoolNode). Jev ranks its
+top `rerank_pool` chunks with one choice question (ADR-0026); Jev's order
+and `rerank_score` (its probability) are final, chunks Jev scores alike keep
+the cross-encoder's order, and its top `rerank_top_n` go on, at most
+`rerank_top_n_per_page` from one page. The floor is compared only with
 `rerank_score`, never with the cross-encoder's or fusion's RRF score
 (ADR-0005).
 """
@@ -31,17 +32,25 @@ class RerankNode(BaseNode):
             return {"reranked": []}
 
         titles = article_titles(list({r.article_id for r in shortlist}))
-        scores = reranker.score(
+        answer = reranker.rank(
             state.ticket.subject_masked,
             state.ticket.body_masked,
             [Passage(titles.get(r.article_id, ""), r.content) for r in shortlist],
         )
-        if len(scores) != len(shortlist):
-            raise ValueError(f"Jev returned {len(scores)} scores for {len(shortlist)}")
+        if len(answer.scores) != len(shortlist):
+            raise ValueError(f"Jev returned {len(answer.scores)} scores for {len(shortlist)}")
 
-        ranked = sorted(zip(scores, shortlist, strict=True), key=lambda p: p[0], reverse=True)
+        ranked = sorted(
+            zip(answer.scores, shortlist, strict=True), key=lambda p: p[0], reverse=True
+        )
         rescored = [r.model_copy(update={"rerank_score": s}) for s, r in ranked]
-        return {"reranked": self._top_n(rescored)}
+        return {
+            "reranked": self._top_n(rescored),
+            "rerank_choice": (
+                None if answer.choice is None else shortlist[answer.choice].article_slug
+            ),
+            "rerank_confidence": answer.confidence,
+        }
 
     @staticmethod
     def _top_n(chunks: list[RankedChunk]) -> list[RankedChunk]:

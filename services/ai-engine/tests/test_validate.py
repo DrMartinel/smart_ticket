@@ -53,6 +53,7 @@ def test_no_proposal_reports_every_check_failed(make_state):
         "quote_source_in_topk": False,
         "negation_consistent": False,
         "clarify_options_in_topk": False,
+        "cited_is_rerank_choice": False,
     }
 
 
@@ -75,6 +76,7 @@ def test_route_proposal_skips_quote_check(make_state):
         "quote_source_in_topk": False,
         "negation_consistent": True,
         "clarify_options_in_topk": False,
+        "cited_is_rerank_choice": False,
     }
 
 
@@ -91,7 +93,42 @@ def test_exact_substring_match(make_state):
         "quote_source_in_topk": True,
         "negation_consistent": True,
         "clarify_options_in_topk": False,
+        "cited_is_rerank_choice": True,
     }
+
+
+def test_an_auto_reply_citing_a_page_jev_did_not_choose_fails(make_state):
+    source = "Check that Caps Lock is off. Then restart."
+    state = make_state(
+        proposal=auto_reply("Check that Caps Lock is off."),
+        reranked=[chunk(1, source)],
+        rerank_choice="iam.another-page",
+    )
+    assert validate(state)["cited_is_rerank_choice"] is False
+
+
+def test_an_auto_reply_quoting_another_page_than_jevs_choice_fails(make_state):
+    """Checks that citing Jev's page while quoting another shown page fails."""
+
+    other = chunk(2, "Check that Caps Lock is off. Then restart.").model_copy(
+        update={"article_slug": "iam.another-page"}
+    )
+    state = make_state(
+        proposal=auto_reply("Check that Caps Lock is off."),
+        reranked=[chunk(1, "Unrelated text about instances."), other],
+        rerank_choice="ec2.TroubleshootingInstancesConnecting",
+    )
+    assert validate(state)["cited_is_rerank_choice"] is False
+
+
+def test_an_auto_reply_when_jev_chose_none_fails(make_state):
+    source = "Check that Caps Lock is off. Then restart."
+    state = make_state(
+        proposal=auto_reply("Check that Caps Lock is off."),
+        reranked=[chunk(1, source)],
+        rerank_choice=None,
+    )
+    assert validate(state)["cited_is_rerank_choice"] is False
 
 
 def test_quote_not_found_anywhere_fails_source_check(make_state):
@@ -336,4 +373,5 @@ def test_clarify_options_shown_pass_with_every_other_check(make_state):
         "quote_source_in_topk": False,
         "negation_consistent": True,
         "clarify_options_in_topk": True,
+        "cited_is_rerank_choice": False,
     }

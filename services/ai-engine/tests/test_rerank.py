@@ -1,9 +1,9 @@
 """
-Rerank-node tests. Jev re-scores the cross-encoder's top `rerank_pool`
-chunks of the pool and is final (ADR-0015): `reranked[0].final_score()` is
-the number RerankNode.decide compares against the floor, which is set on
-Jev's scale. So the node must never hand on a chunk Jev didn't score, nor
-fall back to the cross-encoder's order (ADR-0005).
+Rerank-node tests. Jev ranks the cross-encoder's top `rerank_pool` chunks
+of the pool with one choice question and is final (ADR-0026):
+`reranked[0].final_score()` is the number the floor gate compares, on Jev's
+scale. So the node must never hand on a chunk Jev didn't score, nor fall
+back to the cross-encoder's order (ADR-0005).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ def _ranked(chunk_id: int, score: float) -> RankedChunk:
     return RankedChunk(
         chunk_id=UUID(int=chunk_id),
         article_id=UUID(int=chunk_id * 10),
-        article_slug="kb-a",
+        article_slug=f"kb-{chunk_id}",
         content=f"c{chunk_id}",
         shortlist_score=score,
     )
@@ -31,9 +31,9 @@ def _ranked(chunk_id: int, score: float) -> RankedChunk:
 def jev(fake_db, fake_reranker, use_db, use_reranker):
     """A fake Jev and the DB its passage titles come from."""
 
-    def install(scores=None, error=None):
+    def install(scores=None, error=None, **kw):
         use_db(fake_db())
-        return use_reranker(fake_reranker(scores=scores, error=error))
+        return use_reranker(fake_reranker(scores=scores, error=error, **kw))
 
     return install
 
@@ -73,12 +73,22 @@ def test_an_empty_pool_makes_no_jev_call(jev, make_state):
     assert fake.calls == []
 
 
+def test_jev_choosing_none_leaves_no_rerank_choice(jev, make_state):
+    """Checks that a `none` choice names no page."""
+
+    jev(scores=[0.9, 0.1], chooses_none=True)
+
+    out = rerank(make_state(pool=[_ranked(1, 0.9), _ranked(2, 0.8)]))
+
+    assert out["rerank_choice"] is None
+
+
 # --- behaviour ------------------------------------------------------------------
 
 
-def test_jev_scores_only_the_cross_encoders_shortlist(jev, make_state, monkeypatch):
-    """`rerank_pool` is a cost limit on Jev's calls, cut from the
-    cross-encoder's order: one request per chunk."""
+def test_jev_ranks_only_the_cross_encoders_shortlist(jev, make_state, monkeypatch):
+    """`rerank_pool` is a cost limit on Jev's options, cut from the
+    cross-encoder's order."""
 
     monkeypatch.setattr(settings, "rerank_pool", 2)
     fake = jev(scores=[0.5, 0.6])
@@ -107,6 +117,37 @@ def test_jev_orders_and_scores_keeping_the_cross_encoder_score(jev, make_state, 
         (0.8, 0.2),
         (0.9, 0.1),
     ]
+
+
+def test_one_jev_call_ranks_the_shortlist_on_the_masked_ticket(jev, make_state):
+    fake = jev(scores=[0.5, 0.4, 0.1])
+    state = make_state(pool=[_ranked(1, 0.9), _ranked(2, 0.8), _ranked(3, 0.7)])
+
+    rerank(state)
+
+    [(subject, body, passages)] = fake.calls
+    assert (subject, body) == (state.ticket.subject_masked, state.ticket.body_masked)
+    assert len(passages) == 3
+
+
+def test_equal_jev_scores_keep_the_cross_encoder_order(jev, make_state, monkeypatch):
+    """Checks that chunks Jev scores alike stay in the cross-encoder's order."""
+
+    monkeypatch.setattr(settings, "rerank_top_n", 4)
+    jev(scores=[0.0, 0.9, 0.0, 0.0])
+    pool = [_ranked(1, 0.9), _ranked(2, 0.8), _ranked(3, 0.7), _ranked(4, 0.6)]
+
+    out = rerank(make_state(pool=pool))
+
+    assert [r.chunk_id for r in out["reranked"]] == [UUID(int=i) for i in (2, 1, 3, 4)]
+
+
+def test_jevs_choice_and_confidence_are_kept(jev, make_state):
+    jev(scores=[0.1, 0.85], confidence=0.8)
+
+    out = rerank(make_state(pool=[_ranked(1, 0.9), _ranked(2, 0.8)]))
+
+    assert (out["rerank_choice"], out["rerank_confidence"]) == ("kb-2", 0.8)
 
 
 def test_truncation_uses_the_configured_top_n(jev, make_state, monkeypatch):

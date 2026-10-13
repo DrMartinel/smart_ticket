@@ -33,6 +33,8 @@ class EmitSignalsNode(BaseNode):
                 rerank_margin=rerank_margin,
                 docs_above_floor=sum(1 for s in final if s >= state.retrieval_floor),
                 pool_size=len(state.pool),
+                rerank_confidence=state.rerank_confidence,
+                rerank_chose_none=bool(reranked) and state.rerank_choice is None,
             ),
             generation=GenerationSignals(
                 quote_applicable=state.quote_applicable,
@@ -40,6 +42,7 @@ class EmitSignalsNode(BaseNode):
                 quote_source_in_topk=state.quote_source_in_topk,
                 negation_consistent=state.negation_consistent,
                 clarify_options_in_topk=state.clarify_options_in_topk,
+                cited_is_rerank_choice=state.cited_is_rerank_choice,
             ),
             classification=ClassificationSignals(
                 category_choice=state.category_choice,

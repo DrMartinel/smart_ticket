@@ -1,5 +1,7 @@
 """
-Validator — spec §6.4. Four checks, in the spec's order:
+Validator — spec §6.4. Four checks, in the spec's order, and a fifth: the
+cited page, and the page the quote comes from, are the passage Jev chose
+(ADR-0026).
 
 1. Exact substring match — cheap and unambiguous.
 2. Fuzzy match gated at 0.95, only for whitespace/punctuation drift.
@@ -116,7 +118,7 @@ def _clarify_options_shown(state: TriageState) -> bool:
 
 
 class ValidateNode(BaseNode):
-    """Every exit returns all five checks. A check left out would not fail
+    """Every exit returns all six checks. A check left out would not fail
     loudly: it reads as its "failed" state default, so a deliberate pass
     (negation on a route proposal) would silently lower trust.
     test_validate.py pins each exit's whole update."""
@@ -129,6 +131,7 @@ class ValidateNode(BaseNode):
                 "quote_source_in_topk": False,
                 "negation_consistent": False,
                 "clarify_options_in_topk": False,
+                "cited_is_rerank_choice": False,
             }
 
         if not isinstance(state.proposal.root, AutoReplyProposal):
@@ -138,6 +141,7 @@ class ValidateNode(BaseNode):
                 "quote_source_in_topk": False,
                 "negation_consistent": True,
                 "clarify_options_in_topk": _clarify_options_shown(state),
+                "cited_is_rerank_choice": False,
             }
 
         quote = normalize_ws(state.proposal.root.verbatim_quote)
@@ -169,6 +173,13 @@ class ValidateNode(BaseNode):
             "quote_source_in_topk": in_topk,
             "negation_consistent": neg_ok,
             "clarify_options_in_topk": False,
+            "cited_is_rerank_choice": (
+                state.rerank_choice is not None
+                and state.proposal.root.kb_slug == state.rerank_choice
+                and source is not None
+                and next(c.article_slug for c in state.reranked if c.chunk_id == source)
+                == state.rerank_choice
+            ),
         }
 
 

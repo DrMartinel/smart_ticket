@@ -99,6 +99,26 @@ def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, u
     assert generation.quote_source_in_topk is False
     assert generation.negation_consistent is False
     assert generation.clarify_options_in_topk is False
+    assert generation.cited_is_rerank_choice is False
+
+
+def test_rerank_choice_signals_are_forwarded(fake_db, make_state, use_db):
+    use_db(fake_db())
+
+    out = emit_signals(make_state(cited_is_rerank_choice=True, rerank_confidence=0.93))
+
+    assert out["signals"].generation.cited_is_rerank_choice is True
+    assert out["signals"].retrieval.rerank_confidence == 0.93
+
+
+def test_jev_choosing_none_is_reported_only_when_jev_ran(fake_db, make_state, use_db):
+    use_db(fake_db())
+
+    chose_none = emit_signals(make_state(reranked=[_chunk(1, 0.9)], rerank_choice=None))
+    not_run = emit_signals(make_state(reranked=[]))
+
+    assert chose_none["signals"].retrieval.rerank_chose_none is True
+    assert not_run["signals"].retrieval.rerank_chose_none is False
 
 
 def test_clarify_check_is_forwarded(fake_db, make_state, use_db):

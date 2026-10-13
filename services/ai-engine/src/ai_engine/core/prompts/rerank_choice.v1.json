@@ -1,0 +1,8 @@
+{
+  "type": "choice",
+  "instructions": "Which passage in `passages` tells the user how to fix or resolve the problem described in `ticket`? Pick the passage whose steps, settings or actions would actually resolve it, not one that is only about a related topic or only describes the problem. Choose `none` if no passage does.",
+  "passage_option": "The passage `passages.{key}`, from the page titled \"{title}\".",
+  "criteria": {
+    "none": "No passage in `passages` fixes or resolves the problem in the ticket."
+  }
+}

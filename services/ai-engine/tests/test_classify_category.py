@@ -18,7 +18,7 @@ from ai_engine.graph.nodes.classify_category.classifier import (
     CategoryChoice,
     JevCategoryClassifier,
 )
-from ai_engine.graph.nodes.classify_category.node import classify_category
+from ai_engine.graph.nodes.classify_category.node import ClassifyCategoryOutcome, classify_category
 from ai_engine.graph.state import RankedChunk
 from ai_engine.graph.ticket import TicketCategory
 
@@ -88,6 +88,20 @@ def test_below_the_floor_jev_is_still_asked_with_no_page(jev, make_state):
     [(_, _, title)] = fake.calls
     assert title is None
     assert out["category_choice"] is TicketCategory.SOFTWARE
+
+
+def test_jev_choosing_no_passage_is_below_the_floor(jev, make_state):
+    """Checks that a `none` rerank choice skips the LLM and sends no page,
+    whatever the top chunk's score."""
+
+    fake = jev()
+    state = make_state(reranked=[_chunk(0.9)], retrieval_floor=0.30, rerank_choice=None)
+
+    classify_category(state)
+
+    [(_, _, title)] = fake.calls
+    assert title is None
+    assert classify_category.decide(state) is ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
 
 
 def test_no_reranked_chunks_asks_with_no_page(jev, make_state):
@@ -167,7 +181,9 @@ def _choice_reply(choice: str, confidence: float = 0.8):
                 "type": "choice",
                 "choice": choice,
                 "confidence": confidence,
-                "probabilities": {choice: confidence},
+                "probabilities": {
+                    c: confidence if c == choice else 0.0 for c in CATEGORY_QUESTION["criteria"]
+                },
             }
         },
     }

@@ -77,6 +77,8 @@ class TriageState(BaseModel):
 
     # RerankNode
     reranked: list[RankedChunk] = []  # Jev order, every one Jev-scored
+    rerank_choice: str | None = None  # the slug of Jev's chosen passage; None: none, or not run
+    rerank_confidence: float = 0.0
 
     # ClassifyCategoryNode
     category_choice: TicketCategory | None = None
@@ -99,6 +101,7 @@ class TriageState(BaseModel):
     quote_source_in_topk: bool = False
     negation_consistent: bool = False
     clarify_options_in_topk: bool = False
+    cited_is_rerank_choice: bool = False
 
     # EmitSignalsNode
     signals: EngineSignals | None = None

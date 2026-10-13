@@ -37,9 +37,8 @@ def load_system_prompt(version: str) -> str:
 
 
 def load_question(version: str) -> dict[str, Any]:
-    """Resolve a question version ("rerank_resolves.v1") to
-    core/prompts/rerank_resolves.v1.json: a TypeSafe question object, sent
-    as is."""
+    """Resolve a question version ("category.v1") to
+    core/prompts/category.v1.json: a TypeSafe question object."""
 
     check_version(version)
     question = json.loads((PROMPT_DIR / f"{version}.json").read_text())
@@ -64,7 +63,7 @@ PROPOSE_PROMPT = load_system_prompt(settings.prompt_version)
 PII_NER_PROMPT = load_system_prompt(settings.pii_ner_prompt_version)
 # DraftAnswerNode's system prompt: the passage that steers retrieval (ADR-0021).
 DRAFT_PROMPT = load_system_prompt(settings.draft_prompt_version)
-# The question Jev answers per chunk (ADR-0015).
+# The choice question Jev answers once per ticket over the shortlist (ADR-0026).
 RERANK_QUESTION = load_question(settings.rerank_prompt_version)
 # The choice question Jev answers once per ticket: its category (ADR-0017).
 CATEGORY_QUESTION = load_question(settings.category_question_version)

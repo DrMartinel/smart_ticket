@@ -248,61 +248,94 @@ def serve_jev(serve):
     return lambda body: serve("jev", body)
 
 
-def _jev_reply(noul, model=None):
+def _jev_reply(probabilities, choice="c1", model=None, confidence=0.9):
     return {
         "model": model or settings.jev_model,
-        "answers": {"resolves": {"type": "noul", "noul": noul}},
+        "answers": {
+            "resolves": {
+                "type": "choice",
+                "choice": choice,
+                "confidence": confidence,
+                "probabilities": probabilities,
+            }
+        },
     }
+
+
+_TWO = [Passage("t1", "x1"), Passage("t2", "x2")]
 
 
 def test_a_jev_reply_from_another_model_raises(serve_jev):
     """An alias move would change the scale the floor is set against."""
 
-    serve_jev(_jev_reply(0.9, model="jev-latest"))
+    serve_jev(_jev_reply({"c1": 1.0, "none": 0.0}, model="jev-latest"))
 
     with pytest.raises(ValueError, match="Jev answered as"):
-        JevReranker().score("s", "b", [Passage("t", "x")])
+        JevReranker().rank("s", "b", [Passage("t", "x")])
 
 
-def test_a_jev_answer_outside_0_1_raises(serve_jev):
-    serve_jev(_jev_reply(1.5))
+def test_a_jev_probability_outside_0_1_raises(serve_jev):
+    serve_jev(_jev_reply({"c1": 1.5, "none": 0.0}))
 
     with pytest.raises(ValueError, match="unusable Jev reply"):
-        JevReranker().score("s", "b", [Passage("t", "x")])
+        JevReranker().rank("s", "b", [Passage("t", "x")])
+
+
+def test_a_reply_missing_a_passages_probability_raises(serve_jev):
+    """Checks that a passage left out of Jev's probabilities fails the run
+    instead of scoring 0."""
+
+    serve_jev(_jev_reply({"c1": 0.9, "none": 0.1}))
+
+    with pytest.raises(ValueError, match="probabilities are not"):
+        JevReranker().rank("s", "b", _TWO)
 
 
 _UNUSABLE_JEV_REPLIES = {
     "error body": {"error": "rate limited"},
     "no answer for the question": {"model": "M", "answers": {}},
-    "not a noul": {"model": "M", "answers": {"resolves": {"type": "bool", "noul": 0.5}}},
-    "missing noul": {"model": "M", "answers": {"resolves": {"type": "noul"}}},
-    "negative noul": {"model": "M", "answers": {"resolves": {"type": "noul", "noul": -0.1}}},
+    "a yes/no answer": {"model": "M", "answers": {"resolves": {"type": "noul", "noul": 0.5}}},
+    "missing probabilities": {
+        "model": "M",
+        "answers": {"resolves": {"type": "choice", "choice": "c1", "confidence": 0.9}},
+    },
 }
 
 
 @pytest.mark.parametrize("body", _UNUSABLE_JEV_REPLIES.values(), ids=_UNUSABLE_JEV_REPLIES.keys())
 def test_jev_raises_on_an_unusable_reply(body, serve_jev):
     """Every malformed reply raises, so the run goes to a human. A defaulted
-    score would compare against a floor set on Jev's scale (ADR-0015)."""
+    score would compare against a floor set on Jev's scale (ADR-0026)."""
 
     if body.get("model") == "M":
         body = {**body, "model": settings.jev_model}
     serve_jev(body)
 
     with pytest.raises(ValueError, match="unusable Jev reply"):
-        JevReranker().score("s", "b", [Passage("t", "x")])
+        JevReranker().rank("s", "b", [Passage("t", "x")])
 
 
-def test_jev_scores_through_the_jev_client(serve_jev):
-    jev = serve_jev(_jev_reply(0.7))
+def test_jev_ranks_through_the_jev_client(serve_jev):
+    jev = serve_jev(_jev_reply({"c1": 0.2, "c2": 0.7, "none": 0.1}, choice="c2"))
 
-    assert JevReranker().score("s", "b", [Passage("t", "x")]) == [0.7]
+    assert JevReranker().rank("s", "b", _TWO) == ([0.2, 0.7], 1, 0.9)
     [(path, payload)] = jev.sent
     assert path == "/systemone"
     assert payload["state"] == {
         "ticket": {"subject": "s", "body": "b"},
-        "passage": {"title": "t", "text": "x"},
+        "passages": {"c1": {"title": "t1", "text": "x1"}, "c2": {"title": "t2", "text": "x2"}},
     }
+    [question] = payload["questions"].values()
+    assert question["type"] == "choice"
+    assert list(question["criteria"]) == ["c1", "c2", "none"]
+    assert "t2" in question["criteria"]["c2"]
+    assert "passage_option" not in question
+
+
+def test_jev_choosing_none_is_no_passage(serve_jev):
+    serve_jev(_jev_reply({"c1": 0.1, "c2": 0.1, "none": 0.8}, choice="none"))
+
+    assert JevReranker().rank("s", "b", _TWO).choice is None
 
 
 _CHOICE_QUESTION = {"type": "choice", "instructions": "i", "criteria": {"a": None, "b": None}}
@@ -340,27 +373,21 @@ def test_a_jev_choice_confidence_outside_0_1_raises(serve_jev):
         clients.jev.choose({}, "q", _CHOICE_QUESTION)
 
 
-def test_a_noul_answer_to_a_choice_question_raises(serve_jev):
-    serve_jev({"model": settings.jev_model, "answers": {"q": {"type": "noul", "noul": 0.5}}})
+def test_probabilities_for_an_option_the_question_lacks_raise(serve_jev):
+    serve_jev(_choice_answer(probabilities={"a": 0.5, "b": 0.3, "c": 0.2}))
 
-    with pytest.raises(ValueError, match="choice question otherwise"):
+    with pytest.raises(ValueError, match="probabilities are not"):
         clients.jev.choose({}, "q", _CHOICE_QUESTION)
-
-
-def test_a_choice_answer_to_a_yes_no_question_raises(serve_jev):
-    """`ask` returns probabilities; a choice read as one would be a made-up
-    rerank score."""
-
-    serve_jev(_choice_answer())
-
-    with pytest.raises(ValueError, match="yes/no question otherwise"):
-        clients.jev.ask({}, {"q": {"type": "noul", "instructions": "i"}})
 
 
 def test_jev_chooses_through_the_jev_client(serve_jev):
     jev = serve_jev(_choice_answer("b", confidence=0.6))
 
-    assert clients.jev.choose({"x": 1}, "q", _CHOICE_QUESTION) == ("b", 0.6)
+    assert clients.jev.choose({"x": 1}, "q", _CHOICE_QUESTION) == (
+        "b",
+        0.6,
+        {"a": 0.8, "b": 0.2},
+    )
     [(path, payload)] = jev.sent
     assert path == "/systemone"
     assert payload["questions"] == {"q": _CHOICE_QUESTION}
