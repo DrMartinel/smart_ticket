@@ -95,6 +95,75 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-13 (1): Doc2Query-- (questions generated from each chunk), probe
+
+**Verdict: doc2query does not help this pipeline; not taken.** Questions
+generated from every chunk and filtered with the cross-encoder (Doc2Query--,
+Gospodinov et al., ECIR 2023) neither replace the drafted answer (HyDE) nor
+add to it. On the 60 hand-written tickets no arm puts the gold page among the
+10 candidate pages more often than the shipped pipeline (0.950); replacing
+HyDE with them loses 7-9 of the 60. The vocabulary gap is already mostly
+closed: the gold page reaches the candidates for 471 of 500 tickets.
+
+| Configuration | |
+|---|---|
+| Questions | 10 per chunk, local Qwen3-8B-AWQ (`vllm-chat`, temperature 0, guided JSON), prompt in the probe's `generate.py`: requester-style questions the passage answers, nothing it doesn't mention. 284,822 questions for 28,497 of 28,519 chunks; 22 chunks exceed Qwen's 4,096-token context and have none |
+| Filter | bge-reranker-v2-m3 (the shortlister) scores each (question, its chunk); one cut over the whole KB, keeping the top 30 % (score ≥ 0.990), 50 % (≥ 0.968) or 100 % |
+| Replay | the 500 `kb_covered` tickets, raw ticket text, the cached DeepSeek drafts (`hyde_draft.v1`), so draft noise is out of the comparison; the real `vector_search`, `bm25_search`, RRF and one-chunk-per-page cut. Question vectors searched in memory (NumPy), question BM25 in memory (rank_bm25, one document per chunk). No Jev stage: no arm reached it on merit (below) |
+| Code | `main` at `ebc8008` plus the uncommitted clarify work; probe scripts, questions, scores and vectors in `~/.cache/smart-ticket-lightrag/probe/doc2query/` |
+
+Gold page among the 10 candidate pages (keep 30 / 50 / 100 %):
+
+| Arm | Lists fused | Hand-written (60) | Drafted (440) | All (500) |
+|---|---|---|---|---|
+| A, shipped | ticket vector + BM25(draft) + draft vector | **0.950** | 0.941 | 0.942 |
+| D | ticket vector only | 0.783 | 0.793 | 0.792 |
+| B | A + ticket → question vectors | 0.933 / 0.933 / 0.933 | 0.943 / 0.941 / 0.943 | 0.942 / 0.940 / 0.942 |
+| C | ticket vector + question vectors (no HyDE) | 0.817 / 0.833 / 0.783 | 0.825 / 0.839 / 0.843 | 0.824 / 0.838 / 0.836 |
+| E | A + BM25(ticket) over the questions | 0.917 / 0.900 / 0.917 | 0.950 / 0.955 / 0.957 | 0.946 / 0.948 / **0.952** |
+| F | C + BM25(ticket) over the questions | 0.817 / 0.833 / 0.833 | 0.818 / 0.850 / 0.866 | 0.818 / 0.848 / 0.862 |
+
+Each list alone, gold page among its own top 10 pages (hand-written / drafted):
+
+| List | Hand-written | Drafted |
+|---|---|---|
+| ticket → chunk vectors | 0.783 | 0.793 |
+| draft → chunk vectors | **0.933** | **0.905** |
+| BM25(draft) | 0.617 | 0.880 |
+| ticket → question vectors (all) | 0.767 | 0.773 |
+| BM25(ticket) over the questions (all) | 0.833 | 0.795 |
+
+### Findings
+
+**1. The questions match tickets no better than the chunks do.** Ticket →
+question vectors find the gold page about as often as ticket → chunk vectors
+(0.767 vs 0.783 on the 60), far below the draft's vector (0.933). bge-m3 is
+trained for question-to-passage search, and chunk embeddings already carry
+the page and section titles (`KbArticle.ingest`): the gap doc2query closes
+for BM25 in the paper is largely closed for this embedder already.
+
+**2. The filter had nothing to remove.** Qwen's questions are faithful:
+half score ≥ 0.968 against their own chunk, 13 % below 0.5. Keeping 30, 50
+or 100 % changes little, unlike the paper's T5 questions.
+
+**3. E's gain is the drafted tickets', and they are biased toward it.** E100
+gains 9 and loses 4 of 500, but on the 60 hand-written it loses 2. The 440
+drafted tickets were themselves written by an LLM from KB pages, which is
+what doc2query does.
+
+**4. What A still misses is mostly fusion, not discovery.** Of A's 29
+misses, a list A already fuses finds the gold page in its own 20 chunks for
+16; it is cut at 10 pages by RRF. 5 are found by no list. BM25 over the
+questions finds 16 of the 29, but adding it displaces other gold pages.
+
+### Follow-ups
+
+- None for doc2query. The 16 fusion-cut misses are the remaining
+  retrieval lever; they are the same trade-off as `FUSION_CANDIDATE_LIMIT`
+  (2026-10-11).
+
+---
+
 ## 2026-10-12 (6): full run on the current pipeline
 
 **Verdict:** retrieval passes its gate at its best yet, recall@5 **0.912**
