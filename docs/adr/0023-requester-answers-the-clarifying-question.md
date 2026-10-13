@@ -36,8 +36,18 @@ router chooses `clarify` for a chat ticket and shadow mode is off:
    inline with the same two tiers (`mask_reply`); its placeholders continue
    the ticket's numbering, so `[EMAIL_1]` in the answer can't be read as the
    ticket's; its PII is quarantined; the ticket's PII level becomes the worse
-   of the two. The question and the masked answer are appended to the
-   ticket's masked body, which reviewers and the next run read.
+   of the two. The masked answer, and not the question, is appended to the
+   ticket's masked body as a last line, `Requester clarified: <answer>`,
+   which reviewers and the next run read. The question names every reading
+   it chose between; appended, it pulled the next run's draft and retrieval
+   back toward all of them (TKT-2026-000020: Jev's top score 0.97, then
+   0.74). A typed answer that only makes sense beside the question ("the
+   second one") loses that context; a tapped option is a page title and
+   keeps its meaning.
+   **The proposal prompt reads that line** (`propose.v9`, rule 8): the
+   reading is chosen, so the model doesn't propose `clarify` again but
+   answers under it, routes, or says no excerpt fits. Without it, v8 asked
+   again and the round cap sent the ticket to a person.
 3. **The pipeline runs again on the whole ticket.** A new `AiRun`, every
    hard gate in order: a password in the answer blocks
    (`pii_critical`), an answer NER can't mask goes to a person
@@ -98,4 +108,41 @@ the `ticket_clarifications` rows are the data to judge it by.
 - An abandoned question reaches no one unless the requester asks: an
   ambiguous ticket can be dropped by a requester who closes the tab, as any
   held chat handoff can.
-- The golden set is single-turn: no eval measures the second run yet.
+- The golden set is single-turn: no eval measures the second run yet, so
+  `propose.v9`'s rule 8 is unmeasured; on single-turn tickets v9 should
+  score as v8 did.
+- A requester can type "Requester clarified:" into a ticket themselves.
+  The most it does is stop the model proposing `clarify`; every other gate
+  is unchanged.
+
+## Amendment (2026-10-13): code builds the options, the question is fixed
+
+**What changed.** The buttons were the LLM's `proposed_options`, titled
+from the KB. The same ticket got different options run after run: "I forgot
+my password, how do I reset it?" offered 5 different option sets in 5 runs,
+and in two of them, and in all three runs of g154, Jev's top 5 was
+identical: the model chose differently from the same pages
+(`evals/HISTORY.md`, ADR-0024's outcome). Its question also named readings
+the buttons didn't offer ("Windows, macOS, or Linux" above two buttons).
+
+1. **core-api builds the options** (`pipeline.clarify_options`, pure): each
+   distinct page of Jev's top 5, in Jev's order, scoring within
+   `clarification.option_margin` (0.1 🔧) of Jev's best, at most
+   `clarification.max_options` (5), active pages only. The owner's choice
+   the same day, after a 0.2 margin (which offered administrator pages)
+   and a fixed 0.8 bar (which asks nothing when Jev is unsure of every
+   page): on 13 live runs (11 and 2) 0.1 offered "VPN not working" exactly the
+   Windows and macOS clients, and "I forgot my password" the portal, root
+   and, when retrieved, WorkSpaces pages. A threshold on Jev's
+   scale (ADR-0005). The same top 5 now always gives the same buttons.
+2. **The question is fixed**: "Which of these is closest to what you need?"
+   The model's own question stays in `ai_runs.proposed_draft`.
+3. **"None of these"** opens the free-text answer, so a reading the buttons
+   miss is one tap away; the text box is hidden until then.
+4. **Fewer than 2 pages within the margin: nothing is asked.** The clarify
+   decision is carried out as for a form ticket, a review item in the
+   `clarification` queue.
+
+The LLM still decides *whether* to ask (it proposes `clarify`, and the
+validator still requires its options to be among the pages shown), and that
+decision still varies between runs. The top 5 itself varies with the draft.

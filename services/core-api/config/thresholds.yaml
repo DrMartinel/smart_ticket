@@ -81,6 +81,18 @@ clarification:
   # support unless they ask. Chosen as "step away and come back"; re-choose
   # from shadow data on how long requesters take to answer.
   wait_minutes: 60
+  # 🔧 Which pages a clarifying question offers (ADR-0023, amended
+  # 2026-10-13): core-api builds the buttons, not the LLM. Every distinct
+  # page in Jev's top 5 scoring within `option_margin` of Jev's best, in
+  # Jev's order, at most `max_options`. On JEV's scale (ADR-0005). 0.1 is
+  # the project owner's choice, checked on 13 live runs of two ambiguous
+  # tickets: "VPN not working" offers exactly the Windows and macOS client
+  # pages, "I forgot my password" the access portal, root and (when
+  # retrieved) WorkSpaces pages; 0.2 also offered administrator pages.
+  # Re-choose on shadow data. Fewer than 2 pages: nothing is asked, a
+  # person gets the ticket in the clarification queue.
+  option_margin: 0.1
+  max_options: 5
 
 masking:
   # 🔧 Share of a ticket's text (subject + body) that tier-2 NER's free-form

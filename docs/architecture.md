@@ -274,7 +274,9 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
 
    A live chat ticket's CLARIFY asks the requester (ADR-0023): the decision
    is held, the question and the options' page titles are shown, and the
-   answer is masked like a ticket, appended to the body, and run through
+   answer is masked like a ticket, appended to the body as
+   "Requester clarified: <answer>" (propose.v9 reads it as the reading
+   chosen, and asks no more), and run through
    the whole pipeline again. Unanswered after clarification.wait_minutes,
    the chat offers a ticket. A form ticket, or any ticket in shadow mode,
    gets a review item in the clarification queue for a person to ask.

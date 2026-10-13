@@ -20,8 +20,10 @@ from apps.review.models import ReviewItem
 from apps.tickets.models import IncidentVerdict, PiiQuarantine, Ticket, TicketSource
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.pipeline import (
+    CLARIFY_QUESTION,
     NotAwaitingAnswer,
     answer_clarification,
+    clarify_options,
     release_to_support,
     ticket_process,
 )
@@ -39,12 +41,22 @@ from infrastructure.dtos import (
 
 VPN = "client-vpn-user.windows-troubleshooting"
 WORKSPACES = "workspaces-user.client_troubleshooting"
+VPN_ADMIN = "client-vpn-admin.troubleshooting"
+
+# Jev's top 5 as ai-engine reports them, in Jev's order: two pages within
+# 0.1 of the best, an administrator page well below it.
+CLOSE_TOP5 = [
+    {"kb_slug": VPN, "rerank_score": 0.95},
+    {"kb_slug": WORKSPACES, "rerank_score": 0.90},
+    {"kb_slug": VPN_ADMIN, "rerank_score": 0.40},
+]
 
 
-def _clarify_response(request_id: str) -> AIRunResponse:
+def _clarify_response(request_id: str, top5=CLOSE_TOP5) -> AIRunResponse:
     """ai-engine proposing a question whose options it was shown, on a
     confident non-security category: the router chooses `clarify`."""
     return AIRunResponse(
+        retrieved_chunks=top5,
         request_id=request_id,
         graph_version="test",
         prompt_version="test",
@@ -75,7 +87,11 @@ def _clarify_response(request_id: str) -> AIRunResponse:
 
 @pytest.fixture
 def kb_pages(db):
-    for slug, title in [(VPN, "AWS VPN Client on Windows"), (WORKSPACES, "WorkSpaces client")]:
+    for slug, title in [
+        (VPN, "AWS VPN Client on Windows"),
+        (WORKSPACES, "WorkSpaces client"),
+        (VPN_ADMIN, "Client VPN troubleshooting for administrators"),
+    ]:
         KbArticle.objects.create(slug=slug, title=title, body="x", category="software")
 
 
@@ -146,7 +162,11 @@ class TestAsking:
         assert ticket.status == "awaiting_requester"
         assert not ticket.review_items.exists()
         asked = ticket.clarifications.get()
-        assert asked.question == "Which application keeps crashing?"
+        # The fixed question, never the model's ("Which application keeps
+        # crashing?"), which can name readings the buttons don't offer.
+        assert asked.question == CLARIFY_QUESTION
+        # Built from Jev's top 5 within 0.1 of the best, in Jev's order;
+        # the administrator page at 0.40 is left out.
         assert asked.options == [
             {"slug": VPN, "title": "AWS VPN Client on Windows"},
             {"slug": WORKSPACES, "title": "WorkSpaces client"},
@@ -154,6 +174,29 @@ class TestAsking:
         assert asked.ai_run == ticket.routing_decisions.get().ai_run
         assert ticket.open_clarification() == asked
         assert AuditLog.objects.filter(ticket_id=ticket.id, event="clarification_asked").exists()
+
+    def test_fewer_than_two_close_pages_asks_nothing_and_a_person_gets_it(
+        self, employee_user, kb_pages, monkeypatch, live
+    ):
+        """One page clearly ahead is not a choice to offer: the ticket goes
+        to the clarification queue, and nothing waits on the requester."""
+        monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
+        monkeypatch.setattr(
+            Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique")
+        )
+        far = [{"kb_slug": VPN, "rerank_score": 0.95}, {"kb_slug": WORKSPACES, "rerank_score": 0.5}]
+        monkeypatch.setattr(
+            ai_engine, "analyze", lambda masked, request_id: _clarify_response(request_id, far)
+        )
+        ticket = _chat_ticket(employee_user)
+
+        ticket_process(str(ticket.id))
+
+        ticket.refresh_from_db()
+        assert ticket.status == "pending_review"
+        assert ticket.held_decision is None
+        assert not ticket.clarifications.exists()
+        assert list(ticket.review_items.values_list("queue", flat=True)) == ["clarification"]
 
     def test_shadow_mode_asks_nothing(
         self, employee_user, kb_pages, engine_always_clarifies, settings
@@ -199,8 +242,10 @@ class TestAnswering:
         ticket.refresh_from_db()
         assert ticket.status == "new"
         assert ticket.held_decision is None
-        assert ticket.body_masked.endswith(
-            "\n\nAsked: Which application keeps crashing?\nAnswered: The AWS VPN one"
+        # The answer only: the question named every reading, and appended it
+        # pulled the next run back toward all of them.
+        assert ticket.body_masked == (
+            "The client app keeps crashing on my laptop.\n\nRequester clarified: The AWS VPN one"
         )
         assert enqueued == [str(ticket.id)]
         asked = ticket.clarifications.get()
@@ -208,7 +253,7 @@ class TestAnswering:
         assert asked.ticket_body_masked == "The client app keeps crashing on my laptop."
 
         ticket_process(str(ticket.id))
-        assert "Answered: The AWS VPN one" in engine_always_clarifies[-1]
+        assert "Requester clarified: The AWS VPN one" in engine_always_clarifies[-1]
 
     def test_still_ambiguous_after_the_answer_goes_to_a_person(
         self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
@@ -337,3 +382,54 @@ class TestAnswering:
         with pytest.raises(NotAwaitingAnswer):
             answer_clarification(ticket.id, employee_user.id, "VPN", None)
         assert enqueued == []
+
+
+class TestClarifyOptions:
+    """`clarify_options` is pure: Jev's ranking in, buttons out."""
+
+    TITLES = {"a": "Page A", "b": "Page B", "c": "Page C", "d": "Page D", "e": "Page E"}
+
+    def test_pages_within_the_margin_of_jevs_best_in_jevs_order(self):
+        """A live password run: 0.97, 0.96, 0.87 are offered; 0.79 and 0.76
+        are not."""
+        chunks = [
+            {"kb_slug": "a", "rerank_score": 0.97},
+            {"kb_slug": "b", "rerank_score": 0.96},
+            {"kb_slug": "c", "rerank_score": 0.87},
+            {"kb_slug": "d", "rerank_score": 0.79},
+            {"kb_slug": "e", "rerank_score": 0.76},
+        ]
+        assert [o["slug"] for o in clarify_options(chunks, self.TITLES, 0.1, 5)] == ["a", "b", "c"]
+
+    @pytest.mark.parametrize("best, at_margin", [(0.97, 0.87), (0.8, 0.7), (0.3, 0.2)])
+    def test_a_page_exactly_at_the_margin_is_offered(self, best, at_margin):
+        """Floating point makes 0.97 - 0.87 slightly under 0.1 and 0.8 - 0.7
+        slightly over; both must count the same."""
+        chunks = [
+            {"kb_slug": "a", "rerank_score": best},
+            {"kb_slug": "b", "rerank_score": at_margin},
+        ]
+        assert [o["slug"] for o in clarify_options(chunks, self.TITLES, 0.1, 5)] == ["a", "b"]
+
+    def test_capped_at_max_options(self):
+        chunks = [{"kb_slug": s, "rerank_score": 0.9} for s in "abcde"]
+        assert len(clarify_options(chunks, self.TITLES, 0.1, 4)) == 4
+
+    def test_one_button_per_page(self):
+        """With more than one chunk per page in Jev's top 5, the page is
+        offered once."""
+        chunks = [
+            {"kb_slug": "a", "rerank_score": 0.9},
+            {"kb_slug": "a", "rerank_score": 0.88},
+            {"kb_slug": "b", "rerank_score": 0.85},
+        ]
+        assert [o["slug"] for o in clarify_options(chunks, self.TITLES, 0.1, 5)] == ["a", "b"]
+
+    def test_an_inactive_page_is_never_offered(self):
+        """`titles` holds active pages only; a page deactivated since the
+        run has none, and can't become a button with no title."""
+        chunks = [{"kb_slug": "a", "rerank_score": 0.9}, {"kb_slug": "gone", "rerank_score": 0.9}]
+        assert [o["slug"] for o in clarify_options(chunks, self.TITLES, 0.1, 5)] == ["a"]
+
+    def test_no_chunks_no_options(self):
+        assert clarify_options([], self.TITLES, 0.1, 5) == []

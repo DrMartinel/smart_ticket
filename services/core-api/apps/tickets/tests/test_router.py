@@ -67,7 +67,9 @@ def make_thresholds(**overrides) -> Thresholds:
             trust_score_std_min=0.08,
         ),
         classification=ClassificationThresholds(min_confidence=0.65),
-        clarification=ClarificationThresholds(max_rounds=1, wait_minutes=60),
+        clarification=ClarificationThresholds(
+            max_rounds=1, wait_minutes=60, option_margin=0.1, max_options=5
+        ),
         masking=MaskingThresholds(ner_max_share=0.5),
     )
     base.update(overrides)
@@ -564,7 +566,11 @@ def test_no_rounds_allowed_means_no_question_is_ever_asked():
         signals,
         clarify_proposal(),
         None,
-        make_thresholds(clarification=ClarificationThresholds(max_rounds=0, wait_minutes=60)),
+        make_thresholds(
+            clarification=ClarificationThresholds(
+                max_rounds=0, wait_minutes=60, option_margin=0.1, max_options=5
+            )
+        ),
     )
     assert d.reason_code is ReasonCode.CLARIFY_ROUND_CAP
 

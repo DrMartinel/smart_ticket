@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from typing import Any
 
 import httpx
 from asgiref.sync import async_to_sync
@@ -27,7 +28,6 @@ from django.utils import timezone
 
 from infrastructure.dtos import (
     AIRunResponse,
-    ClarificationProposal,
     EngineSignals,
     GenerationSignals,
     LLMProposalEnvelope,
@@ -233,9 +233,17 @@ def _finalize(
         if ticket.source == TicketSource.CHAT.value and waits_for_requester(
             decision, shadow, PIILevel(ticket.pii_level)
         ):
-            _hold_for_requester(ticket, decision, trace_id)
-            if decision.branch is Branch.CLARIFY and not shadow:
-                _ask_requester(ticket, ai_run, trace_id)
+            if (
+                decision.branch is Branch.CLARIFY
+                and not shadow
+                and not _ask_requester(ticket, ai_run, trace_id)
+            ):
+                # No two pages to offer, so nothing is asked: the clarify
+                # decision is carried out as for a form ticket, a person in
+                # the clarification queue.
+                _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
+            else:
+                _hold_for_requester(ticket, decision, trace_id)
         else:
             _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
 
@@ -293,38 +301,85 @@ def _hold_for_requester(ticket: Ticket, decision: Decision, trace_id: str) -> No
     )
 
 
-def _ask_requester(ticket: Ticket, ai_run: AiRun, trace_id: str) -> None:
-    """A live chat ticket's `clarify` decision: the requester is shown the
-    proposed question (ADR-0023). The decision stays held, so the requester
-    can still ask for a person instead and `release_to_support` carries it
-    out as before. Shadow mode asks nothing: it sends nothing (spec §14 P1)."""
-    proposal = ClarificationProposal.model_validate(ai_run.proposed_draft)
-    # Titles from the KB, in the order the model gave the options. The
-    # validator checked each was among the chunks shown, which come from
-    # active pages; one deactivated since is left out, not shown untitled.
+# The question a clarifying chat ticket asks. Fixed, not the LLM's: the
+# buttons are built here (`clarify_options`), and a model-written question
+# named readings the buttons didn't offer (ADR-0023, amended 2026-10-13).
+# The model's question stays in `ai_runs.proposed_draft` for comparison.
+CLARIFY_QUESTION = "Which of these is closest to what you need?"
+
+
+def clarify_options(
+    retrieved_chunks: list[dict[str, Any]],
+    titles: dict[str, str],
+    margin: float,
+    max_options: int,
+) -> list[dict[str, str]]:
+    """The pages a clarifying question offers: each distinct page of Jev's
+    top 5, in Jev's order, scoring within `margin` of Jev's best, at most
+    `max_options`, and only pages with a title (active in the KB). Pure.
+
+    Built from Jev's scores, not chosen by the LLM: the model offered
+    different pages from the same top 5 run to run (2026-10-12, 5 option
+    sets in 5 runs of one ticket). A threshold on Jev's scale (ADR-0005).
+    """
+    if not retrieved_chunks:
+        return []
+    best = max(float(c["rerank_score"]) for c in retrieved_chunks)
+    options: list[dict[str, str]] = []
+    for c in retrieved_chunks:
+        slug = c["kb_slug"]
+        # Rounded: 0.97 - 0.87 is 0.0999... and 0.8 - 0.7 is 0.1000...1 in
+        # floating point, and a page exactly at the margin must not depend
+        # on which. Jev's scores carry two decimals.
+        if round(best - float(c["rerank_score"]), 9) > margin or slug not in titles:
+            continue
+        if all(o["slug"] != slug for o in options):
+            options.append({"slug": slug, "title": titles[slug]})
+        if len(options) == max_options:
+            break
+    return options
+
+
+def _ask_requester(ticket: Ticket, ai_run: AiRun, trace_id: str) -> bool:
+    """A live chat ticket's `clarify` decision: the requester is asked which
+    of the offered pages they mean (ADR-0023). The decision stays held, so
+    the requester can still ask for a person and `release_to_support`
+    carries it out as before. Shadow mode asks nothing: it sends nothing
+    (spec §14 P1).
+
+    False when fewer than 2 pages are close enough: a question with one
+    answer is not a question, and the caller hands the ticket to a person.
+    """
+    th = settings.THRESHOLDS.clarification
+    chunks = ai_run.retrieved_chunks or []
     titles = dict(
-        KbArticle.objects.filter(slug__in=proposal.proposed_options, is_active=True).values_list(
-            "slug", "title"
-        )
+        KbArticle.objects.filter(
+            slug__in={c["kb_slug"] for c in chunks}, is_active=True
+        ).values_list("slug", "title")
     )
+    options = clarify_options(chunks, titles, th.option_margin, th.max_options)
+    if len(options) < 2:
+        return False
     TicketClarification.objects.create(
         ticket=ticket,
         ai_run=ai_run,
-        question=proposal.proposed_question,
-        options=[
-            {"slug": slug, "title": titles[slug]}
-            for slug in proposal.proposed_options
-            if slug in titles
-        ],
+        question=CLARIFY_QUESTION,
+        options=options,
         ticket_body_masked=ticket.body_masked,
     )
     AuditLog.objects.record(
         "clarification_asked",
         actor_type="system",
         ticket_id=ticket.id,
-        payload={"ticket_public_id": ticket.public_id},
+        payload={"ticket_public_id": ticket.public_id, "options": len(options)},
         trace_id=trace_id,
     )
+    return True
+
+
+# Marks the requester's answer in the ticket body. propose.v9 names it: a
+# change here must change the prompt with it.
+CLARIFIED_LABEL = "Requester clarified:"
 
 
 class NotAwaitingAnswer(Exception):
@@ -345,8 +400,8 @@ def answer_clarification(
     ticket_id: uuid.UUID, requester_id: uuid.UUID, answer: str, trace_id: str | None
 ) -> Ticket:
     """The requester answered the open question (ADR-0023). The answer is
-    masked like a ticket, its PII quarantined, and the question and the
-    masked answer appended to the ticket's body; the held decision is
+    masked like a ticket, its PII quarantined, and the masked answer
+    appended to the ticket's body; the held decision is
     dropped and the pipeline runs again on the whole of it, every gate
     included: an answer carrying a password, an injection or PII the masker
     can't handle is caught there exactly as in a ticket.
@@ -375,11 +430,12 @@ def answer_clarification(
         PiiQuarantine.objects.store(ticket, quarantine)
         ticket.pii_map = {**ticket.pii_map, **{ph: str(e.ref) for ph, e in quarantine.items()}}
         ticket.pii_level = _worse(PIILevel(ticket.pii_level), masked.pii_level).value
-        ticket.body_masked = (
-            f"{ticket.body_masked}\n\n"
-            f"Asked: {clarification.question}\n"
-            f"Answered: {masked.text_masked}"
-        )
+        # The answer only, not the question: the question names every
+        # reading it chose between, and on the next run it pulled drafting
+        # and retrieval back toward all of them (TKT-2026-000020, Jev's top
+        # 0.97 then 0.74). The fixed label is what `propose.v9` reads as a
+        # reading already chosen.
+        ticket.body_masked = f"{ticket.body_masked}\n\n{CLARIFIED_LABEL} {masked.text_masked}"
         ticket.status = "new"
         ticket.held_decision = None
         ticket.save(

@@ -238,6 +238,10 @@ class ClarificationThresholds(BaseModel):
     max_rounds: int = Field(ge=0)
     # How long a chat question stays open before a ticket is offered instead.
     wait_minutes: int = Field(ge=1)
+    # On Jev's scale: a page is offered within this of Jev's best score.
+    option_margin: float = Field(ge=0, le=1)
+    # At most this many pages offered; at least 2 or nothing is asked.
+    max_options: int = Field(ge=2)
 
 
 class MaskingThresholds(BaseModel):
