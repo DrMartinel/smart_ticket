@@ -165,9 +165,7 @@ def _mask_field(
 def _apply(
     fields: list[tuple[str, list[PIIHit]]], counters: dict[str, int]
 ) -> tuple[list[str], dict[str, str], PIILevel]:
-    """Masks each `(text, hits)` field in turn, sharing one placeholder
-    numbering. `counters` is the last number used per label: empty for a new
-    ticket, the ticket's own for a requester's answer (`mask_reply`)."""
+    """Masks each field's hits, numbering placeholders on from `counters`."""
     placeholder_map: dict[str, str] = {}
     masked = [_mask_field(text, hits, counters, placeholder_map) for text, hits in fields]
 
@@ -212,13 +210,8 @@ class MaskedReply:
 
 
 async def mask_reply(text: str, ner_max_share: float, taken: list[str]) -> MaskedReply:
-    """Masks a requester's answer to a clarifying question (ADR-0023) exactly
-    as a ticket is masked, the same two tiers and the same failure levels.
-    Its placeholders continue the ticket's numbering past `taken`, the
-    ticket's own placeholders, so `[EMAIL_1]` in the answer can never be
-    read as the ticket's `[EMAIL_1]`. The same value in both gets two
-    placeholders: the ticket's raw values are not kept to compare against.
-    """
+    """Masks a requester's answer to a clarifying question (ADR-0023) as a
+    ticket is masked, numbering placeholders on past the ticket's `taken`."""
     counters: dict[str, int] = {}
     for placeholder in taken:
         label, _, number = placeholder.strip("[]").rpartition("_")
@@ -230,8 +223,7 @@ async def mask_reply(text: str, ner_max_share: float, taken: list[str]) -> Maske
 async def _mask_texts(
     texts: list[str], ner_max_share: float, counters: dict[str, int]
 ) -> tuple[list[str], PIILevel, dict[str, str], float]:
-    """The two tiers over each text: (masked texts, level, placeholder map,
-    NER share)."""
+    """Masks `texts` with both tiers, numbering placeholders on from `counters`."""
 
     regex_hits = [regex_scan(text) for text in texts]
 

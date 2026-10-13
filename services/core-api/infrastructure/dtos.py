@@ -127,10 +127,7 @@ class RetrievalSignals(BaseModel):
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
     docs_above_floor: int = Field(ge=0)
-    # Chunks the cross-encoder scored: fused candidates plus link expansion
-    # (ADR-0018). Reported so an eval can weigh expansion's cost; never read
-    # by the router or the trust scorer. Defaulted: signals stored before it
-    # existed still load.
+    # Chunks the cross-encoder scored: fused candidates plus link expansion (ADR-0018).
     pool_size: int = Field(default=0, ge=0)
 
 
@@ -160,10 +157,8 @@ class PolicySignals(BaseModel):
     pii_level: PIILevel
     injection_detected: bool
     mass_incident: bool
-    # Questions this ticket has already asked its requester (ADR-0023),
-    # counted by core-api from its own rows before routing. The router sends
-    # a clarify proposal past `clarification.max_rounds` to a human. 0 for
-    # signals stored before requesters could be asked, which is what they were.
+    # Questions this ticket has already asked its requester, counted by
+    # core-api (ADR-0023).
     clarifications_asked: int = Field(default=0, ge=0)
 
 

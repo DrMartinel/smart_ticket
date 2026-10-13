@@ -75,14 +75,21 @@ class ReplyParser:
 class ReplyCache:
     """The model's pairs by section key, loaded from and appended to one JSONL."""
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, replies: dict[str, list[Pair]]) -> None:
         self.path = path
-        self.replies: dict[str, list[Pair]] = {}
+        self.replies = replies
+
+    @classmethod
+    def load(cls, path: Path) -> ReplyCache:
+        """Reads the cache from `path`, empty if the file doesn't exist yet."""
+
+        replies: dict[str, list[Pair]] = {}
         if path.exists():
             for line in path.read_text(encoding="utf-8").splitlines():
                 if line.strip():
                     row = json.loads(line)
-                    self.replies[row["key"]] = [Pair(**p) for p in row["pairs"]]
+                    replies[row["key"]] = [Pair(**p) for p in row["pairs"]]
+        return cls(path, replies)
 
     @staticmethod
     def key(policy_version: str, model: str, section_tokens: int, text: str) -> str:
@@ -133,29 +140,30 @@ class PairExtractor:
 
         result = Extraction()
         limit = asyncio.Semaphore(self._max_async)
+
+        async def one(key: str, text: str) -> None:
+            async with limit:
+                try:
+                    try:
+                        pairs = await self._ask(self._chat_model, text, result)
+                    except ValueError:
+                        if self._retry_model is None:
+                            raise
+                        pairs = await self._ask(self._retry_model, text, result)
+                except Exception as e:  # noqa: BLE001
+                    result.failed[key] = f"{type(e).__name__}: {e}"[:300]
+                    return
+            self._cache.add(key, pairs)
+            result.pairs[key] = pairs
+
         todo = []
         for key, text in sections.items():
             if key in self._cache.replies:
                 result.pairs[key] = self._cache.replies[key]
             else:
-                todo.append(self._one(key, text, result, limit))
+                todo.append(one(key, text))
         await asyncio.gather(*todo)
         return result
-
-    async def _one(self, key: str, text: str, result: Extraction, limit: asyncio.Semaphore) -> None:
-        async with limit:
-            try:
-                try:
-                    pairs = await self._ask(self._chat_model, text, result)
-                except ValueError:
-                    if self._retry_model is None:
-                        raise
-                    pairs = await self._ask(self._retry_model, text, result)
-            except Exception as e:  # noqa: BLE001
-                result.failed[key] = f"{type(e).__name__}: {e}"[:300]
-                return
-        self._cache.add(key, pairs)
-        result.pairs[key] = pairs
 
     async def _ask(self, model: BaseChatModel, text: str, result: Extraction) -> list[Pair]:
         result.calls += 1

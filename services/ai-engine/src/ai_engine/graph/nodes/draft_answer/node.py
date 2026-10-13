@@ -1,16 +1,6 @@
 """
-Drafted answer — HyDE (ADR-0021). The draft model (`DRAFT_CLIENT_PROVIDER`,
-apart from the proposal's) writes the documentation
-passage it expects would answer the ticket, and retrieval searches with it
-as well as the ticket: a ticket describes symptoms in the requester's words,
-the page that fixes it names features and settings, and the draft is written
-in the page's vocabulary.
-
-The draft only chooses what retrieval looks at. It is never shown, quoted,
-validated or scored: the cross-encoder and Jev score chunks against the
-ticket, and only Jev's score meets a threshold (ADR-0005). A failure raises,
-so the ticket goes to a person as `ai_engine_unavailable`; retrieving without
-the draft would quietly run the weaker pipeline (rule 3).
+Drafted answer — HyDE (ADR-0021): writes the documentation passage the draft
+model expects would answer the ticket, for retrieval to search with.
 """
 
 from __future__ import annotations

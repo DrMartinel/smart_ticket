@@ -274,8 +274,6 @@ def test_auto_reply_all_checks_pass():
 
 @pytest.mark.parametrize("pool_size", [0, 10, 300])
 def test_pool_size_never_changes_the_branch(pool_size):
-    """`pool_size` reports link expansion's cost (ADR-0018). A bigger
-    cross-encoder batch is not evidence for or against an answer."""
     d = Router(TH).route(
         good_signals(**{"retrieval.pool_size": pool_size}), auto_reply_proposal(), kb()
     )
@@ -543,10 +541,6 @@ def test_clarify_needs_no_trust_and_lands_in_the_clarification_queue():
 
 
 def test_clarify_after_the_requester_answered_goes_to_a_human():
-    """The requester answered one question and the ticket is still
-    ambiguous. Asking again could loop on someone who can't say more; a
-    person gets it, from the clarification queue, where the question and
-    the answer are both in front of them."""
     signals = good_signals(
         **{"generation.clarify_options_in_topk": True, "policy.clarifications_asked": 1}
     )
@@ -557,8 +551,6 @@ def test_clarify_after_the_requester_answered_goes_to_a_human():
 
 
 def test_no_rounds_allowed_means_no_question_is_ever_asked():
-    """max_rounds 0 turns the branch off: every clarify proposal goes to a
-    human, the safe direction for the setting."""
     signals = good_signals(**{"generation.clarify_options_in_topk": True})
     th = make_thresholds(
         clarification=ClarificationThresholds(
@@ -575,8 +567,6 @@ def test_no_rounds_allowed_means_no_question_is_ever_asked():
     ids=["auto_reply", "auto_route"],
 )
 def test_an_answered_question_does_not_change_other_branches(proposal, branch):
-    """After the answer, the second run may reach any branch: the cap is
-    on asking again, not on answering."""
     signals = good_signals(**{"policy.clarifications_asked": 1})
     d = Router(TH).route(signals, proposal, kb())
     assert d.branch is branch

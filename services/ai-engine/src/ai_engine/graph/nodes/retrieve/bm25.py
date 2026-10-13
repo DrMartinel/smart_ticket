@@ -12,8 +12,7 @@ nothing on the English golden set, and `ts_rank_cd` has no IDF at all.
 across tickets, so nothing may compare it with a number (ADR-0005's rule,
 applied to BM25 too). Only ranks leave this channel.
 
-Not run on the ticket since 2026-10-11 (ADR-0020); kept with its index for
-searching text written in the KB's own vocabulary.
+Searches the drafted answer, never the ticket (ADR-0020, ADR-0021).
 """
 
 from __future__ import annotations
@@ -51,8 +50,7 @@ def bm25_search(query_text: str) -> list[LexicalHit]:
                 KbChunk.section_title.op("|||", is_comparison=True)(query_text),
             )
         )
-        # A deactivated article is out of the KB: it must not be retrieved,
-        # and so can't become a link-expansion seed either.
+        # Active articles only (ADR-0018).
         .where(KbArticle.is_active.is_(True))
         .order_by(score.desc())
         .limit(settings.bm25_top_k)

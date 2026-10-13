@@ -1,8 +1,6 @@
 """
-DraftAnswerNode (HyDE, ADR-0021). The draft steers retrieval and nothing
-else, so the failure that matters is the quiet one: a failed or empty draft
-letting the ticket through on the weaker, ticket-only retrieval. These tests
-pin that it raises instead, so the ticket reaches a person.
+Checks DraftAnswerNode (ADR-0021): the draft it writes from the masked
+ticket, and that every failure raises.
 """
 
 from __future__ import annotations
@@ -32,19 +30,12 @@ def run(use_draft_llm, use_embedder, fake_llm, fake_embedder, make_state):
 
 
 def test_a_failed_chat_call_raises_rather_than_skipping_the_draft(run):
-    """`AllLLMDownError` must propagate: the request fails, core-api sends
-    the ticket to a person as ai_engine_unavailable. Catching it here would
-    retrieve on the ticket alone with nothing recording the degrade."""
-
     with pytest.raises(AllLLMDownError):
         run(error=AllLLMDownError("chat down"))
 
 
 @pytest.mark.parametrize("text", ['{"draft": "  "}', '{"other": "x"}', '["a list"]'])
 def test_an_empty_or_misshapen_draft_raises(run, text):
-    """A reply with no usable passage is a failure, not an empty search:
-    BM25 and the embedder on "" would retrieve noise."""
-
     with pytest.raises(ValueError, match="empty"):
         run(reply=_reply(text))
 
@@ -55,9 +46,6 @@ def test_a_reply_that_is_not_json_raises(run):
 
 
 def test_the_draft_is_written_from_the_masked_ticket_only(run, make_ticket):
-    """Only masked text may reach a model (spec §5); the draft call is a
-    model call like any other."""
-
     ticket = make_ticket("Cannot send [EMAIL_1]", "Mail from [EMAIL_1] bounces")
     _, llm, _ = run(reply=_reply('{"draft": "SES bounces"}'), ticket=ticket)
 
@@ -67,8 +55,6 @@ def test_the_draft_is_written_from_the_masked_ticket_only(run, make_ticket):
 
 
 def test_the_draft_runs_at_the_configured_temperature(run):
-    """At 0 the same ticket drafts, and so retrieves, the same way every run."""
-
     _, llm, _ = run(reply=_reply('{"draft": "SES bounces"}'))
 
     assert llm.temperatures == [settings.draft_temperature]
@@ -84,9 +70,6 @@ def test_the_draft_and_its_embedding_are_returned(run):
 def test_the_draft_runs_on_its_own_model_never_the_proposals(
     use_draft_llm, use_llm, use_embedder, fake_llm, fake_embedder, make_state
 ):
-    """The draft and the proposal have separate model settings: the proposal
-    can stay on a cloud model while the draft runs locally, or the reverse."""
-
     draft_model = use_draft_llm(fake_llm(result=_reply('{"draft": "SES bounces"}')))
     proposal_model = use_llm(fake_llm(error=AssertionError("the proposal's model was called")))
     use_embedder(fake_embedder(vector=[0.4]))

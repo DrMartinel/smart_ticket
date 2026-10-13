@@ -271,8 +271,7 @@ class Router:
                     ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN, queue=ReviewQueue.LOW_CONFIDENCE.value
                 )
             if p.clarifications_asked >= th.clarification.max_rounds:
-                # Asked already, answered, and still ambiguous. Asking again
-                # could loop on a requester who can't say more; a person can.
+                # One question per ticket, then a person (ADR-0023).
                 return RoutingDecision.hitl(
                     ReasonCode.CLARIFY_ROUND_CAP, queue=ReviewQueue.CLARIFICATION.value
                 )

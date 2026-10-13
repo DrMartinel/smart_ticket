@@ -1,9 +1,5 @@
 """
-Re-ingesting an article refreshes its associations (ADR-0018). Edges drawn
-from the old text must not outlive it: an `entity_graph` edge extracted
-from a paragraph that has since been deleted would keep pulling the page
-into tickets it no longer answers. The article runs on its authored links
-until the next build.
+Checks that re-ingesting an article refreshes its associations (ADR-0025).
 """
 
 from __future__ import annotations
@@ -11,6 +7,7 @@ from __future__ import annotations
 import pytest
 
 from apps.kb.models import AssociationSource, KbArticle, KbArticleAssociation
+from apps.kb.utils.indexing import indexer
 
 pytestmark = pytest.mark.django_db
 
@@ -45,7 +42,7 @@ def test_reingest_drops_extracted_edges_both_ways_and_rereads_authored_links():
 
     article.body = "See [prod](prod.md)."
     article.save(update_fields=["body"])
-    article.ingest()
+    indexer.ingest(article)
 
     # No entity_graph edge survives; the authored links are reread from
     # the new text.
@@ -66,8 +63,6 @@ def test_hard_deleting_an_article_leaves_no_associations():
 
 
 def test_an_unchanged_reload_touches_no_associations():
-    """`upsert_from_source` skips `ingest` when nothing changed, so a reload
-    must not drop a built `entity_graph` edge."""
     fields = dict(
         body="text",
         category="access",

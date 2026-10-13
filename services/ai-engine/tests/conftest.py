@@ -27,6 +27,7 @@ from ai_engine.graph.ticket import PIILevel, TicketMasked
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.providers import embeddings
+from ai_engine.core.associations import resolve as resolve_module
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import ChatClient
 from ai_engine.core.providers.embeddings import Embedder
@@ -425,7 +426,7 @@ def use_db(monkeypatch):
 @pytest.fixture
 def use_embedder(monkeypatch):
     def use(fake):
-        for module in (retrieve_node, draft_answer_node, main):
+        for module in (retrieve_node, draft_answer_node, main, resolve_module):
             monkeypatch.setattr(module, "embedder", fake)
         return fake
 

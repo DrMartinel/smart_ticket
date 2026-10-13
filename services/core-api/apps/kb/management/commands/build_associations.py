@@ -12,7 +12,8 @@ from typing import Any
 
 from django.core.management.base import BaseCommand, CommandParser
 
-from apps.kb.models import AssociationSource, KbArticleAssociation
+from apps.kb.models import AssociationSource
+from apps.kb.utils.indexing import indexer
 
 
 class Command(BaseCommand):
@@ -22,5 +23,5 @@ class Command(BaseCommand):
         parser.add_argument("--source", required=True, choices=[AssociationSource.AUTHORED_LINK])
 
     def handle(self, *args: Any, **options: Any) -> None:
-        written = KbArticleAssociation.objects.rebuild_authored_links()
+        written = indexer.rebuild_authored_links()
         self.stdout.write(self.style.SUCCESS(f"{options['source']}: {written} rows"))

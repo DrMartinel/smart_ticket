@@ -125,7 +125,7 @@ identical: the model chose differently from the same pages
 (`evals/HISTORY.md`, ADR-0024's outcome). Its question also named readings
 the buttons didn't offer ("Windows, macOS, or Linux" above two buttons).
 
-1. **core-api builds the options** (`pipeline.clarify_options`, pure): each
+1. **core-api builds the options** (`Clarifications.options`, pure): each
    distinct page of Jev's top 5, in Jev's order, scoring within
    `clarification.option_margin` (0.1 🔧) of Jev's best, at most
    `clarification.max_options` (5), active pages only. The owner's choice

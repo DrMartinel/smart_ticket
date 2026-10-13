@@ -87,9 +87,8 @@ def page_text(page: dict) -> str:
 
 
 def eligible(all_pages: list[dict]) -> list[dict]:
-    """Pages a new ticket may target: not a duplicate-text copy (the same
-    page under two URLs, whose ticket would have two right pages) and not
-    already a golden target."""
+    """Picks the pages a new ticket may target: no duplicate-text copy and no
+    page already a golden target."""
 
     taken = {
         json.loads(line)["truth"].get("kb_slug")
@@ -110,8 +109,7 @@ def eligible(all_pages: list[dict]) -> list[dict]:
 
 
 def allocate(total: int, sizes: dict[str, int]) -> dict[str, int]:
-    """`total` split across guides in proportion to `sizes`, largest
-    remainders first, so the parts add up exactly."""
+    """Splits `total` across guides in proportion to `sizes`, by largest remainder."""
 
     whole = sum(sizes.values())
     exact = {g: total * n / whole for g, n in sizes.items()}

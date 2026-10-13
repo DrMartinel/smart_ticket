@@ -305,18 +305,23 @@ class Ticket(BaseModel):
     def __str__(self) -> str:
         return self.public_id
 
+    def latest_clarification(self) -> TicketClarification | None:
+        """Finds the last question this ticket asked its requester."""
+        return self.clarifications.order_by("-asked_at").first()
+
     def open_clarification(self) -> TicketClarification | None:
-        """The question the requester can still answer (ADR-0023): the
-        latest one, unanswered, while the decision is held and inside
-        `clarification.wait_minutes`. After the wait the chat offers a
-        ticket instead, and an answer is refused."""
+        """Finds the question the requester can still answer (ADR-0023)."""
+        latest = self.latest_clarification()
+        return latest if latest is not None and self.awaits_answer_to(latest) else None
+
+    def awaits_answer_to(self, clarification: TicketClarification) -> bool:
+        """Whether the requester can still answer `clarification`, this ticket's latest question."""
         if self.status != "awaiting_requester" or self.held_decision is None:
-            return None
-        latest = self.clarifications.order_by("-asked_at").first()
-        if latest is None or latest.answered_at is not None:
-            return None
+            return False
+        if clarification.answered_at is not None:
+            return False
         wait = timedelta(minutes=settings.THRESHOLDS.clarification.wait_minutes)
-        return latest if timezone.now() < latest.asked_at + wait else None
+        return timezone.now() < clarification.asked_at + wait
 
     def store_embedding(self, embedding: list[float], model_name: str) -> TicketEmbedding:
         return TicketEmbedding.objects.update_or_create(
@@ -475,27 +480,18 @@ class RoutingDecision(BaseModel):
 
 
 class TicketClarification(BaseModel):
-    """A question a live chat ticket asked its requester (ADR-0023): the
-    router chose `clarify` and the requester is asked which of the shown
-    pages they mean. One row per question; the router stops asking once
-    `clarification.max_rounds` rows exist (`PolicySignals.clarifications_asked`).
-
-    The question is the LLM's, checked before it got here (length by the
-    proposal schema, options against the pages shown); the answer is the
-    requester's, masked like a ticket before it is stored (`mask_reply`)."""
+    """A question a live chat ticket asked its requester, and their masked
+    answer (ADR-0023)."""
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="clarifications")
-    # The run whose proposal asked it.
+    # The run whose decision asked it.
     ai_run = models.ForeignKey(
         AiRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="clarifications"
     )
     question = models.TextField()
-    # [{"slug": ..., "title": ...}] for each page the question chooses
-    # between, titles read from the KB when it was asked.
+    # [{"slug": ..., "title": ...}] for each page offered, titles as when asked.
     options = models.JSONField(default=list)
-    # The ticket's masked body when the question was asked: the answer is
-    # appended to `Ticket.body_masked` for the next run and for reviewers,
-    # and the chat shows the requester what they actually typed.
+    # The ticket's masked body when the question was asked.
     ticket_body_masked = models.TextField()
     answer_masked = models.TextField(null=True, blank=True)
     asked_at = models.DateTimeField(auto_now_add=True)

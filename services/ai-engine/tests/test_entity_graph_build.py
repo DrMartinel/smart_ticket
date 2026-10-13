@@ -1,12 +1,7 @@
 """
-The offline `entity_graph` build (ADR-0018): sections in, one
-model call per section, (symptom, remedy, where) pairs out, named pages
-resolved to KB pages, pointer edges scored. The model, the database and the
-embedder are fakes. What these pin, failure paths first: a failed section
-exports nothing and is the only thing a re-run asks for; a reply outside
-the policy's bounds is never partly used; a name that resolves to no page,
-to several, or to the page itself makes no edge; and an embedding match
-counts only above its bar, after exact matches.
+Checks the offline `entity_graph` build (ADR-0018, ADR-0025): sections,
+replies, page resolution, edge ranking and the write, with the model, the
+database and the embedder faked.
 """
 
 from __future__ import annotations
@@ -27,6 +22,7 @@ from ai_engine.core.associations.policy import EntityGraphPolicy, ReplyLimits
 from ai_engine.core.associations.resolve import PageIndex
 from ai_engine.core.associations.sections import SectionSplitter
 from ai_engine.core.config import settings
+from ai_engine.core.providers.clients import ChatClient
 
 LIMITS = ReplyLimits(
     max_pairs_per_section=3, symptom_max_chars=50, remedy_max_chars=50, page_max_chars=60
@@ -41,9 +37,6 @@ def _words(text: str) -> int:
 
 
 def test_links_are_stripped_to_their_text():
-    """A URL must never reach the model: the graph would copy the authored
-    links instead of reading the prose."""
-
     text = "To fix it, see [Remediating an instance](compromised-ec2.md). ![diagram](a.png)"
 
     assert SectionSplitter.strip_links(text) == "To fix it, see Remediating an instance. diagram"
@@ -63,9 +56,6 @@ def test_sections_keep_headings_together_and_never_exceed_the_budget():
 
 
 def test_a_reply_over_the_pair_limit_fails_rather_than_being_cut():
-    """Keeping the first N pairs would drop pointers silently, with the
-    section counted as done."""
-
     reply = {"pairs": [{"symptom": "s", "remedy": "r", "remedy_location": "this_page"}] * 4}
 
     with pytest.raises(ValueError, match="unusable reply"):
@@ -121,11 +111,27 @@ class Page:
     body: str
 
 
-def _index(pages, embed=None, aliases=None, bar=0.9):
-    def no_embed(texts):
-        raise AssertionError("an exact match must not need the embedder")
+class TextEmbedder:
+    """Embeds each text with `vectors`, a function from texts to vectors."""
 
-    return PageIndex(pages, aliases=aliases or {}, embed=embed or no_embed, min_similarity=bar)
+    def __init__(self, vectors) -> None:
+        self._vectors = vectors
+
+    def embed(self, text: str) -> list[float]:
+        return self._vectors([text])[0]
+
+
+def _no_embed(texts):
+    raise AssertionError("an exact match must not need the embedder")
+
+
+@pytest.fixture
+def index(use_embedder):
+    def build_index(pages, embed=_no_embed, aliases=None, bar=0.9):
+        use_embedder(TextEmbedder(embed))
+        return PageIndex(pages, aliases=aliases or {}, min_similarity=bar)
+
+    return build_index
 
 
 PAGES = [
@@ -139,8 +145,8 @@ PAGES = [
 ]
 
 
-def test_an_exact_title_or_heading_resolves_without_the_embedder():
-    index = _index(PAGES)
+def test_an_exact_title_or_heading_resolves_without_the_embedder(index):
+    index = index(PAGES)
 
     r = index.resolve_all(
         [
@@ -155,11 +161,8 @@ def test_an_exact_title_or_heading_resolves_without_the_embedder():
     assert r["Findings not shown", "ses.y"].target == "guardduty.troubleshoot"
 
 
-def test_a_shared_title_prefers_the_source_guide_and_is_otherwise_ambiguous():
-    """Two guides both have "Troubleshooting": from an SES page it means
-    SES's; from a third guide it means nothing, and is dropped."""
-
-    index = _index(PAGES)
+def test_a_shared_title_prefers_the_source_guide_and_is_otherwise_ambiguous(index):
+    index = index(PAGES)
 
     r = index.resolve_all([("Troubleshooting", "ses.page"), ("Troubleshooting", "iam.page")])
 
@@ -168,16 +171,14 @@ def test_a_shared_title_prefers_the_source_guide_and_is_otherwise_ambiguous():
     assert r["Troubleshooting", "iam.page"].target is None
 
 
-def test_an_embedding_match_counts_only_at_or_above_the_bar():
-    """Below the bar the nearest title is a guess: unresolved, not linked."""
-
+def test_an_embedding_match_counts_only_at_or_above_the_bar(index):
     vectors = {
         PAGES[0].title: [1.0, 0.0],
         PAGES[1].title: [0.0, 1.0],
         "fixing a hacked EC2 server": [0.95, 0.31],
         "something unrelated": [0.6, 0.8],
     }
-    index = _index(PAGES, embed=lambda texts: [vectors[t] for t in texts], bar=0.9)
+    index = index(PAGES, embed=lambda texts: [vectors[t] for t in texts], bar=0.9)
 
     r = index.resolve_all([("fixing a hacked EC2 server", "a.b"), ("something unrelated", "a.b")])
 
@@ -187,8 +188,8 @@ def test_an_embedding_match_counts_only_at_or_above_the_bar():
     assert r["something unrelated", "a.b"].method == "unresolved"
 
 
-def test_an_alias_resolves_exactly():
-    index = _index(PAGES, aliases={"compromised instance guide": PAGES[0].title})
+def test_an_alias_resolves_exactly(index):
+    index = index(PAGES, aliases={"compromised instance guide": PAGES[0].title})
 
     r = index.resolve_all([("Compromised instance guide", "a.b")])
 
@@ -274,53 +275,60 @@ def kb(fake_db, monkeypatch):
     return fake
 
 
-def _run(tmp_path, chat, *extra):
-    args = build.EntityGraphBuild.parse_args(
-        ["--working-dir", str(tmp_path / "w"), "--out", str(tmp_path / "out"), *extra]
-    )
-    return build.EntityGraphBuild(args, chat_model=chat, embed=_no_match).run()
+@pytest.fixture
+def run(monkeypatch, use_embedder, tmp_path):
+    """Runs the build with `chat` as DeepSeek and `retry` as its retry model;
+    with no `chat`, building a model fails the test."""
+
+    def run_build(chat, *extra, retry=None):
+        def deepseek_model(*, json_mode, temperature=None):
+            if chat is None:
+                raise AssertionError("this build must not build a model")
+            return chat if temperature == 0 else retry
+
+        monkeypatch.setattr(ChatClient, "deepseek_model", staticmethod(deepseek_model))
+        use_embedder(TextEmbedder(_no_match))
+        args = build.EntityGraphBuild.parse_args(
+            ["--working-dir", str(tmp_path / "w"), "--out", str(tmp_path / "out"), *extra]
+        )
+        return build.EntityGraphBuild(args).run()
+
+    return run_build
 
 
 def _lines(path):
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
-def test_a_failed_section_exports_nothing_and_a_rerun_asks_only_for_it(kb, tmp_path, capsys):
-    """An exported graph missing pages would look complete. The reply
-    cache keeps the sections that worked, so the re-run costs one call."""
-
-    assert _run(tmp_path, ScriptedChat(failing=("Sending fails",))) == 1
+def test_a_failed_section_exports_nothing_and_a_rerun_asks_only_for_it(kb, tmp_path, capsys, run):
+    assert run(ScriptedChat(failing=("Sending fails",))) == 1
     assert "ses.sandbox" in capsys.readouterr().err
     assert not (tmp_path / "out" / build.BuildFiles.GRAPH).exists()
     assert not (tmp_path / "out" / build.BuildFiles.PAIRS).exists()
     assert kb.writes == []
 
     retry = ScriptedChat()
-    assert _run(tmp_path, retry) == 0
+    assert run(retry) == 0
     assert len(retry.sections) == 1 and "Sending fails" in retry.sections[0]
 
 
-def test_an_unchanged_rebuild_makes_no_model_call(kb, tmp_path):
-    assert _run(tmp_path, ScriptedChat()) == 0
+def test_an_unchanged_rebuild_makes_no_model_call(kb, run):
+    assert run(ScriptedChat()) == 0
     again = ScriptedChat()
-    assert _run(tmp_path, again) == 0
+    assert run(again) == 0
     assert again.sections == []
 
 
-def test_the_model_never_sees_a_link_target(kb, tmp_path):
+def test_the_model_never_sees_a_link_target(kb, run):
     chat = ScriptedChat()
-    _run(tmp_path, chat)
+    run(chat)
 
     assert all("fix.md" not in s for s in chat.sections)
 
 
-def test_pointer_edges_link_the_problem_page_to_the_fix_page(kb, tmp_path):
-    """this_page pairs, a page naming itself, and a name resolving to no
-    page make no edge; a copy of a page gets its original's edges without
-    being sent to the model, and never an edge to its twin."""
-
+def test_pointer_edges_link_the_problem_page_to_the_fix_page(kb, tmp_path, run):
     chat = ScriptedChat()
-    assert _run(tmp_path, chat) == 0
+    assert run(chat) == 0
 
     edges = {
         (r["source_slug"], r["target_slug"]): r
@@ -347,8 +355,8 @@ def _inserted(write):
     return {(r["source_article_id"], r["target_article_id"]) for r in write[1][1]}
 
 
-def test_the_edges_replace_every_entity_graph_row_in_one_transaction(kb, tmp_path):
-    assert _run(tmp_path, ScriptedChat()) == 0
+def test_the_edges_replace_every_entity_graph_row_in_one_transaction(kb, run):
+    assert run(ScriptedChat()) == 0
 
     assert len(kb.writes) == 1
     (clear_sql, clear_rows), (insert_sql, rows) = kb.writes[0]
@@ -360,46 +368,44 @@ def test_the_edges_replace_every_entity_graph_row_in_one_transaction(kb, tmp_pat
     assert all(r["reviewed"] is False and r["id"] for r in rows)
 
 
-def test_a_failed_write_exits_1(fake_db, monkeypatch, tmp_path, capsys):
+def test_a_failed_write_exits_1(fake_db, monkeypatch, capsys, run):
     from sqlalchemy.exc import ProgrammingError
 
     denied = ProgrammingError("INSERT", {}, Exception("permission denied"))
     monkeypatch.setattr(build, "db", fake_db(lambda sql, params: list(ROWS), write_error=denied))
 
-    assert _run(tmp_path, ScriptedChat()) == 1
+    assert run(ScriptedChat()) == 1
     assert "permission denied" in capsys.readouterr().err
 
 
-def test_a_sample_writes_no_row(kb, tmp_path, monkeypatch):
+def test_a_sample_writes_no_row(kb, monkeypatch, run):
     monkeypatch.setattr(
         build.KbSnapshot,
         "sample",
         lambda self, size, include: build.KbSnapshot(self.articles[:1]),
     )
 
-    assert _run(tmp_path, ScriptedChat(), "--sample", "1") == 0
+    assert run(ScriptedChat(), "--sample", "1") == 0
     assert kb.writes == []
 
 
-def test_rescore_only_writes_and_skips_a_page_no_longer_in_the_kb(kb, tmp_path, capsys):
+def test_rescore_only_writes_and_skips_a_page_no_longer_in_the_kb(kb, tmp_path, capsys, run):
     out = tmp_path / "out"
     out.mkdir()
     gone = build.PagePair("gd.deleted", "backdoor", "isolate", "Fixing instances")
     kept = build.PagePair("gd.findings", "backdoor", "isolate", "Fixing instances")
     build.BuildFiles(out).write(build.BuildFiles.PAIRS, [gone, kept])
 
-    args = build.EntityGraphBuild.parse_args(["--rescore-only", "--out", str(out)])
-    assert build.EntityGraphBuild(args, chat_model=None, embed=_no_match).run() == 0
+    assert run(None, "--rescore-only") == 0
 
     assert _inserted(kb.writes[0]) == {(FINDINGS, FIX)}
     assert "1 written, 1 skipped" in capsys.readouterr().out
 
 
-def test_rescore_only_needs_no_model(kb, tmp_path, monkeypatch):
-    assert _run(tmp_path, ScriptedChat()) == 0
-    args = build.EntityGraphBuild.parse_args(["--rescore-only", "--out", str(tmp_path / "out")])
+def test_rescore_only_needs_no_model(kb, run):
+    assert run(ScriptedChat()) == 0
 
-    assert build.EntityGraphBuild(args, chat_model=None, embed=_no_match).run() == 0
+    assert run(None, "--rescore-only") == 0
 
 
 def test_the_shipped_policy_loads():
@@ -409,69 +415,40 @@ def test_the_shipped_policy_loads():
     assert policy.limits.max_pairs_per_section > 0
 
 
-def test_a_sampled_page_can_point_to_a_page_outside_the_sample(kb, tmp_path, monkeypatch):
-    """The spike extracts a sample, but a pointer's target can be any KB
-    page: resolving against the sample alone drops real pointers as
-    unresolved."""
-
+def test_a_sampled_page_can_point_to_a_page_outside_the_sample(kb, tmp_path, monkeypatch, run):
     monkeypatch.setattr(
         build.KbSnapshot,
         "sample",
         lambda self, size, include: build.KbSnapshot(self.articles[:1]),
     )
 
-    assert _run(tmp_path, ScriptedChat(), "--sample", "1") == 0
+    assert run(ScriptedChat(), "--sample", "1") == 0
 
     edges = _lines(tmp_path / "out" / build.BuildFiles.GRAPH)
     assert [(r["source_slug"], r["target_slug"]) for r in edges] == [("gd.findings", "gd.fix")]
 
 
 class OnceBroken(ScriptedChat):
-    """Replies with malformed JSON, as DeepSeek did for one section at
-    temperature 0, every time it was asked."""
+    """Replies with malformed JSON every time."""
 
     async def ainvoke(self, messages, **kw):
         self.sections.append(str(messages[-1].content))
         return SimpleNamespace(content='{"pairs": [{bad json')
 
 
-def test_an_unusable_reply_is_asked_once_more_of_the_retry_model(kb, tmp_path):
-    """Temperature 0 replays the same broken reply on every run, so the
-    section could never be built; the retry model's reply is used."""
-
-    args = build.EntityGraphBuild.parse_args(
-        ["--working-dir", str(tmp_path / "w"), "--out", str(tmp_path / "out")]
-    )
+def test_an_unusable_reply_is_asked_once_more_of_the_retry_model(kb, run):
     retry = ScriptedChat()
 
-    assert (
-        build.EntityGraphBuild(
-            args, chat_model=OnceBroken(), retry_model=retry, embed=_no_match
-        ).run()
-        == 0
-    )
+    assert run(OnceBroken(), retry=retry) == 0
     assert len(retry.sections) == 3
 
 
-def test_a_second_unusable_reply_still_fails_the_section(kb, tmp_path):
-    args = build.EntityGraphBuild.parse_args(
-        ["--working-dir", str(tmp_path / "w"), "--out", str(tmp_path / "out")]
-    )
-
-    assert (
-        build.EntityGraphBuild(
-            args, chat_model=OnceBroken(), retry_model=OnceBroken(), embed=_no_match
-        ).run()
-        == 1
-    )
+def test_a_second_unusable_reply_still_fails_the_section(kb, tmp_path, run):
+    assert run(OnceBroken(), retry=OnceBroken()) == 1
     assert not (tmp_path / "out" / build.BuildFiles.GRAPH).exists()
 
 
-def test_the_same_pair_both_here_and_on_another_page_exports(kb, tmp_path):
-    """A page can give a remedy and also name another page for it; the two
-    pairs differ only in where. Sorting them must not compare None with a
-    name (the full build's export crashed on it)."""
-
+def test_the_same_pair_both_here_and_on_another_page_exports(kb, run):
     class BothPlaces(ScriptedChat):
         async def ainvoke(self, messages, **kw):
             pairs = [
@@ -480,7 +457,7 @@ def test_the_same_pair_both_here_and_on_another_page_exports(kb, tmp_path):
             ]
             return SimpleNamespace(content=json.dumps({"pairs": pairs}))
 
-    assert _run(tmp_path, BothPlaces()) == 0
+    assert run(BothPlaces()) == 0
 
 
 # --- edge ranking --------------------------------------------------------------
@@ -506,16 +483,17 @@ def _one_hot(texts):
     return [[1.0 if (t if t in order else "Embedded") == o else 0.0 for o in order] for t in texts]
 
 
-def _ranked(monkeypatch, cap):
+def _ranked(monkeypatch, use_embedder, cap):
     monkeypatch.setattr(settings, "association_per_article_cap", cap)
+    use_embedder(TextEmbedder(_one_hot))
     policy = EntityGraphPolicy.load(settings.entity_graph_policy_version)
-    scorer = build.EdgeScorer(policy=policy, embed=_one_hot)
+    scorer = build.EdgeScorer(policy=policy)
     rows, _ = scorer.score(RANKED_PAIRS, build.KbSnapshot(RANKED))
     return rows
 
 
-def test_targets_rank_by_pairs_then_exact_before_embedding_then_slug(monkeypatch):
-    rows = _ranked(monkeypatch, cap=10)
+def test_targets_rank_by_pairs_then_exact_before_embedding_then_slug(monkeypatch, use_embedder):
+    rows = _ranked(monkeypatch, use_embedder, cap=10)
 
     assert [(r.target_slug, r.score) for r in rows] == [
         ("b.two", 2.0),
@@ -525,14 +503,14 @@ def test_targets_rank_by_pairs_then_exact_before_embedding_then_slug(monkeypatch
     ]
 
 
-def test_the_cap_keeps_the_top_ranked_targets(monkeypatch):
-    rows = _ranked(monkeypatch, cap=3)
+def test_the_cap_keeps_the_top_ranked_targets(monkeypatch, use_embedder):
+    rows = _ranked(monkeypatch, use_embedder, cap=3)
 
     assert [r.target_slug for r in rows] == ["b.two", "c.one", "d.one"]
 
 
-def test_the_build_id_names_the_policy_and_the_pairs(monkeypatch):
-    rows = _ranked(monkeypatch, cap=10)
+def test_the_build_id_names_the_policy_and_the_pairs(monkeypatch, use_embedder):
+    rows = _ranked(monkeypatch, use_embedder, cap=10)
 
     assert re.fullmatch(
         rf"entity_graph:{re.escape(settings.entity_graph_policy_version)}"

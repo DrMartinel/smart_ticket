@@ -377,11 +377,10 @@ The ADR is accepted or superseded on a full run and a held-out measurement.
 
 ### Work
 
-- Delete `candidate_pool/link_parity.py`, the last copy of the per-ticket regex: parity has run.
 - Run `build --rescore-only` against the Dockerized Postgres once (ADR-0025): the write path is unit-tested only, and an existing `db_data` volume needs the new grant first (`demo_kb/README.md`).
 - Category F1 below 2026-10-04 on `access` and `software`, with expansion on and off: find which tickets moved.
 - Choose the shipped source for the demo KB, then a full run with it on the shipped pipeline (the all-gates run of 2026-10-10 (8) used a one-chunk-per-page limit since removed).
 
 ### Done when
 
-ADR-0018 is accepted or superseded, and the regex path is gone.
+ADR-0018 is accepted or superseded.

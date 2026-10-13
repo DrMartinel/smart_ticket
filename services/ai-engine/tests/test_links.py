@@ -1,10 +1,6 @@
 """
-`linked_article_ids` reads `kb_article_associations` (ADR-0018). The fake
-session answers with canned rows, so these pin two things separately: the
-SQL (which source, active targets only, ranked per seed by score) and what
-the function does with the rows (seed order, de-duplication, the cap).
-A dropped `is_active` join would not fail loudly: it would only send
-retired pages to the cross-encoder.
+Checks how link expansion reads `kb_article_associations` (ADR-0018): the
+SQL it sends, and what it does with the rows.
 """
 
 from __future__ import annotations
@@ -53,9 +49,6 @@ def test_reads_one_source_active_targets_ranked_by_score_per_seed(fake_db, sourc
 
 
 def test_seed_order_then_score_order_each_target_once(fake_db, source, use_db):
-    """Rows come back grouped by seed id, not in the seeds' order: the
-    function must restore the cross-encoder's seed order, and keep a target
-    two seeds share only where it first appears."""
     source("authored_link")
     use_db(fake_db([(SEED_A, T2, 0.9), (SEED_A, T3, 0.5), (SEED_B, T1, 0.8), (SEED_B, T2, 0.4)]))
 
@@ -70,8 +63,6 @@ def test_a_self_pair_is_never_followed(fake_db, source, use_db):
 
 
 def test_source_none_returns_nothing_without_a_query(fake_db, source, use_db):
-    """R0 in the eval: expansion off. Not a query that happens to find
-    nothing, which would still cost a round trip per ticket."""
     source("none")
     db = use_db(fake_db([(SEED_A, T1, 1.0)]))
 

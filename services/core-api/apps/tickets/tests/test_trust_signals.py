@@ -69,9 +69,6 @@ def test_an_injection_ai_engine_found_reaches_the_policy_gate():
 
 
 def test_the_questions_already_asked_reach_the_router():
-    """The router's round cap reads `policy.clarifications_asked`
-    (ADR-0023); dropped here, it would read 0 and ask the requester again."""
-
     policy = trust_signals(_engine(), PIILevel.ROUTINE, None, clarifications_asked=1).policy
 
     assert policy.clarifications_asked == 1

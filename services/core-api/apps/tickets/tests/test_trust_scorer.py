@@ -68,9 +68,6 @@ def test_llm_self_confidence_does_not_change_score():
 
 
 def test_pool_size_does_not_change_score():
-    """`pool_size` is the cross-encoder's batch, reported so evals can weigh
-    link expansion's cost (ADR-0018). It says how much work retrieval did,
-    not whether it found the answer, and must never move trust."""
     small = make_signals(**{"retrieval.pool_size": 10})
     large = make_signals(**{"retrieval.pool_size": 300})
     assert score(small).value == score(large).value
@@ -165,10 +162,6 @@ class TestQuoteFeaturesOnlyScoredWhenApplicable:
 
 
 def test_bm25_keyword_hit_is_no_longer_a_feature():
-    """BM25 no longer runs on the ticket (ADR-0020). A feature that reads a
-    signal nothing sends would score every ticket as "no agreement" and
-    quietly pull trust down by its weight."""
-
     assert "bm25_keyword_hit" not in FEATURES
     assert "bm25_keyword_hit" not in extract_features(make_signals())
 

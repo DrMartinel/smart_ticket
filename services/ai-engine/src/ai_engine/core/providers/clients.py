@@ -11,9 +11,8 @@ errors, ordering).
 - `ChatClient`: the triage chat model through LangChain (whose OpenAI SDK
   runs on httpx2), for `chat` and `draft`. `ChatClient.for_provider` builds it.
 - `ChatClient.deepseek_model()` / `ChatClient.on_deepseek()`: DeepSeek's hosted API (ADR-0019)
-  on the `CLOUD_*` settings, behind triage and PII NER when
-  `CHAT_CLIENT_PROVIDER=deepseek`, and always behind the offline
-  entity_graph build (ADR-0018).
+  on the `CLOUD_*` settings, for whichever job's provider names `deepseek`
+  and for the offline entity_graph build (ADR-0018).
 
 No retries anywhere, SDK ones included (`max_retries=0`): a failed call goes
 straight to HITL. Every client is built at import and opens no socket until
@@ -265,8 +264,7 @@ class ChatClient:
         temperature: float | None = None,
     ) -> LLMResult:
         """One call, no retry, its reply decoded against `schema` where the
-        server can. Any failure raises `AllLLMDownError`. `temperature`
-        None leaves the server's default."""
+        server can. Any failure raises `AllLLMDownError`."""
         constrained: dict[str, Any] = {}
         if temperature is not None:
             constrained["temperature"] = temperature
@@ -400,7 +398,6 @@ jev = JevClient(
 )
 
 
-# The proposal (InferNode) and the drafted answer (DraftAnswerNode, ADR-0021)
-# each on the provider their own setting names.
+# The proposal's model (InferNode) and the drafted answer's (DraftAnswerNode, ADR-0021).
 chat = ChatClient.for_provider(settings.chat_client_provider)
 draft = ChatClient.for_provider(settings.draft_client_provider)

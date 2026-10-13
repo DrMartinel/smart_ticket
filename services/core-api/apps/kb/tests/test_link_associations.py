@@ -1,10 +1,5 @@
 """
-`authored_link` associations (ADR-0018): links read from chunk text at
-ingest time instead of per ticket in ai-engine. The port must resolve the
-same pages ai-engine's regex did, in the same order, or moving the work
-would quietly change which pages link expansion follows. Rows are kept
-for inactive targets, because ai-engine's read filters them: a
-reactivated page must come back without a rebuild.
+Checks the `authored_link` associations read from chunk text (ADR-0018).
 """
 
 from __future__ import annotations
@@ -15,6 +10,7 @@ import pytest
 
 from apps.kb.models import AssociationSource, KbArticle, KbArticleAssociation, KbChunk
 from apps.kb.utils.associations import link_scores, linked_urls, resolve_link
+from apps.kb.utils.indexing import indexer
 
 BASE = "https://docs.aws.amazon.com/ses/latest/dg/verify.html"
 
@@ -52,8 +48,6 @@ def test_linked_urls_keep_document_order_across_chunks_and_each_page_once():
 
 
 def test_link_scores_follow_document_order_and_skip_self_and_out_of_kb_links():
-    """The cap in ai-engine counts pages a link resolved to; a link out of
-    the KB or to the article itself must not use up a position."""
     own, first, second = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
     urls = {"self": "s", "outside": "o", "first": "f", "second": "x", "first-again": "f2"}
     by_url = {"self": own, "first": first, "second": second, "first-again": first}
@@ -92,7 +86,7 @@ def test_rebuild_stores_inactive_targets_and_skips_pages_outside_the_kb():
     _article("retired", "old page", active=False)
     _article("prod", "production access")
 
-    KbArticleAssociation.objects.rebuild_authored_links()
+    indexer.rebuild_authored_links()
 
     assert _targets(seed) == ["retired", "prod"]
 
@@ -108,10 +102,10 @@ def test_a_full_rebuild_replaces_the_source_and_leaves_other_sources_alone():
         score=6.4,
         build_id="t",
     )
-    KbArticleAssociation.objects.rebuild_authored_links()
+    indexer.rebuild_authored_links()
     seed.chunks.update(content="no links any more")
 
-    KbArticleAssociation.objects.rebuild_authored_links()
+    indexer.rebuild_authored_links()
 
     assert _targets(seed) == []
     assert KbArticleAssociation.objects.filter(source=AssociationSource.ENTITY_GRAPH).count() == 1

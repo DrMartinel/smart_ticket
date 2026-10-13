@@ -6,8 +6,6 @@ to require an approver, never something the LLM can grant itself.
 
 from __future__ import annotations
 
-import uuid
-
 from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
@@ -16,15 +14,9 @@ from pgvector.django import VectorField
 from apps.core.models import BaseModel
 from apps.tickets.utils.router import RiskTier
 from infrastructure.dtos import TicketCategory
-from infrastructure.ai_engine import ai_engine
 
 from apps.accounts.models import User
-from apps.kb.utils.associations import (
-    build_id,
-    link_scores,
-    linked_urls,
-)
-from apps.kb.utils.chunking import chunk_sections, rough_token_count
+from apps.kb.utils.chunking import chunk_sections
 
 
 class KBGovernanceError(Exception):
@@ -40,12 +32,14 @@ class KbArticleManager(models.Manager["KbArticle"]):
         Grants no auto-reply authority: `auto_reply_allowed` keeps its False
         default, and only `set_auto_reply_allowed` may change it (ADR-0002).
         """
+        from apps.kb.utils.indexing import indexer
+
         article = self.create(
             slug=slug, title=title, body=body, category=category, risk_tier=risk_tier
         )
         # Committed before ingestion, not with it: if embedding fails, the article
         # is kept with no chunks (invisible to retrieval) and `/reingest` retries.
-        article.ingest()
+        indexer.ingest(article)
         return article
 
     def upsert_from_source(
@@ -67,6 +61,8 @@ class KbArticleManager(models.Manager["KbArticle"]):
         so a reload can't quietly undo a manager's decision. Never touches
         `auto_reply_allowed` (ADR-0002).
         """
+        from apps.kb.utils.indexing import indexer
+
         article = self.filter(slug=slug).first()
         if article is None:
             article = self.create(
@@ -77,7 +73,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
                 risk_tier=risk_tier,
                 source_url=source_url,
             )
-            article.ingest()
+            indexer.ingest(article)
             return article, True
         fields_changed = (article.title, article.body, article.category, article.source_url) != (
             title,
@@ -100,33 +96,9 @@ class KbArticleManager(models.Manager["KbArticle"]):
         # see create_and_ingest) or ran under an older chunker. Either way
         # retrieval is searching text the article no longer splits into.
         if text_changed or not article.chunks_are_current():
-            article.ingest()
+            indexer.ingest(article)
             return article, True
         return article, fields_changed
-
-    @transaction.atomic
-    def sync_active_from_source(self, loaded_slugs: set[str]) -> tuple[int, int]:
-        """After a full load of an external source, deactivates the
-        source-loaded articles it no longer has and reactivates the ones it
-        has again. Returns `(deactivated, reactivated)`.
-
-        Only articles with a `source_url` are considered: one created through
-        the API was never in any snapshot, and a reload must not hide it.
-        `loaded_slugs` are the pages actually loaded this time, so a page
-        skipped for a hash mismatch is not revived with stale text. Callers
-        pass the WHOLE source: a partial load (`--limit`) would deactivate
-        everything it skipped."""
-
-        from_source = self.exclude(source_url="")
-        deactivated = (
-            from_source.filter(is_active=True)
-            .exclude(slug__in=loaded_slugs)
-            .update(is_active=False)
-        )
-        reactivated = from_source.filter(is_active=False, slug__in=loaded_slugs).update(
-            is_active=True
-        )
-        return deactivated, reactivated
 
 
 class KbArticle(BaseModel):
@@ -180,42 +152,10 @@ class KbArticle(BaseModel):
         of every article on a reload."""
         stored = list(self.chunks.order_by("chunk_index").values_list("section_title", "content"))
         expected = [
-            (_stored_section_title(c.section_title), c.content) for c in chunk_sections(self.body)
+            (KbChunk.stored_section_title(c.section_title), c.content)
+            for c in chunk_sections(self.body)
         ]
         return stored == expected
-
-    @transaction.atomic
-    def ingest(self) -> list[KbChunk]:
-        """(Re)chunks and (re)embeds this article. Existing chunks are
-        replaced wholesale — simplest correct behavior for a KB whose update
-        cadence is "occasional edits by a KB owner", not high-frequency.
-
-        Called only when the text changed or the chunks are stale, so its
-        associations are refreshed here too (ADR-0018): edges drawn from the
-        old text are dropped, and its authored links re-read."""
-
-        KbChunk.objects.filter(article=self).delete()
-        chunks: list[KbChunk] = []
-        for i, piece in enumerate(chunk_sections(self.body)):
-            # The article and section titles go into the embedding input but
-            # not into `content`: a chunk from the middle of a long page
-            # ("Choose Next, then Save") means nothing without them, while
-            # `content` must stay the exact text the model may quote.
-            context = "\n".join(t for t in (self.title, piece.section_title) if t)
-            embedding = ai_engine.embed(f"{context}\n\n{piece.content}").vector
-            chunk = KbChunk.objects.create(
-                article=self,
-                chunk_index=i,
-                content=piece.content,
-                section_title=_stored_section_title(piece.section_title),
-                token_count=rough_token_count(piece.content),
-                embedding=embedding,
-            )
-            chunks.append(chunk)
-        # The BM25 index (idx_chunk_bm25, infra/migrations/sql/0005) is
-        # maintained by pg_search on insert, so no separate step is needed.
-        KbArticleAssociation.objects.refresh_for(self)
-        return chunks
 
     @transaction.atomic
     def set_auto_reply_allowed(self, *, allowed: bool, actor: User, reason: str) -> KbArticle:
@@ -275,13 +215,6 @@ class KbArticle(BaseModel):
         return self
 
 
-def _stored_section_title(title: str | None) -> str | None:
-    """As `kb_chunks.section_title` stores it: at most 255 characters, and
-    None for no heading. `ingest` writes it and `chunks_are_current` compares
-    against it, so both must go through here."""
-    return (title or "")[:255] or None
-
-
 class KbChunk(BaseModel):
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
@@ -293,6 +226,11 @@ class KbChunk(BaseModel):
     # section_title (ADR-0013), declared in infra/migrations/sql/0005 because
     # the ORM can't express it. There is deliberately no tsvector column.
 
+    @staticmethod
+    def stored_section_title(title: str | None) -> str | None:
+        """Cuts a section title to how `section_title` stores it."""
+        return (title or "")[:255] or None
+
     class Meta(BaseModel.Meta):
         db_table = "kb_chunks"
         constraints = [
@@ -303,100 +241,16 @@ class KbChunk(BaseModel):
 
 
 class AssociationSource(models.TextChoices):
-    """Where an association came from (ADR-0018). ai-engine's
-    `ASSOCIATION_SOURCES` picks which ones link expansion follows, so a
-    deployment, or an eval with links withheld, can drop one without
-    editing the KB."""
+    """Where an association came from (ADR-0018)."""
 
     AUTHORED_LINK = "authored_link"
     # Pages a page names as where a problem's fix is written (offline build).
     ENTITY_GRAPH = "entity_graph"
 
 
-class KbArticleAssociationManager(models.Manager["KbArticleAssociation"]):
-    @transaction.atomic
-    def replace_source(self, source: str, rows: list[KbArticleAssociation]) -> int:
-        """Replaces every row of one source with `rows`, in one transaction,
-        so a reader sees the old set or the new one, never half of each.
-        Other sources are untouched. Returns the number of rows written."""
-
-        self.filter(source=source).delete()
-        return len(self.bulk_create(rows))
-
-    @transaction.atomic
-    def rebuild_authored_links(self, articles: list[KbArticle] | None = None) -> int:
-        """Rebuilds `authored_link` rows from chunk text: for `articles`, their
-        outgoing rows; for None, every article's, replacing the whole source.
-        Returns the number of rows written.
-
-        Targets resolve against every article with a `source_url`, active or
-        not: the read filters inactive ones, so reactivating needs no rebuild.
-        A link to a page not loaded yet resolves to nothing, which is why a
-        full load rebuilds at the end."""
-
-        article_by_url = dict(
-            KbArticle.objects.exclude(source_url="").values_list("source_url", "id")
-        )
-        sources = (
-            KbArticle.objects.exclude(source_url="")
-            if articles is None
-            else [a for a in articles if a.source_url]
-        )
-        base_url = {a.id: a.source_url for a in sources}
-        contents: dict[uuid.UUID, list[str]] = {article_id: [] for article_id in base_url}
-        for article_id, content in (
-            KbChunk.objects.filter(article_id__in=base_url)
-            .order_by("article_id", "chunk_index")
-            .values_list("article_id", "content")
-        ):
-            contents[article_id].append(content)
-
-        build = build_id(AssociationSource.AUTHORED_LINK)
-        rows = [
-            KbArticleAssociation(
-                source_article_id=article_id,
-                target_article_id=target,
-                source=AssociationSource.AUTHORED_LINK,
-                score=score,
-                evidence=[href],
-                build_id=build,
-            )
-            for article_id, url in base_url.items()
-            for target, score, href in link_scores(
-                linked_urls(url, contents[article_id]), article_by_url, own_id=article_id
-            )
-        ]
-        if articles is None:
-            return self.replace_source(AssociationSource.AUTHORED_LINK, rows)
-        return self._replace_outgoing(AssociationSource.AUTHORED_LINK, articles, rows)
-
-    def _replace_outgoing(
-        self, source: str, articles: list[KbArticle], rows: list[KbArticleAssociation]
-    ) -> int:
-        self.filter(source=source, source_article__in=[a.id for a in articles]).delete()
-        return len(self.bulk_create(rows))
-
-    @transaction.atomic
-    def refresh_for(self, article: KbArticle) -> None:
-        """After `article`'s text changed: edges drawn from the old text must
-        not outlive it. `entity_graph` rows go in both directions, until its
-        next build; the article's own `authored_link` rows are rebuilt from
-        the new chunks."""
-
-        self.filter(
-            models.Q(source_article=article) | models.Q(target_article=article),
-            source=AssociationSource.ENTITY_GRAPH,
-        ).delete()
-        self.rebuild_authored_links([article])
-
-
 class KbArticleAssociation(BaseModel):
     """One article pointing at another, for link expansion (ADR-0014
-    decision 1, ADR-0018). ai-engine reads it through `ai_engine_ro`
-    (infra/migrations/sql/0006) and never writes it.
-
-    Rows are kept for inactive targets: the read joins `is_active`, so a
-    reactivated article is followed again with no rebuild."""
+    decision 1, ADR-0018, ADR-0025)."""
 
     source_article = models.ForeignKey(
         KbArticle, on_delete=models.CASCADE, related_name="associations_out"
@@ -405,19 +259,13 @@ class KbArticleAssociation(BaseModel):
         KbArticle, on_delete=models.CASCADE, related_name="associations_in"
     )
     source = models.CharField(max_length=20, choices=AssociationSource.choices)
-    # Orders one seed's targets within one source, higher first, and nothing
-    # else: never a threshold, a trust feature or a router input. The scales
-    # differ by source (document order, cosine, summed IDF).
+    # Orders one seed's targets within one source, higher first (ADR-0018).
     score = models.FloatField()
-    # Why the edge exists, for the person reviewing it: the link href, or
-    # the shared entity names.
+    # The link href, or the symptom -> remedy pairs behind the edge.
     evidence = models.JSONField(default=list)
     reviewed = models.BooleanField(default=False)
-    # What produced the row (source, policy version, snapshot, date), so an
-    # edge can be traced to the build that made it.
+    # The build that produced the row (source, policy version, pairs, date).
     build_id = models.CharField(max_length=200)
-
-    objects = KbArticleAssociationManager()
 
     class Meta(BaseModel.Meta):
         db_table = "kb_article_associations"

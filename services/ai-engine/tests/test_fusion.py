@@ -38,9 +38,6 @@ def test_rrf_handles_disjoint_lists():
 
 
 def test_one_list_keeps_its_own_order():
-    """Retrieval fuses the ticket's vector list alone (ADR-0020): fusion
-    must hand it back unchanged, not reorder it."""
-
     fused = reciprocal_rank_fusion([[_vector(3), _vector(1), _vector(2)]])
 
     assert [c.chunk_id for c in fused] == [UUID(int=3), UUID(int=1), UUID(int=2)]

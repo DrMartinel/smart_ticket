@@ -37,10 +37,8 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(validation_alias="AI_ENGINE_DB_MAX_OVERFLOW")
 
     # --- Models ---
-    # One model choice per job. The proposal (InferNode) runs on
-    # `chat_client_provider`, the drafted answer (ADR-0021) on its own, and
-    # PII NER, which reads RAW ticket text, on its own: raw text reaches
-    # DeepSeek only when NER is pointed there explicitly (ADR-0019).
+    # One provider per job: the proposal, the drafted answer (ADR-0021) and
+    # PII NER (ADR-0019).
     chat_client_provider: Literal["vllm", "openai", "deepseek"]
     draft_client_provider: Literal["vllm", "openai", "deepseek"]
     ner_client_provider: Literal["vllm", "deepseek"]
@@ -80,7 +78,6 @@ class Settings(BaseSettings):
     quote_fuzzy_threshold: float
 
     # --- Drafted answer (HyDE, ADR-0021) ---
-    # 0 keeps a ticket's draft, and so its retrieval, the same on every run.
     draft_temperature: float = Field(ge=0)
     # Chunks per candidate page picked by nearness to the draft, beside the
     # page's best-fused chunk.
@@ -91,8 +88,6 @@ class Settings(BaseSettings):
     link_expansion_chunks_per_page: int
     link_expansion_max_links_per_seed: int
     # The one association source expansion follows (ADR-0018), or "none".
-    # Sources are compared against each other, never followed together: their
-    # scores are on different scales.
     association_source: Literal["authored_link", "entity_graph", "none"]
 
     # --- Entity-graph associations: the offline build only (ADR-0018) ---

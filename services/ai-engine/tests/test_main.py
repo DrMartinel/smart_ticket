@@ -170,10 +170,6 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
 
 
 def test_a_run_is_labelled_with_the_prompt_that_ran(client, make_state, monkeypatch):
-    """`ai_runs.prompt_version` is how a run is tied to the prompt behind its
-    proposal. It echoed the request's field, whose default stayed
-    "propose.v8" after v9 shipped, so v9 runs were stored as v8."""
-
     from ai_engine import main
     from ai_engine.core.config import settings
     from ai_engine.graph.nodes.emit_signals.signals import (

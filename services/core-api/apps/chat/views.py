@@ -19,12 +19,8 @@ from apps.chat.request_schema import ChatAskIn, ChatClarifyIn
 from apps.chat.response_schema import ChatTurnOut
 from apps.chat.utils import chat_turn, ticket_in_from_message
 from apps.tickets.models import Ticket, TicketSource
-from apps.tickets.utils.pipeline import (
-    NotAwaitingAnswer,
-    NotAwaitingRequester,
-    answer_clarification,
-    release_to_support,
-)
+from apps.tickets.utils.clarification import NotAwaitingAnswer, clarifications
+from apps.tickets.utils.pipeline import NotAwaitingRequester, release_to_support
 
 router = Router(tags=["chat"])
 
@@ -76,7 +72,7 @@ def create_ticket(request: AuthedRequest, public_id: str) -> ChatTurnOut:
 def clarify(request: AuthedRequest, public_id: str, payload: ChatClarifyIn) -> ChatTurnOut:
     ticket = _own_chat_ticket(request, public_id)
     try:
-        ticket = answer_clarification(
+        ticket = clarifications.answer(
             ticket.id, request.auth.id, payload.answer, getattr(request, "trace_id", None)
         )
     except NotAwaitingAnswer as e:

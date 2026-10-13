@@ -80,12 +80,8 @@ def test_the_environment_wins_and_empty_counts_as_unset():
 
 
 def test_productions_denylist_is_the_templates_dev_secrets(monkeypatch):
-    """production.py refuses the template's public dev secrets by value. If
-    the template's dev value changed and the denylist didn't, production
-    would accept the new public value.
-
-    Imported with stand-in secrets: CI's `.env` is a copy of the template,
-    whose dev secrets production rightly refuses to load with."""
+    """Checks that production refuses exactly the template's dev secrets,
+    imported with stand-in secrets."""
 
     real = {k: f"real-{k}" for k in _PRODUCTION_CHECKED}
     monkeypatch.setattr(base, "_ENV", {**base._ENV, **real})

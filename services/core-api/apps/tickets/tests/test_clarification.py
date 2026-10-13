@@ -1,12 +1,6 @@
 """
-A live chat ticket asks its requester the clarifying question (ADR-0023).
-
-What can go wrong quietly here: a question asked again and again of a
-requester who can't say more; an answer that skips masking or the hard
-gates because it arrived after the ticket did; an answer reusing the
-ticket's placeholder numbers; a double submit running the pipeline twice;
-an expired question still taking answers; and shadow mode or a form ticket
-starting to ask questions nobody approved.
+Checks how a live chat ticket asks its requester the clarifying question
+and takes the answer (ADR-0023).
 """
 
 from datetime import timedelta
@@ -14,19 +8,20 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
+from config.settings.base import ClarificationThresholds
+
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
 from apps.tickets.models import IncidentVerdict, PiiQuarantine, Ticket, TicketSource
 from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.pipeline import (
+from apps.tickets.utils.clarification import (
     CLARIFY_QUESTION,
+    Clarifications,
     NotAwaitingAnswer,
-    answer_clarification,
-    clarify_options,
-    release_to_support,
-    ticket_process,
+    clarifications,
 )
+from apps.tickets.utils.pipeline import release_to_support, ticket_process
 from apps.tickets.utils.router import Branch, ReasonCode, ReviewQueue
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import (
@@ -178,8 +173,6 @@ class TestAsking:
     def test_fewer_than_two_close_pages_asks_nothing_and_a_person_gets_it(
         self, employee_user, kb_pages, monkeypatch, live
     ):
-        """One page clearly ahead is not a choice to offer: the ticket goes
-        to the clarification queue, and nothing waits on the requester."""
         monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
         monkeypatch.setattr(
             Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique")
@@ -201,8 +194,6 @@ class TestAsking:
     def test_shadow_mode_asks_nothing(
         self, employee_user, kb_pages, engine_always_clarifies, settings
     ):
-        """Shadow mode sends nothing (spec §14 P1); a question is something
-        sent. The requester is offered a ticket, as before ADR-0023."""
         settings.SHADOW_MODE = True
         ticket = _chat_ticket(employee_user)
 
@@ -215,8 +206,6 @@ class TestAsking:
     def test_asking_for_a_person_instead_reaches_the_clarification_queue(
         self, employee_user, kb_pages, engine_always_clarifies, live
     ):
-        """The decision stays held while the question is open, so "talk to
-        a person" carries it out exactly as before ADR-0023."""
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
 
@@ -237,7 +226,7 @@ class TestAnswering:
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
 
-        answer_clarification(ticket.id, employee_user.id, "The AWS VPN one", None)
+        clarifications.answer(ticket.id, employee_user.id, "The AWS VPN one", None)
 
         ticket.refresh_from_db()
         assert ticket.status == "new"
@@ -258,11 +247,9 @@ class TestAnswering:
     def test_still_ambiguous_after_the_answer_goes_to_a_person(
         self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
     ):
-        """One question, then a human: the second run's clarify proposal is
-        refused by the round cap, and no second question is asked."""
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
-        answer_clarification(ticket.id, employee_user.id, "not sure", None)
+        clarifications.answer(ticket.id, employee_user.id, "not sure", None)
 
         ticket_process(str(ticket.id))
 
@@ -280,7 +267,7 @@ class TestAnswering:
         ticket = _chat_ticket(employee_user, pii_map={"[EMAIL_1]": "ref-of-the-ticket"})
         ticket_process(str(ticket.id))
 
-        answer_clarification(ticket.id, employee_user.id, "VPN, mail b.tran@company.com", None)
+        clarifications.answer(ticket.id, employee_user.id, "VPN, mail b.tran@company.com", None)
 
         ticket.refresh_from_db()
         asked = ticket.clarifications.get()
@@ -292,13 +279,10 @@ class TestAnswering:
     def test_answer_with_a_password_blocks_the_ticket(
         self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
     ):
-        """The answer is untrusted input like the ticket: critical PII in it
-        makes the ticket critical, and the re-run's hard gate blocks it,
-        with no waiting on the requester."""
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
 
-        answer_clarification(ticket.id, employee_user.id, "VPN. password: hunter2", None)
+        clarifications.answer(ticket.id, employee_user.id, "VPN. password: hunter2", None)
         ticket.refresh_from_db()
         assert ticket.pii_level == PIILevel.CRITICAL.value
 
@@ -312,12 +296,10 @@ class TestAnswering:
     def test_answer_ner_cannot_mask_sends_the_ticket_to_a_person(
         self, employee_user, kb_pages, engine_always_clarifies, enqueued, live
     ):
-        """The autouse offline ai-engine fails NER: MASK_FAILED, never "the
-        answer had no PII"."""
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
 
-        answer_clarification(ticket.id, employee_user.id, "the VPN client", None)
+        clarifications.answer(ticket.id, employee_user.id, "the VPN client", None)
 
         ticket.refresh_from_db()
         assert ticket.pii_level == PIILevel.MASK_FAILED.value
@@ -334,7 +316,7 @@ class TestAnswering:
         ticket.save(update_fields=["pii_level"])
         ticket_process(str(ticket.id))
 
-        answer_clarification(ticket.id, employee_user.id, "the VPN client", None)
+        clarifications.answer(ticket.id, employee_user.id, "the VPN client", None)
 
         ticket.refresh_from_db()
         assert ticket.pii_level == PIILevel.SENSITIVE.value
@@ -344,10 +326,10 @@ class TestAnswering:
     ):
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
-        answer_clarification(ticket.id, employee_user.id, "VPN", None)
+        clarifications.answer(ticket.id, employee_user.id, "VPN", None)
 
         with pytest.raises(NotAwaitingAnswer):
-            answer_clarification(ticket.id, employee_user.id, "WorkSpaces", None)
+            clarifications.answer(ticket.id, employee_user.id, "WorkSpaces", None)
         assert enqueued == [str(ticket.id)]
 
     def test_an_expired_question_takes_no_answer(
@@ -360,9 +342,6 @@ class TestAnswering:
         live,
         settings,
     ):
-        """After `clarification.wait_minutes` the chat offers a ticket
-        instead (the user's choice for ADR-0023): nothing goes to support
-        on its own, and a late answer is refused rather than re-running."""
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
         wait = settings.THRESHOLDS.clarification.wait_minutes
@@ -370,7 +349,7 @@ class TestAnswering:
 
         assert ticket.open_clarification() is None
         with pytest.raises(NotAwaitingAnswer):
-            answer_clarification(ticket.id, employee_user.id, "VPN", None)
+            clarifications.answer(ticket.id, employee_user.id, "VPN", None)
         assert enqueued == []
         ticket.refresh_from_db()
         assert ticket.status == "awaiting_requester"
@@ -380,18 +359,22 @@ class TestAnswering:
         ticket = _chat_ticket(employee_user)
 
         with pytest.raises(NotAwaitingAnswer):
-            answer_clarification(ticket.id, employee_user.id, "VPN", None)
+            clarifications.answer(ticket.id, employee_user.id, "VPN", None)
         assert enqueued == []
 
 
+def _th(margin: float, max_options: int) -> ClarificationThresholds:
+    return ClarificationThresholds(
+        max_rounds=1, wait_minutes=60, option_margin=margin, max_options=max_options
+    )
+
+
 class TestClarifyOptions:
-    """`clarify_options` is pure: Jev's ranking in, buttons out."""
+    """Checks which pages `Clarifications.options` offers from Jev's ranking."""
 
     TITLES = {"a": "Page A", "b": "Page B", "c": "Page C", "d": "Page D", "e": "Page E"}
 
     def test_pages_within_the_margin_of_jevs_best_in_jevs_order(self):
-        """A live password run: 0.97, 0.96, 0.87 are offered; 0.79 and 0.76
-        are not."""
         chunks = [
             {"kb_slug": "a", "rerank_score": 0.97},
             {"kb_slug": "b", "rerank_score": 0.96},
@@ -399,37 +382,43 @@ class TestClarifyOptions:
             {"kb_slug": "d", "rerank_score": 0.79},
             {"kb_slug": "e", "rerank_score": 0.76},
         ]
-        assert [o["slug"] for o in clarify_options(chunks, self.TITLES, 0.1, 5)] == ["a", "b", "c"]
+        assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
+            "a",
+            "b",
+            "c",
+        ]
 
     @pytest.mark.parametrize("best, at_margin", [(0.97, 0.87), (0.8, 0.7), (0.3, 0.2)])
     def test_a_page_exactly_at_the_margin_is_offered(self, best, at_margin):
-        """Floating point makes 0.97 - 0.87 slightly under 0.1 and 0.8 - 0.7
-        slightly over; both must count the same."""
         chunks = [
             {"kb_slug": "a", "rerank_score": best},
             {"kb_slug": "b", "rerank_score": at_margin},
         ]
-        assert [o["slug"] for o in clarify_options(chunks, self.TITLES, 0.1, 5)] == ["a", "b"]
+        assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
+            "a",
+            "b",
+        ]
 
     def test_capped_at_max_options(self):
         chunks = [{"kb_slug": s, "rerank_score": 0.9} for s in "abcde"]
-        assert len(clarify_options(chunks, self.TITLES, 0.1, 4)) == 4
+        assert len(Clarifications.options(chunks, self.TITLES, _th(0.1, 4))) == 4
 
     def test_one_button_per_page(self):
-        """With more than one chunk per page in Jev's top 5, the page is
-        offered once."""
         chunks = [
             {"kb_slug": "a", "rerank_score": 0.9},
             {"kb_slug": "a", "rerank_score": 0.88},
             {"kb_slug": "b", "rerank_score": 0.85},
         ]
-        assert [o["slug"] for o in clarify_options(chunks, self.TITLES, 0.1, 5)] == ["a", "b"]
+        assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
+            "a",
+            "b",
+        ]
 
     def test_an_inactive_page_is_never_offered(self):
-        """`titles` holds active pages only; a page deactivated since the
-        run has none, and can't become a button with no title."""
         chunks = [{"kb_slug": "a", "rerank_score": 0.9}, {"kb_slug": "gone", "rerank_score": 0.9}]
-        assert [o["slug"] for o in clarify_options(chunks, self.TITLES, 0.1, 5)] == ["a"]
+        assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
+            "a"
+        ]
 
     def test_no_chunks_no_options(self):
-        assert clarify_options([], self.TITLES, 0.1, 5) == []
+        assert Clarifications.options([], self.TITLES, _th(0.1, 5)) == []

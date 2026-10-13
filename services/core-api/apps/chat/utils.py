@@ -30,37 +30,28 @@ def ticket_in_from_message(message: str) -> TicketIn:
 
 
 def chat_turn(ticket: Ticket) -> ChatTurnOut:
-    asked = ticket.clarifications.order_by("-asked_at").first()
+    asked = ticket.latest_clarification()
     return ChatTurnOut(
         public_id=ticket.public_id,
-        # What the requester typed: an answer is appended to the body for
-        # the next run and for reviewers, and is shown as its own reply.
+        # What the requester typed, before any answer was appended.
         question_masked=asked.ticket_body_masked if asked else ticket.body_masked,
-        state=_state(ticket),
+        state=_state(ticket, asked),
         answer=_answer(ticket) if ticket.status == "auto_replied" else None,
-        clarification=_clarification(asked) if asked else None,
+        clarification=ChatClarificationOut.from_row(asked) if asked else None,
         created_at=ticket.created_at,
     )
 
 
-def _state(ticket: Ticket) -> ChatState:
+def _state(ticket: Ticket, asked: TicketClarification | None) -> ChatState:
     if ticket.status == "new":
         return ChatState.THINKING
     if ticket.status == "auto_replied":
         return ChatState.ANSWERED
     if ticket.status == "awaiting_requester":
-        if ticket.open_clarification() is not None:
+        if asked is not None and ticket.awaits_answer_to(asked):
             return ChatState.CLARIFY
         return ChatState.SUGGEST_TICKET
     return ChatState.WITH_SUPPORT
-
-
-def _clarification(asked: TicketClarification) -> ChatClarificationOut:
-    return ChatClarificationOut(
-        question=asked.question,
-        options=[o["title"] for o in asked.options],
-        answer_masked=asked.answer_masked,
-    )
 
 
 def _answer(ticket: Ticket) -> ChatAnswerOut | None:

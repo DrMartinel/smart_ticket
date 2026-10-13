@@ -7,11 +7,15 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections import defaultdict
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
 import numpy as np
+
+from ai_engine.core.config import settings
+from ai_engine.core.providers.embeddings import embedder
 
 _HEADING = re.compile(r"^#{1,2} +(.+?)\s*$", re.MULTILINE)
 _NOT_WORD = re.compile(r"[^0-9a-z]+")
@@ -47,7 +51,6 @@ class PageIndex:
         pages: Sequence[Page],
         *,
         aliases: dict[str, str],
-        embed: Callable[[list[str]], list[list[float]]],
         min_similarity: float,
     ) -> None:
         self._titles: dict[str, list[str]] = defaultdict(list)
@@ -59,7 +62,6 @@ class PageIndex:
                 if p.slug not in self._headings[key]:
                     self._headings[key].append(p.slug)
         self._aliases = {self.normalize(a): self.normalize(t) for a, t in aliases.items()}
-        self._embed = embed
         self._min_similarity = min_similarity
         self._title_vectors: np.ndarray | None = None
         self._pages = pages
@@ -112,6 +114,11 @@ class PageIndex:
             name: (self._pages[int(j)].slug, float(similarities[i, j]))
             for i, (name, j) in enumerate(zip(names, best, strict=True))
         }
+
+    @staticmethod
+    def _embed(texts: list[str]) -> list[list[float]]:
+        with ThreadPoolExecutor(max_workers=settings.entity_graph_llm_max_async) as pool:
+            return list(pool.map(embedder.embed, texts))
 
     @staticmethod
     def normalize(name: str) -> str:

@@ -166,9 +166,6 @@ def deepseek_ner(monkeypatch):
     ids=["call fails", "empty", "not json", "bare list", "no spans", "not a string"],
 )
 def test_deepseek_failures_raise_rather_than_reading_as_no_pii(deepseek_ner, model):
-    """DeepSeek decodes against no schema, and its JSON mode 'may
-    occasionally return empty content' (its docs). None of these may come
-    back as [], which core-api would file as a clean ticket."""
     with pytest.raises(PiiDetectionError):
         deepseek_ner(model).detect(_RAW)
 
@@ -190,7 +187,6 @@ def test_deepseek_errors_and_tracebacks_never_carry_the_text_or_reply(deepseek_n
 
 
 def test_deepseek_ner_reads_spans_greedily(monkeypatch):
-    """Sampled, the same ticket masks differently call to call (g148)."""
     from ai_engine.core.providers import pii
 
     built = {}
@@ -213,8 +209,6 @@ def test_deepseek_ner_reads_spans_greedily(monkeypatch):
     ],
 )
 def test_only_ner_set_to_deepseek_sends_raw_text_off_the_machine(provider, expected, monkeypatch):
-    """NER reads the raw ticket, so only its own setting may move it to
-    DeepSeek (ADR-0019, evaluation only)."""
     import importlib
 
     from ai_engine.core.providers import pii
@@ -287,10 +281,6 @@ def test_ner_decodes_greedily(serve_ner):
 
 @pytest.mark.parametrize("other", ["chat_client_provider", "draft_client_provider"])
 def test_the_proposal_or_draft_on_deepseek_keeps_ner_local(other, monkeypatch):
-    """Before NER had its own setting, CHAT_CLIENT_PROVIDER=deepseek moved
-    the raw ticket to DeepSeek too, as a side effect of choosing the
-    proposal's model. Raw text must stay local unless NER itself is pointed
-    at DeepSeek."""
     import importlib
 
     from ai_engine.core.providers import pii

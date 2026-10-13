@@ -105,9 +105,6 @@ def test_association_source_accepts_one_source_or_none(env_template, no_env_vars
 def test_association_source_refuses_anything_else_at_boot(
     env_template, no_env_vars, tmp_path, value
 ):
-    """Sources are compared, never followed together (ADR-0018): a list, or
-    a misspelling, must stop the boot rather than expand from nothing."""
-
     values = {k: v or "" for k, v in env_template.items()}
 
     with pytest.raises(ValidationError, match="association_source"):

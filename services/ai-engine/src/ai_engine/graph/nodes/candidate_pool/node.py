@@ -1,13 +1,9 @@
 """
 Candidate pool — the cross-encoder pass, and link expansion (ADR-0014
-decisions 1-2, ADR-0015, ADR-0018, ADR-0021). Each candidate page brings its
-best-fused chunk and its `draft_chunks_per_page` chunks nearest the drafted
-answer, where the answer most likely sits; the cross-encoder scores them
-against the TICKET; the articles of its top `link_expansion_seeds` chunks
-are the seeds; the articles associated with them (in the one source
-`ASSOCIATION_SOURCE` names) add their chunks nearest the draft; the
-cross-encoder scores those too, against the ticket. The pool leaves in cross-encoder order, for RerankNode to cut to
-Jev's shortlist and re-score.
+decisions 1-2, ADR-0015, ADR-0018, ADR-0021). Each candidate page adds its
+chunks nearest the drafted answer, the cross-encoder scores them against the
+ticket, and the pages associated with its top chunks add theirs. The pool
+leaves in cross-encoder order, for RerankNode to cut to Jev's shortlist.
 
 Every score here is the cross-encoder's. Seeds come from its order, never
 from RRF's (ADR-0005).
@@ -55,8 +51,7 @@ class CandidatePoolNode(BaseNode):
         if not state.draft_embedding:
             raise ValueError("the candidate pool needs the drafted answer (DraftAnswerNode)")
 
-        # The draft picks which chunks are scored; the ticket scores them.
-        # Scoring against the draft lost 4 points of recall@3 (2026-10-11).
+        # The draft picks which chunks are scored; the ticket scores them (ADR-0021).
         query = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
         seen = {c.chunk_id for c in candidates}
         picked = list(candidates)

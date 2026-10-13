@@ -493,11 +493,8 @@ def run_mask_reply(text: str, taken: list[str], ner_max_share: float = NER_MAX_S
 
 
 class TestMaskReply:
-    """A requester's answer to a clarifying question (ADR-0023) is appended
-    to an already-masked ticket, so it must be masked the same way and must
-    not reuse the ticket's placeholder numbers: `[EMAIL_1]` in the answer
-    read as the ticket's `[EMAIL_1]` would point a reviewer's quarantine
-    lookup at the wrong person's value."""
+    """Checks `mask_reply`: a requester's answer is masked as a ticket is,
+    numbering placeholders past the ticket's own (ADR-0023)."""
 
     @pytest.fixture
     def ner_finds(self, monkeypatch):

@@ -44,12 +44,6 @@ def test_embedder_failure_propagates_rather_than_returning_empty_candidates(
 def test_bm25_searches_the_draft_never_the_ticket(
     fake_db, fake_embedder, kb_row, make_state, make_ticket, make_node
 ):
-    """Keyword matching on the ticket's symptom wording added more wrong
-    pages than right ones (ADR-0020); on the drafted answer, written in the
-    KB's vocabulary, it finds the page (ADR-0021). A BM25 query on the ticket
-    creeping back would change every ticket's candidates with nothing
-    failing until the next full run."""
-
     bm25_texts = []
 
     def rows(sql, params):
@@ -68,10 +62,6 @@ def test_bm25_searches_the_draft_never_the_ticket(
 def test_vector_search_runs_on_the_ticket_and_on_the_draft(
     fake_db, fake_embedder, kb_row, make_state, make_ticket, make_node
 ):
-    """Both vectors are searched: the ticket's keeps what the draft gets
-    wrong within reach (a draft about the best-known feature, not the one the
-    ticket names), the draft's finds the page in its own vocabulary."""
-
     embeddings = []
 
     def rows(sql, params):
@@ -91,9 +81,6 @@ def test_vector_search_runs_on_the_ticket_and_on_the_draft(
 def test_retrieval_without_a_draft_raises_rather_than_retrieving_on_the_ticket(
     fake_db, fake_embedder, kb_row, make_state, make_node, missing
 ):
-    """A wiring bug, not a ticket: falling back to the ticket alone would
-    quietly run the weaker pipeline, with every ticket still answered."""
-
     node = make_node(fake_db(rows=[kb_row(1, "a", 0.8)]), fake_embedder())
 
     with pytest.raises(ValueError, match="drafted answer"):
@@ -123,10 +110,6 @@ def test_no_db_connection_is_held_while_embedding(
 def test_candidates_are_one_chunk_per_page_in_fused_order(
     fake_db, fake_embedder, make_state, make_node
 ):
-    """Three chunks of page A ahead of page B must leave A once, with its
-    best-fused chunk, then B. Without the dedupe A fills the slots: the
-    10 candidates held 7 distinct pages at the median (2026-10-11)."""
-
     a, b = UUID(int=100), UUID(int=200)
     vector_rows = [
         (UUID(int=1), a, "kb-a", "a1", 0.9),
@@ -146,9 +129,6 @@ def test_candidates_are_one_chunk_per_page_in_fused_order(
 def test_the_candidate_limit_counts_pages_not_chunks(
     fake_db, fake_embedder, make_state, monkeypatch, make_node
 ):
-    """With a limit of 2, pages A, A, B, C give A and B: a limit counted in
-    chunks would give A twice and lose B."""
-
     monkeypatch.setattr(settings, "fusion_candidate_limit", 2)
     a, b, c = UUID(int=100), UUID(int=200), UUID(int=300)
     vector_rows = [
@@ -207,9 +187,6 @@ def test_no_hits_at_all_yields_no_candidates_and_no_degraded_reason(
 def test_query_embedding_stays_the_tickets_for_few_shots(
     fake_db, fake_embedder, kb_row, make_state, make_node
 ):
-    """Few-shot selection matches past tickets to THIS ticket. Handing it the
-    draft's embedding would match tickets to a model's guess at an answer."""
-
     out = make_node(fake_db(rows=[kb_row(1, "a", 0.8)]), fake_embedder(vector=[0.9]))(
         make_state(draft_embedding=[0.1])
     )

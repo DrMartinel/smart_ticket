@@ -8,7 +8,12 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
+from typing import TYPE_CHECKING
+
 from ninja import Schema
+
+if TYPE_CHECKING:
+    from apps.tickets.models import TicketClarification
 
 
 class ChatState(StrEnum):
@@ -37,13 +42,20 @@ class ChatAnswerOut(Schema):
 
 
 class ChatClarificationOut(Schema):
-    # The LLM's question, checked by the router before it was asked.
     question: str
-    # The KB pages' titles, which is what the requester taps; slugs are
-    # never shown.
+    # The offered KB pages' titles; slugs are never shown.
     options: list[str]
     # Masked, as stored. None until answered.
     answer_masked: str | None = None
+
+    @classmethod
+    def from_row(cls, asked: TicketClarification) -> ChatClarificationOut:
+        """Builds the requester's view of one asked question."""
+        return cls(
+            question=asked.question,
+            options=[o["title"] for o in asked.options],
+            answer_masked=asked.answer_masked,
+        )
 
 
 class ChatTurnOut(Schema):

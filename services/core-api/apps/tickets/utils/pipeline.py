@@ -18,10 +18,8 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
 
 import httpx
-from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import IntegrityError, transaction
 from django.utils import timezone
@@ -48,21 +46,18 @@ from apps.tickets.utils.router import (
     Router,
     RoutingDecision as Decision,
 )
-from apps.tickets.utils.masking import mask_reply
 from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.crypto import build_quarantine_entries
 
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
 from apps.tickets.models import (
     AiRun,
-    PiiQuarantine,
     RoutingDecision,
     Ticket,
-    TicketClarification,
     TicketSource,
 )
+from apps.tickets.utils.clarification import clarifications
 from apps.tickets.utils.trust_scorer import score as compute_trust
 
 logger = logging.getLogger(__name__)
@@ -236,11 +231,9 @@ def _finalize(
             if (
                 decision.branch is Branch.CLARIFY
                 and not shadow
-                and not _ask_requester(ticket, ai_run, trace_id)
+                and not clarifications.ask(ticket, ai_run, trace_id)
             ):
-                # No two pages to offer, so nothing is asked: the clarify
-                # decision is carried out as for a form ticket, a person in
-                # the clarification queue.
+                # Fewer than two pages to offer: carried out as for a form ticket.
                 _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
             else:
                 _hold_for_requester(ticket, decision, trace_id)
@@ -299,163 +292,6 @@ def _hold_for_requester(ticket: Ticket, decision: Decision, trace_id: str) -> No
         payload={"ticket_public_id": ticket.public_id, "branch": decision.branch.value},
         trace_id=trace_id,
     )
-
-
-# The question a clarifying chat ticket asks. Fixed, not the LLM's: the
-# buttons are built here (`clarify_options`), and a model-written question
-# named readings the buttons didn't offer (ADR-0023, amended 2026-10-13).
-# The model's question stays in `ai_runs.proposed_draft` for comparison.
-CLARIFY_QUESTION = "Which of these is closest to what you need?"
-
-
-def clarify_options(
-    retrieved_chunks: list[dict[str, Any]],
-    titles: dict[str, str],
-    margin: float,
-    max_options: int,
-) -> list[dict[str, str]]:
-    """The pages a clarifying question offers: each distinct page of Jev's
-    top 5, in Jev's order, scoring within `margin` of Jev's best, at most
-    `max_options`, and only pages with a title (active in the KB). Pure.
-
-    Built from Jev's scores, not chosen by the LLM: the model offered
-    different pages from the same top 5 run to run (2026-10-12, 5 option
-    sets in 5 runs of one ticket). A threshold on Jev's scale (ADR-0005).
-    """
-    if not retrieved_chunks:
-        return []
-    best = max(float(c["rerank_score"]) for c in retrieved_chunks)
-    options: list[dict[str, str]] = []
-    for c in retrieved_chunks:
-        slug = c["kb_slug"]
-        # Rounded: 0.97 - 0.87 is 0.0999... and 0.8 - 0.7 is 0.1000...1 in
-        # floating point, and a page exactly at the margin must not depend
-        # on which. Jev's scores carry two decimals.
-        if round(best - float(c["rerank_score"]), 9) > margin or slug not in titles:
-            continue
-        if all(o["slug"] != slug for o in options):
-            options.append({"slug": slug, "title": titles[slug]})
-        if len(options) == max_options:
-            break
-    return options
-
-
-def _ask_requester(ticket: Ticket, ai_run: AiRun, trace_id: str) -> bool:
-    """A live chat ticket's `clarify` decision: the requester is asked which
-    of the offered pages they mean (ADR-0023). The decision stays held, so
-    the requester can still ask for a person and `release_to_support`
-    carries it out as before. Shadow mode asks nothing: it sends nothing
-    (spec §14 P1).
-
-    False when fewer than 2 pages are close enough: a question with one
-    answer is not a question, and the caller hands the ticket to a person.
-    """
-    th = settings.THRESHOLDS.clarification
-    chunks = ai_run.retrieved_chunks or []
-    titles = dict(
-        KbArticle.objects.filter(
-            slug__in={c["kb_slug"] for c in chunks}, is_active=True
-        ).values_list("slug", "title")
-    )
-    options = clarify_options(chunks, titles, th.option_margin, th.max_options)
-    if len(options) < 2:
-        return False
-    TicketClarification.objects.create(
-        ticket=ticket,
-        ai_run=ai_run,
-        question=CLARIFY_QUESTION,
-        options=options,
-        ticket_body_masked=ticket.body_masked,
-    )
-    AuditLog.objects.record(
-        "clarification_asked",
-        actor_type="system",
-        ticket_id=ticket.id,
-        payload={"ticket_public_id": ticket.public_id, "options": len(options)},
-        trace_id=trace_id,
-    )
-    return True
-
-
-# Marks the requester's answer in the ticket body. propose.v9 names it: a
-# change here must change the prompt with it.
-CLARIFIED_LABEL = "Requester clarified:"
-
-
-class NotAwaitingAnswer(Exception):
-    """The ticket asked no question that is still open: never asked, already
-    answered, past `clarification.wait_minutes`, or handed to support."""
-
-
-# Worst first: an answer can only make the ticket's PII level worse. The
-# order follows the router's gates, critical before mask-failed.
-_PII_SEVERITY = [PIILevel.CRITICAL, PIILevel.MASK_FAILED, PIILevel.SENSITIVE, PIILevel.ROUTINE]
-
-
-def _worse(a: PIILevel, b: PIILevel) -> PIILevel:
-    return min(a, b, key=_PII_SEVERITY.index)
-
-
-def answer_clarification(
-    ticket_id: uuid.UUID, requester_id: uuid.UUID, answer: str, trace_id: str | None
-) -> Ticket:
-    """The requester answered the open question (ADR-0023). The answer is
-    masked like a ticket, its PII quarantined, and the masked answer
-    appended to the ticket's body; the held decision is
-    dropped and the pipeline runs again on the whole of it, every gate
-    included: an answer carrying a password, an injection or PII the masker
-    can't handle is caught there exactly as in a ticket.
-
-    Masking calls the NER model, so it runs before the row is locked; the
-    lock then re-checks, so a double submit masks twice but answers once
-    (the second raises `NotAwaitingAnswer`).
-    """
-    ticket = Ticket.objects.get(id=ticket_id)
-    if ticket.open_clarification() is None:
-        raise NotAwaitingAnswer(ticket.public_id)
-    masked = async_to_sync(mask_reply)(
-        answer, settings.THRESHOLDS.masking.ner_max_share, list(ticket.pii_map)
-    )
-    quarantine = build_quarantine_entries(masked.placeholder_map)
-
-    with transaction.atomic():
-        ticket = Ticket.objects.select_for_update().get(id=ticket_id)
-        clarification = ticket.open_clarification()
-        if clarification is None:
-            raise NotAwaitingAnswer(ticket.public_id)
-
-        clarification.answer_masked = masked.text_masked
-        clarification.answered_at = timezone.now()
-        clarification.save(update_fields=["answer_masked", "answered_at"])
-        PiiQuarantine.objects.store(ticket, quarantine)
-        ticket.pii_map = {**ticket.pii_map, **{ph: str(e.ref) for ph, e in quarantine.items()}}
-        ticket.pii_level = _worse(PIILevel(ticket.pii_level), masked.pii_level).value
-        # The answer only, not the question: the question names every
-        # reading it chose between, and on the next run it pulled drafting
-        # and retrieval back toward all of them (TKT-2026-000020, Jev's top
-        # 0.97 then 0.74). The fixed label is what `propose.v9` reads as a
-        # reading already chosen.
-        ticket.body_masked = f"{ticket.body_masked}\n\n{CLARIFIED_LABEL} {masked.text_masked}"
-        ticket.status = "new"
-        ticket.held_decision = None
-        ticket.save(
-            update_fields=["pii_map", "pii_level", "body_masked", "status", "held_decision"]
-        )
-        AuditLog.objects.record(
-            "clarification_answered",
-            actor_type="human",
-            actor_id=requester_id,
-            ticket_id=ticket.id,
-            payload={"ticket_public_id": ticket.public_id, "pii_level": ticket.pii_level},
-            trace_id=trace_id,
-        )
-
-    # After commit, as in `Ticket.objects.submit`: a worker must find the
-    # answer when it looks the ticket up.
-    from apps.tickets import tasks
-
-    tasks.process_ticket.delay(str(ticket.id))
-    return ticket
 
 
 class NotAwaitingRequester(Exception):
@@ -648,8 +484,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
         return _finalize(ticket, ai_run, decision, trace_id)
 
     # ── Call ai-engine ──
-    # Questions asked so far, answered or not: the router asks no more past
-    # `clarification.max_rounds` (ADR-0023).
+    # Questions asked so far, answered or not (ADR-0023).
     clarifications_asked = ticket.clarifications.count()
     masked = TicketMasked(
         ticket_public_id=ticket.public_id,

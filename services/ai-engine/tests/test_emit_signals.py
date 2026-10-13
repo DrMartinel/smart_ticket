@@ -181,9 +181,6 @@ def test_signals_read_nothing_outside_the_state(fake_db, make_state, use_db):
 
 
 def test_pool_size_is_the_cross_encoders_batch(fake_db, make_state, use_db):
-    """`pool_size` reports how many chunks the cross-encoder scored, fused
-    candidates plus expansion (ADR-0018), so an eval can weigh expansion's
-    cost. It is the pool, not the reranked shortlist Jev saw."""
     use_db(fake_db())
     pool = [_chunk(i, 0.5) for i in range(1, 8)]
 

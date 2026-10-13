@@ -14,13 +14,11 @@ import sys
 import time
 import uuid
 from collections import Counter, defaultdict
-from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from langchain_core.language_models import BaseChatModel
 from sqlalchemy import delete, insert, select
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -32,7 +30,8 @@ from ai_engine.core.config import settings
 from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import KbArticle, KbArticleAssociation
 
-type Embed = Callable[[list[str]], list[list[float]]]
+# The association source this build writes.
+SOURCE = "entity_graph"
 
 
 @dataclass(frozen=True)
@@ -129,99 +128,38 @@ class KbSnapshot:
                 copies[a.slug] = original
         return copies
 
+    def replace_entity_graph(self, rows: list[AssociationRow]) -> tuple[int, int]:
+        """Replaces the `entity_graph` rows with `rows`."""
 
-class PageExtractor:
-    """Gets every page's pairs from the model, a copy given its original's."""
-
-    CACHE_FILE = "entity_graph_replies.jsonl"
-    TOKENIZER = "o200k_base"
-
-    def __init__(
-        self,
-        *,
-        policy: EntityGraphPolicy,
-        chat_model: BaseChatModel,
-        retry_model: BaseChatModel | None,
-        working_dir: Path,
-    ) -> None:
-        self._policy = policy
-        self._chat_model = chat_model
-        self._retry_model = retry_model
-        self._working_dir = working_dir
-
-    def extract(self, snapshot: KbSnapshot) -> tuple[list[PagePair], int]:
-        """Gets every page's pairs."""
-
-        import tiktoken
-
-        self._working_dir.mkdir(parents=True, exist_ok=True)
-        encoding = tiktoken.get_encoding(self.TOKENIZER)
-        splitter = SectionSplitter(
-            max_tokens=settings.entity_graph_section_tokens,
-            count=lambda text: len(encoding.encode(text, disallowed_special=())),
-            strip_links=self._policy.strip_links,
+        article_id = {a.slug: a.id for a in self.articles}
+        values = [
+            {
+                "id": uuid.uuid4(),
+                "reviewed": False,
+                "source_article_id": article_id[r.source_slug],
+                "target_article_id": article_id[r.target_slug],
+                "source": SOURCE,
+                "score": r.score,
+                "evidence": list(r.evidence),
+                "build_id": r.build_id,
+            }
+            for r in rows
+            if r.source_slug in article_id and r.target_slug in article_id
+        ]
+        db.write(
+            [
+                (delete(KbArticleAssociation).where(KbArticleAssociation.source == SOURCE), None),
+                (insert(KbArticleAssociation), values),
+            ]
         )
-        model = f"deepseek:{settings.cloud_model}"
-        copies = snapshot.twins()
-        keys_by_slug: dict[str, list[str]] = {}
-        texts: dict[str, str] = {}
-        for a in snapshot.articles:
-            if a.slug in copies:
-                continue
-            keys = []
-            for text in splitter.split(a.body):
-                key = ReplyCache.key(
-                    self._policy.version, model, settings.entity_graph_section_tokens, text
-                )
-                texts[key] = text
-                keys.append(key)
-            keys_by_slug[a.slug] = keys
-
-        extractor = PairExtractor(
-            policy=self._policy,
-            chat_model=self._chat_model,
-            cache=ReplyCache(self._working_dir / self.CACHE_FILE),
-            max_async=settings.entity_graph_llm_max_async,
-            retry_model=self._retry_model,
-        )
-        result = asyncio.run(extractor.extract(texts))
-        if result.failed:
-            pages = sorted(
-                s for s, keys in keys_by_slug.items() if any(k in result.failed for k in keys)
-            )
-            reasons = Counter(why.split(":")[0] for why in result.failed.values())
-            raise BuildFailed(
-                f"{len(result.failed)} of {len(texts)} sections failed ({dict(reasons)}), on "
-                f"{len(pages)} pages: {', '.join(pages[:20])}{' ...' if len(pages) > 20 else ''}. "
-                "Nothing was exported; re-run to retry them."
-            )
-
-        pairs: set[PagePair] = set()
-        for a in snapshot.articles:
-            source = copies.get(a.slug, a)
-            for key in keys_by_slug[source.slug]:
-                for p in result.pairs[key]:
-                    pairs.add(PagePair(a.slug, p.symptom, p.remedy, p.page))
-        return sorted(pairs, key=PagePair.order), result.calls
+        return len(values), len(rows) - len(values)
 
 
 class EdgeScorer:
     """Resolves the pages the pairs name and scores the edges between pages."""
 
-    def __init__(self, *, policy: EntityGraphPolicy, embed: Embed) -> None:
+    def __init__(self, *, policy: EntityGraphPolicy) -> None:
         self._policy = policy
-        self._embed = embed
-
-    @staticmethod
-    def provider_embed(texts: list[str]) -> list[list[float]]:
-        """Embeds `texts` with the configured embedder."""
-
-        from concurrent.futures import ThreadPoolExecutor
-
-        from ai_engine.core.providers.embeddings import embedder
-
-        with ThreadPoolExecutor(max_workers=settings.entity_graph_llm_max_async) as pool:
-            return list(pool.map(embedder.embed, texts))
 
     def score(
         self, pairs: list[PagePair], snapshot: KbSnapshot
@@ -239,7 +177,6 @@ class EdgeScorer:
         index = PageIndex(
             snapshot.articles,
             aliases=self._policy.aliases,
-            embed=self._embed,
             min_similarity=settings.entity_graph_resolve_min_similarity,
         )
         return index.resolve_all([(p.page, p.article_slug) for p in pairs if p.page is not None])
@@ -318,41 +255,6 @@ class EdgeScorer:
         )
 
 
-class EntityGraphStore:
-    """Writes the entity graph's rows to `kb_article_associations`."""
-
-    SOURCE = "entity_graph"
-
-    def replace(self, rows: list[AssociationRow], snapshot: KbSnapshot) -> tuple[int, int]:
-        """Replaces the `entity_graph` rows with `rows`."""
-
-        article_id = {a.slug: a.id for a in snapshot.articles}
-        values = [
-            {
-                "id": uuid.uuid4(),
-                "reviewed": False,
-                "source_article_id": article_id[r.source_slug],
-                "target_article_id": article_id[r.target_slug],
-                "source": self.SOURCE,
-                "score": r.score,
-                "evidence": list(r.evidence),
-                "build_id": r.build_id,
-            }
-            for r in rows
-            if r.source_slug in article_id and r.target_slug in article_id
-        ]
-        db.write(
-            [
-                (
-                    delete(KbArticleAssociation).where(KbArticleAssociation.source == self.SOURCE),
-                    None,
-                ),
-                (insert(KbArticleAssociation), values),
-            ]
-        )
-        return len(values), len(rows) - len(values)
-
-
 class BuildFiles:
     """The build's output files in one directory."""
 
@@ -362,7 +264,6 @@ class BuildFiles:
 
     def __init__(self, out: Path) -> None:
         self.out = out
-        out.mkdir(parents=True, exist_ok=True)
 
     def read_pairs(self) -> list[PagePair]:
         """Reads `entity_graph_pairs.jsonl`."""
@@ -376,6 +277,7 @@ class BuildFiles:
     def write(self, name: str, rows: list[Any]) -> None:
         """Writes `rows` to the file `name`, one JSON object per line."""
 
+        self.out.mkdir(parents=True, exist_ok=True)
         path = self.out / name
         tmp = path.with_suffix(path.suffix + ".tmp")
         tmp.write_text(
@@ -388,18 +290,11 @@ class BuildFiles:
 class EntityGraphBuild:
     """Runs one entity-graph build from the command line's arguments."""
 
-    def __init__(
-        self,
-        args: argparse.Namespace,
-        *,
-        chat_model: BaseChatModel | None = None,
-        retry_model: BaseChatModel | None = None,
-        embed: Embed | None = None,
-    ) -> None:
+    CACHE_FILE = "entity_graph_replies.jsonl"
+    TOKENIZER = "o200k_base"
+
+    def __init__(self, args: argparse.Namespace) -> None:
         self._args = args
-        self._chat_model = chat_model
-        self._retry_model = retry_model
-        self._embed = embed or EdgeScorer.provider_embed
 
     @staticmethod
     def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -449,20 +344,20 @@ class EntityGraphBuild:
             if args.sample is not None:
                 extracted = every_page.sample(args.sample, args.include)
             try:
-                pairs, calls = self._extractor(policy).extract(extracted)
+                pairs, calls = self._extract(policy, extracted)
             except BuildFailed as e:
                 print(f"build failed: {e}", file=sys.stderr)
                 return 1
             files.write(BuildFiles.PAIRS, pairs)
 
-        scorer = EdgeScorer(policy=policy, embed=self._embed)
+        scorer = EdgeScorer(policy=policy)
         rows, resolutions = scorer.score(pairs, every_page)
         files.write(BuildFiles.RESOLUTIONS, resolutions)
         files.write(BuildFiles.GRAPH, rows)
         written = skipped = 0
         if args.sample is None:
             try:
-                written, skipped = EntityGraphStore().replace(rows, every_page)
+                written, skipped = every_page.replace_entity_graph(rows)
             except SQLAlchemyError as e:
                 print(f"build failed writing kb_article_associations: {e}", file=sys.stderr)
                 return 1
@@ -478,19 +373,65 @@ class EntityGraphBuild:
         )
         return 0
 
-    def _extractor(self, policy: EntityGraphPolicy) -> PageExtractor:
-        chat_model, retry_model = self._chat_model, self._retry_model
-        if chat_model is None:
-            from ai_engine.core.providers.clients import ChatClient
+    def _extract(
+        self, policy: EntityGraphPolicy, snapshot: KbSnapshot
+    ) -> tuple[list[PagePair], int]:
+        """Gets every page's pairs from the model, a copy given its original's."""
 
-            chat_model = ChatClient.deepseek_model(json_mode=True, temperature=0)
-            retry_model = ChatClient.deepseek_model(json_mode=True)
-        return PageExtractor(
-            policy=policy,
-            chat_model=chat_model,
-            retry_model=retry_model,
-            working_dir=Path(self._args.working_dir),
+        import tiktoken
+
+        from ai_engine.core.providers.clients import ChatClient
+
+        working_dir = Path(self._args.working_dir)
+        working_dir.mkdir(parents=True, exist_ok=True)
+        encoding = tiktoken.get_encoding(self.TOKENIZER)
+        splitter = SectionSplitter(
+            max_tokens=settings.entity_graph_section_tokens,
+            count=lambda text: len(encoding.encode(text, disallowed_special=())),
+            strip_links=policy.strip_links,
         )
+        model = f"deepseek:{settings.cloud_model}"
+        copies = snapshot.twins()
+        keys_by_slug: dict[str, list[str]] = {}
+        texts: dict[str, str] = {}
+        for a in snapshot.articles:
+            if a.slug in copies:
+                continue
+            keys = []
+            for text in splitter.split(a.body):
+                key = ReplyCache.key(
+                    policy.version, model, settings.entity_graph_section_tokens, text
+                )
+                texts[key] = text
+                keys.append(key)
+            keys_by_slug[a.slug] = keys
+
+        extractor = PairExtractor(
+            policy=policy,
+            chat_model=ChatClient.deepseek_model(json_mode=True, temperature=0),
+            cache=ReplyCache.load(working_dir / self.CACHE_FILE),
+            max_async=settings.entity_graph_llm_max_async,
+            retry_model=ChatClient.deepseek_model(json_mode=True),
+        )
+        result = asyncio.run(extractor.extract(texts))
+        if result.failed:
+            pages = sorted(
+                s for s, keys in keys_by_slug.items() if any(k in result.failed for k in keys)
+            )
+            reasons = Counter(why.split(":")[0] for why in result.failed.values())
+            raise BuildFailed(
+                f"{len(result.failed)} of {len(texts)} sections failed ({dict(reasons)}), on "
+                f"{len(pages)} pages: {', '.join(pages[:20])}{' ...' if len(pages) > 20 else ''}. "
+                "Nothing was exported; re-run to retry them."
+            )
+
+        pairs: set[PagePair] = set()
+        for a in snapshot.articles:
+            source = copies.get(a.slug, a)
+            for key in keys_by_slug[source.slug]:
+                for p in result.pairs[key]:
+                    pairs.add(PagePair(a.slug, p.symptom, p.remedy, p.page))
+        return sorted(pairs, key=PagePair.order), result.calls
 
 
 if __name__ == "__main__":

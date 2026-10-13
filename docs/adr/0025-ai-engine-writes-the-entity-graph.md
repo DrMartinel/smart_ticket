@@ -53,7 +53,7 @@ have the build write its own rows.
 - An association's `score` only orders a seed's targets (ADR-0005); no
   threshold, trust feature or router input reads it.
 - core-api still drops an edited article's `entity_graph` edges
-  (`KbArticleAssociation.objects.refresh_for`): edges from old text must not
+  (`ArticleIndexer.ingest`): edges from old text must not
   outlive it.
 
 ## Consequences

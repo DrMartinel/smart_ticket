@@ -309,10 +309,6 @@ def test_deepseek_is_selected_and_billed_at_its_rate(monkeypatch, reload_clients
 
 
 def test_deepseek_turns_thinking_off_asks_for_json_and_never_retries(monkeypatch):
-    """Measured against the live API (2026-10-08): thinking is on unless
-    disabled, and billed as output (46 tokens against 5 for one reply);
-    `json_schema` is refused with a 400, so the reply is `json_object` and
-    nothing may claim the server constrained it."""
     _chat_on(monkeypatch, "deepseek", "https://api.deepseek.com")
     llm = ChatClient.on_deepseek()
     chat = llm.chat_model
@@ -327,7 +323,6 @@ def test_deepseek_turns_thinking_off_asks_for_json_and_never_retries(monkeypatch
 
 @pytest.mark.parametrize("missing", ["cloud_api_key", "cloud_model", "cloud_base_url"])
 def test_deepseek_without_its_key_model_or_url_is_fatal(missing, monkeypatch, reload_clients):
-    """Without a base URL the OpenAI SDK would send the key to OpenAI."""
     _chat_on(monkeypatch, "deepseek", "https://api.deepseek.com")
     monkeypatch.setattr(settings, missing, None)
 
@@ -336,9 +331,6 @@ def test_deepseek_without_its_key_model_or_url_is_fatal(missing, monkeypatch, re
 
 
 def test_the_draft_and_the_proposal_each_follow_their_own_provider(monkeypatch, reload_clients):
-    """The proposal can stay on DeepSeek while the draft runs on the local
-    vLLM (ADR-0021): one setting per job, never one for both."""
-
     _chat_on(monkeypatch, "openai")
     monkeypatch.setattr(settings, "draft_client_provider", "vllm")
     m = reload_clients()
@@ -352,9 +344,6 @@ def test_the_draft_and_the_proposal_each_follow_their_own_provider(monkeypatch, 
     ("field", "value"), [("draft_client_provider", "qwen"), ("ner_client_provider", "openai")]
 )
 def test_an_unknown_draft_or_ner_provider_fails_the_boot(field, value):
-    """NER takes only vllm or deepseek: no other provider has been approved
-    to read raw ticket text."""
-
     with pytest.raises(ValidationError, match=field):
         Settings(**{field: value})
 

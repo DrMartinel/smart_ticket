@@ -226,9 +226,6 @@ def test_a_new_title_re_embeds_an_unchanged_body():
 
 @pytest.mark.django_db
 def test_a_page_that_left_the_manifest_is_deactivated_and_comes_back_when_it_returns(snapshot):
-    """Nothing else ever sets `is_active`, so without this a page AWS
-    removed would stay retrievable forever, and could be auto-replied
-    from. Coming back is the same reload in reverse."""
     load(snapshot)
     write_snapshot(snapshot, {"ec2.ssh": ("hardware", SSH)}, CURATION)
 
@@ -245,8 +242,6 @@ def test_a_page_that_left_the_manifest_is_deactivated_and_comes_back_when_it_ret
 
 @pytest.mark.django_db
 def test_a_partial_load_deactivates_nothing(snapshot):
-    """`--limit` loads the first N pages as a smoke test. Treating the rest
-    as gone would deactivate almost the whole KB."""
     load(snapshot)
 
     load(snapshot, limit=1)
@@ -259,8 +254,6 @@ def test_a_partial_load_deactivates_nothing(snapshot):
 
 @pytest.mark.django_db
 def test_an_article_created_through_the_api_is_never_deactivated_by_a_reload(snapshot):
-    """Only articles loaded from a source (with a `source_url`) belong to
-    the snapshot. One a KB owner wrote by hand was never in it."""
     KbArticle.objects.create_and_ingest(
         slug="KB-0142",
         title="Printer jams",
@@ -276,8 +269,6 @@ def test_an_article_created_through_the_api_is_never_deactivated_by_a_reload(sna
 
 @pytest.mark.django_db
 def test_a_page_skipped_for_a_hash_mismatch_is_not_reactivated(snapshot):
-    """A mismatched page wasn't loaded, so its stored text is not the
-    snapshot's; reviving it would serve text the manifest doesn't name."""
     load(snapshot)
     write_snapshot(snapshot, {"ec2.ssh": ("hardware", SSH)}, CURATION)
     load(snapshot)

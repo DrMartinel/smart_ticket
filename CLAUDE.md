@@ -219,15 +219,13 @@ queries inside a `@property` (one extra query per row in a loop). Those go in
 service classes.
 
 Code that predates these rules:
-- Model methods that break rule 5: `KbArticle.ingest` (calls ai-engine,
-  writes chunks and associations), `KbArticle.set_auto_reply_allowed` and
+- Model methods that break rule 5: `KbArticle.set_auto_reply_allowed` and
   `set_risk_tier` (write `KbAuthorityLog`), `ReviewItem.decide` (writes
   `ReviewDecision`, `EvalCandidate`).
 - Manager methods that write, which rule 1 puts in service classes:
   `Ticket.objects.submit` (writes `AuditLog`, queues a task),
   `KbArticle.objects.create_and_ingest` / `upsert_from_source`,
-  `KbArticleAssociation.objects.replace_source` / `rebuild_authored_links` /
-  `refresh_for`, `Incident.objects.get_or_create_for_mass_incident`,
+  `Incident.objects.get_or_create_for_mass_incident`,
   `AuditLog.objects.record`.
 
 - `utils/pipeline.py` and the other `utils` modules: use-case module-level

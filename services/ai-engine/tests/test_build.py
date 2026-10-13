@@ -181,9 +181,6 @@ def test_the_propose_prompt_is_the_file_settings_prompt_version_names():
 
 
 def test_the_draft_prompt_is_the_file_settings_draft_prompt_version_names():
-    """Bumping DRAFT_PROMPT_VERSION must change the prompt DraftAnswerNode
-    sends (test_draft_answer.py pins that it sends DRAFT_PROMPT)."""
-
     from ai_engine.core.config import settings
     from ai_engine.core.prompts import DRAFT_PROMPT, PROMPT_DIR
 

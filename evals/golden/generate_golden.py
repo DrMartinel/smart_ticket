@@ -24,8 +24,7 @@ from pathlib import Path
 from typing import Any
 
 OUT_PATH = Path(__file__).parent / "tickets.jsonl"
-# kb_covered tickets drafted by draft_kb_covered.py and accepted in review:
-# one per page, written as a user would, checked not to paraphrase the page.
+# The kb_covered tickets drafted by draft_kb_covered.py and accepted in review.
 DRAFTED_PATH = Path(__file__).parent / "kb_covered_drafted.jsonl"
 DEMO_KB = Path(__file__).parent.parent.parent / "demo_kb"
 
@@ -938,8 +937,7 @@ def build() -> list[dict[str, Any]]:
             raise SystemExit(f"near miss answered by {answering_slug}, which is approved")
         add(subject, body, answered_by(answering_slug), ["edge", "near_miss"])
 
-    # kb_covered, drafted and reviewed: after every authored case, so the IDs
-    # above never move (g175 on).
+    # The drafted kb_covered tickets, after every authored case (g175 on).
     if DRAFTED_PATH.exists():
         drafted = [
             json.loads(line)

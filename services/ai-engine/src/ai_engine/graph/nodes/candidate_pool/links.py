@@ -1,14 +1,7 @@
 """
-Link expansion (ADR-0014 decisions 1-2, ADR-0015, ADR-0018): the articles a
-seed is associated with, and their chunks nearest the ticket. A page that
-describes the symptom is often associated with the page that has the fix;
-this brings that page into the pool the cross-encoder scores, whatever its
-wording.
-
-Associations are read from `kb_article_associations`, which core-api writes
-at ingestion and from offline builds, filtered to the one source
-`ASSOCIATION_SOURCE` names. Inactive targets are filtered here, at read
-time, so reactivating an article needs no rebuild.
+Link expansion (ADR-0014 decisions 1-2, ADR-0015, ADR-0018): reads the
+articles associated with a seed from `kb_article_associations`, in the one
+source `ASSOCIATION_SOURCE` names, and their chunks nearest the draft.
 """
 
 from __future__ import annotations
@@ -31,12 +24,8 @@ class Association(NamedTuple):
 
 
 def associations(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[Association]:
-    """Each seed's associations in the configured source to active articles,
-    seeds first to last, each seed's targets by descending score (document
-    order, for authored links), at most `max_per_seed` per seed. Self-pairs
-    are dropped. `score` only orders (and, in the two-lane shortlist, weighs
-    a seed's targets against each other); it is never compared with a
-    threshold (ADR-0005)."""
+    """Reads each seed's associations to active articles, seed by seed, best
+    score first, at most `max_per_seed` per seed."""
 
     if not seed_ids or settings.association_source == "none":
         return []

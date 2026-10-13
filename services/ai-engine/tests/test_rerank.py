@@ -124,10 +124,6 @@ def _on_page(chunk_id: int, page: int, score: float) -> RankedChunk:
 
 
 def test_one_page_per_slot_gives_the_next_page_its_place(jev, make_state, monkeypatch):
-    """Page A's two chunks rank 1 and 2: with one per page, A keeps its best
-    and page B, ranked 3rd, moves into the second slot. Two slots of three
-    on one page left one fewer page for the proposal (2026-10-12)."""
-
     monkeypatch.setattr(settings, "rerank_top_n", 2)
     monkeypatch.setattr(settings, "rerank_top_n_per_page", 1)
     pool = [_on_page(1, 1, 0.9), _on_page(2, 1, 0.8), _on_page(3, 2, 0.7)]
@@ -139,9 +135,6 @@ def test_one_page_per_slot_gives_the_next_page_its_place(jev, make_state, monkey
 
 
 def test_the_per_page_limit_keeps_jevs_top_1_first(jev, make_state, monkeypatch):
-    """The floor reads reranked[0] (ADR-0005): the limit may only drop a
-    page's later chunks, never reorder Jev's ranking."""
-
     monkeypatch.setattr(settings, "rerank_top_n", 3)
     monkeypatch.setattr(settings, "rerank_top_n_per_page", 1)
     pool = [_on_page(1, 1, 0.5), _on_page(2, 2, 0.5), _on_page(3, 1, 0.5)]
@@ -154,9 +147,6 @@ def test_the_per_page_limit_keeps_jevs_top_1_first(jev, make_state, monkeypatch)
 
 
 def test_a_per_page_limit_at_top_n_changes_nothing(jev, make_state, monkeypatch):
-    """The shipped value (RERANK_TOP_N_PER_PAGE = RERANK_TOP_N) must be
-    exactly the old behaviour: Jev's top N, one page or many."""
-
     monkeypatch.setattr(settings, "rerank_top_n", 3)
     monkeypatch.setattr(settings, "rerank_top_n_per_page", 3)
     pool = [_on_page(i, 1, 0.5) for i in (1, 2, 3, 4)]

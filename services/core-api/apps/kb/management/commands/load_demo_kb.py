@@ -32,8 +32,9 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from apps.accounts.models import User
-from apps.kb.models import KbArticle, KbArticleAssociation
+from apps.kb.models import KbArticle
 from apps.kb.utils.chunking import clean_markdown
+from apps.kb.utils.indexing import indexer
 from apps.tickets.utils.router import RiskTier
 from infrastructure.dtos import TicketCategory
 
@@ -139,18 +140,11 @@ class Command(BaseCommand):
             if i % 100 == 0:
                 self.stdout.write(f"  {i}/{len(pages)}")
 
-        # Pages that left the snapshot stop being retrievable, and pages back
-        # in it start again. Never after a partial load: `--limit` skips most
-        # of the manifest, and would deactivate everything it skipped.
+        # A full load deactivates the pages that left the snapshot.
         if options["limit"] is None:
-            counts["deactivated"], counts["reactivated"] = (
-                KbArticle.objects.sync_active_from_source(loaded)
-            )
+            counts["deactivated"], counts["reactivated"] = indexer.sync_active_from_source(loaded)
 
-        # Links resolve only to pages already loaded, so the per-article
-        # rebuild in `ingest` misses links to pages loaded after it. One full
-        # rebuild at the end resolves them all.
-        counts["authored_links"] = KbArticleAssociation.objects.rebuild_authored_links()
+        counts["authored_links"] = indexer.rebuild_authored_links()
 
         if approver is not None:
             hashes = {p.slug: p.sha256 for p in pages}

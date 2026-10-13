@@ -7,10 +7,7 @@ ticket text.
 Two rules follow from that:
 - Raw text goes only to the self-hosted `clients.ner` client, never to
   `clients.chat`, which may be a cloud provider. The one exception is
-  `NER_CLIENT_PROVIDER=deepseek` (ADR-0019, evaluation only), which sends
-  raw ticket text to DeepSeek's hosted API by explicit decision. It has its
-  own setting so that pointing the proposal or the draft at DeepSeek never
-  sends raw text there as a side effect.
+  `NER_CLIENT_PROVIDER=deepseek` (ADR-0019, evaluation only).
 - No error message, log line or exception carries the text or the model's
   output. The model's output IS the PII.
 
@@ -82,11 +79,8 @@ class VllmPiiDetector(PiiDetector):
 
 
 class DeepSeekPiiDetector(PiiDetector):
-    """NER on DeepSeek's hosted API (ADR-0019): raw ticket text leaves the
-    machine. DeepSeek decodes against no schema, so the reply is a plain
-    JSON object, validated here, at temperature 0 for repeatable masking.
-    Calls the model directly rather than through `ChatClient`, whose errors
-    quote the reply. Stateless."""
+    """NER on DeepSeek's hosted API (ADR-0019), on its own chat model rather
+    than through `ChatClient`."""
 
     def __init__(self) -> None:
         self._model = clients.ChatClient.deepseek_model(json_mode=True, temperature=_GREEDY)
@@ -104,8 +98,6 @@ class DeepSeekPiiDetector(PiiDetector):
 
 
 # --- The detector, built once when this module is imported (no I/O) ----------
-# NER leaves the machine only when its own setting says DeepSeek (ADR-0019),
-# whatever model the proposal or the draft runs on.
 
 pii_detector: PiiDetector = (
     DeepSeekPiiDetector() if settings.ner_client_provider == "deepseek" else VllmPiiDetector()

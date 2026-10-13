@@ -1,34 +1,14 @@
 """
-Retrieval quality — spec §12.2 (`test_retrieval`, threshold: recall >= 0.90).
+Retrieval quality — spec §12.2: recall@5 >= 0.90 on the `kb_covered` tickets,
+a hit on the gold page or an acceptable one.
 
-The spec calls this Recall@5, but the pipeline returns `rerank_top_n` = 3
-chunks, so what is measured is Recall@3 and the metric is named for that.
-Until 2026-09-29 it was recorded as `retrieval_recall_at_5`; see
-evals/HISTORY-archive.md before comparing numbers across the rename.
-
-Live pipeline: calls ai-engine's /v1/analyze with `never_refuse=True` (floor 0.0) so
-the graph never refuses before returning chunks, then checks
-`retrieved_chunks` (the actual post-rerank output) directly — this
-measures RETRIEVAL quality specifically, independent of what the LLM
-subsequently decided to do with those chunks (a model that retrieved the
-right article but still said "insufficient_context" is a generation
-problem, not a retrieval miss).
-
-It also reports, ungated, two things. The cross-encoder's batch per ticket
-(`pool_size`, median and max): link expansion's cost, which the ADR-0018
-eval plan compares across association sources. And what the model did with
-the gold article when retrieval found it (`_gold_use`). The golden set has no expected quote, so
-this is a proxy for "the chunk kept for the gold article held the answer":
-since per-article dedup (the rerank node) the LLM sees one chunk per article, and
-if that chunk only restates the problem the model can refuse or quote text
-it wasn't shown.
-
-A ticket ai-engine answers with a 5xx (a failed draft, a Jev or DeepSeek
-outage) counts as a miss and is listed in `errors`: in production it goes to
-a person with no retrieval, so it can only lower recall, never raise it. One
-such ticket used to abort the whole 500-ticket run with no score. Anything
-else (a 4xx, ai-engine unreachable) still fails the run: those are harness or
-stack faults, not tickets.
+Calls ai-engine's /v1/analyze with `never_refuse=True` and reads
+`retrieved_chunks`, so a refusal by the model is not a retrieval miss. Also
+reports, ungated: recall@3 (recorded as `retrieval_recall_at_5` before
+2026-09-29), strict recall@3, MRR, the cross-encoder's batch (`pool_size`),
+what the model did with the gold article (`_gold_use`), and the tickets
+answered with a 5xx, each counted as a miss. A 4xx or an unreachable
+ai-engine fails the run.
 """
 
 from statistics import median
@@ -38,8 +18,7 @@ import httpx
 from suites.golden_utils import analyze, load_golden, record_metric, sample
 
 RECALL_THRESHOLD = 0.90
-# The gate is recall@5, as spec §12.2 names it: the proposal is shown Jev's
-# top RERANK_TOP_N (5) chunks. Recall@3 is still reported, ungated.
+# The gated k: the proposal is shown Jev's top RERANK_TOP_N chunks (spec §12.2).
 GATED_K = 5
 
 

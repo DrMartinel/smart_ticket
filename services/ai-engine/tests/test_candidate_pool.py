@@ -15,10 +15,7 @@ from ai_engine.graph.nodes.candidate_pool.node import candidate_pool
 
 @pytest.fixture(autouse=True)
 def _no_associations(fake_db, use_db):
-    """Link expansion reads associations from the database. These tests are
-    about the shortlister's order, so expansion finds nothing here, instead
-    of quietly reading whatever a local Postgres holds (test_links.py covers
-    expansion)."""
+    """Gives every test a database where link expansion finds nothing."""
     use_db(fake_db())
 
 
@@ -116,11 +113,6 @@ def _nearest_rows(rows):
 def test_each_page_brings_its_chunks_nearest_the_draft_once_each(
     fake_db, fake_shortlister, make_candidate, make_state, use_db, use_shortlister
 ):
-    """The best-fused chunk alone often isn't the one that answers the
-    ticket; the draft's nearest chunks of the same page are (2026-10-11:
-    +12 points recall@3 with the draft). A chunk already in the candidates
-    must not be scored twice."""
-
     a, b = make_candidate(1, "a1"), make_candidate(2, "b1")
     answer, _ = _nearest_rows(
         [
@@ -140,10 +132,6 @@ def test_each_page_brings_its_chunks_nearest_the_draft_once_each(
 def test_the_cross_encoder_scores_against_the_ticket_never_the_draft(
     fake_shortlister, make_candidate, make_state, make_ticket, use_shortlister
 ):
-    """The draft chooses what is looked at; the ticket judges it. Scoring
-    against the draft lost 4 points of recall@3 on 500 tickets (2026-10-11),
-    and it would put the drafting model's words where the requester's belong."""
-
     shortlister = use_shortlister(fake_shortlister(scores=[0.5]))
 
     candidate_pool(
@@ -161,9 +149,6 @@ def test_the_cross_encoder_scores_against_the_ticket_never_the_draft(
 def test_expansion_and_the_page_pick_both_take_chunks_nearest_the_draft(
     fake_db, fake_shortlister, make_candidate, make_state, monkeypatch, use_db, use_shortlister
 ):
-    """Both chunk choices follow the draft, as measured; the ticket's own
-    embedding (`query_embedding`) is for few-shots only."""
-
     from ai_engine.graph.nodes.candidate_pool import node as pool_node
 
     answer, sent = _nearest_rows([])
@@ -183,9 +168,6 @@ def test_expansion_and_the_page_pick_both_take_chunks_nearest_the_draft(
 def test_the_pool_without_a_draft_raises(
     fake_shortlister, make_candidate, make_state, use_shortlister
 ):
-    """Expansion and the page pick would otherwise run on an empty
-    embedding: a wiring bug that must fail, not shrink the pool."""
-
     use_shortlister(fake_shortlister(scores=[0.5]))
 
     with pytest.raises(ValueError, match="drafted answer"):
