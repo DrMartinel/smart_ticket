@@ -811,6 +811,265 @@ NEAR_MISS = [
 ]
 
 
+# More underspecified tickets (g615 on), written from KB page titles on
+# 2026-10-13 to give the clarify comparison more than six cases. Each names
+# no product or platform, and two or more pages fix different readings of
+# it: `clarify_slugs`. Reviewer subagents read every page, dropped readings a
+# page doesn't fix, and rejected 8 of 30 drafts. (subject, body, clarify_slugs)
+UNDERSPECIFIED_MORE = [
+    (
+        "Lost my authenticator",
+        "I got a new phone over the weekend and my authenticator app didn't come with it. Now I can't finish signing in.",
+        ["iam.id_credentials_mfa_lost-or-broken", "identity-center.how-to-manage-device"],
+    ),
+    (
+        "Sign-in keeps failing",
+        "My sign-in stopped working today. It says the username or password is wrong, but I'm sure I'm typing it right.",
+        [
+            "identity-center.resetpassword-accessportal",
+            "client-vpn-admin.client-user-name-password-mfa",
+            "iam.reset-root-password",
+        ],
+    ),
+    (
+        "Certificate expiring",
+        "We got a notice that one of our certificates expires next month. What do we need to do so nothing breaks?",
+        [
+            "client-vpn-admin.mutual-renew",
+            "identity-center.rotatesamlcert",
+            "identity-center.rotatecert",
+        ],
+    ),
+    (
+        "Names not resolving",
+        "Hostnames stopped resolving for us this morning. Nothing can find anything by name.",
+        ["vpc.vpc-dns-updating", "workspaces-admin.update-dns-server"],
+    ),
+    (
+        "Locked out of the admin account",
+        "The person who had the admin password left the company and now nobody can get into the admin account.",
+        ["iam.reset-root-password", "ec2.ResettingAdminPassword"],
+    ),
+    (
+        "Machine won't start",
+        "My machine won't start anymore. It's just stuck and I can't do any work.",
+        [
+            "ec2.troubleshoot-unreachable-instance",
+            "workspaces-admin.amazon-workspaces-troubleshooting",
+        ],
+    ),
+    (
+        "Remote desktop won't connect",
+        "I can't get onto my remote desktop. It just fails to connect.",
+        ["ec2.troubleshoot-connect-windows-instance", "workspaces-user.client_troubleshooting"],
+    ),
+    (
+        "Lost my key",
+        "I lost my key and now I can't get back in. Can I get a new one?",
+        [
+            "ec2.TroubleshootingInstancesConnecting",
+            "iam.id_credentials_mfa_lost-or-broken",
+            "iam.access-key-self-managed",
+        ],
+    ),
+    (
+        "Keeps logging me out",
+        "It keeps cutting me off after a while and I have to log back in every time.",
+        ["client-vpn-admin.modify-max-timeout", "identity-center.user-interactive-sessions"],
+    ),
+    (
+        "No internet",
+        "Our stuff can't reach the internet anymore. Any outbound call just hangs.",
+        [
+            "vpc.nat-gateway-troubleshooting",
+            "lambda.configuration-vpc-internet",
+            "client-vpn-admin.no-internet-access",
+        ],
+    ),
+    (
+        "Change my password",
+        "How do I change my password? I'd like to pick a new one.",
+        [
+            "iam.id_credentials_passwords_user-change-own",
+            "iam.root-user-password",
+            "identity-center.resetpassword-accessportal",
+            "ec2.ec2-windows-passwords",
+        ],
+    ),
+    (
+        "New laptop",
+        "I just got a new Windows laptop. What do I need to install to connect to work again?",
+        [
+            "client-vpn-user.client-vpn-connect-windows",
+            "client-vpn-user.client-vpn-connect-how",
+            "workspaces-user.amazon-workspaces-windows-client",
+        ],
+    ),
+    (
+        "Who connected?",
+        "I need a list of who connected yesterday afternoon so I can let them know about the maintenance we did then. Where do I find that?",
+        [
+            "client-vpn-admin.view-connection-logs",
+            "ec2.log-ec2-instance-connect-endpoint-using-cloudtrail",
+        ],
+    ),
+    (
+        "Frozen, need to restart",
+        "It's completely frozen. How do I restart it?",
+        [
+            "ec2.ec2-instance-reboot",
+            "workspaces-user.client-restart-workspace",
+            "workspaces-admin.reboot-workspaces",
+        ],
+    ),
+    (
+        "Turn on two-factor",
+        "My manager says I have to turn on two-factor before Friday. How do I do that?",
+        ["iam.id_credentials_mfa_enable_virtual", "identity-center.user-device-registration"],
+    ),
+    (
+        "Stuck signing in",
+        "On my Windows laptop the client just sits there spinning and never gets me in. No error message at all.",
+        ["workspaces-user.client_troubleshooting", "client-vpn-user.windows-troubleshooting"],
+    ),
+    (
+        "Make the timeout longer",
+        "How do I make the timeout longer? It cuts off before the job is done.",
+        ["lambda.configuration-timeout", "client-vpn-admin.modify-max-timeout"],
+    ),
+    (
+        "Reset a colleague's password",
+        "Someone on my team forgot their password. How do I reset it for them?",
+        [
+            "identity-center.reset-password-for-user",
+            "iam.id_credentials_passwords_admin-change-user",
+        ],
+    ),
+    (
+        "Remove an old device",
+        "One of our users still has an old MFA device listed that they don't use anymore. How do I remove it?",
+        ["iam.id_credentials_mfa_disable", "identity-center.how-to-manage-device"],
+    ),
+    (
+        "Can't reach the database",
+        "Our new code can't connect to the RDS database. Every attempt just times out.",
+        ["ec2.tutorial-ec2-rds-option3", "lambda.services-rds", "lambda.configuration-vpc"],
+    ),
+    (
+        "Turn on logging",
+        "Our auditors want us to keep a record of the connections coming into our AWS network. How do we turn that on?",
+        ["client-vpn-admin.create-connection-log-existing", "vpc.flow-logs-s3-create-flow-log"],
+    ),
+    (
+        "Rotate our keys",
+        "Security says we have to rotate our keys this quarter. What's the process?",
+        ["iam.id-credentials-access-keys-update", "ec2.replacing-key-pair"],
+    ),
+]
+
+# The same topics, specific enough that one page answers them and no question
+# is needed: a clarify here is a needless question. Reviewed the same way.
+# (subject, body, answering_slug, acceptable_slugs)
+SPECIFIC_COUNTERPARTS = [
+    (
+        "Reset my access portal password",
+        "I forgot my AWS access portal password and can't find where to reset it on the sign-in page. How do I reset it?",
+        "identity-center.resetpassword-accessportal",
+        [],
+    ),
+    (
+        "Windows VPN client won't connect",
+        "The AWS VPN Client on my Windows 11 laptop won't connect to our Client VPN endpoint. The log says there are no TAP-Windows adapters on this system.",
+        "client-vpn-user.windows-troubleshooting",
+        [],
+    ),
+    (
+        "Lost the root user password",
+        "I'm the account owner and lost the root user password for our AWS account. How do I reset it with the root email address?",
+        "iam.reset-root-password",
+        [],
+    ),
+    (
+        "Raise our Lambda concurrency quota",
+        "We're hitting the Lambda concurrent executions quota in us-east-1. How do we request an increase?",
+        "lambda.gettingstarted-limits",
+        [],
+    ),
+    (
+        "SES domain stuck pending",
+        "Our domain identity in Amazon SES has said 'Pending verification' for three days, even though we added the DNS records.",
+        "ses.troubleshoot-verification",
+        [],
+    ),
+    (
+        "Client VPN server certificate expiring",
+        "The Client VPN server certificate we generated with easy-rsa 3.2 expires next month. What are the steps to renew it and update the copy in ACM that the endpoint uses?",
+        "client-vpn-admin.mutual-renew",
+        [],
+    ),
+    (
+        "Reboot a frozen WorkSpace",
+        "One of our users' WorkSpaces is frozen. How do I reboot it from the WorkSpaces console?",
+        "workspaces-admin.reboot-workspaces",
+        [],
+    ),
+    (
+        "Lambda task timed out",
+        "Our Lambda function stops after 3 seconds with 'Task timed out'. How do I raise the function's timeout?",
+        "lambda.configuration-timeout",
+        [],
+    ),
+    (
+        "Reset Windows admin password on EC2",
+        "We lost the Windows Administrator password for an EC2 Windows Server instance, so we can't RDP in. The instance's system log shows the EC2Launch v2 service running. How do we reset the password?",
+        "ec2.ResettingAdminPassword_EC2Launchv2",
+        ["ec2.ResettingAdminPassword"],
+    ),
+    (
+        "Lost my IAM MFA phone",
+        "I'm an IAM user and got a new phone; the authenticator app didn't carry over my virtual MFA device, so I can't get past the MFA prompt when I sign in to the console.",
+        "iam.id_credentials_mfa_lost-or-broken",
+        [],
+    ),
+    (
+        "SSH timed out to EC2",
+        "SSH to my Amazon Linux EC2 instance fails with 'Connection timed out'. The instance shows as running.",
+        "ec2.TroubleshootingInstancesConnecting",
+        [],
+    ),
+    (
+        "WorkSpaces client says unhealthy",
+        "The WorkSpaces client on my Mac says my WorkSpace is unhealthy and won't let me log in.",
+        "workspaces-user.client_troubleshooting",
+        [],
+    ),
+    (
+        "Lambda invoke fails",
+        "Our order service's IAM role gets 'is not authorized to perform: lambda:InvokeFunction' when it calls our Lambda function, so the function never runs.",
+        "lambda.troubleshooting-invocation",
+        [],
+    ),
+    (
+        "Client VPN connection logs",
+        "Where do I find the Client VPN connection logs to see who connected to our endpoint yesterday?",
+        "client-vpn-admin.view-connection-logs",
+        [],
+    ),
+    (
+        "Private subnet lost internet via NAT",
+        "Instances in our private subnet can't reach the internet through the NAT gateway since we changed the route tables.",
+        "vpc.nat-gateway-troubleshooting",
+        [],
+    ),
+    (
+        "Reset an Identity Center user's password",
+        "As the IAM Identity Center admin, how do I reset the password for one of our users?",
+        "identity-center.reset-password-for-user",
+        [],
+    ),
+]
+
+
 def load_demo_kb() -> tuple[dict[str, str], set[str]]:
     """(slug -> category, approved slugs) from demo_kb/."""
     pages = json.loads((DEMO_KB / "manifest.json").read_text(encoding="utf-8"))["pages"]
@@ -955,6 +1214,28 @@ def build() -> list[dict[str, Any]]:
             if d["acceptable_slugs"]:
                 truth["acceptable_kb_slugs"] = sorted(d["acceptable_slugs"])
             add(d["subject"], d["body"], truth, ["kb_covered", "drafted"])
+
+    # More underspecified tickets and their specific counterparts (g615 on).
+    named = {s for _, _, slugs in UNDERSPECIFIED_MORE for s in slugs} | {
+        s for _, _, slug, acceptable in SPECIFIC_COUNTERPARTS for s in [slug, *acceptable]
+    }
+    missing = sorted(named - set(categories))
+    if missing:
+        raise SystemExit(f"clarify ticket pages not in demo_kb/manifest.json: {missing}")
+    for subject, body, slugs in UNDERSPECIFIED_MORE:
+        if len(set(slugs)) < 2:
+            raise SystemExit(f"{subject!r} needs two or more pages to choose between")
+        add(
+            subject,
+            body,
+            {"expected_branch": "clarify", "clarify_slugs": slugs},
+            ["edge", "underspecified"],
+        )
+    for subject, body, slug, acceptable in SPECIFIC_COUNTERPARTS:
+        truth = answered_by(slug)
+        if acceptable:
+            truth["acceptable_kb_slugs"] = sorted(acceptable)
+        add(subject, body, truth, ["edge", "specific"])
 
     return cases
 

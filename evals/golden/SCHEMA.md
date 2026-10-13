@@ -20,6 +20,7 @@
 - `truth.category` — one of `TicketCategory` (core-api `infrastructure/dtos.py`), or omitted if not determinable (e.g. pure injection cases). For `kb_covered` it is the target article's category from `demo_kb/manifest.json`. Every `out_of_kb` case is `other`.
 - `truth.kb_slug` — the KB article slug that should answer this ticket, if any.
 - `truth.acceptable_kb_slugs` — optional, drafted tickets only: other pages that resolve the ticket as well as `kb_slug`. The retrieval suite counts a hit on any of them (gated `retrieval_recall_at_3`) and reports `retrieval_recall_at_3_strict` (gold page only) beside it. `expected_branch` still follows `kb_slug` alone.
+- `truth.clarify_slugs` — optional, `underspecified` tickets from g615 on: the pages that fix the ticket's different readings, the ones a clarifying question should offer. At least two.
 - `truth.expected_branch` — one of `Branch` (core-api `apps/tickets/utils/router.py`): `auto_reply | auto_route | hitl | block | escalate | clarify`.
 - `truth.reason_code` — one of `ReasonCode` (core-api `apps/tickets/utils/router.py`), when the specific gate/reason matters to the test (e.g. `injection_detected`, `kb_not_authorized`, `retrieval_below_floor`). Omitted when any HITL reason is acceptable.
 - `tags` — free-form, used to filter by suite. At minimum one of the six distribution buckets below, or `edge`.
@@ -44,6 +45,24 @@ move. They are beyond §12.1's distribution, and each also carries one of:
 | `pii_answerable` | 6 | the page's own branch | Routine PII next to a request a page answers: masking and auto-reply on one ticket (also tagged `pii`) |
 | `split_chunk` | 6 | `auto_reply` | The answer is in a continuation chunk without the page title or section heading |
 | `near_miss` | 6 | `hitl` (`kb_not_authorized`) | Same topic as an approved page that doesn't resolve them; an auto-reply is false by construction |
+
+### More clarify tickets (g615 on)
+
+Six clarify tickets were too few to compare who should decide to ask (the
+LLM's clarify proposal or Jev, 2026-10-13). After the drafted tickets come
+38 more `edge` cases, written from KB page titles, never from pipeline
+output:
+
+| Tag | Count | Expected | Why |
+|---|---|---|---|
+| `underspecified` | 22 (g615-g636) | `clarify` | As g151-g156; `truth.clarify_slugs` names the pages that fix each reading |
+| `specific` | 16 (g637-g652) | the page's own branch | The same topics, specific enough that one page answers them: a clarify is a needless question |
+
+Reviewer subagents read every page named, not people: they dropped
+readings a page doesn't fix, swapped overview pages for the ones with the
+steps, reworded 19 drafts and rejected 8 of the 30 underspecified ones (the
+same fix for every reading, no page that fixes it, or one reading that
+clearly wins). With g151-g156, 28 tickets expect `clarify`.
 
 ### Drafted `kb_covered` tickets (g175 on)
 

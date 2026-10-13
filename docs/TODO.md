@@ -395,7 +395,8 @@ ADR-0018 is accepted or superseded.
 
 - A full eval run with `rerank_choice.v1`; explain every gate's movement.
 - Re-choose `retrieval.floor`, `retrieval.margin`, `clarification.option_margin` and `retrieval.min_rerank_confidence` on choice-scale data (item 4); every one was set on the noul scale.
-- A clarify signal from the choice (a reworded "one / several / none" question was dropped after it said `several` on 37 of 60 clear tickets).
+- ~~Decide who judges that a ticket needs a clarifying question~~ Decided 2026-10-13: the LLM's clarify proposal, as now. On the 28 clarify tickets it proposed clarify on 25 against 19 for a Jev question ("B"), and neither asked on the 16 specific counterparts; B is not built.
+- The clarify options: only 5 of the 22 new clarify tickets (g615-g636) had two or more of their `clarify_slugs` in Jev's top 5, and 3 had none, so the question often offers one right page. Measure option choice on `clarify_slugs`.
 
 ### Done when
 
