@@ -5,14 +5,15 @@
 # This produces tagged, pullable artifacts; rolling them out stays manual
 # until there is somewhere to roll them out to.
 #
-# THREE images, not five: docker-compose.yml builds core-api, worker
+# FOUR images, not six: docker-compose.yml builds core-api, worker
 # and beat from the same core-api Dockerfile and differentiates them by
 # `command`, so publishing core-api covers all three.
 #
 # Note the two build-context shapes. core-api and ai-engine build from the
 # REPO ROOT because the uv workspace lockfile (and, for core-api,
-# infra/migrations/sql) live there; web builds from services/web. This mirrors docker-compose.yml —
-# if you change one, change the other.
+# infra/migrations/sql) live there; admin-console and chat build from their
+# own directories, with NEXT_PUBLIC_API_BASE from .env.example baked into the
+# bundle. This mirrors docker-compose.yml — if you change one, change the other.
 
 name: publish-images
 
@@ -98,9 +99,12 @@ jobs:
           - name: ai-engine
             context: .
             dockerfile: services/ai-engine/Dockerfile
-          - name: web
-            context: services/web
-            dockerfile: services/web/Dockerfile
+          - name: admin-console
+            context: services/admin-console
+            dockerfile: services/admin-console/Dockerfile
+          - name: chat
+            context: services/chat
+            dockerfile: services/chat/Dockerfile
     steps:
       - uses: actions/checkout@v4
 
@@ -110,6 +114,12 @@ jobs:
       - name: Compute image name
         id: img
         run: echo "ref=ghcr.io/$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      # The frontends' browser bundle takes the API base at build time; the
+      # value is the template's, as compose takes it from .env.
+      - name: Read NEXT_PUBLIC_API_BASE from the template
+        id: env
+        run: echo "api_base=$(grep '^NEXT_PUBLIC_API_BASE=' .env.example | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -123,6 +133,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          build-args: NEXT_PUBLIC_API_BASE=${{ steps.env.outputs.api_base }}
           push: true
           tags: |
             ${{ steps.img.outputs.ref }}:${{ github.sha }}
