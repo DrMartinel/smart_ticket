@@ -13,7 +13,7 @@ Nearly every structural choice follows from wanting that boundary to hold even a
 | Level | Mechanism | What it prevents |
 |---|---|---|
 | Types | Every LLM field prefixed `proposed_` | Reading a suggestion as a conclusion at the point of use |
-| Code | `router.py` is the only place a `Branch` is chosen, and it is a pure function | A prompt change silently altering routing |
+| Code | `router.py` is the only place a `Branch` is chosen, by a pure `Router` | A prompt change silently altering routing |
 | Database | `ai-engine` connects as a `SELECT`-only role | A compromised or buggy AI service writing business data |
 
 The third is the strongest, and it is why splitting `ai-engine` into its own service is worth the operational cost ([ADR-0004](adr/0004-split-ai-engine.md)). The boundary is enforced by Postgres grants, not by code review.
@@ -200,7 +200,7 @@ Models are reached through two layers. The clients in
 `VLLMClient` has `embed()`, `rerank()` and `complete_json()`, `JevClient` has
 `ask()` (yes/no) and `choose()` (one choice question), and each builds its request and validates the reply against a
 Pydantic DTO from `core/providers/dtos.py`. `ChatClient` does triage chat through `complete()` (LangChain;
-`vllm_chat` or `openai_chat` builds it). The providers
+`ChatClient.for_provider` builds it, through `on_vllm`, `on_openai` or `on_deepseek`). The providers
 (`core/providers/embeddings.py` and `pii.py`, and the shortlister, the reranker
 and the category classifier beside their nodes in `graph/nodes/candidate_pool/`,
 `graph/nodes/rerank/` and `graph/nodes/classify_category/`)
@@ -246,7 +246,7 @@ EngineSignals (from ai-engine)
 TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
                         │                     (so the LLM can't score itself)
                         ▼
-              router.route(signals, proposal, kb, thresholds)   ← pure function
+              Router(thresholds).route(signals, proposal, kb)   ← pure
 
    HARD GATES, in this order — the order is load-bearing
      injection            ──► BLOCK    + alert security
@@ -298,7 +298,7 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
                                     yes ──► AUTO_ROUTE (to Jev's category)
 ```
 
-`route()` takes thresholds as a **parameter** rather than importing them. That is what makes every branch testable without a database, a model, or a network — and it lets the exact thresholds in force be snapshotted into `routing_decisions.thresholds_used`, so a post-incident analysis months later can recover what the bar actually was at the time.
+`Router` is built from thresholds passed in, rather than importing them. That is what makes every branch testable without a database, a model, or a network — and it lets the exact thresholds in force be snapshotted into `routing_decisions.thresholds_used`, so a post-incident analysis months later can recover what the bar actually was at the time.
 
 ### Stage 5 — Execute or queue
 
@@ -344,7 +344,9 @@ REVOKE UPDATE, DELETE ON audit_log FROM app_user;
 
 -- ai-engine physically cannot write business tables
 GRANT SELECT ON kb_articles, kb_chunks, fewshot_examples TO ai_engine_ro;
-GRANT SELECT ON kb_article_associations TO ai_engine_ro;  -- link expansion, ADR-0018
+-- link expansion reads it (ADR-0018); the offline entity-graph build
+-- replaces its own rows (ADR-0025). Triage writes nothing.
+GRANT SELECT, INSERT, DELETE ON kb_article_associations TO ai_engine_ro;
 ```
 
 ---

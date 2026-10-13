@@ -13,7 +13,8 @@ and never override them.
 |---|---|---|---|
 | **`/ai-engine-feature`** | build or change anything in `services/ai-engine`: a node, provider, state field, signal, retrieval change, prompt bump, or setting | `/ai-engine-feature add a node that flags duplicate-ticket language before retrieval` | a plan for you to approve, then the implementation, tests, verification and docs |
 | **`/ai-engine-review`** | check a branch before you open a PR | `/ai-engine-review` (base defaults to `main`) or `/ai-engine-review HEAD~3` | a report sorted into Regression / Convention / Nit, with `file:line` links and fixes. It doesn't edit anything |
-| **`/refactor`** | clean up Python in any service (ai-engine, core-api, evals) without changing what it does | `/refactor services/core-api/apps/tickets/utils/pipeline.py` | an audit table of proposed moves. You pick the ones you want, and they're applied one at a time |
+| **`/refactor`** | clean up Python in any service (ai-engine, core-api, evals) without changing what it does, or check changes against the checklist | `/refactor services/core-api/apps/tickets/utils/pipeline.py`, or `/refactor check my changes against the checklist` | an audit table of proposed moves (applied one at a time once you pick them), or a pass/fail table per checklist item |
+| **`/checklist-add`** | add a rule to the checklist `/refactor` enforces | `/checklist-add docstrings never name the return value` | the new numbered item, with how to check it, a real example from the repo, and where it came from |
 
 ## How to invoke
 

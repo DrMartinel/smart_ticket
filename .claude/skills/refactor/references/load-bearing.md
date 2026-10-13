@@ -12,6 +12,10 @@ link the ADR being argued against.
 
 Format: **what** — why it exists — *what guards it*.
 
+Code comments say only what code does (readability.md §2), so this file and
+the ADRs are where these reasons live. Where an entry names a comment as its
+guard and that comment is later trimmed, the entry is the record.
+
 ---
 
 ## Repo-wide
