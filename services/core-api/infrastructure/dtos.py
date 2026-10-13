@@ -123,12 +123,16 @@ class LLMProposalEnvelope(RootModel[LLMProposal]):
 
 
 class RetrievalSignals(BaseModel):
-    # Jev's scores, the reranker's (ADR-0015): the scale retrieval.floor is set on.
+    # Jev's probabilities, the reranker's (ADR-0026): the scale retrieval.floor is set on.
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
     docs_above_floor: int = Field(ge=0)
     # Chunks the cross-encoder scored: fused candidates plus link expansion (ADR-0018).
     pool_size: int = Field(default=0, ge=0)
+    # Jev's confidence in its rerank choice (ADR-0026); 0.0: not asked.
+    rerank_confidence: float = Field(default=0.0, ge=0, le=1)
+    # Jev chose `none` over the shortlist: refused before the LLM (ADR-0026).
+    rerank_chose_none: bool = False
 
 
 class GenerationSignals(BaseModel):
@@ -147,6 +151,8 @@ class GenerationSignals(BaseModel):
     # A clarify proposal's options are two or more distinct slugs of the
     # chunks the model was shown (ADR-0016). False for every other proposal.
     clarify_options_in_topk: bool = False
+    # The auto-reply cites, and quotes, the page Jev chose when reranking (ADR-0026).
+    cited_is_rerank_choice: bool = False
 
 
 class PolicySignals(BaseModel):

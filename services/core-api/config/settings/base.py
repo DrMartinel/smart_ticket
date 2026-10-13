@@ -192,9 +192,11 @@ class RoutingThresholds(BaseModel):
 
 
 class RetrievalThresholds(BaseModel):
-    # On Jev's scale, the final reranker on every run (ADR-0015).
+    # On Jev's scale, the final reranker on every run (ADR-0026).
     floor: float = Field(ge=0, le=1)
     margin: float = Field(ge=0, le=1)
+    # On Jev's rerank choice confidence: an auto-reply below it goes to a human.
+    min_rerank_confidence: float = Field(ge=0, le=1)
 
 
 class IncidentThresholds(BaseModel):

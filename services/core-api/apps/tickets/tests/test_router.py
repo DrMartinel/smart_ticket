@@ -48,6 +48,7 @@ def make_thresholds(**overrides) -> Thresholds:
         retrieval=RetrievalThresholds(
             floor=0.30,
             margin=0.08,
+            min_rerank_confidence=0.9,
         ),
         incident=IncidentThresholds(
             similarity=0.85, window_minutes=15, min_count=5, sigma_multiplier=3.0
@@ -85,6 +86,7 @@ def good_signals(**overrides) -> TrustSignals:
             rerank_top1=0.9,
             rerank_margin=0.3,
             docs_above_floor=3,
+            rerank_confidence=0.95,
         ),
         generation=GenerationSignals(
             quote_match_ratio=1.0,
@@ -92,6 +94,7 @@ def good_signals(**overrides) -> TrustSignals:
             quote_applicable=True,
             clarify_options_in_topk=False,
             negation_consistent=True,
+            cited_is_rerank_choice=True,
         ),
         policy=PolicySignals(
             kb_auto_reply_allowed=True,
@@ -246,6 +249,62 @@ def test_auto_reply_negation_mismatch():
     signals = good_signals(**{"generation.negation_consistent": False})
     d = Router(TH).route(signals, auto_reply_proposal(), kb())
     assert d.reason_code is ReasonCode.NEGATION_MISMATCH
+
+
+def test_auto_reply_citing_a_page_jev_did_not_choose_goes_to_a_human():
+    signals = good_signals(**{"generation.cited_is_rerank_choice": False})
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.RERANK_DISAGREES
+
+
+def test_auto_reply_below_min_rerank_confidence_goes_to_a_human():
+    signals = good_signals(**{"retrieval.rerank_confidence": 0.89})
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.RERANK_LOW_CONFIDENCE
+
+
+def test_auto_reply_at_min_rerank_confidence_passes():
+    signals = good_signals(**{"retrieval.rerank_confidence": 0.9})
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    assert d.branch is Branch.AUTO_REPLY
+
+
+def test_rerank_signals_left_at_their_defaults_never_auto_reply():
+    """Checks that signals from a run that never reported Jev's choice (an
+    older ai-engine, or a degraded run) do not auto-reply."""
+
+    signals = good_signals()
+    signals.retrieval = RetrievalSignals(rerank_top1=0.9, rerank_margin=0.3, docs_above_floor=3)
+    signals.generation = GenerationSignals(
+        quote_match_ratio=1.0, quote_source_in_topk=True, negation_consistent=True
+    )
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.RERANK_DISAGREES
+
+    signals.generation.cited_is_rerank_choice = True
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    assert d.reason_code is ReasonCode.RERANK_LOW_CONFIDENCE
+
+
+def test_jev_choosing_none_is_retrieval_floor_not_schema_invalid():
+    """Checks that a `none` rerank choice above the floor, with no proposal
+    since no LLM ran, reports the floor."""
+
+    signals = good_signals(**{"retrieval.rerank_chose_none": True})
+    d = Router(TH).route(signals, None, kb())
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
+
+
+def test_auto_route_needs_no_rerank_agreement():
+    signals = good_signals(
+        **{"generation.cited_is_rerank_choice": False, "retrieval.rerank_confidence": 0.0}
+    )
+    d = Router(TH).route(signals, route_proposal(), kb())
+    assert d.branch is Branch.AUTO_ROUTE
 
 
 def test_auto_reply_trust_below_auto_threshold():

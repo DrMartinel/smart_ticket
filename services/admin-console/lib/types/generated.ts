@@ -19,7 +19,7 @@ export type RiskTier = "low" | "medium" | "high";
 
 export type ChatState = "thinking" | "answered" | "clarify" | "suggest_ticket" | "with_support";
 
-export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
+export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
 
 export interface TicketIn {
   subject: string;
@@ -66,6 +66,8 @@ export interface RetrievalSignals {
   rerank_margin: number;
   docs_above_floor: number;
   pool_size?: number;
+  rerank_confidence?: number;
+  rerank_chose_none?: boolean;
 }
 
 export interface GenerationSignals {
@@ -74,6 +76,7 @@ export interface GenerationSignals {
   negation_consistent: boolean;
   quote_applicable?: boolean;
   clarify_options_in_topk?: boolean;
+  cited_is_rerank_choice?: boolean;
 }
 
 export interface PolicySignals {

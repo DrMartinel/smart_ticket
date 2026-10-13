@@ -29,6 +29,13 @@ retrieval:
   # on this scale.
   floor: 0.30
   margin: 0.08         # below this → downgrade trust, log "KB ambiguous"
+  # 🔧 On Jev's confidence in its rerank choice (ADR-0026). An auto-reply
+  # needs Jev to have chosen the cited page with at least this. 0.9 is from
+  # the 2026-10-13 probe on the golden set: at >= 0.9 Jev's choice was the
+  # right page 93.3% of the time, and 193 of 423 auto-reply proposals cited
+  # it at >= 0.9, 96.4% of those on the right page. Re-choose it on shadow
+  # pairs before P3.
+  min_rerank_confidence: 0.9
   # Retrieval sizes (BM25_TOP_K, VECTOR_TOP_K, RRF_K, RERANK_TOP_N) are
   # ai-engine's, in .env.example: it never reads this file.
 

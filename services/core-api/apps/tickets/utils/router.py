@@ -74,6 +74,10 @@ class ReasonCode(StrEnum):
     QUOTE_INVALID = "quote_invalid"
     QUOTE_SOURCE_MISMATCH = "quote_source_not_in_topk"
     NEGATION_MISMATCH = "negation_mismatch"
+    # The auto-reply cites a page other than the one Jev chose, or Jev was
+    # unsure of its choice (ADR-0026)
+    RERANK_DISAGREES = "rerank_disagrees"
+    RERANK_LOW_CONFIDENCE = "rerank_low_confidence"
     TRUST_BELOW_AUTO = "trust_below_auto_threshold"
     TRUST_BELOW_ROUTE = "trust_below_route_threshold"
     # Jev chose no category, or one it was unsure of (ADR-0017)
@@ -229,8 +233,12 @@ class Router:
         # sent the most tickets to review this week" (spec §4.1). A gate that
         # reports the wrong cause is worse than no gate, because the dashboard
         # built on it quietly lies.
-        # retrieval.floor and rerank_top1 are both on Jev's scale (ADR-0015).
-        if signals.retrieval.rerank_top1 < th.retrieval_floor:
+        # retrieval.floor and rerank_top1 are both on Jev's scale (ADR-0026).
+        # Jev choosing no passage is below the floor whatever its top1 (ADR-0026).
+        if (
+            signals.retrieval.rerank_top1 < th.retrieval_floor
+            or signals.retrieval.rerank_chose_none
+        ):
             return RoutingDecision.hitl(
                 ReasonCode.RETRIEVAL_FLOOR, queue=ReviewQueue.LOW_CONFIDENCE.value
             )
@@ -307,6 +315,14 @@ class Router:
             if not g.negation_consistent:
                 return RoutingDecision.hitl(
                     ReasonCode.NEGATION_MISMATCH, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+            if not g.cited_is_rerank_choice:
+                return RoutingDecision.hitl(
+                    ReasonCode.RERANK_DISAGREES, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
+            if signals.retrieval.rerank_confidence < th.retrieval.min_rerank_confidence:
+                return RoutingDecision.hitl(
+                    ReasonCode.RERANK_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value
                 )
             if trust < th.t_auto:
                 return RoutingDecision.hitl(

@@ -76,6 +76,8 @@ REASON_CODES = [
     "quote_invalid",
     "quote_source_not_in_topk",
     "negation_mismatch",
+    "rerank_disagrees",
+    "rerank_low_confidence",
     "trust_below_auto_threshold",
     "trust_below_route_threshold",
     "clarify_security",
