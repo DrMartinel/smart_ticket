@@ -7,9 +7,14 @@ pipeline already did.
 
 from __future__ import annotations
 
-from apps.chat.response_schema import ChatAnswerOut, ChatState, ChatTurnOut
+from apps.chat.response_schema import (
+    ChatAnswerOut,
+    ChatClarificationOut,
+    ChatState,
+    ChatTurnOut,
+)
 from apps.kb.models import KbArticle
-from apps.tickets.models import Ticket
+from apps.tickets.models import Ticket, TicketClarification
 from apps.tickets.request_schema import TicketIn
 from infrastructure.dtos import AutoReplyProposal
 
@@ -25,21 +30,26 @@ def ticket_in_from_message(message: str) -> TicketIn:
 
 
 def chat_turn(ticket: Ticket) -> ChatTurnOut:
+    asked = ticket.latest_clarification()
     return ChatTurnOut(
         public_id=ticket.public_id,
-        question_masked=ticket.body_masked,
-        state=_state(ticket),
+        # What the requester typed, before any answer was appended.
+        question_masked=asked.ticket_body_masked if asked else ticket.body_masked,
+        state=_state(ticket, asked),
         answer=_answer(ticket) if ticket.status == "auto_replied" else None,
+        clarification=ChatClarificationOut.from_row(asked) if asked else None,
         created_at=ticket.created_at,
     )
 
 
-def _state(ticket: Ticket) -> ChatState:
+def _state(ticket: Ticket, asked: TicketClarification | None) -> ChatState:
     if ticket.status == "new":
         return ChatState.THINKING
     if ticket.status == "auto_replied":
         return ChatState.ANSWERED
     if ticket.status == "awaiting_requester":
+        if asked is not None and ticket.awaits_answer_to(asked):
+            return ChatState.CLARIFY
         return ChatState.SUGGEST_TICKET
     return ChatState.WITH_SUPPORT
 

@@ -27,7 +27,7 @@ from apps.tickets.request_schema import TicketIn
 
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
-from apps.tickets.utils.crypto import build_quarantine_entries
+from apps.tickets.utils.crypto import QuarantineEntry, build_quarantine_entries
 from apps.tickets.utils.masking import mask
 
 
@@ -220,18 +220,7 @@ class TicketManager(models.Manager["Ticket"]):
                 pii_map={ph: str(entry.ref) for ph, entry in quarantine_entries.items()},
                 source=source.value,
             )
-            PiiQuarantine.objects.bulk_create(
-                [
-                    PiiQuarantine(
-                        ref=entry.ref,
-                        ticket=ticket,
-                        ciphertext=entry.ciphertext,
-                        nonce=entry.nonce,
-                        expires_at=entry.expires_at,
-                    )
-                    for entry in quarantine_entries.values()
-                ]
-            )
+            PiiQuarantine.objects.store(ticket, quarantine_entries)
             AuditLog.objects.record(
                 "ticket_submitted",
                 actor_type="human",
@@ -316,6 +305,24 @@ class Ticket(BaseModel):
     def __str__(self) -> str:
         return self.public_id
 
+    def latest_clarification(self) -> TicketClarification | None:
+        """Finds the last question this ticket asked its requester."""
+        return self.clarifications.order_by("-asked_at").first()
+
+    def open_clarification(self) -> TicketClarification | None:
+        """Finds the question the requester can still answer (ADR-0023)."""
+        latest = self.latest_clarification()
+        return latest if latest is not None and self.awaits_answer_to(latest) else None
+
+    def awaits_answer_to(self, clarification: TicketClarification) -> bool:
+        """Whether the requester can still answer `clarification`, this ticket's latest question."""
+        if self.status != "awaiting_requester" or self.held_decision is None:
+            return False
+        if clarification.answered_at is not None:
+            return False
+        wait = timedelta(minutes=settings.THRESHOLDS.clarification.wait_minutes)
+        return timezone.now() < clarification.asked_at + wait
+
     def store_embedding(self, embedding: list[float], model_name: str) -> TicketEmbedding:
         return TicketEmbedding.objects.update_or_create(
             ticket=self, defaults={"model": model_name, "embedding": embedding}
@@ -360,6 +367,23 @@ class TicketEmbedding(models.Model):
         db_table = "ticket_embeddings"
 
 
+class PiiQuarantineManager(models.Manager["PiiQuarantine"]):
+    def store(self, ticket: Ticket, entries: dict[str, QuarantineEntry]) -> None:
+        """One encrypted row per placeholder, from `build_quarantine_entries`."""
+        self.bulk_create(
+            [
+                PiiQuarantine(
+                    ref=entry.ref,
+                    ticket=ticket,
+                    ciphertext=entry.ciphertext,
+                    nonce=entry.nonce,
+                    expires_at=entry.expires_at,
+                )
+                for entry in entries.values()
+            ]
+        )
+
+
 class PiiQuarantine(models.Model):
     """§3.1. Raw PII, encrypted at the application layer (AES-GCM, key
     outside the DB — see utils/crypto.py), with a hard TTL."""
@@ -373,6 +397,8 @@ class PiiQuarantine(models.Model):
 
     class Meta:
         db_table = "pii_quarantine"
+
+    objects = PiiQuarantineManager()
 
 
 class PiiAccessLog(BaseModel):
@@ -451,3 +477,25 @@ class RoutingDecision(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "routing_decisions"
+
+
+class TicketClarification(BaseModel):
+    """A question a live chat ticket asked its requester, and their masked
+    answer (ADR-0023)."""
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="clarifications")
+    # The run whose decision asked it.
+    ai_run = models.ForeignKey(
+        AiRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="clarifications"
+    )
+    question = models.TextField()
+    # [{"slug": ..., "title": ...}] for each page offered, titles as when asked.
+    options = models.JSONField(default=list)
+    # The ticket's masked body when the question was asked.
+    ticket_body_masked = models.TextField()
+    answer_masked = models.TextField(null=True, blank=True)
+    asked_at = models.DateTimeField(auto_now_add=True)
+    answered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "ticket_clarifications"

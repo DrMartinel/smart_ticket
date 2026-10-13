@@ -19,67 +19,52 @@ These sit **under** the hard rules in `CLAUDE.md`. Where the two meet, CLAUDE.md
 
 Every module reads top-down in the same order:
 
-1. **Module docstring.** What this module is, the spec section / ADR it implements,
-   and the *one* invariant a reader would not guess from the code. Not a table of
-   contents.
-   - `services/core-api/infrastructure/ai_engine.py` — who calls it, and that a
-     transport failure must be treated as fail-open-to-human.
-   - `services/core-api/apps/tickets/utils/router.py` — the only module allowed to
-     choose a `Branch`, and why the gate order is load-bearing.
-   - `services/ai-engine/src/ai_engine/graph/nodes/classify_category/node.py` — where refuse-before-LLM
-     is decided, and which score thresholds may compare against.
+1. **Module docstring.** One sentence saying what this module does (§3).
 2. `from __future__ import annotations`
 3. **Imports in three groups**, blank line between:
    stdlib → third-party → first-party (`apps.*`, `config.*`, `infrastructure.*` or `ai_engine.*`).
    See `services/ai-engine/src/ai_engine/graph/nodes/infer/node.py`,
    `services/core-api/apps/tickets/utils/pipeline.py`.
-4. Module constants, then private helpers (`_name`), then the public class/functions.
+4. Module constants, then the public classes and functions, then any private
+   helpers (`_name`), which are the last resort (§5).
 5. Import-time wiring (a singleton, a provider selected from settings) at the
-   **bottom**, under a `# --- <what> ---` divider with a comment saying why it is
-   fatal at boot. See `services/ai-engine/src/ai_engine/graph/nodes/candidate_pool/shortlister.py`.
+   **bottom**, under a `# --- <what> ---` divider. See
+   `services/ai-engine/src/ai_engine/graph/nodes/candidate_pool/shortlister.py`.
 
 ## 2. Comments
 
-A comment earns its place by saying **why**, and especially by naming what would break
-**silently** if someone "cleaned it up". That is the failure mode this codebase fears
-most: things that stay green while being wrong.
-
-Good (from the code):
+A comment says **what** the code next to it does, in a plain sentence, when the
+name and the code don't already say it. Never **why** it is that way, never
+**how** it works.
 
 ```python
-# A Jev failure raises: falling back to the cross-encoder's order
-# would put its scores against a floor set for Jev's.
+# The source this build writes.
+SOURCE = "entity_graph"
 ```
 
-```python
-# Order by the raw distance, not by `score`: `<=>` in ORDER BY is what
-# the HNSW index (vector_cosine_ops) can serve; `1 - <=>` is not.
-```
-
-- Cite the ADR or spec section when one exists (`ADR-0005`, `spec §6.3`). It lets the
-  next reader find the argument instead of re-litigating it.
+- The why lives in the ADR (`docs/adr/`), the commit message, or
+  `load-bearing.md`, and a test guards it. Cite the ADR or spec section
+  (`ADR-0005`, `spec §6.3`) so a reader can find the argument.
 - Don't restate the code. Don't write comments whose job is to explain the type
   checker (commit f78e11f removed exactly those).
-- History ("this used to…") belongs in the commit message — unless it explains why the
-  current code must *stay* this way (`infer.py`'s `kb_slug` comment is the legitimate
-  kind: it says what goes wrong without it).
-- Inline comments on a line that encodes a guarantee are welcome:
-  `_triage.route(rerank, RerankOutcome.EVIDENCE_BELOW_FLOOR, emit_signals)  # refuse-before-LLM`.
+- History ("this used to…") belongs in the commit message.
+- Older code still has why-comments. Trim one when you touch its code, after
+  checking its reason, especially a silent failure it names, is recorded in an
+  ADR or `load-bearing.md`. Add the entry first if it isn't.
 
 ## 3. Docstrings
 
-State the **contract**, including what happens on failure — that is what a caller
-needs and cannot see from the signature.
+One plain sentence saying **what** the module, class or function does. Not its
+inputs, outputs or exceptions (the signature and type hints have them), no why,
+no how.
 
-- `Embedder.embed` (`core/providers/embeddings.py`): "Raises on provider failure —
-  never a zero or empty vector", and *why* (it would read as "KB has nothing relevant"
-  instead of "embedder down", which reach HITL under different reason codes).
-- `AIEngineUnavailable` (`core-api/infrastructure/ai_engine.py`): "Callers MUST treat this as
-  fail-open-to-human … never as skip the AI step and auto-approve."
-- A class that is shared across threads says so and what that forbids
-  (`BaseNode`: "`__call__` must never write to `self`").
+```python
+def replace(self, rows: list[AssociationRow], snapshot: KbSnapshot) -> tuple[int, int]:
+    """Replaces the `entity_graph` rows with `rows`."""
+```
 
-One line is fine when there is no contract beyond the name.
+A test's docstring, if it has one, says what it checks:
+`"""Checks that a sampled build writes nothing to the database."""`
 
 ## 4. Naming
 
@@ -101,11 +86,21 @@ One line is fine when there is no contract beyond the name.
 - **Keyword-only parameters** once there are several, or when two are easy to swap:
   `_block(reason_code, *, detail="")`
   in `router.py`, `ChatClient.__init__(self, *, model, chat_model, …)`.
-- **No defaults where every caller must decide.** `router.py`'s `route()` takes its
+- **No defaults where every caller must decide.** `router.py`'s `Router` takes its
   thresholds with none, so no call can route on a forgotten default (CLAUDE.md rule 1).
-- **Flat over nested; small but not fragmented.** A helper that has one caller and
-  wraps one call gets inlined (commit e6d55c9). A helper that names an idea used in
-  several places, or isolates a boundary, stays.
+- **Extract by meaning, not by use count.** Extract a block that is a named
+  business rule, has its own edge cases, or deserves its own test. Inline one of
+  1–3 obvious lines whose name would restate them (commit e6d55c9). An extracted
+  function that needs more than 3 arguments passed through is a wrong cut: move
+  the boundary or inline it.
+- **A private `_helper` is the last resort.** Before writing one, ask in order: one
+  row → model method; which rows → queryset method; neither → a method on the class
+  that owns the data or the work (in core-api, a service class in `utils`), named as
+  a domain action. A module-level function only for generic work tied to no use case
+  or model (building a regex, finding a pattern in a string: `normalize_ws`).
+- **A class has to earn it.** It holds state or groups several behaviours around
+  one thing. A class with one public method hasn't earned one: the method goes on the
+  class that owns that data or work.
 - **One concept lives in one place.** The whole triage topology is one route list at
   `graph/triage.py` (commit 55e853b deleted `flow.py`). `TriageState`
   fields are grouped under the node that writes them (commit 9ac1f46).
@@ -122,7 +117,7 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
 - Extract a seam (an ABC) only when there are two real implementations or a test fake
   needs one (`Embedder`, `Shortlister`). One implementation and no fake → no ABC.
 - **But** indirection that protects an invariant is not complexity — see
-  `load-bearing.md`. Read the comment before simplifying.
+  `load-bearing.md`. Check it, and the ADRs, before simplifying.
 
 ## 7. Types
 
@@ -143,7 +138,7 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
   into a model at startup; select providers with
   `match … case other: raise ValueError(f"unknown x: {other!r} (expected …)")`.
 - **No silent fallback.** Falling back to another provider/calibration looks healthy
-  and is wrong (`shortlister.py`'s selection comment).
+  and is wrong.
 - **Degrade toward humans with a specific `ReasonCode`.** Never toward "assume fine".
   Free-text reasons are invisible to the dashboard, which is built on the enum.
 - **One exception type per failure class**, with a docstring saying how callers must
@@ -160,7 +155,8 @@ per-ticket budget, cloud providers, a mixin, a flow table — all removed
   each with a comment on what it trades off; the settings code declares the type
   only, with no default.
 - Read a setting **where it is used**; don't thread it through constructors.
-- Some numbers are deliberately **not** config, and say so in a comment:
+- Some numbers are deliberately **not** config (their reasons are in
+  `load-bearing.md` or the ADRs):
   - safety invariants (the `(False, "high")` deny of `pipeline.trust_signals`
     when no KB page applies);
   - properties of a model or schema (`EMBED_DIM` — changing it needs a migration);
@@ -179,16 +175,16 @@ something, splitting the decision out is usually the best refactor available.
 | Service | Shape | Notes |
 |---|---|---|
 | ai-engine | `core/` (settings, state, node base, providers, retrieval, db, prompts) · `graph/` (build + nodes) · `main.py` | `core/` never imports `graph/`. No writes, ever (ADR-0004). Details: `.claude/skills/ai-engine-feature/references/ai-engine-conventions.md` |
-| core-api | `apps/<app>/{views.py, request_schema.py, response_schema.py, models.py, utils.py or utils/, tasks.py, tests/}` · `apps/core` (shared foundation; imports no app) · `infrastructure/` · `config/settings/{base,development,production,test}.py` | `views.py` is thin (bind, validate, call a model method, manager method or util). Request bodies go in `request_schema.py`; every handler declares `response=` with an output Schema from `response_schema.py` (aliases for renamed fields, `resolve_<field>` for computed ones) and returns models, never hand-built dicts. The role gate is `apps/accounts/permissions.py`. Fat models: a write, decision or query that belongs to one entity is a method on it or its manager (`article.set_auto_reply_allowed`, `Ticket.objects.submit`, `ReviewItem.objects.for_queue`); logic that is no single model's behaviour goes in `utils` (pure decisions, text processing, the pipeline, cross-model aggregations like the metrics dashboard). `tasks.py` is only Celery entry points, because task names are module paths. `infrastructure/` is transport to other processes, never judgement. `router.py` is the only `Branch` chooser. `db_table` names mirror `infra/migrations/sql/`. |
+| core-api | `apps/<app>/{views.py, request_schema.py, response_schema.py, models.py, utils.py or utils/, tasks.py, tests/}` · `apps/core` (shared foundation; imports no app) · `infrastructure/` · `config/settings/{base,development,production,test}.py` | Each piece goes in the layer that owns it (CLAUDE.md *Where logic goes*): `views.py` is HTTP only (take the request schema from `request_schema.py`, call a service class, model or queryset method, declare `response=` with a schema from `response_schema.py`, return models, never hand-built dicts); schemas check shape and fields, no database; model methods are rules about one row and stay pure-ish (no `request`, no writes to other models, no ai-engine/HTTP/Celery/email, no queries in a `@property`); queryset methods choose which rows; `utils` holds service classes (work across models, transactions, side effects, like the run in `pipeline.py`) and pure decisions (`router.py`, the only `Branch` chooser). `tasks.py` is only Celery entry points, because task names are module paths. The role gate is `apps/accounts/permissions.py`. `infrastructure/` is transport to other processes, never judgement. `db_table` names mirror `infra/migrations/sql/`. |
 | wire schema | `services/core-api/infrastructure/dtos.py`; ai-engine `schemas.py` (HTTP bodies) with `graph/ticket.py`, `graph/nodes/infer/proposals.py`, `graph/nodes/emit_signals/signals.py` | Defined once per service, kept identical by hand (ADR-0010). New persisted fields get a default. Regenerate TS after any change; never hand-edit `generated.ts`. |
 | evals | `evals/suites`, `evals/golden`, `evals/baselines` | Never lower a floor, average per-category F1, or drop a category. |
 
 ## 12. Tests
 
 - One `test_<module>.py` per module, opening with a docstring that says what the file
-  protects and why failure there matters.
-- Each non-trivial test has a docstring naming the **failure mode** it prevents, with
-  enough context to judge a future change as regression vs. intentional shift.
+  checks.
+- Each test is **named for the failure mode** it prevents. A docstring, if any,
+  says what it checks (§3); the why goes in the commit message or ADR.
 - **Failure paths first.** For every dependency: what if it raises, times out, returns
   junk, returns empty? Most of this system's correctness is what it does then.
 - Plain fake classes that record calls — not `unittest.mock`. A fake you can read in

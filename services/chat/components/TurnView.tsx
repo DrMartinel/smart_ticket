@@ -1,6 +1,7 @@
 "use client";
 
-import type { ChatTurnOut } from "@/lib/types/generated";
+import { useState } from "react";
+import type { ChatClarificationOut, ChatTurnOut } from "@/lib/types/generated";
 import { SLOW_AFTER_MS, type Turn } from "@/lib/conversation";
 import { BookIcon, CheckIcon, ShieldIcon, SparkleIcon, TicketIcon } from "./icons";
 
@@ -12,11 +13,15 @@ export default function TurnView({
   onCreateTicket,
   creating,
   onRetry,
+  onAnswer,
+  answering,
 }: {
   turn: Turn;
   onCreateTicket: (publicId: string) => void;
   creating: boolean;
   onRetry: (key: string) => void;
+  onAnswer: (publicId: string, answer: string) => void;
+  answering: boolean;
 }) {
   if (turn.kind === "sending") {
     return (
@@ -43,13 +48,125 @@ export default function TurnView({
   }
 
   const t = turn.turn;
+  const asked = t.state === "clarify" ? null : t.clarification;
   return (
     <>
       <Question text={t.question_masked} masked={PLACEHOLDER.test(t.question_masked)} />
+      {asked && (
+        // A question asked earlier: answered, or closed unanswered. Shown
+        // as the exchange it was, before what came of it.
+        <>
+          <Reply>
+            <p>{asked.question}</p>
+          </Reply>
+          {asked.answer_masked && (
+            <Question text={asked.answer_masked} masked={PLACEHOLDER.test(asked.answer_masked)} />
+          )}
+        </>
+      )}
       <Reply>
-        <Outcome turn={t} startedAt={turn.startedAt} onCreateTicket={onCreateTicket} creating={creating} />
+        {t.state === "clarify" && t.clarification ? (
+          <ClarifyCard
+            clarification={t.clarification}
+            onAnswer={(text) => onAnswer(t.public_id, text)}
+            answering={answering}
+            onCreateTicket={() => onCreateTicket(t.public_id)}
+            creating={creating}
+          />
+        ) : (
+          <Outcome turn={t} startedAt={turn.startedAt} onCreateTicket={onCreateTicket} creating={creating} />
+        )}
       </Reply>
     </>
+  );
+}
+
+// The router chose to ask which page the requester means (ADR-0023). The
+// pages are core-api's, from Jev's ranking; tapping one answers with its
+// title. "None of these" opens a box to say it in their own words, and
+// asking for a person carries out the held decision.
+function ClarifyCard({
+  clarification,
+  onAnswer,
+  answering,
+  onCreateTicket,
+  creating,
+}: {
+  clarification: ChatClarificationOut;
+  onAnswer: (text: string) => void;
+  answering: boolean;
+  onCreateTicket: () => void;
+  creating: boolean;
+}) {
+  const [text, setText] = useState("");
+  const [typing, setTyping] = useState(false);
+  const busy = answering || creating;
+  const send = () => {
+    const answer = text.trim();
+    if (answer && !busy) onAnswer(answer);
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p>{clarification.question}</p>
+      {clarification.options.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {clarification.options.map((title) => (
+            <button
+              key={title}
+              onClick={() => onAnswer(title)}
+              disabled={busy}
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-left text-sm transition hover:border-[var(--accent)] disabled:opacity-50"
+            >
+              {title}
+            </button>
+          ))}
+          {!typing && (
+            <button
+              onClick={() => setTyping(true)}
+              disabled={busy}
+              className="rounded-xl border border-dashed border-[var(--border)] px-3 py-1.5 text-left text-sm text-[var(--text-muted)] transition hover:border-[var(--accent)] disabled:opacity-50"
+            >
+              None of these
+            </button>
+          )}
+        </div>
+      )}
+      {(typing || clarification.options.length === 0) && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            send();
+          }}
+          className="flex gap-2"
+        >
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={2000}
+            disabled={busy}
+            autoFocus
+            placeholder="Describe what you need in your own words"
+            aria-label="Your answer"
+            className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+          />
+          <button
+            type="submit"
+            disabled={busy || !text.trim()}
+            className="brand-gradient rounded-xl px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {answering ? "Sending…" : "Send"}
+          </button>
+        </form>
+      )}
+      <button
+        onClick={onCreateTicket}
+        disabled={busy}
+        className="self-start text-xs text-[var(--text-muted)] underline-offset-2 hover:underline disabled:opacity-50"
+      >
+        {creating ? "Creating ticket…" : "Talk to a person instead"}
+      </button>
+    </div>
   );
 }
 
@@ -77,6 +194,46 @@ function Reply({ children }: { children: React.ReactNode }) {
       <div className="surface min-w-0 max-w-[85%] rounded-2xl rounded-tl-md px-4 py-3 text-[15px] leading-6">{children}</div>
     </div>
   );
+}
+
+function AnswerText({ text }: { text: string }) {
+  const parts = splitSteps(text);
+  if (!parts) return <p className="whitespace-pre-wrap break-words">{text}</p>;
+  return (
+    <div className="flex flex-col gap-2 break-words">
+      {parts.intro && <p>{parts.intro}</p>}
+      <ol className="list-decimal space-y-1 pl-5 marker:text-[var(--text-muted)]">
+        {parts.steps.map((step, i) => (
+          <li key={i}>{step}</li>
+        ))}
+      </ol>
+      {parts.outro && <p>{parts.outro}</p>}
+    </div>
+  );
+}
+
+// The model writes steps inline ("…these steps: 1. Do this. 2. Do that.").
+// Only markers numbered 1, 2, 3… in order count as steps, so a stray
+// "Windows 10. " never splits the text; fewer than two leaves it as written.
+// The last step keeps its first sentence, and whatever follows it ("If the
+// issue persists, …") is the closing paragraph, not part of the step.
+function splitSteps(text: string): { intro: string; steps: string[]; outro: string } | null {
+  if (text.includes("\n")) return null;
+  const marks: { start: number; end: number }[] = [];
+  const marker = /(?:^|\s)(\d{1,2})\.\s+/g;
+  for (let m = marker.exec(text); m; m = marker.exec(text)) {
+    if (Number(m[1]) === marks.length + 1) marks.push({ start: m.index, end: m.index + m[0].length });
+  }
+  if (marks.length < 2) return null;
+
+  const steps = marks.map((mk, i) => text.slice(mk.end, marks[i + 1]?.start ?? text.length).trim());
+  const last = steps[steps.length - 1].match(/^(.*?[.!?])\s+([A-Z][\s\S]*)$/);
+  let outro = "";
+  if (last) {
+    steps[steps.length - 1] = last[1];
+    outro = last[2];
+  }
+  return { intro: text.slice(0, marks[0].start).trim(), steps, outro };
 }
 
 function Thinking({ label, slow = false }: { label: string; slow?: boolean }) {
@@ -116,7 +273,7 @@ function Outcome({
       if (!turn.answer) return <p>Answered.</p>;
       return (
         <div className="flex flex-col gap-3">
-          <p className="whitespace-pre-wrap break-words">{turn.answer.text}</p>
+          <AnswerText text={turn.answer.text} />
           <figure className="rounded-xl border-l-[3px] border-[var(--accent)] bg-[var(--surface-2)] px-3 py-2">
             <blockquote className="text-sm italic text-[var(--text-muted)]">“{turn.answer.quote}”</blockquote>
             <figcaption className="mt-1.5 flex items-center gap-1.5 text-xs font-medium">
@@ -135,6 +292,10 @@ function Outcome({
           </p>
         </div>
       );
+
+    case "clarify":
+      // Rendered by ClarifyCard; reached only without the question itself.
+      return <p>Please answer the question above.</p>;
 
     case "suggest_ticket":
       return (

@@ -12,14 +12,12 @@ nothing on the English golden set, and `ts_rank_cd` has no IDF at all.
 across tickets, so nothing may compare it with a number (ADR-0005's rule,
 applied to BM25 too). Only ranks leave this channel.
 
-Error codes (`0x1A2B3C4D`, `ERR-4042`) still get an explicit boost on top.
+Searches the drafted answer, never the ticket (ADR-0020, ADR-0021).
 """
 
 from __future__ import annotations
 
 import uuid
-
-import re
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, or_, select
@@ -27,8 +25,6 @@ from sqlalchemy import func, or_, select
 from ai_engine.core.config import settings
 from ai_engine.core.db.client import db
 from ai_engine.core.db.tables import KbArticle, KbChunk
-
-_ERROR_CODE_RE = re.compile(r"0x[0-9A-Fa-f]{8}|ERR-\d+")
 
 
 class LexicalHit(BaseModel):
@@ -42,8 +38,6 @@ class LexicalHit(BaseModel):
 
 
 def bm25_search(query_text: str) -> list[LexicalHit]:
-    error_codes = _ERROR_CODE_RE.findall(query_text)
-
     score = func.pdb.score(KbChunk.id).label("score")
     statement = (
         select(KbChunk.id, KbChunk.article_id, KbArticle.slug, KbChunk.content, score)
@@ -56,24 +50,18 @@ def bm25_search(query_text: str) -> list[LexicalHit]:
                 KbChunk.section_title.op("|||", is_comparison=True)(query_text),
             )
         )
+        # Active articles only (ADR-0018).
+        .where(KbArticle.is_active.is_(True))
         .order_by(score.desc())
         .limit(settings.bm25_top_k)
     )
-    rows = db.all(statement)
-
-    hits = []
-    for chunk_id, article_id, article_slug, content, score in rows:
-        boosted = float(score)
-        if error_codes and any(code in content for code in error_codes):
-            boosted += settings.bm25_error_code_boost
-        hits.append(
-            LexicalHit(
-                chunk_id=chunk_id,
-                article_id=article_id,
-                article_slug=article_slug,
-                content=content,
-                score=boosted,
-            )
+    return [
+        LexicalHit(
+            chunk_id=chunk_id,
+            article_id=article_id,
+            article_slug=article_slug,
+            content=content,
+            score=float(score),
         )
-    hits.sort(key=lambda h: h.score, reverse=True)
-    return hits
+        for chunk_id, article_id, article_slug, content, score in db.all(statement)
+    ]

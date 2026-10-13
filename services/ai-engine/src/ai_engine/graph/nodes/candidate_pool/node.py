@@ -1,10 +1,9 @@
 """
 Candidate pool — the cross-encoder pass, and link expansion (ADR-0014
-decisions 1-2, ADR-0015). The cross-encoder scores the fused candidates; the
-articles of its top `link_expansion_seeds` chunks are the seeds; the pages
-they link to add their chunks nearest the ticket; the cross-encoder scores
-those too. The pool leaves in cross-encoder order, for RerankNode to cut to
-Jev's shortlist and re-score.
+decisions 1-2, ADR-0015, ADR-0018, ADR-0021). Each candidate page adds its
+chunks nearest the drafted answer, the cross-encoder scores them against the
+ticket, and the pages associated with its top chunks add theirs. The pool
+leaves in cross-encoder order, for RerankNode to cut to Jev's shortlist.
 
 Every score here is the cross-encoder's. Seeds come from its order, never
 from RRF's (ADR-0005).
@@ -49,16 +48,28 @@ class CandidatePoolNode(BaseNode):
         if not candidates:
             return {"pool": []}
 
+        if not state.draft_embedding:
+            raise ValueError("the candidate pool needs the drafted answer (DraftAnswerNode)")
+
+        # The draft picks which chunks are scored; the ticket scores them (ADR-0021).
         query = f"{state.ticket.subject_masked}\n{state.ticket.body_masked}"
-        pool = _by_score(_scored(query, candidates))
+        seen = {c.chunk_id for c in candidates}
+        picked = list(candidates)
+        for c in nearest_chunks(
+            [c.article_id for c in candidates],
+            state.draft_embedding,
+            per_article=settings.draft_chunks_per_page,
+        ):
+            if c.chunk_id not in seen:
+                seen.add(c.chunk_id)
+                picked.append(c)
+        pool = _by_score(_scored(query, picked))
 
         seeds = list(dict.fromkeys(r.article_id for r in pool[: settings.link_expansion_seeds]))
         linked = linked_article_ids(seeds, max_per_seed=settings.link_expansion_max_links_per_seed)
         added = nearest_chunks(
-            linked, state.query_embedding, per_article=settings.link_expansion_chunks_per_page
+            linked, state.draft_embedding, per_article=settings.link_expansion_chunks_per_page
         )
-
-        seen = {c.chunk_id for c in candidates}
         added = [c for c in added if c.chunk_id not in seen]
         if added:
             pool = _by_score(pool + _scored(query, added))

@@ -24,6 +24,8 @@ from pathlib import Path
 from typing import Any
 
 OUT_PATH = Path(__file__).parent / "tickets.jsonl"
+# The kb_covered tickets drafted by draft_kb_covered.py and accepted in review.
+DRAFTED_PATH = Path(__file__).parent / "kb_covered_drafted.jsonl"
 DEMO_KB = Path(__file__).parent.parent.parent / "demo_kb"
 
 # 5 phrasing variants per target article, written from what the page covers
@@ -934,6 +936,25 @@ def build() -> list[dict[str, Any]]:
         if answering_slug in approved:
             raise SystemExit(f"near miss answered by {answering_slug}, which is approved")
         add(subject, body, answered_by(answering_slug), ["edge", "near_miss"])
+
+    # The drafted kb_covered tickets, after every authored case (g175 on).
+    if DRAFTED_PATH.exists():
+        drafted = [
+            json.loads(line)
+            for line in DRAFTED_PATH.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        named = {d["slug"] for d in drafted} | {s for d in drafted for s in d["acceptable_slugs"]}
+        missing = sorted(named - set(categories))
+        if missing:
+            raise SystemExit(f"drafted ticket pages not in demo_kb/manifest.json: {missing}")
+        for d in drafted:
+            if d["slug"] in d["acceptable_slugs"]:
+                raise SystemExit(f"{d['slug']} lists itself as an acceptable page")
+            truth = answered_by(d["slug"])
+            if d["acceptable_slugs"]:
+                truth["acceptable_kb_slugs"] = sorted(d["acceptable_slugs"])
+            add(d["subject"], d["body"], truth, ["kb_covered", "drafted"])
 
     return cases
 

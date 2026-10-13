@@ -9,7 +9,10 @@ errors, ordering).
 - `JevClient` (on `HttpClient`): TypeSafe's hosted Jev, `ask()` (yes/no)
   and `choose()` (one choice question). `jev`.
 - `ChatClient`: the triage chat model through LangChain (whose OpenAI SDK
-  runs on httpx2), for `chat`. `vllm_chat` / `openai_chat` build it.
+  runs on httpx2), for `chat` and `draft`. `ChatClient.for_provider` builds it.
+- `ChatClient.deepseek_model()` / `ChatClient.on_deepseek()`: DeepSeek's hosted API (ADR-0019)
+  on the `CLOUD_*` settings, for whichever job's provider names `deepseek`
+  and for the offline entity_graph build (ADR-0018).
 
 No retries anywhere, SDK ones included (`max_retries=0`): a failed call goes
 straight to HITL. Every client is built at import and opens no socket until
@@ -21,7 +24,7 @@ from __future__ import annotations
 import json
 import logging
 from functools import cached_property
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import httpx
 import httpx2
@@ -46,6 +49,9 @@ from ai_engine.core.providers.dtos import (
     RerankRequest,
     ResponseFormat,
 )
+
+if TYPE_CHECKING:
+    from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +79,8 @@ _JSON_OBJECT = {"type": "json_object"}
 
 VLLM_COST_PER_1K_TOKENS = 0.0
 OPENAI_COST_PER_1K_TOKENS = 0.003
+# DeepSeek's peak output rate per 1k tokens (ADR-0019).
+DEEPSEEK_COST_PER_1K_TOKENS = 0.0012
 
 
 def _split_timeout(http_module: Any) -> Any:
@@ -226,7 +234,7 @@ class JevChoice(NamedTuple):
 
 class ChatClient:
     """The triage chat model (InferNode), on whichever provider
-    `chat_client_provider` selects: see `vllm_chat` and `openai_chat`.
+    `chat_client_provider` selects: see `for_provider`.
 
     `constrains_schema`: whether the server decodes against a JSON Schema
     (vLLM's guided decoding). Where it does, a reply can only take the
@@ -247,11 +255,19 @@ class ChatClient:
         self.constrains_schema = constrains_schema
 
     def complete(
-        self, system_prompt: str, user_prompt: str, *, schema_name: str, schema: dict[str, Any]
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+        temperature: float | None = None,
     ) -> LLMResult:
         """One call, no retry, its reply decoded against `schema` where the
         server can. Any failure raises `AllLLMDownError`."""
         constrained: dict[str, Any] = {}
+        if temperature is not None:
+            constrained["temperature"] = temperature
         if self.constrains_schema:
             constrained["response_format"] = {
                 "type": "json_schema",
@@ -280,54 +296,96 @@ class ChatClient:
             logger.warning("LLM call failed: %s", e)
             raise AllLLMDownError(str(e)) from e
 
+    @classmethod
+    def on_vllm(cls, *, model: str, base_url: str) -> ChatClient:
+        """Chat on a self-hosted vLLM server: JSON replies, Qwen's thinking off,
+        SDK retries off, billed as free."""
+        from langchain_openai import ChatOpenAI
 
-def vllm_chat(*, model: str, base_url: str) -> ChatClient:
-    """Chat on a self-hosted vLLM server: JSON replies, Qwen's thinking off,
-    SDK retries off, billed as free."""
-    from langchain_openai import ChatOpenAI
-
-    return ChatClient(
-        model=model,
-        chat_model=ChatOpenAI(
+        return cls(
             model=model,
-            api_key=SecretStr("EMPTY"),
-            base_url=base_url,
-            model_kwargs={"response_format": _JSON_OBJECT},
-            extra_body={"chat_template_kwargs": {"enable_thinking": False}},
-            timeout=_split_timeout(httpx2),
-            max_retries=0,
-        ),
-        cost_per_1k_tokens=VLLM_COST_PER_1K_TOKENS,
-        constrains_schema=True,
-    )
+            chat_model=ChatOpenAI(
+                model=model,
+                api_key=SecretStr("EMPTY"),
+                base_url=base_url,
+                model_kwargs={"response_format": _JSON_OBJECT},
+                extra_body={"chat_template_kwargs": {"enable_thinking": False}},
+                timeout=_split_timeout(httpx2),
+                max_retries=0,
+            ),
+            cost_per_1k_tokens=VLLM_COST_PER_1K_TOKENS,
+            constrains_schema=True,
+        )
 
+    @classmethod
+    def on_openai(cls) -> ChatClient:
+        """Chat on OpenAI's cloud API: JSON replies, SDK retries off, output
+        capped. A missing key or model fails the boot."""
+        from langchain_openai import ChatOpenAI
 
-def openai_chat() -> ChatClient:
-    """Chat on OpenAI's cloud API: JSON replies, SDK retries off, output
-    capped. A missing key or model fails the boot."""
-    from langchain_openai import ChatOpenAI
+        if not settings.cloud_api_key:
+            raise ValueError("openai chat requires CLOUD_API_KEY")
+        if not settings.cloud_model:
+            raise ValueError("openai chat requires CLOUD_MODEL")
+        return cls(
+            model=settings.cloud_model,
+            chat_model=ChatOpenAI(
+                model=settings.cloud_model,
+                api_key=SecretStr(settings.cloud_api_key),
+                base_url=settings.cloud_base_url,
+                model_kwargs={"response_format": _JSON_OBJECT},
+                max_completion_tokens=settings.cloud_max_output_tokens,
+                timeout=_split_timeout(httpx2),
+                max_retries=0,
+            ),
+            cost_per_1k_tokens=OPENAI_COST_PER_1K_TOKENS,
+            # OpenAI's json_schema mode takes only a strict subset of JSON Schema
+            # (every property required, no oneOf), which the proposal union isn't.
+            # Plain JSON mode, and infer.py's validation catches the rest.
+            constrains_schema=False,
+        )
 
-    if not settings.cloud_api_key:
-        raise ValueError("openai chat requires CLOUD_API_KEY")
-    if not settings.cloud_model:
-        raise ValueError("openai chat requires CLOUD_MODEL")
-    return ChatClient(
-        model=settings.cloud_model,
-        chat_model=ChatOpenAI(
+    @classmethod
+    def on_deepseek(cls) -> ChatClient:
+        """Builds a chat client on DeepSeek (ADR-0019)."""
+        chat_model = cls.deepseek_model(json_mode=True)
+        return cls(
+            model=chat_model.model_name,
+            chat_model=chat_model,
+            cost_per_1k_tokens=DEEPSEEK_COST_PER_1K_TOKENS,
+            constrains_schema=False,
+        )
+
+    @classmethod
+    def for_provider(cls, provider: str) -> ChatClient:
+        """Builds the chat client for `provider`."""
+        match provider:
+            case "openai":
+                return cls.on_openai()
+            case "vllm":
+                return cls.on_vllm(model=settings.chat_model, base_url=settings.chat_base_url)
+            case "deepseek":
+                return cls.on_deepseek()
+        raise ValueError(f"unknown chat provider {provider!r}")
+
+    @staticmethod
+    def deepseek_model(*, json_mode: bool, temperature: float | None = None) -> ChatOpenAI:
+        """Builds a chat model on DeepSeek's API from the `CLOUD_*` settings (ADR-0019)."""
+        from langchain_openai import ChatOpenAI
+
+        if not settings.cloud_api_key or not settings.cloud_model or not settings.cloud_base_url:
+            raise ValueError("deepseek chat requires CLOUD_API_KEY, CLOUD_MODEL and CLOUD_BASE_URL")
+        return ChatOpenAI(
             model=settings.cloud_model,
             api_key=SecretStr(settings.cloud_api_key),
             base_url=settings.cloud_base_url,
-            model_kwargs={"response_format": _JSON_OBJECT},
+            model_kwargs={"response_format": _JSON_OBJECT} if json_mode else {},
+            extra_body={"thinking": {"type": "disabled"}},
             max_completion_tokens=settings.cloud_max_output_tokens,
+            temperature=temperature,
             timeout=_split_timeout(httpx2),
             max_retries=0,
-        ),
-        cost_per_1k_tokens=OPENAI_COST_PER_1K_TOKENS,
-        # OpenAI's json_schema mode takes only a strict subset of JSON Schema
-        # (every property required, no oneOf), which the proposal union isn't.
-        # Plain JSON mode, and infer.py's validation catches the rest.
-        constrains_schema=False,
-    )
+        )
 
 
 # --- Clients, built at import (no I/O) ----------------------------------------
@@ -339,8 +397,7 @@ jev = JevClient(
     base_url=settings.jev_base_url, api_key=settings.jev_api_key, model=settings.jev_model
 )
 
-match settings.chat_client_provider:
-    case "openai":
-        chat = openai_chat()
-    case "vllm":
-        chat = vllm_chat(model=settings.chat_model, base_url=settings.chat_base_url)
+
+# The proposal's model (InferNode) and the drafted answer's (DraftAnswerNode, ADR-0021).
+chat = ChatClient.for_provider(settings.chat_client_provider)
+draft = ChatClient.for_provider(settings.draft_client_provider)

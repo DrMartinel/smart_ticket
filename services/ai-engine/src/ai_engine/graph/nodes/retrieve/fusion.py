@@ -1,7 +1,7 @@
 """
 Reciprocal Rank Fusion — spec §6.3.
 
-    score(d) = Σ 1 / (k + rank_i(d))
+    score(d) = Σ 1 / (k + rank_i(d))   over the ranked lists d appears in
 
 k=60 is the standard constant from the RRF paper, not meant to be tuned. The
 output is an ORDERED list only: the fused score sorts and is deliberately not
@@ -11,6 +11,7 @@ carried on `Candidate`, so nothing can threshold against it (ADR-0005).
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 
 from ai_engine.core.config import settings
 from ai_engine.graph.state import Candidate
@@ -19,19 +20,16 @@ from ai_engine.graph.nodes.retrieve.vector import VectorHit
 
 
 def reciprocal_rank_fusion(
-    bm25_hits: list[LexicalHit], vector_hits: list[VectorHit]
+    ranked_lists: Sequence[Sequence[LexicalHit | VectorHit]],
 ) -> list[Candidate]:
     k = settings.rrf_k
     scores: dict[uuid.UUID, float] = {}
     meta: dict[uuid.UUID, tuple[uuid.UUID, str, str]] = {}
 
-    for rank, hit in enumerate(bm25_hits, start=1):
-        scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + 1.0 / (k + rank)
-        meta[hit.chunk_id] = (hit.article_id, hit.article_slug, hit.content)
-
-    for rank, vhit in enumerate(vector_hits, start=1):
-        scores[vhit.chunk_id] = scores.get(vhit.chunk_id, 0.0) + 1.0 / (k + rank)
-        meta[vhit.chunk_id] = (vhit.article_id, vhit.article_slug, vhit.content)
+    for hits in ranked_lists:
+        for rank, hit in enumerate(hits, start=1):
+            scores[hit.chunk_id] = scores.get(hit.chunk_id, 0.0) + 1.0 / (k + rank)
+            meta[hit.chunk_id] = (hit.article_id, hit.article_slug, hit.content)
 
     ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
     return [

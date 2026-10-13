@@ -44,6 +44,10 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+build = [
+    { name = "pyyaml" },
+    { name = "tiktoken" },
+]
 dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -70,6 +74,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+build = [
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "tiktoken", specifier = ">=0.8" },
+]
 dev = [
     { name = "pytest", specifier = ">=8.3" },
     { name = "pytest-asyncio", specifier = ">=0.24" },

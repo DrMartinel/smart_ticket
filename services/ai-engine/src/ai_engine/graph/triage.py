@@ -29,6 +29,7 @@ from ai_engine.graph.state import TriageState
 from ai_engine.graph.build.builder import GraphBuilder
 from ai_engine.graph.nodes.candidate_pool.node import candidate_pool
 from ai_engine.graph.nodes.classify_category.node import ClassifyCategoryOutcome, classify_category
+from ai_engine.graph.nodes.draft_answer.node import draft_answer
 from ai_engine.graph.nodes.emit_signals.node import emit_signals
 from ai_engine.graph.nodes.fewshot import select_fewshots
 from ai_engine.graph.nodes.infer.node import infer
@@ -40,7 +41,9 @@ from ai_engine.graph.nodes.validate import validate
 _triage = GraphBuilder(entry=injection)
 
 _triage.route(injection, InjectionOutcome.INJECTION_DETECTED, emit_signals)
-_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, hybrid_retrieve)
+# An injected ticket never reaches the drafting model.
+_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, draft_answer)
+_triage.route(draft_answer, SingleExit.DONE, hybrid_retrieve)
 
 _triage.route(hybrid_retrieve, SingleExit.DONE, candidate_pool)
 _triage.route(candidate_pool, SingleExit.DONE, rerank)

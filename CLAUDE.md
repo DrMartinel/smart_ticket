@@ -21,19 +21,22 @@ mechanisms enforce it at three levels:
 | Level | Mechanism |
 |---|---|
 | Types | Every LLM-authored field is prefixed `proposed_` |
-| Code | `router.py` is the only place a `Branch` is chosen, and it is a pure function |
-| Database | `ai-engine` connects as a `SELECT`-only Postgres role |
+| Code | `router.py` is the only place a `Branch` is chosen, by a pure `Router` built from the thresholds |
+| Database | `ai-engine` connects as a role that can only `SELECT`, except that the offline entity-graph build replaces its own `kb_article_associations` rows (ADR-0025) |
 
 Things that look needlessly indirect — the `proposed_` prefixes, auto-reply
-authority living on KB rows instead of in model output, a pure function taking
-thresholds as an argument — exist to stop the LLM from quietly acquiring
-authority it was never granted. **Read the comment before simplifying.** They
-usually cite the ADR or spec section that explains what breaks without it.
+authority living on KB rows instead of in model output, a pure router built
+from thresholds passed in — exist to stop the LLM from quietly acquiring
+authority it was never granted. **Check the ADRs and
+[`load-bearing.md`](.claude/skills/refactor/references/load-bearing.md) before
+simplifying:** they record what breaks without it. Code comments don't (see
+*Comments and docstrings*).
 
 ## Hard rules (violating these is a regression, not a style choice)
 
-1. **`router.py` stays pure.** No I/O, no importing global config, thresholds
-   passed in as a parameter. Need data for a decision? Fetch it *before* the call
+1. **`router.py` stays pure.** `Router` is a frozen object built from the
+   thresholds (no default); `Router(th).route(...)` does no I/O and imports no
+   global config. Need data for a decision? Fetch it *before* the call
    and pass it. This is what makes every branch testable with no DB, model, or
    network — and what lets decisions be replayed against
    `routing_decisions.thresholds_used`.
@@ -112,7 +115,8 @@ make lint           # ruff check + format --check, pinned to match lint.yml
 make check          # lint + typecheck + test
 make runserver      # :8000; also: worker, beat, shell
 make makemigrations / make migrate
-make load-demo-kb ARGS="--approver manager1"   # demo KB, see demo_kb/README.md
+make load-demo-kb ARGS="--approver manager1"   # demo KB, see demo_kb/README.md;
+                    # then ai-engine's build --rescore-only writes the entity-graph edges
 make types          # regenerate web TS types after any contract change
 ```
 
@@ -147,7 +151,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 
 | Concern | Path |
 |---|---|
-| The routing decision (pure function, only place a `Branch` is chosen) | [router.py](services/core-api/apps/tickets/utils/router.py) |
+| The routing decision (a pure `Router`, the only place a `Branch` is chosen) | [router.py](services/core-api/apps/tickets/utils/router.py) |
 | PII masking (inline, two-tier; 100% branch coverage is a release gate) | [masking.py](services/core-api/apps/tickets/utils/masking.py) |
 | Trust score (in core-api, so the LLM can't score itself) | [trust_scorer.py](services/core-api/apps/tickets/utils/trust_scorer.py) |
 | What happens to a ticket after submit (embed → incident check → ai-engine → score → route → act) | [pipeline.py](services/core-api/apps/tickets/utils/pipeline.py) |
@@ -164,30 +168,71 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
 | KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |
 
-Services: `core-api` (Django + Ninja) owns **every write and every decision** ·
-`ai-engine` (FastAPI + LangGraph) has **no authority**, returns signals and a
-proposal only, and is the **only vLLM client** (ADR-0012: core-api's embeddings
+Services: `core-api` (Django + Ninja) owns **every decision and every write
+but one** (the `entity_graph` association rows, written by ai-engine's
+offline build, ADR-0025) · `ai-engine` (FastAPI + LangGraph) has **no
+authority**, returns signals and a proposal only, writes nothing while
+triaging, and is the **only vLLM client** (ADR-0012: core-api's embeddings
 and PII NER go through its `/v1/embed` and `/v1/pii/detect`) · `web` (Next.js) is a thin client with no business logic.
 
 **If you are adding a feature that decides something, it belongs in core-api.**
 
-Inside core-api, each app has these modules:
-- `views.py`: thin Ninja handlers. Each binds and validates the request,
-  calls a model method, manager method or util, and declares its output with
-  `response=`.
-- `models.py`: fat models. Writes, decisions and reads that belong to one
-  entity are methods on it (`article.set_auto_reply_allowed(...)`,
-  `item.decide(...)`) or on its manager (`Ticket.objects.submit(...)`,
-  `ReviewItem.objects.for_queue(...)`, `AuditLog.objects.record(...)`).
-- `utils.py` or `utils/`: logic that is no single model's behaviour: pure
-  decisions and text processing (`router.py`, `trust_scorer.py`,
-  `masking.py`), and the per-ticket `pipeline.py` that coordinates several
-  models, plus reads that span several models with no owner of their own
-  (`apps/metrics/utils.py`). `router.py` stays a pure function (rule 1).
-- `request_schema.py` / `response_schema.py`: request bodies and response
-  shapes. Every handler declares `response=`; none builds a response dict.
-- `tasks.py`: Celery entry points only. A task's name is its module path, so
-  the work lives in models and utils and the task stays put.
+### Where logic goes
+
+Logic lives with the data it describes: rules about one row go on the model,
+which rows count goes on the queryset, and work across several models goes
+in a service class. Endpoints and schemas stay thin.
+
+**1. Each piece goes in the layer that owns it.** Inside core-api, each app has:
+
+| Layer | Module | Owns | Example |
+|---|---|---|---|
+| Endpoint | `views.py` | HTTP only: take the request schema, call a service class, model or queryset method, return the result with `response=` | a handler that validates the body and makes one call |
+| Schema | `request_schema.py` / `response_schema.py` | Shape and field checks; no database access. No handler builds a response dict | `subject: str = Field(min_length=3, max_length=200)` |
+| Model method | `models.py` | Rules about **one row**, from its own fields plus arguments | `article.chunks_are_current()` |
+| QuerySet method | `models.py` | **Which rows** count | `ReviewItem.objects.for_queue(...)`, `FewshotExample.objects.active_for_category(...)` |
+| Service class | `utils.py` or `utils/` (this repo's `services.py`) | Work across several models, transactions, and side effects (ai-engine calls, Celery, email) | the per-ticket run in `pipeline.py` (module functions today, see below) |
+| Pure decision | `utils/` | A decision with no I/O | `router.py` (rule 1), `trust_scorer.py`, `masking.py` |
+| Task | `tasks.py` | Celery entry points only; the work lives in services | `process_ticket` |
+
+**2. Extract by meaning, not by how often code is used.** Extract a block
+when it is a named business rule, has its own edge cases, or deserves its
+own test. Inline it when the body is 1–3 obvious lines and the name would
+restate them. If an extracted function needs more than 3 arguments passed
+through, the cut is wrong: move the boundary or inline it.
+
+**3. A private `_helper` is the last resort.** Before writing one, ask in
+order: is it about one row (model method)? About which rows (queryset
+method)? Otherwise, a method on the class that owns the data or the work (in
+core-api, a service class in `utils`), named as a domain action. A module-level
+function only for generic work tied to no use case or model, such as building a
+regex or finding a pattern in a string (`normalize_ws` in `validate.py`).
+
+**4. A class has to earn it.** Use one when it holds state or groups several
+behaviours around one thing. A class with a single public method
+(`OrderService.create()`) hasn't earned one: its method goes on the class that
+owns that data or work (rule 3).
+
+**5. Model methods stay pure-ish.** They don't touch `request`, write to
+other models, call external systems (ai-engine, HTTP, Celery, email), or run
+queries inside a `@property` (one extra query per row in a loop). Those go in
+service classes.
+
+Code that predates these rules:
+- Model methods that break rule 5: `KbArticle.set_auto_reply_allowed` and
+  `set_risk_tier` (write `KbAuthorityLog`), `ReviewItem.decide` (writes
+  `ReviewDecision`, `EvalCandidate`).
+- Manager methods that write, which rule 1 puts in service classes:
+  `Ticket.objects.submit` (writes `AuditLog`, queues a task),
+  `KbArticle.objects.create_and_ingest` / `upsert_from_source`,
+  `Incident.objects.get_or_create_for_mass_incident`,
+  `AuditLog.objects.record`.
+
+- `utils/pipeline.py` and the other `utils` modules: use-case module-level
+  functions, which rule 3 puts on a service class.
+
+Move each to a service class when you next change it, keeping every
+write in its current transaction (the authority log row is ADR-0002).
 
 `apps/core` is the shared foundation: abstract `BaseModel`, middleware,
 ops commands (`wait_for_db`), generic test helpers. Every app may import
@@ -210,6 +255,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | What Jev is asked | `ai-engine/core/prompts/*.json` — bump the version in filename and `RERANK_PROMPT_VERSION` or `CATEGORY_QUESTION_VERSION` the same way |
 | What counts as PII | `patterns.py` (regex) or the NER prompt `ai-engine/core/prompts/pii_ner.v*.md` |
 | What is in the demo KB | `demo_kb/sources.json` (then `fetch.py`), approvals and risk tiers in `demo_kb/curation.json` — never by editing fetched pages |
+| The entity-graph edges link expansion follows | ai-engine `core/associations/build.py`, which writes them; after `load-demo-kb`, its `--rescore-only` (`demo_kb/README.md`) |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question `core/prompts/category.v*.json`; the confidence bar in `thresholds.yaml` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
@@ -249,9 +295,23 @@ copies that directory — a new SQL file that isn't copied fails at container st
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
-  Since ADR-0013 the `bm25_keyword_hit` feature (BM25/vector agreement,
-  `retrieval.keyword_agreement_k`) is live for the first time, and it lifts
-  a high-risk access request (g120) over `t_route`. Another reason P3 waits.
+  The `bm25_keyword_hit` feature is gone with BM25 on the ticket (ADR-0020,
+  Proposed), and the remaining hand-set features score every ticket.
+- **Retrieval drafts first** (HyDE, ADR-0021, Proposed): `draft_answer` has
+  the chat model write the passage it expects would answer the ticket;
+  retrieval fuses vector search on the ticket with BM25 and vector search on
+  the draft, and each page's chunks nearest the draft join the pool. The
+  cross-encoder and Jev still score against the ticket. A failed draft is a
+  500 → HITL. Each model job has its own setting: the proposal
+  `CHAT_CLIENT_PROVIDER`, the draft `DRAFT_CLIENT_PROVIDER`, PII NER
+  `NER_CLIENT_PROVIDER` (raw text leaves only with `deepseek` there,
+  ADR-0019). Production drafts on DeepSeek (ADR-0022; the template ships
+  `vllm` so a copy boots without a key): recall@3 0.866 vs 0.816 on Qwen.
+- **The retrieval gate is recall@5** since 2026-10-12, as spec §12.2 names
+  it: the proposal is shown Jev's top 5 (`RERANK_TOP_N=5`). Latest, entity
+  graph and DeepSeek drafting: recall@5 0.900, recall@3 0.866 (reported,
+  ungated). `report.py`'s baseline comparison still reads recall@3:
+  changing `baseline.json` needs a reviewer other than the author.
 - Every run shortlists, then reranks: the shortlister, a cross-encoder (`vllm`,
   bge-reranker-v2-m3; `lexical` for CI/offline), orders the fused candidates plus
   link-expanded chunks, and **Jev**, the reranker (hosted, needs `JEV_API_KEY`),
@@ -265,9 +325,12 @@ copies that directory — a new SQL file that isn't copied fails at container st
   `classification.min_confidence` (0.65 🔧) as `category_low_confidence`.
   The LLM no longer proposes a category (`propose.v8`). A Jev failure, reranking or
   category, is a 500 → HITL `ai_engine_unavailable`, never a fallback.
-- **`clarify`** (ADR-0016, Proposed): the router can choose to ask the
-  requester which shown page they mean; until the requester side exists it
-  is a review item in the `clarification` queue.
+- **`clarify`** (ADR-0016, ADR-0023, Proposed): the router can choose to
+  ask the requester which shown page they mean. A live chat ticket shows
+  the question; the answer is masked like a ticket and the pipeline runs
+  again, and a second `clarify` goes to a person (`clarify_round_cap`).
+  Unanswered after `clarification.wait_minutes`, the chat offers a ticket.
+  Form tickets and shadow mode: a review item in the `clarification` queue.
 - PII quarantine **write** path is done; the **read** path is not. Currently fails
   safe (nobody can read raw PII). **Do not add a `decrypt()` call without writing
   the `PiiAccessLog` row in the same transaction, with a mandatory non-empty reason.**
@@ -285,7 +348,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Every generation check ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
 | Unaccented Vietnamese matches nothing | Diacritic folding (`LexicalShortlister._tokenize`) regressed; `đ`/`Đ` need special handling |
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
-| `pg_search must be loaded via shared_preload_libraries`, or migrate fails at `dbextras.0003` | Postgres is the stock pgvector image, or started without the preload flag. Use compose's `db` (built from `infra/db/Dockerfile`, ADR-0013). **Never "fix" it by catching the BM25 error**: that silently makes retrieval vector-only again |
+| `pg_search must be loaded via shared_preload_libraries`, or migrate fails at `dbextras.0003` | Postgres is the stock pgvector image, or started without the preload flag. Use compose's `db` (built from `infra/db/Dockerfile`, ADR-0013). Retrieval no longer runs BM25 on the ticket (ADR-0020), but the index and its migration stay |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | `ImproperlyConfigured: X is not set` (core-api), `Field required` on `Settings` (ai-engine), or compose's `required variable X is missing a value` | No root `.env` (`cp .env.example .env`), or yours predates X: copy its line from `.env.example`. A new setting goes in `.env.example` too; never a default in code |
 | Behaviour differs from a teammate's on the same commit (prompt, model, top-k) | Your `.env` holds an old value that `.env.example` has since changed: diff the two |
@@ -297,6 +360,19 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | A `vllm-*` container dies with `Engine core initialization failed` | CUDA out of memory: the three servers share one GPU. Fractions and start order: `docs/onboarding.md` step 2 |
 | New model has a bigint `id`; `test_every_model_has_a_uuid_primary_key` fails | Inherit `apps.core.models.BaseModel`, which declares `id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)` (ADR-0011). `DEFAULT_AUTO_FIELD` is still `BigAutoField`, for Django's own tables |
 
+## Comments and docstrings
+
+Comments and docstrings say **what** a file, class or function does, in a
+plain sentence: `"""Replaces the entity_graph rows with rows."""`. Not its
+inputs and outputs (the signature has them), never **why** it is that way,
+never **how** it does it. The why goes in the ADR (`docs/adr/`), the commit message, or
+[`load-bearing.md`](.claude/skills/refactor/references/load-bearing.md); a
+test guards it.
+
+Older code still carries why-comments. Trim them when you touch that code, but
+first make sure a comment's reason (especially a silent failure it names) is
+recorded in an ADR or `load-bearing.md`; add the entry if it isn't.
+
 ## Testing conventions
 
 Unit tests (core-api: a `tests/` package beside the code; ai-engine: `tests/`) protect logic; evals (`evals/suites/`) protect
@@ -305,8 +381,9 @@ behavior. A green unit suite says nothing about whether the model got worse.
 - **Test the failure paths.** This system's correctness is mostly about what it
   does when things go wrong. A test that a degraded run reaches HITL with the
   right `reason_code` beats another happy-path assertion.
-- **Explain the failure mode in the docstring** — enough context that someone can
-  judge whether a future change is a regression or an intentional shift.
+- **Name the test for the failure mode it prevents**
+  (`test_a_failed_write_exits_1`). A docstring, if any, says what the test
+  checks, like every other docstring; the why goes in the commit message or ADR.
 - **Pin the invariant, not the implementation.**
   `test_llm_self_confidence_does_not_change_score` survives any rewrite of the
   scorer; asserting a specific weight would not.
@@ -324,7 +401,7 @@ behavior. A green unit suite says nothing about whether the model got worse.
 - [ ] Schema change → both services if it's on the ai-engine wire, types regenerated, new fields defaulted
 - [ ] New failure path → HITL with a specific `reason_code`
 - [ ] Prompt change → evals run, and you can explain any metric movement
-- [ ] Comments explain **why**, especially for anything that looks like removable indirection
+- [ ] Comments and docstrings say only **what**, no why or how; a reason they used to carry is in an ADR or `load-bearing.md`
 - [ ] Changed documented behavior → updated the relevant `docs/` file (and `status.md` / `TODO.md` together)
 
 Deliberately relaxing a guardrail? Say so explicitly in the PR description and
@@ -339,5 +416,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (seventeen
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-five
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

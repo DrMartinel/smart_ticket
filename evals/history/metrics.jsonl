@@ -540,3 +540,400 @@
 {"run":"2026-10-04-full-propose-v8","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-04-full-propose-v8","metric":"branch_accuracy","value":0.9064327485380117,"n":171}
 {"run":"2026-10-04-full-propose-v8","metric":"auto_reply_precision","value":0.9444444444444444,"n":36,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":0.9090909090909091,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"category_f1","value":0.888888888888889,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r0-none","metric":"branch_accuracy","value":0.8888888888888888,"n":171}
+{"run":"2026-10-08-full-r0-none","metric":"auto_reply_precision","value":0.9444444444444444,"n":36,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-08-full-r0-none","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-08-full-r0-none","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-08-full-r0-none","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-08-full-r0-none","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-08-full-r0-none","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-08-full-r0-none","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-08-full-r0-none","metric":"retrieval_recall_at_3","value":0.7833333333333333,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-full-r0-none","metric":"retrieval_mrr","value":0.7277777777777777,"n":60}
+{"run":"2026-10-08-full-r0-none","metric":"gold_use","value":38.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-full-r0-none","metric":"gold_use","value":5.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-full-r0-none","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-full-r0-none","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-full-r0-none","metric":"pool_size","value":10.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-full-r0-none","metric":"pool_size","value":10.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":0.9090909090909091,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"category_f1","value":0.888888888888889,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"branch_accuracy","value":0.9122807017543859,"n":171}
+{"run":"2026-10-08-full-r1-authored-link","metric":"auto_reply_precision","value":0.9444444444444444,"n":36,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-08-full-r1-authored-link","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-08-full-r1-authored-link","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-08-full-r1-authored-link","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"retrieval_mrr","value":0.8722222222222222,"n":60}
+{"run":"2026-10-08-full-r1-authored-link","metric":"gold_use","value":47.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"gold_use","value":4.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-full-r1-authored-link","metric":"pool_size","value":170.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":0.9090909090909091,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"category_f1","value":0.888888888888889,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"branch_accuracy","value":0.9239766081871345,"n":171}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"auto_reply_precision","value":0.9428571428571428,"n":35,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"retrieval_recall_at_3","value":0.8,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"retrieval_mrr","value":0.7527777777777778,"n":60}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":5.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"gold_use","value":1.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"pool_size","value":43.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-full-r2-embedding-neighbour","metric":"pool_size","value":79.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"retrieval_recall_at_3","value":0.8,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"retrieval_mrr","value":0.7333333333333333,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"gold_use","value":40.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"gold_use","value":8.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"pool_size","value":30.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap3","metric":"pool_size","value":52.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"retrieval_recall_at_3","value":0.8,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"retrieval_mrr","value":0.7444444444444444,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"gold_use","value":40.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"gold_use","value":8.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"pool_size","value":41.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap5","metric":"pool_size","value":77.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.85,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"retrieval_mrr","value":0.7916666666666666,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":46.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"gold_use","value":5.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"pool_size","value":73.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cap10","metric":"pool_size","value":128.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"retrieval_recall_at_3","value":0.8166666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"retrieval_mrr","value":0.7805555555555556,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"gold_use","value":45.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"gold_use","value":4.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"pool_size","value":39.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap5","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"retrieval_mrr","value":0.8305555555555556,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"gold_use","value":1.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"gold_use","value":11.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"pool_size","value":65.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10","metric":"pool_size","value":131.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-2-chunks-per-page","metric":"retrieval_recall_at_3","value":0.8666666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-2-chunks-per-page","metric":"retrieval_mrr","value":0.8388888888888889,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-2-chunks-per-page","metric":"gold_use","value":46.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-2-chunks-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-2-chunks-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-2-chunks-per-page","metric":"gold_use","value":6.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-2-chunks-per-page","metric":"pool_size","value":33.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-2-chunks-per-page","metric":"pool_size","value":59.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"retrieval_mrr","value":0.8305555555555556,"n":60}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"gold_use","value":39.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"gold_use","value":1.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"gold_use","value":14.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"pool_size","value":65.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-r3-entity-graph-cosine-cap10-repeat","metric":"pool_size","value":131.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"retrieval_mrr","value":0.8555555555555556,"n":60}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"gold_use","value":12.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-authored-link-rerank-2-per-page","metric":"pool_size","value":165.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"retrieval_mrr","value":0.8416666666666667,"n":60}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"gold_use","value":47.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"gold_use","value":7.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"pool_size","value":65.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-08-probe-entity-graph-cosine-cap10-rerank-2-per-page","metric":"pool_size","value":131.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-09-probe-authored-link-two-lane","metric":"retrieval_recall_at_3","value":0.8666666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-09-probe-authored-link-two-lane","metric":"retrieval_mrr","value":0.8027777777777777,"n":60}
+{"run":"2026-10-09-probe-authored-link-two-lane","metric":"gold_use","value":44.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-09-probe-authored-link-two-lane","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-09-probe-authored-link-two-lane","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-09-probe-authored-link-two-lane","metric":"gold_use","value":8.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-09-probe-authored-link-two-lane","metric":"pool_size","value":19.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-09-probe-authored-link-two-lane","metric":"pool_size","value":44.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-09-probe-entity-graph-cosine-cap10-two-lane","metric":"retrieval_recall_at_3","value":0.8833333333333333,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-09-probe-entity-graph-cosine-cap10-two-lane","metric":"retrieval_mrr","value":0.8194444444444444,"n":60}
+{"run":"2026-10-09-probe-entity-graph-cosine-cap10-two-lane","metric":"gold_use","value":40.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-09-probe-entity-graph-cosine-cap10-two-lane","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-09-probe-entity-graph-cosine-cap10-two-lane","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-09-probe-entity-graph-cosine-cap10-two-lane","metric":"gold_use","value":13.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-09-probe-entity-graph-cosine-cap10-two-lane","metric":"pool_size","value":21.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-09-probe-entity-graph-cosine-cap10-two-lane","metric":"pool_size","value":35.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"retrieval_recall_at_3","value":0.8166666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"retrieval_mrr","value":0.7388888888888889,"n":60}
+{"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"gold_use","value":39.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"gold_use","value":10.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-entity-graph-full-cap10","metric":"pool_size","value":139.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.7833333333333333,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"retrieval_mrr","value":0.725,"n":60}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"gold_use","value":38.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"gold_use","value":9.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-jev-only-entity-graph-cap10","metric":"pool_size","value":130.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"retrieval_recall_at_3","value":0.8666666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"retrieval_mrr","value":0.8222222222222223,"n":60}
+{"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"gold_use","value":43.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"gold_use","value":9.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"pool_size","value":57.5,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-jev-only-authored-link-cap20","metric":"pool_size","value":209.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"retrieval_mrr","value":0.8722222222222222,"n":60}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"gold_use","value":13.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-one-per-page-authored-link-cap20","metric":"pool_size","value":165.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.8333333333333334,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"retrieval_mrr","value":0.7583333333333333,"n":60}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":40.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"gold_use","value":10.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"pool_size","value":78.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-one-per-page-entity-graph-cap10","metric":"pool_size","value":139.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-probe-stage-check-entity-graph-cap10","metric":"retrieval_recall_at_3","value":0.8166666666666667,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-probe-stage-check-authored-link-cap20","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"retrieval_mrr","value":0.8555555555555556,"n":60}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"gold_use","value":44.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"gold_use","value":10.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"pool_size","value":21.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20","metric":"pool_size","value":73.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20-one-per-page","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20-one-per-page","metric":"retrieval_mrr","value":0.8722222222222222,"n":60}
+{"run":"2026-10-10-suite-remedy-pointer-cap20-one-per-page","metric":"gold_use","value":42.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20-one-per-page","metric":"gold_use","value":13.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20-one-per-page","metric":"pool_size","value":21.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-suite-remedy-pointer-cap20-one-per-page","metric":"pool_size","value":73.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"category_f1","value":0.9375,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"category_f1","value":0.9473684210526316,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"branch_accuracy","value":0.9181286549707602,"n":171}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"auto_reply_precision","value":1.0,"n":30,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"retrieval_mrr","value":0.8722222222222222,"n":60}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"gold_use","value":41.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"gold_use","value":14.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"pool_size","value":21.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-full-remedy-pointer-one-per-page","metric":"pool_size","value":73.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":0.9375,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":0.9285714285714286,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":0.9523809523809523,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":1.0,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"category_f1","value":0.9473684210526316,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"branch_accuracy","value":0.9064327485380117,"n":171}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"auto_reply_precision","value":1.0,"n":31,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"masking_overmask_rate","value":0.0,"n":522}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"masking_consistency","value":1.0,"n":174}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"retrieval_recall_at_3","value":0.9,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"retrieval_mrr","value":0.875,"n":60}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":39.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"gold_use","value":15.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"pool_size","value":51.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-10-full-authored-link-one-per-page","metric":"pool_size","value":165.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"retrieval_recall_at_3","value":0.72,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"retrieval_mrr","value":0.662,"n":500}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"retrieval_recall_at_3_strict","value":0.646,"n":500}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"gold_use","value":277.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"gold_use","value":8.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"gold_use","value":75.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"pool_size","value":20.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-11-suite-entity-graph-golden500","metric":"pool_size","value":94.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"retrieval_recall_at_3","value":0.748,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"retrieval_mrr","value":0.6796666666666666,"n":500}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"retrieval_recall_at_3_strict","value":0.676,"n":500}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":290.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":1.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":11.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"gold_use","value":72.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"pool_size","value":48.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-11-suite-authored-link-golden500","metric":"pool_size","value":253.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"retrieval_recall_at_3","value":0.746,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"retrieval_mrr","value":0.667,"n":500}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"retrieval_recall_at_3_strict","value":0.688,"n":500}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"gold_use","value":298.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"gold_use","value":7.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"gold_use","value":68.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"pool_size","value":60.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-11-suite-pages-authored-link","metric":"pool_size","value":194.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"retrieval_recall_at_3","value":0.85,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"retrieval_mrr","value":0.762,"n":500}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"retrieval_recall_at_3_strict","value":0.796,"n":500}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"retrieval_errors","value":0.0,"n":500}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"gold_use","value":324.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"gold_use","value":2.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"gold_use","value":12.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"gold_use","value":87.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"pool_size","value":59.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-11-suite-hyde-authored-link","metric":"pool_size","value":180.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-11-probe-control","metric":"retrieval_recall_at_3","value":0.736,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-control","metric":"retrieval_recall_at_3_strict","value":0.674,"n":500}
+{"run":"2026-10-11-probe-vector-only","metric":"retrieval_recall_at_3","value":0.748,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-vector-only","metric":"retrieval_recall_at_3_strict","value":0.682,"n":500}
+{"run":"2026-10-11-probe-pick","metric":"retrieval_recall_at_3","value":0.778,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-lists","metric":"retrieval_recall_at_3","value":0.826,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-both","metric":"retrieval_recall_at_3","value":0.848,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td","metric":"retrieval_recall_at_3","value":0.858,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td","metric":"retrieval_recall_at_3_strict","value":0.812,"n":500}
+{"run":"2026-10-11-probe-multi","metric":"retrieval_recall_at_3","value":0.85,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-multi","metric":"retrieval_recall_at_3_strict","value":0.78,"n":500}
+{"run":"2026-10-11-probe-multi-td","metric":"retrieval_recall_at_3","value":0.844,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-multi-td","metric":"retrieval_recall_at_3_strict","value":0.77,"n":500}
+{"run":"2026-10-11-probe-td-ce-draft","metric":"retrieval_recall_at_3","value":0.816,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td-ce-draft","metric":"retrieval_recall_at_3_strict","value":0.74,"n":500}
+{"run":"2026-10-11-probe-td-ce-mix","metric":"retrieval_recall_at_3","value":0.866,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td-ce-mix","metric":"retrieval_recall_at_3_strict","value":0.8,"n":500}
+{"run":"2026-10-11-probe-td-pool20","metric":"retrieval_recall_at_3","value":0.864,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-11-probe-td-pool20","metric":"retrieval_recall_at_3_strict","value":0.802,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"retrieval_recall_at_3","value":0.9166666666666666,"n":60,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"retrieval_mrr","value":0.8472222222222222,"n":60}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"retrieval_recall_at_3_strict","value":0.9166666666666666,"n":60}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"retrieval_errors","value":1.0,"n":60}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"gold_use","value":47.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"gold_use","value":0.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"gold_use","value":8.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"pool_size","value":65.0,"n":60,"labels":{"stat":"median"}}
+{"run":"2026-10-12-suite-qwen-draft-original60","metric":"pool_size","value":172.0,"n":60,"labels":{"stat":"max"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"retrieval_recall_at_3","value":0.816,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"retrieval_mrr","value":0.7313333333333334,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"retrieval_recall_at_3_strict","value":0.758,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"retrieval_errors","value":0.0,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"gold_use","value":305.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"gold_use","value":6.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"gold_use","value":97.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"pool_size","value":29.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-12-suite-qwen-draft-entity-graph","metric":"pool_size","value":109.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"retrieval_recall_at_3","value":0.81,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"retrieval_mrr","value":0.7303333333333334,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"retrieval_recall_at_3_strict","value":0.764,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"retrieval_errors","value":0.0,"n":500}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"gold_use","value":312.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"gold_use","value":6.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"gold_use","value":87.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"pool_size","value":59.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-12-suite-qwen-draft-authored-link","metric":"pool_size","value":216.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-12-probe-stage-check-82","metric":"retrieval_recall_at_k","value":0.25609756097560976,"n":82,"labels":{"k":"5"}}
+{"run":"2026-10-12-probe-stage-check-82","metric":"retrieval_recall_at_k","value":0.3048780487804878,"n":82,"labels":{"k":"10"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"retrieval_recall_at_3","value":0.866,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"retrieval_mrr","value":0.78,"n":500}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"retrieval_recall_at_3_strict","value":0.804,"n":500}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"retrieval_recall_at_k","value":0.9,"n":500,"labels":{"k":"5"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"retrieval_errors","value":0.0,"n":500}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"gold_use","value":304.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"gold_use","value":3.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"gold_use","value":11.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"gold_use","value":115.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"pool_size","value":30.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5","metric":"pool_size","value":100.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_3","value":0.876,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_retrieval"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"retrieval_mrr","value":0.781,"n":500}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_3_strict","value":0.826,"n":500}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_k","value":0.914,"n":500,"labels":{"k":"5"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"retrieval_errors","value":1.0,"n":500}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"gold_use","value":289.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"gold_use","value":13.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"gold_use","value":136.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"pool_size","value":30.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-12-suite-deepseek-draft-entity-graph-top5-one-per-page","metric":"pool_size","value":100.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-12-probe-paired-pass1-nolimit","metric":"retrieval_recall_at_5","value":0.904,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-probe-paired-pass1-nolimit","metric":"retrieval_recall_at_3","value":0.866,"n":500}
+{"run":"2026-10-12-probe-paired-pass1-nolimit","metric":"retrieval_recall_at_3_strict","value":0.798,"n":500}
+{"run":"2026-10-12-probe-paired-pass1-onepage","metric":"retrieval_recall_at_5","value":0.914,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-probe-paired-pass1-onepage","metric":"retrieval_recall_at_3","value":0.876,"n":500}
+{"run":"2026-10-12-probe-paired-pass1-onepage","metric":"retrieval_recall_at_3_strict","value":0.818,"n":500}
+{"run":"2026-10-12-probe-paired-pass2-nolimit","metric":"retrieval_recall_at_5","value":0.902,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-probe-paired-pass2-nolimit","metric":"retrieval_recall_at_3","value":0.854,"n":500}
+{"run":"2026-10-12-probe-paired-pass2-nolimit","metric":"retrieval_recall_at_3_strict","value":0.79,"n":500}
+{"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_5","value":0.906,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_3","value":0.872,"n":500}
+{"run":"2026-10-12-probe-paired-pass2-onepage","metric":"retrieval_recall_at_3_strict","value":0.814,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"branch_accuracy","value":0.9296235679214403,"n":611}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"auto_reply_precision","value":0.9411764705882353,"n":34,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"masking_overmask_rate","value":0.0,"n":1842}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"masking_consistency","value":1.0,"n":614}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_3","value":0.882,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_mrr","value":0.7763333333333333,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_3_strict","value":0.822,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_recall_at_5","value":0.912,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"retrieval_errors","value":1.0,"n":500}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":293.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":2.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":13.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":133.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"pool_size","value":29.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"pool_size","value":108.0,"n":500,"labels":{"stat":"max"}}

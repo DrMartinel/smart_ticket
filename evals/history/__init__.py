@@ -77,18 +77,26 @@ class MetricSpec(BaseModel):
     labels: tuple[str, ...] = ()
 
 
-_RECALL_GATE = Gate(op=">=", value=0.90, basis="spec §12.2, test_retrieval")
+_RECALL_GATE = Gate(op=">=", value=0.90, basis="spec §12.2 (recall@5), test_retrieval")
 _PROBE_LABELS = ("pool", "seeds", "k", "order", "scorer")
 
 METRICS: dict[str, MetricSpec] = {
     # --- gated by the eval suites -------------------------------------------
-    "retrieval_recall_at_3": MetricSpec(
+    "retrieval_recall_at_5": MetricSpec(
         unit="ratio",
         higher_is_better=True,
         gate=_RECALL_GATE,
+        description="KB-covered tickets whose gold article (or an acceptable page) is among "
+        "Jev's top 5 chunks, the ones the proposal is shown (RERANK_TOP_N 5). The gated "
+        "retrieval measure since 2026-10-12, as spec §12.2 names it; recall@3 before.",
+    ),
+    "retrieval_recall_at_3": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
         labels=_PROBE_LABELS,
-        description="KB-covered tickets whose gold article is among the rerank_top_n (3) "
-        "pages returned. Recorded as retrieval_recall_at_5 before 2026-09-29; same measure.",
+        description="KB-covered tickets whose gold article is among the first 3 chunks "
+        "returned. Gated until 2026-10-12, reported since (the gate moved to recall@5). "
+        "Recorded as retrieval_recall_at_5 before 2026-09-29; same measure as @3.",
     ),
     "auto_reply_precision": MetricSpec(
         unit="ratio",
@@ -170,11 +178,33 @@ METRICS: dict[str, MetricSpec] = {
         description="Gold article among the k chunks a variant would show the classify model "
         "(label k). Not comparable with retrieval_recall_at_3 unless k is 3; no gate.",
     ),
+    "retrieval_recall_at_3_strict": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
+        description="As retrieval_recall_at_3, counting only the ticket's gold page, never "
+        "its acceptable_kb_slugs. Reported beside the gated number so the effect of the "
+        "acceptable pages (2026-10-11) stays visible; no gate.",
+    ),
+    "retrieval_errors": MetricSpec(
+        unit="count",
+        higher_is_better=False,
+        description="KB-covered tickets ai-engine answered with a 5xx in the retrieval "
+        "suite (a failed draft, a Jev or DeepSeek outage). Each also counts as a "
+        "retrieval miss; no gate.",
+    ),
     "retrieval_mrr": MetricSpec(
         unit="ratio",
         higher_is_better=True,
         labels=_PROBE_LABELS,
         description="Mean reciprocal rank of the gold article in the returned pages.",
+    ),
+    "pool_size": MetricSpec(
+        unit="count",
+        higher_is_better=False,
+        labels=("stat",),
+        description="Chunks the cross-encoder scored per ticket (fused candidates plus "
+        "link expansion), median or max over the kb_covered tickets: expansion's cost "
+        "(ADR-0018, test_retrieval). Ungated.",
     ),
     "gold_use": MetricSpec(
         unit="count",

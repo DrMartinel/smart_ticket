@@ -224,7 +224,7 @@ Add `EVAL_FULL_RUN=1` for numbers you can trust: the default runs a small sample
 
 You are ready to work on this when you can answer:
 
-1. **Where is the routing decision made, and why is it a pure function?** → [`router.py`](../services/core-api/apps/tickets/utils/router.py), [ADR-0001](adr/0001-code-level-routing.md)
+1. **Where is the routing decision made, and why is it pure?** → [`router.py`](../services/core-api/apps/tickets/utils/router.py), [ADR-0001](adr/0001-code-level-routing.md)
 2. **The model says it is 95% confident. Where does that number enter the routing decision?** → It doesn't. [ADR-0003](adr/0003-reject-llm-self-confidence.md)
 3. **What has to be true before a ticket can be auto-replied?** → The **KB article** must be flagged `auto_reply_allowed` by a manager. The model cannot grant itself that. [ADR-0002](adr/0002-kb-level-autoreply-authority.md)
 4. **Retrieval finds nothing relevant. What happens?** → The LLM is never called. Cheaper and safer: a model with no source has nothing to do but invent one.
@@ -246,7 +246,7 @@ You are ready to work on this when you can answer:
 | `core-api` exits on boot | `thresholds.yaml` unreadable or malformed | It is parsed into a Pydantic model at boot, on purpose — read the traceback |
 | A `vllm-*` container exits with `Engine core initialization failed` | Almost always `CUDA error: out of memory`, further up its log: the three servers don't fit on the card together | Step 2: raise the fraction for the one that died, lower `VLLM_CHAT_GPU_UTIL`, start them one at a time |
 | Any write fails with `column "id" is of type bigint but expression is of type uuid` | Your `db_data` volume was migrated before a `0001_initial` migration was rewritten in place (the UUID change, ADR-0011). Django tracks migrations by name, so it never re-runs the new version | Reset the dev database: `docker compose down`, `docker volume rm infra_db_data`, `docker compose up -d --build`, then redo step 3. This deletes all local data |
-| `load_demo_kb` stops with `502 Bad Gateway` on `/v1/embed` | The embedder rejected an input or is down. `docker compose logs ai-engine \| grep embedder` shows vLLM's reason | Down: step 2. `maximum context length`: a chunk is too long for bge-m3, a chunking bug in `apps/kb/utils.py`. Re-running is safe once fixed |
+| `load_demo_kb` stops with `502 Bad Gateway` on `/v1/embed` | The embedder rejected an input or is down. `docker compose logs ai-engine \| grep embedder` shows vLLM's reason | Down: step 2. `maximum context length`: a chunk is too long for bge-m3, a chunking bug in `apps/kb/utils/chunking.py`. Re-running is safe once fixed |
 | Evals fail with `422` from `/v1/analyze` | The running ai-engine image predates the current wire schema | `docker compose up -d --build ai-engine` |
 
 ---

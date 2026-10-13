@@ -117,3 +117,41 @@ def test_truncation_uses_the_configured_top_n(jev, make_state, monkeypatch):
     out = rerank(make_state(pool=pool))
 
     assert [r.chunk_id for r in out["reranked"]] == [UUID(int=2), UUID(int=4)]
+
+
+def _on_page(chunk_id: int, page: int, score: float) -> RankedChunk:
+    return _ranked(chunk_id, score).model_copy(update={"article_id": UUID(int=page)})
+
+
+def test_one_page_per_slot_gives_the_next_page_its_place(jev, make_state, monkeypatch):
+    monkeypatch.setattr(settings, "rerank_top_n", 2)
+    monkeypatch.setattr(settings, "rerank_top_n_per_page", 1)
+    pool = [_on_page(1, 1, 0.9), _on_page(2, 1, 0.8), _on_page(3, 2, 0.7)]
+    jev(scores=[0.9, 0.8, 0.7])
+
+    out = rerank(make_state(pool=pool))["reranked"]
+
+    assert [r.chunk_id for r in out] == [UUID(int=1), UUID(int=3)]
+
+
+def test_the_per_page_limit_keeps_jevs_top_1_first(jev, make_state, monkeypatch):
+    monkeypatch.setattr(settings, "rerank_top_n", 3)
+    monkeypatch.setattr(settings, "rerank_top_n_per_page", 1)
+    pool = [_on_page(1, 1, 0.5), _on_page(2, 2, 0.5), _on_page(3, 1, 0.5)]
+    jev(scores=[0.2, 0.9, 0.8])
+
+    out = rerank(make_state(pool=pool))["reranked"]
+
+    assert out[0].chunk_id == UUID(int=2)
+    assert [r.rerank_score for r in out] == sorted((r.rerank_score for r in out), reverse=True)
+
+
+def test_a_per_page_limit_at_top_n_changes_nothing(jev, make_state, monkeypatch):
+    monkeypatch.setattr(settings, "rerank_top_n", 3)
+    monkeypatch.setattr(settings, "rerank_top_n_per_page", 3)
+    pool = [_on_page(i, 1, 0.5) for i in (1, 2, 3, 4)]
+    jev(scores=[0.9, 0.8, 0.7, 0.6])
+
+    out = rerank(make_state(pool=pool))["reranked"]
+
+    assert [r.chunk_id for r in out] == [UUID(int=1), UUID(int=2), UUID(int=3)]

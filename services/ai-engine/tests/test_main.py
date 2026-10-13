@@ -167,3 +167,44 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
         "rerank_score": 0.95,
         "shortlist_score": 0.7,
     }
+
+
+def test_a_run_is_labelled_with_the_prompt_that_ran(client, make_state, monkeypatch):
+    from ai_engine import main
+    from ai_engine.core.config import settings
+    from ai_engine.graph.nodes.emit_signals.signals import (
+        ClassificationSignals,
+        EngineSignals,
+        GenerationSignals,
+        RetrievalSignals,
+    )
+
+    signals = EngineSignals(
+        retrieval=RetrievalSignals(rerank_top1=0.0, rerank_margin=0.0, docs_above_floor=0),
+        generation=GenerationSignals(
+            quote_applicable=False,
+            quote_match_ratio=0.0,
+            quote_source_in_topk=False,
+            negation_consistent=False,
+        ),
+        classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
+        injection_detected=False,
+    )
+    final = make_state(signals=signals)
+    monkeypatch.setattr(
+        main, "triage_graph", type("G", (), {"invoke": lambda self, s: final.model_dump()})()
+    )
+    monkeypatch.setattr(settings, "prompt_version", "propose.test")
+
+    resp = client.post(
+        "/v1/analyze",
+        json={
+            "request_id": "r",
+            "ticket": final.ticket.model_dump(mode="json"),
+            "retrieval_floor": 0.3,
+            "prompt_version": "propose.v8",
+        },
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["prompt_version"] == "propose.test"

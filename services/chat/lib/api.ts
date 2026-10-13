@@ -74,6 +74,11 @@ export const chatApi = {
     request<ChatTurnOut>("/api/chat/ask", { method: "POST", body: JSON.stringify({ message }) }),
   createTicket: (publicId: string) =>
     request<ChatTurnOut>(`/api/chat/tickets/${encodeURIComponent(publicId)}/create-ticket`, { method: "POST" }),
+  clarify: (publicId: string, answer: string) =>
+    request<ChatTurnOut>(`/api/chat/tickets/${encodeURIComponent(publicId)}/clarify`, {
+      method: "POST",
+      body: JSON.stringify({ answer }),
+    }),
 };
 
 export async function login(username: string, password: string): Promise<{ access: string }> {

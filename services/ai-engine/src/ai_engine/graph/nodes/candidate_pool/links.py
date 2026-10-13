@@ -1,93 +1,81 @@
 """
-Link expansion (ADR-0014 decisions 1-2, ADR-0015): the pages an article
-links to, and their chunks nearest the ticket. A page that describes the
-symptom often links to the page with the fix; this brings that page into
-the pool the cross-encoder scores, whatever its wording.
-
-Links are read from chunk text per request, not from a table: Markdown
-links, resolved against the article's `source_url` and matched exactly.
-ADR-0014's associations table, written at ingestion, would replace
-`linked_article_ids` without changing its contract.
+Link expansion (ADR-0014 decisions 1-2, ADR-0015, ADR-0018): reads the
+articles associated with a seed from `kb_article_associations`, in the one
+source `ASSOCIATION_SOURCE` names, and their chunks nearest the draft.
 """
 
 from __future__ import annotations
 
-import re
 import uuid
-from urllib.parse import urldefrag, urljoin
+from typing import NamedTuple
 
 from sqlalchemy import func, select
 
+from ai_engine.core.config import settings
 from ai_engine.core.db.client import db
-from ai_engine.core.db.tables import KbArticle, KbChunk
+from ai_engine.core.db.tables import KbArticle, KbArticleAssociation, KbChunk
 from ai_engine.graph.state import Candidate
 
-# The target of a Markdown link: `[text](target)` or `[text](target "title")`.
-_LINK = re.compile(r"\]\(([^)\s]+)")
+
+class Association(NamedTuple):
+    seed: uuid.UUID
+    target: uuid.UUID
+    score: float
 
 
-def resolve_link(base_url: str, href: str) -> str:
-    """The page `href` points to, as a `source_url` would spell it. The
-    snapshot's relative links name its Markdown files (`foo.md`) where
-    `source_url` names the published page (`foo.html`); fragments and
-    trailing slashes don't change the page."""
+def associations(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[Association]:
+    """Reads each seed's associations to active articles, seed by seed, best
+    score first, at most `max_per_seed` per seed."""
 
-    url = urldefrag(urljoin(base_url, href))[0].rstrip("/")
-    return url[: -len(".md")] + ".html" if url.endswith(".md") else url
+    if not seed_ids or settings.association_source == "none":
+        return []
+    association = KbArticleAssociation
+    ranked = (
+        select(
+            association.source_article_id,
+            association.target_article_id,
+            association.score,
+            func.row_number()
+            .over(
+                partition_by=association.source_article_id,
+                # The id breaks score ties, so the same rows give the same order.
+                order_by=(association.score.desc(), association.target_article_id),
+            )
+            .label("rank"),
+        )
+        .join(KbArticle, KbArticle.id == association.target_article_id)
+        .where(
+            association.source_article_id.in_(seed_ids),
+            association.source == settings.association_source,
+            KbArticle.is_active.is_(True),
+        )
+        .subquery()
+    )
+    rows = db.all(
+        select(ranked.c.source_article_id, ranked.c.target_article_id, ranked.c.score)
+        .where(ranked.c.rank <= max_per_seed)
+        .order_by(ranked.c.source_article_id, ranked.c.rank)
+    )
+
+    by_seed: dict[uuid.UUID, list[Association]] = {seed: [] for seed in seed_ids}
+    for seed, target, score in rows:
+        # The table's CHECK forbids self-pairs; skipped here as well, so a
+        # seed never expands to itself whatever wrote the row.
+        if target != seed:
+            by_seed[seed].append(Association(seed, target, float(score)))
+    return [a for seed in seed_ids for a in by_seed[seed]]
 
 
 def linked_article_ids(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[uuid.UUID]:
-    """Active articles linked from `seed_ids`, seeds first to last, each
-    seed's links in document order, at most `max_per_seed` per seed, each
-    article once. A seed's link to itself is skipped; a link to another
-    seed or to a fused candidate is kept, since that page may have better
-    chunks than the ones retrieved (the caller de-duplicates chunks)."""
-
-    if not seed_ids:
-        return []
-    base = {
-        article_id: url
-        for article_id, url in db.all(
-            select(KbArticle.id, KbArticle.source_url).where(KbArticle.id.in_(seed_ids))
-        )
-    }
-    chunks = db.all(
-        select(KbChunk.article_id, KbChunk.content)
-        .where(KbChunk.article_id.in_(seed_ids))
-        .order_by(KbChunk.article_id, KbChunk.chunk_index)
-    )
-
-    # Dicts as ordered sets: document order, each URL once. One page links
-    # to 198 others, so list membership would be quadratic.
-    urls_by_seed: dict[uuid.UUID, dict[str, None]] = {seed: {} for seed in seed_ids}
-    for article_id, content in chunks:
-        base_url = base.get(article_id)
-        if not base_url:
-            continue
-        for href in _LINK.findall(content):
-            urls_by_seed[article_id].setdefault(resolve_link(base_url, href))
-
-    wanted = {url for urls in urls_by_seed.values() for url in urls}
-    if not wanted:
-        return []
-    by_url = {
-        url: article_id
-        for url, article_id in db.all(
-            select(KbArticle.source_url, KbArticle.id).where(
-                KbArticle.source_url.in_(wanted), KbArticle.is_active.is_(True)
-            )
-        )
-        if url is not None
-    }
+    """Active articles associated with `seed_ids`, in `associations()`'s
+    order, each article once. A target that is another seed or a fused
+    candidate is kept, since that page may have better chunks than the ones
+    retrieved (the caller de-duplicates chunks)."""
 
     linked: list[uuid.UUID] = []
-    for seed in seed_ids:
-        # The cap counts pages a link resolved to, not raw links: a link
-        # out of the KB costs nothing and shouldn't use up the allowance.
-        targets = [by_url[u] for u in urls_by_seed[seed] if u in by_url and by_url[u] != seed]
-        for target in list(dict.fromkeys(targets))[:max_per_seed]:
-            if target not in linked:
-                linked.append(target)
+    for a in associations(seed_ids, max_per_seed=max_per_seed):
+        if a.target not in linked:
+            linked.append(a.target)
     return linked
 
 

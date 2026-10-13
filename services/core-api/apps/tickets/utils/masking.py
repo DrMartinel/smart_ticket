@@ -163,23 +163,19 @@ def _mask_field(
 
 
 def _apply(
-    raw: TicketIn, subject_hits: list[PIIHit], body_hits: list[PIIHit]
-) -> tuple[str, str, dict[str, str], PIILevel]:
-    counters: dict[str, int] = {}
+    fields: list[tuple[str, list[PIIHit]]], counters: dict[str, int]
+) -> tuple[list[str], dict[str, str], PIILevel]:
+    """Masks each field's hits, numbering placeholders on from `counters`."""
     placeholder_map: dict[str, str] = {}
+    masked = [_mask_field(text, hits, counters, placeholder_map) for text, hits in fields]
 
-    subject_masked = _mask_field(raw.subject, subject_hits, counters, placeholder_map)
-    body_masked = _mask_field(raw.body, body_hits, counters, placeholder_map)
-
-    all_hits = subject_hits + body_hits
+    all_hits = [h for _, hits in fields for h in hits]
     if any(h.level is PIILevel.SENSITIVE for h in all_hits):
         level = PIILevel.SENSITIVE
-    elif all_hits:
-        level = PIILevel.ROUTINE
     else:
         level = PIILevel.ROUTINE
 
-    return subject_masked, body_masked, placeholder_map, level
+    return masked, placeholder_map, level
 
 
 @dataclass(frozen=True)
@@ -200,43 +196,65 @@ async def mask(raw: TicketIn, ner_max_share: float) -> MaskResult:
     quoted anywhere in the pipeline; ai-engine's injection detector treats
     them as the most likely indirect-injection vector.
     """
+    (subject_masked, body_masked), level, placeholder_map, share = await _mask_texts(
+        [raw.subject, raw.body], ner_max_share, counters={}
+    )
+    return MaskResult(subject_masked, body_masked, level, placeholder_map, share)
 
-    subject_hits = regex_scan(raw.subject)
-    body_hits = regex_scan(raw.body)
 
-    if any(h.level is PIILevel.CRITICAL for h in subject_hits + body_hits):
+@dataclass(frozen=True)
+class MaskedReply:
+    text_masked: str
+    pii_level: PIILevel
+    placeholder_map: dict[str, str]  # placeholder -> real value, for quarantine
+
+
+async def mask_reply(text: str, ner_max_share: float, taken: list[str]) -> MaskedReply:
+    """Masks a requester's answer to a clarifying question (ADR-0023) as a
+    ticket is masked, numbering placeholders on past the ticket's `taken`."""
+    counters: dict[str, int] = {}
+    for placeholder in taken:
+        label, _, number = placeholder.strip("[]").rpartition("_")
+        counters[label] = max(counters.get(label, 0), int(number))
+    (text_masked,), level, placeholder_map, _ = await _mask_texts([text], ner_max_share, counters)
+    return MaskedReply(text_masked, level, placeholder_map)
+
+
+async def _mask_texts(
+    texts: list[str], ner_max_share: float, counters: dict[str, int]
+) -> tuple[list[str], PIILevel, dict[str, str], float]:
+    """Masks `texts` with both tiers, numbering placeholders on from `counters`."""
+
+    regex_hits = [regex_scan(text) for text in texts]
+
+    if any(h.level is PIILevel.CRITICAL for hits in regex_hits for h in hits):
         # BLOCK path: mask what we found (so nothing raw is ever returned)
         # but flag CRITICAL so router.py hard-gates this ticket immediately,
         # before anything — including the LLM — is called again.
-        subject_masked, body_masked, placeholder_map, _ = _apply(raw, subject_hits, body_hits)
-        return MaskResult(subject_masked, body_masked, PIILevel.CRITICAL, placeholder_map)
+        masked, placeholder_map, _ = _apply(list(zip(texts, regex_hits)), counters)
+        return masked, PIILevel.CRITICAL, placeholder_map, 0.0
 
     try:
-        # Run the two NER calls concurrently. They are independent (each
+        # Run the NER calls concurrently. They are independent (each
         # field's spans only ever mask that same field), and masking is
         # INLINE in the submit request — sequential calls would make the
         # worst case two full timeouts deep, which at a 120s per-call
         # budget would outlast the gunicorn request timeout and turn a
         # clean MASK_FAILED into a 502.
-        llm_subject_spans, llm_body_spans = await asyncio.gather(
-            llm_ner(raw.subject), llm_ner(raw.body)
-        )
+        llm_spans = await asyncio.gather(*(llm_ner(text) for text in texts))
     except (TimeoutError, NERError) as e:
         logger.warning(
             "masking: LLM NER failed (%s) — flagging MASK_FAILED, not treating as clean", e
         )
-        subject_masked, body_masked, placeholder_map, _ = _apply(raw, subject_hits, body_hits)
-        return MaskResult(subject_masked, body_masked, PIILevel.MASK_FAILED, placeholder_map)
+        masked, placeholder_map, _ = _apply(list(zip(texts, regex_hits)), counters)
+        return masked, PIILevel.MASK_FAILED, placeholder_map, 0.0
 
-    llm_subject_hits = _spans_to_hits(raw.subject, llm_subject_spans)
-    llm_body_hits = _spans_to_hits(raw.body, llm_body_spans)
+    llm_hits = [_spans_to_hits(text, spans) for text, spans in zip(texts, llm_spans)]
 
-    subject_masked, body_masked, placeholder_map, level = _apply(
-        raw, subject_hits + llm_subject_hits, body_hits + llm_body_hits
+    masked, placeholder_map, level = _apply(
+        [(text, r + n) for text, r, n in zip(texts, regex_hits, llm_hits)], counters
     )
-    share = ner_share(
-        [(raw.subject, subject_hits, llm_subject_hits), (raw.body, body_hits, llm_body_hits)]
-    )
+    share = ner_share(list(zip(texts, regex_hits, llm_hits)))
     if share > ner_max_share:
         # NER masked far more than free-form PII takes: whole sentences, an
         # injection, the request itself. Everything it flagged stays masked
@@ -249,7 +267,7 @@ async def mask(raw: TicketIn, ner_max_share: float) -> MaskResult:
             ner_max_share,
         )
         level = PIILevel.MASK_FAILED
-    return MaskResult(subject_masked, body_masked, level, placeholder_map, share)
+    return masked, level, placeholder_map, share
 
 
 def ner_share(fields: list[tuple[str, list[PIIHit], list[PIIHit]]]) -> float:

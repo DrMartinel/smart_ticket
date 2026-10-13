@@ -25,7 +25,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 | `hitl` | Send to the human review queue |
 | `block` | Refuse and alert security (injection, critical PII) |
 | `escalate` | Mass incident — hand to incident management |
-| `clarify` | The ticket fits several shown KB pages and doesn't say which: ask the requester (ADR-0016). A person asks it, for now |
+| `clarify` | The ticket fits several shown KB pages and doesn't say which: ask the requester (ADR-0016). In the chat the requester is asked and answers once (ADR-0023); for a form ticket a person asks it |
 
 **HITL** — Human In The Loop. The review queue where anything uncertain goes. The system is deliberately biased toward sending work here.
 
@@ -64,16 +64,20 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 ## Retrieval
 
-**Hybrid retrieval** — BM25 (keyword) and vector (semantic) search run in parallel, then fused. Each catches what the other misses: exact error codes vs. paraphrase.
+**HyDE (drafted answer)** — Hypothetical Document Embeddings. Before retrieval, the chat model writes the documentation passage it expects would answer the ticket (`DraftAnswerNode`); retrieval searches with it as well as the ticket, and it picks each candidate page's chunks. It only steers what is looked at: the cross-encoder and Jev score against the ticket, and the draft is never shown or quoted ([ADR-0021](adr/0021-hyde-drafted-answer-steers-retrieval.md)).
 
-**RRF** — Reciprocal Rank Fusion, `score(d) = Σ 1/(k + rank_i(d))` with k=60. Combines the two result lists. **Never threshold on an RRF score** — it is a rank-derived value, not a similarity, and its absolute magnitude means nothing ([ADR-0005](adr/0005-threshold-on-cross-encoder-not-fused-score.md)).
+**Hybrid retrieval** — BM25 (keyword) and vector (semantic) search run in parallel, then fused. Since ADR-0020 only vector search runs on the ticket: keyword matching on a ticket's symptom wording found the wrong pages more often than the right ones.
 
-**Link expansion** — chunks of the KB pages linked from the shortlister's top 3 are added to the candidates (ADR-0014): the page with the fix is often one link away from the page that describes the symptom.
+**RRF** — Reciprocal Rank Fusion, `score(d) = Σ 1/(k + rank_i(d))` over the ranked lists, with k=60. Today the ticket's vector list alone (ADR-0020). **Never threshold on an RRF score** — it is a rank-derived value, not a similarity, and its absolute magnitude means nothing ([ADR-0005](adr/0005-threshold-on-cross-encoder-not-fused-score.md)).
+
+**Link expansion** — chunks of the KB pages associated with the shortlister's top 3 are added to the candidates (ADR-0014): the page with the fix is often one link away from the page that describes the symptom. The associations live in `kb_article_associations`, tagged by source (ADR-0018).
+
+**Association source** — where an article association came from: `authored_link` (Markdown links, read at ingest) or `entity_graph` (pointers from a problem to the page with its fix, from an offline DeepSeek build). ai-engine follows exactly one, `ASSOCIATION_SOURCE`, or `none`; the two are never followed together (ADR-0018).
 
 **Shortlister** — a cross-encoder (bge-reranker-v2-m3 on vLLM) that scores each (ticket, chunk) pair and orders the pool; its top 15 (`RERANK_POOL`) are Jev's shortlist. Its score (`shortlist_score`) only orders; **no threshold reads it**. The `lexical` provider is a dependency-free token-overlap stand-in for CI and offline dev, not a substitute for retrieval quality.
 
 **Jev** — TypeSafe's hosted System One model, the one model outside the deployment (ADR-0015). It answers structured questions about a JSON state: a **noul** (the probability a statement is true), a **score** (a position on ordered levels) or a **choice** (one option of several, with a probability each and a confidence). It receives only masked ticket text and KB text. ai-engine asks it two things:
-- **the reranker**: one noul per shortlisted chunk, "does this passage tell the user how to fix the problem?" Its answer is `rerank_score`, the score `retrieval.floor` and the trust signals read. Its order is final; the top 3 go on.
+- **the reranker**: one noul per shortlisted chunk, "does this passage tell the user how to fix the problem?" Its answer is `rerank_score`, the score `retrieval.floor` and the trust signals read. Its order is final; its top 5 go on, one page per slot (`RERANK_TOP_N_PER_PAGE`).
 - **the category**: one choice among the six categories, given the ticket and the title of the page that answers it (ADR-0017). The router routes on it; the LLM proposes no category (`propose.v8`).
 
 **Category confidence** — Jev's confidence in its category choice, low when its probability is spread over several categories. Below `classification.min_confidence` (0.65) a route or clarify goes to a human as `category_low_confidence`.

@@ -1,6 +1,6 @@
 """
 Text chunking for KB ingestion. Pure functions over strings; the ingestion
-itself is `KbArticle.ingest()`.
+itself is `ArticleIndexer.ingest` (`indexing.py`).
 """
 
 from __future__ import annotations

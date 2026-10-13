@@ -82,12 +82,15 @@ Before proposing any move, check `load-bearing.md`. A match there wins over a ma
 - **Guard:** this turns a silent misconfiguration into a boot failure — intended, but
   say so in the commit and check CI envs set the value.
 
-### 10. Drop comments that restate code — f78e11f, a1426ae
+### 10. Trim comments and docstrings to what — f78e11f, a1426ae
 
-- **Smell:** comments that say what the next line does, or explain the type checker.
-- **Move:** delete them.
-- **Guard:** never delete a comment that explains *why* or names a silent failure —
-  those are the load-bearing ones. If unsure, keep it.
+- **Smell:** comments that restate the next line, explain the type checker, or
+  explain why or how; docstrings that argue rather than say what the code does.
+- **Move:** delete the comment, or cut it (and the docstring) to what the code
+  does (readability.md §2–3).
+- **Guard:** before cutting a reason, especially a silent failure it names,
+  check it is recorded in an ADR or `load-bearing.md`. If it isn't, add the
+  `load-bearing.md` entry in the same commit.
 
 ### 11. Extract a pure decision from an I/O function — the `router.py` pattern
 

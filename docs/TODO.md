@@ -294,7 +294,7 @@ Two things to decide before starting, not during:
 
 ## 9. Retrieval recall on the AWS demo KB
 
-**Status (2026-10-04):** the gate passes. Link expansion and Jev as the reranker ([ADR-0014](adr/0014-candidate-expansion-and-llm-reorder.md), [ADR-0015](adr/0015-jev-reranks-the-shortlist.md)) took recall@3 from 0.767 to **0.917** in every full run since 2026-10-02 (5). Five tickets are still missed: g011, g012, g048, g055, g056. The history below is from the baseline.
+**Status (2026-10-12):** on the 500-ticket set the gate is now **recall@5** (spec §12.2), and it passes: **0.906-0.914** with the drafted answer (ADR-0021/0022), the entity graph and one page per slot; recall@3 0.872-0.876 (`evals/HISTORY.md` 2026-10-12 (5)). Open: review of the gate change (rule 9), a full run on this pipeline, the circularity caveat (the 440 drafted tickets were written by DeepSeek, which also drafts), and about 20 likely unlisted alternative pages among the misses (no relabelling). Before: **Status (2026-10-04):** the gate passes. Link expansion and Jev as the reranker ([ADR-0014](adr/0014-candidate-expansion-and-llm-reorder.md), [ADR-0015](adr/0015-jev-reranks-the-shortlist.md)) took recall@3 from 0.767 to **0.917** in every full run since 2026-10-02 (5). Five tickets are still missed: g011, g012, g048, g055, g056. The history below is from the baseline.
 
 **Priority:** Medium (was High while the gate failed) · **Spec:** §12.2 · **ADR:** 0005
 
@@ -310,7 +310,7 @@ Of the 14 remaining misses, 9 are GuardDuty and SES tickets (g048, g050–g053, 
 - Candidate expansion through article associations, and LLM re-ordering above the floor: proposed in [ADR-0014](adr/0014-candidate-expansion-and-llm-reorder.md). Probes on multi-chunk retrieval as in production (2026-10-01 (2) in `evals/HISTORY-archive.md`): KB links 0.767 → 0.800, plus Qwen3-8B re-ordering with both-orders agreement → 0.850, nothing lost, refusal unchanged (0.850 → 0.883 with one chunk per article, since reverted). Article-first retrieval and zero-shot Laya make recall worse. Open before acceptance: a full eval run, the injection tickets, and an association source for KBs without links.
 - Review whether some tickets have more than one correct page. Choose acceptable pages without looking at model output, and have someone other than the author review them, so this doesn't turn into relabelling until the gate passes (rule 9).
 - Pin `RERANKER_REVISION` to a commit sha: at `main`, an upstream push moves the score scale `retrieval.floor` is compared against.
-- Do not tune `retrieval.keyword_agreement_k`, the tokenizer, the candidate limits or RRF k against the golden set; that is shadow-calibration work (item 2).
+- Do not tune the tokenizer, the candidate limits or RRF k against the golden set; that is shadow-calibration work (item 2). (`retrieval.keyword_agreement_k` is gone with BM25 on the ticket, ADR-0020.)
 - Re-measure, and record the run in `evals/HISTORY.md`.
 
 ### Done when
@@ -321,7 +321,7 @@ Retrieval recall meets the gate against a reviewed baseline measured on this KB.
 
 ## 10. Ask the requester when a ticket is ambiguous (clarification branch)
 
-**Status (2026-10-04):** the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6` (`v7` since), the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
+**Status (2026-10-12):** the requester side is built for chat tickets, [ADR-0023](adr/0023-requester-answers-the-clarifying-question.md) (Proposed): the question is shown, the answer masked and re-run, one round, then a person (`clarify_round_cap`); unanswered after `clarification.wait_minutes` (60 🔧) the chat offers a ticket instead of sending it to support (the owner's choice). **Left:** a live run, golden cases for the second run, and form tickets (no channel back). Earlier, 2026-10-04: the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6` (`v7` since), the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
 
 **Priority:** Medium · **Spec:** §5, §8 · **ADR:** [0016](adr/0016-clarify-branch.md)
 
@@ -368,3 +368,19 @@ The ADR is accepted. Ambiguous tickets reach `clarify` in the evals without lowe
 ### Done when
 
 The ADR is accepted or superseded on a full run and a held-out measurement.
+
+## 12. Association sources for link expansion (ADR-0018)
+
+**Status (2026-10-10):** built and measured (`evals/HISTORY.md` 2026-10-08 to 2026-10-10). Parity of the table path with the old per-ticket regex: 3,542 articles, 0 differ. Two sources remain: `authored_link` (recall@3 0.917) and `entity_graph`, the DeepSeek pointer build (0.900, pool median 21 chunks against 51). The LightRAG shared-entity graph (0.817) and embedding neighbours (0.800) were removed.
+
+**Priority:** Medium · **Spec:** §6.3 · **ADR:** 0014, 0018
+
+### Work
+
+- Run `build --rescore-only` against the Dockerized Postgres once (ADR-0025): the write path is unit-tested only, and an existing `db_data` volume needs the new grant first (`demo_kb/README.md`).
+- Category F1 below 2026-10-04 on `access` and `software`, with expansion on and off: find which tickets moved.
+- Choose the shipped source for the demo KB, then a full run with it on the shipped pipeline (the all-gates run of 2026-10-10 (8) used a one-chunk-per-page limit since removed).
+
+### Done when
+
+ADR-0018 is accepted or superseded.

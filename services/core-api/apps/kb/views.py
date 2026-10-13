@@ -7,6 +7,7 @@ from ninja_jwt.authentication import JWTAuth
 from apps.kb.models import KBGovernanceError, KbArticle
 from apps.kb.request_schema import ArticleFilter, ArticleIn, AutoReplyFlagIn, RiskTierIn
 from apps.kb.response_schema import ArticleOut, ReingestOut
+from apps.kb.utils.indexing import indexer
 from apps.accounts.permissions import AuthedRequest
 
 router = Router(tags=["kb"])
@@ -35,7 +36,7 @@ def create_article(request: AuthedRequest, payload: ArticleIn) -> KbArticle:
 @router.post("/{slug}/reingest", auth=JWTAuth(), response=ReingestOut)
 def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
     article = _get_or_404(slug)
-    chunks = article.ingest()
+    chunks = indexer.ingest(article)
     return ReingestOut(slug=slug, chunks=len(chunks))
 
 

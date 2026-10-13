@@ -27,6 +27,14 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
 ]
+# The offline entity_graph build (ADR-0018), run from the host after
+# `uv sync --all-packages --group build`. Never in the served image: its
+# Dockerfile syncs with --no-dev, which installs no group. CI syncs it so the
+# build's tests and type checks run.
+build = [
+    "pyyaml>=6.0",
+    "tiktoken>=0.8",
+]
 
 [build-system]
 requires = ["hatchling"]

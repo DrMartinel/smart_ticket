@@ -1,13 +1,14 @@
 ---
 name: refactor
-description: Behaviour-preserving refactor workflow for this repo's Python code (services/ai-engine, services/core-api, evals) — audit a file, module or concern, propose ranked refactor moves, wait for approval, then apply one move at a time with tests green before and after. Holds the repo's readability and maintainability conventions and the list of load-bearing code that must not be "simplified". Use this whenever the user asks to refactor, clean up, simplify, tidy, restructure, dedupe, rename, improve readability or maintainability, reduce complexity, or bring code "up to the ai-engine style" — even if they just say "this file is messy" or "can you make this nicer".
+description: Behaviour-preserving refactor workflow for this repo's Python code (services/ai-engine, services/core-api, evals) — audit a file, module or concern, propose ranked refactor moves, wait for approval, then apply one move at a time with tests green before and after. Holds the repo's readability and maintainability conventions and the list of load-bearing code that must not be "simplified". Use this whenever the user asks to refactor, clean up, simplify, tidy, restructure, dedupe, rename, improve readability or maintainability, reduce complexity, or bring code "up to the ai-engine style" — even if they just say "this file is messy" or "can you make this nicer". Also use it to check changes against the refactor checklist ("check my changes against the checklist", "does this diff follow our rules?").
 argument-hint: <path | module | concern>
 ---
 
 # Refactor
 
 Target: **$ARGUMENTS**. If that is empty, ask the user what to refactor before doing
-anything else.
+anything else. If the user only asks to check changes against the checklist, skip
+to **Checklist pass** below.
 
 A refactor here does two things. It makes the code easier to read and change, and it
 leaves every behaviour and every guardrail exactly as it was. The subtle risk in this
@@ -24,6 +25,9 @@ cutting** and **one small, verified move at a time**.
   each with its smell, its guard, and the commit that set the precedent.
 - `references/load-bearing.md` lists code that must not be simplified. Read all of it
   before proposing anything.
+- `references/checklist.md` is the list every change is checked against. Read it
+  before proposing moves (a move must not fail an item) and run it in the
+  **Checklist pass**. `/checklist-add` adds items.
 - `CLAUDE.md` holds the hard rules. They override everything in this skill.
 
 ---
@@ -59,15 +63,17 @@ uv run mypy
 
 1. Read the target in full, then its tests, then its callers (`grep -rn` for each
    public name).
-2. Read **every comment and docstring** in the target. Many of them name what would
-   break if the code were simplified.
+2. Read **every comment and docstring** in the target. Older ones may still say
+   what would break if the code were simplified: check that reason is in an ADR
+   or `load-bearing.md` before trimming the comment (moves.md #10).
 3. Run `git log --follow --oneline -- <file>` and look at the relevant commits
    (`git show <sha>`). Code that looks odd is often a deliberate fix. Don't revert it.
 4. Check each candidate against `load-bearing.md` first, then match it to a move in
    `moves.md` and a rule in `readability.md`.
 5. Look for these smells: single-use wrappers, unreachable branches, speculative
    machinery, DI plumbing, scattered wiring, decisions mixed into I/O, string literals
-   where a contract enum exists, restating comments, missing contract docstrings,
+   where a contract enum exists, comments or docstrings that say why or how,
+   missing what-docstrings,
    nested conditionals, positional arguments that are easy to swap, and type-checker noise.
 
 ## Phase 3: Propose, then STOP
@@ -108,13 +114,14 @@ For each approved move, in order:
    uvx ruff@0.16.7 check . --exclude .venv
    uvx ruff@0.16.7 format --check . --exclude .venv
    ```
-3. If a guarding test exists for an invariant near the move, do a quick **mutation
+3. Run the **Checklist pass** on this move's diff. Fix every **fail** before going on.
+4. If a guarding test exists for an invariant near the move, do a quick **mutation
    check**. Break the invariant, confirm the test fails, then revert. This shows the
    test still guards something after the move.
-4. Show the diff and propose the commit message in the repo's style (see
+5. Show the diff, the checklist result and the commit message in the repo's style (see
    `readability.md` §13). The body says why, and for a removal it says what still
    holds afterwards.
-5. **Commit only if the user asks.** Then go on to the next move.
+6. **Commit only if the user asks.** Then go on to the next move.
 
 If a move turns out bigger or riskier than proposed, stop and re-propose it rather
 than pushing through.
@@ -130,5 +137,37 @@ After the last move:
   `uv run --package core-api python services/core-api/scripts/gen_typescript.py`.
   If an ai-engine wire shape changed, make the same change in the other service.
 - If a move set a new precedent, offer to add it to `references/moves.md`.
+- Run the **Checklist pass** on the whole change (every move together).
 - Run the full check: `uv run pytest` plus mypy plus ruff. Report the result
   honestly, including anything still failing.
+
+## Checklist pass
+
+Checks a diff against every item in `references/checklist.md`. Runs after each
+move, at the end of the sweep, and on its own when the user asks to check changes.
+
+1. **Get the diff.** By default, everything not yet committed:
+   `git diff HEAD` plus untracked files (`git status --short`, then read each new
+   file). If the user names a base (`main`, `HEAD~3`, a PR), diff against that.
+2. **Check each item** against the lines the diff adds or changes, not the whole
+   file. Older code that breaks an item goes under "outside the diff", never
+   **fail**.
+3. **Report** in this shape:
+
+   ```markdown
+   ## Checklist: <scope, e.g. "uncommitted changes" or "main..HEAD">
+
+   | Item | Result | Where | Note |
+   |---|---|---|---|
+   | C-01 What-only comments | fail | [build.py:353](path#L353) | docstring states the return value |
+   | C-08 Class earns it | pass | | |
+   | C-05 Model methods pure-ish | n/a | | no model touched |
+
+   **Outside the diff:** <older code breaking an item, one line each>
+   ```
+
+   Every **fail** has a `file:line` link and the one-line fix. A **[regression]**
+   fail blocks the change; a **[convention]** fail is fixed or the reason it stays
+   is written in the Note.
+4. **When checking on request**, report and stop: don't fix anything until the
+   user says which fails to fix.

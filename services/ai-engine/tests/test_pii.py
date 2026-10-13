@@ -125,6 +125,104 @@ def test_ner_client_is_the_self_hosted_chat_server(reload_clients, monkeypatch):
     assert m.ner.base_url == settings.chat_base_url
 
 
+# --- DeepSeek (ADR-0019): raw text leaves the machine, by decision -------------
+
+
+class _ScriptedModel:
+    """Stands in for DeepSeek's chat model: returns `content` or raises."""
+
+    def __init__(self, content: object = None, error: Exception | None = None) -> None:
+        self.content, self.error = content, error
+        self.calls: list[list] = []
+
+    def invoke(self, messages):
+        self.calls.append(messages)
+        if self.error:
+            raise self.error
+        return type("Reply", (), {"content": self.content})()
+
+
+@pytest.fixture
+def deepseek_ner(monkeypatch):
+    from ai_engine.core.providers import pii
+
+    def use(model: _ScriptedModel) -> pii.DeepSeekPiiDetector:
+        monkeypatch.setattr(pii.clients.ChatClient, "deepseek_model", lambda **_: model)
+        return pii.DeepSeekPiiDetector()
+
+    return use
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        _ScriptedModel(error=RuntimeError("down")),
+        _ScriptedModel(content=""),
+        _ScriptedModel(content="I could not find any"),
+        _ScriptedModel(content=json.dumps(["anh Tuấn"])),
+        _ScriptedModel(content=json.dumps({"error": "no"})),
+        _ScriptedModel(content=[_SECRET_REPLY]),
+    ],
+    ids=["call fails", "empty", "not json", "bare list", "no spans", "not a string"],
+)
+def test_deepseek_failures_raise_rather_than_reading_as_no_pii(deepseek_ner, model):
+    with pytest.raises(PiiDetectionError):
+        deepseek_ner(model).detect(_RAW)
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        _ScriptedModel(content=f"Found: {_SECRET_REPLY}"),
+        _ScriptedModel(error=ValueError(f"bad reply {_SECRET_REPLY}")),
+    ],
+    ids=["not json", "error quoting the reply"],
+)
+def test_deepseek_errors_and_tracebacks_never_carry_the_text_or_reply(deepseek_ner, model):
+    with pytest.raises(PiiDetectionError) as caught:
+        deepseek_ner(model).detect(_RAW)
+
+    logged = "".join(traceback.format_exception(caught.value))
+    assert _RAW not in logged and _SECRET_REPLY not in logged
+
+
+def test_deepseek_ner_reads_spans_greedily(monkeypatch):
+    from ai_engine.core.providers import pii
+
+    built = {}
+    model = _ScriptedModel(content=json.dumps({"spans": [_SECRET_REPLY]}))
+    monkeypatch.setattr(
+        pii.clients.ChatClient, "deepseek_model", lambda **kw: built.update(kw) or model
+    )
+
+    assert pii.DeepSeekPiiDetector().detect(_RAW) == [_SECRET_REPLY]
+    assert built == {"json_mode": True, "temperature": 0.0}
+    system, user = model.calls[0]
+    assert (system.content, user.content) == (pii.PII_NER_PROMPT, _RAW)
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected"),
+    [
+        ("vllm", "VllmPiiDetector"),
+        ("deepseek", "DeepSeekPiiDetector"),
+    ],
+)
+def test_only_ner_set_to_deepseek_sends_raw_text_off_the_machine(provider, expected, monkeypatch):
+    import importlib
+
+    from ai_engine.core.providers import pii
+
+    monkeypatch.setattr(settings, "ner_client_provider", provider)
+    monkeypatch.setattr(pii.clients.ChatClient, "deepseek_model", lambda **_: _ScriptedModel())
+    saved = dict(vars(pii))
+    try:
+        reloaded = importlib.reload(pii)
+        assert type(reloaded.pii_detector).__name__ == expected
+    finally:
+        vars(pii).update(saved)
+
+
 # --- behaviour ------------------------------------------------------------------
 
 
@@ -179,3 +277,19 @@ def test_ner_decodes_greedily(serve_ner):
 
     _, payload = ner.sent[0]
     assert payload["temperature"] == 0.0
+
+
+@pytest.mark.parametrize("other", ["chat_client_provider", "draft_client_provider"])
+def test_the_proposal_or_draft_on_deepseek_keeps_ner_local(other, monkeypatch):
+    import importlib
+
+    from ai_engine.core.providers import pii
+
+    monkeypatch.setattr(settings, other, "deepseek")
+    monkeypatch.setattr(settings, "ner_client_provider", "vllm")
+    saved = dict(vars(pii))
+    try:
+        reloaded = importlib.reload(pii)
+        assert type(reloaded.pii_detector).__name__ == "VllmPiiDetector"
+    finally:
+        vars(pii).update(saved)

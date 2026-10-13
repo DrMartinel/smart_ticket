@@ -12,6 +12,10 @@ link the ADR being argued against.
 
 Format: **what** — why it exists — *what guards it*.
 
+Code comments say only what code does (readability.md §2), so this file and
+the ADRs are where these reasons live. Where an entry names a comment as its
+guard and that comment is later trimmed, the entry is the record.
+
 ---
 
 ## Repo-wide
@@ -69,6 +73,50 @@ Format: **what** — why it exists — *what guards it*.
   `apps/kb/tests/test_article_create.py`.*
 - **The deny-by-default `_degraded_signals()` in `apps/tickets/utils/pipeline.py`**: every check failed,
   `kb_auto_reply_allowed=False`, `kb_risk_tier="high"`.
+- **A chunk's titles go into its embedding input, never into `content`**
+  (`ArticleIndexer.ingest`). A chunk from the middle of a page means nothing
+  to the embedder without them, while `content` must stay the exact text the
+  model may quote. *`test_load_demo_kb.py::test_a_new_title_re_embeds_an_unchanged_body`.*
+- **`KbChunk.stored_section_title` is the one place a section title is cut**,
+  for both `ingest` and `chunks_are_current`. Two spellings would make every
+  reload see stale chunks and re-embed the whole KB.
+- **`load_demo_kb` rebuilds every `authored_link` row at the end of a load.**
+  A link resolves only to a page already loaded, so the per-article rebuild in
+  `ingest` misses links to pages loaded after it.
+- **`sync_active_from_source` runs only after a full load, touches only
+  articles with a `source_url`, and reactivates only pages loaded this time.**
+  A `--limit` load would deactivate everything it skipped, an API-created
+  article was never in a snapshot, and a page skipped for a hash mismatch
+  would come back with stale text. *`test_load_demo_kb.py::test_a_partial_load_deactivates_nothing`,
+  `::test_an_article_created_through_the_api_is_never_deactivated_by_a_reload`,
+  `::test_a_page_skipped_for_a_hash_mismatch_is_not_reactivated`.*
+- **`rebuild_authored_links` deletes and inserts in one transaction.** A
+  reader sees the old rows or the new ones, never half of each.
+  *`test_link_associations.py::test_a_full_rebuild_replaces_the_source_and_leaves_other_sources_alone`.*
+- **`link_scores` skips links out of the KB and to the article itself before
+  numbering positions.** Counted, they would use up places the per-seed cap
+  counts. *`test_link_associations.py::test_link_scores_follow_document_order_and_skip_self_and_out_of_kb_links`.*
+- **`Clarifications.options` rounds the score gap before comparing it with
+  `option_margin`.** In floating point 0.97 - 0.87 is just under 0.1 and
+  0.8 - 0.7 just over, so a page exactly at the margin would be offered or
+  not by accident. *`test_clarification.py::TestClarifyOptions::test_a_page_exactly_at_the_margin_is_offered`.*
+- **`Clarifications.answer` masks before taking the row lock, then re-checks
+  under it, and enqueues the re-run only after commit.** Masking calls the NER
+  model, so it can't hold the lock; the re-check makes a double submit answer
+  once; a worker enqueued earlier could read the ticket without the answer.
+  *`test_clarification.py::TestAnswering::test_a_second_answer_is_refused`.*
+- **`trust_signals` carries `clarifications_asked` into the policy signals.**
+  Dropped, it reads 0 and the router asks the requester again on every run.
+  *`test_trust_signals.py::test_the_questions_already_asked_reach_the_router`.*
+- **`pool_size` is reported, never a trust feature or a router input.** A
+  bigger cross-encoder batch is a cost, not evidence for an answer.
+  *`test_router.py::test_pool_size_never_changes_the_branch`,
+  `test_trust_scorer.py::test_pool_size_does_not_change_score`.*
+- **`production.py`'s `DEV_ONLY_SECRETS` equals `.env.example`'s dev secrets.**
+  If the template's dev value changed and the denylist didn't, production
+  would accept the new public value. The test imports production with
+  stand-in secrets, since CI's `.env` is the template.
+  *`apps/core/tests/test_settings_env.py::test_productions_denylist_is_the_templates_dev_secrets`.*
 - **No `decrypt()` call without a `PiiAccessLog` row** in the same transaction, with
   a mandatory non-empty reason. *CLAUDE.md "Current state".*
 - **Idempotency key `{ticket_id}:{attempt}` plus `acks_late`.** A redelivered task
@@ -119,7 +167,39 @@ Format: **what** — why it exists — *what guards it*.
 - **An embedder or reranker failure raises and never returns empty.** An empty result
   reads as "the KB has nothing" rather than "the provider is down".
   *`test_retrieve.py::test_embedder_failure_propagates_rather_than_returning_empty_candidates`.*
-- **The path-traversal check in `core/prompts` (`_check_version`).**
+- **`DeepSeekPiiDetector` calls its own chat model, never `ChatClient`.**
+  `ChatClient`'s errors quote the model's reply, and NER's reply is the PII.
+  *ADR-0019; `test_pii.py::test_deepseek_errors_and_tracebacks_never_carry_the_text_or_reply`.*
+- **NER has its own provider setting (`NER_CLIENT_PROVIDER`).** Pointing the
+  proposal or the draft at DeepSeek must never send raw ticket text there as a
+  side effect. *ADR-0019; `test_pii.py::test_the_proposal_or_draft_on_deepseek_keeps_ner_local`.*
+- **Retrieval and the candidate pool raise without a drafted answer.** Falling
+  back to the ticket alone would quietly run the weaker pipeline. *ADR-0021
+  decision 6; `test_retrieve.py::test_retrieval_without_a_draft_raises_rather_than_retrieving_on_the_ticket`,
+  `test_candidate_pool.py::test_the_pool_without_a_draft_raises`.*
+- **`AIRunResponse.prompt_version` is `settings.prompt_version`, not the
+  request's field.** core-api never sets the field, so its stale default would
+  label every run. *`test_main.py::test_a_run_is_labelled_with_the_prompt_that_ran`.*
+- **`deepseek_model` refuses to build without `CLOUD_BASE_URL`.** Without a
+  base URL the OpenAI SDK sends the key to OpenAI.
+  *`test_provider_selection.py::test_deepseek_without_its_key_model_or_url_is_fatal`.*
+- **Link expansion joins `kb_articles.is_active` on the target.** Dropped, it
+  sends retired pages to the cross-encoder and nothing fails. *ADR-0018;
+  `test_links.py::test_reads_one_source_active_targets_ranked_by_score_per_seed`.*
+- **The entity-graph build fails whole, never partly.** A failed section
+  exports nothing (a graph missing pages would look complete); a reply over
+  the policy's bounds fails its section rather than being cut; an unusable
+  reply is asked once more of the retry model, since temperature 0 replays
+  the same broken reply. *`test_entity_graph_build.py::test_a_failed_section_exports_nothing_and_a_rerun_asks_only_for_it`,
+  `::test_a_reply_over_the_pair_limit_fails_rather_than_being_cut`,
+  `::test_an_unusable_reply_is_asked_once_more_of_the_retry_model`.*
+- **The entity-graph build strips link targets and resolves against every KB
+  page.** A URL in the prompt would copy the authored links instead of reading
+  the prose; resolving a sample against itself drops real pointers.
+  *`test_entity_graph_build.py::test_the_model_never_sees_a_link_target`,
+  `::test_a_sampled_page_can_point_to_a_page_outside_the_sample`.*
+- **The path-traversal check in `core/prompts` (`check_version`).**
   *`test_infer.py::test_invalid_prompt_version_is_rejected`.*
-- **Only three tables are declared in `core/db/tables.py`, and nothing writes.**
-  *ADR-0004; `tests/test_db_tables.py`.*
+- **Only the tables `ai_engine_ro` is granted are declared in `core/db/tables.py`,
+  and only the offline entity-graph build writes.** *ADR-0004, ADR-0025;
+  `tests/test_db_tables.py`.*

@@ -38,7 +38,6 @@ import numpy as np
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
 django.setup()
 
-from django.conf import settings  # noqa: E402
 from infrastructure.dtos import TrustSignals  # noqa: E402
 
 from apps.review.models import ReviewDecision  # noqa: E402
@@ -66,7 +65,7 @@ def load_shadow_pairs() -> tuple[np.ndarray, np.ndarray, list[str]]:
             signals = TrustSignals(**ai_run.trust_signals)
         except Exception:  # noqa: BLE001 — skip malformed/legacy rows rather than crash the fit
             continue
-        features = extract_features(signals, settings.THRESHOLDS.retrieval.keyword_agreement_k)
+        features = extract_features(signals)
         X.append([features[f] for f in FEATURES])
         y.append(1 if decision.action_taken == "approve" else 0)
         ids.append(str(decision.id))

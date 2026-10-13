@@ -126,13 +126,9 @@ class RetrievalSignals(BaseModel):
     # Jev's scores, the reranker's (ADR-0015): the scale retrieval.floor is set on.
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)  # top1 - top2
-    # Where Jev's top article sits in BM25's own article ranking (1 = BM25's
-    # best), or None: not in BM25's list, or nothing was reranked. A RANK, not a BM25 score:
-    # BM25 scores are query-dependent and mean nothing across tickets
-    # (ADR-0013). The trust scorer turns it into agreement with
-    # `retrieval.keyword_agreement_k` from thresholds.yaml.
-    bm25_rank_of_top1: int | None = Field(default=None, ge=1)
     docs_above_floor: int = Field(ge=0)
+    # Chunks the cross-encoder scored: fused candidates plus link expansion (ADR-0018).
+    pool_size: int = Field(default=0, ge=0)
 
 
 class GenerationSignals(BaseModel):
@@ -161,6 +157,9 @@ class PolicySignals(BaseModel):
     pii_level: PIILevel
     injection_detected: bool
     mass_incident: bool
+    # Questions this ticket has already asked its requester, counted by
+    # core-api (ADR-0023).
+    clarifications_asked: int = Field(default=0, ge=0)
 
 
 class ClassificationSignals(BaseModel):

@@ -90,3 +90,22 @@ def test_the_read_only_dsn_is_never_core_apis(env_template, no_env_vars, tmp_pat
 
     with pytest.raises(ValidationError, match="AI_ENGINE_DATABASE_URL"):
         Settings(_env_file=_write_env(tmp_path, values))  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize("value", ["authored_link", "entity_graph", "none"])
+def test_association_source_accepts_one_source_or_none(env_template, no_env_vars, tmp_path, value):
+    values = {k: v or "" for k, v in env_template.items()}
+
+    settings = Settings(_env_file=_write_env(tmp_path, {**values, "ASSOCIATION_SOURCE": value}))  # type: ignore[call-arg]
+
+    assert settings.association_source == value
+
+
+@pytest.mark.parametrize("value", ["authored_link,entity_graph", '["authored_link"]', "links"])
+def test_association_source_refuses_anything_else_at_boot(
+    env_template, no_env_vars, tmp_path, value
+):
+    values = {k: v or "" for k, v in env_template.items()}
+
+    with pytest.raises(ValidationError, match="association_source"):
+        Settings(_env_file=_write_env(tmp_path, {**values, "ASSOCIATION_SOURCE": value}))  # type: ignore[call-arg]

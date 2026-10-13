@@ -11,6 +11,9 @@ and core-api's `manage.py load_demo_kb` loads it into `kb_articles`.
 | `manifest.json` | yes | Every page's slug, URL, category, title and SHA-256, plus `snapshot_sha256` for the whole set |
 | `curation.json` | yes | People's decisions: risk tier per category and per article, and which articles are approved for auto-reply |
 | `guides/<key>/*.md` | no | Every page of each guide, from its `sitemap.xml`, fetched as Markdown |
+| `associations/entity_graph_pairs.jsonl` | yes | (symptom, remedy, where) pairs extracted per page by ai-engine's offline build (ADR-0018) |
+| `associations/entity_graph_resolutions.jsonl` | yes | How each page the pairs name resolved to a KB page: exact, embedding, ambiguous or unresolved |
+| `associations/entity_graph.jsonl` | yes | Page-to-page pointer edges built from the pairs, loaded by core-api |
 
 ## Use it
 
@@ -55,6 +58,52 @@ the pinned hash.
 
 Only articles whose `risk_tiers` entry is `low` can be approved (spec §14
 P4). The loader refuses anything else before loading a single page.
+
+## Entity associations
+
+Link expansion can follow the entity graph instead of authored links
+(`ASSOCIATION_SOURCE=entity_graph`, ADR-0018): pointers from a page that
+names a problem to the page the text says has its fix. It is built offline
+by ai-engine, from the host, on DeepSeek (`CLOUD_*`, ADR-0019), after
+`uv sync --all-packages --group build`:
+
+```bash
+uv run python -m ai_engine.core.associations.build \
+    --working-dir <scratch dir> --out demo_kb/associations
+uv run python -m ai_engine.core.associations.build --sample 150 \
+    --include <slug> ... --working-dir <scratch dir> --out <scratch dir>   # a spike
+uv run python -m ai_engine.core.associations.build --rescore-only \
+    --out demo_kb/associations   # re-resolve, re-score and write; no model call
+```
+
+`<scratch dir>` holds the reply cache: a rebuild sends only new or changed
+sections. A full build and `--rescore-only` replace every `entity_graph` row
+of `kb_article_associations` in one transaction (ADR-0025); a `--sample`
+spike writes files only. `load_demo_kb` loads no entity-graph edge, so
+**after a load, run the `--rescore-only` line** (it needs the embedder up,
+as the load does) or link expansion on `ASSOCIATION_SOURCE=entity_graph`
+finds nothing. A database migrated before 2026-10-13 lacks the write
+grant: reset its volume, or run
+`GRANT INSERT, DELETE ON kb_article_associations TO ai_engine_ro;`.
+
+**`entity_graph_pairs.jsonl` is the contract between the extractor and
+everything after it.** One JSON object per line, one per pair found on a
+page; `page` is null when the remedy is on the page itself:
+
+```json
+{"article_slug": "guardduty.guardduty_finding-types-ec2", "symptom": "EC2 instance acting as Tor relay", "remedy": "Assume instance compromised and take remediation actions", "page": "Remediating a potentially compromised Amazon EC2 instance"}
+```
+
+`entity_graph.jsonl` has one line per edge, keyed by slug; `score` is the
+number of distinct pairs pointing that way:
+
+```json
+{"source_slug": "guardduty.guardduty_finding-types-ec2", "target_slug": "guardduty.compromised-ec2", "score": 2.0, "evidence": ["EC2 instance acting as Tor relay -> Assume instance compromised and take remediation actions", "…"], "build_id": "entity_graph:kb_entity_graph.v1:pairs-…"}
+```
+
+The files are reviewed in a PR like `curation.json`: `evidence` names the
+pairs behind each edge, and the resolutions file shows how each named page
+was matched, so a bad edge is visible in the diff.
 
 ## Licensing
 

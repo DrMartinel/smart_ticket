@@ -26,10 +26,9 @@ pre-calibration threshold should gate.
 from __future__ import annotations
 
 from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier, route
-from apps.tickets.utils.pipeline import trust_signals
+from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier
+from apps.tickets.utils.pipeline import router, trust_signals
 from infrastructure.dtos import EngineSignals, TicketCategory
-from django.conf import settings
 
 from apps.kb.models import KbArticle
 from suites.golden_utils import analyze, load_golden, record_metric, sample
@@ -87,8 +86,11 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
 
         with django_db_blocker.unblock():
             kb_meta = _kb_meta_for(proposal_dict)
-        signals = trust_signals(EngineSignals(**result["signals"]), pii_level, kb_meta)
-        decision = route(signals, proposal, kb_meta, settings.THRESHOLDS)
+        # Golden tickets are single-turn: none has asked its requester anything.
+        signals = trust_signals(
+            EngineSignals(**result["signals"]), pii_level, kb_meta, clarifications_asked=0
+        )
+        decision = router.route(signals, proposal, kb_meta)
 
         expected_branch = case["truth"].get("expected_branch")
         if expected_branch is not None:

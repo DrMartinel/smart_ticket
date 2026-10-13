@@ -1,12 +1,12 @@
 """
-Partial query descriptions of the three tables `ai_engine_ro` may read
-(ADR-0004, ADR-0008). NOT the schema: core-api owns that, and only the columns
+Partial query descriptions of the four tables `ai_engine_ro` may read
+(ADR-0004, ADR-0008, ADR-0018). NOT the schema: core-api owns that, and only the columns
 ai-engine uses are declared.
 
 - Never call `create_all()` / `drop_all()`: these are not full definitions.
-- Never instantiate these classes or `session.add()` them: ai-engine has no
-  write authority.
-- Never add a table outside 0004_grants_and_audit_lockdown.sql's SELECT grant.
+- Never instantiate these classes or `session.add()` them.
+- Never add a table outside the grants in
+  0004_grants_and_audit_lockdown.sql and 0006_association_grant.sql.
 
 `tests/test_db_tables.py` pins the table set and the absence of DDL/write
 calls; "never instantiated" is on review.
@@ -45,6 +45,8 @@ class KbArticle(Base):
     title: Mapped[str]
     source_url: Mapped[str | None]
     is_active: Mapped[bool]
+    # Read by the offline entity_graph build only (ADR-0018).
+    body: Mapped[str]
 
 
 class KbChunk(Base):
@@ -58,6 +60,21 @@ class KbChunk(Base):
     content: Mapped[str]
     section_title: Mapped[str | None]
     embedding: Mapped[Any] = mapped_column(VECTOR(EMBED_DIM), nullable=True)
+
+
+class KbArticleAssociation(Base):
+    """Which articles link expansion follows from a seed (ADR-0018)."""
+
+    __tablename__ = "kb_article_associations"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    source_article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
+    target_article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
+    source: Mapped[str]
+    score: Mapped[float]
+    evidence: Mapped[Any] = mapped_column(JSONB)
+    reviewed: Mapped[bool]
+    build_id: Mapped[str]
 
 
 class FewshotExample(Base):

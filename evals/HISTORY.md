@@ -95,6 +95,1316 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+## 2026-10-13 (1): Doc2Query-- (questions generated from each chunk), probe
+
+**Verdict: doc2query does not help this pipeline; not taken.** Questions
+generated from every chunk and filtered with the cross-encoder (Doc2Query--,
+Gospodinov et al., ECIR 2023) neither replace the drafted answer (HyDE) nor
+add to it. On the 60 hand-written tickets no arm puts the gold page among the
+10 candidate pages more often than the shipped pipeline (0.950); replacing
+HyDE with them loses 7-9 of the 60. The vocabulary gap is already mostly
+closed: the gold page reaches the candidates for 471 of 500 tickets.
+
+| Configuration | |
+|---|---|
+| Questions | 10 per chunk, local Qwen3-8B-AWQ (`vllm-chat`, temperature 0, guided JSON), prompt in the probe's `generate.py`: requester-style questions the passage answers, nothing it doesn't mention. 284,822 questions for 28,497 of 28,519 chunks; 22 chunks exceed Qwen's 4,096-token context and have none |
+| Filter | bge-reranker-v2-m3 (the shortlister) scores each (question, its chunk); one cut over the whole KB, keeping the top 30 % (score ≥ 0.990), 50 % (≥ 0.968) or 100 % |
+| Replay | the 500 `kb_covered` tickets, raw ticket text, the cached DeepSeek drafts (`hyde_draft.v1`), so draft noise is out of the comparison; the real `vector_search`, `bm25_search`, RRF and one-chunk-per-page cut. Question vectors searched in memory (NumPy), question BM25 in memory (rank_bm25, one document per chunk). No Jev stage: no arm reached it on merit (below) |
+| Code | `main` at `ebc8008` plus the uncommitted clarify work; probe scripts, questions, scores and vectors in `~/.cache/smart-ticket-lightrag/probe/doc2query/` |
+
+Gold page among the 10 candidate pages (keep 30 / 50 / 100 %):
+
+| Arm | Lists fused | Hand-written (60) | Drafted (440) | All (500) |
+|---|---|---|---|---|
+| A, shipped | ticket vector + BM25(draft) + draft vector | **0.950** | 0.941 | 0.942 |
+| D | ticket vector only | 0.783 | 0.793 | 0.792 |
+| B | A + ticket → question vectors | 0.933 / 0.933 / 0.933 | 0.943 / 0.941 / 0.943 | 0.942 / 0.940 / 0.942 |
+| C | ticket vector + question vectors (no HyDE) | 0.817 / 0.833 / 0.783 | 0.825 / 0.839 / 0.843 | 0.824 / 0.838 / 0.836 |
+| E | A + BM25(ticket) over the questions | 0.917 / 0.900 / 0.917 | 0.950 / 0.955 / 0.957 | 0.946 / 0.948 / **0.952** |
+| F | C + BM25(ticket) over the questions | 0.817 / 0.833 / 0.833 | 0.818 / 0.850 / 0.866 | 0.818 / 0.848 / 0.862 |
+
+Each list alone, gold page among its own top 10 pages (hand-written / drafted):
+
+| List | Hand-written | Drafted |
+|---|---|---|
+| ticket → chunk vectors | 0.783 | 0.793 |
+| draft → chunk vectors | **0.933** | **0.905** |
+| BM25(draft) | 0.617 | 0.880 |
+| ticket → question vectors (all) | 0.767 | 0.773 |
+| BM25(ticket) over the questions (all) | 0.833 | 0.795 |
+
+### Findings
+
+**1. The questions match tickets no better than the chunks do.** Ticket →
+question vectors find the gold page about as often as ticket → chunk vectors
+(0.767 vs 0.783 on the 60), far below the draft's vector (0.933). bge-m3 is
+trained for question-to-passage search, and chunk embeddings already carry
+the page and section titles (`KbArticle.ingest`): the gap doc2query closes
+for BM25 in the paper is largely closed for this embedder already.
+
+**2. The filter had nothing to remove.** Qwen's questions are faithful:
+half score ≥ 0.968 against their own chunk, 13 % below 0.5. Keeping 30, 50
+or 100 % changes little, unlike the paper's T5 questions.
+
+**3. E's gain is the drafted tickets', and they are biased toward it.** E100
+gains 9 and loses 4 of 500, but on the 60 hand-written it loses 2. The 440
+drafted tickets were themselves written by an LLM from KB pages, which is
+what doc2query does.
+
+**4. What A still misses is mostly fusion, not discovery.** Of A's 29
+misses, a list A already fuses finds the gold page in its own 20 chunks for
+16; it is cut at 10 pages by RRF. 5 are found by no list. BM25 over the
+questions finds 16 of the 29, but adding it displaces other gold pages.
+
+### Follow-ups
+
+- None for doc2query. The 16 fusion-cut misses are the remaining
+  retrieval lever; they are the same trade-off as `FUSION_CANDIDATE_LIMIT`
+  (2026-10-11).
+
+---
+
+## 2026-10-12 (6): full run on the current pipeline
+
+**Verdict:** retrieval passes its gate at its best yet, recall@5 **0.912**
+(recall@3 0.882, strict 0.822) on 500 tickets. **Auto-reply precision fails
+by one ticket, 0.941** (32/34): g151 and g155, the false positives of every
+run since 2026-10-04, are fixed; the two new ones are drafted tickets whose
+label only knows their own, unapproved page (finding 1). **Per-category F1
+was not measured:** the classification suite stopped on a Jev TLS error
+about 150 tickets in. Refusal, injection, quote validation and masking pass;
+branch accuracy 0.930. **Not like for like with (8) of 2026-10-04:** 614
+cases against 174, retrieval gated at @5 against @3, a different pipeline.
+
+| Configuration | |
+|---|---|
+| Code | `bef00b9` (`main`): HyDE (`hyde_draft.v1`), `ASSOCIATION_SOURCE=entity_graph` cap 20, `RERANK_POOL` 15, `RERANK_TOP_N` 5, `RERANK_TOP_N_PER_PAGE` 1. `DRAFT_CLIENT_PROVIDER=deepseek`, `CHAT_CLIENT_PROVIDER=deepseek` (`propose.v8`), `NER_CLIENT_PROVIDER=vllm` (Qwen3-8B-AWQ, `pii_ner.v2`). Jev `rerank_resolves.v1`, `category.v1` |
+| Golden set | `c6057fddb3b8`, 614 cases (500 `kb_covered`) |
+| Duration | 2h16m29s, every suite, no re-runs; 4 server errors, all Jev TLS (`TLSV1_ALERT_DECODE_ERROR`) |
+
+| Metric | This run | (8) of 2026-10-04 | Gate |
+|---|---|---|---|
+| **Retrieval recall@5** | **0.912** (500, 1 error) | — | >= 0.90 |
+| Retrieval recall@3 · strict · MRR | 0.882 · 0.822 · 0.776 | 0.917 (60) | reported |
+| **Auto-reply precision** | **0.941** (32/34) | 0.944 (34/36) | >= 0.95 absolute |
+| Branch accuracy | 0.930 (611) | 0.906 (171) | reported |
+| Per-category F1 | not measured (suite stopped) | >= 0.93 | >= 0.85 each |
+| Refusal · injection · quote validation | 1.00 · 1.00 · 1.00 | the same | as before |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | the same | reported |
+| `pool_size` median · max | 29 · 108 | 51 · 170 | reported |
+
+### Findings
+
+**1. The auto-reply false positives are a labelling artefact more than an
+error.** Every drafted ticket expects `hitl` because its own gold page is
+not approved; an auto-reply from a *different*, approved page scores as a
+false positive even when it answers. g219 ("Can't SSH into my new EC2
+instance … it keeps timing out", gold `ec2.creating-security-group`) was
+auto-replied from the approved `ec2.TroubleshootingInstancesConnecting`,
+quoting "Check your security group rules." g421's proposal is not
+repeatable: re-run, it was a runbook. No relabelling (rule 9).
+
+**2. Classification stops on its first error.** The retrieval suite counts
+a 5xx ticket as a miss since 2026-10-11; classification and end-to-end do
+not, so one Jev TLS error voided per-category F1.
+
+**3. Jev's TLS errors recur:** 4 in this run, 3 more on 2026-10-11/12.
+
+**4. `report.py` flags recall@3 against `baseline.json`'s stale sample
+value (1.000)**, as `docs/status.md` notes; the baseline needs another
+reviewer to change.
+
+**5. Mismatches by kind:** 24 `hitl` labels routed to `clarify`, 8 to
+`auto_route`, 4 `auto_reply` labels to `clarify`, 3 `clarify` to `hitl`,
+2 `auto_reply` to `hitl`, 2 `hitl` to `auto_reply`.
+
+### Follow-ups
+
+- Classification and end-to-end count a 5xx as a miss, as retrieval does;
+  then re-run classification.
+- The labels of drafted tickets that an approved page also answers (rule 9:
+  reviewed by someone other than the author).
+- Jev's TLS errors: a retry or TLS setting, as its own decision.
+
+---
+
+## 2026-10-12 (5): one page per slot, paired on identical inputs, probe
+
+**Verdict:** one page per slot in Jev's top 5 never loses a ticket and gains
+1-2 points: recall@5 0.904 → **0.914** and 0.902 → **0.906**, recall@3
+0.866 → 0.876 and 0.854 → 0.872, strict@3 +2.0 and +2.4 points, in two
+passes with no ticket lost in 1,000 paired comparisons. Shipped:
+`RERANK_TOP_N_PER_PAGE=1`. (4)'s +18 / -13 swing was draft noise.
+
+| Configuration | |
+|---|---|
+| Method | The real nodes (`draft_answer` on DeepSeek, `hybrid_retrieve`, `candidate_pool` on the entity graph), Jev on the 15, raw ticket text; both selections (no limit, one page per slot) scored from the same Jev ranking of the same ticket, so draft noise cancels. Two passes with fresh drafts. Jev's scores cached on disk by (model, question, ticket, passage). Script, cache and results in `~/.cache/smart-ticket-lightrag/probe/` |
+| Code | `5c24bae` (`main`) |
+
+| | Pass 1 | Pass 2 |
+|---|---|---|
+| Recall@5: no limit → one page | 0.904 → 0.914 (+5, -0) | 0.902 → 0.906 (+2, -0) |
+| Recall@3: no limit → one page | 0.866 → 0.876 (+5, -0) | 0.854 → 0.872 (+9, -0) |
+| Strict@3: no limit → one page | 0.798 → 0.818 (+10, -0) | 0.790 → 0.814 (+12, -0) |
+| Errors · Jev calls (cache hits) | 0 · 7,496 (0) | 0 · 1,912 (5,586) |
+
+### Findings
+
+**1. It cannot lose on the same ranking.** Dropping a page's second chunk
+only moves later pages up; the gold page's first chunk keeps its place or
+rises. The cost is on the generation side: the proposal sees one chunk per
+page, which a full end-to-end run should check.
+
+**2. Draft noise, measured.** Between the passes about 15 tickets go from
+hit to miss at recall@5 and about 15 the other way; totals move about a
+point. A single run is ±1 point.
+
+**3. Recall@5 sits at the gate:** 0.902-0.914 across (4) and both passes.
+
+**4. The cache cut Jev calls by 75%** on the second pass. Earlier the same
+day Jev's credit ran out (402) on the first of four planned suite runs:
+about 150,000 Jev calls had gone to experiments since the last top-up.
+
+---
+
+## 2026-10-12 (4): DeepSeek drafting on the entity graph, Jev's top 5, with and without one page per slot, retrieval suite
+
+**Verdict:** the best retrieval yet. DeepSeek drafting on the entity graph
+scores recall@3 **0.866** and recall@5 **0.900**; with one page per slot in
+Jev's top 5, **0.876** and **0.914** (strict 0.826). Against Qwen drafting
+on the same source ((2), 0.816) DeepSeek drafting is worth +5 points. One
+page per slot nets +5 tickets (+18 / -13), within the drafts' run-to-run
+noise ((5) of 2026-10-11), so it is not established. Recall@3 is still
+below 0.90; recall@5, the measure spec §12.2 names, reaches it.
+
+| Configuration | |
+|---|---|
+| Code | `b621e3a` (`main`): `ASSOCIATION_SOURCE=entity_graph`, cap 20, `RERANK_POOL` 15, **`RERANK_TOP_N=5`** (the suite scores @3 on the first three), `RERANK_TOP_N_PER_PAGE` 5 (no limit) / 1. `DRAFT_CLIENT_PROVIDER=deepseek`, `CHAT_CLIENT_PROVIDER=deepseek`, `NER_CLIENT_PROVIDER=vllm` (Qwen) |
+| Duration | 46m27s (no limit), 45m07s (one per page), retrieval suite only |
+
+| Entity graph | Qwen drafting, top 3 ((2)) | DeepSeek drafting, top 5 | + one page per slot |
+|---|---|---|---|
+| Recall@3 | 0.816 | 0.866 | **0.876** |
+| Recall@5 | | 0.900 | **0.914** |
+| Strict @3 | 0.758 | 0.804 | 0.826 |
+| MRR | 0.731 | 0.780 | 0.781 |
+| Original 60 · drafted 440 | 0.917 · 0.802 | 0.917 · 0.859 | 0.917 · 0.870 |
+| `pool_size` median · max | 29 · 109 | 30 · 100 | 30 · 100 |
+| `retrieval_errors` | 0 | 0 | 1 (g543, Jev TLS) |
+
+### Findings
+
+**1. The drafting model is worth five points.** DeepSeek's drafts name the
+specific feature more often than Qwen3-8B's ((3) finding 1).
+
+**2. Recall@5 clears 0.90.** Showing the proposal five chunks instead of
+three is a change to what the LLM may quote, not only to the metric:
+`RERANK_TOP_N` stays 3 until decided.
+
+**3. Jev's TLS errors recur:** g543 here, g030 in (1), one on 2026-10-11:
+three in about 2,000 tickets, each a ticket for a person in production.
+
+### Follow-ups
+
+- Shipping DeepSeek drafting sends masked tickets to DeepSeek outside
+  evaluation: a decision superseding ADR-0019 for the draft.
+- One page per slot needs repeat runs to separate its effect from draft
+  noise.
+- The circularity caveat stands: the 440 tickets were written by DeepSeek.
+
+---
+
+## 2026-10-12 (3): where the 82 shared misses are lost, a stage check
+
+**Verdict:** of the 82 tickets both sources missed in (2), **52 never reach
+the candidates** (the draft heads elsewhere), 4 are cut by the
+cross-encoder, and **25 sit in Jev's 15 outside its top 3**, 20 of them at
+rank 4 or 5. Recall@5 would be well above recall@3; one page per slot in
+Jev's top 3 would rescue 9.
+
+| Configuration | |
+|---|---|
+| Method | The real nodes (`draft_answer` on Qwen, `hybrid_retrieve`, `candidate_pool` on the entity graph), then Jev scoring all 15, raw ticket text, on the 82 shared misses of (2). Script and results in `~/.cache/smart-ticket-lightrag/probe/` (outside the repo) |
+
+| Where the gold page is lost | Count |
+|---|---|
+| Not among the 10 candidate pages, not brought in by expansion | **52** |
+| In the pool, cut from Jev's 15 (pool ranks 17-22) | 4 |
+| In Jev's 15, ranked 4th (14), 5th (6), 6th-11th (5) | **25** |
+| Hit on this re-run (g471) | 1 |
+
+### Findings
+
+**1. The draft is the bottleneck.** Qwen's drafts name the wrong feature
+(g208: Reserved Instances for a Capacity Reservations ticket) or invent
+detail (g180: an "AWS Managed Services console" for Client VPN).
+
+**2. Recall@k past 3 has not been measured since 2026-10-01** (`rerank_top_n`
+5 gained nothing then: misses ranked 6th or lower). Here 20 of 82 rank 4-5.
+
+**3. One page per slot.** In 11 of the 25, one page holds two of Jev's top 3;
+counting distinct pages, 9 of the 25 rank within the top 3.
+
+---
+
+## 2026-10-12 (2): entity graph vs authored links, Qwen drafting, retrieval suite
+
+**Verdict:** the sources tie on recall@3: entity graph **0.816**, authored
+links **0.810** (10 tickets missed only by the entity graph, 13 only by
+authored links), at half the cross-encoder's batch (median 29 chunks vs
+59). The owner made `entity_graph` the shipped source (`6675eb8`, ADR-0018).
+Drafting on Qwen keeps about 60% of HyDE's gain: 0.810 against DeepSeek
+drafting's 0.850 ((5), authored links; 33 tickets missed only with Qwen, 13
+only with DeepSeek).
+
+| Configuration | |
+|---|---|
+| Code | `5fb0f2e` (`main`): HyDE, `CHAT_CLIENT_PROVIDER=deepseek` (the proposal), `DRAFT_CLIENT_PROVIDER=vllm` and `NER_CLIENT_PROVIDER=vllm` (Qwen3-8B-AWQ, 4,096 context), cap 20, `RERANK_POOL` 15 |
+| Duration | 52m27s (entity graph), 56m11s (authored links), retrieval suite only |
+
+| | Entity graph | Authored links | Authored links, DeepSeek drafting ((5)) |
+|---|---|---|---|
+| Recall@3 | **0.816** | 0.810 | 0.850 |
+| Strict | 0.758 | 0.764 | 0.796 |
+| MRR | 0.731 | 0.730 | 0.762 |
+| Original 60 · drafted 440 | 0.917 · 0.802 | 0.933 · 0.793 | 0.917 · 0.841 |
+| `pool_size` median · max | **29 · 109** | 59 · 216 | 59 · 180 |
+| `retrieval_errors` | 0 | 0 | 0 |
+
+### Findings
+
+**1. Under HyDE the association source no longer moves recall.** Before
+HyDE authored links led (0.748 vs 0.720, (2) of 2026-10-11). Per guide the
+two are level except `vpc` (0.87 vs 0.80) and `client-vpn-admin` (0.83 vs
+0.75), both small.
+
+**2. The drafting model is the larger lever.** Qwen's smaller drafts find the
+specific feature less often; see (3).
+
+---
+
+## 2026-10-12: Qwen drafting on the 60 hand-authored tickets, retrieval suite
+
+**Verdict:** **0.917** (55/60), as before HyDE and with DeepSeek drafting:
+Qwen drafting costs nothing on the hand-authored tickets. One of the five
+misses is g030, a Jev TLS error (`TLSV1_ALERT_DECODE_ERROR`) counted as a
+miss; it hit in every earlier run. Not the gate's measurement: the 440
+drafted tickets were left out by a one-off local filter on the
+`drafted` tag, not kept in the repo.
+
+| Configuration | |
+|---|---|
+| Code | as (2), authored links |
+| Duration | 7m09s |
+
+| | Before HyDE | DeepSeek drafting | Qwen drafting |
+|---|---|---|---|
+| Recall@3, original 60 | 0.917 | 0.917 | 0.917 |
+| Misses | g011 g012 g048 g055 g056 | g012 g048 g053 g055 g056 | g012 g030 (error) g048 g055 g056 |
+
+---
+
+## 2026-10-11 (5): HyDE, the drafted answer, retrieval suite
+
+**Verdict:** recall@3 **0.850** (MRR 0.762, strict **0.796**) on the
+500-ticket set, against 0.748 for the same suite before the retrieval changes
+of (3)-(5) ((2)): +10 points, still below the 0.90 gate. The original 60
+hold at 0.917; the 440 drafted tickets rise from 0.725 to 0.841. It
+reproduces (4)'s replay of the same design (0.858) within the drafts'
+run-to-run noise (finding 2).
+
+| Configuration | |
+|---|---|
+| Code | `db101c4` (`main`), ADR-0020 and ADR-0021: `draft_answer` → vector search on the ticket + BM25 and vector search on the draft → first 10 pages, one chunk each; each page also brings its 2 chunks nearest the draft; expansion takes linked pages' chunks nearest the draft; the cross-encoder and Jev score against the ticket |
+| Runs | `ASSOCIATION_SOURCE=authored_link`, cap 20, `RERANK_POOL` 15. `CHAT_CLIENT_PROVIDER=deepseek` (ADR-0019, evaluation only: masking NER, the draft and the proposal on `deepseek-flash`; Qwen stopped) |
+| Prompts | `hyde_draft.v1` (temperature 0) · `pii_ner.v2` · `propose.v8` · Jev `rerank_resolves.v1` |
+| Golden set | `c6057fddb3b8`, 500 `kb_covered` |
+| Duration | 49m42s, retrieval suite only. Two earlier attempts ended with no score (finding 3) |
+
+| | Before (2) | HyDE, this run | Replay of the design ((4), `td`) |
+|---|---|---|---|
+| Recall@3, all 500 | 0.748 | **0.850** | 0.858 |
+| Strict | 0.676 | **0.796** | 0.812 |
+| MRR | 0.680 | 0.762 | |
+| Original 60 · drafted 440 | 0.917 · 0.725 | 0.917 · 0.841 | 0.917 · |
+| `pool_size` median · max | 48 · 253 | 59 · 180 | |
+| `retrieval_errors` | | 0 | |
+
+### Findings
+
+**1. The replay's gain holds on the real code with drafts written live.**
+Misses on the original 60: g012, g048, g053, g055, g056.
+
+**2. DeepSeek's draft is not repeatable at temperature 0.** Asked three
+times for g469's draft, it wrote three different passages, one of them
+invalid JSON. The same ticket can retrieve differently between runs, so a
+difference of a few tickets between two HyDE runs is noise.
+
+**3. A malformed draft is a ticket for a person, as designed.** g469's
+draft quoted a CLI argument containing JSON (`--tenancy-config
+'{"TenantIsolationMode":"PER_TENANT"}'`) without escaping its quotes; the
+node raised and the request returned 500. Any ticket whose answer quotes
+inline JSON can do this. The owner kept fail → HITL (no retry). That
+attempt, and one before it ended by a Jev TLS error at ticket ~480, aborted
+the suite with no score; the suite now counts a 5xx ticket as a miss and
+lists it (`retrieval_errors`, `45371cd`). This run had none.
+
+### Follow-ups
+
+- Measure HyDE with Qwen drafting (`CHAT_CLIENT_PROVIDER=vllm`), the
+  production default: every number here is DeepSeek's.
+- `ASSOCIATION_SOURCE=entity_graph` under HyDE: not measured.
+- A full run (classification, refusal, end-to-end) on this code.
+- The draft call's tokens and Jev's spend are not in `cost_usd`.
+
+---
+
+## 2026-10-11 (4): retrieval replays on 500 tickets: page candidates, BM25 on the ticket, HyDE variants, probe
+
+**Verdict:** a drafted answer (HyDE) is the change worth shipping: as extra
+search lists plus a chunk pick it takes recall@3 from 0.736 to **0.858**
+(strict 0.674 → 0.812). Removing BM25 on the ticket and making candidates
+pages are neutral on their own. Scoring against the draft, three drafts, a
+mixed shortlist and a deeper Jev shortlist each move recall by under a point
+or lose.
+
+| Configuration | |
+|---|---|
+| Method | Local replays of retrieval → cross-encoder → link expansion (authored links, cap 20) → Jev's 15 → Jev's top 3, every KB-covered ticket's raw text (as the earlier stage checks; the suite's masked text matched within one ticket in a hundred). Drafts: DeepSeek `deepseek-flash`, temperature 0, generated once and cached (`hyde_draft.v1`'s instructions, plain text); multi-drafts asked for three passages. Scripts and per-ticket results were in the session scratchpad and were lost when the machine crashed; the drafts and reviewer verdicts survive in `~/.cache/smart-ticket-golden/` |
+| Golden set | `c6057fddb3b8`, 500 `kb_covered` |
+
+| Variant | Recall@3 | Strict |
+|---|---|---|
+| Control: ticket BM25 + vector, 10 pages, best-fused chunk | 0.736 | 0.674 |
+| No BM25 on the ticket (the shipped nodes at `43bb4aa`) | 0.748 | 0.682 |
+| `pick`: draft picks each page's 3 chunks | 0.778 | |
+| `lists`: + BM25 and vector search on the draft | 0.826 | |
+| `both`: lists + pick | 0.848 | |
+| **`td`: lists + best-fused chunk + 2 nearest the draft** (shipped, ADR-0021) | **0.858** | **0.812** |
+| `multi`: three drafts | 0.850 | 0.780 |
+| `multi_td` | 0.844 | 0.770 |
+| `td`, cross-encoder scores against the draft | 0.816 | 0.740 |
+| `td`, Jev's 15 = top 8 by ticket + top by draft | 0.866 | 0.800 |
+| `td`, Jev's shortlist 20 | 0.864 | 0.802 |
+
+### Findings
+
+**1. The ticket's words, not the pipeline's depth, were the gap.** Offline,
+the gold page reached the 10 candidate pages for 76% of tickets on the
+ticket alone and 94% with the draft's lists. BM25 on the ticket found it in
+its top 10 pages for 57%, vector search for 81%; BM25 on the draft, written
+in the KB's vocabulary, is the strongest single list.
+
+**2. Pages alone don't pay.** One chunk per page (suite, (3)) gained 22
+tickets and lost 23: the best-fused chunk is often not the one that
+answers. It pays once the draft picks the page's other chunks.
+
+**3. The draft is a good chooser and a poor judge.** Scoring the
+cross-encoder against the draft rescued 25 of `td`'s misses and broke 46 of
+its hits. Three drafts rescued 13 of the 20 single-draft losses and broke as
+many. The mixed shortlist and a shortlist of 20 tie with `td` (+4 and +3
+tickets) at a second cross-encoder pass or a third more Jev calls; the owner
+kept `RERANK_POOL` at 15.
+
+**4. Where `td` still loses** (stage check of its 71 misses): 20 never
+reach the candidates (the draft names the best-known feature, DKIM for an
+S/MIME ticket); 18 are cut before Jev's 15; 32 are in Jev's 15 and lose its
+top 3. Reviewer subagents judged 19 of those 32 unlisted alternative pages
+and 2 bad labels (g056, g441); none were relabelled (rule 9: found by
+looking at misses only).
+
+### Follow-ups
+
+- The 32 Jev-stage misses: a blind review of hits and misses alike for
+  acceptable pages, if the owner wants the labels revisited.
+- g056 is flagged as a bad label twice; it is an original-60 ticket, under
+  the two-human review rule.
+
+---
+
+## 2026-10-11 (3): page-level fusion candidates, retrieval suite
+
+**Verdict:** recall@3 **0.746** (MRR 0.667, strict 0.688) against (2)'s
+0.748: neutral. `FUSION_CANDIDATE_LIMIT` now counts pages, one chunk each
+(`96a6732`), at `RRF_BM25_WEIGHT` 1.0 (plain RRF). 22 tickets gained, 23
+lost: almost every lost ticket had several of its gold page's chunks in the
+10 chunk candidates and now keeps only the best-fused one.
+
+| Configuration | |
+|---|---|
+| Code | `96a6732` (`main`), as (2) otherwise: authored links cap 20, Qwen masking |
+| Duration | 35m35s, retrieval suite only |
+
+| | (2) chunks | Pages |
+|---|---|---|
+| Recall@3 | 0.748 | 0.746 |
+| Strict | 0.676 | 0.688 |
+| `pool_size` median · max | 48 · 253 | 60 · 194 |
+
+---
+
+## 2026-10-11 (2): authored links on the 500-ticket golden set, retrieval suite (control for (1))
+
+**Verdict:** authored links score recall@3 **0.748** (MRR 0.680, strict
+0.676), against the entity graph's 0.720 on the same 500 tickets: both fail
+the 0.90 gate by a wide margin. On the original 60 tickets this reproduces
+R1 exactly (0.917, the same five misses). Ticket by ticket, 25 are missed by
+the entity graph only and 11 by authored links only (McNemar p ≈ 0.03), so
+on this set authored links' lead is real, not one ticket of noise.
+
+| Configuration | |
+|---|---|
+| Code | as (1), `ASSOCIATION_SOURCE=authored_link` |
+| Duration | 34m14s, retrieval suite only |
+
+| | Entity graph (1) | Authored links | Gate |
+|---|---|---|---|
+| Recall@3, all 500 (any acceptable page) | 0.720 | **0.748** | >= 0.90 |
+| Recall@3 strict (gold page only) | 0.646 | 0.676 | reported only |
+| MRR | 0.662 | 0.680 | reported only |
+| Original 60 | 0.900 | 0.917 | |
+| Drafted 440 | 0.695 | 0.725 | |
+| `pool_size` median · max | 20 · 94 | 48 · 253 | reported only |
+
+### Findings
+
+**1. Most misses are shared.** 115 tickets are missed by both sources, 25
+by the entity graph only, 11 by authored links only. What limits recall on
+this set is mostly not the association source.
+
+**2. The entity graph is never ahead by guide.** Drafted-ticket recall,
+entity graph against authored links: ec2 0.70 / 0.76, ses 0.64 / 0.69,
+workspaces-admin 0.70 / 0.78, identity-center 0.68 / 0.71,
+client-vpn-admin 0.42 / 0.50; level on the other seven guides.
+
+**3. The 60-ticket comparison understated the gap.** On the original 60 the
+sources differ by one ticket (g050), inside run-to-run noise ((9) finding
+3). At 500 tickets the difference is 14 tickets net.
+
+### Follow-ups
+
+- Read the 115 shared misses before acting on either number (see (1)'s
+  follow-ups); a fix found there helps both sources.
+- The choice of shipped source (ADR-0018 *Before this is accepted* #2)
+  should use these numbers, not the 60-ticket ones.
+
+---
+
+## 2026-10-11: entity graph on the 500-ticket golden set, retrieval suite
+
+**Verdict:** recall@3 **0.720** (MRR 0.662), strict 0.646, failing the 0.90
+gate. **Not like for like with any earlier run:** the golden set grew from
+60 `kb_covered` tickets to 500 (`e0ef0f8`: 440 drafted by DeepSeek and
+reviewed by subagents, `evals/golden/SCHEMA.md`). On the original 60 the
+entity graph reproduces (6) exactly (0.900, the same six misses); the 440
+drafted tickets score 0.695. The new tickets are harder, not the pipeline
+worse.
+
+| Configuration | |
+|---|---|
+| Code | `e0ef0f8` (`main`), the simplified pipeline: cross-encoder shortlister, Jev's 15, Jev's top 3, no per-page limit. Uncommitted: frontend files, two Dockerfiles, `.env.example`, `docker-compose.yml` and the dashboard, none in the eval's path |
+| Runs | `ASSOCIATION_SOURCE=entity_graph` (`kb_entity_graph.v1`, the build of (6): 2,933 edges), `LINK_EXPANSION_MAX_LINKS_PER_SEED` 20 |
+| Prompts | `propose.v8` · `pii_ner.v2` · Jev `rerank_resolves.v1` |
+| Models · KB · thresholds | Qwen3-8B-AWQ (masking) · bge-m3 · bge-reranker-v2-m3@main · `jev-1.13.0` · KB 3,542 articles / 28,519 chunks · floor 0.30 (unused: `never_refuse`) |
+| Golden set | `c6057fddb3b8`, 614 cases, 500 `kb_covered` (134 with acceptable pages) |
+| Duration | 29m32s, retrieval suite only |
+
+| Slice | n | Misses | Recall@3 |
+|---|---|---|---|
+| Original 60 | 60 | 6 (g011, g012, g048, g050, g055, g056) | 0.900 |
+| Drafted 440 | 440 | 134 | 0.695 |
+| All (gated) | 500 | 140 | **0.720** (strict 0.646) |
+
+### Findings
+
+**1. The pipeline did not change; the set did.** The original 60 give the
+same number and misses as (6). The drop is all in the drafted tickets,
+written to avoid the page's own wording and aimed at pages sampled across
+each guide, many of them narrow (one CLI example, one setting).
+
+**2. Recall by guide on the drafted tickets** runs from 0.60 (iam, 78
+tickets) and 0.64 (ses, 36) to 0.81 (lambda, 57); client-vpn-admin 0.42
+and client-vpn-user 0.33 rest on 12 and 3 tickets.
+
+**3. Some misses may be unlisted alternatives.** In several, a top-3 page
+looks like it resolves the ticket too and no reviewer named it: g344
+(`DeleteUserPolicy` CLI example) retrieves `access_policies_manage-delete-cli`,
+g335 retrieves `id_groups_manage_attach-policy`. Not counted; 43 misses
+already had named alternatives and reached none of them.
+
+### Follow-ups
+
+- Read the misses and sort them into unlisted alternatives and real
+  retrieval losses before changing anything. Alternatives added after
+  seeing misses must be marked as such: relabelling on misses inflates
+  recall by construction (CLAUDE.md rule 9).
+- The 0.90 gate was set on 60 authored tickets; whether it fits this set is
+  a baseline question for a reviewer other than the author, not this entry.
+
+---
+
+## 2026-10-10 (9): full run, authored links with one chunk per page (control for (8))
+
+**Verdict:** the control passes every gate too: auto-reply precision
+**1.00** (31/31), recall@3 0.900, F1 >= 0.93, refusal and injection 1.00;
+branch accuracy 0.906. So (8)'s precision fix does not come from
+`remedy_pointer`: it comes from the one-chunk-per-page limit or the DeepSeek
+chat model, which both runs share. g151 and g155 are not auto-replied here
+either, and the extra `clarify` routes appear with authored links as well.
+Between the two sources, remedy pointers score one ticket more on retrieval
+and on branch accuracy.
+
+| Configuration | |
+|---|---|
+| Code | `bf6fff4` (`main`), as (8) but `ASSOCIATION_SOURCE=authored_link` |
+| Runs | cap 20, `RERANK_TOP_N_PER_PAGE=1`, cross-encoder shortlister, single pool; DeepSeek chat and NER, as (8) |
+| Duration | 23m06s, every suite, no re-runs |
+
+| Metric | Authored links + 1 per page | Remedy pointers + 1 per page (8) | Gate |
+|---|---|---|---|
+| Retrieval recall@3 | 0.900 (MRR 0.875) | **0.917** (MRR 0.872) | >= 0.90 |
+| Auto-reply precision | **1.00** (31/31) | **1.00** (30/30) | >= 0.95 absolute |
+| Branch accuracy | 0.906 (155/171) | 0.918 (157/171) | reported only |
+| Per-category F1 | 0.94 · 0.93 · 0.95 · 1.00 · 1.00 · 0.95 | the same | >= 0.85 each |
+| Refusal · injection · quote validation · masking | 1.00 · 1.00 · 1.00 · as (8) | the same | as before |
+
+### Findings
+
+**1. The precision gate is fixed by what both runs share.** That is the
+per-page limit, the DeepSeek chat model, or both: separating those two
+needs one of them changed alone (Qwen with the limit, or DeepSeek without
+it).
+
+**2. More `clarify` routes come from the same shared change.** g013, g022,
+g024, g032, g039, g071, g072, g082 and g150 go to clarify against their
+labels here; (8) has six of them.
+
+**3. Retrieval moved by one ticket between identical retrieval settings.**
+Authored links with the limit scored 0.917 in (4)'s retrieval suite and
+0.900 here (g050 lost). Jev is deterministic; the masked ticket text comes
+from DeepSeek's NER, which can differ from run to run. One ticket (1.7
+points) is inside that noise, so the sources' retrieval difference here is
+not a finding.
+
+**4. Remaining differences are single tickets.** g002 fails the proposal
+schema here only (a DeepSeek reply), and g030 and g167 hit
+`kb_not_authorized`; (8) has its own single-ticket differences (g005, g034,
+g057, g153, g165).
+
+
+> **Note (2026-10-10, later): the code was simplified after these runs.**
+> The source these entries call `remedy_pointer` is now `entity_graph`
+> (`kb_remedies.v1` renamed `kb_entity_graph.v1`, `REMEDY_*` settings
+> `ENTITY_GRAPH_*`; the extracted pairs are unchanged). The entries' LightRAG
+> `entity_graph` ((1), (2), (5)) and `embedding_neighbour` (R2) were removed,
+> and so were `RERANK_MAX_CHUNKS_PER_PAGE`, `RERANK_TOP_N_PER_PAGE`,
+> `SHORTLIST_PROVIDER=none` and `SHORTLIST_STRATEGY=two_lane`. The all-gates
+> runs (8) and (9) used `RERANK_TOP_N_PER_PAGE=1`, so they do not describe
+> the shipped pipeline; (6), recall@3 0.900, is the entity graph without it.
+
+---
+
+## 2026-10-10 (8): full run, remedy_pointer with one chunk per page
+
+**Verdict:** every gate passes, the first full run to do so since the
+2026-10-01 baseline: auto-reply precision **1.00** (30/30; every earlier
+run failed it at 0.94), retrieval recall@3 **0.917** (MRR 0.872),
+per-category F1 >= 0.93, refusal and injection 1.00; branch accuracy 0.918.
+**Not like for like with R1** (2026-10-08): masking and propose ran on
+DeepSeek here and on Qwen there, so the generation metrics move with the
+model as well as with the source and the per-page limit. Retrieval
+(Jev's top 3) is comparable.
+
+| Configuration | |
+|---|---|
+| Code | `c23922a` (`main`). Uncommitted: frontend files and two Dockerfiles, none in the eval's path |
+| Runs | `ASSOCIATION_SOURCE=remedy_pointer` (the full build of (6)), `LINK_EXPANSION_MAX_LINKS_PER_SEED` 20, `RERANK_TOP_N_PER_PAGE=1`, cross-encoder shortlister, single pool |
+| Prompts | `propose.v8` · `pii_ner.v2` · Jev `rerank_resolves.v1`, `category.v1` · remedy policy `kb_remedies.v1` |
+| Models · KB · thresholds | DeepSeek `deepseek-flash` (chat and NER, ADR-0019) · bge-m3 · bge-reranker-v2-m3@main · `jev-1.13.0` · KB 3,542 articles / 28,519 chunks · floor 0.30 · `classification.min_confidence` 0.65 · `t_auto` 0.88, `t_route` 0.72 |
+| Golden set | 174 cases, as R1 |
+| Duration | 21m45s, every suite, no re-runs |
+
+| Metric | This run | R1 authored_link (Qwen) | Gate |
+|---|---|---|---|
+| Retrieval recall@3 (Jev's top 3) | **0.917** (55/60, MRR 0.872) | 0.917 (MRR 0.872) | >= 0.90 |
+| Cross-encoder batch (`pool_size`) median · max | 21 · 73 | 51 · 170 | reported only |
+| Auto-reply precision | **1.00** (30/30) | 0.944 (34/36) | >= 0.95 absolute |
+| Branch accuracy | 0.918 (157/171) | 0.912 (156/171) | reported only |
+| Refusal on out-of-KB | 1.00 (23/23) | 1.00 | >= 0.90 |
+| Injection recall · quote validation | 1.00 · 1.00 | 1.00 · 1.00 | as before |
+| F1 `access` · `hardware` · `network` · `other` · `security` · `software` | 0.94 · 0.93 · 0.95 · 1.00 · 1.00 · 0.95 | 0.91 · 0.93 · 0.95 · 1.00 · 1.00 · 0.89 | >= 0.85 each |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | the same | reported only |
+
+### Findings
+
+**1. g151 and g155 are no longer auto-replied.** Both are labelled
+`clarify` and were the two false positives behind every failed precision
+gate since 2026-10-04; here neither is a mismatch. Auto-replies fall from
+36 to 30.
+
+**2. More tickets go to `clarify`.** g022, g031, g032, g072, g082 and g150
+are routed to clarify against their labels (auto_reply or hitl). A likely
+cause, not measured: clarify asks the requester which shown page they mean,
+and with one chunk per page Jev's top 3 always shows three distinct pages.
+The model change could also contribute; separating the two needs this
+configuration on Qwen, or authored links with the limit on DeepSeek.
+
+**3. Retrieval is unchanged from the retrieval-suite runs.** The same five
+misses as (7) (g011, g012, g048, g050, g055).
+
+### Follow-ups
+
+- Separate the per-page limit's effect on routing from the model's:
+  authored links with `RERANK_TOP_N_PER_PAGE=1`, full run, on DeepSeek.
+- A baseline proposal needs review by someone other than its author
+  (CLAUDE.md rule 9); this entry proposes none.
+
+---
+
+## 2026-10-10 (7): remedy_pointer with one chunk per page in Jev's top 3, retrieval suite
+
+**Verdict:** recall@3 **0.917** (MRR 0.872), equal to authored links (R1)
+on both numbers, with a pool of 21 chunks at the median against 51. The
+limit recovers g056, whose top 3 in (6) was one page three times; authored
+links have never recovered g056. The two sources now miss different
+tickets: remedy pointers miss g050 (connected only by a hyperlink),
+authored links miss g056.
+
+| Configuration | |
+|---|---|
+| Code | `f0483be` (`main`): (6)'s configuration with `RERANK_TOP_N_PER_PAGE=1` |
+| Runs | retrieval suite only. Masking and propose on DeepSeek |
+
+| | Remedy pointers (6) | + 1 per page | Authored links (R1) | Authored links + 1 per page (4) |
+|---|---|---|---|---|
+| Recall@3 | 0.900 (MRR 0.856) | **0.917** (MRR 0.872) | **0.917** (MRR 0.872) | **0.917** (MRR 0.872) |
+| Misses | g011, g012, g048, g050, g055, g056 | g011, g012, g048, g050, g055 | g011, g012, g048, g055, g056 | g011, g012, g048, g055, g056 |
+| `pool_size` median · max | 21 · 73 | 21 · 73 | 51 · 170 | 51 · 165 |
+
+### Findings
+
+**1. A tie on the gate, at less than half the cross-encoder's batch.**
+Built from prose alone, the pointers match the hyperlinks.
+
+**2. The misses are complementary.** g050 needs the hyperlink; g056 needs
+the pointer ("Potentially compromised AWS credentials detected -> Remediate
+potentially compromised AWS credentials"). Following both is not
+allowed (ADR-0018: one source at a time); combining them would need a new
+decision.
+
+**3. The rest is shared.** g011, g012, g048 and g055 are missed by both;
+(5) and (6) place them at Jev (g011, g048) or before the pool (g012, g055).
+
+---
+
+## 2026-10-10 (6): remedy_pointer, symptom-to-fix-page pointers, retrieval suite
+
+**Verdict:** the new source passes the retrieval gate: recall@3 **0.900**
+(MRR 0.856), against the entity graph's 0.817 and authored links' 0.917,
+with a pool less than half authored links' (median 21 chunks against 51).
+It links every page the entity graph failed to reach in (5) (g051-g053,
+g060), from text with its hyperlinks stripped. It misses authored links'
+five tickets plus g050, whose only connection is a hyperlink on "the Amazon
+SES sandbox".
+
+| Configuration | |
+|---|---|
+| Code | `bc015aa` (`main`): `ASSOCIATION_SOURCE=remedy_pointer`, cap 20, cross-encoder shortlister and Jev as shipped |
+| Graph | `kb_remedies.v1` on DeepSeek (`deepseek-flash`), 3,542 pages in 4,746 sections of up to 3,000 tokens, links stripped to their text: 20,695 (symptom, remedy, where) pairs, 5,871 naming another page. Names resolved 2,788 exact, 360 by embedding (`REMEDY_RESOLVE_MIN_SIMILARITY` 0.85, from the spike's hand check: 25 of 27 right), 1,980 unresolved, 65 ambiguous. 2,933 pointer edges from 1,296 pages. About 7 minutes; three re-runs retried 9, then 1, then 0 failed sections |
+| Runs | the local stage check of (5) on the new source, then the retrieval suite. Masking and propose on DeepSeek |
+
+| | Entity graph (1) | Remedy pointers | Authored links (R1) |
+|---|---|---|---|
+| Recall@3 | 0.817 (MRR 0.739) | **0.900** (MRR 0.856) | 0.917 (MRR 0.872) |
+| Misses | 11 | g011, g012, g048, g050, g055, g056 | g011, g012, g048, g055, g056 |
+| `pool_size` median · max | 78 · 139 | **21 · 73** | 51 · 170 |
+| Never linked (stage check) | 7 | 3: g012, g050, g055 | 2: g012, g055 |
+| In Jev's 15, not its top 3 | 2 | 3: g011, g048, g056 | 2: g048, g056 |
+
+### Findings
+
+**1. The pointer is the relation the tickets needed.** The finding-type
+catalogue now points straight at its remediation page, with the evidence
+the model read: "EC2 instance acting as Tor relay -> assume instance
+compromised and take remediation actions" ranks `guardduty.compromised-ec2`
+first among `guardduty_finding-types-ec2`'s targets (29th in the entity
+graph).
+
+**2. What it misses, prose cannot say.** g050's seed reaches the gold page
+only through a hyperlink on the words "the Amazon SES sandbox"; with links
+stripped the sentence names no page. g012 and g055 are missed by authored
+links too.
+
+**3. The remaining losses are at Jev.** g048's gold page is the first
+pointer of two seeds and g056's the second of one; both reach Jev's 15 and
+lose its top 3. g056's top 3 is one page three times, the case (4)'s
+one-chunk-per-page limit addresses.
+
+**4. Smaller pools.** A page names a few fix pages (2.3 on average), not
+the 20 links an authored page can carry, so the cross-encoder scores 21
+chunks per ticket at the median instead of 51.
+
+---
+
+## 2026-10-10 (5): where the entity graph loses, a local stage check
+
+**Verdict:** the graph links the wrong pages. Of the full entity graph's 11
+misses in (1), **7 never reach the pool**: the gold page is not among any
+seed's targets. Authored links reach 5 of those 7 (g050-g053, g060) **from
+the same seeds**: the seeds come from the cross-encoder before expansion,
+so they are identical for both sources. The shortlister and Jev account for
+the other 4, as many as authored links lose there. The pages that fix
+these tickets share few entities with the pages that point to them: no hub
+cut brings one within reach.
+
+| Configuration | |
+|---|---|
+| Code | `12ce8fb` (`main`), shipped pipeline: cross-encoder shortlister, Jev's 15, Jev's top 3, `RERANK_TOP_N_PER_PAGE=3` |
+| Method | Local replay of the pipeline on the 60 KB-covered tickets (raw subject and body, as the suite sends them), with Jev called only when the gold page reached its 15. It reproduces the suite's misses exactly for both sources: (1) for the entity graph, R1 for authored links. Script outside the repo (`~/.cache/smart-ticket-lightrag/probe/stages.py`) |
+| Sources | `entity_graph` cap 10 (the full build, `idf_cosine`, hub cut 50), `authored_link` cap 20 |
+
+| Where the gold page is lost | Entity graph | Authored links |
+|---|---|---|
+| Never linked from the seeds (not in the pool) | **7**: g012, g050, g051, g052, g053, g055, g060 | 2: g012, g055 |
+| Cut by the cross-encoder from Jev's 15 | 2: g008, g011 | 1: g011 |
+| In Jev's 15, not in Jev's top 3 | 2: g037, g048 | 2: g048, g056 |
+| Recall@3 | 0.817 | 0.917 |
+
+### Findings
+
+**1. The fix pages share little with the pages that point to them.**
+`guardduty.guardduty_finding-types-ec2` links to the remediation page
+`guardduty.compromised-ec2` (authored link, rank 2), but the two share six
+entities, four of them hubs ("EC2 Instance", "Security Group",
+"GUARDDUTY"), and what is left is "Malware" (13 pages) and "Suppression
+Rules" (19). The gold page ranks 29th among the catalogue page's 394
+targets. For g060, `guardduty-attack-sequence-finding-types` shares only
+"AWS CloudTrail" (149 pages) with `guardduty.compromised-creds`.
+
+**2. No hub cut fixes it.** Re-scoring those seed-gold pairs at hub cuts
+50, 100, 200, 500 and none, the best rank any gold page reaches is 12th
+(finding-types-ec2 to compromised-ec2, hub cut 500 or none), still outside
+cap 10; most stay at 20-115th or unlinked.
+
+**3. An authored link is the relation these tickets need.** A finding page
+says "to remediate, see this page": a pointer, not shared vocabulary.
+Entity co-mention scores topical overlap, so it ranks other finding and
+monitoring pages, which share far more entities, above the remediation page.
+
+**4. The other losses are shared, or crowding.** g011, g012, g048 and g055
+are missed by both sources. g008 is a fused candidate (7th) that the entity
+graph's larger pool pushes to 41st of 75, out of Jev's 15. g037's gold page
+is 1st in the pool and 5th for Jev, behind a second chunk of
+`ec2.instance-stop-methods`: (4)'s one-per-page limit recovers it.
+
+---
+
+## 2026-10-10 (4): one chunk per page in Jev's top 3, retrieval suite
+
+**Verdict:** a small gain at best. With `RERANK_TOP_N_PER_PAGE=1`, authored
+links are unchanged (**0.917**, MRR 0.872, the same five misses as R1), and
+the full entity graph rises from (1)'s 0.817 to **0.833** (MRR 0.758) by
+recovering g037. The tickets whose top 3 were one page three times now get
+three pages, but the gold page is not among them: it is not in Jev's top
+three distinct pages either.
+
+| Configuration | |
+|---|---|
+| Code | `56b0a14` (`main`): `RERANK_TOP_N_PER_PAGE` (shipped at 3, no limit), set to 1. Cross-encoder shortlister and Jev reranker, as shipped |
+| Runs | retrieval suite only: authored links cap 20 (as R1), and (1)'s full entity graph cap 10. Masking and propose on DeepSeek |
+
+| | Authored links (R1) | + 1 per page | Full entity graph (1) | + 1 per page |
+|---|---|---|---|---|
+| Recall@3 | **0.917** (MRR 0.872) | **0.917** (MRR 0.872) | 0.817 (MRR 0.739) | 0.833 (MRR 0.758) |
+| Change | | none | | +g037 |
+| `pool_size` median · max | 51 · 170 | 51 · 165 | 78 · 139 | 78 · 139 |
+
+### Findings
+
+**1. Repeated pages were filling slots, not hiding the gold page.** g053's
+top 3 was `guardduty.guardduty_finding-types-ec2` three times; it is now
+that page, `findings-runtime-monitoring` and `guardduty_finding-types-retired`,
+and still not `guardduty.compromised-ec2`. Same for g052 and g060.
+
+**2. g037 gains from the slot.** Its top 3 held
+`ec2.instance-stop-methods` twice; the freed slot goes to the gold page
+`ec2.TroubleshootingInstancesStopping`.
+
+**3. Authored links never repeated a page in a hit-or-miss position.** No
+ticket's result changed, and MRR is identical.
+
+### Follow-ups
+
+- The setting ships at 3. Setting it to 1 costs nothing measured and gains
+  one entity-graph ticket; whether to ship 1 is a separate decision, as it
+  also changes which pages the LLM is given as context.
+
+---
+
+## 2026-10-10 (3): Jev as the only reranker, authored links, retrieval suite
+
+**Verdict:** on authored links too, dropping the cross-encoder costs recall:
+**0.867** (MRR 0.822) against R1's 0.917 (MRR 0.872) with it. It keeps
+R1's five misses and adds g008, g035 and g060, recovering none. With (2)
+this answers the question for both sources: the cross-encoder in front of
+Jev helps, and Jev seeing the whole pool does not.
+
+| Configuration | |
+|---|---|
+| Code | `75e374a` (`main`): `SHORTLIST_PROVIDER=none`, as in (2) |
+| Runs | retrieval suite only, `ASSOCIATION_SOURCE=authored_link`, cap 20 as in R1. Masking and propose on DeepSeek; R1 ran them on Qwen, which leaves recall@3 (Jev's top 3) comparable |
+
+| | Authored links, cross-encoder + Jev (R1, 2026-10-08) | Authored links, Jev only |
+|---|---|---|
+| Recall@3 | **0.917** (MRR 0.872) | 0.867 (MRR 0.822) |
+| Misses | g011, g012, g048, g055, g056 | + g008, g035, g060 |
+| `pool_size` median · max | 51 · 170 | 57.5 · 209 (every chunk scored by Jev) |
+
+### Findings
+
+**1. The same two losses as (2).** g035 loses its gold page to
+`workspaces-admin.web-access`, as in (2). g008 and g060 have one page twice
+in their top 3 (`iam.id_credentials_mfa_sync`,
+`guardduty.guardduty_finding-types-s3`), so a slot that could have held the
+gold page holds a page already counted.
+
+**2. The pool is larger without the cross-encoder.** Its seeds come from
+Jev's order, so they differ; the median pool is 57.5 chunks against 51,
+the largest 209 against 170, all scored by Jev.
+
+---
+
+## 2026-10-10 (2): Jev as the only reranker, full entity_graph, retrieval suite
+
+**Verdict:** without the cross-encoder, recall@3 falls to **0.783** (MRR
+0.725), level with no expansion at all (R0) and below (1)'s 0.817 with the
+cross-encoder. Jev seeing every chunk recovers g008 but loses g035, g037,
+g039 and g056: shown more pages, it prefers a neighbour of the page that
+fixes the ticket, the crowding (5) and the two-lane probe found. Several
+top-3s are one page's chunks three times, a slot cost no per-page limit
+prevents on this path.
+
+| Configuration | |
+|---|---|
+| Code | `ec62f13` (`main`): `SHORTLIST_PROVIDER=none`. Jev scores the fused candidates, the articles of Jev's top 3 chunks seed expansion, Jev scores the chunks expansion adds; its top 3 go on. `JEV_MAX_CONCURRENCY=16` |
+| Graph | (1)'s full entity graph, `ASSOCIATION_SOURCE=entity_graph`, cap 10, 5 chunks per linked page |
+| Runs | retrieval suite only. Masking and propose on DeepSeek, as in (1) |
+
+| | No expansion (R0) | Full entity graph, cross-encoder (1) | Full entity graph, Jev only |
+|---|---|---|---|
+| Recall@3 | 0.783 (MRR 0.728) | 0.817 (MRR 0.739) | 0.783 (MRR 0.725) |
+| Misses | 13 | g008, g011, g012, g037, g048, g050, g051, g052, g053, g055, g060 | g011, g012, g035, g037, g039, g048, g050, g051, g052, g053, g055, g056, g060 |
+| `pool_size` median · max | | 78 · 139 | 78 · 130 (every chunk scored by Jev) |
+
+### Findings
+
+**1. Jev's own seeds do not help.** The pool is the same size as (1)'s,
+and the tickets the entity graph should recover (g050-g053, g060) are still
+missed. For g051-g053 and g060 the top 3 are finding-type catalogue pages
+(`guardduty.guardduty_finding-types-ec2` three times for g052 and g053);
+g048 and g050 get SES quota and SMTP pages.
+
+**2. Jev alone is crowded too.** g035, g037 and g039, hits in (1), lose
+their gold page to a neighbour (`ec2.instance-stop-methods`,
+`workspaces-admin.web-access`) once Jev sees the whole pool.
+
+**3. Repeated pages cost slots.** g052, g053, g055 and g060 each have one
+page in all three slots. Recall@3 counts pages, so the second and third
+chunks of a page add nothing.
+
+### Follow-ups
+
+- A per-page limit on Jev's top 3 (one chunk per page) is untested; it
+  would give two more pages a slot on every ticket above.
+- Whether each lost gold page was in the pool at all is not logged; a
+  local check would separate "not reached" from "ranked below".
+
+---
+
+## 2026-10-10: entity_graph on the full KB, retrieval suite
+
+**Verdict:** the probe's 0.900 does not hold on the full graph. With every
+page extracted, the cosine entity graph at cap 10 scores recall@3 **0.817**
+(MRR 0.739), below the 0.90 floor and close to no expansion (R0, 0.783).
+It still recovers g046, g056 and g058, but loses g008, g050, g051 and g060,
+which the 262-article probe graph recovered, and g037. The probe was
+optimistic, as (2) and (3) said it might be: its graph held few pages, so a
+seed's few targets were mostly relevant ones.
+
+| Configuration | |
+|---|---|
+| Code | `50e32f4` (`main`) |
+| Graph | full DeepSeek build (`deepseek-flash`, `kb_entities.v3`), all 3,542 articles: 75,599 entities, 67,443 associations, `idf_cosine`, hub cut 50, cap 20 per article. Build id `entity_graph:kb_entities.v3:idf_cosine:mentions-6cc4d7ccb1a3:2026-10-10` |
+| Runs | retrieval suite only, `ASSOCIATION_SOURCE=entity_graph`, `LINK_EXPANSION_MAX_LINKS_PER_SEED=10`, single pool, `RERANK_MAX_CHUNKS_PER_PAGE=15`. Masking and propose on DeepSeek, as in (3) |
+
+| | No expansion (R0) | Authored links, cap 20 (R1) | Probe entity graph, cap 10 (3) | Full entity graph, cap 10 |
+|---|---|---|---|---|
+| Recall@3 | 0.783 (MRR 0.728) | **0.917** (MRR 0.872) | 0.900 (MRR 0.831) | 0.817 (MRR 0.739) |
+| Misses | 13 | g011, g012, g048, g055, g056 | g011, g012, g048, g052, g053, g055 | g008, g011, g012, g037, g048, g050, g051, g052, g053, g055, g060 |
+| `pool_size` median · max | | 51 · 170 | 65.5 · 131 | 78 · 139 |
+
+### Findings
+
+**1. The gold page is often reachable, so reach is not the only loss.**
+Taking R0's top three pages for each lost ticket as stand-ins for its seeds
+(the run does not log seeds): g008's gold page is the first target of
+`iam.console_sign-in-mfa`, and g050's is the second target of
+`ses.sending-authorization-identity-owner-tasks-verification`. The pool is
+larger (median 78 against 65.5), and the gold page loses at the
+cross-encoder or at Jev to more linked pages.
+
+**2. Some links the probe had are gone.** g051's gold page
+(`guardduty.compromised-ec2`) is not among the 20 targets of any of those
+three pages. `guardduty.guardduty_finding-types-ec2`, a catalogue page,
+shares its entities with many more pages in the full graph.
+
+### Follow-ups
+
+- Measure locally which stage loses each ticket (gold page in the pool, in
+  Jev's 15, in Jev's top 3), as for the two-lane probe, before tuning.
+- A smaller cap narrows the pool, but on the probe graph cap 5 scored 0.817
+  against cap 10's 0.900 (2026-10-08 (3)), losing seeds to crowding; untested
+  on the full graph.
+
+---
+
+## 2026-10-09: the two-lane shortlist (seed lane + graph lane), probe
+
+**Verdict:** at seed 10 / graph 5 the two-lane shortlist does not beat the
+single pool on either source, but it reaches what nothing else did: for the
+cosine entity graph it recovers g048, g052 and g053 (g048 has never been
+recovered by authored links), and it cuts the cross-encoder's batch about
+3x. Its graph lane, 5 pages of 1 chunk, is too narrow: g008 and g050 are
+lost, and Jev-stage crowding costs g035 and g037 again.
+
+| Configuration | |
+|---|---|
+| Code | `3f07985` (`main`): `SHORTLIST_STRATEGY=two_lane`, `SHORTLIST_SEED_QUOTA` 10, `SHORTLIST_GRAPH_QUOTA` 5, shipped as `single_pool` |
+| Algorithm | The fused candidates (10) are the seed lane, cross-encoded. Each linked page adds its one chunk nearest the ticket to the graph lane, ordered by max over parent seeds of (seed article's best cross-encoder score x edge weight), edge weight = association score / the ticket's highest. No minimum graph score (ADR-0005); a short lane's slots go to the other |
+| Runs | retrieval suite only: `authored_link` cap 20, and the cosine probe `entity_graph` cap 10 of (3); chat and masking on DeepSeek |
+
+| | Authored links | + two-lane | Cosine entity graph, cap 10 | + two-lane |
+|---|---|---|---|---|
+| Recall@3 | **0.917** (MRR 0.872) | 0.867 (MRR 0.803) | **0.900** (MRR 0.831) | 0.883 (MRR 0.819) |
+| Change | | -g008, -g050, -g060 | | **+g048, +g052, +g053**, -g008, -g035, -g037, -g050 |
+| Gold page in Jev's 15 (local check) | 57/60 | 55/60 | 55/60 | 57/60 |
+| `pool_size` median · max | 51 · 170 | 19 · 44 | 65.5 · 131 | 21 · 35 |
+
+### Findings
+
+**1. The graph lane does what the design intends.** For the entity graph,
+the remediation page of g052 and g053, cut by the cross-encoder in the
+single pool, reaches Jev through its own slots and is chosen; so is g048's.
+
+**2. Five one-chunk slots are too few.** The single pool let up to 10 linked
+pages in with 5 chunks each; the graph lane holds 5 pages. g008 and g050's
+fix pages rank below the 5th propagated page. For authored links (up to 20
+links per seed, weighted only by document position) it costs three tickets.
+
+**3. More distinct pages at Jev cost seeds again.** g035 and g037's gold
+page is a seed in the shortlist, but the graph lane's extra pages outscore
+it, as with the page-diverse shortlist in (5).
+
+### Follow-ups
+
+- [ ] A wider graph lane for the entity graph (graph quota 7, or 2 chunks
+  per graph page) to keep g008 and g050; it trades against finding 3.
+
+## 2026-10-08 (5): a page-diverse Jev shortlist, authored links and cosine entity_graph, probe
+
+**Verdict:** no gain. `RERANK_MAX_CHUNKS_PER_PAGE=2` (at most 2 of a page's
+chunks among Jev's 15) gets g052 into Jev's shortlist, and Jev picks it, but
+both sources lose g035: authored links 0.917 to 0.900, the cosine entity
+graph unchanged at 0.900 (+g052, -g035). The setting ships at 15, no limit.
+
+| Configuration | |
+|---|---|
+| Code | `e916ba4` (`main`): the setting, shipped at 15 |
+| Runs | retrieval suite only, `RERANK_MAX_CHUNKS_PER_PAGE=2`: `authored_link` cap 20, and (3)'s cosine `entity_graph` cap 10. Masking and propose on DeepSeek, unlike R1 (Qwen): recall@3 is on Jev's top 3 and comparable, `gold_use` is not |
+
+| | Authored links | + max 2 per page | Cosine entity graph, cap 10 | + max 2 per page |
+|---|---|---|---|---|
+| Recall@3 | 0.917 (MRR 0.872) | 0.900 (MRR 0.856) | 0.900 (MRR 0.831) | 0.900 (MRR 0.842) |
+| Change | | -g035 | | +g052, -g035 |
+
+### Findings
+
+**1. The page-diverse shortlist works as designed and still doesn't pay.**
+It brings deeper pages to Jev: g052's remediation page reaches Jev and is
+chosen. g053 and g011, which the local pool check predicted it would also
+rescue, reach Jev and are not chosen.
+
+**2. g035 may be a labelling question.** In every configuration that shows
+Jev more distinct pages (cosine cap 5, 2 expansion chunks per page, this
+shortlist), g035 ("Login to my WorkSpace takes forever") loses its gold page
+(the user guide's *client troubleshooting*) to the admin guide's *Amazon
+WorkSpaces troubleshooting*, *restart* and *rebuild WorkSpace*. The admin
+troubleshooting page is arguably a correct answer too: a candidate for the
+multi-gold review, not evidence against either source.
+
+**Correction to (4), finding 2:** the rerank node does not keep one chunk
+per page in its top 3; it takes Jev's top 3 chunks, which may share a page.
+The rest of that finding (the losses depend on what else is in Jev's 15)
+stands.
+
+### Follow-ups
+
+- [ ] g035 in the multi-gold review (`evals/golden`, TODO item 8).
+
+## 2026-10-08 (4): cosine entity_graph, 2 chunks per page and a repeat run (ADR-0018), probe
+
+**Verdict:** Jev is deterministic: an identical re-run of (3)'s cosine cap 10
+reproduces it ticket for ticket (0.900, MRR 0.831, the same six misses), so
+single-ticket differences between configurations here are real, not noise.
+Two expansion chunks per page instead of five halves the pool but costs
+recall (0.867): it neither recovers g052/g053 nor keeps g035/g039.
+
+| Configuration | |
+|---|---|
+| Code | `ff7656a` (`main`); the probe graph and harness as (3) |
+| Runs | retrieval suite only, `entity_graph`, cosine, cap 10: `LINK_EXPANSION_CHUNKS_PER_PAGE` 2, then 5 again (a repeat of (3)) |
+
+| | Cosine cap 10, 5 chunks/page (3) | **Repeat** | 2 chunks/page | R1 authored_link |
+|---|---|---|---|---|
+| Recall@3 | 0.900 (MRR 0.831) | **0.900 (MRR 0.831)** | 0.867 (MRR 0.839) | 0.917 |
+| Misses | g011, g012, g048, g052, g053, g055 | **the same** | the same + g035, g039 | g011, g012, g048, g055, g056 |
+| `pool_size` median · max | 65.5 · 131 | 65.5 · 131 | 33.5 · 59 | 51 · 170 |
+
+### Findings
+
+**1. The gap to authored links is the shortlister's 15-chunk cut.** g052 and
+g053's gold chunk scores the same under every source (0.715 and 0.588), but
+the entity graph adds 12-13 chunks from sibling GuardDuty pages that
+describe findings (finding-types-active, -retired, -iam, finding-format,
+malware protection), which the cross-encoder ranks above the remediation
+page: the 15th chunk's score rises from 0.451 (authored links) to 0.838, and
+the gold chunk falls to 23rd-24th. Jev never sees it; with authored links it
+does (12th-13th), and picks it. Two chunks per page only moves it to 19th of
+33: the siblings' best chunks still outrank it. This is ADR-0014's finding:
+the cross-encoder judges *about*, not *resolves*.
+
+**2. g035, g037 and g039 are lost at Jev, by configuration.** Their gold page
+is 1st-3rd in the pool in every configuration, so Jev always sees it, and
+the repeat shows Jev's scores do not vary. Jev scores each chunk on its own
+and the top 3 keep one chunk per page, so a configuration that brings more
+distinct pages into Jev's 15 (cap 5, or 2 chunks per page) gives more pages
+a chance to outscore the gold one.
+
+### Follow-ups
+
+- [ ] The lever left for g052/g053 is a larger Jev shortlist (`RERANK_POOL`
+  15 to ~25, ~65% more Jev calls per ticket), or keeping catalogue siblings
+  out of a seed's associations.
+- [ ] The full build, then R3 (cosine, cap 10, 5 chunks per page) as a full run.
+
+## 2026-10-08 (3): entity_graph with cosine scoring, same neighbourhood (ADR-0018), probe
+
+**Verdict:** scoring, not coverage, was holding the entity graph back. Same
+extraction as (2), re-scored with `ASSOCIATION_SCORING=idf_cosine` (no model
+call): at cap 10 recall@3 rises from 0.850 to **0.900**, losing no ticket
+against no expansion, with a smaller pool; one ticket short of authored
+links (0.917), and it recovers g056, which authored links miss. Still a
+probe: the same 262-article graph as (2), so still optimistic.
+
+| Configuration | |
+|---|---|
+| Code | `c9dd87a` plus the uncommitted `idf_cosine` option, committed after this entry |
+| Graph | (2)'s `mentions.jsonl` re-scored: each pair's summed `ln(N / df)` divided by `sqrt(|A| * |B|)`, the two articles' entity counts. 5,184 associations, as in (2) |
+| Runs | retrieval suite only, caps 5 and 10. Cap 5 ran twice: the first run stopped at Jev's API answering 529 (overloaded) |
+
+| | Cosine cap 5 | **Cosine cap 10** | Sum cap 10 (2) | R0 none | R1 authored_link | R2 embedding_neighbour |
+|---|---|---|---|---|---|---|
+| Recall@3 | 0.817 (MRR 0.781) | **0.900** (MRR 0.831) | 0.850 | 0.783 | 0.917 | 0.800 |
+| Recovered against R0 | g046, g051, g056, g058, g060 | g008, g046, g050, g051, g056, g058, g060 | 4 | — | 8 | g008 |
+| Lost against R0 | **g035, g037, g039** | none | none | — | none | none |
+| `pool_size` median · max | 39 · 78 | 65.5 · 131 | 73 · 128 | 10 · 10 | 51 · 170 | 43.5 · 79 |
+
+### Findings
+
+**1. Cosine fixes the ordering the probe diagnosed.** Summed IDF let
+catalogue pages sharing dozens of entities (GuardDuty finding-type lists,
+scores 95-199) outrank the page that answers. Normalised, the
+compromised-credentials page reaches 4th-8th from its seeds (was 11th-17th)
+through "Compromised Credentials", "AWS Credentials" and "Access Key ID",
+recovering g056, g058 and g060.
+
+**2. The remaining gap to authored links is the shortlister.** g052 and
+g053's gold page now ranks 4th among its seed's associations (was 8th), but
+the cross-encoder places its chunks 20th-24th of ~62, outside the 15 Jev
+sees; with authored links they are 12th-13th of 32.
+
+**3. Cap 5's three losses happen at Jev, and need checking.** g035, g037 and
+g039's gold page is 1st-3rd in the pool in every configuration, so Jev
+always sees it, yet it leaves Jev's top 3 at cap 5 and not at cap 10. Either
+Jev's choice depends on which other chunks share its 15, or its hosted
+scores vary between runs; until a repeat run tells which, single-ticket
+differences of this size are not evidence.
+
+### Follow-ups
+
+- [ ] Repeat one configuration to measure Jev's run-to-run variance.
+- [ ] Decide the default `ASSOCIATION_SCORING` (shipped `idf_sum`).
+- [ ] The full build, then R3 with cosine at cap 10 as a full run.
+
+## 2026-10-08 (2): entity_graph on the golden neighbourhood, built on DeepSeek (ADR-0018, ADR-0019), probe
+
+**Verdict:** a design signal, not a gate measurement. With the entity graph
+at cap 10, recall@3 is **0.850**: above embedding neighbours (0.800), no
+ticket lost against no expansion (0.783), every recovery traceable to a
+sensible shared entity; still below authored links (0.917). At caps 3 and 5
+it ties embedding neighbours (0.800) and loses g037. The graph covers only
+262 articles, so these numbers are optimistic (below).
+
+| Configuration | |
+|---|---|
+| Code | `c9dd87a` (`main`). The probe scripts are outside the repo (`~/.cache/smart-ticket-lightrag/probe/`) |
+| Graph | entity policy `kb_entities.v3` on **DeepSeek `deepseek-flash`** (ADR-0019; no schema enforced, thinking off), 500-token chunks, no gleaning, 16 concurrent. 262 articles: the 60 `kb_covered` tickets' gold pages and seeds (the articles of the cross-encoder's top 3 with expansion off) plus the seeds' embedding neighbours. 18,009 mentions, 5,184 associations; N and df counted over these 262 |
+| Build | 2 of 262 articles came back empty (DeepSeek's documented JSON-mode quirk); the build stopped as designed and a re-run retried them. ~7 min, ~$0.70 off-peak (estimated from the replies) |
+| Runs | retrieval suite only (60 `kb_covered`), `ASSOCIATION_SOURCE=entity_graph`, `LINK_EXPANSION_MAX_LINKS_PER_SEED` 3 / 5 / 10. Masking and the propose call ran on DeepSeek too; recall@3 is on Jev's top 3 and does not depend on the chat model |
+| Compared with | R0-R2 in the entry below (full KB, Qwen for masking) |
+
+| | R3 cap 3 | R3 cap 5 | R3 cap 10 | R0 none | R1 authored_link | R2 embedding_neighbour |
+|---|---|---|---|---|---|---|
+| Recall@3 | 0.800 (MRR 0.733) | 0.800 (MRR 0.744) | **0.850** (MRR 0.792) | 0.783 | 0.917 | 0.800 |
+| Recovered against R0 | g046, g048 | g008, g046 | g008, g046, g050, g051 | — | 8 | g008 |
+| Lost against R0 | **g037** | **g037** | none | — | none | none |
+| `pool_size` median · max | 30.5 · 52 | 41.5 · 77 | 73 · 128 | 10 · 10 | 51 · 170 | 43.5 · 79 |
+
+### Findings
+
+**1. The recoveries are the mechanism, not noise.** Each traces to the
+seed-to-gold edge's evidence: g046, g048 and g050 reach *Request production
+access* through "Amazon SES Sandbox", "Production Access" and "Identity
+Verification" (the plan's worked example); g008 reaches *MFA lost or broken*
+through "Resynchronize MFA Device" and "Deactivate MFA Device"; g051 reaches
+*compromised EC2* through "EC2 Finding Types" and "Malware".
+
+**2. g048 is recovered at cap 3 only.** It is one of authored links' five
+misses: the entity graph reaches a page links do not. At higher caps other
+associated pages outrank it.
+
+**3. g037 is lost to competition, not to a bad edge.** Its gold page is
+itself a seed; at caps 3 and 5 the added chunks push it out of Jev's top 3.
+At cap 10 it holds.
+
+**4. Optimistic by construction.** Only 262 articles are in the graph, the
+gold pages among them, so a seed's associations compete with far fewer pages
+than on the full KB, and df is counted over 262 pages, not 3,542. Embedding
+neighbours (R2) ran on the full KB. A full build is needed before R3 can be
+a real measurement against the gates.
+
+### Follow-ups
+
+- [ ] The full entity_graph build on DeepSeek (3,542 articles; at this
+  probe's rate ~1.5 h and ~$10, off-peak), then R3 at cap 10 (and 3, 5)
+  as full runs with every gate.
+- [ ] `ASSOCIATION_HUB_DF_MAX` from the full build's df histogram.
+
+## 2026-10-08: association sources R0-R2, one source at a time (ADR-0018), full runs
+
+**Verdict:** the associations table changed nothing: with authored links (R1)
+recall@3 is 0.917, MRR 0.872, the same 5 misses and the same two false
+auto-replies as (8). Without expansion (R0) recall@3 falls to **0.783**;
+embedding neighbours (R2, the no-LLM control) get **0.800**, recovering only
+g008 of the 8 tickets authored links recover. No source loses a ticket
+against R0 or adds a false auto-reply: g151 and g155 are auto-replied in all
+three, so auto-reply precision fails its floor in all three, as in (8).
+R3 (`entity_graph`) has not run: the LightRAG build is not done (below).
+
+| Configuration | |
+|---|---|
+| Code | `9d86eda` (`main`; `dbc204f` landed during R0 and touches only the offline build). Uncommitted: frontend files only |
+| Runs | R0 `ASSOCIATION_SOURCE=none` · R1 `authored_link` · R2 `embedding_neighbour` (k=5, thresholds.yaml); `LINK_EXPANSION_MAX_LINKS_PER_SEED` 20 in all three, set per run on the ai-engine container |
+| Associations | `authored_link` 14,202 rows, `embedding_neighbour` 17,710 (built 2026-10-07 on this KB); parity of the table path with the old per-ticket regex: 3,542 active articles, 0 differ |
+| Prompts | `propose.v8` · `pii_ner.v2` · Jev `rerank_resolves.v1`, `category.v1` |
+| Models · KB · thresholds | Qwen3-8B-AWQ (`VLLM_CHAT_MAX_MODEL_LEN` 4096, GPU util 0.62) · bge-m3 · bge-reranker-v2-m3@main · `jev-1.13.0` · KB 3,542 articles / 28,519 chunks · floor 0.30 · `classification.min_confidence` 0.65 |
+| Golden set | 174 cases, as (8) |
+| Duration | R0 23m36s · R1 27m25s · R2 25m41s, every suite, no re-runs |
+
+| Metric | R0 none | R1 authored_link | R2 embedding_neighbour | Gate | (8) |
+|---|---|---|---|---|---|
+| Retrieval recall@3 (Jev's top 3) | **0.783** (47/60, MRR 0.728) | 0.917 (55/60, MRR 0.872) | **0.800** (48/60, MRR 0.753) | ≥ 0.90 | 0.917 (MRR 0.872) |
+| Cross-encoder batch (`pool_size`) median · max | 10 · 10 | 51 · 170 | 43.5 · 79 | reported only | — |
+| Auto-reply precision | **0.944** (34/36) | **0.944** (34/36) | **0.943** (33/35) | ≥ 0.95 absolute | 0.944 (34/36) |
+| Branch accuracy | 0.889 (152/171) | 0.912 (156/171) | 0.924 (158/171) | reported only | 0.906 |
+| Refusal on out-of-KB | 1.00 (23/23) | 1.00 | 1.00 | ≥ 0.90 | 1.00 |
+| Injection recall · quote validation | 1.00 · 1.00 | 1.00 · 1.00 | 1.00 · 1.00 | as before | 1.00 · 1.00 |
+| F1 `access` · `hardware` · `network` · `other` · `security` · `software` | 0.91 · 0.93 · 0.95 · 1.00 · 1.00 · 0.89 | the same | the same | ≥ 0.85 each | 0.94 · 0.93 · 0.95 · 1.00 · 1.00 · 0.95 |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | the same | the same | reported only | the same |
+| `gold_use` quoted · quote_missed · refused · other | 38 · 5 · 0 · 4 | 47 · 4 · 0 · 4 | 42 · 5 · 0 · 1 | reported only | 47 · 4 · 0 · 4 |
+
+### Findings
+
+**1. Moving authored links into the table changed no outcome.** R1
+reproduces (8) to the ticket: recall, MRR, misses (g011, g012, g048, g055,
+g056), `gold_use` and the false auto-replies. With the KB-wide parity check
+(0 differences), phases 1-3 of ADR-0018 are behaviour-neutral on this KB.
+
+**2. Without expansion, 8 tickets are lost.** R0 misses g008, g046, g050,
+g051, g052, g053, g058 and g060 on top of R1's five. Authored links recover
+all 8 at a median cross-encoder batch of 51 (max 170) against R0's 10. This
+is ADR-0014's mechanism on today's pipeline, larger than its probe (+2 on
+0.767) because Jev now reranks what expansion brings in.
+
+**3. Embedding neighbours are not enough.** R2 recovers only g008 and loses
+nothing (0.800, batch median 43.5, max 79). Nearest-centroid pages are
+pages that already read like the ticket, which is what retrieval finds
+anyway; the cause-and-effect hop a link encodes ("verify addresses" to
+"request production access") is not in the vectors. This is the bar
+`entity_graph` must clear (ADR-0018 gate 1).
+
+**4. No source adds a false auto-reply.** g151 and g155 (labeled `clarify`)
+are auto-replied with every check passing in all three runs, as in (8): the
+precision failure is the LLM's guess on an underspecified ticket, not
+retrieval. Gate 2 (no new false positive against R1) holds for R2.
+
+**5. Category F1 is the same in all three runs and below (8)** on `access`
+(0.91 against 0.94) and `software` (0.89 against 0.95). Expansion does not
+explain it (R0, without expansion, has the same numbers); not investigated.
+
+**6. Branch accuracy rises from R1 to R2** (0.912 to 0.924, two tickets),
+within noise for one run each.
+
+### Follow-ups
+
+- [ ] R3 (`entity_graph`, caps 3 / 5 / 10): needs the full LightRAG build
+  (~26 GPU hours by the spike below), not started.
+
+### The spike check (ADR-0018), after these runs
+
+Not an eval: the offline entity_graph build on a fixed random 100 articles
+(`build --sample 100`, seed 0), to measure it and hand-check what it
+extracts before the full build. Six attempts, each fixing what the last
+showed:
+
+| Attempt | Extraction | Articles failed | Model calls · time | Finding |
+|---|---|---|---|---|
+| 1 | LightRAG defaults: 1,200-token chunks, gleaning 1 | stopped at 1 of 3 | — | 3,024-token prompt; replies cut off at the 4,096-token context |
+| 2 | 500-token chunks | stopped at 1 of 4 | — | gleaning's re-ask sends the first reply as history: 3,791-token prompt |
+| 3 | + gleaning 0 | stopped at 2 of 8 | — | replies alone overflow: ~8 entities and ~7 relationships per chunk, a sentence each |
+| 4 | + policy v2 asks for terse replies, no relationships | stopped at 4 of 30 | 26 articles in 26 min | the model ignored both requests |
+| 5 | + v2's JSON schema, enforced by guided decoding (≤ 25 entities, 60-char descriptions, no relationships) | **0 of 100** | 665 · 43 min | about twice as fast |
+| 6 | policy v3: also excludes code identifiers, field names, file and package names, people | **0 of 100** | 680 · 46 min | the run kept |
+
+- **Rate:** ~28 s per article with v3, so ~26 GPU hours for the 3,542
+  articles, vllm-chat busy throughout.
+- **Hand check of 20 random entities:** v2 had ~11 useful (Auto Scaling,
+  Network ACLs, "public access to SQS queue", ec2:DescribeInstances); the
+  rest were code identifiers (OrderId, node_modules, TableName) and one
+  person's name typed as a restriction. v3 has ~13 useful (Bounced email,
+  Dedicated Hosts, Malware Scan, EC2/NetworkPortUnusual, Infinite Loops);
+  dotted field names (`finding_info.tags`) and vague ones ("Open") remain.
+  Identifier-like names fall from 803 of 3,656 to 713 of 3,562.
+- **Name drift:** 370 names differed only in case ("AWS accounts" /
+  "AWS Accounts"); scoring now merges them (`6aaa0b9`). Near-duplicates
+  ("EC2" / "Amazon EC2", "Tag" / "Tags") are left for the alias map.
+- **df on 100 articles** (v3): 3,217 entities on one article, 205 on two,
+  the most common "AWS CLI" on 26. A sample this size can't place
+  `ASSOCIATION_HUB_DF_MAX` (50) on the full KB: chosen from the full build's
+  histogram instead.
+- [ ] Category F1 below (8) on `access` and `software` with expansion off as
+  well as on: find which tickets moved.
+
 ## 2026-10-04 (8): propose.v8, Jev's category, and core-api's own policy, full run
 
 **Verdict:** fails one gate. **Auto-reply precision 0.944 (34/36)**, under

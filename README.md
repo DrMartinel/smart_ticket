@@ -75,7 +75,7 @@ Three services with **structurally enforced** permission boundaries:
 | Service | Stack | Role |
 |---|---|---|
 | **core-api** | Django 6 · Django Ninja · Celery | Business logic, all routing decisions, HITL queue, audit log. The only service that writes business data. |
-| **ai-engine** | FastAPI · LangGraph | Hybrid retrieval (BM25 + vector → RRF), a cross-encoder shortlist, reranking and category choice by Jev, LLM inference, validation. The only client of every model (ADR-0012). Connects as the `ai_engine_ro` Postgres role with `SELECT`-only grants — it *cannot* write business tables even if compromised (ADR-0004). |
+| **ai-engine** | FastAPI · LangGraph | Retrieval (vector search on the ticket → RRF, ADR-0020), a cross-encoder shortlist, reranking and category choice by Jev, LLM inference, validation. The only client of every model (ADR-0012). Connects as the `ai_engine_ro` Postgres role with `SELECT`-only grants — it *cannot* write business tables even if compromised (ADR-0004). |
 | **web** | Next.js 15 · React 19 | Ticket submission, review queue, dashboards, KB governance. |
 
 | Infrastructure | Purpose |
@@ -286,6 +286,9 @@ services/core-api/config/thresholds.yaml
 | `routing.quote_match` | 0.95 | Minimum verbatim-quote match ratio |
 | `retrieval.floor` | 0.30 🔧 | **Jev's** top reranked score below which the LLM is never called (ADR-0005, ADR-0015) |
 | `classification.min_confidence` | 0.65 🔧 | Jev's category confidence below which a route or clarify goes to a human (ADR-0017) |
+| `clarification.max_rounds` | 1 | Questions a chat ticket may ask its requester before a person takes it (ADR-0023) |
+| `clarification.wait_minutes` | 60 🔧 | How long a question stays open before the chat offers a ticket instead |
+| `clarification.option_margin` · `max_options` | 0.1 🔧 · 5 | Pages a clarifying question offers: within this of Jev's best score, at most this many |
 | `masking.ner_max_share` | 0.7 🔧 | Share of a ticket NER may mask beyond the regex hits before it is `mask_failed` |
 | `incident.min_count` | 5 | Similar tickets needed before mass-incident escalation |
 | `budget.max_latency_sec` | 300 | How long core-api waits on ai-engine; must exceed the per-call model ceiling |
@@ -303,7 +306,7 @@ Full list in [`.env.example`](.env.example). The ones that change behavior most:
 | `EMBEDDING_PROVIDER` | `vllm` | ai-engine's embedder, which also embeds for core-api. `stub` = deterministic hash embeddings, no network (used by CI) |
 | `SHORTLIST_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
 | `JEV_API_KEY` | empty | Jev's key; required for any run that reaches retrieval. Tests use fakes |
-| `PROMPT_VERSION` · `PII_NER_PROMPT_VERSION` | `propose.v8` · `pii_ner.v2` | Which prompt files run |
+| `PROMPT_VERSION` · `PII_NER_PROMPT_VERSION` | `propose.v9` · `pii_ner.v2` | Which prompt files run |
 | `RERANK_PROMPT_VERSION` · `CATEGORY_QUESTION_VERSION` | `rerank_resolves.v1` · `category.v1` | Which Jev question files run |
 | `PII_ENCRYPTION_KEY` | dev key | Base64 32-byte AES-GCM key for the quarantine store |
 | `PII_QUARANTINE_TTL_HOURS` | `72` | Hard TTL on encrypted raw PII |
@@ -325,9 +328,13 @@ Ticket submitted  ──►  PII Masking (INLINE, before any DB write)
                          ▼
                        ai-engine  (Celery, idempotent per ticket:attempt)
                          ├─ injection detection      ──► detected ──►  BLOCK (zero tokens spent)
-                         ├─ hybrid retrieval: BM25 (pg_search) + vector → RRF (k=60)
-                         ├─ cross-encoder shortlist (+ chunks of linked pages) → top 15
-                         ├─ Jev reranks the 15 → top 3
+                         ├─ drafted answer (HyDE): the passage that would answer the ticket,
+                         │     steers retrieval only, never shown        ──► fails ──► HITL
+                         ├─ retrieval: vector on the ticket + BM25 and vector on the draft
+                         │     → RRF (k=60) → 10 pages, + each page's chunks nearest the draft
+                         ├─ cross-encoder shortlist vs the ticket (+ chunks of entity-graph
+                         │     linked pages) → top 15
+                         ├─ Jev reranks the 15 → top 5, one page per slot
                          ├─ Jev chooses the category (ticket + the top page's title)
                          │     └─ Jev's top-1 below floor ──► refuse, LLM never called
                          ├─ few-shot selection
@@ -339,7 +346,7 @@ Ticket submitted  ──►  PII Masking (INLINE, before any DB write)
                        Switch Router  (pure function, hard gates in order)
                          ├─ auto_reply   → KB-sourced answer     [requires kb.auto_reply_allowed]
                          ├─ auto_route   → assign to Jev's category's team
-                         ├─ clarify      → ask which page they mean (a review item until the requester side exists)
+                         ├─ clarify      → ask which page they mean (in the chat; a review item for form tickets)
                          ├─ hitl         → human review queue
                          ├─ block        → security alert
                          └─ escalate     → incident management
@@ -443,11 +450,18 @@ Per-category F1 is deliberately not averaged — a rare-but-serious category lik
 | [0010](docs/adr/0010-no-shared-contracts.md) | No shared contracts package; wire schemas in both services |
 | [0011](docs/adr/0011-uuid-primary-keys.md) | UUID primary keys |
 | [0012](docs/adr/0012-ai-engine-is-the-only-vllm-client.md) | ai-engine is the only vLLM client |
-| [0013](docs/adr/0013-pg-search-bm25-and-keyword-agreement.md) | pg_search BM25 and keyword agreement |
+| [0013](docs/adr/0013-pg-search-bm25-and-keyword-agreement.md) | pg_search BM25 and keyword agreement (BM25 on the ticket superseded by 0020) |
 | [0014](docs/adr/0014-candidate-expansion-and-llm-reorder.md) | Candidate expansion through page links (Proposed) |
 | [0015](docs/adr/0015-jev-reranks-the-shortlist.md) | Jev reranks the cross-encoder's shortlist; thresholds read its score |
 | [0016](docs/adr/0016-clarify-branch.md) | A `clarify` branch (Proposed) |
 | [0017](docs/adr/0017-jev-classifies-the-category.md) | Jev chooses the category; the LLM's is log-only (Proposed) |
+| [0018](docs/adr/0018-association-sources.md) | Association sources for link expansion: authored links or an entity graph (entity graph shipped) |
+| [0019](docs/adr/0019-deepseek-for-evaluation.md) | DeepSeek's hosted API, for evaluation (draft superseded by 0022) |
+| [0020](docs/adr/0020-no-bm25-on-the-ticket.md) | No BM25 on the ticket; the keyword-agreement trust feature removed |
+| [0021](docs/adr/0021-hyde-drafted-answer-steers-retrieval.md) | A drafted answer steers retrieval (HyDE) |
+| [0022](docs/adr/0022-deepseek-drafts-in-production.md) | The drafted answer runs on DeepSeek in production |
+| [0023](docs/adr/0023-requester-answers-the-clarifying-question.md) | The requester answers the clarifying question (Proposed) |
+| [0024](docs/adr/0024-drafted-answer-grounded-in-kb-pages.md) | The drafted answer is grounded in the KB's pages (Rejected for now: no measured gain on this KB) |
 
 ADR-0006 is flagged in the spec as the one most likely to erode once `automation_rate` becomes a KPI. Read it before proposing a bypass.
 

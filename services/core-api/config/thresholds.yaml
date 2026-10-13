@@ -29,15 +29,8 @@ retrieval:
   # on this scale.
   floor: 0.30
   margin: 0.08         # below this → downgrade trust, log "KB ambiguous"
-  bm25_top_k: 20
-  vector_top_k: 20
-  rrf_k: 60             # standard constant from the RRF paper; do not tune
-  rerank_top_n: 3
-  # 🔧 The `bm25_keyword_hit` trust feature: the cross-encoder's top article
-  # is within BM25's top k ARTICLES (ADR-0013). Agreement between two
-  # independent retrieval channels, compared on RANK, never on a BM25 score.
-  # Set equal to rerank_top_n as a strict start; fit it from shadow pairs.
-  keyword_agreement_k: 3
+  # Retrieval sizes (BM25_TOP_K, VECTOR_TOP_K, RRF_K, RERANK_TOP_N) are
+  # ai-engine's, in .env.example: it never reads this file.
 
 incident:
   similarity: 0.85
@@ -77,6 +70,29 @@ classification:
   # below 0.65 held 4 tickets, 2 of them misclassified. Chosen from that one
   # probe: re-choose on shadow data before P3.
   min_confidence: 0.65
+
+clarification:
+  # Questions a ticket may ask its requester (ADR-0023). After this many, a
+  # clarify proposal goes to a human as `clarify_round_cap`: a requester
+  # whose answer was still ambiguous is not asked again.
+  max_rounds: 1
+  # 🔧 How long a question stays open in the chat. After it, the requester is
+  # offered a ticket instead (the user's choice, 2026-10-12): nothing goes to
+  # support unless they ask. Chosen as "step away and come back"; re-choose
+  # from shadow data on how long requesters take to answer.
+  wait_minutes: 60
+  # 🔧 Which pages a clarifying question offers (ADR-0023, amended
+  # 2026-10-13): core-api builds the buttons, not the LLM. Every distinct
+  # page in Jev's top 5 scoring within `option_margin` of Jev's best, in
+  # Jev's order, at most `max_options`. On JEV's scale (ADR-0005). 0.1 is
+  # the project owner's choice, checked on 13 live runs of two ambiguous
+  # tickets: "VPN not working" offers exactly the Windows and macOS client
+  # pages, "I forgot my password" the access portal, root and (when
+  # retrieved) WorkSpaces pages; 0.2 also offered administrator pages.
+  # Re-choose on shadow data. Fewer than 2 pages: nothing is asked, a
+  # person gets the ticket in the clarification queue.
+  option_margin: 0.1
+  max_options: 5
 
 masking:
   # 🔧 Share of a ticket's text (subject + body) that tier-2 NER's free-form

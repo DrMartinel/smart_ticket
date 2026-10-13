@@ -6,7 +6,6 @@ to require an approver, never something the LLM can grant itself.
 
 from __future__ import annotations
 
-
 from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
@@ -15,10 +14,9 @@ from pgvector.django import VectorField
 from apps.core.models import BaseModel
 from apps.tickets.utils.router import RiskTier
 from infrastructure.dtos import TicketCategory
-from infrastructure.ai_engine import ai_engine
 
 from apps.accounts.models import User
-from apps.kb.utils import chunk_sections, rough_token_count
+from apps.kb.utils.chunking import chunk_sections
 
 
 class KBGovernanceError(Exception):
@@ -34,12 +32,14 @@ class KbArticleManager(models.Manager["KbArticle"]):
         Grants no auto-reply authority: `auto_reply_allowed` keeps its False
         default, and only `set_auto_reply_allowed` may change it (ADR-0002).
         """
+        from apps.kb.utils.indexing import indexer
+
         article = self.create(
             slug=slug, title=title, body=body, category=category, risk_tier=risk_tier
         )
         # Committed before ingestion, not with it: if embedding fails, the article
         # is kept with no chunks (invisible to retrieval) and `/reingest` retries.
-        article.ingest()
+        indexer.ingest(article)
         return article
 
     def upsert_from_source(
@@ -61,6 +61,8 @@ class KbArticleManager(models.Manager["KbArticle"]):
         so a reload can't quietly undo a manager's decision. Never touches
         `auto_reply_allowed` (ADR-0002).
         """
+        from apps.kb.utils.indexing import indexer
+
         article = self.filter(slug=slug).first()
         if article is None:
             article = self.create(
@@ -71,7 +73,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
                 risk_tier=risk_tier,
                 source_url=source_url,
             )
-            article.ingest()
+            indexer.ingest(article)
             return article, True
         fields_changed = (article.title, article.body, article.category, article.source_url) != (
             title,
@@ -94,7 +96,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
         # see create_and_ingest) or ran under an older chunker. Either way
         # retrieval is searching text the article no longer splits into.
         if text_changed or not article.chunks_are_current():
-            article.ingest()
+            indexer.ingest(article)
             return article, True
         return article, fields_changed
 
@@ -150,37 +152,10 @@ class KbArticle(BaseModel):
         of every article on a reload."""
         stored = list(self.chunks.order_by("chunk_index").values_list("section_title", "content"))
         expected = [
-            (_stored_section_title(c.section_title), c.content) for c in chunk_sections(self.body)
+            (KbChunk.stored_section_title(c.section_title), c.content)
+            for c in chunk_sections(self.body)
         ]
         return stored == expected
-
-    @transaction.atomic
-    def ingest(self) -> list[KbChunk]:
-        """(Re)chunks and (re)embeds this article. Existing chunks are
-        replaced wholesale — simplest correct behavior for a KB whose update
-        cadence is "occasional edits by a KB owner", not high-frequency."""
-
-        KbChunk.objects.filter(article=self).delete()
-        chunks: list[KbChunk] = []
-        for i, piece in enumerate(chunk_sections(self.body)):
-            # The article and section titles go into the embedding input but
-            # not into `content`: a chunk from the middle of a long page
-            # ("Choose Next, then Save") means nothing without them, while
-            # `content` must stay the exact text the model may quote.
-            context = "\n".join(t for t in (self.title, piece.section_title) if t)
-            embedding = ai_engine.embed(f"{context}\n\n{piece.content}").vector
-            chunk = KbChunk.objects.create(
-                article=self,
-                chunk_index=i,
-                content=piece.content,
-                section_title=_stored_section_title(piece.section_title),
-                token_count=rough_token_count(piece.content),
-                embedding=embedding,
-            )
-            chunks.append(chunk)
-        # The BM25 index (idx_chunk_bm25, infra/migrations/sql/0005) is
-        # maintained by pg_search on insert, so no separate step is needed.
-        return chunks
 
     @transaction.atomic
     def set_auto_reply_allowed(self, *, allowed: bool, actor: User, reason: str) -> KbArticle:
@@ -240,13 +215,6 @@ class KbArticle(BaseModel):
         return self
 
 
-def _stored_section_title(title: str | None) -> str | None:
-    """As `kb_chunks.section_title` stores it: at most 255 characters, and
-    None for no heading. `ingest` writes it and `chunks_are_current` compares
-    against it, so both must go through here."""
-    return (title or "")[:255] or None
-
-
 class KbChunk(BaseModel):
     article = models.ForeignKey(KbArticle, on_delete=models.CASCADE, related_name="chunks")
     chunk_index = models.IntegerField()
@@ -258,11 +226,65 @@ class KbChunk(BaseModel):
     # section_title (ADR-0013), declared in infra/migrations/sql/0005 because
     # the ORM can't express it. There is deliberately no tsvector column.
 
+    @staticmethod
+    def stored_section_title(title: str | None) -> str | None:
+        """Cuts a section title to how `section_title` stores it."""
+        return (title or "")[:255] or None
+
     class Meta(BaseModel.Meta):
         db_table = "kb_chunks"
         constraints = [
             models.UniqueConstraint(
                 fields=["article", "chunk_index"], name="uq_kb_chunk_article_index"
+            ),
+        ]
+
+
+class AssociationSource(models.TextChoices):
+    """Where an association came from (ADR-0018)."""
+
+    AUTHORED_LINK = "authored_link"
+    # Pages a page names as where a problem's fix is written (offline build).
+    ENTITY_GRAPH = "entity_graph"
+
+
+class KbArticleAssociation(BaseModel):
+    """One article pointing at another, for link expansion (ADR-0014
+    decision 1, ADR-0018, ADR-0025)."""
+
+    source_article = models.ForeignKey(
+        KbArticle, on_delete=models.CASCADE, related_name="associations_out"
+    )
+    target_article = models.ForeignKey(
+        KbArticle, on_delete=models.CASCADE, related_name="associations_in"
+    )
+    source = models.CharField(max_length=20, choices=AssociationSource.choices)
+    # Orders one seed's targets within one source, higher first (ADR-0018).
+    score = models.FloatField()
+    # The link href, or the symptom -> remedy pairs behind the edge.
+    evidence = models.JSONField(default=list)
+    reviewed = models.BooleanField(default=False)
+    # The build that produced the row (source, policy version, pairs, date).
+    build_id = models.CharField(max_length=200)
+
+    class Meta(BaseModel.Meta):
+        db_table = "kb_article_associations"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_article", "target_article", "source"],
+                name="uq_kb_association_pair_source",
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(source_article=models.F("target_article")),
+                name="chk_kb_association_not_self",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                "source_article",
+                "source",
+                models.F("score").desc(),
+                name="idx_kb_association_seed",
             ),
         ]
 

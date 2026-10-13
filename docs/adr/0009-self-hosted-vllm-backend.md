@@ -29,7 +29,7 @@ ai-engine (`OllamaLLM`, `OllamaEmbedder` and `langchain-ollama` are removed):
 
 | Capability | Setting | Code |
 |---|---|---|
-| Chat LLM | always vLLM — the only link without a cloud provider, the fallback behind one | `vllm_chat` → `ChatClient` |
+| Chat LLM | always vLLM — the only link without a cloud provider, the fallback behind one | `ChatClient.on_vllm` |
 | Embeddings | `EMBEDDING_PROVIDER=vllm` (default) \| `stub` | `LexicalEmbedder` → `clients.embed` |
 | Shortlisting (cross-encoder) | `SHORTLIST_PROVIDER=vllm` (default) \| `lexical` | `CrossEncoderShortlister` → `clients.rerank` |
 

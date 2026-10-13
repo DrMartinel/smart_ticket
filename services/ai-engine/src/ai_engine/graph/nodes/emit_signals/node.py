@@ -26,17 +26,13 @@ class EmitSignalsNode(BaseNode):
         rerank_top1 = final[0] if final else 0.0
         rerank_margin = max(0.0, final[0] - final[1]) if len(final) > 1 else 0.0
 
-        bm25_rank_of_top1: int | None = None
-        if reranked and reranked[0].article_id in state.bm25_article_ids:
-            bm25_rank_of_top1 = state.bm25_article_ids.index(reranked[0].article_id) + 1
-
         proposal = state.proposal.root if state.proposal is not None else None
         signals = EngineSignals(
             retrieval=RetrievalSignals(
                 rerank_top1=rerank_top1,
                 rerank_margin=rerank_margin,
-                bm25_rank_of_top1=bm25_rank_of_top1,
                 docs_above_floor=sum(1 for s in final if s >= state.retrieval_floor),
+                pool_size=len(state.pool),
             ),
             generation=GenerationSignals(
                 quote_applicable=state.quote_applicable,

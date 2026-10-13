@@ -1,68 +1,48 @@
 from uuid import UUID
+
 from ai_engine.graph.nodes.retrieve.bm25 import LexicalHit
 from ai_engine.graph.nodes.retrieve.fusion import reciprocal_rank_fusion
 from ai_engine.graph.nodes.retrieve.vector import VectorHit
 
 
-def test_rrf_favors_document_ranked_high_in_both_lists():
-    bm25 = [
-        LexicalHit(
-            chunk_id=UUID(int=1),
-            article_id=UUID(int=10),
-            article_slug="KB-A",
-            content="a",
-            score=0.9,
-        ),
-        LexicalHit(
-            chunk_id=UUID(int=2),
-            article_id=UUID(int=11),
-            article_slug="KB-B",
-            content="b",
-            score=0.5,
-        ),
-    ]
-    vector = [
-        VectorHit(
-            chunk_id=UUID(int=1),
-            article_id=UUID(int=10),
-            article_slug="KB-A",
-            content="a",
-            score=0.8,
-        ),
-        VectorHit(
-            chunk_id=UUID(int=3),
-            article_id=UUID(int=12),
-            article_slug="KB-C",
-            content="c",
-            score=0.7,
-        ),
-    ]
-    fused = reciprocal_rank_fusion(bm25, vector)
+def _lexical(chunk: int) -> LexicalHit:
+    return LexicalHit(
+        chunk_id=UUID(int=chunk),
+        article_id=UUID(int=chunk * 10),
+        article_slug=f"KB-{chunk}",
+        content="x",
+        score=1.0,
+    )
+
+
+def _vector(chunk: int) -> VectorHit:
+    return VectorHit(
+        chunk_id=UUID(int=chunk),
+        article_id=UUID(int=chunk * 10),
+        article_slug=f"KB-{chunk}",
+        content="x",
+        score=0.5,
+    )
+
+
+def test_rrf_favors_a_chunk_ranked_high_in_two_lists():
+    fused = reciprocal_rank_fusion([[_lexical(1), _lexical(2)], [_vector(1), _vector(3)]])
+
     assert fused[0].chunk_id == UUID(int=1)  # rank 1 in both lists
 
 
 def test_rrf_handles_disjoint_lists():
-    bm25 = [
-        LexicalHit(
-            chunk_id=UUID(int=1),
-            article_id=UUID(int=10),
-            article_slug="KB-A",
-            content="a",
-            score=0.9,
-        )
-    ]
-    vector = [
-        VectorHit(
-            chunk_id=UUID(int=2),
-            article_id=UUID(int=11),
-            article_slug="KB-B",
-            content="b",
-            score=0.9,
-        )
-    ]
-    fused = reciprocal_rank_fusion(bm25, vector)
+    fused = reciprocal_rank_fusion([[_lexical(1)], [_vector(2)]])
+
     assert {c.chunk_id for c in fused} == {UUID(int=1), UUID(int=2)}
 
 
+def test_one_list_keeps_its_own_order():
+    fused = reciprocal_rank_fusion([[_vector(3), _vector(1), _vector(2)]])
+
+    assert [c.chunk_id for c in fused] == [UUID(int=3), UUID(int=1), UUID(int=2)]
+
+
 def test_rrf_empty_inputs_return_empty():
-    assert reciprocal_rank_fusion([], []) == []
+    assert reciprocal_rank_fusion([]) == []
+    assert reciprocal_rank_fusion([[], []]) == []

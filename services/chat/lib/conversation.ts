@@ -22,6 +22,7 @@ export function useConversation(enabled: boolean) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState<string | null>(null);
+  const [answering, setAnswering] = useState<string | null>(null);
   const turnsRef = useRef(turns);
   turnsRef.current = turns;
 
@@ -93,23 +94,42 @@ export function useConversation(enabled: boolean) {
     [replace],
   );
 
-  const createTicket = useCallback(
-    async (publicId: string) => {
-      setCreating(publicId);
-      try {
-        const fresh = await chatApi.createTicket(publicId);
-        const t = turnsRef.current.find((x) => x.kind === "server" && x.turn.public_id === publicId);
-        if (t && t.kind === "server") replace(t.key, { ...t, turn: fresh });
-      } catch {
-        // 409: already with support. Reload that turn to show where it is.
-        const fresh = await chatApi.turn(publicId).catch(() => null);
-        const t = turnsRef.current.find((x) => x.kind === "server" && x.turn.public_id === publicId);
-        if (fresh && t && t.kind === "server") replace(t.key, { ...t, turn: fresh });
-      } finally {
-        setCreating(null);
-      }
+  // Puts a fresh copy of the turn for `publicId` in place.
+  const refresh = useCallback(
+    (publicId: string, fresh: ChatTurnOut, startedAt?: number) => {
+      const t = turnsRef.current.find((x) => x.kind === "server" && x.turn.public_id === publicId);
+      if (t && t.kind === "server") replace(t.key, { ...t, turn: fresh, startedAt: startedAt ?? t.startedAt });
     },
     [replace],
+  );
+
+  // A POST on one turn. A 409 means it already moved on (with support, or
+  // the question closed), so the turn is reloaded to show where it is.
+  const act = useCallback(
+    async (publicId: string, call: () => Promise<ChatTurnOut>, setBusy: (id: string | null) => void, restart = false) => {
+      setBusy(publicId);
+      try {
+        refresh(publicId, await call(), restart ? Date.now() : undefined);
+      } catch {
+        const fresh = await chatApi.turn(publicId).catch(() => null);
+        if (fresh) refresh(publicId, fresh);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [refresh],
+  );
+
+  const createTicket = useCallback(
+    (publicId: string) => act(publicId, () => chatApi.createTicket(publicId), setCreating),
+    [act],
+  );
+
+  // The requester's answer to a clarifying question. The ticket goes back to
+  // "thinking" while the pipeline runs again, so polling picks it up.
+  const answer = useCallback(
+    (publicId: string, text: string) => act(publicId, () => chatApi.clarify(publicId, text), setAnswering, true),
+    [act],
   );
 
   const retry = useCallback(
@@ -122,5 +142,5 @@ export function useConversation(enabled: boolean) {
     [ask],
   );
 
-  return { turns, loaded, ask, createTicket, creating, retry };
+  return { turns, loaded, ask, createTicket, creating, answer, answering, retry };
 }

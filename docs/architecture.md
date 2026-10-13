@@ -13,7 +13,7 @@ Nearly every structural choice follows from wanting that boundary to hold even a
 | Level | Mechanism | What it prevents |
 |---|---|---|
 | Types | Every LLM field prefixed `proposed_` | Reading a suggestion as a conclusion at the point of use |
-| Code | `router.py` is the only place a `Branch` is chosen, and it is a pure function | A prompt change silently altering routing |
+| Code | `router.py` is the only place a `Branch` is chosen, by a pure `Router` | A prompt change silently altering routing |
 | Database | `ai-engine` connects as a `SELECT`-only role | A compromised or buggy AI service writing business data |
 
 The third is the strongest, and it is why splitting `ai-engine` into its own service is worth the operational cost ([ADR-0004](adr/0004-split-ai-engine.md)). The boundary is enforced by Postgres grants, not by code review.
@@ -141,14 +141,22 @@ The baseline is rolling and per-category, so "unusual" means unusual *for this o
 injection ──► InjectionDetected ──► emit_signals   (zero tokens spent)
        │ InjectionClear
        ▼
-   hybrid_retrieve   BM25 top-20 ∥ vector top-20 ──► RRF (k=60) ──► top-10
-                     (pg_search BM25, ADR-0013; records BM25's article order)
+   draft_answer      the chat model writes the documentation passage it expects
+                     would answer the ticket (HyDE, ADR-0021); steers retrieval
+                     only, never shown, quoted or scored. Fails → 500 → HITL
        ▼
-   candidate_pool    cross-encoder scores the candidates, plus chunks of pages
-                     linked from its top-3 seeds (ADR-0014/0015)
-                     ──► pool, in cross-encoder order
+   hybrid_retrieve   vector top-20 on the ticket ∥ BM25 top-20 on the draft ∥
+                     vector top-20 on the draft ──► RRF (k=60) ──► top-10 pages,
+                     one chunk each (no BM25 on the ticket, ADR-0020)
        ▼
-   rerank            Jev re-scores the pool's top-15 ──► Jev's top-3
+   candidate_pool    each page: its best-fused chunk + its 2 chunks nearest the
+                     draft; the cross-encoder scores them against the TICKET,
+                     plus linked pages' chunks nearest the draft, from the
+                     seeds' associations in ASSOCIATION_SOURCE
+                     (ADR-0014/0015/0018/0021) ──► pool, in cross-encoder order
+       ▼
+   rerank            Jev re-scores the pool's top-15 ──► Jev's top-5, at most
+                     RERANK_TOP_N_PER_PAGE from one page
                      each chunk keeps both: shortlist_score, rerank_score
        ▼
    classify_category Jev chooses the category (ADR-0017): masked ticket +
@@ -192,7 +200,7 @@ Models are reached through two layers. The clients in
 `VLLMClient` has `embed()`, `rerank()` and `complete_json()`, `JevClient` has
 `ask()` (yes/no) and `choose()` (one choice question), and each builds its request and validates the reply against a
 Pydantic DTO from `core/providers/dtos.py`. `ChatClient` does triage chat through `complete()` (LangChain;
-`vllm_chat` or `openai_chat` builds it). The providers
+`ChatClient.for_provider` builds it, through `on_vllm`, `on_openai` or `on_deepseek`). The providers
 (`core/providers/embeddings.py` and `pii.py`, and the shortlister, the reranker
 and the category classifier beside their nodes in `graph/nodes/candidate_pool/`,
 `graph/nodes/rerank/` and `graph/nodes/classify_category/`)
@@ -238,7 +246,7 @@ EngineSignals (from ai-engine)
 TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
                         │                     (so the LLM can't score itself)
                         ▼
-              router.route(signals, proposal, kb, thresholds)   ← pure function
+              Router(thresholds).route(signals, proposal, kb)   ← pure
 
    HARD GATES, in this order — the order is load-bearing
      injection            ──► BLOCK    + alert security
@@ -260,10 +268,18 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
         Jev's category = security?      yes ──► HITL / clarify_security
         Jev's confidence ≥ min?         no  ──► HITL / category_low_confidence
         clarify_options_in_topk?        no  ──► HITL / clarify_options_not_shown
-                                        yes ──► CLARIFY (queue: clarification;
-                                                a person asks it, in shadow
-                                                mode and out of it, until the
-                                                requester side exists)
+        clarifications_asked ≥ max?     yes ──► HITL / clarify_round_cap
+                                                (queue: clarification)
+                                        no  ──► CLARIFY (queue: clarification)
+
+   A live chat ticket's CLARIFY asks the requester (ADR-0023): the decision
+   is held, the question and the options' page titles are shown, and the
+   answer is masked like a ticket, appended to the body as
+   "Requester clarified: <answer>" (propose.v9 reads it as the reading
+   chosen, and asks no more), and run through
+   the whole pipeline again. Unanswered after clarification.wait_minutes,
+   the chat offers a ticket. A form ticket, or any ticket in shadow mode,
+   gets a review item in the clarification queue for a person to ask.
 
    TRUST-BASED
      AutoReplyProposal:
@@ -282,7 +298,7 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
                                     yes ──► AUTO_ROUTE (to Jev's category)
 ```
 
-`route()` takes thresholds as a **parameter** rather than importing them. That is what makes every branch testable without a database, a model, or a network — and it lets the exact thresholds in force be snapshotted into `routing_decisions.thresholds_used`, so a post-incident analysis months later can recover what the bar actually was at the time.
+`Router` is built from thresholds passed in, rather than importing them. That is what makes every branch testable without a database, a model, or a network — and it lets the exact thresholds in force be snapshotted into `routing_decisions.thresholds_used`, so a post-incident analysis months later can recover what the bar actually was at the time.
 
 ### Stage 5 — Execute or queue
 
@@ -328,6 +344,9 @@ REVOKE UPDATE, DELETE ON audit_log FROM app_user;
 
 -- ai-engine physically cannot write business tables
 GRANT SELECT ON kb_articles, kb_chunks, fewshot_examples TO ai_engine_ro;
+-- link expansion reads it (ADR-0018); the offline entity-graph build
+-- replaces its own rows (ADR-0025). Triage writes nothing.
+GRANT SELECT, INSERT, DELETE ON kb_article_associations TO ai_engine_ro;
 ```
 
 ---

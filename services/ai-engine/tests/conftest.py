@@ -27,6 +27,7 @@ from ai_engine.graph.ticket import PIILevel, TicketMasked
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.providers import embeddings
+from ai_engine.core.associations import resolve as resolve_module
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import ChatClient
 from ai_engine.core.providers.embeddings import Embedder
@@ -35,6 +36,7 @@ from ai_engine.graph.state import Candidate
 from ai_engine import main
 from ai_engine.graph.nodes import fewshot as fewshot_node
 from ai_engine.graph.nodes.candidate_pool import node as candidate_pool_node
+from ai_engine.graph.nodes.draft_answer import node as draft_answer_node
 from ai_engine.graph.nodes.candidate_pool import shortlister as shortlister_module
 from ai_engine.graph.nodes.candidate_pool.shortlister import Shortlister
 from ai_engine.graph.nodes.rerank import node as rerank_node
@@ -212,14 +214,22 @@ class FakeLLM(ChatClient):
     def __init__(self, result=None, error: Exception | None = None):
         self.prompts: list[tuple[str, str]] = []
         self.schemas: list[dict[str, Any]] = []
+        self.temperatures: list[float | None] = []
         self._result = result
         self._error = error
 
     def complete(
-        self, system_prompt: str, user_prompt: str, *, schema_name: str, schema: dict[str, Any]
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        schema_name: str,
+        schema: dict[str, Any],
+        temperature: float | None = None,
     ) -> Any:
         self.prompts.append((system_prompt, user_prompt))
         self.schemas.append(schema)
+        self.temperatures.append(temperature)
         if self._error is not None:
             raise self._error
         return self._result
@@ -266,13 +276,21 @@ class FakeSessionSource:
     as each real read borrows its own connection. `error` makes every read
     raise, which is how the DB-outage failure paths get exercised. `events`
     records open/close ordering so a test can prove no connection is held
-    across an HTTP round-trip."""
+    across an HTTP round-trip. `write` records each call's statements in
+    `writes`."""
 
-    def __init__(self, rows: Rows = (), error: Exception | None = None):
+    def __init__(
+        self,
+        rows: Rows = (),
+        error: Exception | None = None,
+        write_error: Exception | None = None,
+    ):
         self._rows = rows if callable(rows) else list(rows)
         self._error = error
+        self._write_error = write_error
         self.events: list[str] = []
         self.sessions: list[_FakeSession] = []
+        self.writes: list[list[tuple[str, list[dict[str, Any]] | None]]] = []
 
     def all(self, statement):
         with self._session() as session:
@@ -281,6 +299,19 @@ class FakeSessionSource:
     def first(self, statement):
         with self._session() as session:
             return session.execute(statement).first()
+
+    def write(self, steps):
+        if self._write_error is not None:
+            raise self._write_error
+        self.writes.append(
+            [
+                (
+                    str(statement.compile(dialect=postgresql.dialect())),
+                    None if rows is None else [dict(r) for r in rows],
+                )
+                for statement, rows in steps
+            ]
+        )
 
     @contextmanager
     def _session(self):
@@ -323,6 +354,10 @@ def _make_state(**overrides) -> TriageState:
         "ticket": _make_ticket(),
         "request_id": "req-1",
         "retrieval_floor": 0.5,
+        # Retrieval and the pool refuse to run without a draft (ADR-0021);
+        # tests of that refusal pass empty values explicitly.
+        "draft_text": "a drafted documentation passage",
+        "draft_embedding": [0.2],
     }
     state.update(overrides)
     return TriageState(**state)
@@ -391,7 +426,7 @@ def use_db(monkeypatch):
 @pytest.fixture
 def use_embedder(monkeypatch):
     def use(fake):
-        for module in (retrieve_node, main):
+        for module in (retrieve_node, draft_answer_node, main, resolve_module):
             monkeypatch.setattr(module, "embedder", fake)
         return fake
 
@@ -442,6 +477,17 @@ def use_classifier(monkeypatch):
 def use_llm(monkeypatch):
     def use(fake):
         monkeypatch.setattr(clients, "chat", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
+def use_draft_llm(monkeypatch):
+    """The drafted answer's own model (DRAFT_CLIENT_PROVIDER, ADR-0021)."""
+
+    def use(fake):
+        monkeypatch.setattr(clients, "draft", fake)
         return fake
 
     return use

@@ -79,12 +79,14 @@ def test_the_environment_wins_and_empty_counts_as_unset():
     assert layered == {"A": "process", "B": "file"}
 
 
-def test_productions_denylist_is_the_templates_dev_secrets():
-    """production.py refuses the template's public dev secrets by value. If
-    the template's dev value changed and the denylist didn't, production
-    would accept the new public value."""
+def test_productions_denylist_is_the_templates_dev_secrets(monkeypatch):
+    """Checks that production refuses exactly the template's dev secrets,
+    imported with stand-in secrets."""
 
-    from config.settings.production import DEV_ONLY_SECRETS
+    real = {k: f"real-{k}" for k in _PRODUCTION_CHECKED}
+    monkeypatch.setattr(base, "_ENV", {**base._ENV, **real})
+    monkeypatch.delitem(sys.modules, "config.settings.production", raising=False)
+    DEV_ONLY_SECRETS = importlib.import_module("config.settings.production").DEV_ONLY_SECRETS
 
     assert set(DEV_ONLY_SECRETS) == _PRODUCTION_CHECKED
     assert DEV_ONLY_SECRETS == {k: _TEMPLATE[k] for k in _PRODUCTION_CHECKED}

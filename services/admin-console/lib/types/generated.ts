@@ -5,9 +5,9 @@ export type TicketCategory = "hardware" | "software" | "network" | "access" | "s
 
 export type PIILevel = "routine" | "sensitive" | "critical" | "mask_failed";
 
-export type Branch = "auto_reply" | "auto_route" | "hitl" | "block" | "escalate";
+export type Branch = "auto_reply" | "auto_route" | "hitl" | "block" | "escalate" | "clarify";
 
-export type ReviewQueue = "pii_verify" | "low_confidence" | "injection" | "mask_failed" | "runbook_approval";
+export type ReviewQueue = "pii_verify" | "low_confidence" | "injection" | "mask_failed" | "runbook_approval" | "clarification";
 
 export type ReviewAction = "approve" | "edit_and_send" | "reject" | "reroute" | "escalate";
 
@@ -17,9 +17,9 @@ export type UserRole = "employee" | "technician" | "manager" | "security";
 
 export type RiskTier = "low" | "medium" | "high";
 
-export type ChatState = "thinking" | "answered" | "suggest_ticket" | "with_support";
+export type ChatState = "thinking" | "answered" | "clarify" | "suggest_ticket" | "with_support";
 
-export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
+export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
 
 export interface TicketIn {
   subject: string;
@@ -64,8 +64,8 @@ export interface InsufficientContext {
 export interface RetrievalSignals {
   rerank_top1: number;
   rerank_margin: number;
-  bm25_rank_of_top1?: number | null;
   docs_above_floor: number;
+  pool_size?: number;
 }
 
 export interface GenerationSignals {
@@ -82,6 +82,7 @@ export interface PolicySignals {
   pii_level: PIILevel;
   injection_detected: boolean;
   mass_incident: boolean;
+  clarifications_asked?: number;
 }
 
 export interface ClassificationSignals {
@@ -166,11 +167,22 @@ export interface ChatAnswerOut {
   kb_url: string;
 }
 
+export interface ChatClarifyIn {
+  answer: string;
+}
+
+export interface ChatClarificationOut {
+  question: string;
+  options: string[];
+  answer_masked?: string | null;
+}
+
 export interface ChatTurnOut {
   public_id: string;
   question_masked: string;
   state: ChatState;
   answer?: ChatAnswerOut | null;
+  clarification?: ChatClarificationOut | null;
   created_at: string;
 }
 

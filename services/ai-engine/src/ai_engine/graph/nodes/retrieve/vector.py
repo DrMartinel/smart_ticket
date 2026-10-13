@@ -34,6 +34,8 @@ def vector_search(query_embedding: list[float]) -> list[VectorHit]:
         )
         .join(KbArticle, KbArticle.id == KbChunk.article_id)
         .where(KbChunk.embedding.is_not(None))
+        # Active articles only (ADR-0018).
+        .where(KbArticle.is_active.is_(True))
         # Order by the raw distance, not by `score`: `<=>` in ORDER BY is what
         # the HNSW index (vector_cosine_ops) can serve; `1 - <=>` is not.
         .order_by(distance)

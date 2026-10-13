@@ -5,7 +5,7 @@ boundaries follow the document's structure: a chunk records the heading it
 sits under, and a code sample is never split or mistaken for a heading.
 """
 
-from apps.kb.utils import CHUNK_TARGET_TOKENS, chunk_body, chunk_sections, clean_markdown
+from apps.kb.utils.chunking import CHUNK_TARGET_TOKENS, chunk_body, chunk_sections, clean_markdown
 
 PAGE = """# Troubleshoot SSH
 

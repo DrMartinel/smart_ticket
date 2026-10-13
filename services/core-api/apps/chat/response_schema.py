@@ -8,7 +8,12 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
+from typing import TYPE_CHECKING
+
 from ninja import Schema
+
+if TYPE_CHECKING:
+    from apps.tickets.models import TicketClarification
 
 
 class ChatState(StrEnum):
@@ -16,7 +21,11 @@ class ChatState(StrEnum):
     THINKING = "thinking"
     # The router chose auto-reply, live (not shadow), from an approved KB page.
     ANSWERED = "answered"
+    # The router chose to ask which shown page the requester means, and the
+    # question is open (ADR-0023). They can answer, or ask for a person.
+    CLARIFY = "clarify"
     # Decided, but the handoff waits for the requester to ask for a ticket.
+    # Also where an unanswered question ends once its wait is over.
     SUGGEST_TICKET = "suggest_ticket"
     # With support: the requester asked for a ticket, or the decision was one
     # that never waits (`pipeline.waits_for_requester`).
@@ -32,10 +41,29 @@ class ChatAnswerOut(Schema):
     kb_url: str
 
 
+class ChatClarificationOut(Schema):
+    question: str
+    # The offered KB pages' titles; slugs are never shown.
+    options: list[str]
+    # Masked, as stored. None until answered.
+    answer_masked: str | None = None
+
+    @classmethod
+    def from_row(cls, asked: TicketClarification) -> ChatClarificationOut:
+        """Builds the requester's view of one asked question."""
+        return cls(
+            question=asked.question,
+            options=[o["title"] for o in asked.options],
+            answer_masked=asked.answer_masked,
+        )
+
+
 class ChatTurnOut(Schema):
     public_id: str
     # Masked, as stored: the raw text never outlives the submit request.
     question_masked: str
     state: ChatState
     answer: ChatAnswerOut | None = None
+    # The question asked of the requester, open or answered or expired.
+    clarification: ChatClarificationOut | None = None
     created_at: datetime

@@ -37,7 +37,11 @@ class Settings(BaseSettings):
     db_max_overflow: int = Field(validation_alias="AI_ENGINE_DB_MAX_OVERFLOW")
 
     # --- Models ---
-    chat_client_provider: Literal["vllm", "openai"]
+    # One provider per job: the proposal, the drafted answer (ADR-0021) and
+    # PII NER (ADR-0019).
+    chat_client_provider: Literal["vllm", "openai", "deepseek"]
+    draft_client_provider: Literal["vllm", "openai", "deepseek"]
+    ner_client_provider: Literal["vllm", "deepseek"]
     chat_base_url: str
     chat_model: str
     embed_base_url: str
@@ -59,21 +63,39 @@ class Settings(BaseSettings):
     graph_version: str
     prompt_version: str
     pii_ner_prompt_version: str
+    draft_prompt_version: str
 
     # --- Retrieval ---
     rrf_k: int
     bm25_top_k: int
-    bm25_error_code_boost: float
     vector_top_k: int
     rerank_top_n: int
+    # At most this many of Jev's top `rerank_top_n` from one page.
+    rerank_top_n_per_page: int = Field(ge=1)
     fewshot_k: int
+    # Distinct pages, not chunks: each page keeps its best-fused chunk.
     fusion_candidate_limit: int
     quote_fuzzy_threshold: float
+
+    # --- Drafted answer (HyDE, ADR-0021) ---
+    draft_temperature: float = Field(ge=0)
+    # Chunks per candidate page picked by nearness to the draft, beside the
+    # page's best-fused chunk.
+    draft_chunks_per_page: int = Field(ge=0)
 
     # --- Link expansion ---
     link_expansion_seeds: int
     link_expansion_chunks_per_page: int
     link_expansion_max_links_per_seed: int
+    # The one association source expansion follows (ADR-0018), or "none".
+    association_source: Literal["authored_link", "entity_graph", "none"]
+
+    # --- Entity-graph associations: the offline build only (ADR-0018) ---
+    association_per_article_cap: int
+    entity_graph_policy_version: str
+    entity_graph_section_tokens: int
+    entity_graph_llm_max_async: int
+    entity_graph_resolve_min_similarity: float
 
     # --- Reranker (Jev) ---
     rerank_pool: int

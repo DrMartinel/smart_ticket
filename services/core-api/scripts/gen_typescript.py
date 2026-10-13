@@ -41,25 +41,28 @@ MODELS = [
     "AIRunResponse",
     "ChatAskIn",
     "ChatAnswerOut",
+    "ChatClarifyIn",
+    "ChatClarificationOut",
     "ChatTurnOut",
 ]
 
 ENUMS = {
     "TicketCategory": ["hardware", "software", "network", "access", "security", "other"],
     "PIILevel": ["routine", "sensitive", "critical", "mask_failed"],
-    "Branch": ["auto_reply", "auto_route", "hitl", "block", "escalate"],
+    "Branch": ["auto_reply", "auto_route", "hitl", "block", "escalate", "clarify"],
     "ReviewQueue": [
         "pii_verify",
         "low_confidence",
         "injection",
         "mask_failed",
         "runbook_approval",
+        "clarification",
     ],
     "ReviewAction": ["approve", "edit_and_send", "reject", "reroute", "escalate"],
     "Verdict": ["correct", "wrong", "partial", "not_applicable"],
     "UserRole": ["employee", "technician", "manager", "security"],
     "RiskTier": ["low", "medium", "high"],
-    "ChatState": ["thinking", "answered", "suggest_ticket", "with_support"],
+    "ChatState": ["thinking", "answered", "clarify", "suggest_ticket", "with_support"],
 }
 
 REASON_CODES = [
@@ -75,6 +78,9 @@ REASON_CODES = [
     "negation_mismatch",
     "trust_below_auto_threshold",
     "trust_below_route_threshold",
+    "clarify_security",
+    "clarify_options_not_shown",
+    "clarify_round_cap",
     "ai_engine_unavailable",
     "budget_exceeded",
     "all_llm_down",

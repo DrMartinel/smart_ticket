@@ -42,7 +42,12 @@ THRESHOLDS = Path(
     os.environ.get("THRESHOLDS_PATH", REPO / "services/core-api/config/thresholds.yaml")
 )
 # Recorded under the names runs.jsonl has always used.
-_VERSION_KEYS = {"PROMPT_VERSION": "prompt", "GRAPH_VERSION": "graph"}
+_VERSION_KEYS = {
+    "PROMPT_VERSION": "prompt",
+    "GRAPH_VERSION": "graph",
+    # In thresholds.yaml until 2026-10-11, recorded under that name since.
+    "RERANK_TOP_N": "retrieval.rerank_top_n",
+}
 ENV_KEYS = (
     "CHAT_MODEL",
     "EMBED_MODEL",
@@ -50,6 +55,7 @@ ENV_KEYS = (
     "RERANKER_REVISION",
     "VLLM_CHAT_MAX_MODEL_LEN",
     "VLLM_IMAGE_TAG",
+    "FUSION_CANDIDATE_LIMIT",
 )
 
 
@@ -75,8 +81,17 @@ def metrics_from_results(results: dict[str, Any], run_id: str) -> list[Metric]:
             add("retrieval_recall_at_3", entry["value"], n)
             if "mrr" in entry:
                 add("retrieval_mrr", entry["mrr"], n)
+            if "strict" in entry:
+                add("retrieval_recall_at_3_strict", entry["strict"], n)
+            if "recall_at_5" in entry:
+                add("retrieval_recall_at_5", entry["recall_at_5"], n)
+            if "errors" in entry:
+                add("retrieval_errors", entry["errors"], n)
             for outcome, count in entry.get("gold_use", {}).items():
                 add("gold_use", count, outcome=outcome)
+            for stat in ("median", "max"):
+                if f"pool_size_{stat}" in entry:
+                    add("pool_size", entry[f"pool_size_{stat}"], n, stat=stat)
         elif name == "per_category_f1":
             # The suite's headline "value" is the minimum; recording it as
             # its own row would invite averaging-style charts (rule 9).
@@ -114,7 +129,7 @@ def collect_config(env: Path) -> dict[str, str | int | float | bool | None]:
     retrieval, routing = thresholds.get("retrieval", {}), thresholds.get("routing", {})
     # `retrieval.floor` is on Jev's scale since ADR-0015; earlier runs
     # recorded a cross-encoder floor under the same key.
-    for key in ("floor", "rerank_top_n", "keyword_agreement_k"):
+    for key in ("floor", "keyword_agreement_k"):
         if key in retrieval:
             config[f"retrieval.{key}"] = retrieval[key]
     for key in ("t_auto", "t_route"):
@@ -130,7 +145,7 @@ def collect_config(env: Path) -> dict[str, str | int | float | bool | None]:
             if key in ENV_KEYS:
                 config[key.lower()] = yaml.safe_load(value)
             elif key in _VERSION_KEYS:
-                config[_VERSION_KEYS[key]] = value
+                config[_VERSION_KEYS[key]] = yaml.safe_load(value) if value.isdigit() else value
     return config
 
 

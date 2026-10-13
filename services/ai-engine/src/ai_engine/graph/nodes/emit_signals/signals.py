@@ -15,8 +15,9 @@ from ai_engine.graph.ticket import TicketCategory
 class RetrievalSignals(BaseModel):
     rerank_top1: float = Field(ge=0, le=1)
     rerank_margin: float = Field(ge=0, le=1)
-    bm25_rank_of_top1: int | None = Field(default=None, ge=1)
     docs_above_floor: int = Field(ge=0)
+    # Chunks the cross-encoder scored: fused candidates plus link expansion (ADR-0018).
+    pool_size: int = Field(default=0, ge=0)
 
 
 class GenerationSignals(BaseModel):

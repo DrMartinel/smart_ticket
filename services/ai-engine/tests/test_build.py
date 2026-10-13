@@ -12,6 +12,7 @@ from ai_engine.graph.nodes.classify_category.node import (
     ClassifyCategoryOutcome,
     classify_category,
 )
+from ai_engine.graph.nodes.draft_answer.node import DraftAnswerNode
 from ai_engine.graph.nodes.emit_signals.node import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer.node import InferNode
@@ -87,6 +88,10 @@ def test_safety_critical_routes():
 
     assert ("__start__", "injection") in edges
     assert edges[("injection", "emit_signals")] == InjectionOutcome.INJECTION_DETECTED
+    # An injected ticket never reaches the drafting model (ADR-0021): the
+    # draft is the first model call after the guard, not before it.
+    assert edges[("injection", "draft_answer")] == InjectionOutcome.INJECTION_CLEAR
+    assert ("__start__", "draft_answer") not in edges
     assert edges[("classify_category", "emit_signals")] == (
         ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
     )
@@ -110,6 +115,7 @@ def test_graph_has_exactly_the_expected_nodes():
 
     assert nodes == {
         InjectionNode.name,
+        DraftAnswerNode.name,
         HybridRetrieveNode.name,
         CandidatePoolNode.name,
         RerankNode.name,
@@ -123,6 +129,7 @@ def test_graph_has_exactly_the_expected_nodes():
     # Pinned literally once: these strings are what shows up in traces.
     assert nodes == {
         "injection",
+        "draft_answer",
         "hybrid_retrieve",
         "candidate_pool",
         "rerank",
@@ -144,7 +151,8 @@ def test_compiled_edges_are_exactly_the_triage_topology():
     assert set(_edges()) == {
         ("__start__", "injection"),
         ("injection", "emit_signals"),
-        ("injection", "hybrid_retrieve"),
+        ("injection", "draft_answer"),
+        ("draft_answer", "hybrid_retrieve"),
         ("hybrid_retrieve", "candidate_pool"),
         ("candidate_pool", "rerank"),
         ("rerank", "classify_category"),
@@ -170,3 +178,13 @@ def test_the_propose_prompt_is_the_file_settings_prompt_version_names():
     instructions = text.split("-->", 1)[1].strip() if text.startswith("<!--") else text
     assert PROPOSE_PROMPT.strip() == instructions
     assert instructions != ""
+
+
+def test_the_draft_prompt_is_the_file_settings_draft_prompt_version_names():
+    from ai_engine.core.config import settings
+    from ai_engine.core.prompts import DRAFT_PROMPT, PROMPT_DIR
+
+    text = (PROMPT_DIR / f"{settings.draft_prompt_version}.md").read_text()
+    instructions = text.split("-->", 1)[1].strip() if text.startswith("<!--") else text
+    assert DRAFT_PROMPT.strip() == instructions
+    assert "-->" not in DRAFT_PROMPT

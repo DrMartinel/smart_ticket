@@ -85,44 +85,6 @@ def test_no_reranked_chunks_yields_zeroed_retrieval_signals(fake_db, make_state,
     assert out["signals"].retrieval.docs_above_floor == 0
 
 
-def test_bm25_rank_is_none_when_nothing_was_reranked(fake_db, make_state, use_db):
-    """Refuse-before-LLM and injection paths arrive with nothing reranked.
-    Even if BM25 found articles, there is no top article to agree with, so
-    reporting a rank would let core-api count agreement on a run that never
-    chose an answer."""
-
-    use_db(fake_db())
-
-    out = emit_signals(make_state(bm25_article_ids=[UUID(int=10)]))
-
-    assert out["signals"].retrieval.bm25_rank_of_top1 is None
-
-
-def test_bm25_rank_is_none_when_the_top_article_is_absent_from_bm25(fake_db, make_state, use_db):
-    """The disagreement case: the reranker chose an article BM25 never
-    returned (g028's shape). That must be no rank, never a default of 1."""
-
-    use_db(fake_db())
-
-    out = emit_signals(make_state(reranked=[_chunk(1, 0.9)], bm25_article_ids=[UUID(int=99)]))
-
-    assert out["signals"].retrieval.bm25_rank_of_top1 is None
-
-
-def test_bm25_rank_is_the_one_based_position_of_the_top_article(fake_db, make_state, use_db):
-    """Rank, not index: core-api compares it with `k` (rank <= k), so an
-    off-by-one here shifts every agreement decision by one place."""
-
-    use_db(fake_db())
-    top = _chunk(1, 0.9)  # article UUID(int=10)
-
-    out = emit_signals(
-        make_state(reranked=[top, _chunk(2, 0.5)], bm25_article_ids=[UUID(int=7), UUID(int=10)])
-    )
-
-    assert out["signals"].retrieval.bm25_rank_of_top1 == 2
-
-
 def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, use_db):
     """Refuse-before-LLM skips the validator. Absent validation must read as
     "the checks did not pass", never as "no checks were needed".
@@ -216,3 +178,12 @@ def test_signals_read_nothing_outside_the_state(fake_db, make_state, use_db):
 
     assert db.events == []
     assert out["signals"].llm_self_confidence == 80.0
+
+
+def test_pool_size_is_the_cross_encoders_batch(fake_db, make_state, use_db):
+    use_db(fake_db())
+    pool = [_chunk(i, 0.5) for i in range(1, 8)]
+
+    result = emit_signals(make_state(pool=pool, reranked=pool[:3]))
+
+    assert result["signals"].retrieval.pool_size == 7

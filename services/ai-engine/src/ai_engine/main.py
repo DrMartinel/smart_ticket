@@ -79,7 +79,8 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
     return AIRunResponse(
         request_id=req.request_id,
         graph_version=settings.graph_version,
-        prompt_version=req.prompt_version,
+        # The prompt InferNode loaded, not the request's field.
+        prompt_version=settings.prompt_version,
         model=final_state.model_used or "n/a",
         proposal=final_state.proposal,
         signals=final_state.signals,

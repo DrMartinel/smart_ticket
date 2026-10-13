@@ -8,6 +8,8 @@ the whole pipeline (spec §5.2 — "critical phải bị chặn trước khi b�
 gì được gọi").
 """
 
+from __future__ import annotations
+
 from enum import StrEnum
 
 import re
@@ -21,6 +23,11 @@ class PIILevel(StrEnum):
     SENSITIVE = "sensitive"  # national ID, bank account, health → proceeds, flagged
     CRITICAL = "critical"  # password / token / API key → BLOCK
     MASK_FAILED = "mask_failed"  # masker errored / uncertain → HITL
+
+    def worse(self, other: PIILevel) -> PIILevel:
+        """Picks the worse of two levels: critical, then mask-failed, sensitive, routine."""
+        severity = (PIILevel.CRITICAL, PIILevel.MASK_FAILED, PIILevel.SENSITIVE, PIILevel.ROUTINE)
+        return min(self, other, key=severity.index)
 
 
 # label -> (compiled pattern, PIILevel)

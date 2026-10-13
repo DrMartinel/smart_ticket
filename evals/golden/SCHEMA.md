@@ -19,6 +19,7 @@
 
 - `truth.category` — one of `TicketCategory` (core-api `infrastructure/dtos.py`), or omitted if not determinable (e.g. pure injection cases). For `kb_covered` it is the target article's category from `demo_kb/manifest.json`. Every `out_of_kb` case is `other`.
 - `truth.kb_slug` — the KB article slug that should answer this ticket, if any.
+- `truth.acceptable_kb_slugs` — optional, drafted tickets only: other pages that resolve the ticket as well as `kb_slug`. The retrieval suite counts a hit on any of them (gated `retrieval_recall_at_3`) and reports `retrieval_recall_at_3_strict` (gold page only) beside it. `expected_branch` still follows `kb_slug` alone.
 - `truth.expected_branch` — one of `Branch` (core-api `apps/tickets/utils/router.py`): `auto_reply | auto_route | hitl | block | escalate | clarify`.
 - `truth.reason_code` — one of `ReasonCode` (core-api `apps/tickets/utils/router.py`), when the specific gate/reason matters to the test (e.g. `injection_detected`, `kb_not_authorized`, `retrieval_below_floor`). Omitted when any HITL reason is acceptable.
 - `tags` — free-form, used to filter by suite. At minimum one of the six distribution buckets below, or `edge`.
@@ -43,6 +44,31 @@ move. They are beyond §12.1's distribution, and each also carries one of:
 | `pii_answerable` | 6 | the page's own branch | Routine PII next to a request a page answers: masking and auto-reply on one ticket (also tagged `pii`) |
 | `split_chunk` | 6 | `auto_reply` | The answer is in a continuation chunk without the page title or section heading |
 | `near_miss` | 6 | `hitl` (`kb_not_authorized`) | Same topic as an approved page that doesn't resolve them; an auto-reply is false by construction |
+
+### Drafted `kb_covered` tickets (g175 on)
+
+To make retrieval recall less sensitive to one ticket (1.7 points at 60
+tickets), 440 more `kb_covered` tickets follow the edge cases, tagged
+`kb_covered` and `drafted`, one per page, from `kb_covered_drafted.jsonl`.
+`draft_kb_covered.py` drafted each with DeepSeek (ADR-0019: KB text only)
+from a page sampled stratified by guide (duplicate-text copies and existing
+targets excluded); reviewer subagents read the page and checked that the
+ticket is not a paraphrase of it, that the page resolves it, and that it
+reads like a real ticket. A rejected ticket was redrafted once with the
+reviewer's reason, then dropped and its page replaced. Category and expected
+branch follow the same rule as the authored ones (`answered_by`). Of the
+440, 75 are redrafts and 134 name at least one acceptable page; none
+targets an approved page, so all expect `hitl` (`kb_not_authorized`).
+
+The drafted tickets carry the `kb_covered` tag, so the classification and
+end-to-end suites score them too, not only retrieval.
+
+**Acceptable pages were chosen by the reviewer subagents, not by people**
+(the user's decision, 2026-10-11): where another page resolves a ticket as
+well, the reviewer named it and it went into `acceptable_kb_slugs`. This
+departs from the 2026-09-29 rule for the authored tickets (two blind human
+reviewers decide alternatives), so strict recall is reported beside the
+gated number.
 
 Retrieval, classification and refusal select their cases by tag, so `edge`
 cases count only in the end-to-end suite (branch accuracy, auto-reply
