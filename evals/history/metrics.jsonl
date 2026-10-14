@@ -937,3 +937,4 @@
 {"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"gold_use","value":133.0,"labels":{"outcome":"other"}}
 {"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"pool_size","value":29.0,"n":500,"labels":{"stat":"median"}}
 {"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"pool_size","value":108.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-14-probe-floor-total-option-scores","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}

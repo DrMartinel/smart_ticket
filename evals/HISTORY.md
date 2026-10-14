@@ -95,6 +95,36 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 
 ---
 
+
+## 2026-10-14 (1): the floor on Jev's total, buttons from per-page yes/no scores, probes
+
+Probes, not a gate run. Same stack as ADR-0026 (`rerank_choice.v1`, DeepSeek
+drafts and proposals, entity graph, `jev-1.13.0`), on golden tickets, run
+inside the ai-engine container through the graph's own nodes. Scripts and
+outputs in the session scratchpad, not committed.
+
+| Probe | Tickets | Finding |
+|---|---|---|
+| Four live tickets through core-api and ai-engine | CloudWatch, "VPN not working.", "I forgot my password", printer | All four now end with a person: `rerank_low_confidence` (Jev 0.89), the top-1 floor (Jev split 0.25 / 0.21 / 0.18), clarify with one button (portal 0.91, root 0.05), Jev chose none |
+| Reworded choice question (v2a, v2b) vs v1 | 134 | Buttons covering two right readings: 0/22 under all three. Only 5/22 clarify tickets had two right readings in the 15-chunk shortlist; on those Jev still put 0.87–1.00 on one. Not adopted |
+| Jev's per-page yes/no scores for the buttons | 28 clarify + 16 specific | 2+ buttons on 16/28 (4/28 on choice scores); two right readings 3/22 (ceiling 6/22, choice 0/22) |
+| Stability, 3 runs each | 28 clarify | Same buttons every run: yes/no 10, LLM options 10; changed between runs: yes/no 9, LLM 16; never asked: yes/no 9, LLM 2. Yes/no scores for the same page: median spread 0.01. Jev's top 5 identical across runs for 7/28 |
+| Jev's passages' total (1 − P(none)) | 23 out-of-KB + 28 clarify | Out-of-KB 0.00–0.27, all `none`; clarify 0.76–1.00. KB-covered (423, 2026-10-13 probe): 99% ≥ 0.68 |
+
+**What changed** (ADR-0026 and ADR-0023 amendments): the floor reads the
+total, `retrieval.floor` 0.30 → **0.6 🔧**; a validated clarify's buttons come
+from Jev's per-page yes/no scores, `option_margin` unchanged at 0.1. The
+refusal suite reads the gate the same way.
+
+**Sample run** after the change (`EVAL_SAMPLE_SIZE=40`, not a gate run):
+refusal 1.00 (23/23), recall@3 0.95 (40), injection 1.00, masking clean;
+end-to-end auto-reply precision 4/6 on the fixed 15, two of the misses on
+pages the owner approved on 2026-10-12 but the golden set still labelled
+`kb_not_authorized`. ADR-0027 relabels them (402 labels in all).
+
+**Open:** a full run (none yet with `rerank_choice.v1`); retrieval surfacing
+more than one reading of an ambiguous ticket (TODO item 13).
+
 ## 2026-10-13 (1): Doc2Query-- (questions generated from each chunk), probe
 
 **Verdict: doc2query does not help this pipeline; not taken.** Questions

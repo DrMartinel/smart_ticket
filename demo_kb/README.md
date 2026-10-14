@@ -56,8 +56,11 @@ the approval is not applied, and an existing one is revoked: the manager
 approved the old wording, not the new one. Re-review the page, then update
 the pinned hash.
 
-Only articles whose `risk_tiers` entry is `low` can be approved (spec §14
-P4). The loader refuses anything else before loading a single page.
+Only low- and medium-risk articles can be approved (ADR-0027, a departure
+from spec §14 P4's 3–5 low-risk pages): an article's own `risk_tiers` entry,
+else its category's default. The loader refuses a high-risk approval, or one
+for a page the snapshot doesn't list, before loading a single page. Since
+2026-10-12 every low- and medium-risk page is approved (2,892 of 3,542).
 
 ## Entity associations
 

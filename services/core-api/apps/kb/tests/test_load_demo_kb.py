@@ -148,13 +148,50 @@ def test_a_page_with_windows_line_endings_matches_its_hash(tmp_path):
 
 
 @pytest.mark.django_db
-def test_approving_an_article_that_is_not_low_risk_is_refused(tmp_path, manager_user):
+def test_approving_a_high_risk_article_is_refused(tmp_path, manager_user):
+    curation = {
+        **CURATION,
+        "auto_reply": [{"slug": "iam.mfa", "sha256": sha(MFA), "reason": "reviewed"}],
+    }
+    write_snapshot(tmp_path, {"iam.mfa": ("access", MFA)}, curation)
+
+    with pytest.raises(CommandError, match="only low- and medium-risk"):
+        load(tmp_path, approver=manager_user.username)
+    assert not KbArticle.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_page_given_a_high_tier_of_its_own_is_refused_whatever_its_category(
+    tmp_path, manager_user
+):
+    curation = {**CURATION, "risk_tiers": {"ec2.ssh": "high"}}
+    write_snapshot(tmp_path, {"ec2.ssh": ("hardware", SSH)}, curation)
+
+    with pytest.raises(CommandError, match="only low- and medium-risk"):
+        load(tmp_path, approver=manager_user.username)
+
+
+@pytest.mark.django_db
+def test_an_approval_for_a_page_not_in_the_snapshot_is_refused(tmp_path, manager_user):
+    curation = {
+        **CURATION,
+        "auto_reply": [{"slug": "ec2.gone", "sha256": sha(SSH), "reason": "reviewed"}],
+    }
+    write_snapshot(tmp_path, {"ec2.ssh": ("hardware", SSH)}, curation)
+
+    with pytest.raises(CommandError, match="unset"):
+        load(tmp_path, approver=manager_user.username)
+
+
+@pytest.mark.django_db
+def test_a_medium_risk_page_by_its_category_default_is_approved(tmp_path, manager_user):
     curation = {**CURATION, "risk_tiers": {}}
     write_snapshot(tmp_path, {"ec2.ssh": ("hardware", SSH)}, curation)
 
-    with pytest.raises(CommandError, match="only risk_tiers"):
-        load(tmp_path, approver=manager_user.username)
-    assert not KbArticle.objects.exists()
+    load(tmp_path, approver=manager_user.username)
+
+    ssh = KbArticle.objects.get(slug="ec2.ssh")
+    assert ssh.risk_tier == "medium" and ssh.auto_reply_allowed
 
 
 @pytest.mark.django_db

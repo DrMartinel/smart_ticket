@@ -44,7 +44,7 @@ move. They are beyond §12.1's distribution, and each also carries one of:
 | `underspecified` | 6 | `clarify` | Several pages fit and the ticket doesn't say which: the system should ask, not guess (ADR-0016) |
 | `pii_answerable` | 6 | the page's own branch | Routine PII next to a request a page answers: masking and auto-reply on one ticket (also tagged `pii`) |
 | `split_chunk` | 6 | `auto_reply` | The answer is in a continuation chunk without the page title or section heading |
-| `near_miss` | 6 | `hitl` (`kb_not_authorized`) | Same topic as an approved page that doesn't resolve them; an auto-reply is false by construction |
+| `near_miss` | 6 | the answering page's own branch | Same topic as an approved page that doesn't resolve them; an auto-reply citing that page is false by construction. They expected `hitl` until ADR-0027 approved the answering pages |
 
 ### More clarify tickets (g615 on)
 
@@ -76,8 +76,9 @@ ticket is not a paraphrase of it, that the page resolves it, and that it
 reads like a real ticket. A rejected ticket was redrafted once with the
 reviewer's reason, then dropped and its page replaced. Category and expected
 branch follow the same rule as the authored ones (`answered_by`). Of the
-440, 75 are redrafts and 134 name at least one acceptable page; none
-targets an approved page, so all expect `hitl` (`kb_not_authorized`).
+440, 75 are redrafts and 134 name at least one acceptable page. When they
+were drafted none targeted an approved page; since ADR-0027 (2026-10-14)
+359 of them target one and expect `auto_reply`.
 
 The drafted tickets carry the `kb_covered` tag, so the classification and
 end-to-end suites score them too, not only retrieval.
@@ -100,7 +101,9 @@ authored English help-desk tickets against the demo KB (`demo_kb/`, a frozen
 snapshot of AWS documentation). Each `kb_covered` case targets a real page
 in `demo_kb/manifest.json`; its category comes from the manifest and its
 expected branch from `demo_kb/curation.json` (approved articles expect
-`auto_reply`, the rest `kb_not_authorized`). Generation fails if a target
+`auto_reply`, the rest `kb_not_authorized`). Since ADR-0027 every low- and
+medium-risk page is approved, so most KB-covered tickets expect
+`auto_reply`; 402 labels changed on 2026-10-14, IDs and texts did not. Generation fails if a target
 slug is missing from the manifest.
 It is meant to exercise every branch and reason code end-to-end from day
 one — it is explicitly **not** a substitute for the real, hand-labeled

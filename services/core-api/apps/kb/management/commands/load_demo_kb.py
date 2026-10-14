@@ -93,15 +93,18 @@ class Command(BaseCommand):
         curation = self._read(root / "curation.json", Curation)
         approver = self._approver(options["approver"], curation)
 
-        # Refuse before loading anything: approving anything above `low`
-        # risk contradicts spec §14 P4, and fixing it later means a manager
-        # revoking what a script granted.
+        # Refuse before loading anything: a high-risk approval contradicts
+        # ADR-0027, and fixing it later means a manager revoking what a
+        # script granted.
+        categories = {p.slug: p.category for p in manifest.pages}
         for approval in curation.auto_reply:
             tier = curation.risk_tiers.get(approval.slug)
-            if tier != RiskTier.LOW:
+            if tier is None and approval.slug in categories:
+                tier = curation.category_risk_tier.get(categories[approval.slug])
+            if tier not in (RiskTier.LOW, RiskTier.MEDIUM):
                 raise CommandError(
                     f"curation.json approves {approval.slug} for auto-reply, but its risk tier "
-                    f"is {tier or 'unset'}; only risk_tiers[slug] = 'low' may be approved"
+                    f"is {tier or 'unset'}; only low- and medium-risk pages may be approved"
                 )
 
         pages = manifest.pages[: options["limit"]]

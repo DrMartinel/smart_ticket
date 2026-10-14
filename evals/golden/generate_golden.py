@@ -762,10 +762,11 @@ SPLIT_CHUNK = [
 ]
 
 # Same topic as an approved page, which doesn't resolve them: another OS,
-# another product, or an admin action. The page that does is in the KB and not
-# approved for auto-reply, so the right outcome is a human, and an auto-reply
-# here is a false one by construction. (subject, body, page_it_resembles,
-# page_that_answers)
+# another product, or an admin action. Another page answers them, so an
+# auto-reply citing the page they resemble is a false one by construction.
+# Until ADR-0027 the answering pages were unapproved and these expected a
+# human; they now take the answering page's own branch. (subject, body,
+# page_it_resembles, page_that_answers)
 NEAR_MISS = [
     (
         "RDP to my Windows instance fails",
@@ -1192,8 +1193,8 @@ def build() -> list[dict[str, Any]]:
     for subject, body, resembles, answering_slug in NEAR_MISS:
         if resembles not in approved:
             raise SystemExit(f"near miss of {resembles}, which is not approved for auto-reply")
-        if answering_slug in approved:
-            raise SystemExit(f"near miss answered by {answering_slug}, which is approved")
+        if answering_slug == resembles:
+            raise SystemExit(f"near miss of {resembles} answered by the same page")
         add(subject, body, answered_by(answering_slug), ["edge", "near_miss"])
 
     # The drafted kb_covered tickets, after every authored case (g175 on).

@@ -280,7 +280,9 @@ copies that directory — a new SQL file that isn't copied fails at container st
   guides, 3,542 pages), loaded by `manage.py load_demo_kb`.
   Demo tickets and the golden set are English. The snapshot is frozen: pages
   are checked against `manifest.json`, and each auto-reply approval in
-  `curation.json` is pinned to the SHA-256 of the reviewed text.
+  `curation.json` is pinned to the SHA-256 of the reviewed text. Every low-
+  and medium-risk page is approved (2,892 of 3,542, ADR-0027, a departure
+  from spec §14 P4); high-risk pages are not.
 - **Eval gates** ([`evals/HISTORY.md`](evals/HISTORY.md)): the last full run
   (2026-10-04 (8), `propose.v8`, Jev's category) fails one gate,
   **auto-reply precision 0.944** (34/36): g151 and g155, labeled `clarify`,
@@ -319,8 +321,11 @@ copies that directory — a new SQL file that isn't copied fails at container st
   Proposed): each chunk's probability is its score, and `none` is below the
   floor. An auto-reply must cite Jev's chosen page with confidence ≥
   `retrieval.min_rerank_confidence` (0.9 🔧), else HITL `rerank_disagrees` /
-  `rerank_low_confidence`. `retrieval.floor` (0.30 🔧) and the margins were
-  chosen on the old noul scale and are not yet re-chosen. Trust coefficients and `t_auto`/`t_route` were hand-set for
+  `rerank_low_confidence`. The floor reads Jev's passages' total
+  (`retrieval.floor` 0.6 🔧, chosen 2026-10-14 from golden-set data); a
+  clarify's buttons come from Jev's yes/no score per page, asked only for a
+  validated clarify. `retrieval.margin` and the trust weights are still on
+  the old noul scale. Trust coefficients and `t_auto`/`t_route` were hand-set for
   the cross-encoder's `rerank_top1`: another reason P3 waits. Every ticket's
   *masked* text goes to Jev's API.
 - **Jev also chooses the category** (ADR-0017, Proposed): `classify_category`
@@ -420,5 +425,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-six
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-seven
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).
