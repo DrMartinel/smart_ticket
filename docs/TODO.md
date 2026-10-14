@@ -63,6 +63,22 @@ uv run python evals/calibration/choose_thresholds.py
 
 Pick thresholds by **precision on a holdout set**, not accuracy: `t_auto` = smallest threshold where auto-reply precision ≥ 0.95; `t_route` = smallest where route precision ≥ 0.85. Commit the refitted model and the new `thresholds.yaml` with `calibration_source` updated to name the run.
 
+**Status (2026-10-14):** a second synthetic calibration run: the 652 golden
+tickets submitted as pilot requesters in shadow mode on `category.v2` and
+`rerank_choice.v1`, 571 review items labelled by 14 zero-context reviewer
+subagents (not people). Nothing was written to `thresholds.yaml`.
+
+- The fitted logistic regression is not usable: test accuracy 0.583 against
+  0.578 for always guessing the majority (n_test 115). Keep the hand-set
+  prior.
+- On the hand-set prior alone, auto-reply proposals reach right-page
+  precision 0.95 only at `t_auto` 0.988 (85 of 457 pass); at 0.88, 0.797.
+- The router's own auto-replies, Jev's gates included, were on the right
+  page 146 of 148 times (0.986), 114 approved unchanged. 148 tickets it
+  sent to a person were approved unchanged on the right page: Jev's gates,
+  not `t_auto`, decide most of precision and recall today.
+- `t_route` still can't be chosen: 24 route decisions.
+
 ### Decide during calibration: should route proposals share auto-reply's curve?
 
 `FEATURES` includes `quote_match_ratio` and `quote_source_in_topk`, which only
