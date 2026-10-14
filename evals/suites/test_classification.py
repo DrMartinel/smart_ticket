@@ -22,11 +22,14 @@ Before ADR-0017 the LLM chose the category, and an `insufficient_context`
 refusal on an out-of-KB case was credited with the truth (decided
 2026-09-29, evals/HISTORY-archive.md), since the LLM names no category when
 it refuses. Jev always names one, so nothing is credited: a ticket with no
-choice (a failed run) is a miss.
+choice (a failed run, answered with a 5xx) is a miss. A 4xx or an
+unreachable ai-engine fails the run.
 """
 
 from collections import defaultdict
 from typing import Any
+
+import httpx
 
 from suites.golden_utils import EVAL_FULL_RUN, analyze, load_golden, record_metric
 
@@ -72,10 +75,18 @@ def test_per_category_f1_meets_threshold(ai_engine_client):
     tp: dict[str, int] = defaultdict(int)
     fp: dict[str, int] = defaultdict(int)
     fn: dict[str, int] = defaultdict(int)
+    errors: list[str] = []
 
     for case in cases:
         truth = case["truth"]["category"]
-        result = analyze(ai_engine_client, case["subject"], case["body"])
+        try:
+            result = analyze(ai_engine_client, case["subject"], case["body"])
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code < 500:
+                raise
+            errors.append(case["id"])
+            fn[truth] += 1
+            continue
         predicted = _predicted_category(result)
 
         if predicted == truth:
@@ -107,9 +118,11 @@ def test_per_category_f1_meets_threshold(ai_engine_client):
         if gated and f1 < F1_THRESHOLD:
             failing[category] = f1
 
+    print(f"  errors (5xx, counted as misses): {errors}")
     record_metric(
         "per_category_f1",
         min(per_category_f1.values()) if per_category_f1 else 0.0,
         by_category=per_category_f1,
+        errors=len(errors),
     )
     assert not failing, f"categories below F1 {F1_THRESHOLD}: {failing}"

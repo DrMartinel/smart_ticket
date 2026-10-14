@@ -5,7 +5,8 @@ live ai-engine for signals/proposal, then core-api's actual
 `router.route()` — the identical function used in production, imported
 directly rather than reimplemented here — with a real `KBArticleMeta`
 looked up from the database exactly as `apps/tickets/utils/pipeline.py`
-does.
+does. A ticket answered with a 5xx is a branch miss; a 4xx or an
+unreachable ai-engine fails the run.
 
 Auto-reply precision is checked against spec §12.3's absolute (not
 relative-to-baseline) gate: >= 0.95, no exceptions, because a false
@@ -24,6 +25,8 @@ pre-calibration threshold should gate.
 """
 
 from __future__ import annotations
+
+import httpx
 
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier
@@ -70,9 +73,19 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
     # as in production; listed so an NER outage reads as one, not as a
     # model regression.
     mask_failed = []
+    errors = []
 
     for case in cases:
-        result = analyze(ai_engine_client, case["subject"], case["body"])
+        try:
+            result = analyze(ai_engine_client, case["subject"], case["body"])
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code < 500:
+                raise
+            errors.append(case["id"])
+            expected_branch = case["truth"].get("expected_branch")
+            if expected_branch is not None:
+                mismatches.append((case["id"], expected_branch, "<error>", "<error>"))
+            continue
         pii_level = PIILevel(result["pii_level"])
         if pii_level is PIILevel.MASK_FAILED:
             mask_failed.append(case["id"])
@@ -114,11 +127,11 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
     # pre-calibration branch-accuracy threshold would be the wrong check.
     print(
         f"\nEnd-to-end: branch_accuracy={accuracy} auto_reply_precision={precision} "
-        f"n={len(cases)} mismatches={mismatches} mask_failed={mask_failed}"
+        f"n={len(cases)} mismatches={mismatches} mask_failed={mask_failed} errors={errors}"
     )
 
     if accuracy is not None:
-        record_metric("branch_accuracy", accuracy, n=len(labeled))
+        record_metric("branch_accuracy", accuracy, n=len(labeled), errors=len(errors))
     if precision is not None:
         record_metric("auto_reply_precision", precision, n=auto_reply_predicted)
 
