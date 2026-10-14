@@ -15,7 +15,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | Spec phases complete | **P0, P1** |
 | Phase in progress | **P2** — calibration scripts ready, awaiting ≥500 shadow pairs |
 | Unit tests | **503 passing** (247 core-api, 256 ai-engine), 2026-10-04 |
-| Eval suites | 9 files, 26 tests. Last full run (2026-10-14 (2), `rerank_choice.v1`, `category.v2`): every gate it measured passes (recall@5 0.924, auto-reply precision 0.992, per-category F1 ≥ 0.90); end-to-end incomplete, DeepSeek's balance ran out for its last 132 tickets. See [`evals/HISTORY.md`](../evals/HISTORY.md) |
+| Eval suites | 9 files, 26 tests. Last full run (2026-10-14 (2), `rerank_choice.v1`, `category.v2`): every gate it measured passes (recall@5 0.924, auto-reply precision 0.992, per-category F1 ≥ 0.90); end-to-end ran in two parts after DeepSeek's balance ran out (154 of 157 auto-replies right). See [`evals/HISTORY.md`](../evals/HISTORY.md) |
 | Masking + router branch coverage | **100%** (`make coverage`) — the spec §14 P0 exit condition |
 | Operating mode | `SHADOW_MODE=true` — router decides, humans still handle everything |
 

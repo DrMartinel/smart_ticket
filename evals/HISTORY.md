@@ -165,7 +165,14 @@ drafts as an ambiguity signal: AUROC 0.63, no coverage gain. Not taken.
 
 ### Follow-ups
 
-- Rerun end-to-end on g519–g652 once DeepSeek is topped up.
+- ~~Rerun end-to-end on g519–g652 once DeepSeek is topped up.~~ Done
+  2026-10-14, same code and stack: 134 tickets, 1 error; auto-reply
+  precision 0.946 (35/37: g626 and g630, labelled `clarify`, auto-replied),
+  branch accuracy 0.425, the misses again mostly `rerank_low_confidence`
+  (29) and `rerank_disagrees` (23). With part 2, the suite auto-replied 157
+  times and was right 154 (0.981; up to 2 tickets that answered in part 2
+  are counted twice). Not recorded as data: a scratch file ran the suite
+  on those tickets only.
 - A held-out check of `category.v2` (shadow data): it was tuned on this set.
 - `schema_invalid` on 17 proposals (fields over 500 characters, missing fields).
 - The auto-reply confidence bar against shadow data: 155 of the misses are

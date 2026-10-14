@@ -287,9 +287,10 @@ copies that directory — a new SQL file that isn't copied fails at container st
   (2026-10-14 (2), `rerank_choice.v1`, `category.v2`) passes every gate it
   measured: retrieval recall@5 **0.924**, auto-reply precision **0.992**
   (119/120), per-category F1 ≥ 0.90 on Jev's choice, refusal and injection
-  1.00. Its end-to-end suite is incomplete (DeepSeek's balance ran out for
-  g519 on); branch accuracy 0.55 on the tickets that ran, mostly
-  auto-replies Jev's confidence bar sends to a person. `category.v2` was
+  1.00. Its end-to-end suite ran in two parts (DeepSeek's balance ran out
+  at g519; rerun after the top-up): 154 of 157 auto-replies right, the
+  wrong three labelled `clarify` (g156, g626, g630); branch accuracy about
+  0.52, mostly auto-replies Jev's confidence bar sends to a person. `category.v2` was
   written against the golden set, so it still needs a held-out check. 40
   drafted tickets carry a reviewed category (`evals/golden/SCHEMA.md`). Record
   every full run in `evals/HISTORY.md`; runs before the 2026-10-01 baseline
