@@ -241,7 +241,8 @@ _triage.route(classify_category, ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR, e
 _triage.route(classify_category, ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR, select_fewshots)
 _triage.route(select_fewshots, SingleExit.DONE, infer)
 _triage.route(infer, SingleExit.DONE, validate)
-_triage.route(validate, SingleExit.DONE, emit_signals)  # no cycle: schema failure goes to HITL
+_triage.route(validate, SingleExit.DONE, score_options)  # no cycle: schema failure goes to HITL
+_triage.route(score_options, SingleExit.DONE, emit_signals)  # Jev scores a clarify's options
 _triage.route(emit_signals, SingleExit.DONE, _triage.end)  # every path ends here
 
 triage_graph = _triage.compile(TriageState)
@@ -359,7 +360,7 @@ class ClassifyCategoryNode(BaseNode):
         return {"category_choice": choice.category, "category_confidence": choice.confidence}
 
     def decide(self, state: TriageState) -> ClassifyCategoryOutcome:
-        if self._evidence_above_floor(state):  # Jev chose a passage, top1 >= floor
+        if self._evidence_above_floor(state):  # Jev chose a passage, total >= floor
             return ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR
         return ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
 ```

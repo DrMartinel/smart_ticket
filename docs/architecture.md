@@ -165,7 +165,7 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
    classify_category Jev chooses the category (ADR-0017): masked ticket +
                      the top page's title if above the floor, else no page
        │
-       ├─ EvidenceBelowFloor (Jev chose none, or its top1 < retrieval.floor) ──► emit_signals   ← REFUSE BEFORE LLM
+       ├─ EvidenceBelowFloor (Jev chose none, or its passages' total < retrieval.floor) ──► emit_signals   ← REFUSE BEFORE LLM
        │ EvidenceAboveFloor
        ▼
    select_fewshots   nearest few-shot examples by embedding, across categories
@@ -173,9 +173,12 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
    infer             LLM ──► JSON, schema-constrained
        ▼
    validate          quote → fuzzy ≥0.95 → in-top-k → negation;
-                     a clarify proposal's options must be shown pages
-       │
+                     a clarify proposal's options must be shown pages;
+                     an auto-reply must cite and quote Jev's choice
        ▼                 (schema invalid → no retry; emit_signals, then HITL)
+   score_options     a validated clarify only: Jev's yes/no score per top-5
+                     page, the buttons' scores (ADR-0023); otherwise nothing
+       ▼
    emit_signals ──► terminal ──► END
 ```
 
@@ -231,7 +234,8 @@ shortlister, whose scores are a different calibration from the cross-encoder's
 (ADR-0005). Whatever the shortlister, the score thresholds read is Jev's
 (ADR-0015, ADR-0026): `retrieval.floor` arrives per request in `AIRunRequest` for the
 refuse-before-LLM check, and core-api's router compares the same floor with
-`RetrievalSignals.rerank_top1`, Jev's top score.
+`RetrievalSignals.rerank_total`, the probability Jev gives the passages
+together, and refuses when Jev chose none (ADR-0026, amended 2026-10-14).
 
 Two constraints on anything added here: `main.py` builds the graph at uvicorn
 import time, so no constructor may open a socket or load a model — every model

@@ -394,9 +394,9 @@ ADR-0018 is accepted or superseded.
 ### Work
 
 - A full eval run with `rerank_choice.v1`; explain every gate's movement.
-- Re-choose `retrieval.floor`, `retrieval.margin`, `clarification.option_margin` and `retrieval.min_rerank_confidence` on choice-scale data (item 4); every one was set on the noul scale.
+- ~~Re-choose `retrieval.floor`~~ 2026-10-14: the floor reads Jev's passages' total, 0.6 from the golden set (ADR-0026 amendment); re-choose it on shadow pairs. Still to re-choose: `retrieval.margin`, `retrieval.min_rerank_confidence` and the trust weights; `clarification.option_margin` is back on the yes/no scale it was chosen on (ADR-0023 amendment).
 - ~~Decide who judges that a ticket needs a clarifying question~~ Decided 2026-10-13: the LLM's clarify proposal, as now. On the 28 clarify tickets it proposed clarify on 25 against 19 for a Jev question ("B"), and neither asked on the 16 specific counterparts; B is not built.
-- The clarify options: only 5 of the 22 new clarify tickets (g615-g636) had two or more of their `clarify_slugs` in Jev's top 5, and 3 had none, so the question often offers one right page. Measure option choice on `clarify_slugs`.
+- The clarify options: 2026-10-14, Jev's yes/no score per page picks the buttons (2+ buttons on 16/28 clarify tickets, 4 before). Retrieval still limits them: only 6 of 22 new clarify tickets (g615-g636) had two right readings in Jev's top 5, because the draft commits to one reading. Candidate: draft one passage per plausible reading.
 
 ### Done when
 

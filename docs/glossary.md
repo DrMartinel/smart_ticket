@@ -82,7 +82,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Category confidence** — Jev's confidence in its category choice, low when its probability is spread over several categories. Below `classification.min_confidence` (0.65) a route or clarify goes to a human as `category_low_confidence`.
 
-**Retrieval floor** — if Jev's top reranked score is below `retrieval.floor` (0.30, on Jev's scale), the LLM is **never called**. Never compared with the cross-encoder's score, which only orders the pool. This is both the largest cost saving and a safety property: a model with no source material has nothing to do but fabricate one.
+**Retrieval floor** — if Jev chose no passage, or the probability it gives the shortlisted passages together is below `retrieval.floor` (0.6, on Jev's scale), the LLM is **never called**. Never compared with the cross-encoder's score, which only orders the pool. This is both the largest cost saving and a safety property: a model with no source material has nothing to do but fabricate one.
 
 **Refuse-before-LLM** — the above, as a graph edge. Worth knowing by name because it explains runs where `model = n/a` and every generation signal is false: nothing was generated, so nothing could be validated.
 

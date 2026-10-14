@@ -140,6 +140,15 @@ guard and that comment is later trimmed, the entry is the record.
   as passing, and a check an exit leaves out silently reads as failed (on a route
   proposal that lowers trust). *`test_state.py::test_missing_validation_reads_as_every_check_failed`;
   the whole-update assertions in `test_validate.py`, one per exit.*
+- **The floor reads Jev's passages' total, and the buttons read Jev's
+  per-page yes/no scores (ADR-0026, ADR-0023 amended 2026-10-14).** On the
+  choice scale the top-1 drops when a ticket is ambiguous, and one passage
+  takes almost all the probability, so neither the old floor nor the old
+  button rule works on it. `rerank_total` defaults to 0.0 (below the floor)
+  and a chunk with no `option_score` offers no button. *`test_router.py::test_a_total_left_at_its_default_is_below_the_floor`,
+  `test_classify_category.py::test_a_split_choice_with_a_high_total_reaches_the_llm`,
+  `test_clarification.py::TestClarifyOptions::test_chunks_jev_did_not_score_offer_nothing`,
+  `test_score_options.py::test_a_jev_failure_while_scoring_options_propagates`.*
 - **Jev's rerank choice gates (ADR-0026).** `rerank_confidence` defaults to 0.0
   and `cited_is_rerank_choice` to False, so a run that never reported them
   cannot auto-reply. Jev choosing `none` is below the floor in ai-engine

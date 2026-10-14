@@ -107,3 +107,25 @@ held for 193 of 423 auto-reply proposals, 96.4% of them on the right page.
 - **Ask the choice beside the nouls** (16 requests): two scales for one
   stage, and the noul's order is worse.
 - **A `several` option** (above).
+
+## Amendment (2026-10-14): the floor reads Jev's total
+
+**What changed.** A choice question spreads its probability between the
+readings of an ambiguous ticket: "VPN not working." got Windows 0.25, admin
+tunnel 0.21, macOS 0.18, so the top-1 (0.25) fell below the 0.30 floor and
+the LLM never ran, though Jev gave the passages 0.80 together.
+
+1. `RerankNode` stores `rerank_total`, the probability Jev gives the 15
+   passages together (1 − P(none)); `RetrievalSignals.rerank_total` carries
+   it (default 0.0, below any floor).
+2. The floor gate, in `ClassifyCategoryNode` and the router, is: Jev chose
+   `none`, or `rerank_total` < `retrieval.floor`. The top-1 no longer gates.
+3. `retrieval.floor` is **0.6 🔧**. On the 2026-10-14 probe every out-of-KB
+   golden ticket scored 0.27 or less (23/23, all `none`), every clarify
+   ticket 0.76 or more (28/28), and about 1% of 423 KB-covered tickets fall
+   below it. A floor of 0.5 or less would add nothing to "Jev chose none".
+4. The refusal suite reads the gate the same way (it compared the top-1
+   with a literal 0.45).
+
+The clarify buttons moved off the choice scale too: ADR-0023's amendment of
+the same day.

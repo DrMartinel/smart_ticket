@@ -146,3 +146,31 @@ the buttons didn't offer ("Windows, macOS, or Linux" above two buttons).
 The LLM still decides *whether* to ask (it proposes `clarify`, and the
 validator still requires its options to be among the pages shown), and that
 decision still varies between runs. The top 5 itself varies with the draft.
+
+## Amendment (2026-10-14): Jev scores each page for the buttons
+
+**What changed.** On Jev's choice scale (ADR-0026) one passage takes almost
+all the probability even when the ticket is ambiguous ("I forgot my
+password": portal 0.91, root 0.05), so "within `option_margin` of Jev's
+best" offered two pages on 4 of 28 clarify tickets. Rewording the choice
+question didn't change that (2026-10-14 probe: 0/22 tickets with two right
+readings, three wordings).
+
+1. **Jev scores each page** when the LLM proposes clarify and the validator
+   passes its options: `ScoreOptionsNode` asks Jev the yes/no question
+   (`CLARIFY_OPTION_QUESTION_VERSION=rerank_resolves.v1`) for each chunk of
+   the top 5, in parallel. Every other ticket makes no such request. A
+   failure raises: `ai_engine_unavailable`, as for any Jev failure.
+2. **The buttons come from those scores**: `retrieved_chunks[].option_score`.
+   `Clarifications.options` keeps its rule (within 0.1 🔧 of the best, at
+   most 5), now on the yes/no scale it was chosen on; a chunk without a
+   score offers nothing.
+3. **Measured** on the 28 clarify tickets: 2+ buttons on 16 (4 before);
+   buttons covering two right readings on 3 of 22, of the 6 whose top 5
+   held two. Jev's yes/no scores for the same page varied by 0.01 (median)
+   across three runs; most run-to-run change in the buttons comes from the
+   top 5 itself, which the draft varies.
+
+The LLM still decides whether to ask; code still decides what is offered.
+The bigger limit is retrieval: only 6 of 22 tickets had two right readings
+in the top 5.
