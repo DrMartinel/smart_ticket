@@ -31,7 +31,7 @@ class TrustScore(BaseModel):
 FEATURES = [
     "rerank_top1",
     "rerank_margin",
-    "docs_above_floor_capped",  # min(n, 3) / 3
+    "rerank_total",
     "quote_match_ratio",
     "quote_source_in_topk",
     "negation_consistent",
@@ -69,7 +69,7 @@ def extract_features(signals: TrustSignals) -> dict[str, float]:
     return {
         "rerank_top1": r.rerank_top1,
         "rerank_margin": r.rerank_margin,
-        "docs_above_floor_capped": min(r.docs_above_floor, 3) / 3.0,
+        "rerank_total": r.rerank_total,
         "quote_match_ratio": g.quote_match_ratio,
         "quote_source_in_topk": 1.0 if g.quote_source_in_topk else 0.0,
         "negation_consistent": 1.0 if g.negation_consistent else 0.0,
