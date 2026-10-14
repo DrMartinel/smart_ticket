@@ -105,10 +105,13 @@ def test_missing_validation_defaults_to_all_checks_failed(fake_db, make_state, u
 def test_rerank_choice_signals_are_forwarded(fake_db, make_state, use_db):
     use_db(fake_db())
 
-    out = emit_signals(make_state(cited_is_rerank_choice=True, rerank_confidence=0.93))
+    out = emit_signals(
+        make_state(cited_is_rerank_choice=True, rerank_confidence=0.93, rerank_total=0.8)
+    )
 
     assert out["signals"].generation.cited_is_rerank_choice is True
     assert out["signals"].retrieval.rerank_confidence == 0.93
+    assert out["signals"].retrieval.rerank_total == 0.8
 
 
 def test_jev_choosing_none_is_reported_only_when_jev_ran(fake_db, make_state, use_db):

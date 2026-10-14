@@ -233,10 +233,9 @@ class Router:
         # sent the most tickets to review this week" (spec §4.1). A gate that
         # reports the wrong cause is worse than no gate, because the dashboard
         # built on it quietly lies.
-        # retrieval.floor and rerank_top1 are both on Jev's scale (ADR-0026).
-        # Jev choosing no passage is below the floor whatever its top1 (ADR-0026).
+        # retrieval.floor is on Jev's passages' total (ADR-0026).
         if (
-            signals.retrieval.rerank_top1 < th.retrieval_floor
+            signals.retrieval.rerank_total < th.retrieval_floor
             or signals.retrieval.rerank_chose_none
         ):
             return RoutingDecision.hitl(

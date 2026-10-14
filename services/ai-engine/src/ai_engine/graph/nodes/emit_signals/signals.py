@@ -22,6 +22,8 @@ class RetrievalSignals(BaseModel):
     rerank_confidence: float = Field(default=0.0, ge=0, le=1)
     # Jev chose `none` over the shortlist: refused before the LLM (ADR-0026).
     rerank_chose_none: bool = False
+    # Jev's probability that some passage fixes the ticket; the floor reads it (ADR-0026).
+    rerank_total: float = Field(default=0.0, ge=0, le=1)
 
 
 class GenerationSignals(BaseModel):

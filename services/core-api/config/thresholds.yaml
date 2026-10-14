@@ -21,13 +21,16 @@ routing:
   quote_match: 0.95
 
 retrieval:
-  # 🔧 On JEV's scale, the final reranker on every run (ADR-0015): compared
-  # only with Jev's top-1, never a cross-encoder, cosine or RRF score
-  # (ADR-0005). 0.30 is the middle of the probe's 0.12-0.48 gap (evals/
-  # HISTORY.md 2026-10-02 (4)-(5)), so chosen from golden-set data: re-choose
-  # it on shadow pairs before P3. The cross-encoder's old 0.45 means nothing
-  # on this scale.
-  floor: 0.30
+  # 🔧 On JEV's scale (ADR-0026): compared with the probability Jev's choice
+  # question gives the shortlisted passages together (1 - P(none)), never a
+  # cross-encoder, cosine or RRF score (ADR-0005). Jev choosing `none` is
+  # below the floor too, so a floor of 0.5 or less adds nothing. 0.6 is
+  # inside the 2026-10-14 probe's gap: every out-of-KB ticket 0.27 or less
+  # (23/23), every clarify ticket 0.76 or more (28/28); about 1% of 423
+  # KB-covered tickets fall below it. Chosen from golden-set data: re-choose
+  # on shadow pairs before P3. The top-1 floor of 0.30 refused tickets whose
+  # probability Jev split between readings.
+  floor: 0.6
   margin: 0.08         # below this → downgrade trust, log "KB ambiguous"
   # 🔧 On Jev's confidence in its rerank choice (ADR-0026). An auto-reply
   # needs Jev to have chosen the cited page with at least this. 0.9 is from
@@ -89,9 +92,11 @@ clarification:
   # from shadow data on how long requesters take to answer.
   wait_minutes: 60
   # 🔧 Which pages a clarifying question offers (ADR-0023, amended
-  # 2026-10-13): core-api builds the buttons, not the LLM. Every distinct
-  # page in Jev's top 5 scoring within `option_margin` of Jev's best, in
-  # Jev's order, at most `max_options`. On JEV's scale (ADR-0005). 0.1 is
+  # 2026-10-13 and 2026-10-14): core-api builds the buttons, not the LLM.
+  # Every distinct page in Jev's top 5 whose yes/no score ("does this
+  # passage fix it?", asked per page for a clarify proposal) is within
+  # `option_margin` of the best, in Jev's order, at most `max_options`. On
+  # JEV's yes/no scale (ADR-0005), the scale it was chosen on. 0.1 is
   # the project owner's choice, checked on 13 live runs of two ambiguous
   # tickets: "VPN not working" offers exactly the Windows and macOS client
   # pages, "I forgot my password" the access portal, root and (when

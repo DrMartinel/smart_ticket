@@ -166,7 +166,57 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
         "kb_slug": "kb-a",
         "rerank_score": 0.95,
         "shortlist_score": 0.7,
+        "option_score": None,
     }
+
+
+def test_retrieved_chunks_carry_jevs_option_scores(client, make_state, monkeypatch):
+    """Checks that each chunk carries the yes/no score Jev gave it for a
+    clarify, the score core-api builds the buttons from."""
+
+    from ai_engine import main
+    from ai_engine.graph.nodes.emit_signals.signals import (
+        ClassificationSignals,
+        EngineSignals,
+        GenerationSignals,
+        RetrievalSignals,
+    )
+    from ai_engine.graph.state import RankedChunk
+
+    chunks = [
+        RankedChunk(
+            chunk_id=UUID(int=i),
+            article_id=UUID(int=10 * i),
+            article_slug=f"kb-{i}",
+            content="c",
+            shortlist_score=0.5,
+            rerank_score=s,
+        )
+        for i, s in ((1, 0.9), (2, 0.05))
+    ]
+    signals = EngineSignals(
+        retrieval=RetrievalSignals(rerank_top1=0.9, rerank_margin=0.85, docs_above_floor=1),
+        generation=GenerationSignals(
+            quote_match_ratio=0.0, quote_source_in_topk=False, negation_consistent=True
+        ),
+        classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
+        injection_detected=False,
+    )
+    final = make_state(reranked=chunks, option_scores=[0.97, 0.9], signals=signals)
+    monkeypatch.setattr(
+        main, "triage_graph", type("G", (), {"invoke": lambda self, s: final.model_dump()})()
+    )
+
+    resp = client.post(
+        "/v1/analyze",
+        json={
+            "request_id": "r",
+            "ticket": final.ticket.model_dump(mode="json"),
+            "retrieval_floor": 0.6,
+        },
+    )
+
+    assert [c["option_score"] for c in resp.json()["retrieved_chunks"]] == [0.97, 0.9]
 
 
 def test_a_run_is_labelled_with_the_prompt_that_ran(client, make_state, monkeypatch):

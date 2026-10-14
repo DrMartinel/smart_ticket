@@ -68,6 +68,7 @@ export interface RetrievalSignals {
   pool_size?: number;
   rerank_confidence?: number;
   rerank_chose_none?: boolean;
+  rerank_total?: number;
 }
 
 export interface GenerationSignals {

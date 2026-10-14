@@ -67,3 +67,5 @@ DRAFT_PROMPT = load_system_prompt(settings.draft_prompt_version)
 RERANK_QUESTION = load_question(settings.rerank_prompt_version)
 # The choice question Jev answers once per ticket: its category (ADR-0017).
 CATEGORY_QUESTION = load_question(settings.category_question_version)
+# The yes/no question Jev answers per page a clarifying question may offer (ADR-0023).
+OPTION_QUESTION = load_question(settings.clarify_option_question_version)

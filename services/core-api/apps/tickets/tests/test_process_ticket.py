@@ -135,6 +135,7 @@ def _clarify_response(request_id: str):
 
     signals = _no_findings()
     signals.retrieval.rerank_top1 = 0.9
+    signals.retrieval.rerank_total = 0.95
     signals.generation.clarify_options_in_topk = True
     # Jev's category, confident: without it the router sends the ticket to a
     # human as category_low_confidence (ADR-0017).

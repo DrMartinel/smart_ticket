@@ -75,6 +75,7 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
 
     latency_ms = int((time.time() - started_at) * 1000)
     reranked = final_state.reranked
+    option_scores: list[float | None] = list(final_state.option_scores) or [None] * len(reranked)
 
     return AIRunResponse(
         request_id=req.request_id,
@@ -90,8 +91,9 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
                 "kb_slug": r.article_slug,
                 "rerank_score": r.final_score(),
                 "shortlist_score": r.shortlist_score,
+                "option_score": o,
             }
-            for r in reranked
+            for r, o in zip(reranked, option_scores, strict=True)
         ],
         tokens_in=final_state.tokens_in,
         tokens_out=final_state.tokens_out,

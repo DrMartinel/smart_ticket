@@ -5,11 +5,12 @@ injection guard, so it runs before the floor splits the graph: a ticket the
 KB can't answer still gets a category, from its own text.
 
 Whether Jev sees a page and whether the LLM runs are the same question,
-asked in `__call__` and `decide` alike: did Jev choose a passage, and is its
-top chunk at or above the floor? If not, the graph goes straight to `emit_signals`, so a model with
+asked in `__call__` and `decide` alike: did Jev choose a passage, and is the
+probability it gives the passages together (`rerank_total`) at or above the
+floor? If not, the graph goes straight to `emit_signals`, so a model with
 no real source material is never asked to fabricate one. The floor is
-compared only with Jev's `rerank_score` (`final_score`), never the
-cross-encoder's or fusion's RRF score (ADR-0005).
+compared only with Jev's score, never the cross-encoder's or fusion's RRF
+score (ADR-0005, ADR-0026).
 """
 
 from __future__ import annotations
@@ -50,11 +51,11 @@ class ClassifyCategoryNode(BaseNode):
 
     @staticmethod
     def _evidence_above_floor(state: TriageState) -> bool:
-        """Jev chose a passage, and its top chunk is at or above the floor."""
+        """Jev chose a passage, and its passages' total is at or above the floor."""
         return (
             bool(state.reranked)
             and state.rerank_choice is not None
-            and state.reranked[0].final_score() >= state.retrieval_floor
+            and state.rerank_total >= state.retrieval_floor
         )
 
 

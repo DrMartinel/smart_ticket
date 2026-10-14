@@ -23,6 +23,7 @@ from ai_engine.graph.nodes.candidate_pool.shortlister import (
     LexicalShortlister,
 )
 from ai_engine.graph.nodes.rerank.reranker import JevReranker, Passage
+from ai_engine.graph.nodes.score_options.scorer import JevOptionScorer
 
 
 @pytest.fixture
@@ -294,7 +295,6 @@ def test_a_reply_missing_a_passages_probability_raises(serve_jev):
 _UNUSABLE_JEV_REPLIES = {
     "error body": {"error": "rate limited"},
     "no answer for the question": {"model": "M", "answers": {}},
-    "a yes/no answer": {"model": "M", "answers": {"resolves": {"type": "noul", "noul": 0.5}}},
     "missing probabilities": {
         "model": "M",
         "answers": {"resolves": {"type": "choice", "choice": "c1", "confidence": 0.9}},
@@ -336,6 +336,58 @@ def test_jev_choosing_none_is_no_passage(serve_jev):
     serve_jev(_jev_reply({"c1": 0.1, "c2": 0.1, "none": 0.8}, choice="none"))
 
     assert JevReranker().rank("s", "b", _TWO).choice is None
+
+
+def test_a_yes_no_answer_to_the_rerank_question_raises(serve_jev):
+    serve_jev({"model": settings.jev_model, "answers": {"resolves": {"type": "noul", "noul": 0.5}}})
+
+    with pytest.raises(ValueError, match="choice question otherwise"):
+        JevReranker().rank("s", "b", [Passage("t", "x")])
+
+
+def _noul_reply(noul, qid="resolves"):
+    return {"model": settings.jev_model, "answers": {qid: {"type": "noul", "noul": noul}}}
+
+
+_UNUSABLE_NOUL_REPLIES = {
+    "above 1": _noul_reply(1.5),
+    "negative": _noul_reply(-0.1),
+    "missing noul": {"model": "M", "answers": {"resolves": {"type": "noul"}}},
+    "no answer": {"model": "M", "answers": {}},
+}
+
+
+@pytest.mark.parametrize("body", _UNUSABLE_NOUL_REPLIES.values(), ids=_UNUSABLE_NOUL_REPLIES.keys())
+def test_an_unusable_option_score_raises(body, serve_jev):
+    """Checks that a malformed yes/no reply fails the run instead of
+    becoming a button score."""
+
+    if body.get("model") == "M":
+        body = {**body, "model": settings.jev_model}
+    serve_jev(body)
+
+    with pytest.raises(ValueError, match="unusable Jev reply"):
+        JevOptionScorer().score("s", "b", [Passage("t", "x")])
+
+
+def test_a_choice_answer_to_the_option_question_raises(serve_jev):
+    serve_jev(_jev_reply({"c1": 1.0, "none": 0.0}))
+
+    with pytest.raises(ValueError, match="yes/no question otherwise"):
+        JevOptionScorer().score("s", "b", [Passage("t", "x")])
+
+
+def test_jev_scores_options_through_the_jev_client(serve_jev):
+    jev = serve_jev(_noul_reply(0.8))
+
+    assert JevOptionScorer().score("s", "b", [Passage("t", "x")]) == [0.8]
+    [(path, payload)] = jev.sent
+    assert path == "/systemone"
+    assert payload["state"] == {
+        "ticket": {"subject": "s", "body": "b"},
+        "passage": {"title": "t", "text": "x"},
+    }
+    assert payload["questions"]["resolves"]["type"] == "noul"
 
 
 _CHOICE_QUESTION = {"type": "choice", "instructions": "i", "criteria": {"a": None, "b": None}}

@@ -6,8 +6,8 @@ errors, ordering).
 
 - `VLLMClient` (on `HttpClient`, httpx): one self-hosted vLLM server, with
   `embed()`, `rerank()` and `complete_json()`. `embed`, `rerank` and `ner`.
-- `JevClient` (on `HttpClient`): TypeSafe's hosted Jev, `choose()` (one
-  choice question). `jev`.
+- `JevClient` (on `HttpClient`): TypeSafe's hosted Jev, `ask()` (one
+  yes/no question) and `choose()` (one choice question). `jev`.
 - `ChatClient`: the triage chat model through LangChain (whose OpenAI SDK
   runs on httpx2), for `chat` and `draft`. `ChatClient.for_provider` builds it.
 - `ChatClient.deepseek_model()` / `ChatClient.on_deepseek()`: DeepSeek's hosted API (ADR-0019)
@@ -38,7 +38,9 @@ from ai_engine.core.providers.dtos import (
     ChatRequest,
     EmbeddingsReply,
     EmbeddingsRequest,
+    JevAnswer,
     JevChoiceAnswer,
+    JevNoulAnswer,
     JevReply,
     JevRequest,
     JsonSchema,
@@ -189,12 +191,21 @@ class JevClient(HttpClient):
         super().__init__(base_url=base_url, api_key=api_key)
         self.model = model
 
+    def ask(self, state: dict[str, Any], question_id: str, question: dict[str, Any]) -> float:
+        """One yes/no question: the probability that it is true."""
+        answer = self._answers(state, {question_id: question})[question_id]
+        if not isinstance(answer, JevNoulAnswer):
+            raise ValueError(f"Jev answered a yes/no question otherwise: {answer!r}")
+        return answer.noul
+
     def choose(
         self, state: dict[str, Any], question_id: str, question: dict[str, Any]
     ) -> JevChoice:
         """One choice question. Raises when the choice, or the options the
         probabilities are given for, are not the question's options."""
         answer = self._answers(state, {question_id: question})[question_id]
+        if not isinstance(answer, JevChoiceAnswer):
+            raise ValueError(f"Jev answered a choice question otherwise: {answer!r}")
         if answer.choice not in question["criteria"]:
             raise ValueError(f"Jev chose {answer.choice!r}, not an option of {question_id!r}")
         if set(answer.probabilities) != set(question["criteria"]):
@@ -205,9 +216,7 @@ class JevClient(HttpClient):
             probabilities=answer.probabilities,
         )
 
-    def _answers(
-        self, state: dict[str, Any], questions: dict[str, Any]
-    ) -> dict[str, JevChoiceAnswer]:
+    def _answers(self, state: dict[str, Any], questions: dict[str, Any]) -> dict[str, JevAnswer]:
         body = self.request(
             "/systemone", JevRequest(model=self.model, state=state, questions=questions)
         )

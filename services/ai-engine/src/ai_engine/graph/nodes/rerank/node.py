@@ -7,8 +7,9 @@ The pool arrives in cross-encoder order (CandidatePoolNode). Jev ranks its
 top `rerank_pool` chunks with one choice question (ADR-0026); Jev's order
 and `rerank_score` (its probability) are final, chunks Jev scores alike keep
 the cross-encoder's order, and its top `rerank_top_n` go on, at most
-`rerank_top_n_per_page` from one page. The floor is compared only with
-`rerank_score`, never with the cross-encoder's or fusion's RRF score
+`rerank_top_n_per_page` from one page. `rerank_total`, the probability
+Jev gives the passages together, is what the floor is compared with: Jev's
+score, never the cross-encoder's or fusion's RRF score
 (ADR-0005).
 """
 
@@ -50,6 +51,7 @@ class RerankNode(BaseNode):
                 None if answer.choice is None else shortlist[answer.choice].article_slug
             ),
             "rerank_confidence": answer.confidence,
+            "rerank_total": min(1.0, sum(answer.scores)),
         }
 
     @staticmethod

@@ -42,17 +42,19 @@ class Clarifications:
     def options(
         retrieved_chunks: list[dict[str, Any]], titles: dict[str, str], th: ClarificationThresholds
     ) -> list[dict[str, str]]:
-        """Chooses the pages a question offers: Jev's pages within
-        `option_margin` of its best, in Jev's order, each with a title."""
+        """Chooses the pages a question offers: the pages of Jev's top 5
+        whose yes/no score is within `option_margin` of the best, in Jev's
+        order, each with a title. A chunk Jev didn't score offers nothing."""
 
-        if not retrieved_chunks:
+        scored = [c for c in retrieved_chunks if c.get("option_score") is not None]
+        if not scored:
             return []
-        best = max(float(c["rerank_score"]) for c in retrieved_chunks)
+        best = max(float(c["option_score"]) for c in scored)
         options: list[dict[str, str]] = []
-        for c in retrieved_chunks:
+        for c in scored:
             slug = c["kb_slug"]
             # Rounded so a page exactly at the margin is offered.
-            if round(best - float(c["rerank_score"]), 9) > th.option_margin or slug not in titles:
+            if round(best - float(c["option_score"]), 9) > th.option_margin or slug not in titles:
                 continue
             if all(o["slug"] != slug for o in options):
                 options.append({"slug": slug, "title": titles[slug]})

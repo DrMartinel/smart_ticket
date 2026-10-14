@@ -44,6 +44,7 @@ from ai_engine.graph.nodes.classify_category import node as classify_category_no
 from ai_engine.graph.nodes.classify_category.classifier import CategoryChoice
 from ai_engine.graph.ticket import TicketCategory
 from ai_engine.graph.nodes.rerank.reranker import Passage, RerankChoice
+from ai_engine.graph.nodes.score_options import node as score_options_node
 from ai_engine.graph.nodes.candidate_pool import links as links_module
 from ai_engine.graph.nodes.retrieve import bm25 as bm25_module
 from ai_engine.graph.nodes.retrieve import node as retrieve_node
@@ -198,6 +199,22 @@ class FakeReranker:
         scores = list(self._scores[: len(passages)])
         choice = None if self._chooses_none or not scores else scores.index(max(scores))
         return RerankChoice(scores=scores, choice=choice, confidence=self._confidence)
+
+
+class FakeOptionScorer:
+    """Jev's yes/no score per passage: `scores` consumed positionally, or
+    raises `error`. Records (subject, body, passages)."""
+
+    def __init__(self, scores: list[float] | None = None, error: Exception | None = None):
+        self.calls: list[tuple[str, str, list[Passage]]] = []
+        self._scores = scores if scores is not None else []
+        self._error = error
+
+    def score(self, subject: str, body: str, passages: list[Passage]) -> list[float]:
+        self.calls.append((subject, body, list(passages)))
+        if self._error is not None:
+            raise self._error
+        return list(self._scores[: len(passages)])
 
 
 class FakeClassifier:
@@ -372,9 +389,12 @@ def _make_state(**overrides) -> TriageState:
         "draft_embedding": [0.2],
     }
     state.update(overrides)
-    # Jev chose its top chunk's page, unless the test says otherwise.
+    # Jev chose its top chunk's page, and its passages' total is the chunks'
+    # scores, unless the test says otherwise.
     if state.get("reranked") and "rerank_choice" not in overrides:
         state["rerank_choice"] = state["reranked"][0].article_slug
+    if state.get("reranked") and "rerank_total" not in overrides:
+        state["rerank_total"] = min(1.0, sum(c.rerank_score or 0.0 for c in state["reranked"]))
     return TriageState(**state)
 
 
@@ -409,6 +429,11 @@ def fake_reranker():
 @pytest.fixture
 def fake_classifier():
     return FakeClassifier
+
+
+@pytest.fixture
+def fake_option_scorer():
+    return FakeOptionScorer
 
 
 @pytest.fixture
@@ -472,6 +497,17 @@ def use_reranker(monkeypatch):
 
     def use(fake):
         monkeypatch.setattr(rerank_node, "reranker", fake)
+        return fake
+
+    return use
+
+
+@pytest.fixture
+def use_option_scorer(monkeypatch):
+    """Install a fake Jev option scorer (ADR-0023)."""
+
+    def use(fake):
+        monkeypatch.setattr(score_options_node, "option_scorer", fake)
         return fake
 
     return use

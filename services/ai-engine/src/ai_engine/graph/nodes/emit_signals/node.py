@@ -35,6 +35,7 @@ class EmitSignalsNode(BaseNode):
                 pool_size=len(state.pool),
                 rerank_confidence=state.rerank_confidence,
                 rerank_chose_none=bool(reranked) and state.rerank_choice is None,
+                rerank_total=state.rerank_total,
             ),
             generation=GenerationSignals(
                 quote_applicable=state.quote_applicable,

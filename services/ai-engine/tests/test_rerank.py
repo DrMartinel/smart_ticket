@@ -142,6 +142,18 @@ def test_equal_jev_scores_keep_the_cross_encoder_order(jev, make_state, monkeypa
     assert [r.chunk_id for r in out["reranked"]] == [UUID(int=i) for i in (2, 1, 3, 4)]
 
 
+def test_rerank_total_is_the_probability_jev_gives_every_passage(jev, make_state, monkeypatch):
+    """Checks that the total covers the whole shortlist, not just the top 5
+    handed on: it is what the floor reads."""
+
+    monkeypatch.setattr(settings, "rerank_top_n", 1)
+    jev(scores=[0.25, 0.21, 0.18])
+
+    out = rerank(make_state(pool=[_ranked(1, 0.9), _ranked(2, 0.8), _ranked(3, 0.7)]))
+
+    assert out["rerank_total"] == pytest.approx(0.64)
+
+
 def test_jevs_choice_and_confidence_are_kept(jev, make_state):
     jev(scores=[0.1, 0.85], confidence=0.8)
 

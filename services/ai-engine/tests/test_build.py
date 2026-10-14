@@ -20,6 +20,7 @@ from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome, inj
 from ai_engine.graph.state import RankedChunk
 from ai_engine.graph.nodes.rerank.node import RerankNode
 from ai_engine.graph.nodes.retrieve.node import HybridRetrieveNode
+from ai_engine.graph.nodes.score_options.node import ScoreOptionsNode
 from ai_engine.graph.nodes.validate import ValidateNode
 
 
@@ -104,7 +105,10 @@ def test_safety_critical_routes():
     assert ("candidate_pool", "rerank") in edges
     assert ("candidate_pool", "select_fewshots") not in edges
     assert ("validate", "infer") not in edges
-    assert ("validate", "emit_signals") in edges
+    # Jev scores a clarify's options after the validator, never before it.
+    assert ("validate", "score_options") in edges
+    assert ("validate", "emit_signals") not in edges
+    assert ("score_options", "emit_signals") in edges
     assert ("emit_signals", "terminal") in edges
 
 
@@ -123,6 +127,7 @@ def test_graph_has_exactly_the_expected_nodes():
         SelectFewshotsNode.name,
         InferNode.name,
         ValidateNode.name,
+        ScoreOptionsNode.name,
         EmitSignalsNode.name,
         Terminal.name,
     }
@@ -137,6 +142,7 @@ def test_graph_has_exactly_the_expected_nodes():
         "select_fewshots",
         "infer",
         "validate",
+        "score_options",
         "emit_signals",
         "terminal",
     }
@@ -160,7 +166,8 @@ def test_compiled_edges_are_exactly_the_triage_topology():
         ("classify_category", "select_fewshots"),
         ("select_fewshots", "infer"),
         ("infer", "validate"),
-        ("validate", "emit_signals"),
+        ("validate", "score_options"),
+        ("score_options", "emit_signals"),
         ("emit_signals", "terminal"),
         ("terminal", "__end__"),
     }

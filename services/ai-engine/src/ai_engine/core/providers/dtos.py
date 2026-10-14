@@ -98,6 +98,13 @@ class JevRequest(BaseModel):
     questions: dict[str, Any]
 
 
+class JevNoulAnswer(BaseModel):
+    """A yes/no question's answer: the probability it is true."""
+
+    type: Literal["noul"]
+    noul: float = Field(ge=0, le=1)
+
+
 class JevChoiceAnswer(BaseModel):
     """A choice question's answer: the chosen option, a probability per
     option, and a confidence that is low when the probability is spread."""
@@ -108,6 +115,9 @@ class JevChoiceAnswer(BaseModel):
     probabilities: dict[str, Annotated[float, Field(ge=0, le=1)]]
 
 
+type JevAnswer = Annotated[JevNoulAnswer | JevChoiceAnswer, Field(discriminator="type")]
+
+
 class JevReply(BaseModel):
     model: str
-    answers: dict[str, JevChoiceAnswer]
+    answers: dict[str, JevAnswer]

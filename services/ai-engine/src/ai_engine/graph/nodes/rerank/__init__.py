@@ -1,1 +1,1 @@
-"""The rerank stage: Jev scores the shortlist (ADR-0015)."""
+"""The rerank stage: Jev ranks the shortlist with one choice question (ADR-0026)."""

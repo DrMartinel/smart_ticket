@@ -12,9 +12,9 @@ Triage topology, load-bearing properties:
 
 1. No node writes to a business database. Nodes only read (via `ai_engine_ro`,
    ADR-0004) or compute; core-api makes every decision.
-2. Refuse-before-LLM: a top rerank score below the floor routes straight
-   to `EmitSignalsNode`, never reaching `InferNode`. The score is Jev's, the
-   final reranker's (ADR-0015). ClassifyCategoryNode makes that split, after
+2. Refuse-before-LLM: Jev choosing no passage, or a passages' total below
+   the floor, routes straight to `EmitSignalsNode`, never reaching
+   `InferNode`. The score is Jev's, the final reranker's (ADR-0026). ClassifyCategoryNode makes that split, after
    Jev has chosen the category, so every ticket past the injection guard
    gets one (ADR-0017).
 3. The graph is acyclic: every node runs at most once per ticket. A proposal
@@ -36,6 +36,7 @@ from ai_engine.graph.nodes.infer.node import infer
 from ai_engine.graph.nodes.injection import InjectionOutcome, injection
 from ai_engine.graph.nodes.rerank.node import rerank
 from ai_engine.graph.nodes.retrieve.node import hybrid_retrieve
+from ai_engine.graph.nodes.score_options.node import score_options
 from ai_engine.graph.nodes.validate import validate
 
 _triage = GraphBuilder(entry=injection)
@@ -55,7 +56,8 @@ _triage.route(classify_category, ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR, s
 
 _triage.route(select_fewshots, SingleExit.DONE, infer)
 _triage.route(infer, SingleExit.DONE, validate)
-_triage.route(validate, SingleExit.DONE, emit_signals)
+_triage.route(validate, SingleExit.DONE, score_options)
+_triage.route(score_options, SingleExit.DONE, emit_signals)
 
 _triage.route(emit_signals, SingleExit.DONE, _triage.end)
 triage_graph = _triage.compile(TriageState)

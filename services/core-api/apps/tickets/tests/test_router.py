@@ -87,6 +87,7 @@ def good_signals(**overrides) -> TrustSignals:
             rerank_margin=0.3,
             docs_above_floor=3,
             rerank_confidence=0.95,
+            rerank_total=0.95,
         ),
         generation=GenerationSignals(
             quote_match_ratio=1.0,
@@ -214,9 +215,27 @@ def test_insufficient_context_is_retrieval_floor():
 
 
 def test_below_retrieval_floor():
-    signals = good_signals(**{"retrieval.rerank_top1": 0.1})
+    signals = good_signals(**{"retrieval.rerank_total": 0.2})
     d = Router(TH).route(signals, auto_reply_proposal(), kb())
     assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
+
+
+def test_a_split_choice_with_a_high_total_clears_the_floor():
+    """Checks that the floor reads Jev's passages' total, not its top-1:
+    an ambiguous ticket splits probability between readings."""
+
+    signals = good_signals(**{"retrieval.rerank_top1": 0.25, "retrieval.rerank_total": 0.8})
+    d = Router(TH).route(signals, clarify_proposal(), kb())
+    assert d.reason_code is not ReasonCode.RETRIEVAL_FLOOR
+
+
+def test_a_total_left_at_its_default_is_below_the_floor():
+    """Checks that signals from a run that never reported Jev's total are refused."""
+
+    signals = good_signals()
+    signals.retrieval = RetrievalSignals(rerank_top1=0.9, rerank_margin=0.3, docs_above_floor=3)
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
 
 
@@ -276,7 +295,9 @@ def test_rerank_signals_left_at_their_defaults_never_auto_reply():
     older ai-engine, or a degraded run) do not auto-reply."""
 
     signals = good_signals()
-    signals.retrieval = RetrievalSignals(rerank_top1=0.9, rerank_margin=0.3, docs_above_floor=3)
+    signals.retrieval = RetrievalSignals(
+        rerank_top1=0.9, rerank_margin=0.3, docs_above_floor=3, rerank_total=0.95
+    )
     signals.generation = GenerationSignals(
         quote_match_ratio=1.0, quote_source_in_topk=True, negation_consistent=True
     )
@@ -448,7 +469,7 @@ def test_refuse_before_llm_reports_retrieval_floor_not_schema_invalid():
     only the reason_code changed; but reason_code is what spec §4.1's
     "which reason sent the most tickets to review" is built on, and a
     gate that misreports its cause makes that dashboard quietly wrong."""
-    signals = good_signals(**{"retrieval.rerank_top1": 0.10})
+    signals = good_signals(**{"retrieval.rerank_total": 0.10})
     d = Router(TH).route(signals, None, None)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR

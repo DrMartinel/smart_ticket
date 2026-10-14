@@ -41,9 +41,9 @@ VPN_ADMIN = "client-vpn-admin.troubleshooting"
 # Jev's top 5 as ai-engine reports them, in Jev's order: two pages within
 # 0.1 of the best, an administrator page well below it.
 CLOSE_TOP5 = [
-    {"kb_slug": VPN, "rerank_score": 0.95},
-    {"kb_slug": WORKSPACES, "rerank_score": 0.90},
-    {"kb_slug": VPN_ADMIN, "rerank_score": 0.40},
+    {"kb_slug": VPN, "option_score": 0.95},
+    {"kb_slug": WORKSPACES, "option_score": 0.90},
+    {"kb_slug": VPN_ADMIN, "option_score": 0.40},
 ]
 
 
@@ -65,7 +65,9 @@ def _clarify_response(request_id: str, top5=CLOSE_TOP5) -> AIRunResponse:
             }
         ),
         signals=EngineSignals(
-            retrieval=RetrievalSignals(rerank_top1=0.9, rerank_margin=0.0, docs_above_floor=2),
+            retrieval=RetrievalSignals(
+                rerank_top1=0.9, rerank_margin=0.0, docs_above_floor=2, rerank_total=0.95
+            ),
             generation=GenerationSignals(
                 quote_match_ratio=0.0,
                 quote_source_in_topk=False,
@@ -177,7 +179,7 @@ class TestAsking:
         monkeypatch.setattr(
             Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique")
         )
-        far = [{"kb_slug": VPN, "rerank_score": 0.95}, {"kb_slug": WORKSPACES, "rerank_score": 0.5}]
+        far = [{"kb_slug": VPN, "option_score": 0.95}, {"kb_slug": WORKSPACES, "option_score": 0.5}]
         monkeypatch.setattr(
             ai_engine, "analyze", lambda masked, request_id: _clarify_response(request_id, far)
         )
@@ -372,17 +374,34 @@ def _th(margin: float, max_options: int) -> ClarificationThresholds:
 
 
 class TestClarifyOptions:
-    """Checks which pages `Clarifications.options` offers from Jev's ranking."""
+    """Checks which pages `Clarifications.options` offers from Jev's yes/no scores."""
 
     TITLES = {"a": "Page A", "b": "Page B", "c": "Page C", "d": "Page D", "e": "Page E"}
 
+    def test_chunks_jev_did_not_score_offer_nothing(self):
+        """Checks that a run whose options were never scored asks no question."""
+        chunks = [{"kb_slug": "a", "rerank_score": 0.9}, {"kb_slug": "b", "rerank_score": 0.9}]
+        assert Clarifications.options(chunks, self.TITLES, _th(0.1, 5)) == []
+
+    def test_choice_probabilities_do_not_pick_the_buttons(self):
+        """Checks that the yes/no scores pick the buttons, not Jev's choice
+        probabilities: one page with almost all the choice still leaves two."""
+        chunks = [
+            {"kb_slug": "a", "rerank_score": 0.91, "option_score": 0.97},
+            {"kb_slug": "b", "rerank_score": 0.05, "option_score": 0.90},
+        ]
+        assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
+            "a",
+            "b",
+        ]
+
     def test_pages_within_the_margin_of_jevs_best_in_jevs_order(self):
         chunks = [
-            {"kb_slug": "a", "rerank_score": 0.97},
-            {"kb_slug": "b", "rerank_score": 0.96},
-            {"kb_slug": "c", "rerank_score": 0.87},
-            {"kb_slug": "d", "rerank_score": 0.79},
-            {"kb_slug": "e", "rerank_score": 0.76},
+            {"kb_slug": "a", "option_score": 0.97},
+            {"kb_slug": "b", "option_score": 0.96},
+            {"kb_slug": "c", "option_score": 0.87},
+            {"kb_slug": "d", "option_score": 0.79},
+            {"kb_slug": "e", "option_score": 0.76},
         ]
         assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
             "a",
@@ -393,8 +412,8 @@ class TestClarifyOptions:
     @pytest.mark.parametrize("best, at_margin", [(0.97, 0.87), (0.8, 0.7), (0.3, 0.2)])
     def test_a_page_exactly_at_the_margin_is_offered(self, best, at_margin):
         chunks = [
-            {"kb_slug": "a", "rerank_score": best},
-            {"kb_slug": "b", "rerank_score": at_margin},
+            {"kb_slug": "a", "option_score": best},
+            {"kb_slug": "b", "option_score": at_margin},
         ]
         assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
             "a",
@@ -402,14 +421,14 @@ class TestClarifyOptions:
         ]
 
     def test_capped_at_max_options(self):
-        chunks = [{"kb_slug": s, "rerank_score": 0.9} for s in "abcde"]
+        chunks = [{"kb_slug": s, "option_score": 0.9} for s in "abcde"]
         assert len(Clarifications.options(chunks, self.TITLES, _th(0.1, 4))) == 4
 
     def test_one_button_per_page(self):
         chunks = [
-            {"kb_slug": "a", "rerank_score": 0.9},
-            {"kb_slug": "a", "rerank_score": 0.88},
-            {"kb_slug": "b", "rerank_score": 0.85},
+            {"kb_slug": "a", "option_score": 0.9},
+            {"kb_slug": "a", "option_score": 0.88},
+            {"kb_slug": "b", "option_score": 0.85},
         ]
         assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
             "a",
@@ -417,7 +436,7 @@ class TestClarifyOptions:
         ]
 
     def test_an_inactive_page_is_never_offered(self):
-        chunks = [{"kb_slug": "a", "rerank_score": 0.9}, {"kb_slug": "gone", "rerank_score": 0.9}]
+        chunks = [{"kb_slug": "a", "option_score": 0.9}, {"kb_slug": "gone", "option_score": 0.9}]
         assert [o["slug"] for o in Clarifications.options(chunks, self.TITLES, _th(0.1, 5))] == [
             "a"
         ]

@@ -104,6 +104,23 @@ def test_jev_choosing_no_passage_is_below_the_floor(jev, make_state):
     assert classify_category.decide(state) is ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
 
 
+def test_a_split_choice_with_a_high_total_reaches_the_llm(jev, make_state):
+    """Checks that the floor reads Jev's passages' total, not its top-1: an
+    ambiguous ticket spreads probability between readings (ADR-0026)."""
+
+    jev()
+    state = make_state(reranked=[_chunk(0.25)], rerank_total=0.8, retrieval_floor=0.6)
+
+    assert classify_category.decide(state) is ClassifyCategoryOutcome.EVIDENCE_ABOVE_FLOOR
+
+
+def test_a_total_below_the_floor_is_refused_even_with_a_choice(jev, make_state):
+    jev()
+    state = make_state(reranked=[_chunk(0.5)], rerank_total=0.55, retrieval_floor=0.6)
+
+    assert classify_category.decide(state) is ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
+
+
 def test_no_reranked_chunks_asks_with_no_page(jev, make_state):
     fake = jev()
 
