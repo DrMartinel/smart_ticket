@@ -938,3 +938,28 @@
 {"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"pool_size","value":29.0,"n":500,"labels":{"stat":"median"}}
 {"run":"2026-10-12-full-hyde-entity-graph-top5-one-per-page","metric":"pool_size","value":108.0,"n":500,"labels":{"stat":"max"}}
 {"run":"2026-10-14-probe-floor-total-option-scores","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-14-full-category-v2","metric":"category_f1","value":0.92,"labels":{"category":"access"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-14-full-category-v2","metric":"category_f1","value":0.9047619047619048,"labels":{"category":"hardware"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-14-full-category-v2","metric":"category_f1","value":0.9333333333333335,"labels":{"category":"network"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-14-full-category-v2","metric":"category_f1","value":1.0,"labels":{"category":"other"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-14-full-category-v2","metric":"category_f1","value":0.9468085106382979,"labels":{"category":"security"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-14-full-category-v2","metric":"category_f1","value":0.9032258064516129,"labels":{"category":"software"},"gate":{"op":">=","value":0.85,"basis":"spec §12.3, every category"}}
+{"run":"2026-10-14-full-category-v2","metric":"injection_recall","value":1.0,"n":15,"gate":{"op":">=","value":1.0,"basis":"baseline.json, no drop allowed"}}
+{"run":"2026-10-14-full-category-v2","metric":"masking_pii_level_accuracy","value":1.0,"n":39}
+{"run":"2026-10-14-full-category-v2","metric":"masking_overmask_rate","value":0.0,"n":1956}
+{"run":"2026-10-14-full-category-v2","metric":"masking_consistency","value":1.0,"n":652}
+{"run":"2026-10-14-full-category-v2","metric":"quote_validation_precision","value":1.0,"n":7,"gate":{"op":">=","value":0.95,"basis":"spec §12.2, test_quote_validation"}}
+{"run":"2026-10-14-full-category-v2","metric":"refusal_rate","value":1.0,"n":23,"gate":{"op":">=","value":0.9,"basis":"spec §12.2, test_refusal"}}
+{"run":"2026-10-14-full-category-v2","metric":"retrieval_recall_at_3","value":0.91,"n":500}
+{"run":"2026-10-14-full-category-v2","metric":"retrieval_mrr","value":0.8296666666666667,"n":500}
+{"run":"2026-10-14-full-category-v2","metric":"retrieval_recall_at_3_strict","value":0.846,"n":500}
+{"run":"2026-10-14-full-category-v2","metric":"retrieval_recall_at_5","value":0.924,"n":500,"gate":{"op":">=","value":0.9,"basis":"spec §12.2 (recall@5), test_retrieval"}}
+{"run":"2026-10-14-full-category-v2","metric":"retrieval_errors","value":0.0,"n":500}
+{"run":"2026-10-14-full-category-v2","metric":"gold_use","value":306.0,"labels":{"outcome":"quoted"}}
+{"run":"2026-10-14-full-category-v2","metric":"gold_use","value":0.0,"labels":{"outcome":"quote_missed"}}
+{"run":"2026-10-14-full-category-v2","metric":"gold_use","value":16.0,"labels":{"outcome":"refused"}}
+{"run":"2026-10-14-full-category-v2","metric":"gold_use","value":133.0,"labels":{"outcome":"other"}}
+{"run":"2026-10-14-full-category-v2","metric":"pool_size","value":30.0,"n":500,"labels":{"stat":"median"}}
+{"run":"2026-10-14-full-category-v2","metric":"pool_size","value":108.0,"n":500,"labels":{"stat":"max"}}
+{"run":"2026-10-14-full-category-v2","metric":"branch_accuracy","value":0.4391371340523883,"n":649}
+{"run":"2026-10-14-full-category-v2","metric":"auto_reply_precision","value":0.9916666666666667,"n":120,"gate":{"op":">=","value":0.95,"basis":"spec §12.3, absolute"}}

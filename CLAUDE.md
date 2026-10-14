@@ -284,14 +284,14 @@ copies that directory — a new SQL file that isn't copied fails at container st
   and medium-risk page is approved (2,892 of 3,542, ADR-0027, a departure
   from spec §14 P4); high-risk pages are not.
 - **Eval gates** ([`evals/HISTORY.md`](evals/HISTORY.md)): the last full run
-  (2026-10-04 (8), `propose.v8`, Jev's category) fails one gate,
-  **auto-reply precision 0.944** (34/36): g151 and g155, labeled `clarify`,
-  are auto-replied with every check passing. Every other gate passes:
-  retrieval recall@3 0.917 (still missed g011, g012, g048, g055, g056, TODO
-  item 9), per-category F1 ≥ 0.93 on Jev's choice, refusal and injection
-  1.00; branch accuracy 0.906. That suite now scores Jev's choice, which
-  always names a category, so it no longer credits an `insufficient_context`
-  refusal on an out-of-KB ticket; the refusal suite still does. Record
+  (2026-10-14 (2), `rerank_choice.v1`, `category.v2`) passes every gate it
+  measured: retrieval recall@5 **0.924**, auto-reply precision **0.992**
+  (119/120), per-category F1 ≥ 0.90 on Jev's choice, refusal and injection
+  1.00. Its end-to-end suite is incomplete (DeepSeek's balance ran out for
+  g519 on); branch accuracy 0.55 on the tickets that ran, mostly
+  auto-replies Jev's confidence bar sends to a person. `category.v2` was
+  written against the golden set, so it still needs a held-out check. 40
+  drafted tickets carry a reviewed category (`evals/golden/SCHEMA.md`). Record
   every full run in `evals/HISTORY.md`; runs before the 2026-10-01 baseline
   are in `evals/HISTORY-archive.md`, read-only.
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`

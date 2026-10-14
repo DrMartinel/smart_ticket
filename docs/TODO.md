@@ -354,14 +354,15 @@ The ADR is accepted. Ambiguous tickets reach `clarify` in the evals without lowe
 
 ## 11. Accept or reject ADR-0017 (Jev chooses the category)
 
-**Status (2026-10-04):** built, [ADR-0017](adr/0017-jev-classifies-the-category.md) (Proposed): `ClassifyCategoryNode` asks Jev `category.v1`, `EngineSignals.classification` carries the answer, and `router.py` routes clarify and auto-route on Jev's choice, sending it to a human as `category_low_confidence` below `classification.min_confidence` (0.65 🔧). The LLM proposes no category (`propose.v8`).
+**Status (2026-10-14):** built, [ADR-0017](adr/0017-jev-classifies-the-category.md) (Proposed): `ClassifyCategoryNode` asks Jev `category.v2`, `EngineSignals.classification` carries the answer, and `router.py` routes clarify and auto-route on Jev's choice, sending it to a human as `category_low_confidence` below `classification.min_confidence` (0.65 🔧). The LLM proposes no category (`propose.v8`).
 
 **Priority:** High · **Spec:** §8, §12.2 · **ADR:** 0017
 
 ### Work
 
 - ~~A full eval run with it built~~ Done 2026-10-04 (8): category F1 passes on Jev's choice (every category ≥ 0.93); auto-reply precision fails (0.944), see that entry's follow-ups.
-- Re-measure on tickets `category.v1` was not written against (a held-out set or shadow data); the probe's 80/83 was measured on the set the question was tuned on.
+- ~~A full run on the drafted tickets~~ Done 2026-10-14 (2): `category.v1` failed on them (security 0.63, guide categories); 40 reviewed relabels and `category.v2` pass every category (≥ 0.90).
+- Re-measure on tickets `category.v2` was not written against (a held-out set or shadow data); it was written against the 523 classification tickets.
 - Choose `classification.min_confidence` on shadow data, not the probe's 83 tickets.
 - ~~Re-decide `category_consistent`~~ Removed 2026-10-04: it was true for every proposal that parsed, so its route gate never fired and its trust weight moved into the intercept.
 

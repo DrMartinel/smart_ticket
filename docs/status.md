@@ -15,7 +15,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | Spec phases complete | **P0, P1** |
 | Phase in progress | **P2** — calibration scripts ready, awaiting ≥500 shadow pairs |
 | Unit tests | **503 passing** (247 core-api, 256 ai-engine), 2026-10-04 |
-| Eval suites | 9 files, 26 tests. Last full run (2026-10-04 (8), `propose.v8`, Jev's category): every gate passes but auto-reply precision, 0.944 (34/36; g151 and g155 auto-replied instead of clarified). See [`evals/HISTORY.md`](../evals/HISTORY.md) |
+| Eval suites | 9 files, 26 tests. Last full run (2026-10-14 (2), `rerank_choice.v1`, `category.v2`): every gate it measured passes (recall@5 0.924, auto-reply precision 0.992, per-category F1 ≥ 0.90); end-to-end incomplete, DeepSeek's balance ran out for its last 132 tickets. See [`evals/HISTORY.md`](../evals/HISTORY.md) |
 | Masking + router branch coverage | **100%** (`make coverage`) — the spec §14 P0 exit condition |
 | Operating mode | `SHADOW_MODE=true` — router decides, humans still handle everything |
 
@@ -40,7 +40,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §6.3 | Cross-encoder shortlister + link expansion | ✅ | bge-reranker-v2-m3 on vLLM (`SHORTLIST_PROVIDER=vllm`; `lexical`, for CI, folds Vietnamese diacritics), scoring against the ticket. Each of the 10 candidate pages brings its best-fused chunk and its 2 chunks nearest the drafted answer; the pages of its top 3 seed link expansion, and it picks Jev's shortlist of 15. Associations come from `kb_article_associations`, one source at a time (`ASSOCIATION_SOURCE`, ADR-0018): **`entity_graph` shipped** since 2026-10-12 (an offline DeepSeek build of problem-to-fix pointers; ties `authored_link` under HyDE, 0.816 vs 0.810 recall@3, at half the batch). Since 2026-10-13 the build writes its rows itself (ADR-0025, `load_associations` removed): unit-tested, not yet run against the Dockerized Postgres |
 | §6.3 | Drafted answer (HyDE, ADR-0021, ADR-0022) | ⚠️ DeepSeek-measured | `draft_answer` writes the documentation passage that would answer the ticket; retrieval fuses vector search on the ticket with BM25 and vector search on the draft (no BM25 on the ticket, ADR-0020). Production drafts on DeepSeek (masked ticket); the template ships `vllm`. Recall@5 0.906-0.914 on 500 tickets with DeepSeek drafting, 0.816 recall@3 with Qwen. A failed or malformed draft is a 500 → HITL (about 1 in 350) |
 | §6.3 | Reranker: Jev, hosted (ADR-0015, ADR-0026 Proposed) | ⚠️ Uncalibrated, no eval run | One choice question over the shortlist plus `none` (`rerank_choice.v1`); an auto-reply must cite Jev's choice at confidence ≥ 0.9 🔧 ([TODO](TODO.md) item 13). Its top 5 go on, one page per slot (`RERANK_TOP_N_PER_PAGE=1`). `retrieval.floor` 0.30 is on its scale but chosen from the golden set; see [Gap 3](#gap-3--retrievalfloor-is-uncalibrated). Its API failed four times on 2026-10-04 and three times with TLS errors on 2026-10-11/12, each a ticket for a human; its credit ran out twice under eval load |
-| §8 | Category: Jev's choice (ADR-0017, Proposed) | ⚠️ No full run | `classify_category` asks Jev one choice question; the router routes on it, below `classification.min_confidence` to a human. Classification suite 80/83 |
+| §8 | Category: Jev's choice (ADR-0017, Proposed) | ✅ Full run | `classify_category` asks Jev one choice question (`category.v2`); the router routes on it, below `classification.min_confidence` to a human. Per-category F1 ≥ 0.90 on 523 tickets (2026-10-14 (2)), on the set `category.v2` was written against |
 | §6.4 | Validator (quote → fuzzy → in-top-k → negation) | ✅ | Negation check verified catching a real `negation_mismatch` live; also checks a clarify proposal's options were shown |
 | §7 | Trust scorer, outside ai-engine | ⚠️ Uncalibrated | Works, but coefficients are a hand-set prior — see [Gap 2](#gap-2-trust-score-is-an-uncalibrated-prior) |
 | §8 | Switch router — pure `Router`, hard gates ordered | ✅ | Every branch unit-tested with no DB/LLM/network |
@@ -83,7 +83,7 @@ This is the expected P1 state, not a defect. `evals/calibration/fit_trust_score.
 
 Every run shortlists, then reranks (ADR-0015): the `bge-reranker-v2-m3` cross-encoder on vllm-rerank (`SHORTLIST_PROVIDER=vllm`; `lexical` in CI) shortlists the candidates plus link-expanded chunks, and Jev, the reranker, ranks its top 15 with one choice question (ADR-0026). `retrieval.floor = 0.30` is on Jev's scale (🔧): chosen from golden-set data, not fitted. The trust coefficients were hand-set for the cross-encoder's scores, not Jev's. Treat refusal and trust behaviour as uncalibrated.
 
-Since ADR-0017 (Proposed, 2026-10-04) Jev also chooses the ticket's category, and auto-route and clarify act on it below `classification.min_confidence` = 0.65 (🔧, from one probe on the golden set) only via a human. Built and unit-tested; no full eval run yet ([TODO.md](TODO.md) item 11).
+Since ADR-0017 (Proposed, 2026-10-04) Jev also chooses the ticket's category, and auto-route and clarify act on it below `classification.min_confidence` = 0.65 (🔧, from one probe on the golden set) only via a human. Full run 2026-10-14 (2) on `category.v2`: every category ≥ 0.90; a held-out check is still owed ([TODO.md](TODO.md) item 11).
 
 See [TODO.md](TODO.md) item 4.
 
@@ -96,8 +96,8 @@ See [TODO.md](TODO.md) item 4.
 Full runs are in [`evals/HISTORY.md`](../evals/HISTORY.md); runs before the 2026-10-01 baseline are in [`evals/HISTORY-archive.md`](../evals/HISTORY-archive.md).
 
 - **Retrieval** is gated on **recall@5** since 2026-10-12 (spec §12.2; was recall@3), on the 500-ticket set: **0.906-0.914** with HyDE (DeepSeek drafting), the entity graph and one page per slot (`evals/HISTORY.md` 2026-10-12 (5)); recall@3 0.872-0.876. On the original 60, 0.917 throughout; still missed g012, g048, g055, g056 ([`TODO.md`](TODO.md) item 9). The gate change awaits review by someone other than its author (rule 9). `baselines/baseline.json` still holds old sample numbers and `report.py --compare` still reads recall@3.
-- **Auto-reply precision** reached 1.00 (27/27) with the clarify branch (2026-10-04 (4)), then fell to **0.944** (34/36) in (8): the underspecified g151 and g155 are auto-replied again. Whether `classify.v7` or `propose.v8` (no category section) caused it is not yet separated (HISTORY (8) follow-ups).
-- **Per-category F1** passes on Jev's choice (ADR-0017), every category ≥ 0.93; it failed on the LLM's `security` (0.82) in (4).
+- **Auto-reply precision** is **0.992** (119/120, 2026-10-14 (2)) over the ADR-0027 approvals; the false one is g156, labelled `clarify`. It was 0.944 (34/36) on 2026-10-04 (8).
+- **Per-category F1** passes on Jev's choice (ADR-0017) with `category.v2`, every category ≥ 0.90 on 523 tickets (2026-10-14 (2)); on `category.v1` with the guides' categories the drafted tickets failed it (security 0.63).
 
 **Do not lower a floor or drop a category to make CI green** — per-category F1 exists precisely so a rare category cannot hide behind a healthy average.
 

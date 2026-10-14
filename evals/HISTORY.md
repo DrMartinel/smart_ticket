@@ -96,6 +96,81 @@ tail -1 evals/history/runs.jsonl | python3 -m json.tool
 ---
 
 
+## 2026-10-14 (2): first full run on Jev's choice reranker; category.v2 and reviewed drafted categories
+
+**Verdict:** retrieval passes at its best yet (recall@5 **0.924**), auto-reply
+precision passes (**0.992**, 119/120), and per-category F1 passes on
+`category.v2` (min **0.90**). The run is in two parts, and end-to-end is
+incomplete: DeepSeek's balance ran out for its last 132 tickets (g519 on).
+
+| Configuration | |
+|---|---|
+| Code | Part 1, every suite: `6e067f9` + the uncommitted trust-score feature (`a24aafd`). Part 2, classification and end-to-end again: the same + `fc97af6`, `3dc2723`, `c92768b` uncommitted at the time |
+| Prompts | `propose.v9`, `hyde_draft.v1`, `rerank_choice.v1`, `rerank_resolves.v1` (buttons); category `category.v1` (part 1), **`category.v2`** (part 2) |
+| Models | proposal and draft DeepSeek (`deepseek-flash`), embed bge-m3, shortlister bge-reranker-v2-m3, Jev `jev-1.13.0`, `RERANK_POOL` 15, `RERANK_TOP_N` 5 |
+| KB | demo_kb manifest `38e43266e3cb`, 3,542 pages, 2,892 approved (ADR-0027) |
+| Golden set | part 1: before the category review; part 2: `7ec06485d46f`, 652 cases, 40 drafted categories reviewed |
+| Thresholds | `retrieval.floor` 0.6 (Jev's total) · `min_rerank_confidence` 0.9 · `t_auto` 0.88 · `t_route` 0.72 · `classification.min_confidence` 0.65 |
+
+| Metric | Value | Gate | Previous (2026-10-04 (8)) |
+|---|---|---|---|
+| Retrieval recall@5 (500) | **0.924**, 0 errors | >= 0.90 | 0.900 (2026-10-12, probe) |
+| Retrieval recall@3 · strict · MRR | 0.910 · 0.846 · 0.830 | reported only | 0.917 (60 tickets) |
+| Per-category F1, part 1 (`category.v1`, old labels, 523) | access 0.82 · hardware 0.79 · network 0.76 · other 1.00 · **security 0.63** · software 0.75 | >= 0.85 each ❌ | ≥ 0.93 (83 authored tickets) |
+| Per-category F1, part 2 (`category.v2`, reviewed labels, 523) | access 0.92 · hardware 0.90 · network 0.93 · other 1.00 · security 0.95 · software 0.90, 0 errors | >= 0.85 each ✅ | |
+| Auto-reply precision (part 2) | **0.992** (119/120) | >= 0.95 ✅ | 0.944 (34/36) |
+| Branch accuracy (part 2) | 0.439 (649, 132 errors); 0.551 on the 517 that ran | reported only | 0.906 (171) |
+| Refusal · injection · quote validation | 1.00 (23) · 1.00 (15) · 1.00 (7) | ✅ | the same |
+| Masking: accuracy · over-masking · consistency | 1.00 · 0 · 1.00 | reported only | the same |
+
+Durations: part 1 2h06m (7,566 s), part 2 1h47m (6,416 s).
+
+### Findings
+
+**1. Part 1's end-to-end suite crashed on one 500** (DeepSeek returned
+malformed JSON for a draft), with no score. Classification and end-to-end
+now count a 5xx as a miss, as retrieval does (`fc97af6`).
+
+**2. Part 1's F1 drop was the labels and the question, not a regression.**
+It was the first full classification run on the 440 drafted tickets, whose
+category came from their page's guide. On the 83 authored tickets Jev was
+right 0.92 of the time; on the drafted ones 0.73. The page title Jev sees
+was not the cause (with the gold page's title, +1.5 points). Two blind
+reviewer subagents per disagreement relabelled 62, owner-approved; the
+owner then ruled that operating a security service is `security`, which
+returned 22 (40 relabelled, SCHEMA.md). `category.v1` had no place for
+operating GuardDuty or Security Hub and pulled any ticket with an access
+error into `access`; `category.v2` covers both. Probe on the 523 (no page
+title): accuracy 0.825 (`category.v1`) → 0.922, security 0.62 → 0.94,
+software 0.78 → 0.90. `category.v2` was written against this set.
+
+**3. End-to-end misses are auto-replies sent to a person.** Of the 232
+mismatches among the 517 tickets that ran: `rerank_low_confidence` 95,
+`rerank_disagrees` 60, `schema_invalid` 17, `all_checks_passed` → hitl 15,
+`retrieval_below_floor` 13. ADR-0027 made 445 tickets expect an auto-reply;
+the 0.9 confidence bar (ADR-0026) keeps precision and costs recall. The
+one false auto-reply is g156 (labelled `clarify`).
+
+**4. DeepSeek returned 402 Insufficient Balance** from part 2's 1,042nd
+request on: 132 end-to-end tickets answered 500, as production would send
+them to a person. Classification ran before it and has no errors.
+
+**5. Probes the same day (not gate runs):** ReDE-RF (relevance feedback
+with Jev's yes/no on the first 10 fused pages, stored vectors averaged into
+a 4th search list) recovered 3 of the 33 tickets whose gold page misses the
+candidates into the top 5 (about +0.6 points of recall@5) and no second
+reading of an ambiguous ticket (2+ readings in the candidates 7/22 in every
+variant), at about 10 more Jev calls per ticket. Not taken. Three sampled
+drafts as an ambiguity signal: AUROC 0.63, no coverage gain. Not taken.
+
+### Follow-ups
+
+- Rerun end-to-end on g519–g652 once DeepSeek is topped up.
+- A held-out check of `category.v2` (shadow data): it was tuned on this set.
+- `schema_invalid` on 17 proposals (fields over 500 characters, missing fields).
+- The auto-reply confidence bar against shadow data: 155 of the misses are
+  Jev's gates, not the proposal.
+
 ## 2026-10-14 (1): the floor on Jev's total, buttons from per-page yes/no scores, probes
 
 Probes, not a gate run. Same stack as ADR-0026 (`rerank_choice.v1`, DeepSeek
