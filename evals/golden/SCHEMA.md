@@ -17,7 +17,7 @@
 }
 ```
 
-- `truth.category` — one of `TicketCategory` (core-api `infrastructure/dtos.py`), or omitted if not determinable (e.g. pure injection cases). For `kb_covered` it is the target article's category from `demo_kb/manifest.json`. Every `out_of_kb` case is `other`.
+- `truth.category` — one of `TicketCategory` (core-api `infrastructure/dtos.py`), or omitted if not determinable (e.g. pure injection cases). For `kb_covered` it is the target article's category from `demo_kb/manifest.json`, except a drafted ticket whose line in `kb_covered_drafted.jsonl` carries a reviewed `category`. Every `out_of_kb` case is `other`.
 - `truth.kb_slug` — the KB article slug that should answer this ticket, if any.
 - `truth.acceptable_kb_slugs` — optional, drafted tickets only: other pages that resolve the ticket as well as `kb_slug`. The retrieval suite counts a hit on any of them (gated `retrieval_recall_at_3`) and reports `retrieval_recall_at_3_strict` (gold page only) beside it. `expected_branch` still follows `kb_slug` alone.
 - `truth.clarify_slugs` — optional, `underspecified` tickets from g615 on: the pages that fix the ticket's different readings, the ones a clarifying question should offer. At least two.
@@ -82,6 +82,19 @@ were drafted none targeted an approved page; since ADR-0027 (2026-10-14)
 
 The drafted tickets carry the `kb_covered` tag, so the classification and
 end-to-end suites score them too, not only retrieval.
+
+**40 drafted tickets carry a reviewed category** (2026-10-14, approved by
+the owner). The manifest's category belongs to the guide, and a ticket can
+ask something else (an EC2 ticket about security groups is `network`).
+Reviewer subagents labelled all 440 blind (ticket text and the category
+definitions of `category.v1` only); where the first disagreed with the
+manifest, a second labelled the ticket blind. 60 took the category both
+reviewers chose, and 2 of 3 where all three answers differed moved
+(decided by Claude at the owner's request). The owner then ruled that
+setting up or operating a security service (GuardDuty, Security Hub, S3
+malware protection) is `security` (`category.v2`), so 22 of those moves
+were undone. The category is the `category` field of the ticket's line in
+`kb_covered_drafted.jsonl`; IDs, texts and branches did not change.
 
 **Acceptable pages were chosen by the reviewer subagents, not by people**
 (the user's decision, 2026-10-11): where another page resolves a ticket as

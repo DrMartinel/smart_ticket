@@ -1212,6 +1212,10 @@ def build() -> list[dict[str, Any]]:
             if d["slug"] in d["acceptable_slugs"]:
                 raise SystemExit(f"{d['slug']} lists itself as an acceptable page")
             truth = answered_by(d["slug"])
+            if "category" in d:
+                if d["category"] not in set(categories.values()):
+                    raise SystemExit(f"{d['slug']}: unknown category {d['category']!r}")
+                truth["category"] = d["category"]
             if d["acceptable_slugs"]:
                 truth["acceptable_kb_slugs"] = sorted(d["acceptable_slugs"])
             add(d["subject"], d["body"], truth, ["kb_covered", "drafted"])
