@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 import django
@@ -48,7 +49,9 @@ def _score_with_model(signals: TrustSignals, model: TrustModel) -> float:
     return 1.0 / (1.0 + np.exp(-z))
 
 
-def _collect(intent: str, verdict_field: str, model: TrustModel) -> tuple[list[float], list[int]]:
+def _collect(
+    intent: str, verdict_field: str, model: TrustModel, since: datetime | None
+) -> tuple[list[float], list[int]]:
     """Re-scores every case with `model` rather than trusting the
     `trust_score` value stored on each `ai_run` — those rows may span
     several model versions over time (whatever was active when each ran),
@@ -62,6 +65,8 @@ def _collect(intent: str, verdict_field: str, model: TrustModel) -> tuple[list[f
         .exclude(review_item__ai_run__isnull=True)
         .exclude(review_item__ai_run__trust_signals__isnull=True)
     )
+    if since is not None:
+        decisions = decisions.filter(review_item__ticket__created_at__gte=since)
     for decision in decisions.iterator():
         ai_run = decision.review_item.ai_run
         if ai_run is None:
@@ -107,14 +112,20 @@ def main() -> None:
         default=Path(__file__).resolve().parents[2]
         / "services/core-api/config/trust_model_v0.json",
     )
+    parser.add_argument(
+        "--since",
+        type=datetime.fromisoformat,
+        default=None,
+        help="only tickets created at or after this ISO time, e.g. the pilot start",
+    )
     args = parser.parse_args()
 
     with open(args.model) as f:
         model = json.load(f)
     print(f"scoring with model_version={model['model_version']!r} from {args.model}")
 
-    auto_scores, auto_labels = _collect("auto_reply", "kb_verdict", model)
-    route_scores, route_labels = _collect("route_to_team", "category_verdict", model)
+    auto_scores, auto_labels = _collect("auto_reply", "kb_verdict", model, args.since)
+    route_scores, route_labels = _collect("route_to_team", "category_verdict", model, args.since)
 
     print(f"auto_reply-eligible decisions: {len(auto_labels)} (positives={sum(auto_labels)})")
     print(f"route_to_team-eligible decisions: {len(route_labels)} (positives={sum(route_labels)})")

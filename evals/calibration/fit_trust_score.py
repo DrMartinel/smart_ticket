@@ -28,7 +28,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +46,7 @@ from apps.tickets.utils.trust_scorer import FEATURES, extract_features  # noqa: 
 SHADOW_MODE_MIN_N = 500  # spec §7.1 / §14 P1 exit condition
 
 
-def load_shadow_pairs() -> tuple[np.ndarray, np.ndarray, list[str]]:
+def load_shadow_pairs(since: datetime | None) -> tuple[np.ndarray, np.ndarray, list[str]]:
     """Returns (X, y, case_ids). y=1 means the human approved outright."""
 
     X: list[list[float]] = []
@@ -57,6 +57,8 @@ def load_shadow_pairs() -> tuple[np.ndarray, np.ndarray, list[str]]:
         .exclude(review_item__ai_run__isnull=True)
         .exclude(review_item__ai_run__trust_signals__isnull=True)
     )
+    if since is not None:
+        decisions = decisions.filter(review_item__ticket__created_at__gte=since)
     for decision in decisions.iterator():
         ai_run = decision.review_item.ai_run
         if ai_run is None:
@@ -77,6 +79,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--min-n", type=int, default=SHADOW_MODE_MIN_N)
     parser.add_argument(
+        "--since",
+        type=datetime.fromisoformat,
+        default=None,
+        help="only tickets created at or after this ISO time, e.g. the pilot start",
+    )
+    parser.add_argument(
         "--out",
         type=Path,
         default=Path(__file__).resolve().parents[2]
@@ -90,7 +98,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    X, y, _ids = load_shadow_pairs()
+    X, y, _ids = load_shadow_pairs(args.since)
     n = len(y)
     print(f"loaded {n} (signals, human_decision) pairs from review_decisions")
 
