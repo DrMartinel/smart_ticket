@@ -8,17 +8,16 @@ from __future__ import annotations
 
 from ninja import Router
 from ninja.errors import HttpError
-from ninja_jwt.authentication import JWTAuth
 
 from apps.tickets.models import Ticket
 from apps.tickets.request_schema import TicketIn
 from apps.tickets.response_schema import TicketOut, TicketSubmitOut
-from apps.accounts.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest, SessionAuth
 
 router = Router(tags=["tickets"])
 
 
-@router.post("/submit", auth=JWTAuth(), response=TicketSubmitOut)
+@router.post("/submit", auth=SessionAuth(), response=TicketSubmitOut)
 def submit_ticket(request: AuthedRequest, payload: TicketIn) -> Ticket:
     # Ninja validates `payload` against TicketIn's limits and answers 422
     # itself, so an invalid submission never reaches masking.
@@ -27,7 +26,7 @@ def submit_ticket(request: AuthedRequest, payload: TicketIn) -> Ticket:
     )
 
 
-@router.get("/{public_id}", auth=JWTAuth(), response=TicketOut)
+@router.get("/{public_id}", auth=SessionAuth(), response=TicketOut)
 def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
     try:
         return Ticket.objects.get(public_id=public_id)

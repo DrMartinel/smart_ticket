@@ -22,7 +22,6 @@ import uuid
 import httpx
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.utils import timezone
 
 from infrastructure.dtos import (
     AIRunResponse,
@@ -50,6 +49,8 @@ from apps.tickets.utils.patterns import PIILevel
 
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
+from apps.lifecycle.utils.engine import lifecycle
+from apps.lifecycle.utils.vocabulary import PipelineStatus
 from apps.review.models import ReviewItem
 from apps.tickets.models import (
     AiRun,
@@ -275,9 +276,9 @@ def waits_for_requester(decision: Decision, shadow: bool, pii_level: PIILevel) -
 
 
 def _hold_for_requester(ticket: Ticket, decision: Decision, trace_id: str) -> None:
-    ticket.status = "awaiting_requester"
     ticket.held_decision = decision.model_dump(mode="json")
-    ticket.save(update_fields=["status", "held_decision"])
+    ticket.save(update_fields=["held_decision"])
+    lifecycle.system_move(ticket, PipelineStatus.AWAITING_REQUESTER)
     AuditLog.objects.record(
         "handoff_held_for_requester",
         actor_type="system",
@@ -337,8 +338,7 @@ def _execute_or_enqueue(
     branch = decision.branch
 
     if branch is Branch.BLOCK:
-        ticket.status = "blocked"
-        ticket.save(update_fields=["status"])
+        lifecycle.system_move(ticket, PipelineStatus.BLOCKED)
         queue = (
             ReviewQueue.INJECTION
             if decision.reason_code is ReasonCode.INJECTION_DETECTED
@@ -348,16 +348,14 @@ def _execute_or_enqueue(
         return
 
     if branch is Branch.ESCALATE:
-        ticket.status = "escalated"
-        ticket.save(update_fields=["status"])
+        lifecycle.system_move(ticket, PipelineStatus.ESCALATED)
         ReviewItem.objects.create(
             ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=1
         )
         return
 
     if branch is Branch.HITL:
-        ticket.status = "pending_review"
-        ticket.save(update_fields=["status"])
+        lifecycle.system_move(ticket, PipelineStatus.PENDING_REVIEW)
         ReviewItem.objects.create(
             ticket=ticket,
             ai_run=ai_run,
@@ -371,8 +369,7 @@ def _execute_or_enqueue(
         # requester yet (ADR-0016, "Not decided"). A person sees the proposed
         # question in the clarification queue and asks it, edits it or
         # ignores it, which is also the data that will judge the branch.
-        ticket.status = "pending_review"
-        ticket.save(update_fields=["status"])
+        lifecycle.system_move(ticket, PipelineStatus.PENDING_REVIEW)
         ReviewItem.objects.create(
             ticket=ticket,
             ai_run=ai_run,
@@ -386,23 +383,21 @@ def _execute_or_enqueue(
         # Same route() call as live mode (spec §8.2) — only the execution
         # differs. Still surfaced to a human so shadow-mode data reflects
         # exactly what would have happened live.
-        ticket.status = "pending_review"
-        ticket.save(update_fields=["status"])
+        lifecycle.system_move(ticket, PipelineStatus.PENDING_REVIEW)
         ReviewItem.objects.create(
             ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=3
         )
         return
 
     if branch is Branch.AUTO_REPLY:
-        ticket.status = "auto_replied"
         ticket.category = kb.category if kb else ticket.category
-        ticket.resolved_at = timezone.now()
-        ticket.save(update_fields=["status", "category", "resolved_at"])
+        ticket.save(update_fields=["category"])
+        lifecycle.system_move(ticket, PipelineStatus.AUTO_REPLIED)
     elif branch is Branch.AUTO_ROUTE:
-        ticket.status = "auto_routed"
         ticket.category = decision.category.value if decision.category else ticket.category
         ticket.assigned_team = ticket.category
-        ticket.save(update_fields=["status", "category", "assigned_team"])
+        ticket.save(update_fields=["category", "assigned_team"])
+        lifecycle.system_move(ticket, PipelineStatus.AUTO_ROUTED)
 
 
 def ticket_process(ticket_id: str) -> TaskResult:

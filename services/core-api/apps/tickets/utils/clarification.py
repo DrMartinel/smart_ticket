@@ -15,6 +15,8 @@ from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
+from apps.lifecycle.utils.engine import lifecycle
+from apps.lifecycle.utils.vocabulary import PipelineStatus
 from apps.tickets.models import AiRun, PiiQuarantine, Ticket, TicketClarification
 from apps.tickets.utils.crypto import build_quarantine_entries
 from apps.tickets.utils.masking import mask_reply
@@ -117,11 +119,9 @@ class Clarifications:
             ticket.pii_map = {**ticket.pii_map, **{ph: str(e.ref) for ph, e in quarantine.items()}}
             ticket.pii_level = PIILevel(ticket.pii_level).worse(masked.pii_level).value
             ticket.body_masked = f"{ticket.body_masked}\n\n{CLARIFIED_LABEL} {masked.text_masked}"
-            ticket.status = "new"
             ticket.held_decision = None
-            ticket.save(
-                update_fields=["pii_map", "pii_level", "body_masked", "status", "held_decision"]
-            )
+            ticket.save(update_fields=["pii_map", "pii_level", "body_masked", "held_decision"])
+            lifecycle.system_move(ticket, PipelineStatus.NEW)
             AuditLog.objects.record(
                 "clarification_answered",
                 actor_type="human",

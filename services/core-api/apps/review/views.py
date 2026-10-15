@@ -5,29 +5,28 @@ import uuid
 from django.db.models import QuerySet
 from ninja import Router
 from ninja.errors import HttpError
-from ninja_jwt.authentication import JWTAuth
 
 from apps.review.models import ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
-from apps.accounts.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest, SessionAuth
 
 router = Router(tags=["review"])
 
 
-@router.get("/queue", auth=JWTAuth(), response=list[ReviewItemOut])
+@router.get("/queue", auth=SessionAuth(), response=list[ReviewItemOut])
 def list_queue(
     request: AuthedRequest, queue: str | None = None, state: str = "pending"
 ) -> QuerySet[ReviewItem]:
     return ReviewItem.objects.for_queue(queue=queue, state=state)
 
 
-@router.get("/items/{item_id}", auth=JWTAuth(), response=ReviewItemOut)
+@router.get("/items/{item_id}", auth=SessionAuth(), response=ReviewItemOut)
 def get_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     return _get_or_404(item_id)
 
 
-@router.post("/items/{item_id}/claim", auth=JWTAuth(), response=ReviewItemOut)
+@router.post("/items/{item_id}/claim", auth=SessionAuth(), response=ReviewItemOut)
 def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     item = _get_or_404(item_id)
     try:
@@ -37,7 +36,7 @@ def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     return item
 
 
-@router.post("/items/{item_id}/decide", auth=JWTAuth(), response=DecisionOut)
+@router.post("/items/{item_id}/decide", auth=SessionAuth(), response=DecisionOut)
 def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn) -> ReviewDecision:
     item = _get_or_404(item_id)
     try:

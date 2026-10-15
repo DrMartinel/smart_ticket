@@ -18,6 +18,7 @@ from config.settings.base import (
     ClassificationThresholds,
     FewshotThresholds,
     IncidentThresholds,
+    LifecycleThresholds,
     MaskingThresholds,
     RetrievalThresholds,
     RoutingThresholds,
@@ -72,6 +73,9 @@ def make_thresholds(**overrides) -> Thresholds:
             max_rounds=1, wait_minutes=60, option_margin=0.1, max_options=5
         ),
         masking=MaskingThresholds(ner_max_share=0.5),
+        lifecycle=LifecycleThresholds(
+            max_chain_depth=5, action_max_attempts=3, approval_wait_hours=72
+        ),
     )
     base.update(overrides)
     return Thresholds(**base)

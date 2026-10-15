@@ -7,8 +7,6 @@ import httpx
 import numpy as np
 import pytest
 
-from apps.core.testing import api_client_for
-
 
 @pytest.fixture
 def manager_user(django_user_model):
@@ -30,8 +28,12 @@ def technician_user(django_user_model):
 
 @pytest.fixture
 def api_as():
-    """`api_as(user)` is a test client that sends a real JWT for `user`
-    (`apps.core.testing.api_client_for`)."""
+    """`api_as(user)` is a test client signed in as `user` through a real
+    session (`apps.accounts.testing.api_client_for`)."""
+
+    # Imported here: ninja_jwt reads Django settings on import, and a
+    # whole-workspace run loads this conftest before evals configure Django.
+    from apps.accounts.testing import api_client_for
 
     return api_client_for
 

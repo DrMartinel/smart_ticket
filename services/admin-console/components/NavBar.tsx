@@ -40,7 +40,7 @@ export default function NavBar() {
             <span className="text-[var(--text-muted)]">
               {user.username} <span className="opacity-70">({user.role})</span>
             </span>
-            <button onClick={logout} className="rounded border px-2 py-1 text-xs" style={{ borderColor: "var(--border)" }}>
+            <button onClick={() => void logout()} className="rounded border px-2 py-1 text-xs" style={{ borderColor: "var(--border)" }}>
               Log out
             </button>
           </div>

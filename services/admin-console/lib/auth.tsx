@@ -2,22 +2,17 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { api, getToken, setToken } from "./api";
+import { onSessionEnded, refreshSession, signIn, signOut, type SessionUser } from "./session";
 
-export interface CurrentUser {
-  id: string;
-  username: string;
-  email: string;
-  role: "employee" | "technician" | "manager" | "security";
-}
+export type CurrentUser = SessionUser;
 
 interface AuthState {
   user: CurrentUser | null;
   loading: boolean;
   /** Signed in fine, but as a requester: this console is for staff only. */
   notStaff: boolean;
-  refresh: () => Promise<void>;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 /** The admin console is for the people who review, route and govern.
@@ -32,42 +27,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [notStaff, setNotStaff] = useState(false);
 
-  const refresh = async () => {
-    if (!getToken()) {
+  /** Keeps a staff member signed in; ends a requester's sign-in at once. */
+  const accept = async (signedIn: CurrentUser | null) => {
+    if (signedIn && !STAFF_ROLES.has(signedIn.role)) {
+      await signOut();
       setUser(null);
-      setLoading(false);
+      setNotStaff(true);
       return;
     }
-    try {
-      const me = await api.get<CurrentUser>("/api/accounts/me");
-      if (STAFF_ROLES.has(me.role)) {
-        setUser(me);
-        setNotStaff(false);
-      } else {
-        setToken(null);
-        setUser(null);
-        setNotStaff(true);
-      }
-    } catch {
-      setToken(null);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
+    setNotStaff(false);
+    setUser(signedIn);
   };
 
   useEffect(() => {
-    refresh();
+    const stop = onSessionEnded(() => setUser(null));
+    refreshSession()
+      .then(accept)
+      .finally(() => setLoading(false));
+    return stop;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const logout = () => {
-    setToken(null);
+  const login = async (username: string, password: string) => {
+    await accept(await signIn(username, password));
+  };
+
+  const logout = async () => {
+    await signOut();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, notStaff, refresh, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, notStaff, login, logout }}>{children}</AuthContext.Provider>
   );
 }
 

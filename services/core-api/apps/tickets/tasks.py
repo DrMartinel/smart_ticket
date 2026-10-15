@@ -19,6 +19,8 @@ from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.fewshot.models import FewshotExample
+from apps.lifecycle.utils.engine import lifecycle
+from apps.lifecycle.utils.vocabulary import PipelineStatus
 from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.utils.pipeline import TaskResult, ticket_process
 
@@ -35,8 +37,8 @@ def reopen_ticket(ticket_id: str) -> None:
     the few-shot retraction rule — spec §3.5 — has a concrete trigger)."""
     ticket = Ticket.objects.get(id=ticket_id)
     ticket.reopened_count += 1
-    ticket.status = "reopened"
-    ticket.save(update_fields=["reopened_count", "status"])
+    ticket.save(update_fields=["reopened_count"])
+    lifecycle.system_move(ticket, PipelineStatus.REOPENED)
     FewshotExample.objects.retract_for_ticket(ticket)
     AuditLog.objects.record(
         "ticket_reopened",

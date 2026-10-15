@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { login, setToken } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { SparkleIcon } from "@/components/icons";
 
@@ -12,7 +11,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
-  const { user, refresh } = useAuth();
+  const { user, login } = useAuth();
 
   useEffect(() => {
     if (user) router.replace("/");
@@ -23,9 +22,7 @@ export default function LoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      const { access } = await login(username, password);
-      setToken(access);
-      await refresh();
+      await login(username, password);
     } catch {
       setError("That username and password don't match.");
     } finally {

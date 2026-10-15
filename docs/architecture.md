@@ -323,6 +323,19 @@ The same `route()` runs in both. That identity is the whole point: shadow data d
 
 A live chat ticket's HITL, AUTO_ROUTE or CLARIFY decision is held (`awaiting_requester`) until the requester asks for a ticket, so a requester who got what they needed doesn't create work for support. Decisions that must reach a person (a block, an escalation, a security alert, failed masking, critical PII) are never held. In shadow mode nothing is held: every chat ticket reaches a reviewer at once, so every decision gets a human label, not only those whose requester gave up on the bot.
 
+### Stage 6 — The lifecycle after triage (ADR-0028)
+
+Every status above is a status of the ticket's **workflow** (`apps/lifecycle`).
+The pipeline's statuses (`new`, `pending_review`, `auto_replied`, …) are reserved
+in every workflow, and only `lifecycle.system_move` enters them: recorded as a
+transfer, never refused, no rules, no actions. After triage a person moves the
+ticket through the workflow's own statuses (`POST /api/lifecycle/tickets/{id}/move`).
+A `strict` workflow allows only its transitions. A transition's rules check
+the ticket's custom field values, and its `before` actions (webhook, n8n,
+approval) must succeed before the status changes. Status `enter` actions and
+`after` actions run on Celery once the move is committed. A failed transfer
+is listed at `GET /api/lifecycle/transfers/failed` for a person to retry.
+
 ---
 
 ## 5. Data model

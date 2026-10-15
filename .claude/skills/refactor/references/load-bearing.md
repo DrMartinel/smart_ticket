@@ -123,6 +123,64 @@ guard and that comment is later trimmed, the entry is the record.
   must not send a second auto-reply. *The `tasks.py` and `utils/pipeline.py` module
   docstrings.*
 
+### Ticket lifecycle (ADR-0028)
+
+- **`lifecycle.system_move` for every pipeline status write.** Setting
+  `ticket.status = "pending_review"` directly looks simpler. It would leave
+  `workflow_status` behind and a move in flight running, and it would skip the
+  transfer record and audit. *`apps/lifecycle/tests/test_pipeline.py`
+  (`test_pipeline_statuses_are_written_only_by_the_lifecycle`).*
+- **`system_move` never refuses.** No rule, transition, version or open
+  transfer can stop it: it cancels what is in flight and recreates a missing
+  pipeline status. A workflow that could refuse the pipeline would leave a
+  ticket at `new`, invisible to every queue. *`test_a_pipeline_move_cancels_a_move_in_flight`,
+  `test_a_pipeline_status_missing_from_a_workflow_is_recreated`, `test_a_workflows_rules_never_stop_a_reopen`.*
+- **Pipeline statuses as targets only of the pipeline, and `new` /
+  `awaiting_requester` as unmovable by people, even with `force`.** Otherwise
+  a workflow action or a person could put a ticket at `auto_replied` without
+  a routing decision, or take one from the requester mid-question.
+  *`test_resolver.py` (`test_nobody_but_the_pipeline_moves_a_ticket_into_a_pipeline_status`,
+  `test_a_ticket_in_triage_cannot_be_moved_even_by_force`).*
+- **`Ticket.status` holding a status key beside `workflow_status`.** It
+  duplicates the FK, but chat, the SQL index and every older reader key off
+  the string. `Ticket.enter_status` is its only writer.
+- **Webhook 5xx retried, 4xx aborting.** A server error is not the gate
+  saying no; aborting on it would refuse moves whenever the hook is flaky.
+  *`test_a_transient_failure_is_retried_with_backoff_then_fails`.*
+- **The callback token includes the run's attempt.** A late callback from an
+  earlier attempt can't finish a retried run. *`callback_token` in `actions.py`.*
+- **`select_for_update(of=("self",))` in `Lifecycle.commit`.** Without `of`,
+  Postgres refuses `FOR UPDATE` on the outer join `select_related` adds.
+
+- **`Lifecycle.lock` taking the ticket before the transfer**, and `lock_run`
+  taking the ticket before the run. Locking in any other order deadlocks
+  against retries, which lock the ticket first.
+- **`commit` re-checking the transition's rules.** A field can change while a
+  move waits on its `before` actions.
+- **`ActionRunner.finish` writing only while the run is `running`.** A
+  pipeline move can cancel a run mid-flight; an unconditional save would mark
+  it succeeded. *`test_a_run_cancelled_mid_flight_is_not_marked_succeeded`.*
+- **`render_json` for webhook and n8n bodies.** Filling placeholders in the raw
+  text lets ticket text add JSON keys. *`test_a_placeholder_cannot_add_keys_to_a_webhook_body`.*
+- **The `regex` module's `timeout=` in the `pattern` rule.** Plain `re` has no
+  timeout, and a catastrophic pattern would hang a request holding the ticket lock.
+- **`Workflow.objects.default()` reseeding a missing default.** Submission
+  calls it; without the reseed a flushed or damaged table stops every ticket.
+
+### Sign-in (ADR-0029)
+
+- **`SessionAuth` checking the token's `sid` against a live family.** It looks
+  like an extra query per request. Without it, signing out leaves the access
+  token working until it expires. *`apps/accounts/tests/test_sessions.py`.*
+- **The access token kept in memory, not `localStorage`.** Storage is readable
+  by any script on the page; memory dies with it. A reload costs one refresh.
+- **The reuse grace window** (`AUTH_REFRESH_REUSE_GRACE_SEC`). Without it two
+  tabs refreshing together look like theft and sign the user out.
+- **`X-Auth-Client` on the cookie endpoints.** It picks the cookie, and as a
+  custom header it forces a CORS preflight on cross-origin calls.
+- **Refresh tokens stored as SHA-256 hashes.** A database read must not yield
+  usable tokens.
+
 ## ai-engine
 
 - **`TriageState` is frozen with `extra="forbid"`.** Without that, an in-place

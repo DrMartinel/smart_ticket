@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
@@ -28,6 +28,9 @@ from apps.tickets.request_schema import TicketIn
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.tickets.utils.crypto import QuarantineEntry, build_quarantine_entries
+
+if TYPE_CHECKING:
+    from apps.lifecycle.models import WorkflowStatus
 from apps.tickets.utils.masking import mask
 
 
@@ -221,6 +224,10 @@ class TicketManager(models.Manager["Ticket"]):
                 source=source.value,
             )
             PiiQuarantine.objects.store(ticket, quarantine_entries)
+            # Imported here: the lifecycle engine imports this module.
+            from apps.lifecycle.utils.engine import lifecycle
+
+            lifecycle.start(ticket)
             AuditLog.objects.record(
                 "ticket_submitted",
                 actor_type="human",
@@ -297,6 +304,17 @@ class Ticket(BaseModel):
     reopened_count = models.SmallIntegerField(default=0)  # the most important metric
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # The lifecycle's position (ADR-0028); `status` holds this status's key.
+    workflow_status = models.ForeignKey(
+        "lifecycle.WorkflowStatus",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="tickets",
+    )
+    waiting_transform = models.BooleanField(default=False)
+    version = models.PositiveIntegerField(default=0)
+
     class Meta(BaseModel.Meta):
         db_table = "tickets"
 
@@ -304,6 +322,17 @@ class Ticket(BaseModel):
 
     def __str__(self) -> str:
         return self.public_id
+
+    def enter_status(self, status: WorkflowStatus) -> None:
+        """Puts the ticket in `status` and saves the fields that changed."""
+        self.workflow_status = status
+        self.status = status.key
+        self.version += 1
+        if not status.base.is_completed:
+            self.resolved_at = None
+        elif self.resolved_at is None:
+            self.resolved_at = timezone.now()
+        self.save(update_fields=["workflow_status", "status", "version", "resolved_at"])
 
     def latest_clarification(self) -> TicketClarification | None:
         """Finds the last question this ticket asked its requester."""

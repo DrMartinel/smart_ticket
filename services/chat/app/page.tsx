@@ -45,7 +45,7 @@ export default function ChatPage() {
           <div className="flex items-center gap-3 text-sm">
             <span className="hidden text-[var(--text-muted)] sm:inline">{user.username}</span>
             <button
-              onClick={logout}
+              onClick={() => void logout()}
               className="rounded-lg border border-[var(--border)] px-2.5 py-1 text-xs transition hover:bg-[var(--surface-2)]"
             >
               Sign out

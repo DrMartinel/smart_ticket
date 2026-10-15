@@ -11,10 +11,12 @@ The template's values are dev-only: production.py refuses its secrets.
 
 import os
 from collections.abc import Mapping
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
 import yaml
+from corsheaders.defaults import default_headers as default_cors_headers
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import dotenv_values
 from pydantic import BaseModel, Field
@@ -80,6 +82,7 @@ INSTALLED_APPS = [
     "apps.itsm_mock",
     "apps.metrics",
     "apps.chat",
+    "apps.lifecycle",
 ]
 
 MIDDLEWARE = [
@@ -160,10 +163,29 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.metrics.tasks.weekly_drift_check",
         "schedule": 604800.0,
     },
+    "lifecycle-watchdog": {
+        "task": "apps.lifecycle.tasks.watchdog",
+        "schedule": float(env("LIFECYCLE_WATCHDOG_INTERVAL_SEC")),
+    },
 }
 
 # ── CORS (web talks to core-api from a different origin in dev) ────────────
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS").split(",")
+# The refresh cookie travels on the frontends' credentialed requests (ADR-0029).
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (*default_cors_headers, "x-auth-client")
+
+# ── Sign-in sessions (ADR-0029); `.env.example` explains each value ──────
+NINJA_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(seconds=int(env("AUTH_ACCESS_TOKEN_LIFETIME_SEC"))),
+}
+AUTH_REFRESH_IDLE_HOURS = int(env("AUTH_REFRESH_IDLE_HOURS"))
+AUTH_SESSION_MAX_HOURS = int(env("AUTH_SESSION_MAX_HOURS"))
+AUTH_REFRESH_REUSE_GRACE_SEC = int(env("AUTH_REFRESH_REUSE_GRACE_SEC"))
+AUTH_COOKIE_SECURE = env_bool("AUTH_COOKIE_SECURE")
+AUTH_COOKIE_SAMESITE = env("AUTH_COOKIE_SAMESITE")
+if AUTH_COOKIE_SAMESITE not in ("Lax", "Strict", "None"):
+    raise ImproperlyConfigured("AUTH_COOKIE_SAMESITE must be Lax, Strict or None")
 
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = env_bool("SHADOW_MODE")
@@ -180,6 +202,26 @@ PII_ENCRYPTION_KEY = env("PII_ENCRYPTION_KEY")
 PII_QUARANTINE_TTL_HOURS = int(env("PII_QUARANTINE_TTL_HOURS"))
 AI_ENGINE_RO_PASSWORD = env("POSTGRES_AI_RO_PASSWORD")
 DB_APP_ROLE = DATABASES["default"]["USER"]
+
+# ── Ticket lifecycle (ADR-0028); `.env.example` explains each value ──────
+LIFECYCLE_HTTP_CONNECT_TIMEOUT_SEC = float(env("LIFECYCLE_HTTP_CONNECT_TIMEOUT_SEC"))
+LIFECYCLE_HTTP_READ_TIMEOUT_SEC = float(env("LIFECYCLE_HTTP_READ_TIMEOUT_SEC"))
+LIFECYCLE_HTTP_TOTAL_TIMEOUT_SEC = float(env("LIFECYCLE_HTTP_TOTAL_TIMEOUT_SEC"))
+LIFECYCLE_RULE_PATTERN_TIMEOUT_SEC = float(env("LIFECYCLE_RULE_PATTERN_TIMEOUT_SEC"))
+LIFECYCLE_HTTP_MAX_RESPONSE_BYTES = int(env("LIFECYCLE_HTTP_MAX_RESPONSE_BYTES"))
+LIFECYCLE_WEBHOOK_ALLOWED_HOSTS = [
+    h.strip().lower() for h in env("LIFECYCLE_WEBHOOK_ALLOWED_HOSTS").split(",") if h.strip()
+]
+LIFECYCLE_PUBLIC_BASE_URL = env("LIFECYCLE_PUBLIC_BASE_URL")
+LIFECYCLE_CALLBACK_WAIT_SEC = int(env("LIFECYCLE_CALLBACK_WAIT_SEC"))
+LIFECYCLE_RUN_STUCK_SEC = int(env("LIFECYCLE_RUN_STUCK_SEC"))
+LIFECYCLE_RETRY_BACKOFF_BASE_SEC = float(env("LIFECYCLE_RETRY_BACKOFF_BASE_SEC"))
+LIFECYCLE_RETRY_BACKOFF_MAX_SEC = float(env("LIFECYCLE_RETRY_BACKOFF_MAX_SEC"))
+
+EMAIL_BACKEND = env("EMAIL_BACKEND")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+EMAIL_HOST = env("EMAIL_HOST")
+EMAIL_PORT = int(env("EMAIL_PORT"))
 
 # The schema of thresholds.yaml (spec §8, §13). Parsed at boot, so a missing
 # or malformed file stops core-api starting instead of surfacing mid-routing.
@@ -252,6 +294,15 @@ class MaskingThresholds(BaseModel):
     ner_max_share: float = Field(gt=0, le=1)
 
 
+class LifecycleThresholds(BaseModel):
+    # Moves and field writes one action may set off in a chain (ADR-0028).
+    max_chain_depth: int = Field(ge=1)
+    # Attempts at an action that fails transiently, then the run fails.
+    action_max_attempts: int = Field(ge=1)
+    # How long a `require_approval` run waits before it counts as rejected.
+    approval_wait_hours: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -268,6 +319,7 @@ class Thresholds(BaseModel):
     classification: ClassificationThresholds
     clarification: ClarificationThresholds
     masking: MaskingThresholds
+    lifecycle: LifecycleThresholds
 
     @property
     def retrieval_floor(self) -> float:

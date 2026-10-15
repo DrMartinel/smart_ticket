@@ -358,11 +358,13 @@ Every outcome carries a machine-readable `ReasonCode`, which is what makes *"whi
 
 ## API
 
-Interactive docs at [`/api/docs`](http://localhost:8000/api/docs). All routes except `/api/token/*` require `Authorization: Bearer <jwt>`.
+Interactive docs at [`/api/docs`](http://localhost:8000/api/docs). All routes except sign-in (`/api/auth/login`, `/refresh`, `/logout`) and the lifecycle callback require `Authorization: Bearer <access token>`. Sign-in (ADR-0029) returns a five-minute access token and sets the refresh token as an httpOnly cookie for `/api/auth/`; every request to `/api/auth/` names its frontend in `X-Auth-Client` (`admin` or `chat`).
 
 | Method | Path | Role |
 |---|---|---|
-| `POST` | `/api/token/pair` · `/refresh` · `/verify` | — |
+| `POST` | `/api/auth/login` · `/refresh` · `/logout` | — (`X-Auth-Client` header) |
+| `GET`/`DELETE` | `/api/auth/sessions` · `/sessions/{family}` · `POST /api/auth/logout-everywhere` | any |
+| `GET`/`POST`/`PATCH`/`DELETE` | `/api/lifecycle/...` (workflows, statuses, transitions, fields, ticket moves, approvals; ADR-0028) | technician+ / manager |
 | `GET` | `/api/accounts/me` | any |
 | `POST` | `/api/tickets/submit` | employee+ |
 | `GET` | `/api/tickets/{public_id}` | any |
@@ -375,8 +377,8 @@ Interactive docs at [`/api/docs`](http://localhost:8000/api/docs). All routes ex
 | `GET` | `/api/fewshot/category/{category}` | technician+ |
 
 ```bash
-TOKEN=$(curl -s -X POST http://localhost:8000/api/token/pair \
-  -H 'Content-Type: application/json' \
+TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
+  -H 'Content-Type: application/json' -H 'X-Auth-Client: chat' -c /tmp/st-cookies \
   -d '{"username":"employee1","password":"change-me"}' | python3 -c 'import json,sys;print(json.load(sys.stdin)["access"])')
 
 curl -s -X POST http://localhost:8000/api/tickets/submit \

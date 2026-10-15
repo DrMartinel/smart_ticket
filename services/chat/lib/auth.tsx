@@ -1,48 +1,39 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { chatApi, getToken, setToken, type CurrentUser } from "./api";
+import { onSessionEnded, refreshSession, signIn, signOut, type SessionUser } from "./session";
 
 interface AuthState {
-  user: CurrentUser | null;
+  user: SessionUser | null;
   loading: boolean;
-  refresh: () => Promise<void>;
-  logout: () => void;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = async () => {
-    if (!getToken()) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
-    try {
-      setUser(await chatApi.me());
-    } catch {
-      setToken(null);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const stop = onSessionEnded(() => setUser(null));
+    refreshSession()
+      .then(setUser)
+      .finally(() => setLoading(false));
+    return stop;
   }, []);
 
-  const logout = () => {
-    setToken(null);
+  const login = async (username: string, password: string) => {
+    setUser(await signIn(username, password));
+  };
+
+  const logout = async () => {
+    await signOut();
     setUser(null);
   };
 
-  return <AuthContext.Provider value={{ user, loading, refresh, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

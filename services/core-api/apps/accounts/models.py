@@ -5,10 +5,14 @@ the roles here map directly onto spec concepts (Employee / Technician /
 Manager / Security) rather than a general-purpose permission matrix.
 """
 
+from __future__ import annotations
+
+import uuid
 from enum import StrEnum
 
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.utils import timezone
 
 from apps.core.models import BaseModel
 
@@ -44,3 +48,38 @@ class User(AbstractUser, BaseModel):
     @property
     def is_security(self) -> bool:
         return self.role == UserRole.SECURITY.value
+
+
+class AuthClient(StrEnum):
+    """The frontends a refresh session belongs to; each keeps its own cookie."""
+
+    ADMIN = "admin"
+    CHAT = "chat"
+
+
+class RefreshSessionQuerySet(models.QuerySet["RefreshSession"]):
+    def live_family(self, family: uuid.UUID | str) -> RefreshSessionQuerySet:
+        """The family's sessions that are neither revoked nor expired."""
+        return self.filter(family=family, revoked_at__isnull=True, expires_at__gt=timezone.now())
+
+
+class RefreshSession(BaseModel):
+    """One refresh token. Each rotation adds a row to its login's family; only the hash is stored."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="refresh_sessions")
+    client = models.CharField(max_length=10, choices=[(c.value, c.value) for c in AuthClient])
+    family = models.UUIDField(db_index=True)
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    family_expires_at = models.DateTimeField()
+    rotated_at = models.DateTimeField(null=True, blank=True)
+    revoked_at = models.DateTimeField(null=True, blank=True)
+    revoke_reason = models.CharField(max_length=40, blank=True, default="")
+    user_agent = models.CharField(max_length=255, blank=True, default="")
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+
+    objects = RefreshSessionQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "accounts_refresh_sessions"

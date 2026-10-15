@@ -119,3 +119,18 @@ masking:
   # extreme case; pii_ner.v2 is the fix. Chosen from these few cases:
   # re-choose on shadow data.
   ner_max_share: 0.7
+
+lifecycle:
+  # Moves and field writes one action may set off in a chain (ADR-0028):
+  # move_status entering a status whose actions move again, set_field firing
+  # an event that sets another. Past it the run fails as
+  # automation_depth_exceeded instead of looping. Chosen as "deeper than any
+  # sane workflow"; not calibrated.
+  max_chain_depth: 5
+  # Attempts at an action that fails transiently (a webhook's 5xx, a timeout,
+  # an SMTP error) before its run fails and its transfer lands in the
+  # failed-transfer queue.
+  action_max_attempts: 3
+  # How long a require_approval run waits for an approver before it counts
+  # as rejected and the move is refused.
+  approval_wait_hours: 72

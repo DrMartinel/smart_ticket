@@ -2,13 +2,12 @@ from django.db.models import QuerySet
 from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
-from ninja_jwt.authentication import JWTAuth
 
 from apps.kb.models import KBGovernanceError, KbArticle
 from apps.kb.request_schema import ArticleFilter, ArticleIn, AutoReplyFlagIn, RiskTierIn
 from apps.kb.response_schema import ArticleOut, ReingestOut
 from apps.kb.utils.indexing import indexer
-from apps.accounts.permissions import AuthedRequest
+from apps.accounts.permissions import AuthedRequest, SessionAuth
 
 router = Router(tags=["kb"])
 
@@ -16,13 +15,13 @@ router = Router(tags=["kb"])
 # No `from __future__ import annotations` in this module: @paginate makes
 # ninja resolve the handler's annotations from its own module, where string
 # annotations like "ArticleFilter" are undefined.
-@router.get("", auth=JWTAuth(), response=list[ArticleOut])
+@router.get("", auth=SessionAuth(), response=list[ArticleOut])
 @paginate(LimitOffsetPagination)
 def list_articles(request: AuthedRequest, filters: Query[ArticleFilter]) -> QuerySet[KbArticle]:
     return filters.filter(KbArticle.objects.filter(is_active=True)).order_by("slug")
 
 
-@router.post("", auth=JWTAuth(), response=ArticleOut)
+@router.post("", auth=SessionAuth(), response=ArticleOut)
 def create_article(request: AuthedRequest, payload: ArticleIn) -> KbArticle:
     return KbArticle.objects.create_and_ingest(
         slug=payload.slug,
@@ -33,14 +32,14 @@ def create_article(request: AuthedRequest, payload: ArticleIn) -> KbArticle:
     )
 
 
-@router.post("/{slug}/reingest", auth=JWTAuth(), response=ReingestOut)
+@router.post("/{slug}/reingest", auth=SessionAuth(), response=ReingestOut)
 def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
     article = _get_or_404(slug)
     chunks = indexer.ingest(article)
     return ReingestOut(slug=slug, chunks=len(chunks))
 
 
-@router.post("/{slug}/auto-reply-allowed", auth=JWTAuth(), response=ArticleOut)
+@router.post("/{slug}/auto-reply-allowed", auth=SessionAuth(), response=ArticleOut)
 def toggle_auto_reply(request: AuthedRequest, slug: str, payload: AutoReplyFlagIn) -> KbArticle:
     article = _get_or_404(slug)
     try:
@@ -52,7 +51,7 @@ def toggle_auto_reply(request: AuthedRequest, slug: str, payload: AutoReplyFlagI
     return article
 
 
-@router.post("/{slug}/risk-tier", auth=JWTAuth(), response=ArticleOut)
+@router.post("/{slug}/risk-tier", auth=SessionAuth(), response=ArticleOut)
 def change_risk_tier(request: AuthedRequest, slug: str, payload: RiskTierIn) -> KbArticle:
     article = _get_or_404(slug)
     try:

@@ -167,6 +167,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
 | KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |
+| Ticket lifecycle after triage: workflows, transitions, rules, actions (ADR-0028) | [apps/lifecycle/](services/core-api/apps/lifecycle/), the engine in [engine.py](services/core-api/apps/lifecycle/utils/engine.py) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
 but one** (the `entity_graph` association rows, written by ai-engine's
@@ -259,6 +260,9 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question `core/prompts/category.v*.json`; the confidence bar in `thresholds.yaml` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
+| Sign-in, token lifetimes, who may call what | `apps/accounts/utils.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
+| A ticket's status | `lifecycle.system_move` from pipeline code, `lifecycle.move` for a person: never `ticket.status = …` (ADR-0028) |
+| What a workflow action can do | `apps/lifecycle/utils/actions.py` (a handler and an `ActionCode`); rules and events in `utils/rules.py` |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
 `/ai-engine-feature` for any ai-engine change · `/ai-engine-review` before a PR ·
@@ -358,6 +362,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 | Every generation check ✗ | No LLM ran — refuse-before-LLM. Read the reason code |
 | Unaccented Vietnamese matches nothing | Diacritic folding (`LexicalShortlister._tokenize`) regressed; `đ`/`Đ` need special handling |
 | Port 5432/6379 fails | Host ports are **5434** / **6380** |
+| Every API call 401s with a token that looks valid | The token was not issued by `/api/auth/login` (no `sid`) or its sign-in ended: `SessionAuth` refuses both (ADR-0029). Tests sign in with `api_as`, scripts with `/api/auth/login` |
 | `pg_search must be loaded via shared_preload_libraries`, or migrate fails at `dbextras.0003` | Postgres is the stock pgvector image, or started without the preload flag. Use compose's `db` (built from `infra/db/Dockerfile`, ADR-0013). Retrieval no longer runs BM25 on the ticket (ADR-0020), but the index and its migration stay |
 | `core-api` exits at boot | `thresholds.yaml` missing or malformed — parsed into a Pydantic model at startup on purpose |
 | `ImproperlyConfigured: X is not set` (core-api), `Field required` on `Settings` (ai-engine), or compose's `required variable X is missing a value` | No root `.env` (`cp .env.example .env`), or yours predates X: copy its line from `.env.example`. A new setting goes in `.env.example` too; never a default in code |
@@ -426,5 +431,5 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-seven
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (twenty-nine
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum).

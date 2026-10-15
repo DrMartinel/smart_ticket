@@ -26,6 +26,7 @@ dev = [
     "pytest-cov>=6.0",
     "celery-types>=0.26.0",
     "django-stubs[compatible-mypy]>=6.1.1",
+    "types-regex>=2024.11",
 ]
 
 [tool.ruff]

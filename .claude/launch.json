@@ -6,6 +6,27 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1", "--directory", "evals/history"],
       "port": 8765
+    },
+    {
+      "name": "core-api-local",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd services/core-api && CORS_ALLOWED_ORIGINS=http://localhost:3002,http://localhost:3003 CELERY_BROKER_URL=redis://localhost:6380/5 CELERY_RESULT_BACKEND=redis://localhost:6380/6 exec uv run python manage.py runserver 8010"
+      ],
+      "port": 8010
+    },
+    {
+      "name": "admin-console-local",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd services/admin-console && NEXT_PUBLIC_API_BASE=http://localhost:8010 exec npx next dev -p 3002"],
+      "port": 3002
+    },
+    {
+      "name": "chat-local",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd services/chat && NEXT_PUBLIC_API_BASE=http://localhost:8010 exec npx next dev -p 3003"],
+      "port": 3003
     }
   ]
 }
