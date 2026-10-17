@@ -86,7 +86,7 @@ Ticket moves F8 causes:
 | Exception | Non-security caller → 403 |
 | Postconditions | K12 measured from `created_at` to `acknowledged_at` |
 | Rules | BR-F8-01…04 |
-| Screens | `F8 · Security inbox`, `F8 · Alert detail` |
+| Screens | [`F8 · Security inbox`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1087), [`F8 · Alert detail`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1265) |
 | MoSCoW | Should |
 
 | Field | UC-F8-02 · Handle a credential pasted into a ticket |
@@ -99,7 +99,7 @@ Ticket moves F8 causes:
 | Exception | 1x. Quarantine expired → close with note "value expired"; still notify |
 | Postconditions | Requester told; ticket handled without the secret |
 | Rules | BR-F8-05, 06 |
-| Screens | `F8 · Alert detail` |
+| Screens | [`F8 · Alert detail`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1265) |
 | MoSCoW | Should |
 
 | Field | UC-F8-03 · Release a false-positive injection block |
@@ -112,7 +112,7 @@ Ticket moves F8 causes:
 | Exception | 1x. No reason → 422 |
 | Postconditions | Ticket reaches a technician; the AI is not re-run (it would block again) |
 | Rules | BR-F8-06, 07 |
-| Screens | `F8 · Alert detail` |
+| Screens | [`F8 · Alert detail`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1265) |
 | MoSCoW | Should |
 
 | Field | UC-F8-04 · Investigate a session or access alert |
@@ -125,7 +125,7 @@ Ticket moves F8 causes:
 | Exception | — |
 | Postconditions | Action audited |
 | Rules | BR-F8-08 |
-| Screens | `F8 · Alert detail` |
+| Screens | [`F8 · Alert detail`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1265) |
 | MoSCoW | Should |
 
 ## e. Business rules

@@ -83,7 +83,7 @@ User account states (NEW, on `accounts_user`):
 | Exception | 4x. Bad signature, wrong `iss`/`aud`, expired, nonce mismatch → 401 `oidc_token_invalid`. 6x. No primary role → 403 `no_access`. 6y. Two or more primary roles → 403 `ambiguous_role`, `security_alert`. 3x. Keycloak unreachable → 502 `idp_unavailable` |
 | Postconditions | One `auth_login` audit row with `method: "oidc"` |
 | Rules | BR-F13-01…06 |
-| Screens | `F13 · Sign-in` (CHANGED both apps' `/login`), `F13 · Sign-in error` |
+| Screens | [`F13 · Sign-in`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2307) (CHANGED both apps' `/login`), [`F13 · Sign-in error`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2328) |
 | MoSCoW | Must |
 
 | Field | UC-F13-02 · First sign-in creates the user (JIT) |
@@ -122,7 +122,7 @@ User account states (NEW, on `accounts_user`):
 | Exception | 2x. Not a break-glass account → 403 `local_login_disabled`. 2y. 5 failures in 15 min → 423 `account_locked` for 15 min |
 | Postconditions | Every break-glass use is visible to security |
 | Rules | BR-F13-06 |
-| Screens | `F13 · Break-glass sign-in` |
+| Screens | [`F13 · Break-glass sign-in`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2341) |
 | MoSCoW | Must |
 
 ## e. Business rules

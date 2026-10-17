@@ -91,7 +91,7 @@ Joins today's flow at `kb_articles`, which ai-engine already reads with
 | Exception | 4x. Title or body empty → 422 |
 | Postconditions | `in_review`; reviewers notified (`kb.review_requested`) |
 | Rules | BR-F6-01, 02 |
-| Screens | `F6 · KB editor`, `F6 · KB drafts` |
+| Screens | [`F6 · KB editor`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-737), [`F6 · KB drafts`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-828) |
 | MoSCoW | Should |
 
 | Field | UC-F6-02 · Review and publish |
@@ -104,7 +104,7 @@ Joins today's flow at `kb_articles`, which ai-engine already reads with
 | Exception | 2x. Author approves own draft → 403 `self_review`. 3x. Live page changed since `base_version` → `conflict`; the author rebases. 3y. Ingest fails → the article keeps its old chunks if it existed; else the page is saved with no chunks (today's behaviour) and listed for `/reingest` |
 | Postconditions | Retrieval sees the new text after ingest |
 | Rules | BR-F6-02, 03, 04 |
-| Screens | `F6 · Draft review` |
+| Screens | [`F6 · Draft review`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-981) |
 | MoSCoW | Should |
 
 | Field | UC-F6-03 · Revoke authority on a content change |
@@ -117,7 +117,7 @@ Joins today's flow at `kb_articles`, which ai-engine already reads with
 | Exception | — |
 | Postconditions | Router sends any auto-reply citing this page to a person (`kb_not_authorized`) until re-approved |
 | Rules | BR-F6-04, ADR-0002 |
-| Screens | `F6 · Authority queue` |
+| Screens | [`F6 · Authority queue`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-1049) |
 | MoSCoW | Should |
 
 | Field | UC-F6-04 · Grant or re-grant auto-reply authority |
@@ -130,7 +130,7 @@ Joins today's flow at `kb_articles`, which ai-engine already reads with
 | Exception | 1x. Any high-risk page in a bulk request → 422 `high_risk_needs_single_review`, nothing approved. 4x. Not a manager → 403 |
 | Postconditions | Authority pinned to the text the manager saw |
 | Rules | BR-F6-05, 06 |
-| Screens | `F6 · Authority queue` |
+| Screens | [`F6 · Authority queue`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-1049) |
 | MoSCoW | Should |
 
 | Field | UC-F6-05 · View the authority log |
@@ -143,7 +143,7 @@ Joins today's flow at `kb_articles`, which ai-engine already reads with
 | Exception | — |
 | Postconditions | Export audited |
 | Rules | — |
-| Screens | `F6 · Authority log` |
+| Screens | [`F6 · Authority log`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-1180) |
 | MoSCoW | Should |
 
 | Field | UC-F6-06 · Use the KB-gap report |
@@ -156,7 +156,7 @@ Joins today's flow at `kb_articles`, which ai-engine already reads with
 | Exception | — |
 | Postconditions | Draft linked to the cluster; the next report shows whether refusals dropped |
 | Rules | BR-F6-07, 08 |
-| Screens | `F6 · KB gaps` |
+| Screens | [`F6 · KB gaps`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-1299) |
 | MoSCoW | Should |
 
 | Field | UC-F6-07 · Retire a page |
@@ -169,7 +169,7 @@ Joins today's flow at `kb_articles`, which ai-engine already reads with
 | Exception | — |
 | Postconditions | ai-engine stops retrieving it (existing `is_active` filters) |
 | Rules | BR-F6-04 |
-| Screens | `F6 · Draft review` |
+| Screens | [`F6 · Draft review`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-981) |
 | MoSCoW | Should |
 
 ## e. Business rules

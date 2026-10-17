@@ -84,7 +84,7 @@ the pipeline's routing step.
 | Exception | — |
 | Postconditions | `read_at` set |
 | Rules | BR-F4-07 |
-| Screens | `F4 · Notification bell` (admin-console NavBar CHANGED, chat header CHANGED), `F4 · Notification panel` |
+| Screens | [`F4 · Notification bell`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-480) (admin-console NavBar CHANGED, chat header CHANGED), [`F4 · Notification panel`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-531) |
 | MoSCoW | Must |
 
 | Field | UC-F4-03 · Set my preferences |
@@ -97,7 +97,7 @@ the pipeline's routing step.
 | Exception | 2x. Mandatory cell shown locked with "Required" |
 | Postconditions | Preferences apply to the next emit |
 | Rules | BR-F4-03 |
-| Screens | `F4 · My notification settings` |
+| Screens | [`F4 · My notification settings`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-564) |
 | MoSCoW | Must |
 
 | Field | UC-F4-04 · Edit the notification matrix |
@@ -110,7 +110,7 @@ the pipeline's routing step.
 | Exception | 2x. Mandatory cells can't be turned off: 409 `mandatory_cell` |
 | Postconditions | Audited `notif_matrix_changed` with before/after |
 | Rules | BR-F4-02, 03 |
-| Screens | `F4 · Notification matrix` |
+| Screens | [`F4 · Notification matrix`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-710) |
 | MoSCoW | Must |
 
 | Field | UC-F4-05 · Handle failed deliveries |
@@ -123,7 +123,7 @@ the pipeline's routing step.
 | Exception | — |
 | Postconditions | Retried rows `queued`; audited |
 | Rules | BR-F4-05 |
-| Screens | `F4 · Delivery log` |
+| Screens | [`F4 · Delivery log`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-890) |
 | MoSCoW | Should (inside a Must feature) |
 
 | Field | UC-F4-06 · Subscribe an external system (webhook) |
@@ -136,7 +136,7 @@ the pipeline's routing step.
 | Exception | 1x. Host not allowed → 422 `webhook_host_refused` (same check as ADR-0028 §6) |
 | Postconditions | Subscription active |
 | Rules | BR-F4-06 |
-| Screens | `F4 · Webhook subscriptions` |
+| Screens | [`F4 · Webhook subscriptions`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-1047) |
 | MoSCoW | Must |
 
 ## e. Business rules

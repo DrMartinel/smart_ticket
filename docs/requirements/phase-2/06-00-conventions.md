@@ -62,9 +62,14 @@ j. Acceptance criteria (Gherkin)
 
 ## 6.0.4 Screens
 
-Figma frames are named `<feature> · <screen>`, e.g. `F1 · SLA policies`. The
-file and links come in stage 5. A screen marked **CHANGED** will have a
-before and an after frame (`… / before`, `… / after`).
+Figma frames are named `<feature> · <screen>`, e.g. [`F1 · SLA policies`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-57).
+The file is [Smart Ticket — Phase 2 mockups](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL);
+[mockups.md](mockups.md) lists every frame. A screen marked **CHANGED** has a
+before and an after frame (`… / before`, `… / after`); a `Screens` reference
+to a changed screen links its after frame. Existing pages changed by several
+features (`queue`, `review/[id]`, `kb`, `dashboard`) have one combined
+before/after pair: `Queue / …`, `Review item / …`, `Knowledge Base / …`,
+`F10 · Dashboard / …`.
 
 Existing admin-console pages: `queue`, `review/[id]`, `dashboard`, `kb`,
 `login`. Existing chat page: one page with `Welcome`, `TurnView`, `Composer`

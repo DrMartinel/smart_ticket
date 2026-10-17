@@ -66,8 +66,8 @@ retried automatically; a person checks and marks it.
 | UC-F12-03 | `workflow_admin` drafts, manager approves | Add or change a runbook: code, title, executor, config, required fields, target rule, risk | BR-F12-05, 08 |
 | UC-F12-04 | System | n8n calls back with the result (REUSED lifecycle callback pattern, one-time token) | BR-F12-07 |
 
-Screens: `F12 · Runbook approval` (CHANGED `review/[id]` runbook panel),
-`F12 · Runbook catalog`.
+Screens: [`F12 · Runbook approval`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2041) (CHANGED `review/[id]` runbook panel),
+[`F12 · Runbook catalog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2142).
 
 ## e. Business rules
 

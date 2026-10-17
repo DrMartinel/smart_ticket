@@ -67,7 +67,7 @@ No ticket status changes. A `pii_quarantine` row is read, never changed.
 | Exception | 2x. Not allowed → 403 `reveal_not_allowed`. 1x. Empty reason → 422 `reason_required`. 4x. Expired → 410 `quarantine_expired`. 4y. Decrypt fails → 500 `decrypt_failed`, transaction rolled back, `pii_reveal_failed` audit row in a separate transaction, `security_alert`. 2y. Over the hourly limit → 429 `reveal_rate_limited` + `security_alert` |
 | Postconditions | Exactly one `pii_access_log` row per value returned |
 | Rules | BR-F5-01…08 |
-| Screens | `F5 · Reveal dialog` (CHANGED `review/[id]`), `F5 · Access log` |
+| Screens | [`F5 · Reveal dialog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=12-677) (CHANGED `review/[id]`), [`F5 · Access log`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=12-734) |
 | MoSCoW | Must |
 
 | Field | UC-F5-02 · Review the access log |
@@ -80,7 +80,7 @@ No ticket status changes. A `pii_quarantine` row is read, never changed.
 | Exception | Non-security caller → 403 |
 | Postconditions | Export is audited (`pii_access_log_exported`) |
 | Rules | BR-F5-06 |
-| Screens | `F5 · Access log` |
+| Screens | [`F5 · Access log`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=12-734) |
 | MoSCoW | Must |
 
 ## e. Business rules

@@ -93,7 +93,7 @@ rules; changed by staff with a reason.
 | Exception | 2x. No policy matches (shouldn't, default exists) → default policy, audit `sla_policy_fallback`. Any error → savepoint rolled back, status move kept, audit `sla_update_failed`, sweep rebuilds |
 | Postconditions | Two clocks `running` |
 | Rules | BR-F1-01…05, 11 |
-| Screens | `F1 · SLA badge` on queue and ticket (CHANGED `queue`, `review/[id]`) |
+| Screens | [`F1 · SLA badge`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-604) on queue and ticket (CHANGED `queue`, `review/[id]`) |
 | MoSCoW | Must |
 
 | Field | UC-F1-02 · Pause while waiting for the requester |
@@ -106,7 +106,7 @@ rules; changed by staff with a reason.
 | Exception | — |
 | Postconditions | `paused`; no warning or breach while paused |
 | Rules | BR-F1-06, 07 |
-| Screens | `F1 · SLA badge` |
+| Screens | [`F1 · SLA badge`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-604) |
 | MoSCoW | Must |
 
 | Field | UC-F1-03 · Resume when the requester replies |
@@ -132,7 +132,7 @@ rules; changed by staff with a reason.
 | Exception | 1x. Sweep down → next run catches up; each notice still sent once (unique per clock + level) |
 | Postconditions | Each level fires once per clock |
 | Rules | BR-F1-08, 09 |
-| Screens | `F1 · Breach list` |
+| Screens | [`F1 · Breach list`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-685) |
 | MoSCoW | Must |
 
 | Field | UC-F1-05 · Change priority |
@@ -145,7 +145,7 @@ rules; changed by staff with a reason.
 | Exception | Requester or no reason → 403 / 422 |
 | Postconditions | — |
 | Rules | BR-F1-02, 10 |
-| Screens | `F1 · Priority dialog` |
+| Screens | [`F1 · Priority dialog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-677) |
 | MoSCoW | Must |
 
 | Field | UC-F1-06 · Maintain policies, calendars, holidays |
@@ -158,7 +158,7 @@ rules; changed by staff with a reason.
 | Exception | 3x. Author approving own draft → 403 `self_approval` |
 | Postconditions | New clocks use the new policy; running clocks keep their snapshot |
 | Rules | BR-F1-03, 05, 12, 14 |
-| Screens | `F1 · SLA policies`, `F1 · Business calendars`, `F1 · Holidays` |
+| Screens | [`F1 · SLA policies`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-57), [`F1 · Business calendars`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-283), [`F1 · Holidays`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-435) |
 | MoSCoW | Must |
 
 ## e. Business rules

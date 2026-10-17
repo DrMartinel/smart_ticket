@@ -69,7 +69,7 @@ changed since the last build (idempotent upsert).
 | Exception | Technician → 403 for others' teams |
 | Postconditions | — |
 | Rules | BR-F10-01…04 |
-| Screens | `F10 · SLA report` |
+| Screens | [`F10 · SLA report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1291) |
 | MoSCoW | Should |
 
 | Field | UC-F10-02 · Balance team workload |
@@ -82,7 +82,7 @@ changed since the last build (idempotent upsert).
 | Exception | — |
 | Postconditions | — |
 | Rules | BR-F10-05 |
-| Screens | `F10 · Team report` |
+| Screens | [`F10 · Team report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1399) |
 | MoSCoW | Should |
 
 | Field | UC-F10-03 · Check reviewers aren't rubber-stamping |
@@ -95,7 +95,7 @@ changed since the last build (idempotent upsert).
 | Exception | Team lead → 403 (people management stays with the manager) |
 | Postconditions | — |
 | Rules | BR-F10-06 |
-| Screens | `F10 · Reviewer report` |
+| Screens | [`F10 · Reviewer report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1631) |
 | MoSCoW | Should |
 
 | Field | UC-F10-04 · See KB health and gaps |
@@ -108,7 +108,7 @@ changed since the last build (idempotent upsert).
 | Exception | — |
 | Postconditions | — |
 | Rules | BR-F10-07 |
-| Screens | `F10 · KB report` |
+| Screens | [`F10 · KB report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1765) |
 | MoSCoW | Should |
 
 | Field | UC-F10-05 · Read requester satisfaction |
@@ -121,7 +121,7 @@ changed since the last build (idempotent upsert).
 | Exception | — |
 | Postconditions | — |
 | Rules | BR-F10-08 |
-| Screens | `F10 · CSAT report` |
+| Screens | [`F10 · CSAT report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1916) |
 | MoSCoW | Should |
 
 | Field | UC-F10-06 · Check rollout readiness |
@@ -134,7 +134,7 @@ changed since the last build (idempotent upsert).
 | Exception | — |
 | Postconditions | Same numbers F9 snapshots on approval |
 | Rules | BR-F10-09, 10 |
-| Screens | `F10 · Rollout readiness` (also embedded in `F9 · Rollout`) |
+| Screens | [`F10 · Rollout readiness`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-2028) (also embedded in [`F9 · Rollout`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1179)) |
 | MoSCoW | Should |
 
 | Field | UC-F10-07 · Security and incident numbers |
@@ -147,7 +147,7 @@ changed since the last build (idempotent upsert).
 | Exception | Manager sees security counts only (BR-F8-01) |
 | Postconditions | — |
 | Rules | BR-F10-05 |
-| Screens | `F10 · Security report`, `F10 · Incident report` |
+| Screens | [`F10 · Security report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-2164), [`F10 · Incident report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-2311) |
 | MoSCoW | Should |
 
 ## e. Business rules
@@ -276,7 +276,7 @@ GET /api/reports/sla?month=2026-10&team=access
 
 ## i. Impact
 
-- **Changes:** `apps/metrics/utils.py` `business_metrics` (SLA from clocks, automation split); dashboard page becomes tabs (`F10 · Dashboard` CHANGED); new facts table and nightly task.
+- **Changes:** `apps/metrics/utils.py` `business_metrics` (SLA from clocks, automation split); dashboard page becomes tabs ([`F10 · Dashboard`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=19-2015) CHANGED); new facts table and nightly task.
 - **Must not change:** existing quality and HITL metrics and their names (`reopen_rate_after_autoreply`, `override_rate`, `reroute_rate`, `refusal_rate`, `approve_rate_per_reviewer`), which the drift task and docs use; `alerts.*` thresholds reused, not copied.
 - **ADRs:** spec §11.1 metric groups; 0006 (automation not a target).
 - **Regression tests:** `test_sla_compliance_uses_clocks_not_sla_due_at`; `test_incident_tickets_excluded_from_team_sla`; `test_reviewer_flag_needs_min_decisions`; `test_lead_cannot_read_other_team`; `test_automation_rate_split_live_vs_shadow`; `test_facts_build_is_idempotent`; existing `apps/metrics/tests` unchanged except `sla_compliance`.

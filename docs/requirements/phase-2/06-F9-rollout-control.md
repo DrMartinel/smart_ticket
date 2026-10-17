@@ -87,7 +87,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 | Exception | 3x. Requester approves own request → 403 `self_approval`. 3y. Thresholds unapproved → 409 `thresholds_unapproved` |
 | Postconditions | From the next decision, that branch is carried out live |
 | Rules | BR-F9-01…04 |
-| Screens | `F9 · Rollout`, `F9 · Flag request` |
+| Screens | [`F9 · Rollout`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1179), [`F9 · Flag request`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1328) |
 | MoSCoW | Should |
 
 | Field | UC-F9-02 · Turn a branch off now |
@@ -100,7 +100,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 | Exception | — |
 | Postconditions | Decisions from now on are shadow for that branch |
 | Rules | BR-F9-02 |
-| Screens | `F9 · Rollout` |
+| Screens | [`F9 · Rollout`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1179) |
 | MoSCoW | Should |
 
 | Field | UC-F9-03 · Propose a threshold change |
@@ -113,7 +113,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 | Exception | 2x. Invalid YAML or model error → 422 with the field path |
 | Postconditions | `pending`; approvers notified |
 | Rules | BR-F9-05, 06 |
-| Screens | `F9 · Threshold change request` |
+| Screens | [`F9 · Threshold change request`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1336) |
 | MoSCoW | Should |
 
 | Field | UC-F9-04 · Approve a threshold change and ship it |
@@ -126,7 +126,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 | Exception | 5x. Booted file matches no approved request → every branch shadow, `thresholds_unapproved` security alert (F8), managers notified |
 | Postconditions | `routing_decisions.thresholds_used` keeps snapshotting the file as today |
 | Rules | BR-F9-05…08 |
-| Screens | `F9 · Threshold change request`, `F9 · Threshold history` |
+| Screens | [`F9 · Threshold change request`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1336), [`F9 · Threshold history`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1436) |
 | MoSCoW | Should |
 
 ## e. Business rules

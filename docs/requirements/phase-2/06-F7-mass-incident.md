@@ -91,7 +91,7 @@ clock (a staff public message, BR-F1-06).
 | Exception | 3x. Not an incident manager → 403 |
 | Postconditions | Confirmed: each linked ticket's pending `escalate` review item is resolved as `approve` by the incident manager (agrees with the router) — no eval candidates |
 | Rules | BR-F7-01, 02, 03 |
-| Screens | `F7 · Incident list`, `F7 · Incident page` |
+| Screens | [`F7 · Incident list`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-952), [`F7 · Incident page`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1090) |
 | MoSCoW | Should |
 
 | Field | UC-F7-02 · Declare an incident by hand |
@@ -104,7 +104,7 @@ clock (a staff public message, BR-F1-06).
 | Exception | — |
 | Postconditions | `confirmed`, `detected_by = human`; new matching tickets attach |
 | Rules | BR-F7-02 |
-| Screens | `F7 · Declare incident` |
+| Screens | [`F7 · Declare incident`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1298) |
 | MoSCoW | Should |
 
 | Field | UC-F7-03 · Broadcast an update |
@@ -117,7 +117,7 @@ clock (a staff public message, BR-F1-06).
 | Exception | 3x. Email failures → listed in F4 delivery log; in-app still delivered |
 | Postconditions | First broadcast meets linked tickets' response clocks |
 | Rules | BR-F7-04, 05 |
-| Screens | `F7 · Incident page` (broadcast composer, history, delivery count); chat `F7 · Incident banner` |
+| Screens | [`F7 · Incident page`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1090) (broadcast composer, history, delivery count); chat [`F7 · Incident banner`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1332) |
 | MoSCoW | Should |
 
 | Field | UC-F7-04 · Resolve and close all |
@@ -130,7 +130,7 @@ clock (a staff public message, BR-F1-06).
 | Exception | 4x. A workflow refuses the move (strict transition, rule) → that ticket listed; its assignee notified |
 | Postconditions | `resolved`; resolution clocks `met`; no per-ticket rating request |
 | Rules | BR-F7-06, 07 |
-| Screens | `F7 · Resolve dialog` |
+| Screens | [`F7 · Resolve dialog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1324) |
 | MoSCoW | Should |
 
 | Field | UC-F7-05 · Unlink a wrongly matched ticket |
@@ -143,7 +143,7 @@ clock (a staff public message, BR-F1-06).
 | Exception | — |
 | Postconditions | Counted in detector precision (F10) |
 | Rules | BR-F7-08 |
-| Screens | `F7 · Incident page` |
+| Screens | [`F7 · Incident page`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1090) |
 | MoSCoW | Should |
 
 ## e. Business rules

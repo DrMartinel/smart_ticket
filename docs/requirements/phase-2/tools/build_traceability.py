@@ -70,7 +70,7 @@ for name, f, tag in FEATS:
         if n + others <= 1: coverage.append(br)
 out.append("\nGoals and KPIs are defined in [§1](01-executive-summary.md). ADR numbers ≥ 0030 are proposed ([§9.4](09-risks-open-questions.md#94-proposed-adrs)).\n")
 out.append("## 8.2 Use case → rules → screens\n")
-out.append("Screens are Figma frame names; links are added in stage 5.\n")
+out.append("Screens link to their Figma frames (stage 5, [mockups.md](mockups.md)).\n")
 out.append("| Feature | Use case | Name | Rules | Screens |")
 out.append("|---|---|---|---|---|")
 for r in uc_rows: out.append("| " + " | ".join(r) + " |")

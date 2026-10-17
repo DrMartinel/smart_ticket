@@ -1,8 +1,8 @@
 # 9. Risks, assumptions, open questions, proposed ADRs
 
-**State: updated at stage 4.** Completed in stage 6. Each stage adds its rows.
+**State: updated at stage 5.** Completed in stage 6. Each stage adds its rows.
 
-OQ-01…OQ-14 defaults were accepted by the product owner on 2026-10-17 and are
+OQ-01…OQ-27 defaults were accepted by the product owner on 2026-10-17 and are
 now decisions; they stay listed so the trace is visible.
 
 ## 9.1 Open questions
@@ -35,10 +35,10 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | OQ-21 | Gate for `requester_questions`: clarify agreement ≥ 0.80 over 14 days | IT Service Desk Manager | Accept as a starting gate; re-choose on shadow data | F9 | Decided 2026-10-17 |
 | OQ-22 | Ask for a rating on tickets closed by an incident's close-all? | IT Service Desk Manager | No | F7, F3 | Decided 2026-10-17 |
 | OQ-23 | Backfill security alerts from the last 30 days of audit rows? | Information Security Officer | Yes, 30 days | F8 | Decided 2026-10-17 |
-| OQ-24 | Mirror tickets into an external ITSM (ServiceNow, Jira)? | Head of IT Operations | Not this phase; if needed later, an n8n flow on F4 webhook events | F12 | Open |
-| OQ-25 | Use a separate Keycloak client for runbook actions, apart from the F13 sync client? | Information Security Officer | Yes: `smart-ticket-runbooks`, only `manage-users` on the realm, no impersonation | F12 | Open |
-| OQ-26 | Records retention for audit log, PII access log, security alerts | Data Protection Officer | 5 years, then archived | §7 NFR-PRIV-02 | Open |
-| OQ-27 | Capacity planning numbers (3,000 employees, 50 staff online) | Head of IT Operations | As in §7.4 | §7 | Open |
+| OQ-24 | Mirror tickets into an external ITSM (ServiceNow, Jira)? | Head of IT Operations | Not this phase; if needed later, an n8n flow on F4 webhook events | F12 | Decided 2026-10-17 |
+| OQ-25 | Use a separate Keycloak client for runbook actions, apart from the F13 sync client? | Information Security Officer | Yes: `smart-ticket-runbooks`, only `manage-users` on the realm, no impersonation | F12 | Decided 2026-10-17 |
+| OQ-26 | Records retention for audit log, PII access log, security alerts | Data Protection Officer | 5 years, then archived | §7 NFR-PRIV-02 | Decided 2026-10-17 |
+| OQ-27 | Capacity planning numbers (3,000 employees, 50 staff online) | Head of IT Operations | As in §7.4 | §7 | Decided 2026-10-17 |
 
 ## 9.2 Assumptions made at stage 1
 
@@ -59,6 +59,12 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | A-13 | No automatic flag turn-off when a gate becomes unmet; managers are notified | F9 |
 | A-14 | Availability target 99.5 % in business hours; OWASP ASVS L2 as the security baseline | §7.4 |
 | A-15 | Capacity: 3,000 employees, 300 concurrent chat sessions, 50 staff online, 15,000 notices/day | §7.4 |
+| A-16 | The SLA badge shows the response clock until it is met, then the resolution clock | F1, [mockups](mockups.md) |
+| A-17 | Admin console navigation: top-level Reports, Incidents, Security, Settings, each shown by role; Queue gains tabs Review queue, Team queue, My tickets, SLA at risk | F1, F2, F7–F10, [mockups](mockups.md) |
+| A-18 | The fallback team migrated from category `other` is named "Service Desk" | F2 §g |
+| A-19 | Requester-facing labels show Vietnamese first, English second; staff UI stays English with Vietnamese data | F3, F13 |
+| A-20 | Dashboard keeps today's Ops tiles and adds a Service row | F10 |
+| A-21 | Mockups use Inter in place of the apps' system UI font stack | [mockups](mockups.md) |
 
 ## 9.3 Risks
 

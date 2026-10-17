@@ -81,7 +81,7 @@ Membership state: `is_available` true/false; leave dates.
 | Exception | 2x. Someone took it a moment ago → 409 `already_assigned` (version check) |
 | Postconditions | — |
 | Rules | BR-F2-04 |
-| Screens | `F2 · Team queue` |
+| Screens | [`F2 · Team queue`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-237) |
 | MoSCoW | Must |
 
 | Field | UC-F2-03 · Reassign with a reason |
@@ -94,7 +94,7 @@ Membership state: `is_available` true/false; leave dates.
 | Exception | 1x. Assignee moving out of team without being lead → 403 `lead_required`. 2x. Missing reason → 422 `reason_required` |
 | Postconditions | Reassignment counted in K5 |
 | Rules | BR-F2-04, 05, 06 |
-| Screens | `F2 · Reassign dialog` (on `review/[id]` CHANGED and ticket page) |
+| Screens | [`F2 · Reassign dialog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-442) (on `review/[id]` CHANGED and ticket page) |
 | MoSCoW | Must |
 
 | Field | UC-F2-04 · See and balance team workload |
@@ -107,7 +107,7 @@ Membership state: `is_available` true/false; leave dates.
 | Exception | Non-lead technician → sees own row only |
 | Postconditions | — |
 | Rules | BR-F2-04 |
-| Screens | `F2 · Team workload` |
+| Screens | [`F2 · Team workload`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-450) |
 | MoSCoW | Must |
 
 | Field | UC-F2-05 · Set my availability and leave |
@@ -120,7 +120,7 @@ Membership state: `is_available` true/false; leave dates.
 | Exception | Lead edits someone outside their team → 403 |
 | Postconditions | Strategy skips them from now on; already-assigned tickets stay (BR-F2-07) |
 | Rules | BR-F2-03, 07 |
-| Screens | `F2 · My availability`, `F2 · Team workload` |
+| Screens | [`F2 · My availability`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-603), [`F2 · Team workload`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-450) |
 | MoSCoW | Must |
 
 | Field | UC-F2-06 · Configure teams |
@@ -133,7 +133,7 @@ Membership state: `is_available` true/false; leave dates.
 | Exception | 1x. A category already owned by another team → 409 `category_taken`. 1y. Not every category owned after save → 422 `category_unowned` |
 | Postconditions | Audited `team_changed` |
 | Rules | BR-F2-01 |
-| Screens | `F2 · Teams` |
+| Screens | [`F2 · Teams`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-646) |
 | MoSCoW | Must |
 
 ## e. Business rules
@@ -248,11 +248,13 @@ Result → `khoa.lv` (4 open). Rows written:
 | `audit_log` | `ticket_assigned` `{"team":"network","assignee":"khoa.lv","strategy":"least_loaded","trigger":"auto_route","candidates":2}` |
 | `notif_messages` | `ticket.assigned` → `khoa.lv` (F4) |
 
-**Reassignment record** (Khoa sends it to Access — the user's VPN works, the account is locked):
+**Reassignment record** (Khoa finds the VPN works and the account is locked;
+he is a member, not lead, so Đức, the Network lead, sends it to Access —
+BR-F2-04, AC-F2-05):
 
-| ticket | from → to user | from → to team | from → to category | reason_code | note_masked |
-|---|---|---|---|---|---|
-| `TKT-2026-000415` | `khoa.lv` → (strategy: `ha.vt`) | network → access | network → access | `wrong_team` | "VPN kết nối được, tài khoản [EMAIL_1] bị khoá trên Identity Center" |
+| ticket | actor | from → to user | from → to team | from → to category | reason_code | note_masked |
+|---|---|---|---|---|---|---|
+| `TKT-2026-000415` | `duc.tm` | `khoa.lv` → (strategy: `ha.vt`) | network → access | network → access | `wrong_team` | "VPN kết nối được, tài khoản [EMAIL_1] bị khoá trên Identity Center" |
 
 Plus `eval_candidates`: source `reroute`, `ai_prediction` `{"category":"network"}`, `human_truth` `{"category":"access","reason_code":"wrong_team"}`.
 

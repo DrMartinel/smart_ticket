@@ -65,7 +65,7 @@ active until removed.
 | UC-F11-03 | kb_editor, system | Request a rebuild for a page (button, or automatically on publish); see when it last ran | BR-F11-01, 05 |
 | UC-F11-04 | manager, kb_editor | See graph health: pages with ≥ 1 edge, stale edges, hidden/added overrides, expansion contribution | BR-F11-04 |
 
-Screens: `F11 · Page graph` (tab on `F6 · KB editor`), `F11 · Graph health` (in `F10 · KB report`).
+Screens: [`F11 · Page graph`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-1874) (tab on [`F6 · KB editor`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-737)), [`F11 · Graph health`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1912) (in [`F10 · KB report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1765)).
 
 ## e. Business rules
 

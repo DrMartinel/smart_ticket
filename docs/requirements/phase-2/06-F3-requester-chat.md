@@ -80,7 +80,7 @@ flowchart TB
 | Exception | 3x. A prior turn was `block`ed or `mask_failed` → conversation ended; this message starts a new one with no prior turns |
 | Postconditions | New ticket; `tickets.conversation` set |
 | Rules | BR-F3-01, 02, 03 |
-| Screens | `F3 · Chat conversation` (CHANGED chat page) |
+| Screens | [`F3 · Chat conversation`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-426) (CHANGED chat page) |
 | MoSCoW | Must |
 
 | Field | UC-F3-02 · See my tickets |
@@ -93,7 +93,7 @@ flowchart TB
 | Exception | — |
 | Postconditions | — |
 | Rules | BR-F3-04, 05 |
-| Screens | `F3 · My tickets` |
+| Screens | [`F3 · My tickets`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-517) |
 | MoSCoW | Must |
 
 | Field | UC-F3-03 · Read the thread and reply |
@@ -106,7 +106,7 @@ flowchart TB
 | Exception | 3x. Reply has `critical` PII → stored masked, ticket `pii_level` raised, `security_alert` (F8), requester told "Vui lòng không gửi mật khẩu" . 3y. `mask_failed` → reply hidden from staff, review item in `mask_failed` queue, requester sees "Đã nhận, đang kiểm tra". 1x. Ticket closed → 409 `ticket_closed`, offer reopen or new ticket |
 | Postconditions | Comment stored masked |
 | Rules | BR-F3-06, 07, BR-X-06 |
-| Screens | `F3 · Ticket thread` |
+| Screens | [`F3 · Ticket thread`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-580) |
 | MoSCoW | Must |
 
 | Field | UC-F3-04 · Reopen |
@@ -119,7 +119,7 @@ flowchart TB
 | Exception | 1x. Empty reason → 422 |
 | Postconditions | K7 counts it |
 | Rules | BR-F3-08, 09 |
-| Screens | `F3 · Ticket thread`, `F3 · Answer card` (CHANGED `TurnView` answered state) |
+| Screens | [`F3 · Ticket thread`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-580), [`F3 · Answer card`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-500) (CHANGED `TurnView` answered state) |
 | MoSCoW | Must |
 
 | Field | UC-F3-05 · Rate the help |
@@ -132,7 +132,7 @@ flowchart TB
 | Exception | 3x. Rating 1–2 → `ticket.rated_low` to the team lead; if auto-replied, `eval_candidate` source `low_rating` |
 | Postconditions | K6 counts it |
 | Rules | BR-F3-10 |
-| Screens | `F3 · Rating` |
+| Screens | [`F3 · Rating`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-623) |
 | MoSCoW | Must |
 
 | Field | UC-F3-06 · Technician writes to the requester |
@@ -145,7 +145,7 @@ flowchart TB
 | Exception | Same masking outcomes as UC-F3-03 |
 | Postconditions | — |
 | Rules | BR-F3-06, BR-F1-06 |
-| Screens | `F3 · Comment box` (CHANGED `review/[id]` and ticket page in admin-console) |
+| Screens | [`F3 · Comment box`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-665) (CHANGED `review/[id]` and ticket page in admin-console) |
 | MoSCoW | Must |
 
 ## e. Business rules

@@ -28,64 +28,64 @@ Goals and KPIs are defined in [§1](01-executive-summary.md). ADR numbers ≥ 00
 
 ## 8.2 Use case → rules → screens
 
-Screens are Figma frame names; links are added in stage 5.
+Screens link to their Figma frames (stage 5, [mockups.md](mockups.md)).
 
 | Feature | Use case | Name | Rules | Screens |
 |---|---|---|---|---|
 | PRE-1 | UC-PRE1-01 | Refuse a call outside the caller's role | BR-PRE1-01, BR-PRE1-02, BR-PRE1-03 | None (API) |
-| F1 | UC-F1-01 | Start clocks at handoff | BR-F1-01, BR-F1-02, BR-F1-03, BR-F1-04, BR-F1-05, BR-F1-11 | `F1 · SLA badge` on queue and ticket (CHANGED `queue`, `review/[id]`) |
-| F1 | UC-F1-02 | Pause while waiting for the requester | BR-F1-06, BR-F1-07 | `F1 · SLA badge` |
+| F1 | UC-F1-01 | Start clocks at handoff | BR-F1-01, BR-F1-02, BR-F1-03, BR-F1-04, BR-F1-05, BR-F1-11 | [`F1 · SLA badge`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-604) on queue and ticket (CHANGED `queue`, `review/[id]`) |
+| F1 | UC-F1-02 | Pause while waiting for the requester | BR-F1-06, BR-F1-07 | [`F1 · SLA badge`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-604) |
 | F1 | UC-F1-03 | Resume when the requester replies | BR-F1-07 | — |
-| F1 | UC-F1-04 | Warn, breach, escalate | BR-F1-08, BR-F1-09 | `F1 · Breach list` |
-| F1 | UC-F1-05 | Change priority | BR-F1-02, BR-F1-10 | `F1 · Priority dialog` |
-| F1 | UC-F1-06 | Maintain policies, calendars, holidays | BR-F1-03, BR-F1-05, BR-F1-12, BR-F1-14 | `F1 · SLA policies`, `F1 · Business calendars`, `F1 · Holidays` |
+| F1 | UC-F1-04 | Warn, breach, escalate | BR-F1-08, BR-F1-09 | [`F1 · Breach list`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-685) |
+| F1 | UC-F1-05 | Change priority | BR-F1-02, BR-F1-10 | [`F1 · Priority dialog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-677) |
+| F1 | UC-F1-06 | Maintain policies, calendars, holidays | BR-F1-03, BR-F1-05, BR-F1-12, BR-F1-14 | [`F1 · SLA policies`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-57), [`F1 · Business calendars`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-283), [`F1 · Holidays`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=8-435) |
 | F2 | UC-F2-01 | Assign at handoff | BR-F2-01, BR-F2-02, BR-F2-03, BR-F2-04, BR-F2-05, BR-F2-06, BR-F2-07 | — |
-| F2 | UC-F2-02 | Take a ticket from the team queue | BR-F2-04 | `F2 · Team queue` |
-| F2 | UC-F2-03 | Reassign with a reason | BR-F2-04, BR-F2-05, BR-F2-06 | `F2 · Reassign dialog` (on `review/[id]` CHANGED and ticket page) |
-| F2 | UC-F2-04 | See and balance team workload | BR-F2-04 | `F2 · Team workload` |
-| F2 | UC-F2-05 | Set my availability and leave | BR-F2-03, BR-F2-07 | `F2 · My availability`, `F2 · Team workload` |
-| F2 | UC-F2-06 | Configure teams | BR-F2-01 | `F2 · Teams` |
-| F3 | UC-F3-01 | Ask a follow-up in the same conversation | BR-F3-01, BR-F3-02, BR-F3-03 | `F3 · Chat conversation` (CHANGED chat page) |
-| F3 | UC-F3-02 | See my tickets | BR-F3-04, BR-F3-05 | `F3 · My tickets` |
-| F3 | UC-F3-03 | Read the thread and reply | BR-F3-06, BR-F3-07, BR-X-06 | `F3 · Ticket thread` |
-| F3 | UC-F3-04 | Reopen | BR-F3-08, BR-F3-09 | `F3 · Ticket thread`, `F3 · Answer card` (CHANGED `TurnView` answered state) |
-| F3 | UC-F3-05 | Rate the help | BR-F3-10 | `F3 · Rating` |
-| F3 | UC-F3-06 | Technician writes to the requester | BR-F3-06, BR-F1-06 | `F3 · Comment box` (CHANGED `review/[id]` and ticket page in admin-console) |
+| F2 | UC-F2-02 | Take a ticket from the team queue | BR-F2-04 | [`F2 · Team queue`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-237) |
+| F2 | UC-F2-03 | Reassign with a reason | BR-F2-04, BR-F2-05, BR-F2-06 | [`F2 · Reassign dialog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-442) (on `review/[id]` CHANGED and ticket page) |
+| F2 | UC-F2-04 | See and balance team workload | BR-F2-04 | [`F2 · Team workload`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-450) |
+| F2 | UC-F2-05 | Set my availability and leave | BR-F2-03, BR-F2-07 | [`F2 · My availability`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-603), [`F2 · Team workload`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-450) |
+| F2 | UC-F2-06 | Configure teams | BR-F2-01 | [`F2 · Teams`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=9-646) |
+| F3 | UC-F3-01 | Ask a follow-up in the same conversation | BR-F3-01, BR-F3-02, BR-F3-03 | [`F3 · Chat conversation`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-426) (CHANGED chat page) |
+| F3 | UC-F3-02 | See my tickets | BR-F3-04, BR-F3-05 | [`F3 · My tickets`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-517) |
+| F3 | UC-F3-03 | Read the thread and reply | BR-F3-06, BR-F3-07, BR-X-06 | [`F3 · Ticket thread`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-580) |
+| F3 | UC-F3-04 | Reopen | BR-F3-08, BR-F3-09 | [`F3 · Ticket thread`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-580), [`F3 · Answer card`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-500) (CHANGED `TurnView` answered state) |
+| F3 | UC-F3-05 | Rate the help | BR-F3-10 | [`F3 · Rating`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-623) |
+| F3 | UC-F3-06 | Technician writes to the requester | BR-F3-06, BR-F1-06 | [`F3 · Comment box`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=10-665) (CHANGED `review/[id]` and ticket page in admin-console) |
 | F4 | UC-F4-01 | Notify on an event | BR-F4-01, BR-F4-02, BR-F4-03, BR-F4-04, BR-F4-05, BR-F4-06, BR-F4-07, BR-F4-08 | — |
-| F4 | UC-F4-02 | Read my notifications | BR-F4-07 | `F4 · Notification bell` (admin-console NavBar CHANGED, chat header CHANGED), `F4 · Notification panel` |
-| F4 | UC-F4-03 | Set my preferences | BR-F4-03 | `F4 · My notification settings` |
-| F4 | UC-F4-04 | Edit the notification matrix | BR-F4-02, BR-F4-03 | `F4 · Notification matrix` |
-| F4 | UC-F4-05 | Handle failed deliveries | BR-F4-05 | `F4 · Delivery log` |
-| F4 | UC-F4-06 | Subscribe an external system (webhook) | BR-F4-06 | `F4 · Webhook subscriptions` |
-| F5 | UC-F5-01 | Reveal one masked value | BR-F5-01, BR-F5-02, BR-F5-03, BR-F5-04, BR-F5-05, BR-F5-06, BR-F5-07, BR-F5-08 | `F5 · Reveal dialog` (CHANGED `review/[id]`), `F5 · Access log` |
-| F5 | UC-F5-02 | Review the access log | BR-F5-06 | `F5 · Access log` |
-| F6 | UC-F6-01 | Write and submit a draft | BR-F6-01, BR-F6-02 | `F6 · KB editor`, `F6 · KB drafts` |
-| F6 | UC-F6-02 | Review and publish | BR-F6-02, BR-F6-03, BR-F6-04 | `F6 · Draft review` |
-| F6 | UC-F6-03 | Revoke authority on a content change | BR-F6-04, ADR-0002 | `F6 · Authority queue` |
-| F6 | UC-F6-04 | Grant or re-grant auto-reply authority | BR-F6-05, BR-F6-06 | `F6 · Authority queue` |
-| F6 | UC-F6-05 | View the authority log | — | `F6 · Authority log` |
-| F6 | UC-F6-06 | Use the KB-gap report | BR-F6-07, BR-F6-08 | `F6 · KB gaps` |
-| F6 | UC-F6-07 | Retire a page | BR-F6-04 | `F6 · Draft review` |
-| F7 | UC-F7-01 | Confirm or dismiss a proposed incident | BR-F7-01, BR-F7-02, BR-F7-03 | `F7 · Incident list`, `F7 · Incident page` |
-| F7 | UC-F7-02 | Declare an incident by hand | BR-F7-02 | `F7 · Declare incident` |
-| F7 | UC-F7-03 | Broadcast an update | BR-F7-04, BR-F7-05 | `F7 · Incident page` (broadcast composer, history, delivery count); chat `F7 · Incident banner` |
-| F7 | UC-F7-04 | Resolve and close all | BR-F7-06, BR-F7-07 | `F7 · Resolve dialog` |
-| F7 | UC-F7-05 | Unlink a wrongly matched ticket | BR-F7-08 | `F7 · Incident page` |
-| F8 | UC-F8-01 | Triage a new alert | BR-F8-01, BR-F8-02, BR-F8-03, BR-F8-04 | `F8 · Security inbox`, `F8 · Alert detail` |
-| F8 | UC-F8-02 | Handle a credential pasted into a ticket | BR-F8-05, BR-F8-06 | `F8 · Alert detail` |
-| F8 | UC-F8-03 | Release a false-positive injection block | BR-F8-06, BR-F8-07 | `F8 · Alert detail` |
-| F8 | UC-F8-04 | Investigate a session or access alert | BR-F8-08 | `F8 · Alert detail` |
-| F9 | UC-F9-01 | Turn a branch live | BR-F9-01, BR-F9-02, BR-F9-03, BR-F9-04 | `F9 · Rollout`, `F9 · Flag request` |
-| F9 | UC-F9-02 | Turn a branch off now | BR-F9-02 | `F9 · Rollout` |
-| F9 | UC-F9-03 | Propose a threshold change | BR-F9-05, BR-F9-06 | `F9 · Threshold change request` |
-| F9 | UC-F9-04 | Approve a threshold change and ship it | BR-F9-05, BR-F9-06, BR-F9-07, BR-F9-08 | `F9 · Threshold change request`, `F9 · Threshold history` |
-| F10 | UC-F10-01 | Review the month's SLA compliance | BR-F10-01, BR-F10-02, BR-F10-03, BR-F10-04 | `F10 · SLA report` |
-| F10 | UC-F10-02 | Balance team workload | BR-F10-05 | `F10 · Team report` |
-| F10 | UC-F10-03 | Check reviewers aren't rubber-stamping | BR-F10-06 | `F10 · Reviewer report` |
-| F10 | UC-F10-04 | See KB health and gaps | BR-F10-07 | `F10 · KB report` |
-| F10 | UC-F10-05 | Read requester satisfaction | BR-F10-08 | `F10 · CSAT report` |
-| F10 | UC-F10-06 | Check rollout readiness | BR-F10-09, BR-F10-10 | `F10 · Rollout readiness` (also embedded in `F9 · Rollout`) |
-| F10 | UC-F10-07 | Security and incident numbers | BR-F10-05 | `F10 · Security report`, `F10 · Incident report` |
+| F4 | UC-F4-02 | Read my notifications | BR-F4-07 | [`F4 · Notification bell`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-480) (admin-console NavBar CHANGED, chat header CHANGED), [`F4 · Notification panel`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-531) |
+| F4 | UC-F4-03 | Set my preferences | BR-F4-03 | [`F4 · My notification settings`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-564) |
+| F4 | UC-F4-04 | Edit the notification matrix | BR-F4-02, BR-F4-03 | [`F4 · Notification matrix`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-710) |
+| F4 | UC-F4-05 | Handle failed deliveries | BR-F4-05 | [`F4 · Delivery log`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-890) |
+| F4 | UC-F4-06 | Subscribe an external system (webhook) | BR-F4-06 | [`F4 · Webhook subscriptions`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=11-1047) |
+| F5 | UC-F5-01 | Reveal one masked value | BR-F5-01, BR-F5-02, BR-F5-03, BR-F5-04, BR-F5-05, BR-F5-06, BR-F5-07, BR-F5-08 | [`F5 · Reveal dialog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=12-677) (CHANGED `review/[id]`), [`F5 · Access log`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=12-734) |
+| F5 | UC-F5-02 | Review the access log | BR-F5-06 | [`F5 · Access log`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=12-734) |
+| F6 | UC-F6-01 | Write and submit a draft | BR-F6-01, BR-F6-02 | [`F6 · KB editor`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-737), [`F6 · KB drafts`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-828) |
+| F6 | UC-F6-02 | Review and publish | BR-F6-02, BR-F6-03, BR-F6-04 | [`F6 · Draft review`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-981) |
+| F6 | UC-F6-03 | Revoke authority on a content change | BR-F6-04, ADR-0002 | [`F6 · Authority queue`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-1049) |
+| F6 | UC-F6-04 | Grant or re-grant auto-reply authority | BR-F6-05, BR-F6-06 | [`F6 · Authority queue`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-1049) |
+| F6 | UC-F6-05 | View the authority log | — | [`F6 · Authority log`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-1180) |
+| F6 | UC-F6-06 | Use the KB-gap report | BR-F6-07, BR-F6-08 | [`F6 · KB gaps`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-1299) |
+| F6 | UC-F6-07 | Retire a page | BR-F6-04 | [`F6 · Draft review`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=13-981) |
+| F7 | UC-F7-01 | Confirm or dismiss a proposed incident | BR-F7-01, BR-F7-02, BR-F7-03 | [`F7 · Incident list`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-952), [`F7 · Incident page`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1090) |
+| F7 | UC-F7-02 | Declare an incident by hand | BR-F7-02 | [`F7 · Declare incident`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1298) |
+| F7 | UC-F7-03 | Broadcast an update | BR-F7-04, BR-F7-05 | [`F7 · Incident page`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1090) (broadcast composer, history, delivery count); chat [`F7 · Incident banner`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1332) |
+| F7 | UC-F7-04 | Resolve and close all | BR-F7-06, BR-F7-07 | [`F7 · Resolve dialog`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1324) |
+| F7 | UC-F7-05 | Unlink a wrongly matched ticket | BR-F7-08 | [`F7 · Incident page`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=14-1090) |
+| F8 | UC-F8-01 | Triage a new alert | BR-F8-01, BR-F8-02, BR-F8-03, BR-F8-04 | [`F8 · Security inbox`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1087), [`F8 · Alert detail`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1265) |
+| F8 | UC-F8-02 | Handle a credential pasted into a ticket | BR-F8-05, BR-F8-06 | [`F8 · Alert detail`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1265) |
+| F8 | UC-F8-03 | Release a false-positive injection block | BR-F8-06, BR-F8-07 | [`F8 · Alert detail`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1265) |
+| F8 | UC-F8-04 | Investigate a session or access alert | BR-F8-08 | [`F8 · Alert detail`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=15-1265) |
+| F9 | UC-F9-01 | Turn a branch live | BR-F9-01, BR-F9-02, BR-F9-03, BR-F9-04 | [`F9 · Rollout`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1179), [`F9 · Flag request`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1328) |
+| F9 | UC-F9-02 | Turn a branch off now | BR-F9-02 | [`F9 · Rollout`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1179) |
+| F9 | UC-F9-03 | Propose a threshold change | BR-F9-05, BR-F9-06 | [`F9 · Threshold change request`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1336) |
+| F9 | UC-F9-04 | Approve a threshold change and ship it | BR-F9-05, BR-F9-06, BR-F9-07, BR-F9-08 | [`F9 · Threshold change request`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1336), [`F9 · Threshold history`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1436) |
+| F10 | UC-F10-01 | Review the month's SLA compliance | BR-F10-01, BR-F10-02, BR-F10-03, BR-F10-04 | [`F10 · SLA report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1291) |
+| F10 | UC-F10-02 | Balance team workload | BR-F10-05 | [`F10 · Team report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1399) |
+| F10 | UC-F10-03 | Check reviewers aren't rubber-stamping | BR-F10-06 | [`F10 · Reviewer report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1631) |
+| F10 | UC-F10-04 | See KB health and gaps | BR-F10-07 | [`F10 · KB report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1765) |
+| F10 | UC-F10-05 | Read requester satisfaction | BR-F10-08 | [`F10 · CSAT report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-1916) |
+| F10 | UC-F10-06 | Check rollout readiness | BR-F10-09, BR-F10-10 | [`F10 · Rollout readiness`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-2028) (also embedded in [`F9 · Rollout`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=16-1179)) |
+| F10 | UC-F10-07 | Security and incident numbers | BR-F10-05 | [`F10 · Security report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-2164), [`F10 · Incident report`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=17-2311) |
 | F11 | UC-F11-01 | Open a page's graph tab: outgoing and incoming edges, score, evidence (symptom → remedy pairs), build id, stale flag | BR-F11-02, BR-F11-04 | see §d |
 | F11 | UC-F11-02 | Confirm an edge (`reviewed = true`), hide an edge, or add a missing pointer with a reason | BR-F11-02, BR-F11-03, BR-F11-06 | see §d |
 | F11 | UC-F11-03 | Request a rebuild for a page (button, or automatically on publish); see when it last ran | BR-F11-01, BR-F11-05 | see §d |
@@ -94,10 +94,10 @@ Screens are Figma frame names; links are added in stage 5.
 | F12 | UC-F12-02 | Resolve an `unknown` outcome: check the target system, mark `succeeded` or `failed` with a note | BR-F12-06 | see §d |
 | F12 | UC-F12-03 | Add or change a runbook: code, title, executor, config, required fields, target rule, risk | BR-F12-05, BR-F12-08 | see §d |
 | F12 | UC-F12-04 | n8n calls back with the result (REUSED lifecycle callback pattern, one-time token) | BR-F12-07 | see §d |
-| F13 | UC-F13-01 | Sign in with the company account | BR-F13-01, BR-F13-02, BR-F13-03, BR-F13-04, BR-F13-05, BR-F13-06 | `F13 · Sign-in` (CHANGED both apps' `/login`), `F13 · Sign-in error` |
+| F13 | UC-F13-01 | Sign in with the company account | BR-F13-01, BR-F13-02, BR-F13-03, BR-F13-04, BR-F13-05, BR-F13-06 | [`F13 · Sign-in`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2307) (CHANGED both apps' `/login`), [`F13 · Sign-in error`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2328) |
 | F13 | UC-F13-02 | First sign-in creates the user (JIT) | BR-F13-02, BR-F13-03 | — |
 | F13 | UC-F13-03 | Leaver loses access | BR-F13-04, BR-F13-05, BR-F13-08 | — |
-| F13 | UC-F13-04 | Break-glass sign-in | BR-F13-06 | `F13 · Break-glass sign-in` |
+| F13 | UC-F13-04 | Break-glass sign-in | BR-F13-06 | [`F13 · Break-glass sign-in`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2341) |
 
 ## 8.3 Feature → tests
 
