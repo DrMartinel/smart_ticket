@@ -38,7 +38,7 @@ guard and that comment is later trimmed, the entry is the record.
   deserialize them. *Comment on `ReasonCode` in `router.py`.*
 - **Defaults on persisted contract fields** (`GenerationSignals.quote_applicable = True`).
   Rows written before the field existed must still load. *CLAUDE.md rule 4.*
-- **`services/web/lib/types/generated.ts`.** It is generated, so never hand-edit it.
+- **`lib/types/generated.ts` in `services/admin-console` and `services/chat`.** It is generated, so never hand-edit it.
   *`services/core-api/scripts/gen_typescript.py`.*
 - **`db_table` names mirroring the spec DDL.** `infra/migrations/sql/` is written
   against those exact names.
@@ -180,6 +180,24 @@ guard and that comment is later trimmed, the entry is the record.
   custom header it forces a CORS preflight on cross-origin calls.
 - **Refresh tokens stored as SHA-256 hashes.** A database read must not yield
   usable tokens.
+
+### Role enforcement (PRE-1)
+
+- **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).
+  It looks redundant next to `SessionAuth`. Without it,
+  `test_every_route_is_gated` can't tell a route someone forgot from one
+  that is meant for everyone. *`apps/accounts/tests/test_role_enforcement.py`.*
+- **The `__signature__` `require_role` sets, with annotations evaluated.**
+  Ninja evaluates string annotations in `call.__globals__`, which for the
+  wrapper is `permissions.py`. In a module with `from __future__ import
+  annotations` every request body then fails to resolve, and each call is a
+  500. *The chat and review API tests.*
+- **`allowed_roles` following `__wrapped__`.** `@paginate` sits above the
+  gate on `GET /api/kb`; without the walk that route reads as ungated.
+- **The runbook checks in `RunbookExecution.objects.execute`**
+  (`may_run_runbooks` for the approver and the executor) beside the route
+  gates. Approvals recorded before PRE-1 had no role check; the model
+  check refuses them however execution is reached (ADR-0006).
 
 ## ai-engine
 

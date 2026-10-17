@@ -39,7 +39,7 @@ If you remember nothing else, remember that split. Nearly every design decision 
 | The AI pipeline | [`graph/triage.py`](../services/ai-engine/src/ai_engine/graph/triage.py) | The topology and the compiled graph; the generic `Edge`, `Graph` and LangGraph builder are in `graph/build/`. Refuses before calling the LLM when retrieval is weak. |
 | Prompts and Jev's questions | [`core/prompts/`](../services/ai-engine/src/ai_engine/core/prompts/) | Versioned, eval-gated like code. |
 | Every tunable number | [`thresholds.yaml`](../services/core-api/config/thresholds.yaml) | No magic numbers anywhere else. |
-| Why a ticket is in the queue | [`TrustSignalsPanel.tsx`](../services/web/components/TrustSignalsPanel.tsx) | The reviewer-facing explanation. |
+| Why a ticket is in the queue | [`TrustSignalsPanel.tsx`](../services/admin-console/components/TrustSignalsPanel.tsx) | The reviewer-facing explanation. |
 
 ## A note on reading the code
 

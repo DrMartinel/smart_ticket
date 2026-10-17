@@ -1,22 +1,27 @@
 """
-RBAC building blocks used by every router. Kept intentionally small: this
-is a role gate, not a general permission framework, matching spec §15 Q3
-("who may flip auto_reply_allowed") and the four roles in §1.
+RBAC building blocks used by every router: `SessionAuth` and the role gate
+`require_role`, which every route but sign-in, refresh, sign-out and the
+lifecycle callback carries (PRE-1).
 """
 
 from collections.abc import Callable, Iterable
+from datetime import timedelta
+from enum import StrEnum
 from functools import wraps
-from typing import Concatenate
+import inspect
+from typing import Any, Concatenate, NoReturn, cast
+from weakref import WeakKeyDictionary
 
-from typing import Any, cast
-
+from django.conf import settings
 from django.http import HttpRequest
+from django.utils import timezone
 from ninja.errors import HttpError
 from ninja_jwt.authentication import JWTAuth
 from ninja_jwt.exceptions import AuthenticationFailed
 from ninja_jwt.tokens import Token
 
 from apps.accounts.models import RefreshSession, User, UserRole
+from apps.audit.models import AuditLog
 
 
 class AuthedRequest(HttpRequest):
@@ -39,11 +44,78 @@ class SessionAuth(JWTAuth):
         return user
 
 
+ALL_ROLES = tuple(UserRole)
+STAFF = (UserRole.TECHNICIAN, UserRole.MANAGER, UserRole.SECURITY)
+TECHNICIAN_OR_MANAGER = (UserRole.TECHNICIAN, UserRole.MANAGER)
+
+
+class AccessRefusal(StrEnum):
+    ROLE_NOT_ALLOWED = "role_not_allowed"
+
+
+class AccessError(Exception):
+    """A refusal in the shared error shape (BR-X-08), answered by `config/urls.py`."""
+
+    status = 403
+
+    def __init__(self, code: AccessRefusal, message: str, details: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.details = details
+
+
+_GATES: WeakKeyDictionary[Callable[..., Any], frozenset[str]] = WeakKeyDictionary()
+
+
+def allowed_roles(handler: Callable[..., Any]) -> frozenset[str] | None:
+    """The roles a handler's `require_role` lets in, or None for an ungated handler."""
+    while handler not in _GATES:
+        inner = getattr(handler, "__wrapped__", None)
+        if inner is None:
+            return None
+        handler = inner
+    return _GATES[handler]
+
+
+def refuse_unless(request: HttpRequest, user: User, roles: Iterable[UserRole]) -> None:
+    """Refuses `user` unless their role is one of `roles`, auditing the refusal."""
+    allowed = sorted(r.value for r in roles)
+    if user.role not in allowed:
+        _refuse(request, user, allowed)
+
+
+def _refuse(request: HttpRequest, user: User, allowed: list[str]) -> NoReturn:
+    match = getattr(request, "resolver_match", None)
+    route = match.route if match is not None else request.path
+    window = timedelta(seconds=settings.THRESHOLDS.access_denied.audit_window_seconds)
+    recently_audited = AuditLog.objects.filter(
+        event="access_denied",
+        actor_id=user.id,
+        payload__route=route,
+        payload__method=request.method,
+        occurred_at__gte=timezone.now() - window,
+    ).exists()
+    if not recently_audited:
+        AuditLog.objects.record(
+            "access_denied",
+            actor_type="human",
+            actor_id=user.id,
+            payload={"route": route, "method": request.method, "role": user.role},
+            trace_id=getattr(request, "trace_id", None),
+        )
+    raise AccessError(
+        AccessRefusal.ROLE_NOT_ALLOWED,
+        f"requires role in [{', '.join(allowed)}]",
+        {"role": user.role},
+    )
+
+
 def require_role(*roles: UserRole):
     """Decorator for Django Ninja handlers: `request` must be the first arg
     (Ninja convention) and `request.auth` must be an authenticated User."""
 
-    allowed = {r.value for r in roles}
+    allowed = frozenset(r.value for r in roles)
 
     def decorator[**P, R](
         fn: Callable[Concatenate[AuthedRequest, P], R],
@@ -53,10 +125,12 @@ def require_role(*roles: UserRole):
             user = getattr(request, "auth", None) or getattr(request, "user", None)
             if user is None or not getattr(user, "is_authenticated", False):
                 raise HttpError(401, "authentication required")
-            if user.role not in allowed:
-                raise HttpError(403, f"requires role in {sorted(allowed)}, got {user.role!r}")
+            refuse_unless(request, user, roles)
             return fn(request, *args, **kwargs)
 
+        # The handler's signature, its annotations evaluated.
+        setattr(wrapper, "__signature__", inspect.signature(fn, eval_str=True))
+        _GATES[wrapper] = allowed
         return wrapper
 
     return decorator

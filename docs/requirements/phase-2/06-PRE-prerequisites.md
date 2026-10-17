@@ -94,8 +94,13 @@ None. `audit_log` gets a new event name.
 | `GET /api/itsm/runbooks`, `POST /api/itsm/review-items/{id}/execute` | any signed-in | technician, manager |
 | `GET /api/fewshot/category/{category}` | any signed-in | technician, manager |
 | `GET /api/kb` | any signed-in | unchanged (employees may read live pages) |
-| `/api/chat/*`, `/api/accounts/me`, `/api/auth/sessions*` | own data only | unchanged |
-| `/api/lifecycle/*` | gated | unchanged |
+| `POST /api/tickets/submit` | any signed-in | every role, declared (v0.6.1) |
+| `GET /api/tickets`, `/api/tickets/board`, `/api/tickets/{public_id}/detail` | technician, manager, security (added after `7ac264b`) | unchanged (v0.6.1) |
+| `/api/chat/*`, `/api/accounts/me`, `/api/auth/sessions*`, `POST /api/auth/logout-everywhere` | own data only | own data only; every role declared, so the route test can tell them from a forgotten gate (v0.6.1) |
+| `/api/lifecycle/*` | gated | same roles; a refusal now has the error shape below instead of `{"detail": …}` (v0.6.1) |
+
+*v0.6.1:* the rows for `submit`, the staff ticket views and logout-everywhere
+were missing; BR-PRE1-01 needs every route to declare its roles.
 
 Refusal body:
 

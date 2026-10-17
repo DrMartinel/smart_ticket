@@ -8,6 +8,7 @@ from django.http import HttpRequest, HttpResponse
 from django.urls import path
 from ninja_extra import NinjaExtraAPI
 
+from apps.accounts.permissions import AccessError
 from apps.accounts.views import auth_router
 from apps.accounts.views import router as accounts_router
 from apps.tickets.views import router as tickets_router
@@ -36,6 +37,15 @@ api.add_router("/lifecycle", lifecycle_router)
 
 @api.exception_handler(LifecycleError)
 def lifecycle_refused(request: HttpRequest, exc: LifecycleError) -> HttpResponse:
+    return api.create_response(
+        request,
+        {"code": exc.code.value, "message": exc.message, "details": exc.details},
+        status=exc.status,
+    )
+
+
+@api.exception_handler(AccessError)
+def access_refused(request: HttpRequest, exc: AccessError) -> HttpResponse:
     return api.create_response(
         request,
         {"code": exc.code.value, "message": exc.message, "details": exc.details},

@@ -7,9 +7,12 @@ from apps.kb.models import KBGovernanceError, KbArticle
 from apps.kb.request_schema import ArticleFilter, ArticleIn, AutoReplyFlagIn, RiskTierIn
 from apps.kb.response_schema import ArticleOut, ReingestOut
 from apps.kb.utils.indexing import indexer
-from apps.accounts.permissions import AuthedRequest, SessionAuth
+from apps.accounts.models import UserRole
+from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_role
 
 router = Router(tags=["kb"])
+
+_MANAGER = (UserRole.MANAGER,)
 
 
 # No `from __future__ import annotations` in this module: @paginate makes
@@ -17,11 +20,13 @@ router = Router(tags=["kb"])
 # annotations like "ArticleFilter" are undefined.
 @router.get("", auth=SessionAuth(), response=list[ArticleOut])
 @paginate(LimitOffsetPagination)
+@require_role(*ALL_ROLES)
 def list_articles(request: AuthedRequest, filters: Query[ArticleFilter]) -> QuerySet[KbArticle]:
     return filters.filter(KbArticle.objects.filter(is_active=True)).order_by("slug")
 
 
 @router.post("", auth=SessionAuth(), response=ArticleOut)
+@require_role(*_MANAGER)
 def create_article(request: AuthedRequest, payload: ArticleIn) -> KbArticle:
     return KbArticle.objects.create_and_ingest(
         slug=payload.slug,
@@ -33,6 +38,7 @@ def create_article(request: AuthedRequest, payload: ArticleIn) -> KbArticle:
 
 
 @router.post("/{slug}/reingest", auth=SessionAuth(), response=ReingestOut)
+@require_role(*_MANAGER)
 def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
     article = _get_or_404(slug)
     chunks = indexer.ingest(article)
@@ -40,6 +46,7 @@ def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
 
 
 @router.post("/{slug}/auto-reply-allowed", auth=SessionAuth(), response=ArticleOut)
+@require_role(*_MANAGER)
 def toggle_auto_reply(request: AuthedRequest, slug: str, payload: AutoReplyFlagIn) -> KbArticle:
     article = _get_or_404(slug)
     try:
@@ -52,6 +59,7 @@ def toggle_auto_reply(request: AuthedRequest, slug: str, payload: AutoReplyFlagI
 
 
 @router.post("/{slug}/risk-tier", auth=SessionAuth(), response=ArticleOut)
+@require_role(*_MANAGER)
 def change_risk_tier(request: AuthedRequest, slug: str, payload: RiskTierIn) -> KbArticle:
     article = _get_or_404(slug)
     try:

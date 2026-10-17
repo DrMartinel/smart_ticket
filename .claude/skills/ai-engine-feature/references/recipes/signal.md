@@ -38,7 +38,7 @@ Do the steps in this order. Each one compiles on top of the one before.
      threshold goes in `thresholds.yaml`, which is passed in (CLAUDE.md rules 1 and 2).
    - Log-only field: add no consumer, and say "log-only" in the contract comment.
 6. **Reviewer UI.** If a reviewer needs to see the value, it goes in
-   `services/web/components/TrustSignalsPanel.tsx`.
+   `services/admin-console/components/TrustSignalsPanel.tsx`.
 
 ## A new failure reason
 

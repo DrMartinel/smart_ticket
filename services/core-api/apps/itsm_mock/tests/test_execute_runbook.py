@@ -80,6 +80,23 @@ class TestRefusals:
 
         assert_refused(item, technician_user, "not a runbook_approval item")
 
+    def test_an_approval_by_an_employee_does_not_count(self, employee_user, technician_user):
+        """FR-PRE1-005: an approval recorded by a non-staff user, e.g. before PRE-1."""
+        item = runbook_item(employee_user)
+        record_decision(item, employee_user, ReviewAction.APPROVE)
+
+        assert_refused(item, technician_user, "not made by a technician or manager")
+
+    @pytest.mark.parametrize("role", ["employee", "security"])
+    def test_only_a_technician_or_manager_executes(
+        self, employee_user, technician_user, django_user_model, role
+    ):
+        item = runbook_item(employee_user)
+        record_decision(item, technician_user, ReviewAction.APPROVE)
+        executor = django_user_model.objects.create_user(username="x", password="x", role=role)
+
+        assert_refused(item, executor, "only a technician or manager may execute")
+
     def test_a_runbook_the_registry_does_not_know(self, employee_user, technician_user):
         item = runbook_item(employee_user, draft={"runbook_id": "RB-DROP-DATABASE"})
         record_decision(item, technician_user, ReviewAction.APPROVE)

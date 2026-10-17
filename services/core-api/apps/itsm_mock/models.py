@@ -63,6 +63,10 @@ class RunbookExecutionManager(models.Manager["RunbookExecution"]):
             )
         if review_item.queue != "runbook_approval":
             raise RunbookError("review item is not a runbook_approval item")
+        if not approving_decision.reviewer.may_run_runbooks:
+            raise RunbookError("the approving decision was not made by a technician or manager")
+        if not executed_by.may_run_runbooks:
+            raise RunbookError("only a technician or manager may execute a runbook")
 
         ai_run = review_item.ai_run
         draft = (ai_run.proposed_draft or {}) if ai_run else {}

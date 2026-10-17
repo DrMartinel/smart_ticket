@@ -49,6 +49,16 @@ class User(AbstractUser, BaseModel):
     def is_security(self) -> bool:
         return self.role == UserRole.SECURITY.value
 
+    @property
+    def is_support_staff(self) -> bool:
+        """Whether the user works tickets: technician, manager or security."""
+        return self.role != UserRole.EMPLOYEE.value
+
+    @property
+    def may_run_runbooks(self) -> bool:
+        """Whether the user may approve or execute a runbook (ADR-0006, FR-PRE1-005)."""
+        return self.role in (UserRole.TECHNICIAN.value, UserRole.MANAGER.value)
+
 
 class AuthClient(StrEnum):
     """The frontends a refresh session belongs to; each keeps its own cookie."""
