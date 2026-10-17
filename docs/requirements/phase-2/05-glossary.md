@@ -17,8 +17,8 @@ transition, rule, action, transfer) are in ADR-0028.
 | **Business time** | Time that counts toward a target: inside working hours, not on a holiday, not while paused |
 | **Pause status** | A workflow status whose entry pauses running clocks, e.g. `waiting_on_requester` (NEW status, base `On hold`) |
 | **Breach warning** | A notice sent when a clock passes a set share of its target (default 75 %) |
-| **Breach escalation** | What happens when a clock passes 100 %: notify the team lead, then the manager, raise ticket priority one step [ASSUMPTION] |
-| **Handoff** | The moment a ticket becomes support's work: the pipeline moves it to `pending_review`, `auto_routed`, `escalated` or `blocked`, or the requester asks for a ticket in chat. SLA clocks start here, not at submit |
+| **Breach escalation** | What happens when a clock passes a level: 100 % notifies the assignee and team lead, 125 % the manager. Priority is never raised automatically (BR-F1-09) |
+| **Handoff** | The moment a ticket becomes support's work: its first entry into a status whose base is neither `Intake` (backlog) nor completed — in practice `pending_review`, `auto_routed`, `escalated` or `blocked`, including when a chat requester asks for a ticket. SLA clocks start here, not at submit (BR-F1-01) |
 | **Priority** | `P1`–`P4` on the ticket (NEW field). Set by core-api from rules, changed by a person with a reason. Never set from an LLM field (ADR-0001) |
 
 ## Teams and assignment (F2)

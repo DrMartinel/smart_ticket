@@ -2,8 +2,8 @@
 
 ## 2.1 Feature list
 
-Two changes from your brief are marked ⚠️ and need your confirmation before
-stage 2:
+Two changes from your brief, marked ⚠️, were confirmed by the product owner on
+2026-10-17:
 
 - ⚠️ **F13 Identity (Keycloak) is split out of F12 and proposed as Must.** You
   asked whether we can build a Keycloak feature: yes. For a real IT org, users
@@ -23,7 +23,7 @@ stage 2:
 | F3 | Requester experience in chat | Must | NEW + CHANGED | My tickets (chat and form), status, reply, reopen within a window, rating; chat memory within one conversation only |
 | F4 | Notifications | Must | NEW + CHANGED | In-app, email, webhook; a notification matrix; user preferences; mandatory notices can't be turned off |
 | F5 | PII quarantine reveal | Must | NEW | Mandatory reason, access log in the same transaction, who may reveal. Closes `status.md` Gap 1 |
-| F13 | Identity via Keycloak (OIDC) | **Must (proposed)** ⚠️ | NEW + CHANGED | Sign-in through Keycloak for both apps, users created on first sign-in, roles and teams from Keycloak, deactivation ends sessions |
+| F13 | Identity via Keycloak (OIDC) | **Must** ⚠️ | NEW + CHANGED | Sign-in through Keycloak for both apps, users created on first sign-in, roles and teams from Keycloak, deactivation ends sessions |
 | F6 | KB authoring & governance UI | Should | NEW + CHANGED | Drafts, review, risk tiers, authority approval, authority-log viewer, KB-gap report |
 | F7 | Mass-incident management | Should | NEW + CHANGED | Incident page, broadcast with ETA to linked requesters, close all on resolve |
 | F8 | Security inbox | Should | NEW | Block, injection, critical-PII and session-theft alerts with triage states |

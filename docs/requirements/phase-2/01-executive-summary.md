@@ -47,7 +47,7 @@ does not exist yet; the feature that creates it is named.
 | K5 Reassignment rate | G2 | Tickets reassigned to another team ÷ tickets assigned | `reroute_rate` on review decisions only | **< 15 %** (matches P3 gate, README) | F2 + existing metric |
 | K6 Requester CSAT | G3 | Mean rating 1–5 on resolved tickets | Not measured (F3) | **≥ 4.2**, response rate ≥ 20 % [ASSUMPTION] | F3 |
 | K7 Reopen after auto-reply | G3 | `reopen_rate_after_autoreply` (spec §11.1, metric number one) | Measured; 0 reopens possible today (no reopen surface) | **< 5 %** for 1 month (P4 gate) | F3 makes it real |
-| K8 Notification latency | G4 | Event to in-app delivery p95; event to email handed to SMTP p95 | Not measured (F4) | **≤ 5 s** in-app, **≤ 2 min** email | F4 |
+| K8 Notification latency | G4 | Event to in-app row readable p95 (shown on the next poll, ≤ 15 s); event to email handed to SMTP p95 | Not measured (F4) | **≤ 5 s** in-app row, **≤ 2 min** email | F4 |
 | K9 Unlogged PII reads | G5 | Plaintext reads of `pii_quarantine` without a `pii_access_log` row | 0 (no reads possible) | **0, always** (invariant, not a target) | F5 + test |
 | K10 SSO coverage | G6 | Active staff and employee accounts that sign in through Keycloak ÷ active accounts | 0 % | **100 %** except ≤ 2 break-glass accounts | F13 |
 | K11 Deprovision time | G6 | Disable in directory → all sessions refused | Manual | **≤ 5 min** [ASSUMPTION: Keycloak event or sync interval] | F13 |

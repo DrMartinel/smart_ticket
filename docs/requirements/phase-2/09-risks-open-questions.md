@@ -1,28 +1,35 @@
 # 9. Risks, assumptions, open questions, proposed ADRs
 
-**State: seeded at stage 1.** Completed in stage 6. Each stage adds its rows.
+**State: updated at stage 2.** Completed in stage 6. Each stage adds its rows.
+
+OQ-01…OQ-14 defaults were accepted by the product owner on 2026-10-17 and are
+now decisions; they stay listed so the trace is visible.
 
 ## 9.1 Open questions
 
 Each has an owner and a proposed default. If nobody answers by the stage that
 needs it, the default is used and stays tagged [ASSUMPTION].
 
-| ID | Question | Owner | Proposed default | Needed by |
-|---|---|---|---|---|
-| OQ-01 | Is F13 (Keycloak) a Must? | Product owner | **Yes, Must**, wave 1 | Stage 2 |
-| OQ-02 | Are PRE-1 (role enforcement) and PRE-2 (accept ADR-0028, ADR-0029) accepted as prerequisites? | Tech lead | **Yes**, wave 0 | Stage 2 |
-| OQ-03 | What directory sits behind Keycloak: on-prem Active Directory, Entra ID, or Keycloak's own users? | Head of IT Operations | On-prem AD through Keycloak LDAP federation | F13 (stage 4) |
-| OQ-04 | One business calendar or one per site? | IT Service Desk Manager | One: Mon–Fri 08:00–17:30, lunch counted as working, `Asia/Ho_Chi_Minh`; Saturday off | F1 |
-| OQ-05 | SLA targets per priority | IT Service Desk Manager | P1: respond 15 min / resolve 4 h, **24×7**. P2: 30 min / 8 business h. P3: 4 business h / 3 business days. P4: 1 business day / 5 business days | F1 |
-| OQ-06 | Who sets ticket priority? | IT Service Desk Manager | core-api rules: category default (security → P2, others → P3); linked to a mass incident → P1; a technician changes it with a reason. Requesters can't set it. Never from an LLM field | F1 |
-| OQ-07 | When does a chat ticket's SLA start? | IT Service Desk Manager | When the requester asks for a ticket (`requester_asked_for_ticket`), not at the first message | F1, F3 |
-| OQ-08 | "Chat memory across turns": does the chat model see earlier turns, or does only the screen show them? | Product owner | The model sees the **masked** earlier turns of the same conversation (last 6 turns); a conversation ends after 30 min idle; nothing carries into a new one. Needs a wire change and an ADR | F3 |
-| OQ-09 | Reopen window | IT Service Desk Manager | 7 calendar days after resolution; after that, a new linked ticket | F3 |
-| OQ-10 | Email relay and sender | Head of IT Operations | Company SMTP relay over TLS; sender `helpdesk@<company domain>` | F4 |
-| OQ-11 | Break-glass accounts | Information Security Officer | 2 local accounts, role `manager`, password in the company vault, every sign-in alerts `security` | F13 |
-| OQ-12 | Who may reveal PII? | Information Security Officer | `security`; or the technician holding the claim on that ticket's `pii_verify` item. Managers: no | F5 |
-| OQ-13 | Holidays that apply only to public employees (e.g. Culture Day 24 Nov 2026) | HR | The holiday calendar is whatever HR enters each year | F1 |
-| OQ-14 | How long are in-app notifications kept? | Data Protection Officer | 90 days, then deleted; the audit log keeps the event | F4 |
+| ID | Question | Owner | Proposed default | Needed by | State |
+|---|---|---|---|---|---|
+| OQ-01 | Is F13 (Keycloak) a Must? | Product owner | **Yes, Must**, wave 1 | Stage 2 | Decided 2026-10-17 |
+| OQ-02 | Are PRE-1 (role enforcement) and PRE-2 (accept ADR-0028, ADR-0029) accepted as prerequisites? | Tech lead | **Yes**, wave 0 | Stage 2 | Decided 2026-10-17 |
+| OQ-03 | What directory sits behind Keycloak: on-prem Active Directory, Entra ID, or Keycloak's own users? | Head of IT Operations | On-prem AD through Keycloak LDAP federation | F13 | Decided 2026-10-17 |
+| OQ-04 | One business calendar or one per site? | IT Service Desk Manager | One: Mon–Fri 08:00–17:30, lunch counted as working, `Asia/Ho_Chi_Minh`; Saturday off | F1 | Decided 2026-10-17 |
+| OQ-05 | SLA targets per priority | IT Service Desk Manager | P1: respond 15 min / resolve 4 h, **24×7**. P2: 30 min / 8 business h. P3: 4 business h / 3 business days. P4: 1 business day / 5 business days | F1 | Decided 2026-10-17 |
+| OQ-06 | Who sets ticket priority? | IT Service Desk Manager | core-api rules: category default (security → P2, others → P3); linked to a mass incident → P1; a technician changes it with a reason. Requesters can't set it. Never from an LLM field | F1 | Decided 2026-10-17 |
+| OQ-07 | When does a chat ticket's SLA start? | IT Service Desk Manager | When the requester asks for a ticket (`requester_asked_for_ticket`), not at the first message | F1, F3 | Decided 2026-10-17 |
+| OQ-08 | "Chat memory across turns": does the chat model see earlier turns, or does only the screen show them? | Product owner | The model sees the **masked** earlier turns of the same conversation (last 6 turns); a conversation ends after 30 min idle; nothing carries into a new one. Needs a wire change and an ADR | F3 | Decided 2026-10-17 |
+| OQ-09 | Reopen window | IT Service Desk Manager | 7 calendar days after resolution; after that, a new linked ticket | F3 | Decided 2026-10-17 |
+| OQ-10 | Email relay and sender | Head of IT Operations | Company SMTP relay over TLS; sender `helpdesk@<company domain>` | F4 | Decided 2026-10-17 |
+| OQ-11 | Break-glass accounts | Information Security Officer | 2 local accounts, role `manager`, password in the company vault, every sign-in alerts `security` | F13 | Decided 2026-10-17 |
+| OQ-12 | Who may reveal PII? | Information Security Officer | `security`; or the technician who holds the claim on a pending review item of the ticket, or is its assignee. Critical labels: `security` only. Managers: no. (Refined at stage 2: `pii_verify` holds only blocked credential tickets) | F5 | Decided 2026-10-17 |
+| OQ-13 | Holidays that apply only to public employees (e.g. Culture Day 24 Nov 2026) | HR | The holiday calendar is whatever HR enters each year | F1 | Decided 2026-10-17 |
+| OQ-14 | How long are in-app notifications kept? | Data Protection Officer | 90 days, then deleted; the audit log keeps the event | F4 | Decided 2026-10-17 |
+| OQ-15 | Should a requester be told when someone reveals their PII? | Data Protection Officer | No notice; the access log is exportable on request | F5 | Open |
+| OQ-16 | Does the requester see the assignee's name, or only the team? | IT Service Desk Manager | Team only | F3 | Open |
+| OQ-17 | Should `on_hold` (waiting on a vendor) pause the SLA? | IT Service Desk Manager | No; only `waiting_on_requester` pauses | F1 | Open |
+| OQ-18 | Do teams need their own calendars (e.g. a 24×7 network on-call)? | Head of IT Operations | One default calendar; the field exists if needed | F1, F2 | Open |
 
 ## 9.2 Assumptions made at stage 1
 
@@ -33,6 +40,11 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | A-03 | KPI targets K1, K2, K4, K6, K11 are ITSM-typical, not measured | §1.3 |
 | A-04 | No SMS, voice or push provider is in scope | F4 |
 | A-05 | The org has a Data Protection Officer | §0.2 |
+| A-06 | Reveal reasons are masked by the regex tier only, so reveals work when ai-engine is down | F5 BR-F5-04 |
+| A-07 | Vendor waits (`on_hold`) keep counting SLA time | F1 BR-F1-07 |
+| A-08 | No backfill of SLA clocks or priority for tickets created before F1 | F1 §g |
+| A-09 | A reopened ticket resumes its old resolution clock; response is not restarted | F1 BR-F1-13 |
+| A-10 | `security` may assign only within the `security` category | F2 BR-F2-04 |
 
 ## 9.3 Risks
 
@@ -45,15 +57,18 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | R-05 | Chat memory carries one turn's content into another ticket's analysis | Medium | High | Only masked turns; same conversation only; same requester only; ADR required |
 | R-06 | Keycloak down = nobody can start a new sign-in | Low | High | Existing core-api sessions keep working until their own limits (ADR-0029); break-glass accounts |
 | R-07 | README and CLAUDE.md describe one `services/web` app; the code has two | Certain | Low | Patch both in the PRE-1 PR |
+| R-08 | F3's prompt bumps (`hyde_draft.v3`, `propose.v10`) move an eval gate | Medium | High | Run the full eval before merge; single-turn cases must not regress; no floor lowered (rule 9) |
+| R-09 | The SLA hook adds work inside every status change | Low | Medium | One indexed write; savepoint; p95 status-move latency in §7 NFRs |
+| R-10 | Engine change `lifecycle.automatic_move` widens who can move tickets | Low | Medium | Governed exactly like a person's move; never targets pipeline statuses; tested |
 
-## 9.4 Proposed ADRs (to be written in the stage that specs the feature)
+## 9.4 Proposed ADRs
 
-| ADR | Title | Feature | Relaxes a guardrail? |
-|---|---|---|---|
-| 0030 | SLA clocks count business time, driven by lifecycle events | F1 | No |
-| 0031 | Capabilities and team scope alongside the primary role | F2, F6, F7, F9, F13 | No (adds rights, each audited) |
-| 0032 | Keycloak signs people in; core-api keeps the session | F13 | No; builds on ADR-0029 |
-| 0033 | Notifications go through an outbox written in the event's transaction | F4 | No |
-| 0034 | A chat conversation gives the model its earlier masked turns | F3 | **Yes**: today each ticket is analysed alone. Must say why cross-turn context is safe |
-| 0035 | Threshold and shadow-mode changes are reviewed, versioned configuration (`thresholds.yaml` stays the source; `SHADOW_MODE` is an env var today) | F9 | No; makes hard rule 2 auditable |
-| 0036 | KB drafts are invisible to retrieval | F6 | No; ai-engine reads, never writes |
+| ADR | Title | Feature | Relaxes a guardrail? | Draft |
+|---|---|---|---|---|
+| 0030 | SLA clocks count business time, driven by lifecycle events | F1 | No | [written](proposed-adrs/0030-sla-clocks-on-lifecycle-events.md) |
+| 0031 | Capabilities and team scope alongside the primary role | F2, F6, F7, F9, F13 | No (adds rights, each audited) | [written](proposed-adrs/0031-capabilities-and-team-scope.md) |
+| 0032 | Keycloak signs people in; core-api keeps the session | F13 | No; builds on ADR-0029 | [written](proposed-adrs/0032-keycloak-signs-in-core-api-keeps-the-session.md) |
+| 0033 | Notifications go through an outbox written in the event's transaction | F4 | No | [written](proposed-adrs/0033-notifications-through-an-outbox.md) |
+| 0034 | A chat conversation gives the model its earlier masked turns | F3 | **Yes**: today each ticket is analysed alone. Must say why cross-turn context is safe | [written](proposed-adrs/0034-conversation-context-for-the-model.md) |
+| 0035 | Threshold and shadow-mode changes are reviewed, versioned configuration (`thresholds.yaml` stays the source; `SHADOW_MODE` is an env var today) | F9 | No; makes hard rule 2 auditable | stage 3 |
+| 0036 | KB drafts are invisible to retrieval | F6 | No; ai-engine reads, never writes | stage 3 |

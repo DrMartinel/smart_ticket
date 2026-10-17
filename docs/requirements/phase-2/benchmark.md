@@ -50,7 +50,7 @@ ITIL 4 practice names follow the 34-practice list ([ITSM.tools summary][itil]).
 |---|---|---|
 | Adopt | Two strategies per team: `round_robin`, `least_loaded` | JSM, SDP, Freshservice all offer both |
 | Adopt | Availability flag and leave dates; skip unavailable members | SDP, Freshservice, ServiceNow |
-| Adapt | Assignment runs **after** the router's decision is carried out, as a lifecycle action on entering `auto_routed`, or when a reviewer decides a HITL item | The router chooses the category (ADR-0001, ADR-0017); assignment must never change a branch |
+| Adapt | Assignment runs **after** the router's decision is carried out: called by core-api when a live `auto_route` is executed, when a reviewer decides a HITL item, or when a chat ticket is released to support. Not a lifecycle action, because pipeline statuses carry none (ADR-0028 §2) | The router chooses the category (ADR-0001, ADR-0017); assignment must never change a branch |
 | Adapt | Optional per-person cap (max open tickets); over cap = skipped | ServiceNow capacity, simplified |
 | Skip | Predicting the assignee or team with a model | Moveworks/ServiceNow pattern, but our team comes from the router's category. A second model choosing teams would be authority the LLM was never granted |
 
@@ -92,7 +92,7 @@ ITIL 4 practice names follow the 34-practice list ([ITSM.tools summary][itil]).
 | Adopt | Event × recipient × channel matrix, admin default per cell | Freshservice/ServiceNow |
 | Adopt | User preferences per event and channel | ServiceNow |
 | Adopt | Templates per language (vi, en) | Freshservice; our users are mixed vi/en |
-| Adapt | A **mandatory** flag the user can't override (security alerts, incident broadcasts, reveal of your own data) | Safety notices must not be opt-out |
+| Adapt | A **mandatory** flag the user can't override (security alerts, break-glass sign-ins, incident broadcasts, approval requests) | Safety notices must not be opt-out |
 | Adapt | Templates read **masked** fields only | ADR-0028 §6 |
 | Adapt | Webhook channel only to allow-listed hosts | ADR-0028 §6 already does this |
 | Skip | SMS, voice, push | No provider in scope; in-app + email cover the need [ASSUMPTION] |

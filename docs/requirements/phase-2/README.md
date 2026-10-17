@@ -22,8 +22,8 @@ Every item is tagged:
 | Field | Value |
 |---|---|
 | Document | Phase 2 requirements pack |
-| Version | **0.1 — Stage 1 draft** (baseline, scope, benchmark, personas) |
-| Status | Draft, awaiting stage 1 review |
+| Version | **0.2 — Stage 2 draft** (adds §6 for PRE-1, PRE-2, F1–F5, F13 and proposed ADRs 0030–0034) |
+| Status | Draft, awaiting stage 2 review |
 | Date | 2026-10-17 |
 | Baseline commit | `main` @ `7ac264b` |
 | Owner | Product owner (Hoàng) |
@@ -48,6 +48,7 @@ go in at sign-off.
 | Version | Date | Author | Change |
 |---|---|---|---|
 | 0.1 | 2026-10-17 | BA (Claude) for the product owner | Stage 1: §0–§5, benchmark, seeded §9 |
+| 0.2 | 2026-10-17 | BA (Claude) for the product owner | Stage 2: OQ-01…14 defaults accepted; §6 for PRE-1/PRE-2, F1–F5, F13; proposed ADRs 0030–0034; fixes to benchmark F2/F4, glossary, K8 |
 
 ### 0.4 Change control
 
@@ -72,18 +73,26 @@ go in at sign-off.
 |---|---|---|---|
 | 0 | This file | 1 | Draft |
 | 1 | [Executive summary](01-executive-summary.md) | 1 | Draft |
-| 2 | [Scope, dependencies, build order](02-scope.md) | 1 | Draft — **feature list awaits your confirmation** |
+| 2 | [Scope, dependencies, build order](02-scope.md) | 1 | Draft — feature list confirmed 2026-10-17 |
 | 3 | [Baseline summary](03-baseline.md) | 1 | Draft |
 | 4 | [Personas and roles](04-personas.md) | 1 | Draft |
 | 5 | [Glossary (new terms only)](05-glossary.md) | 1 | Draft |
 | — | [Benchmark: F1–F13 against five products](benchmark.md) | 1 | Draft |
-| 6 | Per-feature specs: F1–F5 | 2 | Not started |
+| 6.0 | [Conventions, cross-feature rules, mock data](06-00-conventions.md) | 2 | Draft |
+| 6 | [PRE-1 role enforcement, PRE-2 ADR acceptance](06-PRE-prerequisites.md) | 2 | Draft |
+| 6 | [F1 SLA & business hours](06-F1-sla.md) | 2 | Draft |
+| 6 | [F2 Teams, assignment & workload](06-F2-teams-assignment.md) | 2 | Draft |
+| 6 | [F3 Requester experience in chat](06-F3-requester-chat.md) | 2 | Draft |
+| 6 | [F4 Notifications](06-F4-notifications.md) | 2 | Draft |
+| 6 | [F5 PII quarantine reveal](06-F5-pii-reveal.md) | 2 | Draft |
+| 6 | [F13 Identity via Keycloak](06-F13-identity.md) | 2 | Draft |
+| — | [Proposed ADRs 0030–0034](proposed-adrs/) | 2 | Draft |
 | 6 | Per-feature specs: F6–F10 | 3 | Not started |
-| 6 | Per-feature specs: F11–F13 | 4 | Not started |
+| 6 | Per-feature specs: F11–F12 | 4 | Not started |
 | 7 | Cross-cutting: RBAC, notifications, audit, NFRs | 4 | Not started |
 | 8 | Traceability | 4 | Not started |
 | — | Figma mockups | 5 | Not started |
-| 9 | [Risks, assumptions, open questions, proposed ADRs](09-risks-open-questions.md) | 6 | **Seeded** with stage 1 findings |
+| 9 | [Risks, assumptions, open questions, proposed ADRs](09-risks-open-questions.md) | 6 | Updated at stage 2 |
 | 10 | Release plan | 6 | Not started |
 
 Existing vocabulary is in [`docs/glossary.md`](../../glossary.md). §5 adds only new terms.
