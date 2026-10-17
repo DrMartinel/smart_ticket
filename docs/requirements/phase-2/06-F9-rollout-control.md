@@ -150,7 +150,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 |---|---|
 | FR-F9-001 | The system shall store one flag per branch family (`auto_route`, `auto_reply`, `requester_questions`) with state and history |
 | FR-F9-002 | The system shall decide live vs shadow per decision by BR-F9-01, outside `router.py` |
-| FR-F9-003 | The system shall record `rollout_snapshot` on every routing decision |
+| FR-F9-003 | The system shall record `rollout_snapshot` on every routing decision (BR-F9-09) |
 | FR-F9-004 | The system shall run the request → two approvals flow for turning a flag on, and one-step off |
 | FR-F9-005 | The system shall show, per branch: gate metric, threshold, window, current value, met/unmet, and shadow agreement (from F10) |
 | FR-F9-006 | The system shall store threshold change requests with full YAML, diff, evidence, author, approvals, state, SHA-256 and version |

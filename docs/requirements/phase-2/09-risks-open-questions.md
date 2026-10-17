@@ -1,6 +1,6 @@
 # 9. Risks, assumptions, open questions, proposed ADRs
 
-**State: updated at stage 3.** Completed in stage 6. Each stage adds its rows.
+**State: updated at stage 4.** Completed in stage 6. Each stage adds its rows.
 
 OQ-01…OQ-14 defaults were accepted by the product owner on 2026-10-17 and are
 now decisions; they stay listed so the trace is visible.
@@ -30,11 +30,15 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | OQ-16 | Does the requester see the assignee's name, or only the team? | IT Service Desk Manager | Team only | F3 | Decided 2026-10-17 |
 | OQ-17 | Should `on_hold` (waiting on a vendor) pause the SLA? | IT Service Desk Manager | No; only `waiting_on_requester` pauses | F1 | Decided 2026-10-17 |
 | OQ-18 | Do teams need their own calendars (e.g. a 24×7 network on-call)? | Head of IT Operations | One default calendar; the field exists if needed | F1, F2 | Decided 2026-10-17 |
-| OQ-19 | Migrate today's `open` incidents as `confirmed`? | IT Service Desk Manager | Yes | F7 | Open |
-| OQ-20 | Are there at least two people with the `manager` role to approve a rollout flag (F9)? | Head of IT Operations | Yes: the Service Desk Manager and the Head of IT Operations both hold `manager` | F9 | Open |
-| OQ-21 | Gate for `requester_questions`: clarify agreement ≥ 0.80 over 14 days | IT Service Desk Manager | Accept as a starting gate; re-choose on shadow data | F9 | Open |
-| OQ-22 | Ask for a rating on tickets closed by an incident's close-all? | IT Service Desk Manager | No | F7, F3 | Open |
-| OQ-23 | Backfill security alerts from the last 30 days of audit rows? | Information Security Officer | Yes, 30 days | F8 | Open |
+| OQ-19 | Migrate today's `open` incidents as `confirmed`? | IT Service Desk Manager | Yes | F7 | Decided 2026-10-17 |
+| OQ-20 | Are there at least two people with the `manager` role to approve a rollout flag (F9)? | Head of IT Operations | Yes: the Service Desk Manager and the Head of IT Operations both hold `manager` | F9 | Decided 2026-10-17 |
+| OQ-21 | Gate for `requester_questions`: clarify agreement ≥ 0.80 over 14 days | IT Service Desk Manager | Accept as a starting gate; re-choose on shadow data | F9 | Decided 2026-10-17 |
+| OQ-22 | Ask for a rating on tickets closed by an incident's close-all? | IT Service Desk Manager | No | F7, F3 | Decided 2026-10-17 |
+| OQ-23 | Backfill security alerts from the last 30 days of audit rows? | Information Security Officer | Yes, 30 days | F8 | Decided 2026-10-17 |
+| OQ-24 | Mirror tickets into an external ITSM (ServiceNow, Jira)? | Head of IT Operations | Not this phase; if needed later, an n8n flow on F4 webhook events | F12 | Open |
+| OQ-25 | Use a separate Keycloak client for runbook actions, apart from the F13 sync client? | Information Security Officer | Yes: `smart-ticket-runbooks`, only `manage-users` on the realm, no impersonation | F12 | Open |
+| OQ-26 | Records retention for audit log, PII access log, security alerts | Data Protection Officer | 5 years, then archived | §7 NFR-PRIV-02 | Open |
+| OQ-27 | Capacity planning numbers (3,000 employees, 50 staff online) | Head of IT Operations | As in §7.4 | §7 | Open |
 
 ## 9.2 Assumptions made at stage 1
 
@@ -53,6 +57,8 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | A-11 | Gap clustering bars (`kb_gaps.cluster_similarity` 0.80, `update_similarity` 0.65) are guesses on bge-m3 cosine | F6 |
 | A-12 | Linked incident tickets are excluded from team SLA % | F10 BR-F10-04 |
 | A-13 | No automatic flag turn-off when a gate becomes unmet; managers are notified | F9 |
+| A-14 | Availability target 99.5 % in business hours; OWASP ASVS L2 as the security baseline | §7.4 |
+| A-15 | Capacity: 3,000 employees, 300 concurrent chat sessions, 50 staff online, 15,000 notices/day | §7.4 |
 
 ## 9.3 Risks
 
@@ -72,6 +78,8 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | R-12 | Revoking authority on every page edit (F6) can drop auto-reply coverage suddenly | Medium | Medium | Authority queue with the diff makes re-grant quick; F10 shows coverage per week |
 | R-13 | A production deploy without an approved thresholds change request boots shadow-forced (F9) | Medium | Medium | Baseline `CR-2026-000` created by migration; deploy checklist item; the alert names the cause |
 | R-14 | Two managers needed for every flag-on can stall rollout | Low | Low | Requests expire in 72 h with a notice; turning off never waits |
+| R-15 | A Keycloak admin credential that can reset passwords and add groups is a high-value secret | Medium | High | Separate client (OQ-25), least roles, allow-listed groups only, secret in the vault, every call audited in both systems |
+| R-16 | Editor overrides of the entity graph could quietly lower retrieval recall | Low | Medium | Retrieval suite runs with production overrides weekly; F10 KB report shows expansion's share |
 
 ## 9.4 Proposed ADRs
 
@@ -84,3 +92,5 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | 0034 | A chat conversation gives the model its earlier masked turns | F3 | **Yes**: today each ticket is analysed alone. Must say why cross-turn context is safe | [written](proposed-adrs/0034-conversation-context-for-the-model.md) |
 | 0035 | Reviewed thresholds and per-branch rollout switches | F9 | No; adds keys that can only make the system more conservative | [written](proposed-adrs/0035-reviewed-thresholds-and-per-branch-rollout.md) |
 | 0036 | KB drafts live outside `kb_articles`; a text change revokes authority | F6 | No; tightens ADR-0002 | [written](proposed-adrs/0036-kb-drafts-outside-kb-articles.md) |
+| 0037 | The entity graph survives edits, rebuilds on a schedule, and takes editor overrides | F11 | Slightly: ai-engine gets SELECT on one table and limited UPDATE on another | [written](proposed-adrs/0037-entity-graph-as-a-kb-feature.md) |
+| 0038 | Real runbook executors stay behind ADR-0006, with target rules | F12 | No; adds checks to ADR-0006 | [written](proposed-adrs/0038-runbook-executors-behind-adr-0006.md) |

@@ -183,6 +183,7 @@ flowchart TB
 | FR-F3-013 | The system shall emit F4 events `ticket.received`, `ticket.public_comment`, `ticket.requester_replied`, `ticket.status_changed`, `ticket.resolved`, `ticket.reopened`, `ticket.rated_low` |
 | FR-F3-014 | The chat app shall poll an open ticket's thread every `NOTIFICATION_POLL_SEC` while it is on screen |
 | FR-F3-015 | All requester-facing text shall exist in vi and en and follow `accounts_user.language` |
+| FR-F3-016 | The system shall audit `conversation_started`, `conversation_ended`, `ticket_comment_added`, `requester_replied`, `ticket_reopened` (REUSED), `ticket_reopen_linked`, `ticket_rated`, `ticket_auto_closed` |
 
 ## g. Data changes
 

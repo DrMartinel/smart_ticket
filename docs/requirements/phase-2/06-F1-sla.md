@@ -157,7 +157,7 @@ rules; changed by staff with a reason.
 | Alternate | 2a. Preview: enter category, priority, start time → see due times |
 | Exception | 3x. Author approving own draft → 403 `self_approval` |
 | Postconditions | New clocks use the new policy; running clocks keep their snapshot |
-| Rules | BR-F1-03, 05, 12 |
+| Rules | BR-F1-03, 05, 12, 14 |
 | Screens | `F1 · SLA policies`, `F1 · Business calendars`, `F1 · Holidays` |
 | MoSCoW | Must |
 

@@ -108,7 +108,7 @@ User account states (NEW, on `accounts_user`):
 | Alternate | 1a. Back-channel not delivered → step 3 alone ends sessions within the interval |
 | Exception | 3x. Keycloak admin API down → task logs, retries next interval, `identity_sync_failed` audit after 3 failures in a row; no user is deactivated on a failed read |
 | Postconditions | Next API call with that user's token → 401 |
-| Rules | BR-F13-04, 05 |
+| Rules | BR-F13-04, 05, 08 |
 | Screens | — |
 | MoSCoW | Must |
 

@@ -204,7 +204,7 @@ Joins today's flow at `kb_articles`, which ai-engine already reads with
 | FR-F6-012 | A weekly task shall cluster refused tickets of the last `kb_gaps.window_days` by embedding and label each cluster `gap` or `update` |
 | FR-F6-013 | The system shall let an editor start a draft from a cluster, or dismiss it with a reason |
 | FR-F6-014 | `POST /api/kb` shall create a **draft** instead of a live page |
-| FR-F6-015 | The system shall audit `kb_draft_created`, `kb_draft_submitted`, `kb_draft_reviewed`, `kb_published`, `kb_retired`, `kb_authority_revoked`, `kb_gap_dismissed` |
+| FR-F6-015 | The system shall audit `kb_draft_created`, `kb_draft_submitted`, `kb_draft_reviewed`, `kb_published`, `kb_retired`, `kb_authority_revoked`, `kb_gap_dismissed`, and `kb_snapshot_loaded` for the demo loader (BR-F6-09) |
 
 ## g. Data changes
 

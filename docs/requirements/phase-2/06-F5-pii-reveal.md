@@ -66,7 +66,7 @@ No ticket status changes. A `pii_quarantine` row is read, never changed.
 | Alternate | 2a. Placeholder is a critical label → only `security` passes (BR-F5-02) |
 | Exception | 2x. Not allowed → 403 `reveal_not_allowed`. 1x. Empty reason → 422 `reason_required`. 4x. Expired → 410 `quarantine_expired`. 4y. Decrypt fails → 500 `decrypt_failed`, transaction rolled back, `pii_reveal_failed` audit row in a separate transaction, `security_alert`. 2y. Over the hourly limit → 429 `reveal_rate_limited` + `security_alert` |
 | Postconditions | Exactly one `pii_access_log` row per value returned |
-| Rules | BR-F5-01…07 |
+| Rules | BR-F5-01…08 |
 | Screens | `F5 · Reveal dialog` (CHANGED `review/[id]`), `F5 · Access log` |
 | MoSCoW | Must |
 
