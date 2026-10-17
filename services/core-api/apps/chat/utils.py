@@ -39,6 +39,8 @@ def chat_turn(ticket: Ticket) -> ChatTurnOut:
         answer=_answer(ticket) if ticket.status == "auto_replied" else None,
         clarification=ChatClarificationOut.from_row(asked) if asked else None,
         created_at=ticket.created_at,
+        status_name=ticket.workflow_status.name if ticket.workflow_status else None,
+        resolved=ticket.resolved_at is not None,
     )
 
 

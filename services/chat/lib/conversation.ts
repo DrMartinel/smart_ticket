@@ -75,21 +75,23 @@ export function useConversation(enabled: boolean) {
     return () => window.clearTimeout(timer);
   }, [turns, replace]);
 
+  /** Sends a new question; returns at once the key its turn is shown under. */
   const ask = useCallback(
-    async (text: string) => {
+    (text: string): string => {
       const key = `local-${Date.now()}`;
       const startedAt = Date.now();
       setTurns((prev) => [...prev, { kind: "sending", key, text, startedAt }]);
-      try {
-        const turn = await chatApi.ask(text);
-        replace(key, { kind: "server", key, turn, startedAt });
-      } catch (err) {
-        const error =
-          err instanceof ApiError && err.status === 422
-            ? "Please describe the problem in at least 10 characters."
-            : "I couldn't send that. Check your connection and try again.";
-        replace(key, { kind: "failed", key, text, error });
-      }
+      void chatApi
+        .ask(text)
+        .then((turn) => replace(key, { kind: "server", key, turn, startedAt }))
+        .catch((err) => {
+          const error =
+            err instanceof ApiError && err.status === 422
+              ? "Please describe the problem in at least 10 characters."
+              : "I couldn't send that. Check your connection and try again.";
+          replace(key, { kind: "failed", key, text, error });
+        });
+      return key;
     },
     [replace],
   );
@@ -132,12 +134,13 @@ export function useConversation(enabled: boolean) {
     [act],
   );
 
+  /** Sends a failed question again; returns the key of its new turn. */
   const retry = useCallback(
-    (key: string) => {
+    (key: string): string | null => {
       const t = turnsRef.current.find((x) => x.key === key);
-      if (!t || t.kind !== "failed") return;
+      if (!t || t.kind !== "failed") return null;
       setTurns((prev) => prev.filter((x) => x.key !== key));
-      void ask(t.text);
+      return ask(t.text);
     },
     [ask],
   );

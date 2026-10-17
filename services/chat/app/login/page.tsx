@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { SparkleIcon } from "@/components/icons";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
@@ -30,29 +29,21 @@ export default function LoginPage() {
     }
   };
 
-  const field =
-    "mt-1.5 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3.5 py-2.5 text-[15px] outline-none transition focus:border-[var(--accent)]";
-
   return (
     <div className="grid min-h-dvh place-items-center px-4">
-      <div className="turn-in w-full max-w-sm">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="brand-gradient grid h-12 w-12 place-items-center rounded-2xl text-white shadow-lg">
-            <SparkleIcon className="h-6 w-6" />
-          </div>
-          <h1 className="mt-4 text-xl font-semibold tracking-tight">IT Help</h1>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">Sign in with your work account.</p>
-        </div>
-        <form onSubmit={onSubmit} className="surface flex flex-col gap-4 rounded-2xl p-6">
-          <label className="text-sm font-medium">
+      <div className="w-full max-w-sm">
+        <h1 className="text-xl font-semibold">IT Help</h1>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">Sign in with your work account to ask IT a question.</p>
+        <form onSubmit={onSubmit} className="panel mt-6 flex flex-col gap-4 p-5">
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
             Username
-            <input className={field} value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
+            <input className="field text-[15px] font-normal" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
           </label>
-          <label className="text-sm font-medium">
+          <label className="flex flex-col gap-1.5 text-sm font-medium">
             Password
             <input
               type="password"
-              className={field}
+              className="field text-[15px] font-normal"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -63,11 +54,7 @@ export default function LoginPage() {
               {error}
             </p>
           )}
-          <button
-            type="submit"
-            disabled={submitting}
-            className="brand-gradient mt-1 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
-          >
+          <button type="submit" disabled={submitting} className="btn btn-primary mt-1 justify-center py-2.5">
             {submitting ? "Signing in…" : "Sign in"}
           </button>
         </form>

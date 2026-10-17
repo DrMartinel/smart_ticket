@@ -14,6 +14,21 @@ export interface ReviewDecisionPayload {
 
 const CATEGORIES = ["hardware", "software", "network", "access", "security", "other"];
 
+const ACTIONS: { value: ReviewDecisionPayload["action_taken"]; label: string; hint: string }[] = [
+  { value: "approve", label: "Approve", hint: "Carry out what the AI proposed." },
+  { value: "edit_and_send", label: "Edit and send", hint: "The answer is close; you'll correct it." },
+  { value: "reroute", label: "Reroute", hint: "It belongs to a different team." },
+  { value: "escalate", label: "Escalate", hint: "Needs a more senior person." },
+  { value: "reject", label: "Reject", hint: "The proposal is wrong; handle it manually." },
+];
+
+const KB_VERDICTS: { value: NonNullable<ReviewDecisionPayload["kb_verdict"]>; label: string }[] = [
+  { value: "correct", label: "Yes" },
+  { value: "partial", label: "Partly" },
+  { value: "wrong", label: "No" },
+  { value: "not_applicable", label: "Can't tell" },
+];
+
 /**
  * Spec §3.4 / §12.4: specific questions, not a single Approve button —
  * this is what turns a human decision into a training label instead of a
@@ -23,10 +38,12 @@ const CATEGORIES = ["hardware", "software", "network", "access", "security", "ot
  */
 export default function ReviewForm({
   hasAutoReplyProposal,
+  aiCategory,
   submitting,
   onSubmit,
 }: {
   hasAutoReplyProposal: boolean;
+  aiCategory: string | null;
   submitting: boolean;
   onSubmit: (payload: ReviewDecisionPayload) => void;
 }) {
@@ -48,7 +65,11 @@ export default function ReviewForm({
     e.preventDefault();
     setError(null);
     if (requiresReason && !overrideReason.trim()) {
-      setError("A reason is required for any action other than Approve.");
+      setError("Say why: anything but Approve needs a reason, and it becomes a training example.");
+      return;
+    }
+    if (categoryVerdict === "wrong" && !correctedCategory) {
+      setError("Pick the right category.");
       return;
     }
     onSubmit({
@@ -63,46 +84,31 @@ export default function ReviewForm({
   };
 
   return (
-    <form onSubmit={submit} className="card flex flex-col gap-5 p-4">
-      <h2 className="text-sm font-semibold">Review decision</h2>
-
+    <form onSubmit={submit} className="flex flex-col gap-5">
       {hasAutoReplyProposal && (
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium">Is the cited KB article correct for this ticket?</legend>
-          <div className="flex flex-wrap gap-3 text-sm">
-            {(["correct", "wrong", "partial", "not_applicable"] as const).map((v) => (
-              <label key={v} className="flex items-center gap-1.5">
-                <input type="radio" name="kb_verdict" checked={kbVerdict === v} onChange={() => setKbVerdict(v)} />
-                {v.replace("_", " ")}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <Question legend="Does the cited help page answer this ticket?">
+          <Segmented options={KB_VERDICTS} value={kbVerdict} onChange={setKbVerdict} name="kb_verdict" />
+        </Question>
       )}
 
-      <fieldset>
-        <legend className="mb-2 text-sm font-medium">Is the category correct?</legend>
-        <div className="flex flex-wrap gap-3 text-sm">
-          {(["correct", "wrong"] as const).map((v) => (
-            <label key={v} className="flex items-center gap-1.5">
-              <input
-                type="radio"
-                name="category_verdict"
-                checked={categoryVerdict === v}
-                onChange={() => setCategoryVerdict(v)}
-              />
-              {v}
-            </label>
-          ))}
-        </div>
+      <Question legend={aiCategory ? `Is "${aiCategory}" the right category?` : "Is the category right?"}>
+        <Segmented
+          name="category_verdict"
+          options={[
+            { value: "correct", label: "Yes" },
+            { value: "wrong", label: "No" },
+          ]}
+          value={categoryVerdict}
+          onChange={setCategoryVerdict}
+        />
         {categoryVerdict === "wrong" && (
           <select
-            className="mt-2 rounded border px-2 py-1 text-sm"
-            style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            className="field mt-2 w-56"
             value={correctedCategory}
             onChange={(e) => setCorrectedCategory(e.target.value)}
+            aria-label="Correct category"
           >
-            <option value="">Correct category…</option>
+            <option value="">Choose the right category…</option>
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
                 {c}
@@ -110,47 +116,88 @@ export default function ReviewForm({
             ))}
           </select>
         )}
-      </fieldset>
+      </Question>
 
-      <fieldset>
-        <legend className="mb-2 text-sm font-medium">What should happen to this ticket?</legend>
-        <select
-          className="rounded border px-2 py-1.5 text-sm"
-          style={{ borderColor: "var(--border)", background: "var(--bg)" }}
-          value={action}
-          onChange={(e) => setAction(e.target.value as ReviewDecisionPayload["action_taken"])}
-        >
-          <option value="approve">Approve — send/route as proposed</option>
-          <option value="edit_and_send">Edit and send</option>
-          <option value="reject">Reject</option>
-          <option value="reroute">Reroute to a different team</option>
-          <option value="escalate">Escalate</option>
-        </select>
-      </fieldset>
+      <Question legend="What should happen?">
+        <div className="flex flex-col gap-1">
+          {ACTIONS.map((a) => (
+            <label
+              key={a.value}
+              className={`flex cursor-pointer items-start gap-2.5 rounded-[5px] border px-3 py-2 text-sm ${
+                action === a.value ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)]"
+              }`}
+            >
+              <input
+                type="radio"
+                name="action"
+                className="mt-1"
+                checked={action === a.value}
+                onChange={() => setAction(a.value)}
+              />
+              <span>
+                <span className="font-medium">{a.label}</span>
+                <span className="block text-xs text-[var(--text-muted)]">{a.hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </Question>
 
       {requiresReason && (
-        <label className="text-sm">
-          Reason for override <span className="text-red-500">*</span>
+        <label className="flex flex-col gap-1.5 text-sm font-medium">
+          Why?
           <textarea
-            className="mt-1 w-full rounded border px-3 py-2 text-sm"
-            style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            className="field font-normal"
             rows={3}
             value={overrideReason}
             onChange={(e) => setOverrideReason(e.target.value)}
-            placeholder="Why is the AI's proposal wrong or incomplete? This becomes a training label."
+            placeholder="What is wrong or missing in the AI's proposal? This becomes a training example."
           />
         </label>
       )}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="self-start rounded bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
-        {submitting ? "Submitting…" : "Submit decision"}
+      <button type="submit" disabled={submitting} className="btn btn-primary self-start">
+        {submitting ? "Saving…" : "Submit review"}
       </button>
     </form>
+  );
+}
+
+function Question({ legend, children }: { legend: string; children: React.ReactNode }) {
+  return (
+    <fieldset>
+      <legend className="mb-2 text-sm font-medium">{legend}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
+function Segmented<T extends string>({
+  name,
+  options,
+  value,
+  onChange,
+}: {
+  name: string;
+  options: { value: T; label: string }[];
+  value: T | null;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div role="radiogroup" className="inline-flex overflow-hidden rounded-[5px] border border-[var(--border-strong)]">
+      {options.map((o, i) => (
+        <label
+          key={o.value}
+          className={`cursor-pointer px-3.5 py-1.5 text-sm ${i > 0 ? "border-l border-[var(--border-strong)]" : ""} ${
+            value === o.value ? "bg-[var(--accent)] text-[var(--on-accent)]" : "hover:bg-[var(--surface-2)]"
+          }`}
+        >
+          <input type="radio" name={name} className="sr-only" checked={value === o.value} onChange={() => onChange(o.value)} />
+          {o.label}
+        </label>
+      ))}
+    </div>
   );
 }

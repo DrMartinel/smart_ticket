@@ -222,6 +222,9 @@ class ActionRunOut(Schema):
 class TransferOut(Schema):
     id: uuid.UUID
     ticket_public_id: str
+    before_status_name: str | None
+    after_status_name: str | None
+    actor_username: str | None
     trigger: str
     state: str
     direction: str | None
@@ -240,6 +243,18 @@ class TransferOut(Schema):
     @staticmethod
     def resolve_ticket_public_id(obj: Transfer) -> str:
         return obj.ticket.public_id
+
+    @staticmethod
+    def resolve_before_status_name(obj: Transfer) -> str | None:
+        return obj.before_status.name if obj.before_status else None
+
+    @staticmethod
+    def resolve_after_status_name(obj: Transfer) -> str | None:
+        return obj.after_status.name if obj.after_status else None
+
+    @staticmethod
+    def resolve_actor_username(obj: Transfer) -> str | None:
+        return obj.actor.username if obj.actor else None
 
 
 class ApprovalOut(Schema):

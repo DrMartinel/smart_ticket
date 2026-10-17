@@ -20,7 +20,7 @@ from django.db.models import Q
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare
 
-from apps.accounts.models import User
+from apps.accounts.models import User, UserRole
 from apps.audit.models import AuditLog
 from apps.lifecycle.models import (
     ActionRun,
@@ -633,6 +633,47 @@ class Lifecycle:
         pending = transfer.state == TransferState.PENDING.value
         self.schedule(transfer.id, Phase.BEFORE if pending else Phase.ENTER)
         return transfer
+
+    # ── ownership ──
+
+    def assign(
+        self, ticket_id: uuid.UUID, *, username: str | None, team: str | None, actor: User
+    ) -> Ticket:
+        """Sets who owns a ticket: an active technician or manager, a team, or nobody."""
+        assignee = None
+        if username:
+            assignee = User.objects.filter(
+                username=username,
+                is_active=True,
+                role__in=[UserRole.TECHNICIAN.value, UserRole.MANAGER.value],
+            ).first()
+            if assignee is None:
+                raise LifecycleError(
+                    422,
+                    FailureCode.INVALID_FIELD_VALUE,
+                    f"no active technician or manager {username!r}",
+                )
+        with transaction.atomic():
+            ticket = Ticket.objects.select_for_update().get(pk=ticket_id)
+            before = {
+                "assignee": ticket.assigned_to.username if ticket.assigned_to else None,
+                "team": ticket.assigned_team,
+            }
+            ticket.assigned_to = assignee
+            ticket.assigned_team = (team or "").strip()[:50] or None
+            ticket.save(update_fields=["assigned_to", "assigned_team"])
+            AuditLog.objects.record(
+                "ticket_assigned",
+                actor_type="human",
+                actor_id=actor.id,
+                ticket_id=ticket.id,
+                payload={
+                    "ticket_public_id": ticket.public_id,
+                    "old": before,
+                    "new": {"assignee": username or None, "team": ticket.assigned_team},
+                },
+            )
+        return ticket
 
     # ── changing workflow ──
 

@@ -1,43 +1,40 @@
 /**
- * Semantic color mapping for Branch / queue / risk_tier — kept in one
- * place so a color always means the same thing across every page
- * (spec's own principle for TrustSignalsPanel: show WHY, consistently).
+ * Semantic tone for Branch / queue / risk_tier — kept in one place so a
+ * tone always means the same thing across every page (spec's own principle
+ * for TrustSignalsPanel: show WHY, consistently). The tones are defined in
+ * globals.css.
  */
 
 export function branchClasses(branch: string): string {
   switch (branch) {
     case "auto_reply":
-      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+      return "tone-ok";
     case "auto_route":
-      return "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300";
-    case "hitl":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
-    case "clarify":
-      return "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300";
+      return "tone-info";
     case "escalate":
-      return "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300";
+      return "tone-warn";
     case "block":
-      return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
+      return "tone-danger";
     default:
-      return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+      return "tone-neutral";
   }
 }
 
 export function riskTierClasses(tier: string): string {
   switch (tier) {
     case "low":
-      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300";
+      return "tone-ok";
     case "medium":
-      return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
+      return "tone-warn";
     case "high":
-      return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
+      return "tone-danger";
     default:
-      return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+      return "tone-neutral";
   }
 }
 
 export function priorityClasses(priority: number): string {
-  if (priority <= 1) return "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300";
-  if (priority === 2) return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300";
-  return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300";
+  if (priority <= 1) return "tone-danger";
+  if (priority === 2) return "tone-warn";
+  return "tone-neutral";
 }
