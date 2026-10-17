@@ -171,7 +171,7 @@ rules; changed by staff with a reason.
 | BR-F1-04 | Calendar = policy's (`is_24x7` overrides) → team's (F2) → default calendar | P1 is 24×7 (OQ-05); teams may keep other hours later | Clock service |
 | BR-F1-05 | A clock keeps a **snapshot** of its targets and calendar id. Policy edits apply to new clocks only. Calendar holiday edits apply to running clocks at their next recompute | Like `routing_decisions.thresholds_used`: past numbers stay explainable | `sla_clocks.policy_snapshot` |
 | BR-F1-06 | Response is met by the first of: a staff manual status move, a staff public comment (F3), a review decision. System assignment is not a response | A response is a person acting, not a robot assigning | Hooks in engine (manual trigger), F3, review service |
-| BR-F1-07 | Entering a `pauses_sla` status pauses every running clock of the ticket; leaving resumes. Only `waiting_on_requester` pauses by default | OQ defaults; vendor waits still count [ASSUMPTION] | Hook |
+| BR-F1-07 | Entering a `pauses_sla` status pauses every running clock of the ticket; leaving resumes. Only `waiting_on_requester` pauses; `on_hold` (vendor, part) keeps counting | OQ-17 (decided 2026-10-17): the requester's wait is real even when a vendor causes it | Hook |
 | BR-F1-08 | Warning at `sla.warn_at_percent` (75) of target, breach at 100, escalation at `sla.escalate_at_percent` (125). Each fires once per clock | K3; Freshservice/SDP levels | Sweep; unique `(clock, level)` |
 | BR-F1-09 | No automatic priority change on breach | A raise would retarget the clock it just breached | — (by design) |
 | BR-F1-10 | Priority change keeps business elapsed and switches target | JSM-style re-evaluation; honest compliance numbers | Clock service |

@@ -48,7 +48,7 @@ go in at sign-off.
 | Version | Date | Author | Change |
 |---|---|---|---|
 | 0.1 | 2026-10-17 | BA (Claude) for the product owner | Stage 1: §0–§5, benchmark, seeded §9 |
-| 0.2 | 2026-10-17 | BA (Claude) for the product owner | Stage 2: OQ-01…14 defaults accepted; §6 for PRE-1/PRE-2, F1–F5, F13; proposed ADRs 0030–0034; fixes to benchmark F2/F4, glossary, K8 |
+| 0.2 | 2026-10-17 | BA (Claude) for the product owner | Stage 2: OQ-01…14 defaults accepted; §6 for PRE-1/PRE-2, F1–F5, F13; proposed ADRs 0030–0034; fixes to benchmark F2/F4, glossary, K8. OQ-17 (no pause on vendor waits) and OQ-18 (one shared calendar) decided |
 
 ### 0.4 Change control
 

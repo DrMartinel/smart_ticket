@@ -28,8 +28,8 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | OQ-14 | How long are in-app notifications kept? | Data Protection Officer | 90 days, then deleted; the audit log keeps the event | F4 | Decided 2026-10-17 |
 | OQ-15 | Should a requester be told when someone reveals their PII? | Data Protection Officer | No notice; the access log is exportable on request | F5 | Open |
 | OQ-16 | Does the requester see the assignee's name, or only the team? | IT Service Desk Manager | Team only | F3 | Open |
-| OQ-17 | Should `on_hold` (waiting on a vendor) pause the SLA? | IT Service Desk Manager | No; only `waiting_on_requester` pauses | F1 | Open |
-| OQ-18 | Do teams need their own calendars (e.g. a 24×7 network on-call)? | Head of IT Operations | One default calendar; the field exists if needed | F1, F2 | Open |
+| OQ-17 | Should `on_hold` (waiting on a vendor) pause the SLA? | IT Service Desk Manager | No; only `waiting_on_requester` pauses | F1 | Decided 2026-10-17 |
+| OQ-18 | Do teams need their own calendars (e.g. a 24×7 network on-call)? | Head of IT Operations | One default calendar; the field exists if needed | F1, F2 | Decided 2026-10-17 |
 
 ## 9.2 Assumptions made at stage 1
 
@@ -41,7 +41,7 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | A-04 | No SMS, voice or push provider is in scope | F4 |
 | A-05 | The org has a Data Protection Officer | §0.2 |
 | A-06 | Reveal reasons are masked by the regex tier only, so reveals work when ai-engine is down | F5 BR-F5-04 |
-| A-07 | Vendor waits (`on_hold`) keep counting SLA time | F1 BR-F1-07 |
+| A-07 | *(Decided by OQ-17 on 2026-10-17)* Vendor waits (`on_hold`) keep counting SLA time | F1 BR-F1-07 |
 | A-08 | No backfill of SLA clocks or priority for tickets created before F1 | F1 §g |
 | A-09 | A reopened ticket resumes its old resolution clock; response is not restarted | F1 BR-F1-13 |
 | A-10 | `security` may assign only within the `security` category | F2 BR-F2-04 |
