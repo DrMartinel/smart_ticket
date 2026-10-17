@@ -67,3 +67,6 @@ class ChatTurnOut(Schema):
     # The question asked of the requester, open or answered or expired.
     clarification: ChatClarificationOut | None = None
     created_at: datetime
+    # Where support has the ticket, in the workflow's words ("In progress").
+    status_name: str | None = None
+    resolved: bool = False

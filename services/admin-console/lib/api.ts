@@ -37,7 +37,9 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
     let detail = resp.statusText;
     try {
       const body = await resp.json();
-      detail = body.detail ? JSON.stringify(body.detail) : detail;
+      if (typeof body.message === "string") detail = body.message;
+      else if (typeof body.detail === "string") detail = body.detail;
+      else if (Array.isArray(body.detail)) detail = body.detail.map((d: { msg?: string }) => d.msg).join("; ");
     } catch {
       // response wasn't JSON — keep statusText
     }
@@ -48,8 +50,15 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
   return (await resp.json()) as T;
 }
 
+const send =
+  (method: string) =>
+  <T>(path: string, body?: unknown) =>
+    request<T>(path, { method, body: body !== undefined ? JSON.stringify(body) : undefined });
+
 export const api = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
-  post: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  post: send("POST"),
+  patch: send("PATCH"),
+  put: send("PUT"),
+  delete: send("DELETE"),
 };

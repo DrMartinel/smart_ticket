@@ -298,3 +298,20 @@ class TestClarify:
 
         assert answer(api_as(employee_user), "TKT-CHAT-CLR", "   ").status_code == 422
         assert enqueued == []
+
+
+@pytest.mark.django_db
+def test_a_turn_tells_the_requester_where_support_has_it(employee_user):
+    from apps.chat.utils import chat_turn
+    from apps.lifecycle.tests.conftest import make_ticket
+    from apps.lifecycle.utils.vocabulary import PipelineStatus
+    from apps.tickets.models import TicketSource
+
+    ticket = make_ticket(employee_user, at=PipelineStatus.AUTO_REPLIED)
+    ticket.source = TicketSource.CHAT.value
+    ticket.save(update_fields=["source"])
+
+    turn = chat_turn(ticket)
+
+    assert turn.status_name == "Auto-replied"
+    assert turn.resolved is True

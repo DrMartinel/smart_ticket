@@ -188,6 +188,8 @@ export interface ChatTurnOut {
   answer?: ChatAnswerOut | null;
   clarification?: ChatClarificationOut | null;
   created_at: string;
+  status_name?: string | null;
+  resolved?: boolean;
 }
 
 export type LLMProposal =

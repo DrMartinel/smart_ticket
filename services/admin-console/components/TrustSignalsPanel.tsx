@@ -47,8 +47,8 @@ export interface TrustSignalsPanelProps {
 function Bar({ value, max = 1 }: { value: number; max?: number }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
-    <div className="h-1.5 w-full overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
-      <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
+    <div className="h-1.5 w-full overflow-hidden bg-[var(--surface-2)]">
+      <div className="h-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -71,7 +71,7 @@ function BoolChip({ ok, label, applicable = true }: { ok: boolean; label: string
   }
   return (
     <span
-      className={`badge ${ok ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300"}`}
+      className={`badge ${ok ? "tone-ok" : "tone-danger"}`}
     >
       {ok ? "✓" : "✗"} {label}
     </span>
@@ -126,7 +126,7 @@ export default function TrustSignalsPanel({
         <div>
           <span className={`badge ${branchClasses(routingDecision.branch)}`}>{routingDecision.branch}</span>
           {routingDecision.shadow_mode && (
-            <span className="badge ml-2 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+            <span className="badge ml-2 tone-neutral">
               shadow mode
             </span>
           )}
@@ -160,7 +160,7 @@ export default function TrustSignalsPanel({
               .map(([feature, contribution]) => (
                 <div key={feature} className="flex items-center gap-2 text-xs">
                   <span className="w-44 shrink-0 truncate text-[var(--text-muted)]">{feature}</span>
-                  <span className={`w-14 shrink-0 text-right tabular-nums ${contribution < 0 ? "text-red-500" : ""}`}>
+                  <span className={`w-14 shrink-0 text-right tabular-nums ${contribution < 0 ? "text-[var(--danger)]" : ""}`}>
                     {contribution >= 0 ? "+" : ""}
                     {contribution.toFixed(3)}
                   </span>
@@ -184,7 +184,7 @@ export default function TrustSignalsPanel({
             <span className="w-10 shrink-0 text-right tabular-nums">{retrieval.rerank_margin.toFixed(2)}</span>
           </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
-            <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+            <span className="badge tone-neutral">
               {retrieval.docs_above_floor} docs above floor
             </span>
           </div>
@@ -231,7 +231,7 @@ export default function TrustSignalsPanel({
             />
             <BoolChip ok={generation.negation_consistent} label="negation consistent" />
             {quoteApplicable ? (
-              <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              <span className="badge tone-neutral">
                 quote match {(generation.quote_match_ratio * 100).toFixed(0)}%
               </span>
             ) : (
@@ -247,14 +247,14 @@ export default function TrustSignalsPanel({
         <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Policy</div>
         <div className="flex flex-wrap gap-1.5">
           <BoolChip ok={policy.kb_auto_reply_allowed} label="KB auto-reply allowed" />
-          <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <span className="badge tone-neutral">
             risk: {policy.kb_risk_tier}
           </span>
-          <span className="badge bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <span className="badge tone-neutral">
             PII: {policy.pii_level}
           </span>
-          {policy.injection_detected && <span className="badge bg-red-100 text-red-800">injection detected</span>}
-          {policy.mass_incident && <span className="badge bg-orange-100 text-orange-800">mass incident</span>}
+          {policy.injection_detected && <span className="badge tone-danger">injection detected</span>}
+          {policy.mass_incident && <span className="badge tone-warn">mass incident</span>}
         </div>
       </div>
     </div>
