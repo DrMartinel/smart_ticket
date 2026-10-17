@@ -202,7 +202,7 @@ guard and that comment is later trimmed, the entry is the record.
   wrapper is `permissions.py`. In a module with `from __future__ import
   annotations` every request body then fails to resolve, and each call is a
   500. *The chat and review API tests.*
-- **`allowed_roles` following `__wrapped__`.** `@paginate` sits above the
+- **`gate_of` following `__wrapped__`.** `@paginate` sits above the
   gate on `GET /api/kb`; without the walk that route reads as ungated.
 - **The runbook checks in `RunbookExecution.objects.execute`**
   (`may_run_runbooks` for the approver and the executor) beside the route

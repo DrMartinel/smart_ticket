@@ -5,6 +5,7 @@ lifecycle callback carries (PRE-1).
 """
 
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
 from functools import wraps
@@ -20,8 +21,9 @@ from ninja_jwt.authentication import JWTAuth
 from ninja_jwt.exceptions import AuthenticationFailed
 from ninja_jwt.tokens import Token
 
-from apps.accounts.models import RefreshSession, User, UserRole
+from apps.accounts.models import Capability, RefreshSession, User, UserRole
 from apps.audit.models import AuditLog
+from apps.core.errors import CodedError
 
 
 class AuthedRequest(HttpRequest):
@@ -53,23 +55,39 @@ class AccessRefusal(StrEnum):
     ROLE_NOT_ALLOWED = "role_not_allowed"
 
 
-class AccessError(Exception):
-    """A refusal in the shared error shape (BR-X-08), answered by `config/urls.py`."""
+class AccessError(CodedError):
+    """A caller outside a route's roles and capabilities."""
 
-    status = 403
+    code: AccessRefusal
 
     def __init__(self, code: AccessRefusal, message: str, details: dict[str, Any]) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.details = details
+        super().__init__(403, code, message, details)
 
 
-_GATES: WeakKeyDictionary[Callable[..., Any], frozenset[str]] = WeakKeyDictionary()
+@dataclass(frozen=True)
+class Gate:
+    """The roles and capabilities a route lets in (ADR-0031): either one is enough."""
+
+    roles: frozenset[str]
+    capabilities: frozenset[str] = frozenset()
+
+    def admits(self, user: User) -> bool:
+        if user.role in self.roles:
+            return True
+        return bool(self.capabilities) and bool(self.capabilities & user.capability_set())
+
+    def describe(self) -> str:
+        text = f"requires role in [{', '.join(sorted(self.roles))}]"
+        if self.capabilities:
+            text += f" or capability in [{', '.join(sorted(self.capabilities))}]"
+        return text
 
 
-def allowed_roles(handler: Callable[..., Any]) -> frozenset[str] | None:
-    """The roles a handler's `require_role` lets in, or None for an ungated handler."""
+_GATES: WeakKeyDictionary[Callable[..., Any], Gate] = WeakKeyDictionary()
+
+
+def gate_of(handler: Callable[..., Any]) -> Gate | None:
+    """The gate on a handler, or None for an ungated handler."""
     while handler not in _GATES:
         inner = getattr(handler, "__wrapped__", None)
         if inner is None:
@@ -78,14 +96,19 @@ def allowed_roles(handler: Callable[..., Any]) -> frozenset[str] | None:
     return _GATES[handler]
 
 
-def refuse_unless(request: HttpRequest, user: User, roles: Iterable[UserRole]) -> None:
-    """Refuses `user` unless their role is one of `roles`, auditing the refusal."""
-    allowed = sorted(r.value for r in roles)
-    if user.role not in allowed:
-        _refuse(request, user, allowed)
+def refuse_unless(
+    request: HttpRequest,
+    user: User,
+    roles: Iterable[UserRole],
+    capabilities: Iterable[Capability] = (),
+) -> None:
+    """Refuses `user` unless their role or a capability is allowed, auditing the refusal."""
+    gate = Gate(frozenset(r.value for r in roles), frozenset(c.value for c in capabilities))
+    if not gate.admits(user):
+        _refuse(request, user, gate)
 
 
-def _refuse(request: HttpRequest, user: User, allowed: list[str]) -> NoReturn:
+def _refuse(request: HttpRequest, user: User, gate: Gate) -> NoReturn:
     match = getattr(request, "resolver_match", None)
     route = match.route if match is not None else request.path
     window = timedelta(seconds=settings.THRESHOLDS.access_denied.audit_window_seconds)
@@ -104,18 +127,15 @@ def _refuse(request: HttpRequest, user: User, allowed: list[str]) -> NoReturn:
             payload={"route": route, "method": request.method, "role": user.role},
             trace_id=getattr(request, "trace_id", None),
         )
-    raise AccessError(
-        AccessRefusal.ROLE_NOT_ALLOWED,
-        f"requires role in [{', '.join(allowed)}]",
-        {"role": user.role},
-    )
+    raise AccessError(AccessRefusal.ROLE_NOT_ALLOWED, gate.describe(), {"role": user.role})
 
 
-def require_role(*roles: UserRole):
-    """Decorator for Django Ninja handlers: `request` must be the first arg
-    (Ninja convention) and `request.auth` must be an authenticated User."""
+def require_access(*, roles: Iterable[UserRole] = (), capabilities: Iterable[Capability] = ()):
+    """Decorator for Django Ninja handlers: lets in a user whose role or a capability is
+    allowed. `request` must be the first arg and `request.auth` an authenticated User."""
 
-    allowed = frozenset(r.value for r in roles)
+    roles, capabilities = tuple(roles), tuple(capabilities)
+    gate = Gate(frozenset(r.value for r in roles), frozenset(c.value for c in capabilities))
 
     def decorator[**P, R](
         fn: Callable[Concatenate[AuthedRequest, P], R],
@@ -125,15 +145,20 @@ def require_role(*roles: UserRole):
             user = getattr(request, "auth", None) or getattr(request, "user", None)
             if user is None or not getattr(user, "is_authenticated", False):
                 raise HttpError(401, "authentication required")
-            refuse_unless(request, user, roles)
+            refuse_unless(request, user, roles, capabilities)
             return fn(request, *args, **kwargs)
 
         # The handler's signature, its annotations evaluated.
         setattr(wrapper, "__signature__", inspect.signature(fn, eval_str=True))
-        _GATES[wrapper] = allowed
+        _GATES[wrapper] = gate
         return wrapper
 
     return decorator
+
+
+def require_role(*roles: UserRole):
+    """`require_access` with roles only."""
+    return require_access(roles=roles)
 
 
 def has_any_role(user: object, roles: Iterable[UserRole]) -> bool:

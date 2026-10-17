@@ -9,12 +9,41 @@ from datetime import datetime
 
 from ninja import Schema
 
+from apps.accounts.models import User
+
+
+class TeamOut(Schema):
+    team: str
+    role: str
+
 
 class UserOut(Schema):
     id: uuid.UUID
     username: str
     email: str
     role: str
+    auth_source: str = "local"
+    language: str = "vi"
+    capabilities: list[str] = []
+    teams: list[TeamOut] = []
+
+    @staticmethod
+    def resolve_capabilities(user: User) -> list[str]:
+        return sorted(user.capability_set())
+
+    @staticmethod
+    def resolve_teams(user: User) -> list[TeamOut]:
+        return [
+            TeamOut(team=m.team.slug, role=m.role)
+            for m in user.team_memberships.select_related("team").order_by("team__slug")
+        ]
+
+
+class OidcConfigOut(Schema):
+    issuer: str
+    client_id: str
+    authorize_url: str
+    scopes: str
 
 
 class SessionOut(Schema):
