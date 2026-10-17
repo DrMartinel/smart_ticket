@@ -17,4 +17,8 @@ def test_me_returns_the_authenticated_user(employee_user, api_as):
         "username": "emp",
         "email": "",
         "role": "employee",
+        "auth_source": "local",
+        "language": "vi",
+        "capabilities": [],
+        "teams": [],
     }

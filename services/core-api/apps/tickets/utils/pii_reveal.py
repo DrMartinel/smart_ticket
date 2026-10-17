@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
+from apps.core.errors import CodedError
 from apps.review.models import ReviewItem
 from apps.tickets.models import PiiAccessLog, PiiQuarantine, Ticket
 from apps.tickets.request_schema import RevealReason
@@ -37,15 +38,13 @@ class RevealRefusal(StrEnum):
     DECRYPT_FAILED = "decrypt_failed"
 
 
-class RevealError(Exception):
-    """A refused reveal in the shared error shape (BR-X-08), answered by `config/urls.py`."""
+class RevealError(CodedError):
+    """A refused reveal."""
+
+    code: RevealRefusal
 
     def __init__(self, status: int, code: RevealRefusal, message: str) -> None:
-        super().__init__(message)
-        self.status = status
-        self.code = code
-        self.message = message
-        self.details: dict[str, Any] = {}
+        super().__init__(status, code, message, {})
 
 
 @dataclass(frozen=True)

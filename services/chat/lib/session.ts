@@ -21,6 +21,10 @@ export interface SessionUser {
   username: string;
   email: string;
   role: "employee" | "technician" | "manager" | "security";
+  auth_source?: "local" | "oidc";
+  language?: "vi" | "en";
+  capabilities?: string[];
+  teams?: { team: string; role: "member" | "lead" }[];
 }
 
 interface SessionOut {
@@ -54,9 +58,11 @@ channel?.addEventListener("message", (event: MessageEvent) => {
 
 export class AuthError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  code: string | null;
+  constructor(status: number, message: string, code: string | null = null) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -86,10 +92,32 @@ export function refreshSession(): Promise<SessionUser | null> {
   return inFlight;
 }
 
+/** Break-glass sign-in with a local password (F13); everyone else uses `exchangeCode`. */
 export async function signIn(username: string, password: string): Promise<SessionUser> {
   const resp = await authPost("/api/auth/login", { username, password });
-  if (!resp.ok) throw new AuthError(resp.status, "invalid username or password");
+  if (!resp.ok) throw await refusal(resp, "invalid username or password");
   return adopt((await resp.json()) as SessionOut);
+}
+
+/** Swaps Keycloak's one-time code for a core-api session (F13). */
+export async function exchangeCode(code: string, codeVerifier: string, nonce: string, redirectUri: string): Promise<SessionUser> {
+  const resp = await authPost("/api/auth/oidc/exchange", {
+    code,
+    code_verifier: codeVerifier,
+    nonce,
+    redirect_uri: redirectUri,
+  });
+  if (!resp.ok) throw await refusal(resp, "sign-in was refused");
+  return adopt((await resp.json()) as SessionOut);
+}
+
+async function refusal(resp: Response, fallback: string): Promise<AuthError> {
+  try {
+    const body = await resp.json();
+    return new AuthError(resp.status, body.message ?? body.detail ?? fallback, body.code ?? null);
+  } catch {
+    return new AuthError(resp.status, fallback);
+  }
 }
 
 /** Ends this sign-in on the server and in every open tab of this app. */

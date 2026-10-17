@@ -8,6 +8,8 @@ DEBUG = False
 DEV_ONLY_SECRETS = {
     "SECRET_KEY": "dev-only-insecure-secret-key-change-me",
     "PII_ENCRYPTION_KEY": "Zm9yLWRldi1vbmx5LTMyLWJ5dGUta2V5LWhlcmUhISE=",
+    "OIDC_CLIENT_SECRET": "dev-only-oidc-client-secret",
+    "KEYCLOAK_ADMIN_CLIENT_SECRET": "dev-only-keycloak-sync-secret",
 }
 for _key, _dev_value in DEV_ONLY_SECRETS.items():
     if env(_key) == _dev_value:  # noqa: F405

@@ -24,7 +24,12 @@ _TEMPLATE = dotenv_values(base.REPO_ROOT / ".env.example")
 
 # env("X"), env_bool("X"), env_path("X"), and production's checked secrets.
 _ENV_CALL = re.compile(r'env(?:_bool|_path)?\("([A-Z0-9_]+)"\)')
-_PRODUCTION_CHECKED = {"SECRET_KEY", "PII_ENCRYPTION_KEY"}
+_PRODUCTION_CHECKED = {
+    "SECRET_KEY",
+    "PII_ENCRYPTION_KEY",
+    "OIDC_CLIENT_SECRET",
+    "KEYCLOAK_ADMIN_CLIENT_SECRET",
+}
 
 
 def _read_by_core_api() -> set[str]:

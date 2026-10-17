@@ -10,21 +10,39 @@ import hashlib
 import secrets
 import uuid
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import cast
 from datetime import UTC, datetime, timedelta
 
 from django.conf import settings
-from django.contrib.auth import authenticate
 from django.db import transaction
 from django.utils import timezone
 from ninja_jwt.tokens import AccessToken
 
 from apps.accounts.models import AuthClient, RefreshSession, User
 from apps.audit.models import AuditLog
+from apps.core.errors import CodedError
 
 
 class SessionRefused(Exception):
     """A sign-in or refresh the server refuses; callers answer 401 and clear the refresh cookie."""
+
+
+class SignInRefusal(StrEnum):
+    LOCAL_LOGIN_DISABLED = "local_login_disabled"
+    ACCOUNT_LOCKED = "account_locked"
+    REDIRECT_URI_NOT_ALLOWED = "redirect_uri_not_allowed"
+    OIDC_TOKEN_INVALID = "oidc_token_invalid"
+    NO_ACCESS = "no_access"
+    AMBIGUOUS_ROLE = "ambiguous_role"
+    IDP_UNAVAILABLE = "idp_unavailable"
+    LOGOUT_TOKEN_INVALID = "logout_token_invalid"
+
+
+class SignInError(CodedError):
+    """A sign-in core-api refuses with a code the sign-in error page names (F13)."""
+
+    code: SignInRefusal
 
 
 @dataclass(frozen=True)
@@ -57,19 +75,42 @@ class Sessions:
     def login(
         self, username: str, password: str, client: AuthClient, requester: Requester
     ) -> IssuedSession:
-        """Checks the password and starts a new token family."""
-        user = authenticate(username=username, password=password)
-        if not isinstance(user, User) or not user.is_active:
-            AuditLog.objects.record(
-                "auth_login_failed",
-                actor_type="human",
-                payload={
-                    "username": username[:150],
-                    "client": client.value,
-                    "ip": requester.ip_address,
-                },
+        """Checks a break-glass account's password and starts a session; everyone else
+        signs in through Keycloak (BR-F13-06)."""
+        now = timezone.now()
+        user = User.objects.filter(username=username).first()
+        if user is None or not user.is_break_glass:
+            self.record_failure(username, client, requester, SignInRefusal.LOCAL_LOGIN_DISABLED)
+            raise SignInError(
+                403, SignInRefusal.LOCAL_LOGIN_DISABLED, "sign in with your company account"
             )
+        if user.is_locked(now):
+            self.record_failure(username, client, requester, SignInRefusal.ACCOUNT_LOCKED)
+            raise SignInError(423, SignInRefusal.ACCOUNT_LOCKED, "too many failed passwords")
+        if not user.is_active or not user.check_password(password):
+            self.count_failure(user, now)
+            self.record_failure(username, client, requester, None)
             raise SessionRefused("invalid username or password")
+        if user.failed_logins:
+            user.failed_logins = 0
+            user.save(update_fields=["failed_logins"])
+        issued = self.start(user, client, requester, method="local")
+        AuditLog.objects.record(
+            "security_alert",
+            actor_type="human",
+            actor_id=user.id,
+            payload={
+                "reason": "break_glass_used",
+                "client": client.value,
+                "ip": requester.ip_address,
+            },
+        )
+        return issued
+
+    def start(
+        self, user: User, client: AuthClient, requester: Requester, *, method: str
+    ) -> IssuedSession:
+        """Starts a new token family for a user whose identity is already checked."""
         now = timezone.now()
         family_ends = now + timedelta(hours=settings.AUTH_SESSION_MAX_HOURS)
         with transaction.atomic():
@@ -81,12 +122,36 @@ class Sessions:
                 actor_type="human",
                 actor_id=user.id,
                 payload={
+                    "method": method,
                     "client": client.value,
                     "session": str(session.family),
                     "ip": requester.ip_address,
                 },
             )
         return self.issue(session, raw)
+
+    def count_failure(self, user: User, now: datetime) -> None:
+        """Counts a failed password, locking the account at the limit (FR-F13-009)."""
+        limits = settings.THRESHOLDS.identity
+        user.failed_logins += 1
+        if user.failed_logins >= limits.local_max_failures:
+            user.locked_until = now + timedelta(minutes=limits.local_lockout_minutes)
+            user.failed_logins = 0
+        user.save(update_fields=["failed_logins", "locked_until"])
+
+    def record_failure(
+        self, username: str, client: AuthClient, requester: Requester, code: SignInRefusal | None
+    ) -> None:
+        AuditLog.objects.record(
+            "auth_login_failed",
+            actor_type="human",
+            payload={
+                "username": username[:150],
+                "client": client.value,
+                "ip": requester.ip_address,
+                "reason": code.value if code else "invalid_credentials",
+            },
+        )
 
     def refresh(self, raw: str, client: AuthClient, requester: Requester) -> IssuedSession:
         """Swaps a refresh token for a new access token and a new refresh token."""
@@ -173,11 +238,15 @@ class Sessions:
 
     def end_all(self, user: User) -> int:
         """Ends every sign-in of `user`; returns how many tokens it revoked."""
-        count = RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
-            revoked_at=timezone.now(), revoke_reason="logout_everywhere"
-        )
+        count = self.revoke_user(user, "logout_everywhere")
         AuditLog.objects.record("auth_logout_everywhere", actor_type="human", actor_id=user.id)
         return count
+
+    def revoke_user(self, user: User, reason: str) -> int:
+        """Revokes every live token of `user`; the caller audits why."""
+        return RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
+            revoked_at=timezone.now(), revoke_reason=reason
+        )
 
     def live(self, user: User) -> list[RefreshSession]:
         """The newest token of each of `user`'s live sign-ins, newest sign-in first."""

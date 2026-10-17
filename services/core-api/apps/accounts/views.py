@@ -9,13 +9,20 @@ from typing import Literal, cast
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse
-from ninja import Header, Router, Status
+from ninja import Form, Header, Router, Status
 
 from apps.accounts.models import AuthClient, RefreshSession, User
 from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_role
-from apps.accounts.request_schema import LoginIn
-from apps.accounts.response_schema import RefusedOut, SessionOut, SignInOut, UserOut
+from apps.accounts.request_schema import LoginIn, OidcExchangeIn
+from apps.accounts.response_schema import (
+    OidcConfigOut,
+    RefusedOut,
+    SessionOut,
+    SignInOut,
+    UserOut,
+)
 from apps.accounts.utils import IssuedSession, Requester, SessionRefused, sessions
+from apps.accounts.utils.oidc import oidc_sign_in
 
 router = Router(tags=["accounts"])
 auth_router = Router(tags=["auth"])
@@ -45,6 +52,36 @@ def login(
         return Status(401, RefusedOut(detail=str(e)))
     set_refresh_cookie(response, x_auth_client, issued)
     return Status(200, issued)
+
+
+@auth_router.get("/oidc/config", auth=None, response=OidcConfigOut)
+def oidc_config(request: HttpRequest) -> dict[str, str]:
+    return oidc_sign_in.config()
+
+
+@auth_router.post("/oidc/exchange", auth=None, response=SessionOut)
+def oidc_exchange(
+    request: HttpRequest,
+    response: HttpResponse,
+    payload: OidcExchangeIn,
+    x_auth_client: AuthClient = Header(...),
+) -> IssuedSession:
+    issued = oidc_sign_in.exchange(
+        code=payload.code,
+        verifier=payload.code_verifier,
+        nonce=payload.nonce,
+        redirect_uri=payload.redirect_uri,
+        client=x_auth_client,
+        requester=requester(request),
+    )
+    set_refresh_cookie(response, x_auth_client, issued)
+    return issued
+
+
+@auth_router.post("/oidc/backchannel-logout", auth=None, response={200: None})
+def oidc_backchannel_logout(request: HttpRequest, logout_token: Form[str]) -> Status[None]:
+    oidc_sign_in.backchannel_logout(logout_token)
+    return Status(200, None)
 
 
 @auth_router.post("/refresh", auth=None, response={200: SessionOut, 401: RefusedOut})

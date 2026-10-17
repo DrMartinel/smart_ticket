@@ -64,6 +64,17 @@ x-core-api-env: &core-api-env
   DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:?see .env.example}
   EMAIL_HOST: ${EMAIL_HOST:?see .env.example}
   EMAIL_PORT: ${EMAIL_PORT:?see .env.example}
+  OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:?see .env.example}
+  # Keycloak as the containers reach it; the issuer stays the browser's.
+  OIDC_SERVER_URL: http://keycloak:8080
+  OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:?see .env.example}
+  OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?see .env.example}
+  OIDC_REDIRECT_URIS: ${OIDC_REDIRECT_URIS:?see .env.example}
+  OIDC_JWKS_CACHE_SEC: ${OIDC_JWKS_CACHE_SEC:?see .env.example}
+  OIDC_HTTP_CONNECT_TIMEOUT_SEC: ${OIDC_HTTP_CONNECT_TIMEOUT_SEC:?see .env.example}
+  OIDC_HTTP_READ_TIMEOUT_SEC: ${OIDC_HTTP_READ_TIMEOUT_SEC:?see .env.example}
+  KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:?see .env.example}
+  KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?see .env.example}
 
 services:
   db:
@@ -328,4 +339,28 @@ services:
       - "3001:3001"
     depends_on:
       - core-api
+    networks: [smart-triage]
+
+  # Dev identity provider (F13, ADR-0032), off by default:
+  # `docker compose --profile sso up -d keycloak`. The realm, its clients and
+  # test users come from infra/keycloak/; client secrets come from .env.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    profiles: ["sso"]
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME:?see .env.example}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?see .env.example}
+      # Tokens name the browser's address; core-api's back-channel calls use
+      # whichever host they arrive on.
+      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?see .env.example}
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?see .env.example}
+    volumes:
+      - ./infra/keycloak/smart-ticket-realm.json:/opt/keycloak/data/import/smart-ticket-realm.json:ro
+    ports:
+      - "8081:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks: [smart-triage]
