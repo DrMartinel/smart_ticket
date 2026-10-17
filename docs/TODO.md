@@ -6,7 +6,9 @@ Status of what already works is in [`status.md`](status.md); these are its open 
 
 ---
 
-## 1. Implement the PII quarantine read path + access log
+## 1. ~~Implement the PII quarantine read path + access log~~ (done 2026-10-17, phase 2 F5)
+
+Done: `POST /api/tickets/{public_id}/quarantine/reveal` and the security-only access log (`/api/pii/access-log`, `.csv`). See `docs/status.md` §3.1. The original item follows.
 
 **Priority:** High · **Blocks:** the `pii_verify` review queue · **Spec:** §3.1
 

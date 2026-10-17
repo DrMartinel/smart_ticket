@@ -56,7 +56,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **`mask_failed` is not an error state** — it is the correct answer to "I could not verify." Uncertainty must cost a human's time, never risk a leak. Any change that makes a masking failure resolve toward "no PII found" is a serious regression.
 
-**Quarantine** — the encrypted store (AES-GCM, key outside the DB, 72h TTL) holding the real values behind the placeholders. Reading from it is meant to require a stated reason and write an access-log row. *The read path is not yet implemented — see [`status.md`](status.md) Gap 1.*
+**Quarantine** — the encrypted store (AES-GCM, key outside the DB, 72h TTL) holding the real values behind the placeholders. Reading from it (a *reveal*, phase 2 F5) requires a reason code and a stated reason, and writes a `pii_access_log` row in the same transaction as the decrypt.
 
 **Tier 1 / Tier 2** — masking's two passes. Tier 1 is regex (fast, high-confidence, structured patterns; critical hits short-circuit before any model is called). Tier 2 is a local LLM catching free-form mentions regex cannot, e.g. *"anh Tuấn phòng kế toán tầng 3"*.
 

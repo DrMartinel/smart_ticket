@@ -38,3 +38,19 @@ export function priorityClasses(priority: number): string {
   if (priority === 2) return "tone-warn";
   return "tone-neutral";
 }
+
+/** A ticket's or a placeholder's PII level: routine, sensitive, critical, mask_failed. */
+export function piiLevelClasses(level: string): string {
+  switch (level) {
+    case "routine":
+      return "tone-info";
+    case "sensitive":
+      return "tone-warn";
+    case "critical":
+      return "tone-danger";
+    case "mask_failed":
+      return "tone-alert";
+    default:
+      return "tone-neutral";
+  }
+}

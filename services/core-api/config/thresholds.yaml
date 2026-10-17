@@ -140,3 +140,11 @@ access_denied:
   # method within this window (PRE-1, BR-PRE1-03), so a probing client shows
   # up without flooding audit_log. 🔧 assumption, not measured.
   audit_window_seconds: 60
+
+pii_reveal:
+  # Reveals of quarantined PII one person may make in an hour (F5, BR-F5-07).
+  # The next is refused with reveal_rate_limited and alerts security.
+  # 🔧 assumption, not measured.
+  max_per_user_per_hour: 20
+  # Seconds a revealed value stays on screen before the admin console hides it.
+  display_seconds: 60

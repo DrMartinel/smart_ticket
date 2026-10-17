@@ -21,6 +21,7 @@ from config.settings.base import (
     IncidentThresholds,
     LifecycleThresholds,
     MaskingThresholds,
+    PiiRevealThresholds,
     RetrievalThresholds,
     RoutingThresholds,
     Thresholds,
@@ -78,6 +79,7 @@ def make_thresholds(**overrides) -> Thresholds:
             max_chain_depth=5, action_max_attempts=3, approval_wait_hours=72
         ),
         access_denied=AccessDeniedThresholds(audit_window_seconds=60),
+        pii_reveal=PiiRevealThresholds(max_per_user_per_hour=20, display_seconds=60),
     )
     base.update(overrides)
     return Thresholds(**base)

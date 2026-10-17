@@ -308,6 +308,13 @@ class AccessDeniedThresholds(BaseModel):
     audit_window_seconds: int = Field(ge=1)
 
 
+class PiiRevealThresholds(BaseModel):
+    # Reveals one person may make in an hour; the next is refused (F5, BR-F5-07).
+    max_per_user_per_hour: int = Field(ge=1)
+    # How long a revealed value stays on screen.
+    display_seconds: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -326,6 +333,7 @@ class Thresholds(BaseModel):
     masking: MaskingThresholds
     lifecycle: LifecycleThresholds
     access_denied: AccessDeniedThresholds
+    pii_reveal: PiiRevealThresholds
 
     @property
     def retrieval_floor(self) -> float:
