@@ -99,7 +99,7 @@ Stage 5 of the pack. Every `Screens` reference in §6 links to the frame below.
 
 ## Decisions made while drawing
 
-Recorded as assumptions A-16…A-21 in [§9](09-risks-open-questions.md#92-assumptions-made-at-stage-1).
+Recorded as assumptions A-16…A-21 in [§9](09-risks-open-questions.md#92-assumptions).
 
 | Decision | Where |
 |---|---|

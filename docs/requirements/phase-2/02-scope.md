@@ -93,6 +93,6 @@ flowchart BT
 | 4 | **F8**, **F7**, **F6**, **F9**, **F10** | Should features; F10 last because it reports on the others |
 | 5 | **F11**, **F12** | Could features |
 
-How this lines up with rollout phases P2–P5 is in §10 (stage 6). In short:
+How this lines up with rollout phases P2–P5 is in [§10](10-release-plan.md#103-rollout-phases-what-each-needs-from-phase-2). In short:
 waves 0–3 are safe to ship while `SHADOW_MODE=true`, because they act only
 after a person or the pipeline has already decided. F9 must exist before P3.

@@ -277,7 +277,7 @@ GET /api/notifications?unread=true
 | `GET /api/notifications/preferences` | any (own) | — | `[{event, channel, enabled, default_on, mandatory}]` | — |
 | `PUT /api/notifications/preferences` | any (own) | `[{event, channel, enabled}]` | same as GET | 409 `mandatory_cell` |
 | `GET /api/notifications/matrix` | workflow_admin, manager | — | `[{event, recipient_kind, channel, default_on, mandatory}]` | — |
-| `PUT /api/notifications/matrix` | workflow_admin | `{changes:[…], reason}` | same as GET | 409 `mandatory_cell` · 422 `reason_required` |
+| `PUT /api/notifications/matrix` | workflow_admin | `{changes:[…], reason}` | same as GET | 409 `mandatory_cell` · 422 `reason_required` · 422 `unknown_event` |
 | `GET /api/notifications/deliveries?state=failed&channel=&event=` | workflow_admin, manager | — | list | — |
 | `POST /api/notifications/deliveries/retry` | workflow_admin, manager | `{ids:[…]}` or `{all_failed:true}` | `{requeued}` | — |
 | `GET/POST/PATCH/DELETE /api/notifications/webhooks` | workflow_admin | `{name, url, events, secret}` | subscription | 422 `webhook_host_refused` |
@@ -313,24 +313,28 @@ GET /api/notifications?unread=true
 ```gherkin
 Feature: F4 Notifications
 
+  @BR-F4-04
   Scenario: AC-F4-01 assignee gets an in-app notice with masked text
     Given ticket "TKT-2026-000412" has body "Em là [EMPLOYEE_CODE_1], SĐT [PHONE_VN_1]"
     When the ticket is assigned to "ha.vt"
     Then "ha.vt" has one unread in-app notice "ticket.assigned"
     And its body contains "[PHONE_VN_1]" and no phone number
 
+  @BR-F4-03
   Scenario: AC-F4-02 preference turns off email
     Given "duc.tm" turned off email for "ticket.assigned"
     When a ticket is assigned to "duc.tm"
     Then an in-app notice exists for "duc.tm"
     And no email message exists for "duc.tm"
 
+  @BR-F4-03
   Scenario: AC-F4-03 mandatory notice ignores preference
     Given "anh.lh" tries to turn off email for "security.alert"
     Then the response is 409 with code "mandatory_cell"
     When a break-glass sign-in happens
     Then "anh.lh" gets both an in-app and an email notice
 
+  @BR-F4-05 @BR-X-07
   Scenario: AC-F4-04 failed email does not touch the ticket
     Given the SMTP relay rejects every message
     When a ticket is assigned to "duc.tm"
@@ -338,21 +342,37 @@ Feature: F4 Notifications
     And after 5 attempts the email message is "failed" with last_error set
     And the ticket's status and version are unchanged by the failure
 
+  @BR-F4-01
   Scenario: AC-F4-05 rolled-back event sends nothing
     Given an assignment transaction raises after emit
     Then no notif_messages rows exist for that event_id
 
+  @BR-F4-03
   Scenario: AC-F4-06 approver is told
     Given a transition with action require_approval naming "huy.pq"
     When "duc.tm" requests that move
     Then "huy.pq" has an in-app notice "approval.requested" linking to the approval
 
+  @BR-F4-06
   Scenario: AC-F4-07 webhook to a disallowed host is refused
     When "tu.dv" subscribes "https://evil.example.com/hook"
     Then the response is 422 with code "webhook_host_refused"
 
+  @BR-F4-07
   Scenario: AC-F4-08 language follows the user
     Given "mai.bn" has language "en"
     When a ticket is assigned to "mai.bn"
     Then the notice subject starts with "Assigned to you: TKT-"
+
+  @BR-F4-08
+  Scenario: AC-F4-09 a re-emitted event never double-sends
+    Given event "ticket.assigned" 5b7e0d1a for "ha.vt" was stored once
+    When the same event id is emitted again after a retry
+    Then "ha.vt" has one in-app message and one email for it
+
+  @BR-F4-02
+  Scenario: AC-F4-10 an event outside the catalog is refused
+    When a workflow_admin saves a matrix row for event "ticket.liked"
+    Then the response is 422 with code "unknown_event"
+    And the matrix is unchanged
 ```

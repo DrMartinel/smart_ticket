@@ -257,22 +257,26 @@ mandatory), `security.ack_overdue` (security, mandatory).
 ```gherkin
 Feature: F8 Security inbox
 
+  @BR-F8-02 @BR-F8-04 @BR-F8-05
   Scenario: AC-F8-01 a pasted password raises a critical alert
     When "lan.nt" submits a ticket containing "mật khẩu: Hn@2026xyz"
     Then the ticket is "blocked" with reason "pii_critical"
     And one security alert of kind "pii_critical" and severity "critical" exists with ack_due_at 1 business hour later
     And "anh.lh" has a mandatory "security.alert" notice
 
+  @BR-F8-07
   Scenario: AC-F8-02 technicians don't see the secret queues
     Given pending review items in queues "pii_verify" and "low_confidence"
     When "duc.tm" lists the review queue
     Then only the "low_confidence" item is returned
 
+  @BR-F8-03
   Scenario: AC-F8-03 repeats group into one alert
     Given a "refresh_token_reused" alert for "duc.tm" raised 10 minutes ago
     When the same reuse happens again for "duc.tm"
     Then the alert's count is 2 and no new alert exists
 
+  @BR-F8-06
   Scenario: AC-F8-04 release sends the ticket to a person
     Given a blocked injection ticket with alert "injection_detected"
     When "anh.lh" releases it with reason "Câu hỏi hợp lệ về đổi thiết bị MFA"
@@ -281,14 +285,22 @@ Feature: F8 Security inbox
     And one eval_candidate exists
     And no new ai_run exists for the ticket
 
+  @BR-F8-04
   Scenario: AC-F8-05 overdue acknowledgement is escalated once
     Given a critical alert created at 14:05 (+07) on a working day
     When the sweep runs at 15:06 and 15:30 (+07) without an acknowledgement
     Then exactly one "security.ack_overdue" notice exists
 
+  @BR-F8-01
   Scenario: AC-F8-06 managers see counts only
     When "huy.pq" calls GET /api/security/alerts
     Then the response is 403
     When "huy.pq" calls GET /api/security/summary
     Then the response lists counts by kind and state with no ticket or user ids
+
+  @BR-F8-08
+  Scenario: AC-F8-07 a burst of refusals raises one alert
+    Given user "tmp.contractor3" gets 20 access_denied refusals between 10:00 and 10:09 (+07)
+    When the sweep runs at 10:10
+    Then one alert of kind "access_denied_burst" exists for "tmp.contractor3"
 ```

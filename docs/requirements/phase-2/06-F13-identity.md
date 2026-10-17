@@ -267,6 +267,7 @@ No webhook events.
 ```gherkin
 Feature: F13 Keycloak identity
 
+  @BR-F13-01 @BR-F13-04
   Scenario: AC-F13-01 first sign-in creates the user
     Given no core-api user has external_id "3f9b2c41-7d0e-4a8e-9c55-1b2e8f6d0a12"
     When Lan completes Keycloak sign-in from the chat app with client role "employee"
@@ -274,30 +275,35 @@ Feature: F13 Keycloak identity
     And a refresh cookie "st_refresh_chat" is set
     And audit rows "identity_provisioned" and "auth_login" exist
 
+  @BR-F13-02 @BR-F13-03 @BR-F13-07
   Scenario: AC-F13-02 rights come from Keycloak
     Given Đức has client roles "technician" and "incident_manager" and groups "/it/network/lead", "/it/hardware"
     When Đức signs in to the admin console
     Then GET /api/accounts/me returns role "technician", capabilities ["incident_manager"]
     And teams [{"team":"network","role":"lead"},{"team":"hardware","role":"member"}]
 
+  @BR-F13-02
   Scenario: AC-F13-03 no client role, no access
     Given a Keycloak user with no "smart-ticket" client role
     When they complete Keycloak sign-in
     Then the exchange returns 403 with code "no_access"
     And no core-api user is created
 
+  @BR-F13-02
   Scenario: AC-F13-04 two primary roles are refused and alerted
     Given a Keycloak user with client roles "technician" and "manager"
     When they complete Keycloak sign-in
     Then the exchange returns 403 with code "ambiguous_role"
     And one audit row "security_alert" exists
 
+  @BR-F13-05
   Scenario: AC-F13-05 leaver loses access within 5 minutes
     Given Đức has a live admin-console session
     When Đức is disabled in AD and Keycloak sends a back-channel logout
     Then Đức's next API call returns 401
     And when back-channel is not delivered, the call returns 401 within 5 minutes
 
+  @BR-F13-01 @BR-F13-08
   Scenario: AC-F13-06 Keycloak down does not end existing sessions
     Given Lan has a live chat session
     And Keycloak is unreachable
@@ -305,20 +311,24 @@ Feature: F13 Keycloak identity
     Then the refresh succeeds
     And a new person opening the app sees the sign-in error "idp_unavailable"
 
+  @BR-F13-06
   Scenario: AC-F13-07 local login is closed to normal users
     When "duc.tm" posts username and password to /api/auth/login
     Then the response is 403 with code "local_login_disabled"
 
+  @BR-F13-06
   Scenario: AC-F13-08 break-glass use alerts security
     Given "breakglass1" is a manager with is_break_glass true
     When "breakglass1" signs in with the correct password
     Then the session starts
     And "anh.lh" receives a mandatory notification "Break-glass sign-in"
 
+  @BR-F13-01
   Scenario: AC-F13-09 a forged ID token is refused
     When the exchange receives an ID token signed by an unknown key
     Then the response is 401 with code "oidc_token_invalid"
 
+  @BR-F13-08
   Scenario: AC-F13-10 failed sync deactivates nobody
     Given the Keycloak admin API returns 503
     When identity_sync runs

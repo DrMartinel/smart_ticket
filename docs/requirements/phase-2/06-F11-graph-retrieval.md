@@ -134,6 +134,7 @@ No Celery task (the build is ai-engine's scheduled CLI). No webhook event.
 ```gherkin
 Feature: F11 Graph retrieval as a KB feature
 
+  @BR-F11-01 @BR-F11-02
   Scenario: AC-F11-01 a publish keeps edges until the rebuild
     Given "client-vpn-user.windows-troubleshooting" has 4 entity_graph edges
     When an edit of that page is published
@@ -142,13 +143,26 @@ Feature: F11 Graph retrieval as a KB feature
     When the scheduled build runs
     Then the page's edges are replaced and none is stale
 
+  @BR-F11-03
   Scenario: AC-F11-02 a hidden edge stays hidden after a rebuild
     Given "mai.bn" hid the edge to "workspaces-user.client_troubleshooting"
     When the build rewrites the page's edges, including that one
     Then link expansion from the page does not return "workspaces-user.client_troubleshooting"
 
+  @BR-F11-06
   Scenario: AC-F11-03 overrides don't move the eval gate
     Given no overrides exist
     When the retrieval suite runs
     Then recall@5 is at least 0.90
+
+  @BR-F11-04
+  Scenario: AC-F11-04 edge scores never decide anything
+    Given two tickets with identical signals, one whose cited page came from expansion
+    Then both get the same trust score and the same branch
+
+  @BR-F11-05
+  Scenario: AC-F11-05 rebuilds read KB text only
+    When the scheduled build runs with --pending
+    Then every DeepSeek request it sends contains only kb_chunks text
+    And no ticket text is read
 ```

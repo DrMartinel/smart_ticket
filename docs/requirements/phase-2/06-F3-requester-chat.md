@@ -326,32 +326,38 @@ Webhook events: through F4 only.
 ```gherkin
 Feature: F3 Requester experience
 
+  @BR-F3-01
   Scenario: AC-F3-01 follow-up carries same-conversation context
     Given Lan asked "VPN báo lỗi TLS handshake failed khi kết nối từ nhà" at 09:02 in conversation "cv-71a2"
     When Lan sends "Làm theo rồi vẫn lỗi" at 09:10
     Then the ai-engine request for the new ticket has 1 prior turn with the first question, masked
 
+  @BR-F3-01 @BR-F3-02
   Scenario: AC-F3-02 no context across conversations
     Given Lan's last turn was at 09:10
     When Lan sends a new message at 09:45
     Then a new conversation starts
     And the ai-engine request has 0 prior turns
 
+  @BR-F3-02
   Scenario: AC-F3-03 a blocked turn is never context
     Given turn 1 of a conversation was blocked for "injection_detected"
     When the requester sends turn 2 a minute later
     Then turn 2 starts a new conversation with 0 prior turns
 
+  @BR-F3-03
   Scenario: AC-F3-04 router ignores prior turns
     Given two identical signal sets, one with prior turns and one without
     When the router decides both
     Then both decisions have the same branch and reason_code
 
+  @BR-F3-04
   Scenario: AC-F3-05 my tickets includes form tickets
     Given Lan reported form ticket "TKT-2026-000412" and chat ticket "TKT-2026-000432"
     When Lan opens My tickets
     Then both appear, open tickets first
 
+  @BR-F3-07
   Scenario: AC-F3-06 reply resumes the SLA
     Given "TKT-2026-000432" is "waiting_on_requester" with a paused resolution clock
     When Lan replies "Em gửi log ạ: user lan.nt@congty.vn lỗi ở bước TLS"
@@ -360,11 +366,13 @@ Feature: F3 Requester experience
     And the resolution clock is "running"
     And "khoa.lv" has a "ticket.requester_replied" notice
 
+  @BR-F3-06
   Scenario: AC-F3-07 a reply with a password is contained
     When Lan replies "mật khẩu: Abc@12345"
     Then the stored comment contains "[PASSWORD_1]" and not "Abc@12345"
     And one audit row "security_alert" exists for the ticket
 
+  @BR-F3-08 @BR-F3-09
   Scenario: AC-F3-08 reopen within the window
     Given "TKT-2026-000431" was auto-replied 2 days ago
     When Lan reopens it with reason "Vẫn lỗi sau khi cài lại client"
@@ -372,12 +380,14 @@ Feature: F3 Requester experience
     And one eval_candidate with source "reopen" exists
     And reopen_rate_after_autoreply counts it
 
+  @BR-F3-08
   Scenario: AC-F3-09 reopen after the window makes a linked ticket
     Given "TKT-2026-000431" was resolved 9 days ago
     When Lan reopens it with a reason
     Then a new ticket exists with reopened_from "TKT-2026-000431"
     And "TKT-2026-000431" stays resolved
 
+  @BR-F3-10
   Scenario: AC-F3-10 one rating per resolution, low rating alerts the lead
     Given "TKT-2026-000432" is resolved
     When Lan rates it 2 with comment "Phải chờ lâu"
@@ -385,9 +395,16 @@ Feature: F3 Requester experience
     And the Network team lead has a "ticket.rated_low" notice
     And the ticket is still resolved
 
+  @BR-F3-11
   Scenario: AC-F3-11 stale waits close themselves
     Given "TKT-2026-000418" has been "waiting_on_requester" for 5 business days
     When requester.sweep runs
     Then the ticket is "resolved" with a system comment
     And Lan has a "ticket.resolved" notice
+
+  @BR-F3-05
+  Scenario: AC-F3-12 a renamed workflow status keeps the requester label
+    Given the Access workflow renames status "in_progress" to "Đang cấp quyền"
+    When "lan.nt" opens My tickets
+    Then "TKT-2026-000412" shows the label "Đang xử lý"
 ```

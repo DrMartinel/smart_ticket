@@ -287,43 +287,71 @@ in the catalog.
 ```gherkin
 Feature: F7 Mass-incident management
 
+  @BR-F7-01 @BR-F7-02
   Scenario: AC-F7-01 two outages, two incidents
     Given an open incident about VPN with a centroid built from VPN tickets
     When 6 printer tickets arrive within 15 minutes
     Then a second incident is proposed for the printer tickets
     And no printer ticket is linked to the VPN incident
 
+  @BR-F7-03
   Scenario: AC-F7-02 confirming agrees with the router
     Given "INC-2026-0012" is proposed with 6 linked tickets, each with a pending escalate review item
     When "duc.tm" confirms it
     Then the 6 review items are resolved with action "approve" by "duc.tm"
     And no eval_candidate is created
 
+  @BR-F7-05
   Scenario: AC-F7-03 one notice per requester
     Given "lan.nt" has two tickets linked to "INC-2026-0012"
     When "duc.tm" sends a broadcast with ETA 10:30 (+07)
     Then "lan.nt" receives exactly one in-app and one email notice
     And both tickets have a system public comment with the broadcast
 
+  @BR-F7-04 @BR-F7-05
   Scenario: AC-F7-04 late joiner sees the latest update at once
     Given "INC-2026-0012" is confirmed with one broadcast
     When a new matching ticket arrives
     Then it is linked without a review item
     And its requester's chat shows the incident banner with ETA 10:30 (+07)
 
+  @BR-F7-06
   Scenario: AC-F7-05 close-all continues past a refusal
     Given 7 linked open tickets, one in a strict workflow with no transition to "resolved"
     When "duc.tm" resolves with close_all true
     Then 6 tickets are "resolved" and 1 is listed as failed with code "transition_not_allowed"
     And that ticket's assignee is notified
 
+  @BR-F7-01
   Scenario: AC-F7-06 dismiss returns tickets to normal review
     Given a proposed incident with 5 linked tickets
     When "duc.tm" dismisses it with reason "Trùng hợp, không cùng nguyên nhân"
     Then the 5 tickets are unlinked
     And their review items are still pending
 
+  @BR-F7-08
   Scenario: AC-F7-07 linked tickets never get an auto-reply
     Given SHADOW_MODE is false and a linked ticket's proposal cites an approved page
     Then the decision is escalate with reason "mass_incident"
+
+  @BR-F7-10
+  Scenario: AC-F7-08 the incident has its own P1 clock
+    Given "INC-2026-0007" was confirmed at 08:55 (+07) on a Saturday
+    Then its target is 12:55 (+07) the same day, counted 24×7
+    When 12:55 passes without resolve
+    Then the manager gets "incident.sla_breached"
+
+  @BR-F7-09
+  Scenario: AC-F7-09 ticket count comes from the links
+    Given "INC-2026-0007" has 23 linked tickets
+    When one ticket is unlinked and another is linked twice by a retry
+    Then ticket_count is 23
+
+  @BR-F7-07
+  Scenario: AC-F7-10 linked clocks pause while confirmed
+    Given "TKT-2026-000444" is linked to proposed incident "INC-2026-0007" with a running resolution clock
+    When the incident is confirmed
+    Then the clock is "paused"
+    When the incident is resolved without close-all
+    Then the clock runs again
 ```

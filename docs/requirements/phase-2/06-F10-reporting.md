@@ -286,32 +286,62 @@ GET /api/reports/sla?month=2026-10&team=access
 ```gherkin
 Feature: F10 Reporting
 
+  @BR-F10-01 @BR-F10-02 @BR-F10-03
   Scenario: AC-F10-01 SLA compliance from clocks
     Given the six Access tickets in §g
     When "huy.pq" opens the SLA report for October 2026, team "access"
     Then resolution compliance is 0.75 from 3 met and 1 breached
     And 1 linked-incident ticket and 1 ticket without SLA data are listed as excluded
 
+  @BR-F10-06
   Scenario: AC-F10-02 rubber-stamping is flagged, small samples are not
     Given the three reviewers in §g
     When "huy.pq" opens the reviewer report for 30 days
     Then only "duc.tm" is flagged
 
+  @BR-F10-05
   Scenario: AC-F10-03 a lead sees only their team
     When "ha.vt" (Access lead) requests the team report for "network"
     Then the response is 403
 
+  @BR-F10-05
   Scenario: AC-F10-04 a reviewer sees only themself
     When "ha.vt" opens the reviewer report
     Then exactly one row is returned, for "ha.vt"
 
+  @BR-F10-09
   Scenario: AC-F10-05 automation is not inflated by shadow mode
     Given 100 routing decisions in the window, 40 auto_route in shadow and 0 carried out live
     When the dashboard loads
     Then automation_rate_live is 0.0 and automation_rate_would_have is 0.4
 
+  @BR-F10-05
   Scenario: AC-F10-06 export matches the screen
     When "huy.pq" exports the SLA report for October as CSV
     Then the CSV totals equal the JSON totals
     And one audit row "report_exported" exists
+
+  @BR-F10-04
+  Scenario: AC-F10-07 incident tickets stay out of team SLA
+    Given 23 network tickets are linked to "INC-2026-0007"
+    When the SLA report for team "network" is built
+    Then those 23 tickets are not in the team's SLA %
+    And they appear in the incident report
+
+  @BR-F10-07
+  Scenario: AC-F10-08 gap closure compares four weeks before and after
+    Given cluster "g-42-03" had 9 matching refusals in the 4 weeks before its page was published
+    And 3 in the 4 weeks after
+    Then the KB report shows gap closure 67 % for "g-42-03"
+
+  @BR-F10-08
+  Scenario: AC-F10-09 CSAT splits auto and person
+    Given 61 ratings on auto-replied tickets averaging 4.1 and 212 on person-handled tickets averaging 4.4
+    Then the CSAT report shows 4.1 and 4.4 on separate lines, never one blended number
+
+  @BR-F10-10
+  Scenario: AC-F10-10 shadow agreement uses the same query as the gate
+    Given 248 shadow auto_route decisions with a review decision, 31 rerouted and 7 approved with a corrected category
+    Then shadow agreement for auto_route is 210 / 248 = 84.7 %
+    And F9 reads the same value
 ```

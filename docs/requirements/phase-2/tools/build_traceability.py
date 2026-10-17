@@ -42,7 +42,7 @@ out.append("Generated from the feature files by `tools/build_traceability.py`, s
 out.append("## 8.1 Goal → feature → requirements → tests\n")
 out.append("| Goal | KPI | Feature | MoSCoW | Use cases | FRs | BRs | ADRs | Acceptance | Regression tests |")
 out.append("|---|---|---|---|---|---|---|---|---|---|")
-uc_rows = []; coverage = []; test_rows = []
+uc_rows = []; coverage = []; test_rows = []; proof = []
 for name, f, tag in FEATS:
     t = section(expand(open(os.path.join(D, f)).read()), tag)
     ucs, frs, brs, acs = ids(t,"UC",tag), ids(t,"FR",tag), ids(t,"BR",tag), ids(t,"AC",tag)
@@ -52,6 +52,12 @@ for name, f, tag in FEATS:
     adrs = sorted(adrs)
     tests = sorted(set(re.findall(r'`(test_[a-z0-9_]+)`', t)))
     test_rows.append((name, acs, tests))
+    # rule -> acceptance scenarios, from the @tags above each Scenario
+    proven = {}
+    for tags, ac in re.findall(r'^\s*((?:@[A-Z0-9-]+\s*)+)\n\s*Scenario: (AC-[A-Z0-9]+-\d+)', t, re.M):
+        for tg in tags.split():
+            proven.setdefault(tg[1:], []).append(ac)
+    proof.append((name, brs, proven))
     out.append(f"| {GOALS.get(name,'—')} | {KPIS.get(name,'—')} | [{name}]({f}) | {MOSCOW[name]} | {rng(ucs)} | {rng(frs)} | {rng(brs)} | {', '.join(adrs) or '—'} | {rng(acs)} | {len(tests)} |")
     # UC level
     for block in re.split(r'\n(?=\| Field \| UC-)', t):
@@ -80,10 +86,24 @@ out.append("| Feature | Acceptance scenarios | Regression tests |")
 out.append("|---|---|---|")
 for name, acs, tests in test_rows:
     out.append(f"| {name} | {rng(acs)} | " + (", ".join(f"`{x}`" for x in tests) or "—") + " |")
-out.append("\n## 8.4 Coverage check\n")
+out.append("\n## 8.4 Rule → acceptance scenarios\n")
+out.append("Each Gherkin scenario carries `@BR-…` tags for the rules it proves. A rule with no scenario is listed in 8.5.\n")
+out.append("| Feature | Rule | Proven by |")
+out.append("|---|---|---|")
+unproven = []; xs = {}
+for name, brs, proven in proof:
+    for br in brs:
+        acs_ = sorted(set(proven.get(br, [])), key=lambda x: int(x.rsplit("-",1)[1]))
+        if not acs_: unproven.append(br)
+        out.append(f"| {name} | {br} | {', '.join(acs_) or '**none**'} |")
+    for k, v in proven.items():
+        if k.startswith("BR-X-"): xs.setdefault(k, set()).update(v)
+out.append("\nCross-cutting rules (§6.0) proven inside feature scenarios: " + ("; ".join(f"{k} by {', '.join(sorted(v))}" for k, v in sorted(xs.items())) or "none") + ". The others (BR-X-01…09) are checked by route, model and schema tests named in §7.\n")
+out.append("\n## 8.5 Coverage check\n")
 out.append(f"- Features traced: {len(FEATS)}. Use cases: {len(uc_rows)}.")
 out.append("- Business rules referenced only where they are defined (no use case, FR or test cites them): " + (", ".join(coverage) if coverage else "none") + ".")
 if coverage: out.append("  These still bind (they are in §e); stage 6 decides whether each needs its own acceptance scenario.")
-out.append("- Business rules link to tests at feature level (8.1). Tagging each acceptance scenario with the rule ids it proves is a stage 6 task.")
+out.append("- Business rules with no acceptance scenario: " + (", ".join(unproven) if unproven else "none") + ".")
+out.append(f"- Acceptance scenarios: {sum(len(a) for _, a, _ in test_rows)}; every Gherkin scenario carries a rule tag, or a `@FR-…` / `@UC-…` tag when it proves a requirement that has no rule.")
 open(os.path.join(D, "08-traceability.md"), "w").write("\n".join(out) + "\n")
-print(len(uc_rows), coverage)
+print(len(uc_rows), coverage, unproven)

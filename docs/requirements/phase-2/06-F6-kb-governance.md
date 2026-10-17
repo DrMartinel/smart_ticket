@@ -327,16 +327,19 @@ F4 events added: `kb.review_requested` (reviewers), `kb.authority_needed` (manag
 ```gherkin
 Feature: F6 KB governance
 
+  @BR-F6-01
   Scenario: AC-F6-01 a draft is invisible to retrieval
     Given "mai.bn" creates a draft for slug "printer-floor5-hp"
     When ai-engine runs vector retrieval for "Máy in tầng 5 báo offline"
     Then no chunk from "printer-floor5-hp" is returned
 
+  @BR-F6-02
   Scenario: AC-F6-02 the author cannot approve
     Given "mai.bn" submitted a draft
     When "mai.bn" approves it
     Then the response is 403 with code "self_review"
 
+  @BR-F6-03 @BR-F6-04
   Scenario: AC-F6-03 publishing an edit revokes authority
     Given "identity-center.resetpassword-accessportal" has auto_reply_allowed true
     When "ha.vt" approves "mai.bn"'s edit of its body
@@ -344,25 +347,36 @@ Feature: F6 KB governance
     And one kb_authority_log row records true → false with actor "ha.vt"
     And the page is in the authority queue
 
+  @BR-F6-05
   Scenario: AC-F6-04 a hash mismatch blocks auto-reply
     Given a page with auto_reply_allowed true and a stale approved_text_sha256
     When the router evaluates an auto-reply proposal citing it
     Then the decision is hitl with reason "kb_not_authorized"
 
+  @BR-F6-06
   Scenario: AC-F6-05 bulk grant refuses high-risk pages
     When "huy.pq" bulk-approves 3 pages, one with risk_tier "high"
     Then the response is 422 with code "high_risk_needs_single_review"
     And none of the 3 pages changed
 
+  @BR-F6-07 @BR-F6-08
   Scenario: AC-F6-06 the gap report separates gaps from updates
     Given the 6 refused tickets in §g
     When kb.gaps_build runs
     Then one "gap" cluster of 3 printer tickets exists
     And one "update" cluster of 3 MFA tickets points to "iam.id_credentials_mfa_lost-or-broken"
 
+  @UC-F6-02
   Scenario: AC-F6-07 a stale draft is caught
     Given a draft started at base_version 3
     And the live page is now version 4
     When a reviewer approves the draft
     Then the draft state is "conflict" and the live page is unchanged
+
+  @BR-F6-09
+  Scenario: AC-F6-08 the demo snapshot import is audited, not reviewed
+    When "make load-demo-kb ARGS=\"--approver manager1\"" runs
+    Then pages are written directly from the pinned snapshot
+    And one audit row "kb_snapshot_loaded" exists
+    And no kb_drafts rows are created
 ```

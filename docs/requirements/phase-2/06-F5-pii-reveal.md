@@ -192,21 +192,25 @@ Feature: F5 PII reveal
     Given ticket "TKT-2026-000412" has placeholder "[CCCD_1]" in quarantine, expiring in 30 hours
     And a pending low_confidence review item for it is claimed by "duc.tm"
 
+  @BR-F5-01 @BR-F5-03 @BR-F5-05
   Scenario: AC-F5-01 claim holder reveals with a reason
     When "duc.tm" reveals "[CCCD_1]" with reason_code "verify_identity" and a 40-character reason
     Then the response is 200 with the decrypted value
     And exactly one pii_access_log row exists for actor "duc.tm" and placeholder "[CCCD_1]"
     And one audit_log row "pii_revealed" exists whose payload has no value
 
+  @BR-F5-03
   Scenario: AC-F5-02 empty reason is refused
     When "duc.tm" reveals "[CCCD_1]" with reason ""
     Then the response is 422 with code "reason_required"
     And no pii_access_log row is written
 
+  @BR-F5-01
   Scenario: AC-F5-03 technician without the claim is refused
     When "mai.bn" (technician) reveals "[CCCD_1]"
     Then the response is 403 with code "reveal_not_allowed"
 
+  @BR-F5-02
   Scenario: AC-F5-04 critical label needs security
     Given the ticket also has "[PASSWORD_1]"
     When "duc.tm" reveals "[PASSWORD_1]"
@@ -214,24 +218,40 @@ Feature: F5 PII reveal
     When "anh.lh" (security) reveals "[PASSWORD_1]" with a reason
     Then the response is 200
 
+  @FR-F5-006
   Scenario: AC-F5-05 expired value is gone
     Given the quarantine row expired 1 minute ago
     When "anh.lh" reveals "[CCCD_1]"
     Then the response is 410 with code "quarantine_expired"
 
+  @BR-F5-05
   Scenario: AC-F5-06 no plaintext without a log row
     Given inserting into pii_access_log raises an error
     When "anh.lh" reveals "[CCCD_1]"
     Then the response is 500 and contains no value
     And no pii_access_log row exists
 
+  @BR-F5-07
   Scenario: AC-F5-07 rate limit alerts security
     Given "anh.lh" made 20 reveals in the last hour
     When "anh.lh" reveals one more value
     Then the response is 429 with code "reveal_rate_limited"
     And one audit_log row "security_alert" exists with reason "reveal_rate_limited"
 
+  @BR-F5-04
   Scenario: AC-F5-08 a reason with a secret is refused
     When "duc.tm" reveals with reason "mật khẩu: Abc@12345 để thử đăng nhập"
     Then the response is 422 with code "reason_has_secret"
+
+  @BR-F5-06
+  Scenario: AC-F5-09 the access log can't be edited
+    Given one pii_access_log row exists for "[CCCD_1]" on "TKT-2026-000412"
+    When core-api's database role runs UPDATE or DELETE on pii_access_log
+    Then Postgres refuses with "permission denied"
+
+  @BR-F5-08
+  Scenario: AC-F5-10 the value leaves no trace
+    Given "duc.tm" revealed "[CCCD_1]" with value "001203004567"
+    Then no log line, audit payload, notification, export or URL contains "001203004567"
+    And the response has the header "Cache-Control: no-store"
 ```

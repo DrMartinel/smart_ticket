@@ -158,18 +158,21 @@ events plus a status callback, with no new core-api surface.
 ```gherkin
 Feature: F12 Runbook executors
 
+  @BR-F12-02
   Scenario: AC-F12-01 reset only for the reporter
     Given Lan's ticket has a RunbookProposal RB-RESET-PASSWORD with target_username "huy.pq"
     When "ha.vt" approves and executes it
     Then the response is 422 with code "target_not_reporter"
     And Keycloak receives no request
 
+  @BR-F12-01 @BR-F12-05
   Scenario: AC-F12-02 a real reset sends the Keycloak action email
     Given the target_username is "lan.nt", the reporter
     When "ha.vt" approves and executes
     Then Keycloak receives execute-actions-email UPDATE_PASSWORD for Lan's sub
     And the execution is "succeeded" with a ticket comment
 
+  @BR-F12-03
   Scenario: AC-F12-03 grant access needs a second manager
     Given an approved RB-GRANT-ACCESS for group "/apps/vpn-users"
     When "duc.tm" executes it
@@ -177,8 +180,21 @@ Feature: F12 Runbook executors
     When "huy.pq" gives the second approval
     Then the user is added to "/apps/vpn-users"
 
+  @BR-F12-06 @BR-F12-07
   Scenario: AC-F12-04 an n8n timeout is unknown
     Given RB-RESTART-SERVICE is approved by two people
     When n8n accepts the call but never calls back within 30 seconds
     Then the execution is "unknown" and no second call is sent
+
+  @BR-F12-04
+  Scenario: AC-F12-05 what runs is what the approver saw
+    Given the proposal's draft_payload has target_username "huy.pq" on Lan's ticket
+    When "ha.vt" edits it to "lan.nt" and approves
+    Then the execution's executed_payload is {"target_username":"lan.nt"}
+
+  @BR-F12-08
+  Scenario: AC-F12-06 a catalog change needs a manager
+    When "tu.dv" changes RB-RESTART-SERVICE's URL
+    Then the runbook keeps its old config until a manager approves
+    And one audit row "runbook_catalog_changed" exists
 ```

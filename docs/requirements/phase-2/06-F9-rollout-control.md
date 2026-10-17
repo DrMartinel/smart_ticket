@@ -260,12 +260,14 @@ F4 events added: `rollout.flag_requested`, `rollout.flag_changed`,
 ```gherkin
 Feature: F9 Rollout and threshold control
 
+  @BR-F9-01 @BR-F9-09
   Scenario: AC-F9-01 one branch live, the other shadow
     Given SHADOW_MODE is false, thresholds approved, auto_route "on" and auto_reply "off"
     When the router decides auto_route for ticket A and auto_reply for ticket B
     Then ticket A is "auto_routed" and ticket B has a review item
     And both routing_decisions rows store the same rollout_snapshot
 
+  @BR-F9-02
   Scenario: AC-F9-02 two managers to turn on
     Given "huy.pq" requested auto_route on
     When "huy.pq" approves his own request
@@ -273,28 +275,52 @@ Feature: F9 Rollout and threshold control
     When "quang.nv" and then "dung.ht" approve
     Then auto_route is "on"
 
+  @BR-F9-02
   Scenario: AC-F9-03 one person to turn off
     Given auto_reply is "on"
     When "anh.lh" (security) turns it off with reason "Phản hồi sai trên trang VPN"
     Then auto_reply is "off" immediately
     And the next auto_reply decision is shadow
 
+  @BR-F9-01
   Scenario: AC-F9-04 env kill switch wins
     Given auto_route is "on" and SHADOW_MODE is true
     When the router decides auto_route
     Then the decision has shadow_mode true
 
+  @BR-F9-01 @BR-F9-07
   Scenario: AC-F9-05 unapproved thresholds force shadow
     Given core-api booted with a thresholds.yaml whose sha256 matches no approved change request
     Then every decision has shadow_mode true
     And one security alert "thresholds_unapproved" exists
 
+  @BR-F9-03
   Scenario: AC-F9-06 unmet gate needs an override reason
     Given the auto_route gate value is 0.18 against 0.15
     When a manager approves without gate_override_reason
     Then the response is 422 with code "override_reason_required"
 
+  @BR-F9-10
   Scenario: AC-F9-07 no switch for runbooks
     When a manager requests a flag for "runbook"
     Then the response is 404
+
+  @BR-F9-04
+  Scenario: AC-F9-08 a gate change needs approval
+    When "huy.pq" changes the auto_route gate from 15 % to 20 % with a reason
+    Then the gate change is "pending" until a second manager approves
+    And the Rollout page still shows 15 %
+
+  @BR-F9-05 @BR-F9-06
+  Scenario: AC-F9-09 a change request holds the whole file
+    When "tu.dv" submits a change request with only "trust.t_auto: 0.86"
+    Then the response is 422 with code "invalid_thresholds" naming the first missing field path
+    When "tu.dv" submits the full file and approves it himself
+    Then the response is 403 with code "self_approval"
+
+  @BR-F9-08
+  Scenario: AC-F9-10 production can't skip the threshold check
+    Given THRESHOLDS_REQUIRE_APPROVAL=false in the environment
+    When core-api boots with config.settings.production
+    Then the check still runs and an unapproved file puts every branch in shadow
 ```

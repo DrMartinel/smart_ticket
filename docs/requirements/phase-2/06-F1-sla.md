@@ -383,6 +383,7 @@ Feature: F1 SLA and business hours
     Given calendar "VN office" in "Asia/Ho_Chi_Minh" with Mon–Fri 08:00–17:30
     And active policy "P3 — normal" with response 240 and resolution 1710 business minutes
 
+  @BR-F1-01 @BR-F1-02 @BR-F1-03
   Scenario: AC-F1-01 clocks start at handoff, not at submit
     Given "TKT-2026-000418" was submitted Fri 23 Oct 2026 15:00 (+07) in category "hardware"
     When the pipeline moves it to "pending_review" at 15:30 (+07)
@@ -390,12 +391,14 @@ Feature: F1 SLA and business hours
     And the response clock is due Mon 26 Oct 10:00 (+07)
     And the resolution clock is due Wed 28 Oct 15:30 (+07)
 
+  @BR-F1-04 @BR-F1-14
   Scenario: AC-F1-02 holidays don't count
     Given holiday 2026-11-24 on "VN office"
     And a P3 ticket handed off Mon 23 Nov 2026 16:30 (+07)
     Then the response clock is due Wed 25 Nov 2026 11:00 (+07)
     # Mon 16:30–17:30 = 60 min, Tue 24 Nov skipped, Wed 08:00 + 180 min
 
+  @BR-F1-07
   Scenario: AC-F1-03 waiting on the requester pauses the clock
     Given the resolution clock of "TKT-2026-000418" has 810 business minutes elapsed
     When "mai.bn" moves the ticket to "waiting_on_requester"
@@ -404,16 +407,19 @@ Feature: F1 SLA and business hours
     Then elapsed is still 810 minutes at the moment of the reply
     And due_at is Thu 29 Oct 15:00 (+07)
 
+  @BR-F1-08 @BR-F1-09
   Scenario: AC-F1-04 warning, breach and escalation each fire once
     Given a running P2 resolution clock with target 480
     When the sweep runs at 360, 480 and 600 business minutes elapsed, twice each
     Then exactly one "sla.warning", one "sla.breached" and one "sla.breached_escalated" notice exist
 
+  @BR-F1-04
   Scenario: AC-F1-05 P1 counts around the clock
     Given a ticket linked to an open mass incident is handed off Sat 24 Oct 22:00 (+07)
     Then its priority is "P1"
     And its resolution clock is due Sun 25 Oct 02:00 (+07)
 
+  @BR-F1-11 @BR-X-07
   Scenario: AC-F1-06 an SLA failure never blocks the pipeline
     Given the SLA hook raises an error
     When the pipeline moves a ticket to "auto_routed"
@@ -421,20 +427,45 @@ Feature: F1 SLA and business hours
     And one audit row "sla_update_failed" exists
     And after the next sweep the ticket has running clocks
 
+  @BR-F1-05
   Scenario: AC-F1-07 policy edits don't move running clocks
     Given "TKT-2026-000418" has a running resolution clock due Wed 28 Oct 15:30
     When a manager activates a new P3 policy with resolution 1140
     Then "TKT-2026-000418" is still due Wed 28 Oct 15:30
     And a P3 ticket handed off afterwards uses 1140
 
+  @BR-F1-12
   Scenario: AC-F1-08 a manager can't approve their own draft
     Given "huy.pq" created a policy draft
     When "huy.pq" approves it
     Then the response is 403 with code "self_approval"
 
+  @BR-F1-10
   Scenario: AC-F1-09 priority change keeps elapsed
     Given a running P3 resolution clock with 600 business minutes elapsed
     When "ha.vt" changes priority to "P2" with a reason
     Then the clock target is 480 and its state is "breached"
     And one audit row "sla_retargeted" exists
+
+  @BR-F1-06
+  Scenario: AC-F1-10 a staff reply is a response, an assignment is not
+    Given "TKT-2026-000415" was handed off Mon 26 Oct 2026 08:31 (+07) and assigned to "khoa.lv" by the strategy
+    Then the response clock is still running
+    When "khoa.lv" posts the public comment "Chị cho em xin ảnh lỗi trong AWS VPN Client > Show logs ạ" at 09:12
+    Then the response clock is "met" at 09:12
+
+  @BR-F1-13
+  Scenario: AC-F1-11 a reopen resumes the old resolution clock
+    Given "TKT-2026-000432" was resolved with 1,020 business minutes on its resolution clock and a met response clock
+    When "lan.nt" reopens it within 7 days
+    Then the same resolution clock runs again from 1,020 minutes
+    And no new response clock is created
+
+  @BR-F1-15
+  Scenario: AC-F1-12 a confirmed incident pauses linked tickets
+    Given "TKT-2026-000415" has a running resolution clock
+    When it is linked to incident "INC-2026-0007" and the incident is confirmed
+    Then the clock is "paused"
+    When the ticket is unlinked
+    Then the clock runs again with its elapsed minutes kept
 ```

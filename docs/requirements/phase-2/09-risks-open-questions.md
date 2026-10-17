@@ -1,6 +1,6 @@
 # 9. Risks, assumptions, open questions, proposed ADRs
 
-**State: updated at stage 5.** Completed in stage 6. Each stage adds its rows.
+**State: complete (stage 6).** Every open question has a decision or an applied default; new questions after sign-off go through change control (§0.4).
 
 OQ-01…OQ-27 defaults were accepted by the product owner on 2026-10-17 and are
 now decisions; they stay listed so the trace is visible.
@@ -39,8 +39,9 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | OQ-25 | Use a separate Keycloak client for runbook actions, apart from the F13 sync client? | Information Security Officer | Yes: `smart-ticket-runbooks`, only `manage-users` on the realm, no impersonation | F12 | Decided 2026-10-17 |
 | OQ-26 | Records retention for audit log, PII access log, security alerts | Data Protection Officer | 5 years, then archived | §7 NFR-PRIV-02 | Decided 2026-10-17 |
 | OQ-27 | Capacity planning numbers (3,000 employees, 50 staff online) | Head of IT Operations | As in §7.4 | §7 | Decided 2026-10-17 |
+| OQ-28 | P4 starts on ADR-0027's 2,892 approved pages, not spec §14's 3–5. Keep that set? | Head of IT Operations | Keep it; review K7 weekly in the first month; turn `auto_reply` off on the first week above 5 %. Narrowing needs a new ADR superseding 0027 | §10.3, before P4 | Default applied 2026-10-17; owner confirms before P4 |
 
-## 9.2 Assumptions made at stage 1
+## 9.2 Assumptions
 
 | ID | Assumption | Where used |
 |---|---|---|
@@ -65,6 +66,8 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | A-19 | Requester-facing labels show Vietnamese first, English second; staff UI stays English with Vietnamese data | F3, F13 |
 | A-20 | Dashboard keeps today's Ops tiles and adds a Service row | F10 |
 | A-21 | Mockups use Inter in place of the apps' system UI font stack | [mockups](mockups.md) |
+| A-22 | Local password hashes are kept until Fri 29 Jan 2027 so a wave 1 rollback restores sign-in; then cleared | §10.4 |
+| A-23 | Team: two core-api developers, one frontend developer, half an ai-engine developer; pack v1.0 signed by 30 Oct 2026 | §10.2 dates |
 
 ## 9.3 Risks
 
@@ -86,6 +89,10 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | R-14 | Two managers needed for every flag-on can stall rollout | Low | Low | Requests expire in 72 h with a notice; turning off never waits |
 | R-15 | A Keycloak admin credential that can reset passwords and add groups is a high-value secret | Medium | High | Separate client (OQ-25), least roles, allow-listed groups only, secret in the vault, every call audited in both systems |
 | R-16 | Editor overrides of the entity graph could quietly lower retrieval recall | Low | Medium | Retrieval suite runs with production overrides weekly; F10 KB report shows expansion's share |
+| R-17 | P4 goes live on 2,892 pages at once (ADR-0027) instead of spec §14's 3–5, so a bad page reaches requesters before the reopen gate can show it | Medium | High | OQ-28: weekly K7 review, one-step turn-off (BR-F9-02), F6 revokes authority on any edit; a narrower start needs an ADR |
+| R-18 | Wave dates slip into the Tết freeze (1–14 Feb 2027) or past the 30 Apr – 3 May holidays | Medium | Medium | Freeze in §10.1 RL-07; wave 2 ships 27 Jan with a week's margin; Should and Could waves move before Must ones |
+| R-19 | SSO cut-over locks people out (unmapped groups, users without a Keycloak role) | Medium | High | Staff first (5 Jan), everyone a week later (12 Jan); `identity_link_report`; break-glass accounts; rollback window to 29 Jan (§10.4) |
+| R-20 | Mockups and the built UI drift apart after stage 5 | High | Low | Mockups describe intent; code wins (§0.4 rule 5). Frame index in [mockups.md](mockups.md) is updated with each UI PR that changes a screen |
 
 ## 9.4 Proposed ADRs
 

@@ -116,6 +116,7 @@ Refusal body:
 ```gherkin
 Feature: PRE-1 role enforcement
 
+  @BR-PRE1-02
   Scenario: AC-PRE1-01 employee cannot read another person's ticket
     Given "lan.nt" is an employee with a live session
     And "TKT-2026-000415" was reported by "duc.tm"
@@ -123,11 +124,13 @@ Feature: PRE-1 role enforcement
     Then the response is 404
     And no ticket data is returned
 
+  @BR-PRE1-02
   Scenario: AC-PRE1-02 employee reads her own ticket
     Given "TKT-2026-000412" was reported by "lan.nt"
     When "lan.nt" calls GET /api/tickets/TKT-2026-000412
     Then the response is 200 with subject_masked "Không vào được AWS access portal, báo sai mật khẩu"
 
+  @BR-PRE1-01 @BR-PRE1-03
   Scenario: AC-PRE1-03 employee cannot approve a runbook
     Given a pending review item in queue "runbook_approval"
     When "lan.nt" posts decide with action_taken "approve"
@@ -135,6 +138,7 @@ Feature: PRE-1 role enforcement
     And the item stays "pending"
     And one audit row "access_denied" exists for "lan.nt"
 
+  @BR-PRE1-01
   Scenario: AC-PRE1-04 a new route without a gate fails CI
     Given a developer adds a route with only SessionAuth
     When the test suite runs

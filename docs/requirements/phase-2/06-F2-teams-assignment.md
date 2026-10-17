@@ -305,6 +305,7 @@ Feature: F2 Teams and assignment
     Given team "network" owns category "network" with strategy "least_loaded"
     And members "duc.tm" (6 open), "khoa.lv" (4 open), "nam.pt" (2 open, on leave today), "vy.tt" (unavailable)
 
+  @BR-F2-02 @BR-F2-03
   Scenario: AC-F2-01 live auto-route assigns the least-loaded eligible member
     Given SHADOW_MODE is false
     When the router decides auto_route with category "network" for "TKT-2026-000415"
@@ -312,34 +313,47 @@ Feature: F2 Teams and assignment
     And the routing_decisions row is unchanged by assignment
     And "khoa.lv" has a "ticket.assigned" notice
 
+  @BR-F2-03
   Scenario: AC-F2-02 nobody eligible leaves the ticket in the team queue
     Given every network member is unavailable
     When a network ticket is handed to support
     Then the ticket's team is "network" and assigned_to is empty
     And "duc.tm" (lead) has a "ticket.unassigned" notice
 
+  @BR-F2-06
   Scenario: AC-F2-03 reviewer reroute changes category and creates a label
     Given a pending low_confidence review item for "TKT-2026-000415" with router category "network"
     When "ha.vt" decides "reroute" with corrected_category "access" and a reason
     Then the ticket's category is "access" and team is "access"
     And one eval_candidate with source "reroute" exists
 
+  @BR-F2-05
   Scenario: AC-F2-04 reassign needs a reason
     When "khoa.lv" reassigns "TKT-2026-000415" to team "access" with no note
     Then the response is 422 with code "reason_required"
 
+  @BR-F2-04
   Scenario: AC-F2-05 member cannot move a ticket out of the team
     Given "khoa.lv" is a member, not lead, of "network"
     When "khoa.lv" reassigns to team "hardware" with a valid reason
     Then the response is 403 with code "lead_required"
 
+  @BR-F2-04 @BR-F2-08
   Scenario: AC-F2-06 two takes, one winner
     Given "khoa.lv" and "duc.tm" both click Take on the same unassigned ticket at version 3
     Then one request succeeds and the other returns 409 "already_assigned"
 
+  @BR-F2-01 @BR-F2-02 @BR-X-07
   Scenario: AC-F2-07 assignment failure does not touch routing
     Given no team owns category "software"
     When a live auto_route decision for category "software" is carried out
     Then the ticket is "auto_routed" with team equal to the fallback team
     And one audit row "assignment_failed" with reason "no_team_for_category" exists
+
+  @BR-F2-07
+  Scenario: AC-F2-08 going unavailable moves nothing
+    Given "vy.tt" has 3 open tickets in team "network"
+    When "vy.tt" turns availability off
+    Then the 3 tickets stay assigned to "vy.tt"
+    And the workload view flags them for "duc.tm"
 ```
