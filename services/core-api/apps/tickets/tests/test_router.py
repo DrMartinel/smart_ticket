@@ -12,6 +12,7 @@ import pytest
 
 from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQueue, Router
 from config.settings.base import (
+    AccessDeniedThresholds,
     AlertThresholds,
     BudgetThresholds,
     ClarificationThresholds,
@@ -76,6 +77,7 @@ def make_thresholds(**overrides) -> Thresholds:
         lifecycle=LifecycleThresholds(
             max_chain_depth=5, action_max_attempts=3, approval_wait_hours=72
         ),
+        access_denied=AccessDeniedThresholds(audit_window_seconds=60),
     )
     base.update(overrides)
     return Thresholds(**base)

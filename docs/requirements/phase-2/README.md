@@ -52,6 +52,7 @@ go in at sign-off.
 | 0.3 | 2026-10-17 | BA (Claude) for the product owner | Stage 3: §6 for F6–F10; proposed ADRs 0035, 0036; BR-F1-15; F4 catalog extended; OQ-15, OQ-16 decided; OQ-19…23 added |
 | 0.4 | 2026-10-17 | BA (Claude) for the product owner | Stage 4: F11, F12 (lighter spec), §7 RBAC/notification/audit/NFR, §8 generated traceability, proposed ADRs 0037, 0038; OQ-19…23 decided; OQ-24…27 added |
 | 0.5 | 2026-10-17 | BA (Claude) for the product owner | Stage 5: Figma mockups ([file](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL)); every `Screens` reference links its frame ([mockups.md](mockups.md)); OQ-24…27 decided; F2 reassignment example fixed (a member can't move a ticket out of the team, so the lead does it) |
+| 0.6.1 | 2026-10-17 | Claude for the product owner (wave 0 build) | PRE-1 §h: rows added for `POST /api/tickets/submit`, the staff ticket views, logout-everywhere; lifecycle refusals take the shared error shape. Code wins (§0.4 item 5) |
 | 0.6 | 2026-10-17 | BA (Claude) for the product owner | Stage 6: §10 release plan (waves on a calendar, rollout phases P2–P5, cut-overs, rollback); §9 complete (OQ-28 default applied, A-22, A-23, R-17…R-20); every Gherkin scenario tagged `@BR-…`, 25 scenarios added so every rule has one; §8.4 rule → scenario table generated. Product owner asked for all remaining stages on defaults without a stage review |
 
 ### 0.4 Change control

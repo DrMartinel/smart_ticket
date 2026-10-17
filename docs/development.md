@@ -8,7 +8,8 @@ Conventions, common tasks, and the gotchas that cost time. Read [`architecture.m
 
 ```bash
 uv sync --all-packages          # NOT plain `uv sync`
-cd services/web && npm install
+cd services/admin-console && npm install
+cd services/chat && npm install
 ```
 
 core-api's commands are targets in [`services/core-api/Makefile`](../services/core-api/Makefile); run `make` in that directory to list them.
@@ -27,7 +28,8 @@ make worker      # celery worker (and `make beat`)
 # from the repo root
 uv run --project services/ai-engine uvicorn ai_engine.main:app \
     --app-dir services/ai-engine/src --port 8001 --reload
-cd services/web && npm run dev
+cd services/admin-console && npm run dev   # :3000
+cd services/chat && npm run dev            # :3001
 ```
 
 `--project` selects which member's environment to use. Whole-workspace commands (like `uv run pytest`) run from the root without it.
@@ -62,7 +64,7 @@ There is no shared contracts package (ADR-0010). A schema is defined in the modu
 cd services/core-api && make types
 ```
 
-Never hand-edit `services/web/lib/types/generated.ts`.
+Never hand-edit `lib/types/generated.ts` in either frontend; `make types` writes both.
 
 Adding a field to a persisted schema? Give it a **default**, so rows written before the change still deserialize. `GenerationSignals.quote_applicable` is the worked example. The one deliberate exception is `EngineSignals.classification` (ADR-0017): no signals existed before it, so every producer must state Jev's answer.
 

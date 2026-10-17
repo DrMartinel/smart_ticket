@@ -303,6 +303,11 @@ class LifecycleThresholds(BaseModel):
     approval_wait_hours: int = Field(ge=1)
 
 
+class AccessDeniedThresholds(BaseModel):
+    # One `access_denied` audit row per user, route and method in this window.
+    audit_window_seconds: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -320,6 +325,7 @@ class Thresholds(BaseModel):
     clarification: ClarificationThresholds
     masking: MaskingThresholds
     lifecycle: LifecycleThresholds
+    access_denied: AccessDeniedThresholds
 
     @property
     def retrieval_floor(self) -> float:

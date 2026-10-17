@@ -134,3 +134,9 @@ lifecycle:
   # How long a require_approval run waits for an approver before it counts
   # as rejected and the move is refused.
   approval_wait_hours: 72
+
+access_denied:
+  # A refused call writes one access_denied audit row per user, route and
+  # method within this window (PRE-1, BR-PRE1-03), so a probing client shows
+  # up without flooding audit_log. 🔧 assumption, not measured.
+  audit_window_seconds: 60

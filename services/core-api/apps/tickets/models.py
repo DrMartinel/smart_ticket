@@ -170,6 +170,10 @@ _OPEN_REVIEW_STATES = ("pending", "claimed")
 
 
 class TicketManager(models.Manager["Ticket"]):
+    def visible_to(self, user: User) -> QuerySet[Ticket]:
+        """Every ticket for support staff; a requester's own tickets otherwise."""
+        return self.all() if user.is_support_staff else self.filter(reporter=user)
+
     def in_view(self, view: StaffView, user: User, query: str = "") -> QuerySet[Ticket]:
         """The tickets `view` shows `user`, newest first, matching `query` on id or subject."""
         tickets = self.select_related(

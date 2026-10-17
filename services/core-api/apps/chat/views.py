@@ -13,7 +13,7 @@ from django.db.models import QuerySet
 from ninja import Router
 from ninja.errors import HttpError
 
-from apps.accounts.permissions import AuthedRequest, SessionAuth
+from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_role
 from apps.chat.request_schema import ChatAskIn, ChatClarifyIn
 from apps.chat.response_schema import ChatTurnOut
 from apps.chat.utils import chat_turn, ticket_in_from_message
@@ -39,6 +39,7 @@ def _own_chat_ticket(request: AuthedRequest, public_id: str) -> Ticket:
 
 
 @router.post("/ask", auth=SessionAuth(), response=ChatTurnOut)
+@require_role(*ALL_ROLES)
 def ask(request: AuthedRequest, payload: ChatAskIn) -> ChatTurnOut:
     ticket = Ticket.objects.submit(
         reporter=request.auth,
@@ -50,16 +51,19 @@ def ask(request: AuthedRequest, payload: ChatAskIn) -> ChatTurnOut:
 
 
 @router.get("/tickets", auth=SessionAuth(), response=list[ChatTurnOut])
+@require_role(*ALL_ROLES)
 def history(request: AuthedRequest) -> list[ChatTurnOut]:
     return [chat_turn(t) for t in _own_chat_tickets(request).order_by("created_at")]
 
 
 @router.get("/tickets/{public_id}", auth=SessionAuth(), response=ChatTurnOut)
+@require_role(*ALL_ROLES)
 def turn(request: AuthedRequest, public_id: str) -> ChatTurnOut:
     return chat_turn(_own_chat_ticket(request, public_id))
 
 
 @router.post("/tickets/{public_id}/create-ticket", auth=SessionAuth(), response=ChatTurnOut)
+@require_role(*ALL_ROLES)
 def create_ticket(request: AuthedRequest, public_id: str) -> ChatTurnOut:
     ticket = _own_chat_ticket(request, public_id)
     try:
@@ -70,6 +74,7 @@ def create_ticket(request: AuthedRequest, public_id: str) -> ChatTurnOut:
 
 
 @router.post("/tickets/{public_id}/clarify", auth=SessionAuth(), response=ChatTurnOut)
+@require_role(*ALL_ROLES)
 def clarify(request: AuthedRequest, public_id: str, payload: ChatClarifyIn) -> ChatTurnOut:
     ticket = _own_chat_ticket(request, public_id)
     try:

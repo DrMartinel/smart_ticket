@@ -13,7 +13,13 @@ from ninja.errors import HttpError
 
 from apps.accounts.models import User, UserRole
 
-from apps.accounts.permissions import AuthedRequest, has_any_role, require_role
+from apps.accounts.permissions import (
+    AccessError,
+    AccessRefusal,
+    AuthedRequest,
+    has_any_role,
+    require_role,
+)
 
 
 class Handler:
@@ -47,13 +53,16 @@ def test_no_authenticated_user_is_refused_with_401():
     assert handler.calls == 0
 
 
+@pytest.mark.django_db
 def test_a_role_outside_the_allowed_set_is_refused_with_403():
     handler = Handler()
+    technician = User.objects.create_user(username="t", password="x", role="technician")
 
-    with pytest.raises(HttpError) as refused:
-        handler.handle(request_as(User(username="t", role=UserRole.TECHNICIAN.value)))
+    with pytest.raises(AccessError) as refused:
+        handler.handle(request_as(technician))
 
-    assert refused.value.status_code == 403
+    assert refused.value.status == 403
+    assert refused.value.code is AccessRefusal.ROLE_NOT_ALLOWED
     assert handler.calls == 0
 
 
