@@ -1,6 +1,6 @@
 # ADR-0029: Rotating refresh tokens in httpOnly cookies
 
-**Status:** Proposed
+**Status:** Accepted (2026-10-17), the owner's decision
 **Date:** 2026-10-15
 **Touches:** `apps/accounts`, both frontends' `lib/session.ts`, every endpoint's auth
 

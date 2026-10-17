@@ -425,7 +425,7 @@ ADR-0026 is accepted or superseded on a full run, and no Jev-scale threshold is 
 
 ### Work
 
-1. Accept or reject ADR-0028.
+1. ~~Accept or reject ADR-0028.~~ Accepted 2026-10-17, with ADR-0029 (phase 2 PRE-2).
 2. ~~An admin-console page for workflows (statuses, transitions, fields) and
    the ticket's moves, fields and transfer log~~ (`/settings/workflows`,
    `/settings/stages`, `/board`, `/tickets/[id]`). Still missing: an
@@ -434,6 +434,8 @@ ADR-0026 is accepted or superseded on a full run, and no Jev-scale threshold is 
    and `GET /api/lifecycle/approvals/mine` show it today).
 4. Run an n8n round trip and a real SMTP send once against the Dockerized
    stack, after rebuilding `core-api`, `worker` and `beat`.
+   Still open: PRE-2 accepted both ADRs without it (owner's decision,
+   2026-10-17). The stack has no n8n service and no SMTP relay yet.
 5. `OutboundHttp` checks the resolved address, then connects by name: a DNS
    answer that changes between the two is not caught. Pin the connection to
    the checked address if webhooks ever reach untrusted hosts.

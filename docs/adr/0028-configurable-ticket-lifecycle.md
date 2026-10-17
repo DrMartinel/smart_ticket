@@ -1,6 +1,6 @@
 # ADR-0028: Configurable ticket lifecycle
 
-**Status:** Proposed
+**Status:** Accepted (2026-10-17), the owner's decision
 **Date:** 2026-10-15
 **Builds on:** ADR-0001 (the LLM proposes, code decides), ADR-0011 (UUID keys)
 **Source:** `sm-workos/documentation/TASK_LIFECYCLE_BACKEND_DESIGN.md` and
