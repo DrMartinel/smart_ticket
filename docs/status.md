@@ -28,7 +28,7 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 | §2 | Schema contracts | ⚠️ Changed | No shared package (ADR-0010): each schema lives in the module that uses it; TS types generated from core-api. Cross-service integration tests not written yet, so wire drift is unguarded |
 | §3.1 | Ticket / embedding / quarantine schema | ✅ | Table + column names mirror the spec DDL exactly via `db_table`; keys are UUIDs, not the spec's `BIGSERIAL` (ADR-0011) |
 | §3.1 | PII quarantine **write** path | ✅ | AES-GCM, key from env, 72 h TTL, expiry task on Celery beat |
-| §3.1 | PII quarantine **read** path + access log | ❌ **Gap** | See [Gap 1](#gap-1-pii-quarantine-read-path) |
+| §3.1 | PII quarantine **read** path + access log | ✅ Unit-tested, browser-checked | Phase 2 F5: `POST /api/tickets/{id}/quarantine/reveal` for security, the holder of a claimed review item, or the assignee; credentials for security only. The access-log row, the decrypt and the `pii_revealed` audit row share one transaction; `pii_access_log` is append-only (trigger). Hourly limit `pii_reveal.max_per_user_per_hour`. Security reads and exports the log at `/security/access-log`. Checked locally 2026-10-17 on a seeded ticket. See [Gap 1](#gap-1-pii-quarantine-read-path) |
 | §3.2 | KB schema + `auto_reply_allowed` governance | ✅ | DB `CHECK` enforces a named approver; every flip writes `kb_authority_log` |
 | §3.3 | `ai_runs`, `routing_decisions` | ✅ | `thresholds_used` snapshot written on every decision |
 | §3.4 | Review queue, decisions, eval candidates | ✅ | Overrides auto-create `eval_candidates` (§12.4 loop verified live) |
@@ -64,7 +64,10 @@ Component-by-component state against [`requirement.md`](../requirement.md) (Arch
 
 Each gap below has a corresponding actionable entry in [`TODO.md`](TODO.md) — update both together.
 
-### Gap 1 — PII quarantine read path
+### Gap 1 — PII quarantine read path (closed 2026-10-17, phase 2 F5)
+
+Closed by F5. `PiiReveal.reveal()` (`apps/tickets/utils/pii_reveal.py`) is the only caller of `crypto.decrypt()`, and `test_decrypt_has_one_caller` keeps it that way. What it replaced:
+
 
 **Spec §3.1:** *"Mỗi lần đọc PII raw là một dòng log. Không có ngoại lệ."* (Every raw-PII read is a log line. No exceptions.)
 

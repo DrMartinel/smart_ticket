@@ -7,7 +7,8 @@ import { useRequireAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { BRANCH_LABEL, INTENT_LABEL, QUEUE_LABEL, reasonText } from "@/lib/explain";
 import { dateTime, humanize, percent, relativeTime } from "@/lib/format";
-import { priorityClasses } from "@/lib/badges";
+import { piiLevelClasses, priorityClasses } from "@/lib/badges";
+import PiiText, { type PlaceholderLevel } from "@/components/PiiText";
 import StatusChip from "@/components/StatusChip";
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
 import TrustSignalsPanel, { type TrustSignalsPanelProps } from "@/components/TrustSignalsPanel";
@@ -38,6 +39,7 @@ interface Detail {
   reporter_person: { username: string; email: string };
   source: string;
   pii_level: string;
+  pii_placeholders: PlaceholderLevel[];
   created_at: string;
   sla_due_at: string | null;
   resolved_at: string | null;
@@ -103,6 +105,7 @@ export default function TicketPage() {
   const [lifecycle, setLifecycle] = useState<Lifecycle | null>(null);
   const [moves, setMoves] = useState<Move[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [lifecycleRefused, setLifecycleRefused] = useState(false);
   const [reviewItem, setReviewItem] = useState<ReviewItemDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -110,19 +113,26 @@ export default function TicketPage() {
 
   const load = useCallback(async () => {
     try {
-      const [d, l, m, t] = await Promise.all([
-        api.get<Detail>(`/api/tickets/${id}/detail`),
+      const d = await api.get<Detail>(`/api/tickets/${id}/detail`);
+      setDetail(d);
+      setReviewItem(d.review ? await api.get<ReviewItemDetail>(`/api/review/items/${d.review.id}`) : null);
+    } catch {
+      setError("Couldn't load this ticket.");
+      return;
+    }
+    try {
+      const [l, m, t] = await Promise.all([
         api.get<Lifecycle>(`/api/lifecycle/tickets/${id}`),
         api.get<Move[]>(`/api/lifecycle/tickets/${id}/transitions`),
         api.get<Transfer[]>(`/api/lifecycle/tickets/${id}/transfers`),
       ]);
-      setDetail(d);
       setLifecycle(l);
       setMoves(m);
       setTransfers(t);
-      setReviewItem(d.review ? await api.get<ReviewItemDetail>(`/api/review/items/${d.review.id}`) : null);
-    } catch {
-      setError("Couldn't load this ticket.");
+      setLifecycleRefused(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setLifecycleRefused(true);
+      else setError("Couldn't load this ticket.");
     }
   }, [id]);
 
@@ -132,7 +142,7 @@ export default function TicketPage() {
 
   if (!user) return null;
   if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
-  if (!detail || !lifecycle) return <p className="text-sm text-[var(--text-muted)]">Loading…</p>;
+  if (!detail || (!lifecycle && !lifecycleRefused)) return <p className="text-sm text-[var(--text-muted)]">Loading…</p>;
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -149,6 +159,7 @@ export default function TicketPage() {
   };
 
   const latest = detail.routing[0];
+  const mayReveal = user.role === "technician" || user.role === "security";
 
   return (
     <div className="mx-auto max-w-[1280px]">
@@ -176,7 +187,21 @@ export default function TicketPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
           <Section title="Request">
-            <p className="whitespace-pre-wrap text-[15px] leading-6">{detail.body_masked}</p>
+            <div className="whitespace-pre-wrap text-[15px] leading-7">
+              <PiiText
+                publicId={detail.public_id}
+                text={detail.body_masked}
+                placeholders={detail.pii_placeholders}
+                canReveal={mayReveal}
+                isSecurity={user.role === "security"}
+              />
+            </div>
+            {mayReveal && detail.pii_placeholders.length > 0 && (
+              <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                Chips are placeholders. Click one to reveal it; you need the claim on this ticket&apos;s review item or its
+                assignment, and every reveal is logged.
+              </p>
+            )}
             {detail.clarifications.map((c) => (
               <div key={c.asked_at} className="mt-4 border-t border-[var(--border)] pt-3 text-sm">
                 <p className="text-[var(--text-muted)]">Asked the requester · {relativeTime(c.asked_at)}</p>
@@ -317,11 +342,13 @@ export default function TicketPage() {
           <Section title="Status">
             <StatusChip name={detail.status.name} color={detail.status.color} />
             {detail.status.stage && <p className="mt-1 text-xs text-[var(--text-muted)]">Stage: {detail.status.stage}</p>}
-            {lifecycle.waiting_transform && (
+            {lifecycle?.waiting_transform && (
               <p className="tone-warn mt-3 rounded-[5px] px-2.5 py-1.5 text-xs">A move is in progress: its actions are running.</p>
             )}
             <div className="mt-4">
-              {TRIAGE.has(detail.status.key) ? (
+              {!lifecycle ? (
+                <p className="text-xs text-[var(--text-muted)]">Moves and the ticket&apos;s history aren&apos;t available to your role.</p>
+              ) : TRIAGE.has(detail.status.key) ? (
                 <p className="text-xs text-[var(--text-muted)]">
                   Triage or the requester has this ticket. It can be moved once triage has finished.
                 </p>
@@ -362,6 +389,7 @@ export default function TicketPage() {
             </div>
           </Section>
 
+          {lifecycle && (
           <OwnerCard
             assignee={detail.assignee}
             team={detail.assigned_team}
@@ -370,6 +398,7 @@ export default function TicketPage() {
               act(() => api.post(`/api/lifecycle/tickets/${id}/assign`, { assignee, team }), "Owner updated.")
             }
           />
+          )}
 
           <Section title="Details">
             <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
@@ -378,7 +407,9 @@ export default function TicketPage() {
               <dt className="text-[var(--text-muted)]">Requester</dt>
               <dd className="truncate">{detail.reporter_person.email || detail.reporter_person.username}</dd>
               <dt className="text-[var(--text-muted)]">Personal data</dt>
-              <dd>{humanize(detail.pii_level)}</dd>
+              <dd>
+                <span className={`badge ${piiLevelClasses(detail.pii_level)}`}>PII: {humanize(detail.pii_level).toLowerCase()}</span>
+              </dd>
               <dt className="text-[var(--text-muted)]">SLA due</dt>
               <dd>{dateTime(detail.sla_due_at)}</dd>
               <dt className="text-[var(--text-muted)]">Resolved</dt>
@@ -388,7 +419,7 @@ export default function TicketPage() {
             </dl>
           </Section>
 
-          {lifecycle.field_values.length > 0 && (
+          {lifecycle && lifecycle.field_values.length > 0 && (
             <Section title="Fields">
               <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
                 {lifecycle.field_values.map((f) => (

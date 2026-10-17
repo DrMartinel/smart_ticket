@@ -10,7 +10,8 @@ from datetime import datetime
 from ninja import Field, Schema
 
 from apps.kb.models import KbArticle
-from apps.tickets.models import RoutingDecision, Ticket
+from apps.tickets.models import PiiAccessLog, RoutingDecision, Ticket
+from apps.tickets.utils.patterns import placeholder_level
 
 
 class TicketSubmitOut(Schema):
@@ -151,8 +152,14 @@ class ClarificationOut(Schema):
     answered_at: datetime | None
 
 
+class PlaceholderOut(Schema):
+    placeholder: str
+    level: str
+
+
 class StaffTicketDetail(StaffTicketRow):
     body_masked: str
+    pii_placeholders: list[PlaceholderOut] = []
     reporter_person: PersonOut
     resolved_at: datetime | None
     reopened_count: int
@@ -168,6 +175,13 @@ class StaffTicketDetail(StaffTicketRow):
     @staticmethod
     def resolve_routing(ticket: Ticket) -> list[RoutingDecision]:
         return list(ticket.routing_decisions.order_by("-decided_at"))
+
+    @staticmethod
+    def resolve_pii_placeholders(ticket: Ticket) -> list[PlaceholderOut]:
+        return [
+            PlaceholderOut(placeholder=ph, level=placeholder_level(ph).value)
+            for ph in sorted(ticket.pii_map)
+        ]
 
     @staticmethod
     def resolve_reviews(ticket: Ticket) -> list[OpenReviewOut]:
@@ -213,3 +227,38 @@ class StaffTicketDetail(StaffTicketRow):
             degraded_reason=run.degraded_reason,
             injection_detected=bool((signals.get("policy") or {}).get("injection_detected")),
         )
+
+
+class RevealOut(Schema):
+    placeholder: str
+    value: str
+    shown_until: datetime
+
+
+class AccessLogRowOut(Schema):
+    id: uuid.UUID
+    accessed_at: datetime
+    actor: str
+    ticket: str
+    placeholder: str
+    level: str
+    reason_code: str
+    reason: str
+    review_item: uuid.UUID | None
+    outcome: str
+
+    @staticmethod
+    def resolve_actor(row: PiiAccessLog) -> str:
+        return row.actor.username
+
+    @staticmethod
+    def resolve_ticket(row: PiiAccessLog) -> str:
+        return row.ticket.public_id
+
+    @staticmethod
+    def resolve_level(row: PiiAccessLog) -> str:
+        return placeholder_level(row.placeholder).value
+
+    @staticmethod
+    def resolve_review_item(row: PiiAccessLog) -> uuid.UUID | None:
+        return row.review_item_id

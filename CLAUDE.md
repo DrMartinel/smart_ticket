@@ -346,9 +346,11 @@ copies that directory — a new SQL file that isn't copied fails at container st
   again, and a second `clarify` goes to a person (`clarify_round_cap`).
   Unanswered after `clarification.wait_minutes`, the chat offers a ticket.
   Form tickets and shadow mode: a review item in the `clarification` queue.
-- PII quarantine **write** path is done; the **read** path is not. Currently fails
-  safe (nobody can read raw PII). **Do not add a `decrypt()` call without writing
-  the `PiiAccessLog` row in the same transaction, with a mandatory non-empty reason.**
+- PII quarantine **read** path is done (phase 2 F5): `PiiReveal.reveal()` in
+  `apps/tickets/utils/pii_reveal.py` is the only `decrypt()` caller
+  (`test_decrypt_has_one_caller`). **Never add another `decrypt()` call; anything
+  that needs a raw value goes through `PiiReveal`, which writes the `PiiAccessLog`
+  row in the same transaction, with a reason.**
 - Golden set is **synthetic**. A passing eval means "the wiring didn't regress,"
   never "the model is good."
 

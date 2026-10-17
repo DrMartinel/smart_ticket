@@ -20,6 +20,9 @@
   --warn-soft: #f5ead7;
   --danger: #a3271c;
   --danger-soft: #f6e3e0;
+  --alert: #9a3412;
+  --alert-soft: #fbe8d8;
+  --on-danger: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -43,6 +46,9 @@
     --warn-soft: #2c2416;
     --danger: #f08b80;
     --danger-soft: #331d1a;
+    --alert: #f2a66f;
+    --alert-soft: #33231a;
+    --on-danger: #2a0f0c;
   }
 }
 
@@ -91,6 +97,10 @@ body {
     background: var(--danger-soft);
     color: var(--danger);
   }
+  .tone-alert {
+    background: var(--alert-soft);
+    color: var(--alert);
+  }
   .tone-neutral {
     background: var(--surface-2);
     color: var(--text-muted);
@@ -112,6 +122,13 @@ body {
   }
   .btn-primary:enabled:hover {
     background: var(--accent-hover);
+  }
+  .btn-danger {
+    background: var(--danger);
+    color: var(--on-danger);
+  }
+  .btn-danger:enabled:hover {
+    filter: brightness(0.92);
   }
   .btn-secondary {
     border: 1px solid var(--border-strong);

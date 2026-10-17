@@ -6,12 +6,19 @@ it returns lives in `TicketManager.submit` (models.py).
 
 import uuid
 
+from django.conf import settings
+from django.db.models import QuerySet
+from django.http import HttpResponse
 from ninja import Query, Router
 from ninja.errors import HttpError
+from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.tickets.models import StaffView, Ticket, TicketBoard, TicketPage
-from apps.tickets.request_schema import TicketIn
+from apps.accounts.models import UserRole
+from apps.tickets.models import PiiAccessLog, StaffView, Ticket, TicketBoard, TicketPage
+from apps.tickets.request_schema import AccessLogFilter, RevealIn, TicketIn
 from apps.tickets.response_schema import (
+    AccessLogRowOut,
+    RevealOut,
     StaffTicketDetail,
     StaffTicketPage,
     StaffTicketBoard,
@@ -19,8 +26,13 @@ from apps.tickets.response_schema import (
     TicketSubmitOut,
 )
 from apps.accounts.permissions import ALL_ROLES, STAFF, AuthedRequest, SessionAuth, require_role
+from apps.tickets.utils.pii_reveal import PiiReveal, Revealed
 
 router = Router(tags=["tickets"])
+pii_router = Router(tags=["pii"])
+
+_REVEALERS = (UserRole.TECHNICIAN, UserRole.SECURITY)
+_SECURITY = (UserRole.SECURITY,)
 
 
 @router.post("/submit", auth=SessionAuth(), response=TicketSubmitOut)
@@ -74,3 +86,41 @@ def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
         return Ticket.objects.visible_to(request.auth).get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
+
+
+@router.post("/{public_id}/quarantine/reveal", auth=SessionAuth(), response=RevealOut)
+@require_role(*_REVEALERS)
+def reveal(
+    request: AuthedRequest, public_id: str, payload: RevealIn, response: HttpResponse
+) -> Revealed:
+    response["Cache-Control"] = "no-store"
+    return PiiReveal(settings.THRESHOLDS.pii_reveal).reveal(
+        public_id=public_id,
+        actor=request.auth,
+        placeholder=payload.placeholder,
+        reason_code=payload.reason_code,
+        reason=payload.reason,
+        trace_id=getattr(request, "trace_id", None),
+    )
+
+
+@pii_router.get("/access-log", auth=SessionAuth(), response=list[AccessLogRowOut])
+@paginate(LimitOffsetPagination)
+@require_role(*_SECURITY)
+def access_log(request: AuthedRequest, filters: Query[AccessLogFilter]) -> QuerySet[PiiAccessLog]:
+    return PiiAccessLog.objects.matching(**filters.dict())
+
+
+@pii_router.get("/access-log.csv", auth=SessionAuth())
+@require_role(*_SECURITY)
+def access_log_csv(request: AuthedRequest, filters: Query[AccessLogFilter]) -> HttpResponse:
+    criteria = filters.dict()
+    body = PiiReveal(settings.THRESHOLDS.pii_reveal).export_log(
+        PiiAccessLog.objects.matching(**criteria),
+        request.auth,
+        filters.model_dump(mode="json", by_alias=True, exclude_none=True),
+    )
+    response = HttpResponse(body, content_type="text/csv; charset=utf-8")
+    response["Content-Disposition"] = 'attachment; filename="pii-access-log.csv"'
+    response["Cache-Control"] = "no-store"
+    return response

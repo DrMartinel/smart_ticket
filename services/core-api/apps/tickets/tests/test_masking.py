@@ -20,6 +20,7 @@ from apps.tickets.utils.masking import (
     _apply,
     _spans_to_hits,
     mask,
+    mask_regex_tier,
     mask_reply,
     llm_ner,
     ner_share,
@@ -545,3 +546,25 @@ class TestMaskReply:
         ner_finds(["the access portal one"])
         r = run_mask_reply("the access portal one", [])
         assert r.pii_level is PIILevel.MASK_FAILED
+
+
+class TestMaskRegexTier:
+    """The regex tier alone, for short staff-typed text such as a reveal reason (F5)."""
+
+    def test_a_secret_is_critical(self):
+        masked, level = mask_regex_tier("mật khẩu: Abc@12345 để thử")
+
+        assert level is PIILevel.CRITICAL
+        assert "Abc@12345" not in masked
+
+    def test_a_sensitive_value_is_masked(self):
+        assert mask_regex_tier("CCCD 001203004567 cần đối chiếu") == (
+            "CCCD [CCCD_1] cần đối chiếu",
+            PIILevel.SENSITIVE,
+        )
+
+    def test_plain_text_passes_unchanged(self):
+        assert mask_regex_tier("Đối chiếu với hồ sơ nhân sự") == (
+            "Đối chiếu với hồ sơ nhân sự",
+            PIILevel.ROUTINE,
+        )
