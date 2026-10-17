@@ -1,6 +1,6 @@
 # ADR-0032: Keycloak signs people in; core-api keeps the session
 
-**Status:** Proposed (phase 2 pack; copied 2026-10-17, awaiting the owner's decision)
+**Status:** Accepted (2026-10-17), the owner's decision
 **Date:** 2026-10-17
 **Builds on:** ADR-0029 (rotating refresh tokens in httpOnly cookies)
 **Feature:** F13 ([spec](../requirements/phase-2/06-F13-identity.md))

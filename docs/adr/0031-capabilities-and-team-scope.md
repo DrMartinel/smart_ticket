@@ -1,6 +1,6 @@
 # ADR-0031: Capabilities and team scope alongside the primary role
 
-**Status:** Proposed (phase 2 pack; copied 2026-10-17, awaiting the owner's decision)
+**Status:** Accepted (2026-10-17), the owner's decision
 **Date:** 2026-10-17
 **Builds on:** `apps/accounts` (`User.role`), ADR-0002
 **Features:** F2, F6, F7, F9, F13 ([personas](../requirements/phase-2/04-personas.md))
