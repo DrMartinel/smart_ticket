@@ -1,6 +1,6 @@
 # 9. Risks, assumptions, open questions, proposed ADRs
 
-**State: updated at stage 2.** Completed in stage 6. Each stage adds its rows.
+**State: updated at stage 3.** Completed in stage 6. Each stage adds its rows.
 
 OQ-01…OQ-14 defaults were accepted by the product owner on 2026-10-17 and are
 now decisions; they stay listed so the trace is visible.
@@ -26,10 +26,15 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | OQ-12 | Who may reveal PII? | Information Security Officer | `security`; or the technician who holds the claim on a pending review item of the ticket, or is its assignee. Critical labels: `security` only. Managers: no. (Refined at stage 2: `pii_verify` holds only blocked credential tickets) | F5 | Decided 2026-10-17 |
 | OQ-13 | Holidays that apply only to public employees (e.g. Culture Day 24 Nov 2026) | HR | The holiday calendar is whatever HR enters each year | F1 | Decided 2026-10-17 |
 | OQ-14 | How long are in-app notifications kept? | Data Protection Officer | 90 days, then deleted; the audit log keeps the event | F4 | Decided 2026-10-17 |
-| OQ-15 | Should a requester be told when someone reveals their PII? | Data Protection Officer | No notice; the access log is exportable on request | F5 | Open |
-| OQ-16 | Does the requester see the assignee's name, or only the team? | IT Service Desk Manager | Team only | F3 | Open |
+| OQ-15 | Should a requester be told when someone reveals their PII? | Data Protection Officer | No notice; the access log is exportable on request | F5 | Decided 2026-10-17 |
+| OQ-16 | Does the requester see the assignee's name, or only the team? | IT Service Desk Manager | Team only | F3 | Decided 2026-10-17 |
 | OQ-17 | Should `on_hold` (waiting on a vendor) pause the SLA? | IT Service Desk Manager | No; only `waiting_on_requester` pauses | F1 | Decided 2026-10-17 |
 | OQ-18 | Do teams need their own calendars (e.g. a 24×7 network on-call)? | Head of IT Operations | One default calendar; the field exists if needed | F1, F2 | Decided 2026-10-17 |
+| OQ-19 | Migrate today's `open` incidents as `confirmed`? | IT Service Desk Manager | Yes | F7 | Open |
+| OQ-20 | Are there at least two people with the `manager` role to approve a rollout flag (F9)? | Head of IT Operations | Yes: the Service Desk Manager and the Head of IT Operations both hold `manager` | F9 | Open |
+| OQ-21 | Gate for `requester_questions`: clarify agreement ≥ 0.80 over 14 days | IT Service Desk Manager | Accept as a starting gate; re-choose on shadow data | F9 | Open |
+| OQ-22 | Ask for a rating on tickets closed by an incident's close-all? | IT Service Desk Manager | No | F7, F3 | Open |
+| OQ-23 | Backfill security alerts from the last 30 days of audit rows? | Information Security Officer | Yes, 30 days | F8 | Open |
 
 ## 9.2 Assumptions made at stage 1
 
@@ -45,6 +50,9 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | A-08 | No backfill of SLA clocks or priority for tickets created before F1 | F1 §g |
 | A-09 | A reopened ticket resumes its old resolution clock; response is not restarted | F1 BR-F1-13 |
 | A-10 | `security` may assign only within the `security` category | F2 BR-F2-04 |
+| A-11 | Gap clustering bars (`kb_gaps.cluster_similarity` 0.80, `update_similarity` 0.65) are guesses on bge-m3 cosine | F6 |
+| A-12 | Linked incident tickets are excluded from team SLA % | F10 BR-F10-04 |
+| A-13 | No automatic flag turn-off when a gate becomes unmet; managers are notified | F9 |
 
 ## 9.3 Risks
 
@@ -60,6 +68,10 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | R-08 | F3's prompt bumps (`hyde_draft.v3`, `propose.v10`) move an eval gate | Medium | High | Run the full eval before merge; single-turn cases must not regress; no floor lowered (rule 9) |
 | R-09 | The SLA hook adds work inside every status change | Low | Medium | One indexed write; savepoint; p95 status-move latency in §7 NFRs |
 | R-10 | Engine change `lifecycle.automatic_move` widens who can move tickets | Low | Medium | Governed exactly like a person's move; never targets pipeline statuses; tested |
+| R-11 | Incident detector defects found in code reading (every incident keyed to `other`; trigger ticket counted twice) already affect shadow data on escalations | High | Medium | F7 fixes both; pin each with a test first; note in `status.md` |
+| R-12 | Revoking authority on every page edit (F6) can drop auto-reply coverage suddenly | Medium | Medium | Authority queue with the diff makes re-grant quick; F10 shows coverage per week |
+| R-13 | A production deploy without an approved thresholds change request boots shadow-forced (F9) | Medium | Medium | Baseline `CR-2026-000` created by migration; deploy checklist item; the alert names the cause |
+| R-14 | Two managers needed for every flag-on can stall rollout | Low | Low | Requests expire in 72 h with a notice; turning off never waits |
 
 ## 9.4 Proposed ADRs
 
@@ -70,5 +82,5 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | 0032 | Keycloak signs people in; core-api keeps the session | F13 | No; builds on ADR-0029 | [written](proposed-adrs/0032-keycloak-signs-in-core-api-keeps-the-session.md) |
 | 0033 | Notifications go through an outbox written in the event's transaction | F4 | No | [written](proposed-adrs/0033-notifications-through-an-outbox.md) |
 | 0034 | A chat conversation gives the model its earlier masked turns | F3 | **Yes**: today each ticket is analysed alone. Must say why cross-turn context is safe | [written](proposed-adrs/0034-conversation-context-for-the-model.md) |
-| 0035 | Threshold and shadow-mode changes are reviewed, versioned configuration (`thresholds.yaml` stays the source; `SHADOW_MODE` is an env var today) | F9 | No; makes hard rule 2 auditable | stage 3 |
-| 0036 | KB drafts are invisible to retrieval | F6 | No; ai-engine reads, never writes | stage 3 |
+| 0035 | Reviewed thresholds and per-branch rollout switches | F9 | No; adds keys that can only make the system more conservative | [written](proposed-adrs/0035-reviewed-thresholds-and-per-branch-rollout.md) |
+| 0036 | KB drafts live outside `kb_articles`; a text change revokes authority | F6 | No; tightens ADR-0002 | [written](proposed-adrs/0036-kb-drafts-outside-kb-articles.md) |

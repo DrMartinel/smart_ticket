@@ -145,7 +145,7 @@ the pipeline's routing step.
 |---|---|---|---|
 | BR-F4-01 | Messages are written in the same transaction as the event; sending happens after commit | No event without its notice, no notice for a rolled-back event (proposed ADR-0033) | `Notifier.emit` |
 | BR-F4-02 | The event catalog and its recipient kinds are code (`NotificationEvent` enum). The matrix defaults are data | Like ADR-0028's action catalog: no user-defined logic | Code; matrix API |
-| BR-F4-03 | Mandatory cells are fixed in the catalog; neither users nor admins turn them off. Mandatory today: `security.alert` (in-app + email to `security`), `identity.break_glass_used` (same), `incident.broadcast` (in-app + email to linked requesters), `approval.requested` (in-app to the approver) | Some notices must not be opt-out | Catalog + API refusal |
+| BR-F4-03 | Mandatory cells are fixed in the catalog; neither users nor admins turn them off. Mandatory cells are marked in the catalog below: security alerts and their overdue reminders, break-glass sign-ins, credential exposure (to the requester), incident proposals and broadcasts, approval requests (in-app), rollout flag changes (in-app) and unapproved thresholds | Some notices must not be opt-out | Catalog + API refusal |
 | BR-F4-04 | Templates read masked fields only, never the quarantine; the existing variable set of `apps/lifecycle/utils/templates.py` is reused | ADR-0028 §6 | Renderer |
 | BR-F4-05 | A failed send never changes a ticket, a decision or a status. Failures are listed for a person | BR-X-07 | Dispatcher |
 | BR-F4-06 | Webhook bodies are fixed JSON per event (no free template), signed with HMAC-SHA256 in `X-SmartTicket-Signature`, to allow-listed hosts only, no redirects | ADR-0028 §6, amended 2026-10-15 | Dispatcher |
@@ -158,7 +158,7 @@ the pipeline's routing step.
 |---|---|
 | FR-F4-001 | The system shall provide `Notifier.emit(event, ticket, context)` as the only way to create notifications |
 | FR-F4-002 | The system shall support channels `in_app`, `email`, `webhook` |
-| FR-F4-003 | The system shall resolve recipient kinds `requester`, `assignee`, `team_lead`, `team_members`, `manager`, `security`, `workflow_admins`, `approver`, `linked_requesters`, `previous_assignee` |
+| FR-F4-003 | The system shall resolve recipient kinds `requester`, `assignee`, `team_lead`, `team_members`, `manager`, `security`, `workflow_admins`, `kb_editors`, `incident_managers`, `approver`, `linked_requesters`, `previous_assignee` |
 | FR-F4-004 | The system shall apply user preferences except to mandatory cells |
 | FR-F4-005 | The system shall render subject and body from per-language templates using masked fields only |
 | FR-F4-006 | The system shall send email through the configured SMTP relay with text and HTML parts and a link to the ticket |
@@ -193,6 +193,19 @@ the pipeline's routing step.
 | `security.alert` [F5, F13, F8] | security → in_app, email | both |
 | `identity.break_glass_used` [F13] | security → in_app, email | both |
 | `incident.broadcast` [F7] | linked requesters → in_app, email | both |
+| `incident.proposed` [F7] | incident managers → in_app, email | both |
+| `incident.sla_breached` [F7] | manager → in_app, email | — |
+| `security.credential_exposed` [F8] | requester → in_app, email | both |
+| `security.ack_overdue` [F8] | security → in_app, email | both |
+| `kb.review_requested` [F6] | kb editors, managers → in_app | — |
+| `kb.authority_needed` [F6] | managers → in_app, email | — |
+| `kb.gaps_ready` [F6] | kb editors → in_app, email | — |
+| `rollout.flag_requested` [F9] | managers → in_app, email | — |
+| `rollout.flag_changed` [F9] | managers, security → in_app, email | in_app |
+| `rollout.gate_unmet` [F9] | managers → in_app, email | — |
+| `thresholds.cr_pending` [F9] | managers → in_app | — |
+| `thresholds.unapproved` [F9] | managers, security → in_app, email | both |
+| `report.weekly` [F10] | managers → email | — |
 
 ## g. Data changes
 

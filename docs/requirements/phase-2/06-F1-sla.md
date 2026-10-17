@@ -179,6 +179,7 @@ rules; changed by staff with a reason.
 | BR-F1-12 | A policy draft is activated by a manager who is not its author | Targets are a commitment to the business | Approve endpoint |
 | BR-F1-13 | Reopen (F3) resumes the same resolution clock with elapsed kept; the response clock is not restarted | Reopened work isn't new work; K2 stays honest | Hook on `reopened` |
 | BR-F1-14 | Holidays are whole days in the calendar's zone. Missing holidays for next year by 1 Dec → notice to `workflow_admin` | Vietnam sets dates by annual decision; Culture Day 24 Nov 2026 was a one-off approval | Sweep (daily check) |
+| BR-F1-15 | A linked ticket's resolution clock pauses while its incident is `confirmed`, and resumes on unlink, dismiss, or resolve without close-all (added by F7) | The incident carries one P1 clock for the outage (BR-F7-07, BR-F7-10) | Hook on incident link events |
 
 ## f. Functional requirements
 

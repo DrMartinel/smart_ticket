@@ -74,7 +74,7 @@ Existing admin-console pages: `queue`, `review/[id]`, `dashboard`, `kb`,
 
 | Kind | Values |
 |---|---|
-| People | Nguyễn Thị Lan (`lan.nt`, employee, Finance); Trần Minh Đức (`duc.tm`, technician, Network lead); Võ Thu Hà (`ha.vt`, technician, Access lead); Bùi Ngọc Mai (`mai.bn`, technician, Access); Phạm Quốc Huy (`huy.pq`, manager); Lê Hoàng Anh (`anh.lh`, security); Đặng Văn Tú (`tu.dv`, technician + `workflow_admin`) |
+| People | Nguyễn Thị Lan (`lan.nt`, employee, Finance); Trần Minh Đức (`duc.tm`, technician, Network lead); Võ Thu Hà (`ha.vt`, technician, Access lead); Bùi Ngọc Mai (`mai.bn`, technician, Access); Phạm Quốc Huy (`huy.pq`, manager); Nguyễn Văn Quang (`quang.nv`, manager); Hoàng Thị Dung (`dung.ht`, manager, Head of IT Operations); Lê Hoàng Anh (`anh.lh`, security); Đặng Văn Tú (`tu.dv`, technician + `workflow_admin`) |
 | Tickets | `TKT-2026-000412` "Không vào được AWS access portal, báo sai mật khẩu" (access); `TKT-2026-000415` "VPN client báo lỗi TLS handshake failed khi kết nối từ nhà" (network); `TKT-2026-000418` "Laptop không nhận màn hình thứ hai sau update Windows" (hardware) |
 | KB pages (demo_kb) | `identity-center.resetpassword-accessportal`, `client-vpn-user.windows-troubleshooting`, `workspaces-user.client_troubleshooting` |
 | Masked text | `[EMAIL_1]`, `[PHONE_VN_1]`, `[EMPLOYEE_CODE_1]`, `[CCCD_1]` (labels from `apps/tickets/utils/patterns.py`) |

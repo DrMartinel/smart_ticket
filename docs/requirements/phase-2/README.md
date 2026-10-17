@@ -22,8 +22,8 @@ Every item is tagged:
 | Field | Value |
 |---|---|
 | Document | Phase 2 requirements pack |
-| Version | **0.2 — Stage 2 draft** (adds §6 for PRE-1, PRE-2, F1–F5, F13 and proposed ADRs 0030–0034) |
-| Status | Draft, awaiting stage 2 review |
+| Version | **0.3 — Stage 3 draft** (adds §6 for F6–F10 and proposed ADRs 0035–0036) |
+| Status | Draft, awaiting stage 3 review |
 | Date | 2026-10-17 |
 | Baseline commit | `main` @ `7ac264b` |
 | Owner | Product owner (Hoàng) |
@@ -49,6 +49,7 @@ go in at sign-off.
 |---|---|---|---|
 | 0.1 | 2026-10-17 | BA (Claude) for the product owner | Stage 1: §0–§5, benchmark, seeded §9 |
 | 0.2 | 2026-10-17 | BA (Claude) for the product owner | Stage 2: OQ-01…14 defaults accepted; §6 for PRE-1/PRE-2, F1–F5, F13; proposed ADRs 0030–0034; fixes to benchmark F2/F4, glossary, K8. OQ-17 (no pause on vendor waits) and OQ-18 (one shared calendar) decided |
+| 0.3 | 2026-10-17 | BA (Claude) for the product owner | Stage 3: §6 for F6–F10; proposed ADRs 0035, 0036; BR-F1-15; F4 catalog extended; OQ-15, OQ-16 decided; OQ-19…23 added |
 
 ### 0.4 Change control
 
@@ -86,13 +87,17 @@ go in at sign-off.
 | 6 | [F4 Notifications](06-F4-notifications.md) | 2 | Draft |
 | 6 | [F5 PII quarantine reveal](06-F5-pii-reveal.md) | 2 | Draft |
 | 6 | [F13 Identity via Keycloak](06-F13-identity.md) | 2 | Draft |
-| — | [Proposed ADRs 0030–0034](proposed-adrs/) | 2 | Draft |
-| 6 | Per-feature specs: F6–F10 | 3 | Not started |
+| 6 | [F6 KB authoring & governance](06-F6-kb-governance.md) | 3 | Draft |
+| 6 | [F7 Mass-incident management](06-F7-mass-incident.md) | 3 | Draft |
+| 6 | [F8 Security inbox](06-F8-security-inbox.md) | 3 | Draft |
+| 6 | [F9 Rollout & threshold control](06-F9-rollout-control.md) | 3 | Draft |
+| 6 | [F10 Reporting](06-F10-reporting.md) | 3 | Draft |
+| — | [Proposed ADRs 0030–0036](proposed-adrs/) | 2–3 | Draft |
 | 6 | Per-feature specs: F11–F12 | 4 | Not started |
 | 7 | Cross-cutting: RBAC, notifications, audit, NFRs | 4 | Not started |
 | 8 | Traceability | 4 | Not started |
 | — | Figma mockups | 5 | Not started |
-| 9 | [Risks, assumptions, open questions, proposed ADRs](09-risks-open-questions.md) | 6 | Updated at stage 2 |
+| 9 | [Risks, assumptions, open questions, proposed ADRs](09-risks-open-questions.md) | 6 | Updated at stage 3 |
 | 10 | Release plan | 6 | Not started |
 
 Existing vocabulary is in [`docs/glossary.md`](../../glossary.md). §5 adds only new terms.
