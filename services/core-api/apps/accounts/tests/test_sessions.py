@@ -18,7 +18,7 @@ pytestmark = pytest.mark.django_db
 COOKIE = "st_refresh_admin"
 
 
-def login(client: Client, username: str = "tech", password: str = "x", frontend: str = "admin"):
+def login(client: Client, username: str = "glass", password: str = "x", frontend: str = "admin"):
     return client.post(
         "/api/auth/login",
         {"username": username, "password": password},
@@ -37,14 +37,14 @@ def me(access: str) -> int:
     return api_client_with(access).get("/api/accounts/me").status_code
 
 
-def test_login_returns_an_access_token_and_sets_an_httponly_refresh_cookie(technician_user):
+def test_login_returns_an_access_token_and_sets_an_httponly_refresh_cookie(glass_user):
     client = Client()
 
     response = login(client)
 
     assert response.status_code == 200
     body = response.json()
-    assert body["user"]["username"] == "tech"
+    assert body["user"]["username"] == "glass"
     assert me(body["access"]) == 200
     cookie = response.cookies[COOKIE]
     assert cookie["httponly"]
@@ -53,7 +53,7 @@ def test_login_returns_an_access_token_and_sets_an_httponly_refresh_cookie(techn
     assert "refresh" not in body
 
 
-def test_a_wrong_password_sets_no_cookie_and_is_audited(technician_user):
+def test_a_wrong_password_sets_no_cookie_and_is_audited(glass_user):
     response = login(Client(), password="wrong")
 
     assert response.status_code == 401
@@ -61,17 +61,17 @@ def test_a_wrong_password_sets_no_cookie_and_is_audited(technician_user):
     assert AuditLog.objects.filter(event="auth_login_failed").exists()
 
 
-def test_a_request_without_the_client_header_is_refused(technician_user):
+def test_a_request_without_the_client_header_is_refused(glass_user):
     response = Client().post(
         "/api/auth/login",
-        {"username": "tech", "password": "x"},
+        {"username": "glass", "password": "x"},
         content_type="application/json",
     )
 
     assert response.status_code == 422
 
 
-def test_refresh_rotates_the_cookie_and_issues_a_working_access_token(technician_user):
+def test_refresh_rotates_the_cookie_and_issues_a_working_access_token(glass_user):
     client = Client()
     first = login(client).cookies[COOKIE].value
 
@@ -82,7 +82,7 @@ def test_refresh_rotates_the_cookie_and_issues_a_working_access_token(technician
     assert me(response.json()["access"]) == 200
 
 
-def test_a_reused_refresh_token_ends_the_whole_sign_in(technician_user, settings):
+def test_a_reused_refresh_token_ends_the_whole_sign_in(glass_user, settings):
     settings.AUTH_REFRESH_REUSE_GRACE_SEC = 0
     client = Client()
     first = login(client).cookies[COOKIE].value
@@ -100,7 +100,7 @@ def test_a_reused_refresh_token_ends_the_whole_sign_in(technician_user, settings
     ).exists()
 
 
-def test_two_tabs_refreshing_at_once_both_get_an_access_token(technician_user):
+def test_two_tabs_refreshing_at_once_both_get_an_access_token(glass_user):
     client = Client()
     first = login(client).cookies[COOKIE].value
     refresh(client)
@@ -114,7 +114,7 @@ def test_two_tabs_refreshing_at_once_both_get_an_access_token(technician_user):
     assert me(response.json()["access"]) == 200
 
 
-def test_logout_revokes_the_refresh_cookie_and_the_access_token_at_once(technician_user):
+def test_logout_revokes_the_refresh_cookie_and_the_access_token_at_once(glass_user):
     client = Client()
     signed_in = login(client)
     access, raw = signed_in.json()["access"], signed_in.cookies[COOKIE].value
@@ -130,13 +130,13 @@ def test_logout_revokes_the_refresh_cookie_and_the_access_token_at_once(technici
     assert refresh(client).status_code == 401
 
 
-def test_an_access_token_from_no_sign_in_is_refused(technician_user):
-    bare = AccessToken.for_user(technician_user)  # type: ignore[misc]
+def test_an_access_token_from_no_sign_in_is_refused(glass_user):
+    bare = AccessToken.for_user(glass_user)  # type: ignore[misc]
 
     assert me(str(bare)) == 401
 
 
-def test_each_frontend_keeps_its_own_cookie(technician_user):
+def test_each_frontend_keeps_its_own_cookie(glass_user):
     client = Client()
     login(client)
 
@@ -145,7 +145,7 @@ def test_each_frontend_keeps_its_own_cookie(technician_user):
     assert response.status_code == 401
 
 
-def test_an_idle_refresh_token_expires(technician_user):
+def test_an_idle_refresh_token_expires(glass_user):
     client = Client()
     login(client)
     RefreshSession.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
@@ -153,7 +153,7 @@ def test_an_idle_refresh_token_expires(technician_user):
     assert refresh(client).status_code == 401
 
 
-def test_a_sign_in_cannot_outlive_its_maximum_age(technician_user):
+def test_a_sign_in_cannot_outlive_its_maximum_age(glass_user):
     client = Client()
     login(client)
     RefreshSession.objects.update(family_expires_at=timezone.now() - timedelta(seconds=1))
@@ -161,17 +161,17 @@ def test_a_sign_in_cannot_outlive_its_maximum_age(technician_user):
     assert refresh(client).status_code == 401
 
 
-def test_a_deactivated_user_cannot_refresh(technician_user):
+def test_a_deactivated_user_cannot_refresh(glass_user):
     client = Client()
     access = login(client).json()["access"]
-    technician_user.is_active = False
-    technician_user.save()
+    glass_user.is_active = False
+    glass_user.save()
 
     assert refresh(client).status_code == 401
     assert me(access) == 401
 
 
-def test_a_user_lists_and_ends_their_sign_ins(technician_user):
+def test_a_user_lists_and_ends_their_sign_ins(glass_user):
     laptop, phone = Client(), Client()
     access = login(laptop).json()["access"]
     phone_access = login(phone, frontend="chat").json()["access"]
@@ -186,7 +186,7 @@ def test_a_user_lists_and_ends_their_sign_ins(technician_user):
     assert me(access) == 200
 
 
-def test_logout_everywhere_ends_every_sign_in(technician_user):
+def test_logout_everywhere_ends_every_sign_in(glass_user):
     first = login(Client()).json()["access"]
     second = login(Client()).json()["access"]
 
@@ -197,9 +197,9 @@ def test_logout_everywhere_ends_every_sign_in(technician_user):
     assert me(second) == 401
 
 
-def test_a_user_cannot_end_someone_elses_sign_in(technician_user, manager_user):
-    victim = login(Client(), username="mgr").json()["access"]
-    family = RefreshSession.objects.get(user=manager_user).family
+def test_a_user_cannot_end_someone_elses_sign_in(glass_user, second_glass_user):
+    victim = login(Client(), username="glass2").json()["access"]
+    family = RefreshSession.objects.get(user=second_glass_user).family
     attacker = login(Client()).json()["access"]
 
     api_client_with(attacker).delete(f"/api/auth/sessions/{family}")
@@ -221,7 +221,7 @@ def test_the_frontends_may_send_credentials_and_the_client_header(settings):
     assert "x-auth-client" in response["access-control-allow-headers"]
 
 
-def test_the_refresh_token_is_stored_only_as_a_hash(technician_user):
+def test_the_refresh_token_is_stored_only_as_a_hash(glass_user):
     raw = login(Client()).cookies[COOKIE].value
 
     stored = RefreshSession.objects.get().token_hash

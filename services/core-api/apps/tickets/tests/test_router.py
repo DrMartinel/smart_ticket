@@ -18,6 +18,7 @@ from config.settings.base import (
     ClarificationThresholds,
     ClassificationThresholds,
     FewshotThresholds,
+    IdentityThresholds,
     IncidentThresholds,
     LifecycleThresholds,
     MaskingThresholds,
@@ -80,6 +81,14 @@ def make_thresholds(**overrides) -> Thresholds:
         ),
         access_denied=AccessDeniedThresholds(audit_window_seconds=60),
         pii_reveal=PiiRevealThresholds(max_per_user_per_hour=20, display_seconds=60),
+        identity=IdentityThresholds(
+            sync_interval_minutes=5,
+            local_max_failures=5,
+            local_failure_window_minutes=15,
+            local_lockout_minutes=15,
+            max_break_glass_accounts=2,
+            sync_failures_before_alert=3,
+        ),
     )
     base.update(overrides)
     return Thresholds(**base)

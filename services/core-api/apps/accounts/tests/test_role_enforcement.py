@@ -12,7 +12,7 @@ from django.utils import timezone
 from ninja import Router
 
 from apps.accounts.models import User, UserRole
-from apps.accounts.permissions import SessionAuth, allowed_roles
+from apps.accounts.permissions import SessionAuth, gate_of
 from apps.audit.models import AuditLog
 from apps.itsm_mock.models import RunbookExecution
 from apps.review.models import ReviewDecision, ReviewItem
@@ -27,6 +27,9 @@ UNGATED_BY_DESIGN = {
     "apps.accounts.views.refresh",
     "apps.accounts.views.logout",
     "apps.lifecycle.views.run_callback",
+    "apps.accounts.views.oidc_config",
+    "apps.accounts.views.oidc_exchange",
+    "apps.accounts.views.oidc_backchannel_logout",
 }
 
 
@@ -38,7 +41,7 @@ def ungated_routes(routers: Iterable[tuple[str, Router]]) -> list[str]:
             for operation in path_view.operations:
                 handler = operation.view_func
                 name = f"{handler.__module__}.{handler.__name__}"
-                if name in UNGATED_BY_DESIGN or allowed_roles(handler) is not None:
+                if name in UNGATED_BY_DESIGN or gate_of(handler) is not None:
                     continue
                 found.append(f"{','.join(operation.methods)} /api{prefix}{path} ({name})")
     return found

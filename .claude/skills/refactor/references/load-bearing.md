@@ -197,6 +197,21 @@ guard and that comment is later trimmed, the entry is the record.
 - **Refresh tokens stored as SHA-256 hashes.** A database read must not yield
   usable tokens.
 
+### Sign-in through Keycloak (F13)
+
+- **One answer for every failed local sign-in**, and a password hash even for an
+  unknown name (`User().set_password`). Distinct codes or a faster reply would
+  tell a caller which names are break-glass accounts, the ones worth attacking.
+  *`test_local_login_refuses_everyone_alike`.*
+- **`Identities.link` refusing break-glass, inactive and ambiguous matches.**
+  Linking by email looks like a convenience. A linked break-glass account joins
+  the sync, which deactivates it exactly when Keycloak breaks.
+  *`TestLinking`.*
+- **`OIDC_MIN_REFETCH_SEC` on unknown key ids and the sign-in page.** Without it
+  each unauthenticated request with a random `kid` is one call to Keycloak.
+- **The sync reading everyone before changing anyone.** Changing users as they
+  are read would deactivate half the company on a Keycloak hiccup (BR-F13-08).
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).
@@ -213,7 +228,7 @@ guard and that comment is later trimmed, the entry is the record.
   Without the auth-layer one, Ninja validates the body first: a refused caller
   with a malformed body gets a 422 listing the schema and no `access_denied`
   row. *`test_a_refused_caller_is_refused_before_the_body_is_read`.*
-- **`allowed_roles` following `__wrapped__`.** `@paginate` sits above the
+- **`gate_of` following `__wrapped__`.** `@paginate` sits above the
   gate on `GET /api/kb`; without the walk that route reads as ungated.
 - **The runbook checks in `RunbookExecution.objects.execute`**
   (`may_run_runbooks` for the approver and the executor) beside the route

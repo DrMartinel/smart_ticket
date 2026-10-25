@@ -27,6 +27,21 @@ def technician_user(django_user_model):
 
 
 @pytest.fixture
+def glass_user(django_user_model):
+    """A break-glass manager: the only kind of account local sign-in accepts (F13)."""
+    return django_user_model.objects.create_user(
+        username="glass", password="x", role="manager", is_break_glass=True
+    )
+
+
+@pytest.fixture
+def second_glass_user(django_user_model):
+    return django_user_model.objects.create_user(
+        username="glass2", password="x", role="manager", is_break_glass=True
+    )
+
+
+@pytest.fixture
 def security_user(django_user_model):
     return django_user_model.objects.create_user(username="sec", password="x", role="security")
 

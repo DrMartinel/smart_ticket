@@ -1,0 +1,13 @@
+{
+  "model_version": "logreg-v1-2026-10-13",
+  "note": "Fit by evals/calibration/fit_trust_score.py on 532 shadow-mode (signals, human_decision) pairs. train_acc=0.576 test_acc=0.570. NOT automatically wired into production — see this script's module docstring.",
+  "intercept": -1.4407687922219305,
+  "weights": {
+    "rerank_top1": 1.1685220214597858,
+    "rerank_margin": -0.7966546858646883,
+    "docs_above_floor_capped": -0.36986690638980074,
+    "quote_match_ratio": -0.12182482525980398,
+    "quote_source_in_topk": 0.11777366409109855,
+    "negation_consistent": 0.7742583288691226
+  }
+}

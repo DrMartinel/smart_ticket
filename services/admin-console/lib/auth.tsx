@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { onSessionEnded, refreshSession, signIn, signOut, type SessionUser } from "./session";
+import { callbackUrl, takePending } from "./oidc";
+import { AuthError, exchangeCode, onSessionEnded, refreshSession, signIn, signOut, type SessionUser } from "./session";
 
 export type CurrentUser = SessionUser;
 
@@ -12,6 +13,8 @@ interface AuthState {
   /** Signed in fine, but as a requester: this console is for staff only. */
   notStaff: boolean;
   login: (username: string, password: string) => Promise<void>;
+  /** Finishes a Keycloak sign-in; returns the page to land on. */
+  finishSignIn: (code: string, state: string | null) => Promise<string>;
   logout: () => Promise<void>;
 }
 
@@ -52,13 +55,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await accept(await signIn(username, password));
   };
 
+  const finishSignIn = async (code: string, state: string | null) => {
+    const pending = takePending(state);
+    if (!pending) throw new AuthError(400, "state mismatch", "state_mismatch");
+    await accept(await exchangeCode(code, pending.verifier, pending.nonce, callbackUrl()));
+    return pending.next;
+  };
+
   const logout = async () => {
     await signOut();
     setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, notStaff, login, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, loading, notStaff, login, finishSignIn, logout }}>{children}</AuthContext.Provider>
   );
 }
 

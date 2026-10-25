@@ -8,6 +8,7 @@ Manager / Security) rather than a general-purpose permission matrix.
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 from enum import StrEnum
 
 from django.contrib.auth.models import AbstractUser
@@ -24,15 +25,55 @@ class UserRole(StrEnum):
     SECURITY = "security"
 
 
+class AuthSource(StrEnum):
+    """Where a user's identity and rights come from (F13)."""
+
+    LOCAL = "local"
+    OIDC = "oidc"
+
+
+class Capability(StrEnum):
+    """Rights on top of the primary role (ADR-0031)."""
+
+    WORKFLOW_ADMIN = "workflow_admin"
+    KB_EDITOR = "kb_editor"
+    INCIDENT_MANAGER = "incident_manager"
+
+
+class Language(StrEnum):
+    VI = "vi"
+    EN = "en"
+
+
 class User(AbstractUser, BaseModel):
     role = models.CharField(
         max_length=20,
         choices=[(r.value, r.value) for r in UserRole],
         default=UserRole.EMPLOYEE.value,
     )
+    external_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    auth_source = models.CharField(
+        max_length=10,
+        choices=[(s.value, s.value) for s in AuthSource],
+        default=AuthSource.LOCAL.value,
+    )
+    is_break_glass = models.BooleanField(default=False)
+    rights_synced_at = models.DateTimeField(null=True, blank=True)
+    failed_logins = models.PositiveIntegerField(default=0)
+    last_failed_login_at = models.DateTimeField(null=True, blank=True)
+    locked_until = models.DateTimeField(null=True, blank=True)
+    language = models.CharField(
+        max_length=5, choices=[(lang.value, lang.value) for lang in Language], default="vi"
+    )
 
     class Meta(BaseModel.Meta):
         db_table = "accounts_user"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(is_break_glass=False) | models.Q(role="manager"),
+                name="accounts_user_break_glass_is_manager",
+            )
+        ]
 
     def __str__(self) -> str:
         return f"{self.username} ({self.role})"
@@ -48,6 +89,14 @@ class User(AbstractUser, BaseModel):
     @property
     def is_security(self) -> bool:
         return self.role == UserRole.SECURITY.value
+
+    def capability_set(self) -> frozenset[str]:
+        """The user's capabilities; reads the prefetched rows when there are any."""
+        return frozenset(c.capability for c in self.capabilities.all())
+
+    def is_locked(self, now: datetime) -> bool:
+        """Whether local sign-in is locked after too many failed passwords."""
+        return self.locked_until is not None and self.locked_until > now
 
     @property
     def is_support_staff(self) -> bool:
@@ -97,3 +146,44 @@ class RefreshSession(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "accounts_refresh_sessions"
+
+
+class UserCapability(BaseModel):
+    """One capability granted to a user (ADR-0031)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="capabilities")
+    capability = models.CharField(max_length=30, choices=[(c.value, c.value) for c in Capability])
+    source = models.CharField(max_length=10, choices=[("keycloak", "keycloak"), ("local", "local")])
+    granted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "accounts_user_capabilities"
+        constraints = [
+            models.UniqueConstraint(fields=["user", "capability"], name="uniq_user_capability")
+        ]
+
+
+class IdentitySyncRunQuerySet(models.QuerySet["IdentitySyncRun"]):
+    def failures_in_a_row(self) -> int:
+        """Failed runs since the last successful one."""
+        count = 0
+        for ok in self.order_by("-started_at").values_list("ok", flat=True)[:50]:
+            if ok:
+                break
+            count += 1
+        return count
+
+
+class IdentitySyncRun(BaseModel):
+    """One run of the Keycloak sync task (F13)."""
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    ok = models.BooleanField()
+    checked = models.PositiveIntegerField(default=0)
+    changed = models.PositiveIntegerField(default=0)
+    error = models.CharField(max_length=200, blank=True, default="")
+
+    objects = IdentitySyncRunQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "accounts_identity_sync_runs"

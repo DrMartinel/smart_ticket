@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     "apps.metrics",
     "apps.chat",
     "apps.lifecycle",
+    "apps.teams",
 ]
 
 MIDDLEWARE = [
@@ -186,6 +187,20 @@ AUTH_COOKIE_SECURE = env_bool("AUTH_COOKIE_SECURE")
 AUTH_COOKIE_SAMESITE = env("AUTH_COOKIE_SAMESITE")
 if AUTH_COOKIE_SAMESITE not in ("Lax", "Strict", "None"):
     raise ImproperlyConfigured("AUTH_COOKIE_SAMESITE must be Lax, Strict or None")
+
+# ── Sign-in through Keycloak (F13, ADR-0032); `.env.example` explains each value ──
+OIDC_ISSUER_URL = env("OIDC_ISSUER_URL")
+OIDC_SERVER_URL = env("OIDC_SERVER_URL")
+OIDC_CLIENT_ID = env("OIDC_CLIENT_ID")
+OIDC_CLIENT_SECRET = env("OIDC_CLIENT_SECRET")
+OIDC_REDIRECT_URIS = env("OIDC_REDIRECT_URIS").split(",")
+OIDC_JWKS_CACHE_SEC = int(env("OIDC_JWKS_CACHE_SEC"))
+OIDC_MIN_REFETCH_SEC = float(env("OIDC_MIN_REFETCH_SEC"))
+OIDC_CLOCK_SKEW_SEC = int(env("OIDC_CLOCK_SKEW_SEC"))
+OIDC_HTTP_CONNECT_TIMEOUT_SEC = float(env("OIDC_HTTP_CONNECT_TIMEOUT_SEC"))
+OIDC_HTTP_READ_TIMEOUT_SEC = float(env("OIDC_HTTP_READ_TIMEOUT_SEC"))
+KEYCLOAK_ADMIN_CLIENT_ID = env("KEYCLOAK_ADMIN_CLIENT_ID")
+KEYCLOAK_ADMIN_CLIENT_SECRET = env("KEYCLOAK_ADMIN_CLIENT_SECRET")
 
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = env_bool("SHADOW_MODE")
@@ -315,6 +330,19 @@ class PiiRevealThresholds(BaseModel):
     display_seconds: int = Field(ge=1)
 
 
+class IdentityThresholds(BaseModel):
+    # Minutes between Keycloak syncs; a leaver's sessions end within one (K11).
+    sync_interval_minutes: int = Field(ge=1)
+    # Failed passwords before a break-glass account locks, and for how long.
+    local_max_failures: int = Field(ge=1)
+    local_failure_window_minutes: int = Field(ge=1)
+    local_lockout_minutes: int = Field(ge=1)
+    # Break-glass accounts allowed at once (BR-F13-06).
+    max_break_glass_accounts: int = Field(ge=0)
+    # Failed sync runs in a row before identity_sync_failed is audited.
+    sync_failures_before_alert: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -334,6 +362,7 @@ class Thresholds(BaseModel):
     lifecycle: LifecycleThresholds
     access_denied: AccessDeniedThresholds
     pii_reveal: PiiRevealThresholds
+    identity: IdentityThresholds
 
     @property
     def retrieval_floor(self) -> float:
@@ -372,6 +401,11 @@ def load_thresholds() -> Thresholds:
 
 
 THRESHOLDS = load_thresholds()
+
+CELERY_BEAT_SCHEDULE["identity-sync"] = {
+    "task": "apps.accounts.tasks.identity_sync",
+    "schedule": THRESHOLDS.identity.sync_interval_minutes * 60.0,
+}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

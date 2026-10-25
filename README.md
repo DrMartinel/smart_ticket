@@ -242,10 +242,18 @@ The demo KB is a frozen snapshot of AWS documentation in [`demo_kb/`](demo_kb/):
 ```bash
 python3 demo_kb/fetch.py     # first time: download the snapshot's pages (~30 min, resumable)
 
+# People sign in through Keycloak (phase 2 F13, ADR-0032). The dev realm in
+# infra/keycloak/ has test users (password change-me): lan.nt (employee),
+# duc.tm, ha.vt, mai.bn, tu.dv (technicians), huy.pq, quang.nv, dung.ht
+# (managers), anh.lh (security). core-api creates each on first sign-in.
+docker compose --profile sso up -d keycloak
+
+# The KB loader names an approving manager, and local password sign-in is for
+# break-glass managers only (at most identity.max_break_glass_accounts).
 docker compose exec core-api python manage.py shell -c "
 from apps.accounts.models import User
-for name, role in [('employee1','employee'), ('tech1','technician'), ('tech2','technician'), ('manager1','manager'), ('security1','security')]:
-    User.objects.create_user(name, password='change-me', role=role)"
+User.objects.create_user('manager1', password='change-me', role='manager')"
+docker compose exec core-api python manage.py set_break_glass manager1
 
 docker compose exec core-api python manage.py load_demo_kb --approver manager1
 ```

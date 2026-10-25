@@ -1,0 +1,403 @@
+{
+  "realm": "smart-ticket",
+  "enabled": true,
+  "displayName": "Smart Ticket (dev)",
+  "internationalizationEnabled": true,
+  "supportedLocales": [
+    "vi",
+    "en"
+  ],
+  "defaultLocale": "vi",
+  "bruteForceProtected": true,
+  "failureFactor": 5,
+  "waitIncrementSeconds": 60,
+  "maxFailureWaitSeconds": 900,
+  "maxDeltaTimeSeconds": 900,
+  "roles": {
+    "client": {
+      "smart-ticket": [
+        {
+          "name": "employee"
+        },
+        {
+          "name": "technician"
+        },
+        {
+          "name": "manager"
+        },
+        {
+          "name": "security"
+        },
+        {
+          "name": "workflow_admin"
+        },
+        {
+          "name": "kb_editor"
+        },
+        {
+          "name": "incident_manager"
+        }
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "it",
+      "subGroups": [
+        {
+          "name": "network",
+          "subGroups": [
+            {
+              "name": "lead"
+            }
+          ]
+        },
+        {
+          "name": "access",
+          "subGroups": [
+            {
+              "name": "lead"
+            }
+          ]
+        },
+        {
+          "name": "hardware",
+          "subGroups": [
+            {
+              "name": "lead"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "finance"
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "smart-ticket",
+      "name": "Smart Ticket",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${OIDC_CLIENT_SECRET}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "redirectUris": [
+        "http://localhost:3000/auth/callback",
+        "http://localhost:3001/auth/callback",
+        "http://localhost:3002/auth/callback",
+        "http://localhost:3003/auth/callback"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "frontchannelLogout": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "backchannel.logout.url": "http://core-api:8000/api/auth/oidc/backchannel-logout",
+        "backchannel.logout.session.required": "false",
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "post.logout.redirect.uris": "+"
+      },
+      "protocolMappers": [
+        {
+          "name": "smart-ticket client roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "config": {
+            "usermodel.clientRoleMapping.clientId": "smart-ticket",
+            "claim.name": "resource_access.smart-ticket.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "true",
+            "claim.name": "groups",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "smart-ticket-sync",
+      "name": "Smart Ticket identity sync",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_ADMIN_CLIENT_SECRET}",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    }
+  ],
+  "users": [
+    {
+      "username": "lan.nt",
+      "enabled": true,
+      "email": "lan.nt@congty.vn",
+      "emailVerified": true,
+      "firstName": "Lan",
+      "lastName": "Nguyễn Thị",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "employee"
+        ]
+      },
+      "groups": [
+        "/finance"
+      ]
+    },
+    {
+      "username": "duc.tm",
+      "enabled": true,
+      "email": "duc.tm@congty.vn",
+      "emailVerified": true,
+      "firstName": "Đức",
+      "lastName": "Trần Minh",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "technician",
+          "incident_manager"
+        ]
+      },
+      "groups": [
+        "/it/network/lead",
+        "/it/hardware"
+      ]
+    },
+    {
+      "username": "ha.vt",
+      "enabled": true,
+      "email": "ha.vt@congty.vn",
+      "emailVerified": true,
+      "firstName": "Hà",
+      "lastName": "Võ Thu",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "technician"
+        ]
+      },
+      "groups": [
+        "/it/access/lead"
+      ]
+    },
+    {
+      "username": "mai.bn",
+      "enabled": true,
+      "email": "mai.bn@congty.vn",
+      "emailVerified": true,
+      "firstName": "Mai",
+      "lastName": "Bùi Ngọc",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "technician"
+        ]
+      },
+      "groups": [
+        "/it/access"
+      ]
+    },
+    {
+      "username": "huy.pq",
+      "enabled": true,
+      "email": "huy.pq@congty.vn",
+      "emailVerified": true,
+      "firstName": "Huy",
+      "lastName": "Phạm Quốc",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "manager"
+        ]
+      },
+      "groups": []
+    },
+    {
+      "username": "quang.nv",
+      "enabled": true,
+      "email": "quang.nv@congty.vn",
+      "emailVerified": true,
+      "firstName": "Quang",
+      "lastName": "Nguyễn Văn",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "manager"
+        ]
+      },
+      "groups": []
+    },
+    {
+      "username": "dung.ht",
+      "enabled": true,
+      "email": "dung.ht@congty.vn",
+      "emailVerified": true,
+      "firstName": "Dung",
+      "lastName": "Hoàng Thị",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "manager"
+        ]
+      },
+      "groups": []
+    },
+    {
+      "username": "anh.lh",
+      "enabled": true,
+      "email": "anh.lh@congty.vn",
+      "emailVerified": true,
+      "firstName": "Anh",
+      "lastName": "Lê Hoàng",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "security"
+        ]
+      },
+      "groups": []
+    },
+    {
+      "username": "tu.dv",
+      "enabled": true,
+      "email": "tu.dv@congty.vn",
+      "emailVerified": true,
+      "firstName": "Tú",
+      "lastName": "Đặng Văn",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "technician",
+          "workflow_admin"
+        ]
+      },
+      "groups": []
+    },
+    {
+      "username": "no.role",
+      "enabled": true,
+      "email": "no.role@congty.vn",
+      "emailVerified": true,
+      "firstName": "Quyền",
+      "lastName": "Không",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {},
+      "groups": []
+    },
+    {
+      "username": "two.roles",
+      "enabled": true,
+      "email": "two.roles@congty.vn",
+      "emailVerified": true,
+      "firstName": "Vai",
+      "lastName": "Hai",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "change-me",
+          "temporary": false
+        }
+      ],
+      "clientRoles": {
+        "smart-ticket": [
+          "technician",
+          "manager"
+        ]
+      },
+      "groups": []
+    },
+    {
+      "username": "service-account-smart-ticket-sync",
+      "enabled": true,
+      "serviceAccountClientId": "smart-ticket-sync",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "query-users",
+          "view-clients",
+          "query-clients",
+          "query-groups"
+        ]
+      }
+    }
+  ]
+}
