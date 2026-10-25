@@ -38,15 +38,19 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 {v.label}
               </NavItem>
             ))}
-            <NavItem href="/board" active={pathname.startsWith("/board")}>
-              Board
-            </NavItem>
+            {user.role !== "security" && (
+              <NavItem href="/board" active={pathname.startsWith("/board")}>
+                Board
+              </NavItem>
+            )}
           </Group>
-          <Group label="Insights">
-            <NavItem href="/dashboard" active={pathname.startsWith("/dashboard")}>
-              Dashboard
-            </NavItem>
-          </Group>
+          {user.role !== "security" && (
+            <Group label="Insights">
+              <NavItem href="/dashboard" active={pathname.startsWith("/dashboard")}>
+                Dashboard
+              </NavItem>
+            </Group>
+          )}
           <Group label="Knowledge">
             <NavItem href="/kb" active={pathname.startsWith("/kb")}>
               Help pages
@@ -59,14 +63,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </NavItem>
             </Group>
           )}
-          <Group label="Settings">
-            <NavItem href="/settings/workflows" active={pathname.startsWith("/settings/workflows")}>
-              Workflows
-            </NavItem>
-            <NavItem href="/settings/stages" active={pathname.startsWith("/settings/stages")}>
-              Stages
-            </NavItem>
-          </Group>
+          {user.role === "manager" && (
+            <Group label="Settings">
+              <NavItem href="/settings/workflows" active={pathname.startsWith("/settings/workflows")}>
+                Workflows
+              </NavItem>
+              <NavItem href="/settings/stages" active={pathname.startsWith("/settings/stages")}>
+                Stages
+              </NavItem>
+            </Group>
+          )}
         </nav>
 
         <div className="border-t border-[var(--border)] px-5 py-4 text-sm">

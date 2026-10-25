@@ -1,6 +1,6 @@
 # ADR-0036: KB drafts live outside `kb_articles`; a text change revokes authority
 
-**Status:** Proposed (phase 2 pack; copied 2026-10-17, awaiting the owner's decision)
+**Status:** Proposed (phase 2 pack, stage 3; copied 2026-10-17, awaiting the owner's decision)
 **Date:** 2026-10-17
 **Builds on:** ADR-0002 (authority on KB rows), ADR-0027, ADR-0004 / ADR-0025 (ai-engine grants)
 **Feature:** F6 ([spec](../requirements/phase-2/06-F6-kb-governance.md))

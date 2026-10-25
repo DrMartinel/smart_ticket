@@ -100,7 +100,11 @@ class User(AbstractUser, BaseModel):
     @property
     def is_support_staff(self) -> bool:
         """Whether the user works tickets: technician, manager or security."""
-        return self.role != UserRole.EMPLOYEE.value
+        return self.role in (
+            UserRole.TECHNICIAN.value,
+            UserRole.MANAGER.value,
+            UserRole.SECURITY.value,
+        )
 
     @property
     def may_run_runbooks(self) -> bool:

@@ -301,17 +301,31 @@ class TestClarify:
 
 
 @pytest.mark.django_db
-def test_a_turn_tells_the_requester_where_support_has_it(employee_user):
+def test_a_turn_names_the_status_a_person_moved_the_ticket_into(employee_user):
     from apps.chat.utils import chat_turn
+    from apps.lifecycle.models import WorkflowStatus
     from apps.lifecycle.tests.conftest import make_ticket
-    from apps.lifecycle.utils.vocabulary import PipelineStatus
-    from apps.tickets.models import TicketSource
 
-    ticket = make_ticket(employee_user, at=PipelineStatus.AUTO_REPLIED)
-    ticket.source = TicketSource.CHAT.value
-    ticket.save(update_fields=["source"])
+    ticket = make_ticket(employee_user)
+    assert ticket.workflow_status is not None
+    ticket.enter_status(
+        WorkflowStatus.objects.get(workflow=ticket.workflow_status.workflow, key="in_progress")
+    )
 
     turn = chat_turn(ticket)
 
-    assert turn.status_name == "Auto-replied"
-    assert turn.resolved is True
+    assert turn.status_name == "In progress"
+    assert turn.resolved is False
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("status", ["pending_review", "blocked", "escalated", "auto_replied"])
+def test_a_turn_never_names_a_pipeline_status(employee_user, status):
+    """A requester can't tell a blocked (e.g. injection) ticket from one waiting for review."""
+    from apps.chat.utils import chat_turn
+    from apps.lifecycle.tests.conftest import make_ticket
+    from apps.lifecycle.utils.vocabulary import PipelineStatus
+
+    turn = chat_turn(make_ticket(employee_user, at=PipelineStatus(status)))
+
+    assert turn.status_name is None

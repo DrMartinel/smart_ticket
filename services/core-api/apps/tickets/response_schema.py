@@ -72,7 +72,7 @@ def status_of(ticket: Ticket) -> StatusOut:
 
 def open_review_of(ticket: Ticket) -> OpenReviewOut | None:
     """The review item still waiting for a person, most urgent first."""
-    waiting = [r for r in ticket.review_items.all() if r.state in ("pending", "claimed")]
+    waiting = [r for r in ticket.review_items.all() if r.is_open]
     if not waiting:
         return None
     first = min(waiting, key=lambda r: (r.priority, r.created_at))
@@ -92,6 +92,7 @@ class StaffTicketRow(Schema):
     created_at: datetime
     sla_due_at: datetime | None
     review: OpenReviewOut | None
+    version: int
 
     @staticmethod
     def resolve_status(ticket: Ticket) -> StatusOut:
@@ -132,7 +133,7 @@ class RoutingOut(Schema):
 class AiSummaryOut(Schema):
     """What the triage pipeline concluded, read off its latest run."""
 
-    intent: str | None
+    proposed_intent: str | None
     category: str | None
     category_confidence: float | None
     kb_slug: str | None
@@ -214,7 +215,7 @@ class StaffTicketDetail(StaffTicketRow):
         slug = proposal.get("kb_slug")
         kb = KbArticle.objects.filter(slug=slug).only("title").first() if slug else None
         return AiSummaryOut(
-            intent=proposal.get("proposed_intent"),
+            proposed_intent=proposal.get("proposed_intent"),
             category=classification.get("category_choice"),
             category_confidence=classification.get("category_confidence")
             if classification

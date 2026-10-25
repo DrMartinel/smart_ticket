@@ -12,7 +12,7 @@ import httpx
 import pytest
 from asgiref.sync import async_to_sync
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.utils.patterns import ALL_GROUPS, LEVEL_BY_GROUP, PIILevel, placeholder_level
 from apps.tickets.request_schema import TicketIn
 
 from apps.tickets.utils.masking import (
@@ -568,3 +568,23 @@ class TestMaskRegexTier:
             "Đối chiếu với hồ sơ nhân sự",
             PIILevel.ROUTINE,
         )
+
+
+class TestPlaceholderLevel:
+    """A placeholder's level drives who may reveal it (F5)."""
+
+    @pytest.mark.parametrize(
+        "group,label",
+        [(group, label) for group, patterns in ALL_GROUPS.items() for label in patterns],
+    )
+    def test_every_known_label_keeps_its_level(self, group, label):
+        assert placeholder_level(f"[{label}_1]") is LEVEL_BY_GROUP[group]
+
+    def test_an_ner_span_is_routine(self):
+        assert placeholder_level("[FREEFORM_3]") is PIILevel.ROUTINE
+
+    @pytest.mark.parametrize(
+        "placeholder", ["[PGP2_KEY_1]", "[NEW_SECRET_1]", "CCCD_1", "[cccd_1]", ""]
+    )
+    def test_an_unknown_or_malformed_label_is_critical(self, placeholder):
+        assert placeholder_level(placeholder) is PIILevel.CRITICAL

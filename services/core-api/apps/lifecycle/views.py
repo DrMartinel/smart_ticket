@@ -8,10 +8,9 @@ import uuid
 from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from ninja import Header, Router, Status
-from ninja.errors import HttpError
 
 from apps.accounts.models import UserRole
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require_role
+from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_unless, require_role
 from apps.lifecycle.models import (
     ApprovalRequest,
     CustomField,
@@ -367,8 +366,8 @@ def assign_ticket(request: AuthedRequest, public_id: str, payload: AssignIn) -> 
 @router.post("/tickets/{public_id}/move", auth=SessionAuth(), response=TicketLifecycleOut)
 @require_role(*_READ)
 def move_ticket(request: AuthedRequest, public_id: str, payload: MoveIn) -> Ticket:
-    if payload.force and not request.auth.is_manager:
-        raise HttpError(403, "only a manager may force a move")
+    if payload.force:
+        refuse_unless(request, request.auth, (UserRole.MANAGER,))
     lifecycle.move(
         _ticket(public_id).id,
         payload.status_id,
@@ -412,7 +411,11 @@ def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]
 @require_role(*_READ)
 def retry_transfer(request: AuthedRequest, public_id: str) -> Transfer:
     transfer = lifecycle.retry(_ticket(public_id).id, request.auth)
-    return Transfer.objects.select_related("ticket").prefetch_related("runs").get(pk=transfer.id)
+    return (
+        Transfer.objects.select_related("ticket", "before_status", "after_status", "actor")
+        .prefetch_related("runs")
+        .get(pk=transfer.id)
+    )
 
 
 @router.get("/transfers/failed", auth=SessionAuth(), response=list[TransferOut])
