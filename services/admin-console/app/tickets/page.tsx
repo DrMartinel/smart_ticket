@@ -9,26 +9,10 @@ import { dateTime, humanize, relativeTime } from "@/lib/format";
 import { VIEWS } from "@/lib/views";
 import StatusChip from "@/components/StatusChip";
 import { priorityClasses } from "@/lib/badges";
+import type { StaffTicketPage, StaffTicketRow } from "@/lib/types/generated";
 
-interface TicketRow {
-  public_id: string;
-  subject_masked: string;
-  status: { key: string; name: string; color: string; stage: string; is_completed: boolean };
-  category: string | null;
-  assigned_team: string | null;
-  assignee: string | null;
-  reporter: string;
-  source: string;
-  created_at: string;
-  sla_due_at: string | null;
-  review: { id: string; queue: string; priority: number; state: string } | null;
-}
-
-interface TicketPage {
-  items: TicketRow[];
-  total: number;
-  counts: Record<string, number>;
-}
+type TicketRow = StaffTicketRow;
+type TicketPage = StaffTicketPage;
 
 const PAGE_SIZE = 50;
 
@@ -55,13 +39,18 @@ export default function TicketsPage() {
 
   useEffect(() => {
     if (!user) return;
+    let current = true;
     setData(null);
+    setError(null);
     const params = new URLSearchParams({ view, page: String(page), limit: String(PAGE_SIZE) });
     if (submitted) params.set("q", submitted);
     api
       .get<TicketPage>(`/api/tickets?${params}`)
-      .then(setData)
-      .catch(() => setError("Couldn't load tickets. Is core-api running?"));
+      .then((result) => current && setData(result))
+      .catch(() => current && setError("Couldn't load tickets. Is core-api running?"));
+    return () => {
+      current = false;
+    };
   }, [user, view, page, submitted]);
 
   if (!user) return null;

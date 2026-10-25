@@ -202,6 +202,11 @@ guard and that comment is later trimmed, the entry is the record.
   wrapper is `permissions.py`. In a module with `from __future__ import
   annotations` every request body then fails to resolve, and each call is a
   500. *The chat and review API tests.*
+- **`gate_authentication` wrapping each gated route's auth callback** (`GatedAuth`,
+  called in `config/urls.py`). The check inside the handler looks like enough.
+  Without the auth-layer one, Ninja validates the body first: a refused caller
+  with a malformed body gets a 422 listing the schema and no `access_denied`
+  row. *`test_a_refused_caller_is_refused_before_the_body_is_read`.*
 - **`allowed_roles` following `__wrapped__`.** `@paginate` sits above the
   gate on `GET /api/kb`; without the walk that route reads as ungated.
 - **The runbook checks in `RunbookExecution.objects.execute`**

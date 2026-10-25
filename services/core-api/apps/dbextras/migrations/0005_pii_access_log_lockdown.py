@@ -30,7 +30,7 @@ def grant_back_to_app_role(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("dbextras", "0004_association_grant"),
+        ("dbextras", "0005_audit_log_actor_index"),
         ("tickets", "0005_pii_access_log_reveal"),
     ]
 

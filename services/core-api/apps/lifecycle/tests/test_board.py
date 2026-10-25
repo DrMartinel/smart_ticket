@@ -42,3 +42,19 @@ def test_a_requester_cannot_see_the_board(api_as, employee_user, strict):
     response = api_as(employee_user).get(f"/api/tickets/board?workflow={strict.workflow.id}")
 
     assert response.status_code == 403
+
+
+def test_the_board_search_filters_by_id_or_subject(api_as, employee_user, technician_user, strict):
+    from apps.tickets.models import Ticket
+
+    wanted = put_in(make_ticket(employee_user), strict.working)
+    other = put_in(make_ticket(employee_user), strict.working)
+    Ticket.objects.filter(pk=other.pk).update(subject_masked="Printer jam")
+    client = api_as(technician_user)
+    url = f"/api/tickets/board?workflow={strict.workflow.id}"
+
+    by_id = client.get(f"{url}&q={wanted.public_id[-4:]}").json()["items"]
+    by_subject = client.get(f"{url}&q=printer").json()["items"]
+
+    assert [r["public_id"] for r in by_id] == [wanted.public_id]
+    assert [r["public_id"] for r in by_subject] == [other.public_id]

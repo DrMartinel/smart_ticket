@@ -136,5 +136,32 @@ def require_role(*roles: UserRole):
     return decorator
 
 
+class GatedAuth:
+    """A route's auth callback followed by its role check, so a refused caller is refused
+    before Ninja reads the request."""
+
+    def __init__(self, auth: Callable[[HttpRequest], Any], roles: frozenset[str]) -> None:
+        self.auth = auth
+        self.roles = roles
+
+    def __call__(self, request: HttpRequest) -> Any:
+        user = self.auth(request)
+        if user and getattr(user, "role", None) not in self.roles:
+            _refuse(request, user, sorted(self.roles))
+        return user
+
+
+def gate_authentication(routers: Iterable[tuple[str, Any]]) -> None:
+    """Moves each gated route's role check into its authentication."""
+    for _prefix, router in routers:
+        for path_view in router.path_operations.values():
+            for operation in path_view.operations:
+                roles = allowed_roles(operation.view_func)
+                if roles is not None:
+                    operation.auth_callbacks = [
+                        GatedAuth(callback, roles) for callback in operation.auth_callbacks
+                    ]
+
+
 def has_any_role(user: object, roles: Iterable[UserRole]) -> bool:
     return getattr(user, "role", None) in {r.value for r in roles}

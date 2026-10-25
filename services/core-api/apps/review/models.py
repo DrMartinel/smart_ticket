@@ -49,6 +49,8 @@ class ReviewItemManager(models.Manager["ReviewItem"]):
 
 
 class ReviewItem(BaseModel):
+    OPEN_STATES = ("pending", "claimed")
+
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="review_items")
     ai_run = models.ForeignKey(
         AiRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
@@ -66,6 +68,11 @@ class ReviewItem(BaseModel):
         db_table = "review_items"
 
     objects = ReviewItemManager()
+
+    @property
+    def is_open(self) -> bool:
+        """Whether the item still waits for a person."""
+        return self.state in self.OPEN_STATES
 
     @transaction.atomic
     def claim(self, actor: User) -> ReviewItem:

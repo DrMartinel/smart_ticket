@@ -39,9 +39,15 @@ def chat_turn(ticket: Ticket) -> ChatTurnOut:
         answer=_answer(ticket) if ticket.status == "auto_replied" else None,
         clarification=ChatClarificationOut.from_row(asked) if asked else None,
         created_at=ticket.created_at,
-        status_name=ticket.workflow_status.name if ticket.workflow_status else None,
+        status_name=_support_status_name(ticket),
         resolved=ticket.resolved_at is not None,
     )
+
+
+def _support_status_name(ticket: Ticket) -> str | None:
+    """The status a person moved the ticket into; none for the pipeline's own statuses."""
+    status = ticket.workflow_status
+    return status.name if status is not None and not status.is_pipeline else None
 
 
 def _state(ticket: Ticket, asked: TicketClarification | None) -> ChatState:
