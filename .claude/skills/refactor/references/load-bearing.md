@@ -123,6 +123,12 @@ guard and that comment is later trimmed, the entry is the record.
   the reveal's transaction. Decrypting first looks equivalent. Then a failed insert
   leaves plaintext already in memory on a path that can return it.
   *`test_no_plaintext_when_access_log_insert_fails`, `test_decrypt_has_one_caller`.*
+- **`PiiReveal.check_rate` inside the reveal's transaction, under a per-actor
+  advisory lock.** Counting before the transaction looks the same. Then parallel
+  requests all see the same count and a script gets past the hourly limit.
+- **`placeholder_level` answering critical for an unknown label.** Defaulting to
+  routine looks harmless today. A new credential label would then be revealable
+  by technicians, with no error (hard rule 3). *`TestPlaceholderLevel`.*
 - **The `pii_access_log` trigger** (`infra/migrations/sql/0007`). The REVOKE beside
   it does nothing to core-api's own role, which owns the table; only the trigger
   stops an UPDATE or DELETE. *`test_access_log_rejects_update_and_delete`.*

