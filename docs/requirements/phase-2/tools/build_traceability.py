@@ -177,7 +177,7 @@ for name, f, tag in FEATS:
         if n + others <= 1:
             coverage.append(br)
 out.append(
-    "\nGoals and KPIs are defined in [§1](01-executive-summary.md). ADR numbers ≥ 0030 are proposed ([§9.4](09-risks-open-questions.md#94-proposed-adrs)).\n"
+    "\nGoals and KPIs are defined in [§1](01-executive-summary.md). ADR numbers ≥ 0030 come from this pack ([§9.4](09-risks-open-questions.md#94-proposed-adrs)); 0031–0033 are accepted, the rest proposed. Statuses are kept in `docs/adr/`.\n"
 )
 out.append("## 8.2 Use case → rules → screens\n")
 out.append("Screens link to their Figma frames (stage 5, [mockups.md](mockups.md)).\n")

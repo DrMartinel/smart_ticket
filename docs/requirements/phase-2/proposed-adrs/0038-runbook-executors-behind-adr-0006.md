@@ -1,6 +1,6 @@
 # ADR-0038: Real runbook executors stay behind ADR-0006, with target rules
 
-**Status:** Proposed (phase 2 pack, stage 4). Moved to [`docs/adr/0038-runbook-executors-behind-adr-0006.md`](../../../adr/0038-runbook-executors-behind-adr-0006.md); its status there is the one that counts
+**Status:** Proposed (phase 2 pack, stage 4). Copied to [`docs/adr/0038-runbook-executors-behind-adr-0006.md`](../../../adr/0038-runbook-executors-behind-adr-0006.md); its status there is the one that counts
 **Date:** 2026-10-17
 **Builds on:** ADR-0006 (runbooks always go through a person), ADR-0028 (n8n action), ADR-0032 (Keycloak)
 **Feature:** F12 ([spec](../06-F12-itsm-iam-integration.md))

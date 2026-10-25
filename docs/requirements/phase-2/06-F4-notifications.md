@@ -1,6 +1,6 @@
 # 6. F4 Notifications — NEW + CHANGED
 
-Must · Wave 1 · Proposed ADR-0033.
+Must · Wave 1 · ADR-0033 (accepted 2026-10-17).
 
 ## a. Problem & goal
 
@@ -143,7 +143,7 @@ the pipeline's routing step.
 
 | ID | Rule | Rationale | Enforced where |
 |---|---|---|---|
-| BR-F4-01 | Messages are written in the same transaction as the event; sending happens after commit | No event without its notice, no notice for a rolled-back event (proposed ADR-0033) | `Notifier.emit` |
+| BR-F4-01 | Messages are written in the same transaction as the event; sending happens after commit | No event without its notice, no notice for a rolled-back event (ADR-0033) | `Notifier.emit` |
 | BR-F4-02 | The event catalog and its recipient kinds are code (`NotificationEvent` enum). The matrix defaults are data | Like ADR-0028's action catalog: no user-defined logic | Code; matrix API |
 | BR-F4-03 | Mandatory cells are fixed in the catalog; neither users nor admins turn them off. Mandatory cells are marked in the catalog below: security alerts and their overdue reminders, break-glass sign-ins, credential exposure (to the requester), incident proposals and broadcasts, approval requests (in-app), rollout flag changes (in-app) and unapproved thresholds | Some notices must not be opt-out | Catalog + API refusal |
 | BR-F4-04 | Templates read masked fields only, never the quarantine; the existing variable set of `apps/lifecycle/utils/templates.py` is reused | ADR-0028 §6 | Renderer |
