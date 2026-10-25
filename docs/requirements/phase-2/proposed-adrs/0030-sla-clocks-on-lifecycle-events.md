@@ -1,6 +1,6 @@
 # ADR-0030: SLA clocks count business time, driven by lifecycle status events
 
-**Status:** Proposed (phase 2 pack, stage 2)
+**Status:** Proposed (phase 2 pack, stage 2). Copied to [`docs/adr/0030-sla-clocks-on-lifecycle-events.md`](../../../adr/0030-sla-clocks-on-lifecycle-events.md); its status there is the one that counts
 **Date:** 2026-10-17
 **Builds on:** ADR-0028 (configurable lifecycle), ADR-0001
 **Feature:** F1 ([spec](../06-F1-sla.md))

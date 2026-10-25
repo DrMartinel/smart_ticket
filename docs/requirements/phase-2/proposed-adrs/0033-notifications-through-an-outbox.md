@@ -1,6 +1,6 @@
 # ADR-0033: Notifications are written in the event's transaction and sent after commit
 
-**Status:** Proposed (phase 2 pack, stage 2)
+**Status:** Proposed (phase 2 pack, stage 2). Copied to [`docs/adr/0033-notifications-through-an-outbox.md`](../../../adr/0033-notifications-through-an-outbox.md); its status there is the one that counts
 **Date:** 2026-10-17
 **Builds on:** ADR-0028 §6 (masked text, host allow-list)
 **Feature:** F4 ([spec](../06-F4-notifications.md))

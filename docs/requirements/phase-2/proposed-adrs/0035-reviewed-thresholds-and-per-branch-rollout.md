@@ -1,6 +1,6 @@
 # ADR-0035: Reviewed thresholds and per-branch rollout switches
 
-**Status:** Proposed (phase 2 pack, stage 3)
+**Status:** Proposed (phase 2 pack, stage 3). Copied to [`docs/adr/0035-reviewed-thresholds-and-per-branch-rollout.md`](../../../adr/0035-reviewed-thresholds-and-per-branch-rollout.md); its status there is the one that counts
 **Date:** 2026-10-17
 **Builds on:** ADR-0001, ADR-0006; CLAUDE.md hard rules 1, 2, 9; spec §8.2, §14
 **Feature:** F9 ([spec](../06-F9-rollout-control.md))
