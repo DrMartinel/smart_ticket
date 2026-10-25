@@ -166,9 +166,6 @@ class StaffView(StrEnum):
 
 
 # Review item states that still wait for a person.
-_OPEN_REVIEW_STATES = ("pending", "claimed")
-
-
 class TicketManager(models.Manager["Ticket"]):
     def visible_to(self, user: User) -> QuerySet[Ticket]:
         """Every ticket for support staff; a requester's own tickets otherwise."""
@@ -181,7 +178,9 @@ class TicketManager(models.Manager["Ticket"]):
         ).prefetch_related("review_items")
         match view:
             case StaffView.REVIEW:
-                tickets = tickets.filter(review_items__state__in=_OPEN_REVIEW_STATES).distinct()
+                from apps.review.models import ReviewItem
+
+                tickets = tickets.filter(review_items__state__in=ReviewItem.OPEN_STATES).distinct()
             case StaffView.MINE:
                 tickets = tickets.filter(assigned_to=user, resolved_at__isnull=True)
             case StaffView.OPEN:
