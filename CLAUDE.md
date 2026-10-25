@@ -60,7 +60,7 @@ simplifying:** they record what breaks without it. Code comments don't (see
    scoring types (`Branch`, `ReasonCode`, `TrustScore`, …) in ai-engine, and
    never put a type `router.py` needs in a Django `models.py`. After a core-api
    schema change, regenerate TS types; never hand-edit
-   `services/web/lib/types/generated.ts`. New fields on persisted schemas need
+   `lib/types/generated.ts` in `services/admin-console` or `services/chat`. New fields on persisted schemas need
    a **default** so old rows still deserialize.
 5. **`proposed_` prefixes are load-bearing.** Don't strip them "for consistency."
    The asymmetry between `proposal.proposed_intent` and `decision.branch` is the point.
@@ -83,7 +83,8 @@ simplifying:** they record what breaks without it. Code comments don't (see
 
 ```bash
 uv sync --all-packages            # NOT plain `uv sync` — see Gotchas
-cd services/web && npm install
+cd services/admin-console && npm install
+cd services/chat && npm install
 ```
 
 core-api's commands are targets in [`services/core-api/Makefile`](services/core-api/Makefile);
@@ -163,7 +164,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [schemas.py](services/ai-engine/src/ai_engine/schemas.py) (HTTP bodies), [ticket.py](services/ai-engine/src/ai_engine/graph/ticket.py), [proposals.py](services/ai-engine/src/ai_engine/graph/nodes/infer/proposals.py), [signals.py](services/ai-engine/src/ai_engine/graph/nodes/emit_signals/signals.py) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
 | Prompts and Jev's questions (versioned `.md` / `.json`, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
-| Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/web/components/TrustSignalsPanel.tsx) |
+| Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/admin-console/components/TrustSignalsPanel.tsx) |
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
 | KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |

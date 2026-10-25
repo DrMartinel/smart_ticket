@@ -9,12 +9,21 @@ from ninja.errors import HttpError
 from apps.review.models import ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
-from apps.accounts.permissions import AuthedRequest, SessionAuth
+from apps.accounts.permissions import (
+    TECHNICIAN_OR_MANAGER,
+    STAFF,
+    AuthedRequest,
+    SessionAuth,
+    refuse_unless,
+    require_role,
+)
+from apps.tickets.utils.router import ReviewQueue
 
 router = Router(tags=["review"])
 
 
 @router.get("/queue", auth=SessionAuth(), response=list[ReviewItemOut])
+@require_role(*STAFF)
 def list_queue(
     request: AuthedRequest, queue: str | None = None, state: str = "pending"
 ) -> QuerySet[ReviewItem]:
@@ -22,11 +31,13 @@ def list_queue(
 
 
 @router.get("/items/{item_id}", auth=SessionAuth(), response=ReviewItemOut)
+@require_role(*STAFF)
 def get_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     return _get_or_404(item_id)
 
 
 @router.post("/items/{item_id}/claim", auth=SessionAuth(), response=ReviewItemOut)
+@require_role(*STAFF)
 def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     item = _get_or_404(item_id)
     try:
@@ -37,8 +48,11 @@ def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
 
 
 @router.post("/items/{item_id}/decide", auth=SessionAuth(), response=DecisionOut)
+@require_role(*STAFF)
 def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn) -> ReviewDecision:
     item = _get_or_404(item_id)
+    if item.queue == ReviewQueue.RUNBOOK_APPROVAL:
+        refuse_unless(request, request.auth, TECHNICIAN_OR_MANAGER)
     try:
         return item.decide(
             request.auth,

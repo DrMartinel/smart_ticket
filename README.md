@@ -260,7 +260,8 @@ uv sync --all-packages                     # install every workspace member
 cd services/core-api && make migrate runserver   # :8000; `make worker` for celery
 uv run --project services/ai-engine uvicorn ai_engine.main:app \
     --app-dir services/ai-engine/src --port 8001 --reload
-cd services/web && npm install && npm run dev
+cd services/admin-console && npm install && npm run dev   # :3000
+cd services/chat && npm install && npm run dev            # :3001
 ```
 
 core-api's commands live in [`services/core-api/Makefile`](services/core-api/Makefile); `make` there lists them.
@@ -358,7 +359,7 @@ Every outcome carries a machine-readable `ReasonCode`, which is what makes *"whi
 
 ## API
 
-Interactive docs at [`/api/docs`](http://localhost:8000/api/docs). All routes except sign-in (`/api/auth/login`, `/refresh`, `/logout`) and the lifecycle callback require `Authorization: Bearer <access token>`. Sign-in (ADR-0029) returns a five-minute access token and sets the refresh token as an httpOnly cookie for `/api/auth/`; every request to `/api/auth/` names its frontend in `X-Auth-Client` (`admin` or `chat`).
+Interactive docs at [`/api/docs`](http://localhost:8000/api/docs). All routes except sign-in (`/api/auth/login`, `/refresh`, `/logout`) and the lifecycle callback require `Authorization: Bearer <access token>`, and core-api checks the caller's role on every one of them (PRE-1): a role outside the route's set gets 403 `{"code": "role_not_allowed", "message": …, "details": {"role": …}}` and writes an `access_denied` audit row (one per user, route and method per `access_denied.audit_window_seconds`). Sign-in (ADR-0029) returns a five-minute access token and sets the refresh token as an httpOnly cookie for `/api/auth/`; every request to `/api/auth/` names its frontend in `X-Auth-Client` (`admin` or `chat`).
 
 | Method | Path | Role |
 |---|---|---|
@@ -366,15 +367,16 @@ Interactive docs at [`/api/docs`](http://localhost:8000/api/docs). All routes ex
 | `GET`/`DELETE` | `/api/auth/sessions` · `/sessions/{family}` · `POST /api/auth/logout-everywhere` | any |
 | `GET`/`POST`/`PATCH`/`DELETE` | `/api/lifecycle/...` (workflows, statuses, transitions, fields, ticket moves, approvals; ADR-0028) | technician+ / manager |
 | `GET` | `/api/accounts/me` | any |
-| `POST` | `/api/tickets/submit` | employee+ |
-| `GET` | `/api/tickets/{public_id}` | any |
-| `GET` | `/api/review/queue` | technician+ |
-| `GET`/`POST` | `/api/review/items/{id}` · `/claim` · `/decide` | technician+ |
+| `POST` | `/api/tickets/submit` | any |
+| `GET` | `/api/tickets/{public_id}` | staff (technician, manager, security); an employee sees only their own (404 otherwise) |
+| `GET` | `/api/tickets` · `/api/tickets/board` · `/api/tickets/{public_id}/detail` | technician, manager, security |
+| `GET` | `/api/review/queue` | technician, manager, security |
+| `GET`/`POST` | `/api/review/items/{id}` · `/claim` · `/decide` | technician, manager, security; a `runbook_approval` item is decided by a technician or manager only |
 | `GET`/`POST` | `/api/kb` | any / manager |
-| `POST` | `/api/kb/{slug}/auto-reply-allowed` · `/risk-tier` · `/reingest` | **manager** |
-| `GET` | `/api/metrics/dashboard` | technician+ |
-| `GET` | `/api/itsm/runbooks` · `POST /api/itsm/review-items/{id}/execute` | technician+ |
-| `GET` | `/api/fewshot/category/{category}` | technician+ |
+| `POST` | `/api/kb/{slug}/auto-reply-allowed` · `/risk-tier` · `/reingest` | **manager** (route and model) |
+| `GET` | `/api/metrics/dashboard` | technician, manager |
+| `GET` | `/api/itsm/runbooks` · `POST /api/itsm/review-items/{id}/execute` | technician, manager |
+| `GET` | `/api/fewshot/category/{category}` | technician, manager |
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \

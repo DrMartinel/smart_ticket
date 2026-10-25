@@ -44,11 +44,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </NavItem>
             )}
           </Group>
-          <Group label="Insights">
-            <NavItem href="/dashboard" active={pathname.startsWith("/dashboard")}>
-              Dashboard
-            </NavItem>
-          </Group>
+          {user.role !== "security" && (
+            <Group label="Insights">
+              <NavItem href="/dashboard" active={pathname.startsWith("/dashboard")}>
+                Dashboard
+              </NavItem>
+            </Group>
+          )}
           <Group label="Knowledge">
             <NavItem href="/kb" active={pathname.startsWith("/kb")}>
               Help pages

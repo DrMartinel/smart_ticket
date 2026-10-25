@@ -18,13 +18,13 @@ from apps.tickets.response_schema import (
     TicketOut,
     TicketSubmitOut,
 )
-from apps.accounts.models import UserRole
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require_role
+from apps.accounts.permissions import ALL_ROLES, STAFF, AuthedRequest, SessionAuth, require_role
 
 router = Router(tags=["tickets"])
 
 
 @router.post("/submit", auth=SessionAuth(), response=TicketSubmitOut)
+@require_role(*ALL_ROLES)
 def submit_ticket(request: AuthedRequest, payload: TicketIn) -> Ticket:
     # Ninja validates `payload` against TicketIn's limits and answers 422
     # itself, so an invalid submission never reaches masking.
@@ -33,11 +33,8 @@ def submit_ticket(request: AuthedRequest, payload: TicketIn) -> Ticket:
     )
 
 
-_STAFF = (UserRole.TECHNICIAN, UserRole.MANAGER, UserRole.SECURITY)
-
-
 @router.get("", auth=SessionAuth(), response=StaffTicketPage)
-@require_role(*_STAFF)
+@require_role(*STAFF)
 def list_tickets(
     request: AuthedRequest,
     view: StaffView = StaffView.ALL,
@@ -49,7 +46,7 @@ def list_tickets(
 
 
 @router.get("/board", auth=SessionAuth(), response=StaffTicketBoard)
-@require_role(*_STAFF)
+@require_role(*STAFF)
 def ticket_board(
     request: AuthedRequest,
     workflow: uuid.UUID,
@@ -60,7 +57,7 @@ def ticket_board(
 
 
 @router.get("/{public_id}/detail", auth=SessionAuth(), response=StaffTicketDetail)
-@require_role(*_STAFF)
+@require_role(*STAFF)
 def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
     try:
         return Ticket.objects.for_detail().get(public_id=public_id)
@@ -69,8 +66,9 @@ def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
 
 
 @router.get("/{public_id}", auth=SessionAuth(), response=TicketOut)
+@require_role(*ALL_ROLES)
 def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
     try:
-        return Ticket.objects.get(public_id=public_id)
+        return Ticket.objects.visible_to(request.auth).get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e

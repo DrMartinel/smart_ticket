@@ -12,7 +12,7 @@ from django.http import HttpRequest, HttpResponse
 from ninja import Header, Router, Status
 
 from apps.accounts.models import AuthClient, RefreshSession, User
-from apps.accounts.permissions import AuthedRequest, SessionAuth
+from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_role
 from apps.accounts.request_schema import LoginIn
 from apps.accounts.response_schema import RefusedOut, SessionOut, SignInOut, UserOut
 from apps.accounts.utils import IssuedSession, Requester, SessionRefused, sessions
@@ -25,6 +25,7 @@ COOKIE_PATH = "/api/auth/"
 
 
 @router.get("/me", auth=SessionAuth(), response=UserOut)
+@require_role(*ALL_ROLES)
 def me(request: AuthedRequest) -> User:
     return request.auth
 
@@ -74,17 +75,20 @@ def logout(
 
 
 @auth_router.get("/sessions", auth=SessionAuth(), response=list[SignInOut])
+@require_role(*ALL_ROLES)
 def list_sign_ins(request: AuthedRequest) -> list[RefreshSession]:
     return sessions.live(request.auth)
 
 
 @auth_router.delete("/sessions/{family}", auth=SessionAuth(), response={204: None})
+@require_role(*ALL_ROLES)
 def end_sign_in(request: AuthedRequest, family: uuid.UUID) -> Status[None]:
     sessions.end(request.auth, family)
     return Status(204, None)
 
 
 @auth_router.post("/logout-everywhere", auth=SessionAuth(), response={204: None})
+@require_role(*ALL_ROLES)
 def logout_everywhere(request: AuthedRequest, response: HttpResponse) -> Status[None]:
     sessions.end_all(request.auth)
     for client in AuthClient:
