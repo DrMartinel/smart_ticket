@@ -436,4 +436,4 @@ this early, the codebase is dense with it) · [development.md](docs/development.
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
 [runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirty-eight
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
-0030–0038 come from the phase 2 pack; 0031–0033 are accepted, the rest proposed).
+0030–0038 come from the phase 2 pack; 0031–0033 are accepted, the rest of 0030–0038 proposed).
