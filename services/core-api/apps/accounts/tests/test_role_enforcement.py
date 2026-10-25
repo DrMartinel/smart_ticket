@@ -313,3 +313,12 @@ def test_only_a_manager_may_force_a_move(api_as, technician_user):
 @pytest.mark.parametrize("role", ["", "contractor"])
 def test_an_unknown_role_is_not_support_staff(role):
     assert User(username="x", role=role).is_support_staff is False
+
+
+def test_the_api_docs_still_send_the_bearer_token_on_gated_routes():
+    """The auth-layer gate keeps the route's security scheme in the OpenAPI schema."""
+    schema = api.get_openapi_schema()
+
+    queue = schema["paths"]["/api/review/queue"]["get"]
+
+    assert queue.get("security"), "gated route lost its security scheme"

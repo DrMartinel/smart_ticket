@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
 
-from apps.accounts.models import User, UserRole
+from apps.accounts.models import AuthSource, User, UserRole
 from apps.audit.models import AuditLog
 
 
@@ -23,6 +23,11 @@ class Command(BaseCommand):
             if user is None:
                 raise CommandError(f"no user {username!r}")
             if not off:
+                if user.external_id or user.auth_source != AuthSource.LOCAL.value:
+                    raise CommandError(
+                        "a break-glass account must be local, not linked to Keycloak; "
+                        "create a separate local manager"
+                    )
                 if user.role != UserRole.MANAGER.value:
                     raise CommandError("only a manager can be a break-glass account")
                 others = User.objects.filter(is_break_glass=True).exclude(pk=user.pk).count()

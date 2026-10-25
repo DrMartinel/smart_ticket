@@ -1,6 +1,6 @@
 # 6. F13 Identity via Keycloak — NEW + CHANGED
 
-Must (confirmed 2026-10-17) · Wave 1 · Proposed ADR-0032 · Builds on ADR-0029.
+Must (confirmed 2026-10-17) · Wave 1 · ADR-0032 (accepted 2026-10-17) · Builds on ADR-0029.
 
 ## a. Problem & goal
 
@@ -131,7 +131,7 @@ User account states (NEW, on `accounts_user`):
 |---|---|---|---|
 | BR-F13-01 | Keycloak authenticates; core-api issues the session. No Keycloak token reaches the browser except the one-time code; core-api keeps no Keycloak token after the exchange | Keeps ADR-0029's immediate revocation and httpOnly cookie; nothing extra to steal | `OidcSignIn.exchange()` |
 | BR-F13-02 | Primary role = the one `smart-ticket` client role among `employee`, `technician`, `manager`, `security`. Zero → refused. More than one → refused and alerted | One role per user is today's model (`User.role`); guessing a precedence would quietly grant power | Claims mapper |
-| BR-F13-03 | Capabilities = client roles among `workflow_admin`, `kb_editor`, `incident_manager`. Teams = groups under `/it/<team>`; `/it/<team>/lead` = lead. Unknown roles and groups are ignored and logged | Proposed ADR-0031 | Claims mapper |
+| BR-F13-03 | Capabilities = client roles among `workflow_admin`, `kb_editor`, `incident_manager`. Teams = groups under `/it/<team>`; `/it/<team>/lead` = lead. Unknown roles and groups are ignored and logged | ADR-0031 | Claims mapper |
 | BR-F13-04 | Users are identified by `sub` (`external_id`), never by username or email after linking | Usernames change; `sub` doesn't | Model unique constraint |
 | BR-F13-05 | Role or capability lost in Keycloak → all sessions revoked at the next sync, so the next sign-in carries the new rights | Rights must not outlive their grant by more than one sync interval | `identity_sync` |
 | BR-F13-06 | Local password sign-in only for ≤ `identity.max_break_glass_accounts` (2) accounts flagged `is_break_glass`, role `manager`. Every use alerts security | OQ-11 default | `Sessions.login`, DB check |
@@ -279,12 +279,15 @@ Code wins (README §0.4 item 5). Each change and its reason:
    Its holder's company sign-in gets a separate user. Linking takes only one
    active local user with the verified email; otherwise a new user is created
    and `identity_link_skipped` audited. A linked user's local password is cleared.
+   `set_break_glass` refuses an account linked to Keycloak, and a break-glass
+   account met at Keycloak sign-in is refused with a security alert.
 4. **`exp` is required** in ID and logout tokens; the clock skew is
    `OIDC_CLOCK_SKEW_SEC`.
 5. **Unauthenticated calls can't reach Keycloak at will:** an unknown key id
    refetches keys, and the sign-in page re-reads discovery, at most once per
-   `OIDC_MIN_REFETCH_SEC`. AC-F13-06's newcomer sees `idp_unavailable` within
-   that interval.
+   `OIDC_MIN_REFETCH_SEC`, and a failed fetch is remembered that long, so an
+   outage doesn't make every sign-in page wait on Keycloak. AC-F13-06's newcomer
+   sees `idp_unavailable` within that interval.
 6. **The sync** reads over one connection with a token renewed on 401, records
    any unexpected error as a failed run, and rolls back one user's failed change
    without stopping the others. The alert count is

@@ -175,6 +175,10 @@ class GatedAuth:
             _refuse(request, user, self.gate)
         return user
 
+    def __getattr__(self, name: str) -> Any:
+        """The wrapped auth's other attributes, e.g. the scheme the API docs show."""
+        return getattr(self.auth, name)
+
 
 def gate_authentication(routers: Iterable[tuple[str, Any]]) -> None:
     """Moves each gated route's role and capability check into its authentication."""

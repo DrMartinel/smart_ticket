@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
@@ -56,8 +56,11 @@ export default function BoardPage() {
       );
   }, [user]);
 
+  const latest = useRef(0);
+
   const load = useCallback(async () => {
     if (!workflowId) return;
+    const request = ++latest.current;
     const params = new URLSearchParams({ workflow: workflowId });
     if (submitted) params.set("q", submitted);
     try {
@@ -65,10 +68,13 @@ export default function BoardPage() {
         api.get<WorkflowDetail>(`/api/lifecycle/workflows/${workflowId}`),
         api.get<{ items: Card[]; counts: Record<string, number> }>(`/api/tickets/board?${params}`),
       ]);
+      if (request !== latest.current) return;
       setWf(w);
       setCards(b.items);
       setCounts(b.counts);
+      setUnavailable(null);
     } catch (err) {
+      if (request !== latest.current) return;
       setUnavailable(err instanceof ApiError && err.status === 403 ? "The board isn't available to your role." : "Couldn't load the board.");
     }
   }, [workflowId, submitted]);

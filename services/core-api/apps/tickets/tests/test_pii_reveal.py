@@ -368,3 +368,17 @@ def test_the_export_neutralises_spreadsheet_formulas(api_as, people, ticket):
 
     assert ",'=HYPERLINK(" in exported.replace('"', "")
     assert ",=HYPERLINK(" not in exported.replace('"', "")
+
+
+def test_retrying_while_limited_doesnt_extend_the_limit(api_as, people, ticket, settings):
+    """BR-F5-07: the rate-limit refusals themselves don't count toward the limit."""
+    limit = settings.THRESHOLDS.pii_reveal.max_per_user_per_hour
+    for reason in ["reveal_not_allowed"] * (limit - 1) + ["reveal_rate_limited"] * 5:
+        AuditLog.objects.record(
+            "pii_reveal_refused",
+            actor_type="human",
+            actor_id=people["duc"].id,
+            payload={"reason": reason, "placeholder": "[CCCD_1]"},
+        )
+
+    assert reveal(api_as, people["duc"]).status_code == 200

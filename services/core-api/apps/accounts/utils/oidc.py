@@ -67,6 +67,7 @@ class Keycloak:
         self._discovery: dict[str, Any] | None = None
         self._keys: dict[str, jwt.PyJWK] = {}
         self._fetched_at = 0.0
+        self._failed_at: float | None = None
         self._lock = threading.Lock()
 
     @property
@@ -113,27 +114,56 @@ class Keycloak:
         limit = settings.OIDC_JWKS_CACHE_SEC if max_age is None else max_age
         with self._lock:
             if self._discovery is None or self.age() > limit:
+                if self.failed_recently():
+                    raise SignInError(
+                        502, SignInRefusal.IDP_UNAVAILABLE, "Keycloak was unreachable moments ago"
+                    )
                 self.refresh()
             assert self._discovery is not None
             return self._discovery
 
+    def failed_recently(self) -> bool:
+        return (
+            self._failed_at is not None
+            and time.monotonic() - self._failed_at < settings.OIDC_MIN_REFETCH_SEC
+        )
+
     def refresh(self) -> None:
-        """Fetches the OpenID configuration and the signing keys; the caller holds the lock."""
+        """Fetches the OpenID configuration and the signing keys, remembering a failure;
+        the caller holds the lock."""
+        try:
+            discovery, keys = self.fetch()
+        except SignInError:
+            self._failed_at = time.monotonic()
+            raise
+        self._discovery, self._keys = discovery, keys
+        self._fetched_at = time.monotonic()
+        self._failed_at = None
+
+    def fetch(self) -> tuple[dict[str, Any], dict[str, jwt.PyJWK]]:
+        """The OpenID configuration and its signing keys; a missing or malformed answer is
+        `idp_unavailable`."""
         url = f"{settings.OIDC_SERVER_URL}{self.realm_path}/.well-known/openid-configuration"
         response = self.call("GET", url)
-        if response.status_code != 200:
+        discovery = self.json_of(response) if response.status_code == 200 else None
+        endpoints = ("authorization_endpoint", "token_endpoint", "jwks_uri")
+        if not isinstance(discovery, dict) or not all(
+            isinstance(discovery.get(e), str) for e in endpoints
+        ):
             raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "no OpenID configuration")
-        discovery = self.json_of(response)
-        keys = self.call("GET", discovery["jwks_uri"])
-        if keys.status_code != 200:
+        response = self.call("GET", discovery["jwks_uri"])
+        key_set = self.json_of(response) if response.status_code == 200 else None
+        if not isinstance(key_set, dict) or not isinstance(key_set.get("keys"), list):
             raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "no signing keys")
-        self._discovery = discovery
-        self._keys = {
+        keys = {
             k["kid"]: jwt.PyJWK(k)
-            for k in self.json_of(keys).get("keys", [])
-            if k.get("use", "sig") == "sig" and k.get("alg", "RS256") == "RS256"
+            for k in key_set["keys"]
+            if isinstance(k, dict)
+            and "kid" in k
+            and k.get("use", "sig") == "sig"
+            and k.get("alg", "RS256") == "RS256"
         }
-        self._fetched_at = time.monotonic()
+        return discovery, keys
 
     def signing_key(self, kid: str | None) -> jwt.PyJWK | None:
         """The realm key with this id; an unknown id refetches the keys at most once per
@@ -395,6 +425,17 @@ class OidcSignIn:
         except SignInError as refused:
             self.record_refusal(claims, refused, client, requester)
             raise
+        glass = User.objects.filter(external_id=claims["sub"], is_break_glass=True).first()
+        if glass is not None:
+            AuditLog.objects.record(
+                "security_alert",
+                actor_type="system",
+                actor_id=glass.id,
+                payload={"reason": "break_glass_account_in_keycloak", "sub": claims["sub"]},
+            )
+            raise SignInError(
+                403, SignInRefusal.NO_ACCESS, "a break-glass account can't sign in through Keycloak"
+            )
         with transaction.atomic():
             user = self.identities.find_or_provision(claims, rights)
         if rights.ignored:

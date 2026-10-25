@@ -1,6 +1,6 @@
 # ADR-0032: Keycloak signs people in; core-api keeps the session
 
-**Status:** Proposed (phase 2 pack, stage 2). Moved to [`docs/adr/0032-keycloak-signs-in-core-api-keeps-the-session.md`](../../../adr/0032-keycloak-signs-in-core-api-keeps-the-session.md); its status there is the one that counts
+**Status:** Proposed (phase 2 pack, stage 2). Copied to [`docs/adr/0032-keycloak-signs-in-core-api-keeps-the-session.md`](../../../adr/0032-keycloak-signs-in-core-api-keeps-the-session.md); its status there is the one that counts
 **Date:** 2026-10-17
 **Builds on:** ADR-0029 (rotating refresh tokens in httpOnly cookies)
 **Feature:** F13 ([spec](../06-F13-identity.md))

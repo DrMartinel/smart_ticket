@@ -20,7 +20,7 @@ table.
 
 **Recommendation: don't add them as new values of `User.role`.** One role per
 user can't express "a technician who also leads the Access team and edits KB
-drafts". Add two things instead (proposed ADR-0031, §9):
+drafts". Add two things instead (ADR-0031, accepted 2026-10-17, §9):
 
 1. **Team scope (F2):** `team_lead` is a role *inside a team membership*, not a
    global role. Đức can lead Network and be a plain member of Hardware.

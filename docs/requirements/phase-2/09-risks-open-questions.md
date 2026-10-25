@@ -96,6 +96,8 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 
 ## 9.4 Proposed ADRs
 
+Copied to `docs/adr/` on 2026-10-17, where their status is kept: 0031, 0032 and 0033 were accepted that day; the rest are still proposed.
+
 | ADR | Title | Feature | Relaxes a guardrail? | Draft |
 |---|---|---|---|---|
 | 0030 | SLA clocks count business time, driven by lifecycle events | F1 | No | [written](proposed-adrs/0030-sla-clocks-on-lifecycle-events.md) |

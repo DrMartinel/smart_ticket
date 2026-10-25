@@ -1,6 +1,6 @@
 # ADR-0031: Capabilities and team scope alongside the primary role
 
-**Status:** Proposed (phase 2 pack, stage 2). Moved to [`docs/adr/0031-capabilities-and-team-scope.md`](../../../adr/0031-capabilities-and-team-scope.md); its status there is the one that counts
+**Status:** Proposed (phase 2 pack, stage 2). Copied to [`docs/adr/0031-capabilities-and-team-scope.md`](../../../adr/0031-capabilities-and-team-scope.md); its status there is the one that counts
 **Date:** 2026-10-17
 **Builds on:** `apps/accounts` (`User.role`), ADR-0002
 **Features:** F2, F6, F7, F9, F13 ([personas](../04-personas.md))

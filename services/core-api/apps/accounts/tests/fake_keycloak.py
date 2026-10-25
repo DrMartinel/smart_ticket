@@ -46,6 +46,7 @@ class FakeKeycloak:
     admin_expired_once: bool = False
     garbled: bool = False
     admin_tokens: int = 0
+    attempts: int = 0
     calls: list[str] = field(default_factory=list)
 
     @property
@@ -108,6 +109,7 @@ class FakeKeycloak:
         return {"keys": [{**public, "kid": self.kid, "use": "sig", "alg": "RS256"}]}
 
     def handle(self, request: httpx.Request) -> httpx.Response:
+        self.attempts += 1
         if self.down:
             raise httpx.ConnectError("keycloak is down", request=request)
         url = str(request.url)

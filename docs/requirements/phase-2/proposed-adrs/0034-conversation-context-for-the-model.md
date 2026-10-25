@@ -1,6 +1,6 @@
 # ADR-0034: A chat conversation gives the model its earlier masked turns
 
-**Status:** Proposed (phase 2 pack, stage 2). Moved to [`docs/adr/0034-conversation-context-for-the-model.md`](../../../adr/0034-conversation-context-for-the-model.md); its status there is the one that counts
+**Status:** Proposed (phase 2 pack, stage 2). Copied to [`docs/adr/0034-conversation-context-for-the-model.md`](../../../adr/0034-conversation-context-for-the-model.md); its status there is the one that counts
 **Date:** 2026-10-17
 **Builds on:** ADR-0001, ADR-0003, ADR-0023 (requester answers the clarifying question)
 **Feature:** F3 ([spec](../06-F3-requester-chat.md))

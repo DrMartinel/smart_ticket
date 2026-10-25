@@ -1,6 +1,6 @@
 # 6. F2 Teams, assignment & workload — NEW + CHANGED
 
-Must · Wave 2 · Proposed ADR-0031 (team scope).
+Must · Wave 2 · ADR-0031 (team scope, accepted 2026-10-17).
 
 ## a. Problem & goal
 
@@ -143,7 +143,7 @@ Membership state: `is_available` true/false; leave dates.
 | BR-F2-01 | Each of the six categories (`hardware`, `software`, `network`, `access`, `security`, `other`) is owned by exactly one active team; a team may own several | Router chooses a category; assignment must be deterministic from it | DB unique on `team_categories.category`; save check |
 | BR-F2-02 | Assignment runs only after the router's decision is carried out (or a person decided). It never changes `branch`, `reason_code`, or the routing decision row | ADR-0001; "nothing quieter than a person overrides the router" | Assignment service is called from `_execute_or_enqueue`, `release_to_support` and the review-decision service only |
 | BR-F2-03 | Eligible = active user, membership `is_available`, not on leave today (calendar zone), open count < team cap (if set). `round_robin` picks the eligible member assigned longest ago; `least_loaded` picks the fewest open, ties → assigned longest ago | SDP / JSM patterns; "longest ago" keeps round robin fair when members change | `Assignment.pick()` |
-| BR-F2-04 | Who may assign: a member may take from own team; the lead assigns and reassigns within and out of the team; a manager anywhere; `security` only within `security` category | Team scope (proposed ADR-0031) | Endpoint gates |
+| BR-F2-04 | Who may assign: a member may take from own team; the lead assigns and reassigns within and out of the team; a manager anywhere; `security` only within `security` category | Team scope (ADR-0031) | Endpoint gates |
 | BR-F2-05 | Every manual reassignment needs a reason code (`wrong_team`, `workload`, `skill`, `leave`, `escalation`, `requester_request`, `other`) and a note ≥ 10 chars, masked | Reasons make reroutes teachable (spec §12.4) | Request schema; BR-X-06 |
 | BR-F2-06 | A person may change a ticket's category only through a review decision (`reroute` with `corrected_category`) or a cross-team reassignment. It is audited and creates an `eval_candidate` (`source: reroute`). No `proposed_*` field is ever read for it | ADR-0001 governs the LLM, not people; reroutes are a free label source (glossary) | Assignment service |
 | BR-F2-07 | Going unavailable or on leave does not move tickets already assigned; the lead sees them flagged in the workload view | Silent bulk moves surprise people | Workload query |

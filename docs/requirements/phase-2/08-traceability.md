@@ -24,7 +24,7 @@ feature's §d–§j.
 | G7 | — | [F12](06-F12-itsm-iam-integration.md) | Could | UC-F12-01 … UC-F12-04 (4) | FR-F12-001 … FR-F12-008 (8) | BR-F12-01 … BR-F12-08 (8) | 0006, 0028, 0038 | AC-F12-01 … AC-F12-06 (6) | 5 |
 | G6 | K10, K11 | [F13](06-F13-identity.md) | Must | UC-F13-01 … UC-F13-04 (4) | FR-F13-001 … FR-F13-012 (12) | BR-F13-01 … BR-F13-08 (8) | 0029, 0031, 0032 | AC-F13-01 … AC-F13-10 (10) | 5 |
 
-Goals and KPIs are defined in [§1](01-executive-summary.md). ADR numbers ≥ 0030 are proposed ([§9.4](09-risks-open-questions.md#94-proposed-adrs)).
+Goals and KPIs are defined in [§1](01-executive-summary.md). ADR numbers ≥ 0030 come from this pack ([§9.4](09-risks-open-questions.md#94-proposed-adrs)); 0031–0033 are accepted, the rest proposed. Statuses are kept in `docs/adr/`.
 
 ## 8.2 Use case → rules → screens
 

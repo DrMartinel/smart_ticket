@@ -645,3 +645,53 @@ class TestSyncRobustness:
         assert run is not None and not run.ok and "duc.tm" in run.error
         assert User.objects.get(external_id=duc.sub).is_active is True
         assert User.objects.get(external_id=mai.sub).is_active is False
+
+
+class TestOutageAndBreakGlass:
+    def test_an_outage_is_remembered_between_sign_in_pages(self, realm, settings):
+        """While Keycloak is down, sign-in pages don't each wait on it (OIDC_MIN_REFETCH_SEC)."""
+        settings.OIDC_MIN_REFETCH_SEC = 60
+        realm.down = True
+
+        answers = [Client().get("/api/auth/oidc/config") for _ in range(5)]
+
+        assert {a.json()["code"] for a in answers} == {"idp_unavailable"}
+        assert realm.attempts == 1
+
+    def test_a_malformed_discovery_is_idp_unavailable(self, realm, monkeypatch):
+        original = realm.handle
+
+        def without_jwks(request):
+            response = original(request)
+            if str(request.url).endswith("/.well-known/openid-configuration"):
+                body = response.json()
+                body.pop("jwks_uri")
+                return httpx.Response(200, json=body)
+            return response
+
+        monkeypatch.setattr(realm, "handle", without_jwks)
+
+        response = Client().get("/api/auth/oidc/config")
+
+        assert response.json()["code"] == "idp_unavailable"
+
+    def test_a_keycloak_user_cant_be_made_break_glass(self, realm):
+        from io import StringIO
+
+        from django.core.management import CommandError, call_command
+
+        huy = realm.add(Person(username="huy.pq", roles=["manager"]))
+        sign_in(realm, huy)
+
+        with pytest.raises(CommandError, match="must be local"):
+            call_command("set_break_glass", "huy.pq", stdout=StringIO())
+
+    def test_a_break_glass_account_met_at_sign_in_is_refused(self, realm):
+        huy = realm.add(Person(username="huy.pq", roles=["manager"]))
+        sign_in(realm, huy)
+        User.objects.filter(external_id=huy.sub).update(is_break_glass=True)
+
+        response = sign_in(realm, huy)
+
+        assert response.status_code == 403
+        assert events("security_alert")[-1].payload["reason"] == "break_glass_account_in_keycloak"
