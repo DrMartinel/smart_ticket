@@ -167,3 +167,38 @@ def test_unassigning_clears_owner_and_team_and_is_audited(api_as, employee_user,
     assert first.payload["new"] == {"assignee": "tech", "team": "network"}
     assert second.payload["new"] == {"assignee": None, "team": None}
     assert first.actor_id == second.actor_id == technician_user.id
+
+
+def test_security_can_list_open_and_board_tickets(api_as, employee_user, security_user):
+    """Security works review queues (injection, pii_verify), so the staff ticket views admit it."""
+    from apps.lifecycle.models import Workflow
+
+    ticket = make_ticket(employee_user)
+    client = api_as(security_user)
+    workflow = Workflow.objects.get(is_default=True)
+
+    assert client.get("/api/tickets").status_code == 200
+    assert client.get(f"/api/tickets/{ticket.public_id}/detail").status_code == 200
+    assert client.get(f"/api/tickets/board?workflow={workflow.id}").status_code == 200
+
+
+def test_the_detail_loads_its_lists_in_a_fixed_number_of_queries(
+    api_as, employee_user, technician_user, django_assert_max_num_queries
+):
+    from apps.tickets.models import AiRun
+
+    ticket = make_ticket(employee_user)
+    for n in range(3):
+        ReviewItem.objects.create(ticket=ticket, queue="low_confidence")
+        AiRun.objects.create(
+            ticket=ticket,
+            idempotency_key=f"{ticket.id}:{n}",
+            prompt_version="t",
+            model="t",
+            graph_version="t",
+            trust_signals={},
+        )
+    client = api_as(technician_user)
+
+    with django_assert_max_num_queries(12):
+        assert client.get(f"/api/tickets/{ticket.public_id}/detail").status_code == 200

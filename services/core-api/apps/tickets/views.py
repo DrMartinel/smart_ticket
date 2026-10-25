@@ -60,9 +60,7 @@ def ticket_board(
 @require_role(*STAFF)
 def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
     try:
-        return Ticket.objects.select_related(
-            "reporter", "assigned_to", "workflow_status__base"
-        ).get(public_id=public_id)
+        return Ticket.objects.for_detail().get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
 

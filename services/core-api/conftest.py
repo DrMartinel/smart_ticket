@@ -27,6 +27,11 @@ def technician_user(django_user_model):
 
 
 @pytest.fixture
+def security_user(django_user_model):
+    return django_user_model.objects.create_user(username="sec", password="x", role="security")
+
+
+@pytest.fixture
 def api_as():
     """`api_as(user)` is a test client signed in as `user` through a real
     session (`apps.accounts.testing.api_client_for`)."""
