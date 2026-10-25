@@ -275,3 +275,38 @@ def test_a_role_outside_the_route_table_is_refused(api_as, method, path, body, r
 
     assert response.status_code == 403
     assert response.json()["code"] == "role_not_allowed"
+
+
+@pytest.mark.django_db
+def test_a_refused_caller_is_refused_before_the_body_is_read(api_as):
+    """BR-PRE1-03: a malformed body doesn't turn a refusal into an unaudited 422."""
+    lan = user("lan.nt", UserRole.EMPLOYEE)
+
+    response = api_as(lan).post("/api/kb", {}, content_type="application/json")
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "role_not_allowed"
+    assert "detail" not in response.json()
+    assert access_denied_rows(lan) == 1
+
+
+@pytest.mark.django_db
+def test_only_a_manager_may_force_a_move(api_as, technician_user):
+    from apps.lifecycle.tests.conftest import make_ticket
+
+    ticket = make_ticket(user("lan.nt", UserRole.EMPLOYEE))
+
+    response = api_as(technician_user).post(
+        f"/api/lifecycle/tickets/{ticket.public_id}/move",
+        {"status_id": str(ticket.workflow_status_id), "force": True},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "role_not_allowed"
+    assert access_denied_rows(technician_user) == 1
+
+
+@pytest.mark.parametrize("role", ["", "contractor"])
+def test_an_unknown_role_is_not_support_staff(role):
+    assert User(username="x", role=role).is_support_staff is False

@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from django.db import DatabaseError, transaction
+from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
 
 from apps.accounts.models import User
@@ -67,6 +67,14 @@ ACCESS_LOG_COLUMNS = (
 )
 
 
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def spreadsheet_safe(value: str) -> str:
+    """The value, prefixed with ' when a spreadsheet would read it as a formula."""
+    return f"'{value}" if value.startswith(_FORMULA_START) else value
+
+
 class PiiReveal:
     """The one way core-api reads raw PII back out of `pii_quarantine`."""
 
@@ -85,15 +93,14 @@ class PiiReveal:
     ) -> Revealed:
         """Logs, decrypts and audits one placeholder's value in one transaction."""
         ticket = Ticket.objects.filter(public_id=public_id).first()
-        if ticket is None or placeholder not in ticket.pii_map:
-            raise RevealError(404, RevealRefusal.PLACEHOLDER_NOT_FOUND, "no such placeholder")
-        review_item = self.check_access(ticket, actor, placeholder)
-        masked_reason = self.check_reason(reason)
-        self.check_rate(actor, ticket, trace_id)
-
         now = timezone.now()
         try:
+            if ticket is None or placeholder not in ticket.pii_map:
+                raise RevealError(404, RevealRefusal.PLACEHOLDER_NOT_FOUND, "no such placeholder")
+            review_item = self.check_access(ticket, actor, placeholder)
+            masked_reason = self.check_reason(reason)
             with transaction.atomic():
+                self.check_rate(actor)
                 value, log = self.read_logged(
                     ticket, actor, placeholder, reason_code, masked_reason, review_item, now
                 )
@@ -110,8 +117,7 @@ class PiiReveal:
                     trace_id=trace_id,
                 )
         except RevealError as refused:
-            if refused.status >= 500:
-                self.record_failure(ticket, actor, placeholder, refused.code, trace_id)
+            self.record_refusal(ticket, actor, placeholder, refused.code, refused.status, trace_id)
             raise
         return Revealed(
             placeholder=placeholder,
@@ -153,35 +159,24 @@ class PiiReveal:
             )
         return masked
 
-    def check_rate(self, actor: User, ticket: Ticket, trace_id: str | None) -> None:
-        """Refuses past the hourly limit, alerting security once an hour (BR-F5-07)."""
+    def check_rate(self, actor: User) -> None:
+        """Refuses once the actor's reveals and refused attempts in the last hour reach the
+        limit (BR-F5-07); holds a per-actor lock until the reveal's transaction ends."""
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [f"pii_reveal:{actor.id}"])
         hour_ago = timezone.now() - timedelta(hours=1)
-        if (
+        attempts = (
             PiiAccessLog.objects.by_actor_since(actor, hour_ago).count()
-            < self.thresholds.max_per_user_per_hour
-        ):
-            return
-        alerted = AuditLog.objects.filter(
-            event="security_alert",
-            actor_id=actor.id,
-            payload__reason=RevealRefusal.REVEAL_RATE_LIMITED.value,
-            occurred_at__gte=hour_ago,
-        ).exists()
-        if not alerted:
-            AuditLog.objects.record(
-                "security_alert",
-                actor_type="human",
-                actor_id=actor.id,
-                ticket_id=ticket.id,
-                payload={
-                    "reason": RevealRefusal.REVEAL_RATE_LIMITED.value,
-                    "limit": self.thresholds.max_per_user_per_hour,
-                },
-                trace_id=trace_id,
-            )
-        raise RevealError(
-            429, RevealRefusal.REVEAL_RATE_LIMITED, "hourly reveal limit reached; security alerted"
+            + AuditLog.objects.filter(
+                event="pii_reveal_refused", actor_id=actor.id, occurred_at__gte=hour_ago
+            ).count()
         )
+        if attempts >= self.thresholds.max_per_user_per_hour:
+            raise RevealError(
+                429,
+                RevealRefusal.REVEAL_RATE_LIMITED,
+                "hourly reveal limit reached; security alerted",
+            )
 
     def read_logged(
         self,
@@ -222,22 +217,37 @@ class PiiReveal:
                 500, RevealRefusal.DECRYPT_FAILED, "the value could not be decrypted"
             ) from e
 
-    def record_failure(
+    def record_refusal(
         self,
-        ticket: Ticket,
+        ticket: Ticket | None,
         actor: User,
         placeholder: str,
         code: RevealRefusal,
+        status: int,
         trace_id: str | None,
     ) -> None:
-        """Audits a failed reveal and alerts security, outside the rolled-back transaction."""
-        for event in ("pii_reveal_failed", "security_alert"):
+        """Audits a refused or failed reveal outside its rolled-back transaction, alerting
+        security on a failure and on the first rate-limit refusal in an hour."""
+        events = (
+            ["pii_reveal_failed", "security_alert"] if status >= 500 else ["pii_reveal_refused"]
+        )
+        if (
+            code is RevealRefusal.REVEAL_RATE_LIMITED
+            and not AuditLog.objects.filter(
+                event="security_alert",
+                actor_id=actor.id,
+                payload__reason=code.value,
+                occurred_at__gte=timezone.now() - timedelta(hours=1),
+            ).exists()
+        ):
+            events.append("security_alert")
+        for event in events:
             AuditLog.objects.record(
                 event,
                 actor_type="human",
                 actor_id=actor.id,
-                ticket_id=ticket.id,
-                payload={"reason": code.value, "placeholder": placeholder},
+                ticket_id=ticket.id if ticket else None,
+                payload={"reason": code.value, "placeholder": placeholder[:40]},
                 trace_id=trace_id,
             )
 
@@ -250,14 +260,17 @@ class PiiReveal:
         for row in rows:
             writer.writerow(
                 [
-                    row.accessed_at.isoformat(),
-                    row.actor.username,
-                    row.ticket.public_id,
-                    row.placeholder,
-                    row.reason_code,
-                    row.reason,
-                    row.review_item_id or "",
-                    row.outcome,
+                    spreadsheet_safe(str(cell))
+                    for cell in (
+                        row.accessed_at.isoformat(),
+                        row.actor.username,
+                        row.ticket.public_id,
+                        row.placeholder,
+                        row.reason_code,
+                        row.reason,
+                        row.review_item_id or "",
+                        row.outcome,
+                    )
                 ]
             )
             count += 1

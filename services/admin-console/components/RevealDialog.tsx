@@ -91,7 +91,7 @@ export default function RevealDialog({
           </button>
         ) : (
           <>
-            <button className="btn btn-secondary" onClick={onClose}>
+            <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
               Cancel
             </button>
             <button

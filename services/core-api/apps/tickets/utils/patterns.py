@@ -77,12 +77,16 @@ ALL_GROUPS = {
 _PLACEHOLDER = re.compile(r"^\[([A-Z_]+)_\d+\]$")
 
 
+# NER's spans (masking._spans_to_hits) carry this label at the routine level.
+_ROUTINE_LABELS = frozenset(ROUTINE_PATTERNS) | {"FREEFORM"}
+
+
 def placeholder_level(placeholder: str) -> PIILevel:
-    """The PII level of a placeholder such as `[CCCD_1]`, read from its label."""
+    """The PII level of a placeholder such as `[CCCD_1]`; critical unless its label is known."""
     match = _PLACEHOLDER.match(placeholder)
     label = match.group(1) if match else ""
-    if label in CRITICAL_PATTERNS:
-        return PIILevel.CRITICAL
     if label in SENSITIVE_PATTERNS:
         return PIILevel.SENSITIVE
-    return PIILevel.ROUTINE
+    if label in _ROUTINE_LABELS:
+        return PIILevel.ROUTINE
+    return PIILevel.CRITICAL

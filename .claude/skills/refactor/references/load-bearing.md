@@ -123,6 +123,12 @@ guard and that comment is later trimmed, the entry is the record.
   the reveal's transaction. Decrypting first looks equivalent. Then a failed insert
   leaves plaintext already in memory on a path that can return it.
   *`test_no_plaintext_when_access_log_insert_fails`, `test_decrypt_has_one_caller`.*
+- **`PiiReveal.check_rate` inside the reveal's transaction, under a per-actor
+  advisory lock.** Counting before the transaction looks the same. Then parallel
+  requests all see the same count and a script gets past the hourly limit.
+- **`placeholder_level` answering critical for an unknown label.** Defaulting to
+  routine looks harmless today. A new credential label would then be revealable
+  by technicians, with no error (hard rule 3). *`TestPlaceholderLevel`.*
 - **The `pii_access_log` trigger** (`infra/migrations/sql/0007`). The REVOKE beside
   it does nothing to core-api's own role, which owns the table; only the trigger
   stops an UPDATE or DELETE. *`test_access_log_rejects_update_and_delete`.*
@@ -202,6 +208,11 @@ guard and that comment is later trimmed, the entry is the record.
   wrapper is `permissions.py`. In a module with `from __future__ import
   annotations` every request body then fails to resolve, and each call is a
   500. *The chat and review API tests.*
+- **`gate_authentication` wrapping each gated route's auth callback** (`GatedAuth`,
+  called in `config/urls.py`). The check inside the handler looks like enough.
+  Without the auth-layer one, Ninja validates the body first: a refused caller
+  with a malformed body gets a 422 listing the schema and no `access_denied`
+  row. *`test_a_refused_caller_is_refused_before_the_body_is_read`.*
 - **`allowed_roles` following `__wrapped__`.** `@paginate` sits above the
   gate on `GET /api/kb`; without the walk that route reads as ungated.
 - **The runbook checks in `RunbookExecution.objects.execute`**

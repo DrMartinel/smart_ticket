@@ -8,59 +8,13 @@ import { api, ApiError } from "@/lib/api";
 import { BRANCH_LABEL, INTENT_LABEL, QUEUE_LABEL, reasonText } from "@/lib/explain";
 import { dateTime, humanize, percent, relativeTime } from "@/lib/format";
 import { piiLevelClasses, priorityClasses } from "@/lib/badges";
-import PiiText, { type PlaceholderLevel } from "@/components/PiiText";
+import PiiText from "@/components/PiiText";
 import StatusChip from "@/components/StatusChip";
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
 import TrustSignalsPanel, { type TrustSignalsPanelProps } from "@/components/TrustSignalsPanel";
+import type { StaffTicketDetail } from "@/lib/types/generated";
 
-interface Status {
-  key: string;
-  name: string;
-  color: string;
-  stage: string;
-  is_completed: boolean;
-}
-
-interface Review {
-  id: string;
-  queue: string;
-  priority: number;
-  state: string;
-}
-
-interface Detail {
-  public_id: string;
-  subject_masked: string;
-  body_masked: string;
-  status: Status;
-  category: string | null;
-  assigned_team: string | null;
-  assignee: string | null;
-  reporter_person: { username: string; email: string };
-  source: string;
-  pii_level: string;
-  pii_placeholders: PlaceholderLevel[];
-  created_at: string;
-  sla_due_at: string | null;
-  resolved_at: string | null;
-  reopened_count: number;
-  review: Review | null;
-  reviews: Review[];
-  routing: { branch: string; reason_code: string; reason_detail: string; shadow_mode: boolean; decided_at: string }[];
-  ai: {
-    intent: string | null;
-    category: string | null;
-    category_confidence: number | null;
-    kb_slug: string | null;
-    kb_title: string | null;
-    answer_draft: string | null;
-    verbatim_quote: string | null;
-    trust_score: number | null;
-    degraded_reason: string | null;
-    injection_detected: boolean;
-  } | null;
-  clarifications: { question: string; options: string[]; answer_masked: string | null; asked_at: string; answered_at: string | null }[];
-}
+type Detail = StaffTicketDetail;
 
 interface Lifecycle {
   status: string;
@@ -191,12 +145,12 @@ export default function TicketPage() {
               <PiiText
                 publicId={detail.public_id}
                 text={detail.body_masked}
-                placeholders={detail.pii_placeholders}
+                placeholders={detail.pii_placeholders ?? []}
                 canReveal={mayReveal}
                 isSecurity={user.role === "security"}
               />
             </div>
-            {mayReveal && detail.pii_placeholders.length > 0 && (
+            {mayReveal && (detail.pii_placeholders ?? []).length > 0 && (
               <p className="mt-2 text-[11px] text-[var(--text-muted)]">
                 Chips are placeholders. Click one to reveal it; you need the claim on this ticket&apos;s review item or its
                 assignment, and every reveal is logged.
@@ -241,7 +195,7 @@ export default function TicketPage() {
                 {detail.ai && (
                   <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-2">
                     <dt className="text-[var(--text-muted)]">Proposed</dt>
-                    <dd>{detail.ai.intent ? INTENT_LABEL[detail.ai.intent] ?? humanize(detail.ai.intent) : "Nothing"}</dd>
+                    <dd>{detail.ai.proposed_intent ? INTENT_LABEL[detail.ai.proposed_intent] ?? humanize(detail.ai.proposed_intent) : "Nothing"}</dd>
                     <dt className="text-[var(--text-muted)]">Category</dt>
                     <dd>
                       {detail.ai.category ?? "Not chosen"}
@@ -322,7 +276,7 @@ export default function TicketPage() {
                 </div>
               ) : (
                 <ReviewForm
-                  hasAutoReplyProposal={detail.ai?.intent === "auto_reply"}
+                  hasAutoReplyProposal={detail.ai?.proposed_intent === "auto_reply"}
                   aiCategory={detail.ai?.category ?? null}
                   submitting={busy}
                   onSubmit={(payload: ReviewDecisionPayload) =>

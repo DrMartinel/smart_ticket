@@ -209,6 +209,10 @@ Code wins (README §0.4 item 5). Each change and its reason:
    from the response's `shown_until`.
 7. **Reason length** outside 10–500 answers `reason_required` (one code for empty,
    short and long), and a time filter without a zone is UTC (BR-X-09).
+8. **Refused reveals are audited and counted** (`pii_reveal_refused`, code and
+   placeholder only) toward `pii_reveal.max_per_user_per_hour`, so probing with
+   refused attempts meets the same limit; the count runs under a per-person lock.
+   A placeholder whose label isn't known is treated as critical.
 
 ## j. Acceptance criteria
 

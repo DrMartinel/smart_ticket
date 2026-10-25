@@ -96,3 +96,74 @@ def test_assigning_records_the_owner_and_refuses_a_requester(
     ticket.refresh_from_db()
     assert (ticket.assigned_to, ticket.assigned_team) == (technician_user, "network")
     assert bad.status_code == 422
+
+
+def test_the_detail_summarises_the_latest_ai_run(api_as, employee_user, technician_user):
+    from apps.kb.models import KbArticle
+    from apps.tickets.models import AiRun
+
+    ticket = make_ticket(employee_user)
+    KbArticle.objects.create(
+        slug="iam.reset", title="Reset an access portal password", body="x", category="access"
+    )
+    AiRun.objects.create(
+        ticket=ticket,
+        idempotency_key=f"{ticket.id}:1",
+        prompt_version="t",
+        model="t",
+        graph_version="t",
+        proposed_draft={
+            "proposed_intent": "auto_reply",
+            "kb_slug": "iam.reset",
+            "answer_draft": "Use the reset link.",
+            "verbatim_quote": "Choose Forgot password.",
+        },
+        trust_signals={
+            "classification": {"category_choice": "access", "category_confidence": 0.91},
+            "policy": {"injection_detected": True},
+        },
+        trust_score="0.8125",
+        degraded_reason="rerank_low_confidence",
+    )
+
+    ai = api_as(technician_user).get(f"/api/tickets/{ticket.public_id}/detail").json()["ai"]
+
+    assert ai["proposed_intent"] == "auto_reply"
+    assert (ai["category"], ai["category_confidence"]) == ("access", 0.91)
+    assert ai["kb_title"] == "Reset an access portal password"
+    assert ai["trust_score"] == 0.8125
+    assert ai["degraded_reason"] == "rerank_low_confidence"
+    assert ai["injection_detected"] is True
+
+
+def test_a_requester_cannot_read_the_detail_or_assign(api_as, employee_user):
+    ticket = make_ticket(employee_user)
+    client = api_as(employee_user)
+
+    detail = client.get(f"/api/tickets/{ticket.public_id}/detail")
+    assign = client.post(
+        f"/api/lifecycle/tickets/{ticket.public_id}/assign",
+        {"assignee": None},
+        content_type="application/json",
+    )
+
+    assert detail.status_code == assign.status_code == 403
+
+
+def test_unassigning_clears_owner_and_team_and_is_audited(api_as, employee_user, technician_user):
+    from apps.audit.models import AuditLog
+
+    ticket = make_ticket(employee_user)
+    client = api_as(technician_user)
+    url = f"/api/lifecycle/tickets/{ticket.public_id}/assign"
+    client.post(url, {"assignee": "tech", "team": "network"}, content_type="application/json")
+
+    response = client.post(url, {"assignee": None, "team": None}, content_type="application/json")
+
+    assert response.status_code == 200
+    ticket.refresh_from_db()
+    assert (ticket.assigned_to, ticket.assigned_team) == (None, None)
+    first, second = AuditLog.objects.filter(event="ticket_assigned").order_by("occurred_at")
+    assert first.payload["new"] == {"assignee": "tech", "team": "network"}
+    assert second.payload["new"] == {"assignee": None, "team": None}
+    assert first.actor_id == second.actor_id == technician_user.id
