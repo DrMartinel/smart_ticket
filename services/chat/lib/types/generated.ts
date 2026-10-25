@@ -113,7 +113,7 @@ export interface TrustSignals {
 export interface TrustScore {
   value: number;
   model_version: string;
-  contributions?: Record<string, unknown>;
+  contributions?: Record<string, number>;
 }
 
 export interface KBArticleMeta {
@@ -190,6 +190,106 @@ export interface ChatTurnOut {
   created_at: string;
   status_name?: string | null;
   resolved?: boolean;
+}
+
+export interface PersonOut {
+  username: string;
+  email: string;
+}
+
+export interface StatusOut {
+  key: string;
+  name: string;
+  color: string;
+  stage: string;
+  is_completed: boolean;
+}
+
+export interface OpenReviewOut {
+  id: string;
+  queue: string;
+  priority: number;
+  state: string;
+}
+
+export interface StaffTicketRow {
+  public_id: string;
+  subject_masked: string;
+  status: StatusOut;
+  category: string | null;
+  assigned_team: string | null;
+  assignee: string | null;
+  reporter: string;
+  source: string;
+  pii_level: string;
+  created_at: string;
+  sla_due_at: string | null;
+  review: OpenReviewOut | null;
+  version: number;
+}
+
+export interface StaffTicketPage {
+  items: StaffTicketRow[];
+  total: number;
+  counts: Record<string, number>;
+}
+
+export interface StaffTicketBoard {
+  items: StaffTicketRow[];
+  counts: Record<string, number>;
+}
+
+export interface RoutingOut {
+  branch: string;
+  reason_code: string;
+  reason_detail: string;
+  shadow_mode: boolean;
+  decided_at: string;
+}
+
+export interface AiSummaryOut {
+  proposed_intent: string | null;
+  category: string | null;
+  category_confidence: number | null;
+  kb_slug: string | null;
+  kb_title: string | null;
+  answer_draft: string | null;
+  verbatim_quote: string | null;
+  trust_score: number | null;
+  degraded_reason: string | null;
+  injection_detected: boolean;
+}
+
+export interface ClarificationOut {
+  question: string;
+  options: string[];
+  answer_masked: string | null;
+  asked_at: string;
+  answered_at: string | null;
+}
+
+export interface StaffTicketDetail {
+  public_id: string;
+  subject_masked: string;
+  status: StatusOut;
+  category: string | null;
+  assigned_team: string | null;
+  assignee: string | null;
+  reporter: string;
+  source: string;
+  pii_level: string;
+  created_at: string;
+  sla_due_at: string | null;
+  review: OpenReviewOut | null;
+  version: number;
+  body_masked: string;
+  reporter_person: PersonOut;
+  resolved_at: string | null;
+  reopened_count: number;
+  routing: RoutingOut[];
+  ai: AiSummaryOut | null;
+  reviews: OpenReviewOut[];
+  clarifications: ClarificationOut[];
 }
 
 export type LLMProposal =

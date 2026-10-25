@@ -412,7 +412,11 @@ def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]
 @require_role(*_READ)
 def retry_transfer(request: AuthedRequest, public_id: str) -> Transfer:
     transfer = lifecycle.retry(_ticket(public_id).id, request.auth)
-    return Transfer.objects.select_related("ticket").prefetch_related("runs").get(pk=transfer.id)
+    return (
+        Transfer.objects.select_related("ticket", "before_status", "after_status", "actor")
+        .prefetch_related("runs")
+        .get(pk=transfer.id)
+    )
 
 
 @router.get("/transfers/failed", auth=SessionAuth(), response=list[TransferOut])

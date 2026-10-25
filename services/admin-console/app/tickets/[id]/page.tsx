@@ -11,54 +11,9 @@ import { priorityClasses } from "@/lib/badges";
 import StatusChip from "@/components/StatusChip";
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
 import TrustSignalsPanel, { type TrustSignalsPanelProps } from "@/components/TrustSignalsPanel";
+import type { StaffTicketDetail } from "@/lib/types/generated";
 
-interface Status {
-  key: string;
-  name: string;
-  color: string;
-  stage: string;
-  is_completed: boolean;
-}
-
-interface Review {
-  id: string;
-  queue: string;
-  priority: number;
-  state: string;
-}
-
-interface Detail {
-  public_id: string;
-  subject_masked: string;
-  body_masked: string;
-  status: Status;
-  category: string | null;
-  assigned_team: string | null;
-  assignee: string | null;
-  reporter_person: { username: string; email: string };
-  source: string;
-  pii_level: string;
-  created_at: string;
-  sla_due_at: string | null;
-  resolved_at: string | null;
-  reopened_count: number;
-  review: Review | null;
-  reviews: Review[];
-  routing: { branch: string; reason_code: string; reason_detail: string; shadow_mode: boolean; decided_at: string }[];
-  ai: {
-    intent: string | null;
-    category: string | null;
-    category_confidence: number | null;
-    kb_slug: string | null;
-    kb_title: string | null;
-    answer_draft: string | null;
-    verbatim_quote: string | null;
-    trust_score: number | null;
-    degraded_reason: string | null;
-    injection_detected: boolean;
-  } | null;
-  clarifications: { question: string; options: string[]; answer_masked: string | null; asked_at: string; answered_at: string | null }[];
-}
+type Detail = StaffTicketDetail;
 
 interface Lifecycle {
   status: string;
@@ -103,6 +58,7 @@ export default function TicketPage() {
   const [lifecycle, setLifecycle] = useState<Lifecycle | null>(null);
   const [moves, setMoves] = useState<Move[]>([]);
   const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [lifecycleRefused, setLifecycleRefused] = useState(false);
   const [reviewItem, setReviewItem] = useState<ReviewItemDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -110,19 +66,26 @@ export default function TicketPage() {
 
   const load = useCallback(async () => {
     try {
-      const [d, l, m, t] = await Promise.all([
-        api.get<Detail>(`/api/tickets/${id}/detail`),
+      const d = await api.get<Detail>(`/api/tickets/${id}/detail`);
+      setDetail(d);
+      setReviewItem(d.review ? await api.get<ReviewItemDetail>(`/api/review/items/${d.review.id}`) : null);
+    } catch {
+      setError("Couldn't load this ticket.");
+      return;
+    }
+    try {
+      const [l, m, t] = await Promise.all([
         api.get<Lifecycle>(`/api/lifecycle/tickets/${id}`),
         api.get<Move[]>(`/api/lifecycle/tickets/${id}/transitions`),
         api.get<Transfer[]>(`/api/lifecycle/tickets/${id}/transfers`),
       ]);
-      setDetail(d);
       setLifecycle(l);
       setMoves(m);
       setTransfers(t);
-      setReviewItem(d.review ? await api.get<ReviewItemDetail>(`/api/review/items/${d.review.id}`) : null);
-    } catch {
-      setError("Couldn't load this ticket.");
+      setLifecycleRefused(false);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 403) setLifecycleRefused(true);
+      else setError("Couldn't load this ticket.");
     }
   }, [id]);
 
@@ -132,7 +95,7 @@ export default function TicketPage() {
 
   if (!user) return null;
   if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
-  if (!detail || !lifecycle) return <p className="text-sm text-[var(--text-muted)]">Loading…</p>;
+  if (!detail || (!lifecycle && !lifecycleRefused)) return <p className="text-sm text-[var(--text-muted)]">Loading…</p>;
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -216,7 +179,7 @@ export default function TicketPage() {
                 {detail.ai && (
                   <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-2">
                     <dt className="text-[var(--text-muted)]">Proposed</dt>
-                    <dd>{detail.ai.intent ? INTENT_LABEL[detail.ai.intent] ?? humanize(detail.ai.intent) : "Nothing"}</dd>
+                    <dd>{detail.ai.proposed_intent ? INTENT_LABEL[detail.ai.proposed_intent] ?? humanize(detail.ai.proposed_intent) : "Nothing"}</dd>
                     <dt className="text-[var(--text-muted)]">Category</dt>
                     <dd>
                       {detail.ai.category ?? "Not chosen"}
@@ -297,7 +260,7 @@ export default function TicketPage() {
                 </div>
               ) : (
                 <ReviewForm
-                  hasAutoReplyProposal={detail.ai?.intent === "auto_reply"}
+                  hasAutoReplyProposal={detail.ai?.proposed_intent === "auto_reply"}
                   aiCategory={detail.ai?.category ?? null}
                   submitting={busy}
                   onSubmit={(payload: ReviewDecisionPayload) =>
@@ -317,11 +280,13 @@ export default function TicketPage() {
           <Section title="Status">
             <StatusChip name={detail.status.name} color={detail.status.color} />
             {detail.status.stage && <p className="mt-1 text-xs text-[var(--text-muted)]">Stage: {detail.status.stage}</p>}
-            {lifecycle.waiting_transform && (
+            {lifecycle?.waiting_transform && (
               <p className="tone-warn mt-3 rounded-[5px] px-2.5 py-1.5 text-xs">A move is in progress: its actions are running.</p>
             )}
             <div className="mt-4">
-              {TRIAGE.has(detail.status.key) ? (
+              {!lifecycle ? (
+                <p className="text-xs text-[var(--text-muted)]">Moves and the ticket&apos;s history aren&apos;t available to your role.</p>
+              ) : TRIAGE.has(detail.status.key) ? (
                 <p className="text-xs text-[var(--text-muted)]">
                   Triage or the requester has this ticket. It can be moved once triage has finished.
                 </p>
@@ -362,6 +327,7 @@ export default function TicketPage() {
             </div>
           </Section>
 
+          {lifecycle && (
           <OwnerCard
             assignee={detail.assignee}
             team={detail.assigned_team}
@@ -370,6 +336,7 @@ export default function TicketPage() {
               act(() => api.post(`/api/lifecycle/tickets/${id}/assign`, { assignee, team }), "Owner updated.")
             }
           />
+          )}
 
           <Section title="Details">
             <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
@@ -388,7 +355,7 @@ export default function TicketPage() {
             </dl>
           </Section>
 
-          {lifecycle.field_values.length > 0 && (
+          {lifecycle && lifecycle.field_values.length > 0 && (
             <Section title="Fields">
               <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
                 {lifecycle.field_values.map((f) => (
