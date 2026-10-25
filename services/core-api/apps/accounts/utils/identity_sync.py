@@ -8,15 +8,20 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.conf import settings
-from django.db import connection
+from django.db import connection, transaction
 
 from apps.accounts.models import AuthSource, IdentitySyncRun, User
 from apps.accounts.utils import SignInError, SignInRefusal, sessions
-from apps.accounts.utils.oidc import Identities, Keycloak, Rights, rights_from_claims
+from apps.accounts.utils.oidc import (
+    AdminSession,
+    Identities,
+    Keycloak,
+    Rights,
+    rights_from_claims,
+)
 from apps.audit.models import AuditLog
 
 LOCK_KEY = "identity_sync"
-FAILURES_BEFORE_AUDIT = 3
 
 
 @dataclass(frozen=True)
@@ -40,16 +45,31 @@ class IdentitySync:
         self.identities = identities
 
     def run(self) -> IdentitySyncRun | None:
-        """Reads everything first and changes nothing if any read fails; None if another run holds the lock."""
+        """Reads everything first and changes nobody if any read fails; None if another run
+        holds the lock."""
         with self.lock() as held:
             if not held:
                 return None
-            users = list(User.objects.filter(auth_source=AuthSource.OIDC.value, is_active=True))
+            users = list(
+                User.objects.filter(
+                    auth_source=AuthSource.OIDC.value, is_active=True, is_break_glass=False
+                )
+            )
             try:
                 desired = self.read(users)
-            except SyncFailed as failed:
-                return self.record_failure(len(users), str(failed))
-            changed = sum(self.apply(d) for d in desired)
+            except Exception as failed:
+                return self.record_failure(len(users), f"{type(failed).__name__}: {failed}")
+            changed, failed_users = 0, []
+            for d in desired:
+                try:
+                    with transaction.atomic():
+                        changed += self.apply(d)
+                except Exception as failed:
+                    failed_users.append(f"{d.user.username}: {type(failed).__name__}")
+            if failed_users:
+                return self.record_failure(
+                    len(users), f"{len(failed_users)} user(s) failed: {'; '.join(failed_users)}"
+                )
             return IdentitySyncRun.objects.create(ok=True, checked=len(users), changed=changed)
 
     @contextmanager
@@ -67,37 +87,42 @@ class IdentitySync:
     def read(self, users: list[User]) -> list[Desired]:
         """Each user's state in Keycloak; raises SyncFailed on any failed read."""
         try:
-            token = self.keycloak.admin_token()
-            client_uuid = self.client_uuid(token)
-            return [self.read_one(user, token, client_uuid) for user in users]
+            admin = AdminSession(self.keycloak)
         except SignInError as e:
             raise SyncFailed(e.message) from e
+        try:
+            client_uuid = self.client_uuid(admin)
+            return [self.read_one(user, admin, client_uuid) for user in users]
+        except SignInError as e:
+            raise SyncFailed(e.message) from e
+        finally:
+            admin.close()
 
-    def client_uuid(self, token: str) -> str:
-        response = self.keycloak.admin_get(f"/clients?clientId={settings.OIDC_CLIENT_ID}", token)
-        found = response.json() if response.status_code == 200 else []
+    def client_uuid(self, admin: AdminSession) -> str:
+        response = admin.get(f"/clients?clientId={settings.OIDC_CLIENT_ID}")
+        found = admin.json(response) if response.status_code == 200 else []
         if not found:
             raise SyncFailed(f"client lookup answered {response.status_code}")
         return str(found[0]["id"])
 
-    def read_one(self, user: User, token: str, client_uuid: str) -> Desired:
-        found = self.keycloak.admin_get(f"/users/{user.external_id}", token)
+    def read_one(self, user: User, admin: AdminSession, client_uuid: str) -> Desired:
+        found = admin.get(f"/users/{user.external_id}")
         if found.status_code == 404:
             return Desired(user, None, "not_in_keycloak")
         self.expect_ok(found)
-        if not found.json().get("enabled", False):
+        if not admin.json(found).get("enabled", False):
             return Desired(user, None, "disabled_in_keycloak")
-        roles = self.keycloak.admin_get(
-            f"/users/{user.external_id}/role-mappings/clients/{client_uuid}/composite", token
+        roles = admin.get(
+            f"/users/{user.external_id}/role-mappings/clients/{client_uuid}/composite"
         )
-        groups = self.keycloak.admin_get(f"/users/{user.external_id}/groups", token)
+        groups = admin.get(f"/users/{user.external_id}/groups")
         self.expect_ok(roles)
         self.expect_ok(groups)
         claims: dict[str, Any] = {
             "resource_access": {
-                settings.OIDC_CLIENT_ID: {"roles": [r["name"] for r in roles.json()]}
+                settings.OIDC_CLIENT_ID: {"roles": [r["name"] for r in admin.json(roles)]}
             },
-            "groups": [g["path"] for g in groups.json()],
+            "groups": [g["path"] for g in admin.json(groups)],
         }
         try:
             return Desired(user, rights_from_claims(claims, settings.OIDC_CLIENT_ID), None)
@@ -128,10 +153,11 @@ class IdentitySync:
 
     def record_failure(self, checked: int, error: str) -> IdentitySyncRun:
         run = IdentitySyncRun.objects.create(ok=False, checked=checked, error=error[:200])
-        if IdentitySyncRun.objects.failures_in_a_row() == FAILURES_BEFORE_AUDIT:
+        alert_at = settings.THRESHOLDS.identity.sync_failures_before_alert
+        if IdentitySyncRun.objects.failures_in_a_row() == alert_at:
             AuditLog.objects.record(
                 "identity_sync_failed",
                 actor_type="system",
-                payload={"failures_in_a_row": FAILURES_BEFORE_AUDIT, "error": run.error},
+                payload={"failures_in_a_row": alert_at, "error": run.error},
             )
         return run

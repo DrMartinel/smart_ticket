@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -10,7 +11,7 @@ from urllib.parse import urlparse
 import httpx
 import jwt
 from django.conf import settings
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.accounts.models import AuthClient, AuthSource, Capability, User, UserCapability, UserRole
@@ -66,6 +67,7 @@ class Keycloak:
         self._discovery: dict[str, Any] | None = None
         self._keys: dict[str, jwt.PyJWK] = {}
         self._fetched_at = 0.0
+        self._lock = threading.Lock()
 
     @property
     def realm_path(self) -> str:
@@ -77,45 +79,73 @@ class Keycloak:
         )
         return httpx.Client(timeout=timeout, follow_redirects=False)
 
-    def call(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+    def call(
+        self, method: str, url: str, *, client: httpx.Client | None = None, **kwargs: Any
+    ) -> httpx.Response:
         """One request; an outage or a 5xx is `idp_unavailable`."""
         try:
-            with self.http() as client:
+            if client is not None:
                 response = client.request(method, url, **kwargs)
+            else:
+                with self.http() as own:
+                    response = own.request(method, url, **kwargs)
         except httpx.HTTPError as e:
             raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "Keycloak is unreachable") from e
         if response.status_code >= 500:
             raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "Keycloak answered an error")
         return response
 
-    def discovery(self, *, fresh: bool = False) -> dict[str, Any]:
-        """The realm's OpenID configuration, cached with the signing keys unless `fresh`."""
-        if fresh or self._discovery is None or self.stale():
-            url = f"{settings.OIDC_SERVER_URL}{self.realm_path}/.well-known/openid-configuration"
-            response = self.call("GET", url)
-            if response.status_code != 200:
-                raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "no OpenID configuration")
-            self._discovery = response.json()
-            self._keys = {}
-            self._fetched_at = time.monotonic()
-        return self._discovery
+    def json_of(self, response: httpx.Response) -> Any:
+        """The response's JSON; anything else is `idp_unavailable`."""
+        try:
+            return response.json()
+        except ValueError as e:
+            raise SignInError(
+                502, SignInRefusal.IDP_UNAVAILABLE, "Keycloak answered non-JSON"
+            ) from e
 
-    def stale(self) -> bool:
-        return time.monotonic() - self._fetched_at > settings.OIDC_JWKS_CACHE_SEC
+    def age(self) -> float:
+        return time.monotonic() - self._fetched_at
+
+    def discovery(self, *, max_age: float | None = None) -> dict[str, Any]:
+        """The realm's OpenID configuration and keys, refetched past `max_age` seconds
+        (by default the key cache's)."""
+        limit = settings.OIDC_JWKS_CACHE_SEC if max_age is None else max_age
+        with self._lock:
+            if self._discovery is None or self.age() > limit:
+                self.refresh()
+            assert self._discovery is not None
+            return self._discovery
+
+    def refresh(self) -> None:
+        """Fetches the OpenID configuration and the signing keys; the caller holds the lock."""
+        url = f"{settings.OIDC_SERVER_URL}{self.realm_path}/.well-known/openid-configuration"
+        response = self.call("GET", url)
+        if response.status_code != 200:
+            raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "no OpenID configuration")
+        discovery = self.json_of(response)
+        keys = self.call("GET", discovery["jwks_uri"])
+        if keys.status_code != 200:
+            raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "no signing keys")
+        self._discovery = discovery
+        self._keys = {
+            k["kid"]: jwt.PyJWK(k)
+            for k in self.json_of(keys).get("keys", [])
+            if k.get("use", "sig") == "sig" and k.get("alg", "RS256") == "RS256"
+        }
+        self._fetched_at = time.monotonic()
 
     def signing_key(self, kid: str | None) -> jwt.PyJWK | None:
-        """The realm key with this id; an unknown id refetches the key set once."""
-        if kid not in self._keys or self.stale():
-            response = self.call("GET", self.discovery()["jwks_uri"])
-            if response.status_code != 200:
-                raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "no signing keys")
-            self._keys = {
-                k["kid"]: jwt.PyJWK(k)
-                for k in response.json().get("keys", [])
-                if k.get("use", "sig") == "sig" and k.get("alg", "RS256") == "RS256"
-            }
-            self._fetched_at = time.monotonic()
-        return self._keys.get(kid) if kid else None
+        """The realm key with this id; an unknown id refetches the keys at most once per
+        OIDC_MIN_REFETCH_SEC."""
+        self.discovery()
+        with self._lock:
+            if kid and kid in self._keys:
+                return self._keys[kid]
+            if not kid or self.age() < settings.OIDC_MIN_REFETCH_SEC:
+                return None
+            self.refresh()
+            return self._keys.get(kid)
 
     def exchange_code(self, code: str, verifier: str, redirect_uri: str) -> str:
         """The ID token for an authorization code; the other tokens are dropped (BR-F13-01)."""
@@ -131,7 +161,7 @@ class Keycloak:
                 "client_secret": settings.OIDC_CLIENT_SECRET,
             },
         )
-        id_token = response.json().get("id_token") if response.status_code == 200 else None
+        id_token = self.json_of(response).get("id_token") if response.status_code == 200 else None
         if not isinstance(id_token, str):
             raise SignInError(401, SignInRefusal.OIDC_TOKEN_INVALID, "the sign-in code was refused")
         return id_token
@@ -149,34 +179,59 @@ class Keycloak:
                 algorithms=["RS256"],
                 audience=settings.OIDC_CLIENT_ID,
                 issuer=settings.OIDC_ISSUER_URL,
-                leeway=60,
-                options={"require": ["iss", "aud", "iat", "sub"]},
+                leeway=settings.OIDC_CLOCK_SKEW_SEC,
+                options={"require": ["iss", "aud", "iat", "exp", "sub"]},
             )
         except jwt.PyJWTError as e:
             raise SignInError(status, refusal, "the token failed verification") from e
 
-    def admin_get(self, path: str, token: str) -> httpx.Response:
+    def admin_get(self, path: str, token: str, client: httpx.Client) -> httpx.Response:
         return self.call(
             "GET",
             f"{settings.OIDC_SERVER_URL}/admin{self.realm_path}{path}",
+            client=client,
             headers={"Authorization": f"Bearer {token}"},
         )
 
-    def admin_token(self) -> str:
+    def admin_token(self, client: httpx.Client) -> str:
         """A service-account token for the admin API (`smart-ticket-sync`)."""
         response = self.call(
             "POST",
             self.discovery()["token_endpoint"],
+            client=client,
             data={
                 "grant_type": "client_credentials",
                 "client_id": settings.KEYCLOAK_ADMIN_CLIENT_ID,
                 "client_secret": settings.KEYCLOAK_ADMIN_CLIENT_SECRET,
             },
         )
-        token = response.json().get("access_token") if response.status_code == 200 else None
+        token = self.json_of(response).get("access_token") if response.status_code == 200 else None
         if not isinstance(token, str):
             raise SignInError(502, SignInRefusal.IDP_UNAVAILABLE, "the sync client was refused")
         return token
+
+
+class AdminSession:
+    """One sync run's admin API access: one connection, and a new token when Keycloak
+    answers 401."""
+
+    def __init__(self, keycloak: Keycloak) -> None:
+        self.keycloak = keycloak
+        self.client = keycloak.http()
+        self.token = keycloak.admin_token(self.client)
+
+    def get(self, path: str) -> httpx.Response:
+        response = self.keycloak.admin_get(path, self.token, self.client)
+        if response.status_code == 401:
+            self.token = self.keycloak.admin_token(self.client)
+            response = self.keycloak.admin_get(path, self.token, self.client)
+        return response
+
+    def json(self, response: httpx.Response) -> Any:
+        return self.keycloak.json_of(response)
+
+    def close(self) -> None:
+        self.client.close()
 
 
 class Identities:
@@ -184,17 +239,7 @@ class Identities:
 
     def find_or_provision(self, claims: dict[str, Any], rights: Rights) -> User:
         """The user for `sub`; else links a local user by verified email; else creates one."""
-        sub = claims["sub"]
-        user = User.objects.filter(external_id=sub).first()
-        if user is None and claims.get("email_verified") and claims.get("email"):
-            user = User.objects.filter(
-                email__iexact=claims["email"], external_id__isnull=True
-            ).first()
-            if user is not None:
-                user.external_id = sub
-                user.auth_source = AuthSource.OIDC.value
-                user.save(update_fields=["external_id", "auth_source"])
-                self.audit("identity_linked", user, {"sub": sub})
+        user = User.objects.filter(external_id=claims["sub"]).first() or self.link(claims)
         created = user is None
         if user is None:
             user = self.create(claims)
@@ -204,21 +249,58 @@ class Identities:
         self.apply(user, rights, audit=not created)
         return user
 
+    def link(self, claims: dict[str, Any]) -> User | None:
+        """The one active local user with this verified email, now linked to `sub`; never a
+        break-glass account, and nobody when the email is ambiguous."""
+        if not (claims.get("email_verified") and claims.get("email")):
+            return None
+        candidates = list(
+            User.objects.filter(email__iexact=claims["email"], external_id__isnull=True)[:2]
+        )
+        if len(candidates) != 1:
+            if candidates:
+                self.skip_link(claims, "ambiguous_email")
+            return None
+        user = candidates[0]
+        if user.is_break_glass or not user.is_active:
+            self.skip_link(claims, "break_glass" if user.is_break_glass else "inactive")
+            return None
+        user.external_id = claims["sub"]
+        user.auth_source = AuthSource.OIDC.value
+        user.set_unusable_password()
+        user.save(update_fields=["external_id", "auth_source", "password"])
+        self.audit("identity_linked", user, {"sub": claims["sub"]})
+        return user
+
+    def skip_link(self, claims: dict[str, Any], reason: str) -> None:
+        AuditLog.objects.record(
+            "identity_link_skipped",
+            actor_type="system",
+            payload={"sub": claims["sub"], "reason": reason},
+        )
+
     def create(self, claims: dict[str, Any]) -> User:
         """A new user named after `preferred_username`, suffixed when the name is taken."""
         sub = claims["sub"]
         username = claims.get("preferred_username") or sub
         if User.objects.filter(username=username).exists():
-            username = f"{username}-{sub.replace('-', '')[:4]}"
+            username = f"{username}-{sub.replace('-', '')[:8]}"
         first, _, last = (claims.get("name") or "").rpartition(" ")
-        user = User.objects.create_user(
-            username=username,
-            email=claims.get("email", ""),
-            first_name=claims.get("given_name") or first,
-            last_name=claims.get("family_name") or last,
-            external_id=sub,
-            auth_source=AuthSource.OIDC.value,
-        )
+        try:
+            with transaction.atomic():
+                user = User.objects.create_user(
+                    username=username,
+                    email=claims.get("email", ""),
+                    first_name=claims.get("given_name") or first,
+                    last_name=claims.get("family_name") or last,
+                    external_id=sub,
+                    auth_source=AuthSource.OIDC.value,
+                )
+        except IntegrityError:
+            existing = User.objects.filter(external_id=sub).first()
+            if existing is None:
+                raise
+            return existing
         user.set_unusable_password()
         user.save(update_fields=["password"])
         self.audit("identity_provisioned", user, {"sub": sub, "username": username})
@@ -283,7 +365,9 @@ class OidcSignIn:
         return {
             "issuer": settings.OIDC_ISSUER_URL,
             "client_id": settings.OIDC_CLIENT_ID,
-            "authorize_url": self.keycloak.discovery(fresh=True)["authorization_endpoint"],
+            "authorize_url": self.keycloak.discovery(max_age=settings.OIDC_MIN_REFETCH_SEC)[
+                "authorization_endpoint"
+            ],
             "scopes": "openid profile email",
         }
 

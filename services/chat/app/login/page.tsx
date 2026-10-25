@@ -60,15 +60,8 @@ function BreakGlass() {
     setSubmitting(true);
     try {
       await login(username, password);
-    } catch (err) {
-      const code = err instanceof AuthError ? err.code : null;
-      setError(
-        code === "local_login_disabled"
-          ? "local_login_disabled: this account signs in with the company account."
-          : code === "account_locked"
-            ? "account_locked: too many failed passwords. Try again in 15 minutes."
-            : "Invalid username or password.",
-      );
+    } catch {
+      setError("Invalid username or password, or this isn't a break-glass account.");
     } finally {
       setSubmitting(false);
     }

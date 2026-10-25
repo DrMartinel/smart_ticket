@@ -24,6 +24,9 @@ from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 
 
+INVALID_CREDENTIALS = "invalid username or password"
+
+
 class SessionRefused(Exception):
     """A sign-in or refresh the server refuses; callers answer 401 and clear the refresh cookie."""
 
@@ -78,22 +81,17 @@ class Sessions:
         """Checks a break-glass account's password and starts a session; everyone else
         signs in through Keycloak (BR-F13-06)."""
         now = timezone.now()
-        user = User.objects.filter(username=username).first()
-        if user is None or not user.is_break_glass:
-            self.record_failure(username, client, requester, SignInRefusal.LOCAL_LOGIN_DISABLED)
-            raise SignInError(
-                403, SignInRefusal.LOCAL_LOGIN_DISABLED, "sign in with your company account"
-            )
-        if user.is_locked(now):
-            self.record_failure(username, client, requester, SignInRefusal.ACCOUNT_LOCKED)
-            raise SignInError(423, SignInRefusal.ACCOUNT_LOCKED, "too many failed passwords")
-        if not user.is_active or not user.check_password(password):
-            self.count_failure(user, now)
+        user = User.objects.filter(username=username, is_break_glass=True, is_active=True).first()
+        if user is None or user.is_locked(now):
+            User().set_password(password)
+            refusal = SignInRefusal.ACCOUNT_LOCKED if user else SignInRefusal.LOCAL_LOGIN_DISABLED
+            self.record_failure(username, client, requester, refusal)
+            raise SessionRefused(INVALID_CREDENTIALS)
+        if not user.check_password(password):
+            self.count_failure(user.pk, now)
             self.record_failure(username, client, requester, None)
-            raise SessionRefused("invalid username or password")
-        if user.failed_logins:
-            user.failed_logins = 0
-            user.save(update_fields=["failed_logins"])
+            raise SessionRefused(INVALID_CREDENTIALS)
+        User.objects.filter(pk=user.pk).update(failed_logins=0, last_failed_login_at=None)
         issued = self.start(user, client, requester, method="local")
         AuditLog.objects.record(
             "security_alert",
@@ -130,14 +128,21 @@ class Sessions:
             )
         return self.issue(session, raw)
 
-    def count_failure(self, user: User, now: datetime) -> None:
-        """Counts a failed password, locking the account at the limit (FR-F13-009)."""
+    def count_failure(self, user_id: uuid.UUID, now: datetime) -> None:
+        """Counts a failed password within the window, locking the account at the limit
+        (FR-F13-009)."""
         limits = settings.THRESHOLDS.identity
-        user.failed_logins += 1
-        if user.failed_logins >= limits.local_max_failures:
-            user.locked_until = now + timedelta(minutes=limits.local_lockout_minutes)
-            user.failed_logins = 0
-        user.save(update_fields=["failed_logins", "locked_until"])
+        window = timedelta(minutes=limits.local_failure_window_minutes)
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(pk=user_id)
+            if user.last_failed_login_at is None or now - user.last_failed_login_at > window:
+                user.failed_logins = 0
+            user.failed_logins += 1
+            user.last_failed_login_at = now
+            if user.failed_logins >= limits.local_max_failures:
+                user.locked_until = now + timedelta(minutes=limits.local_lockout_minutes)
+                user.failed_logins = 0
+            user.save(update_fields=["failed_logins", "last_failed_login_at", "locked_until"])
 
     def record_failure(
         self, username: str, client: AuthClient, requester: Requester, code: SignInRefusal | None

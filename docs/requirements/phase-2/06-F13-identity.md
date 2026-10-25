@@ -119,7 +119,7 @@ User account states (NEW, on `accounts_user`):
 | Preconditions | Account has `is_break_glass=true` |
 | Main flow | 1. Opens `/login?local=1`. 2. Username + password via today's `POST /api/auth/login`. 3. Session starts; `security_alert` audit + mandatory notification to `security` (F4) |
 | Alternate | — |
-| Exception | 2x. Not a break-glass account → 403 `local_login_disabled`. 2y. 5 failures in 15 min → 423 `account_locked` for 15 min |
+| Exception | 2x. Not a break-glass account → 401 "invalid username or password". 2y. 5 failures in 15 min → locked for 15 min, answered with the same 401 (v0.6.3) |
 | Postconditions | Every break-glass use is visible to security |
 | Rules | BR-F13-06 |
 | Screens | [`F13 · Break-glass sign-in`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQxIL?node-id=20-2341) |
@@ -149,8 +149,8 @@ User account states (NEW, on `accounts_user`):
 | FR-F13-005 | core-api shall start the session through the same `Sessions` service as password sign-in (one family, httpOnly cookie per `X-Auth-Client`) |
 | FR-F13-006 | core-api shall accept Keycloak back-channel logout tokens and revoke every live family of that user |
 | FR-F13-007 | A Celery beat task shall compare active `oidc` users with Keycloak every `identity.sync_interval_minutes` and deactivate, change rights, or revoke sessions as BR-F13-05 says |
-| FR-F13-008 | `POST /api/auth/login` shall refuse users who are not break-glass with 403 `local_login_disabled` |
-| FR-F13-009 | core-api shall lock a break-glass account for `identity.local_lockout_minutes` after `identity.local_max_failures` failures |
+| FR-F13-008 | `POST /api/auth/login` shall refuse users who are not break-glass with the same 401 as a wrong password (v0.6.3; was 403 `local_login_disabled`) |
+| FR-F13-009 | core-api shall lock a break-glass account for `identity.local_lockout_minutes` after `identity.local_max_failures` failures within `identity.local_failure_window_minutes`, answering the same 401 while locked (v0.6.3; was 423 `account_locked`) |
 | FR-F13-010 | The system shall audit `auth_login` (with `method`), `identity_provisioned`, `identity_linked`, `identity_rights_changed`, `identity_deactivated`, `auth_backchannel_logout`, `identity_sync_failed` |
 | FR-F13-011 | `GET /api/accounts/me` shall return capabilities and team memberships |
 | FR-F13-012 | Both apps shall show a sign-in error page that names the reason code in vi and en |
@@ -242,7 +242,7 @@ identity:
 | `GET /api/auth/oidc/config` | none | — | `{issuer, client_id, authorize_url, scopes}` | — |
 | `POST /api/auth/oidc/exchange` | none; `X-Auth-Client` | `{code, code_verifier, nonce, redirect_uri}` | 200 `SessionOut` (+ cookie) — same shape as `/login` | 400 `redirect_uri_not_allowed` · 401 `oidc_token_invalid` · 403 `no_access` / `ambiguous_role` · 502 `idp_unavailable` |
 | `POST /api/auth/oidc/backchannel-logout` | Keycloak signed logout token | form `logout_token` | 200 | 400 `logout_token_invalid` |
-| `POST /api/auth/login` | none | unchanged | unchanged | **NEW** 403 `local_login_disabled` · 423 `account_locked` |
+| `POST /api/auth/login` | none | unchanged | unchanged | **CHANGED** every refusal is the same 401 "invalid username or password" (v0.6.3) |
 | `GET /api/accounts/me` | any | — | **CHANGED** adds `capabilities: [str]`, `teams: [{team, role}]`, `auth_source` | — |
 
 `SessionOut.user` gets the same three fields. TS types regenerated (`make types`).
@@ -261,6 +261,36 @@ No webhook events.
 - **ADRs:** 0029 (built on), proposed 0031 (capabilities), proposed 0032 (this design).
 - **Regression tests:** all of `apps/accounts/tests/` still pass with sessions started by OIDC; `test_token_without_live_family_is_refused` unchanged; `test_backchannel_logout_revokes_all_families`; `test_failed_keycloak_read_deactivates_nobody`; `test_two_primary_roles_refused`; `test_break_glass_only_manager`.
 - **Ops:** Keycloak realm config (client, mappers, back-channel URL, brute-force detection) is documented in a new `docs/runbooks/keycloak.md`.
+
+## v0.6.3 — where the code differs (review, 2026-10-25)
+
+Code wins (README §0.4 item 5). Each change and its reason:
+
+1. **Every failed local sign-in answers the same 401** "invalid username or
+   password": a non-break-glass or unknown name, a wrong password, a locked
+   account (owner's decision, 2026-10-25). Distinct 403/423 answers told a
+   caller which names are break-glass accounts. The audit row keeps the real
+   reason (`local_login_disabled`, `account_locked`, `invalid_credentials`).
+   AC-F13-07 now expects 401.
+2. **Failures count within a window** (`identity.local_failure_window_minutes`),
+   as "5 failures in 15 min" says, under a row lock so parallel guesses can't
+   outrun it.
+3. **A break-glass account is never linked to a Keycloak identity or synced.**
+   Its holder's company sign-in gets a separate user. Linking takes only one
+   active local user with the verified email; otherwise a new user is created
+   and `identity_link_skipped` audited. A linked user's local password is cleared.
+4. **`exp` is required** in ID and logout tokens; the clock skew is
+   `OIDC_CLOCK_SKEW_SEC`.
+5. **Unauthenticated calls can't reach Keycloak at will:** an unknown key id
+   refetches keys, and the sign-in page re-reads discovery, at most once per
+   `OIDC_MIN_REFETCH_SEC`. AC-F13-06's newcomer sees `idp_unavailable` within
+   that interval.
+6. **The sync** reads over one connection with a token renewed on 401, records
+   any unexpected error as a failed run, and rolls back one user's failed change
+   without stopping the others. The alert count is
+   `identity.sync_failures_before_alert`.
+7. **F13 creates F2's `team_teams` and `team_memberships`** (as F2 §g defines
+   them) so Keycloak teams have somewhere to go before wave 2.
 
 ## j. Acceptance criteria
 
@@ -314,7 +344,7 @@ Feature: F13 Keycloak identity
   @BR-F13-06
   Scenario: AC-F13-07 local login is closed to normal users
     When "duc.tm" posts username and password to /api/auth/login
-    Then the response is 403 with code "local_login_disabled"
+    Then the response is 401 "invalid username or password", the same as a wrong password
 
   @BR-F13-06
   Scenario: AC-F13-08 break-glass use alerts security

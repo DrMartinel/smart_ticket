@@ -43,6 +43,9 @@ class FakeKeycloak:
     codes: dict[str, tuple[Person, str]] = field(default_factory=dict)
     down: bool = False
     admin_status: int = 200
+    admin_expired_once: bool = False
+    garbled: bool = False
+    admin_tokens: int = 0
     calls: list[str] = field(default_factory=list)
 
     @property
@@ -109,6 +112,8 @@ class FakeKeycloak:
             raise httpx.ConnectError("keycloak is down", request=request)
         url = str(request.url)
         self.calls.append(f"{request.method} {url}")
+        if self.garbled:
+            return httpx.Response(200, text="<html>proxy error</html>")
         if url.endswith("/.well-known/openid-configuration"):
             return httpx.Response(
                 200,
@@ -132,7 +137,8 @@ class FakeKeycloak:
     def token(self, request: httpx.Request) -> httpx.Response:
         form = {k: v[0] for k, v in parse_qs(request.content.decode()).items()}
         if form.get("grant_type") == "client_credentials":
-            return httpx.Response(200, json={"access_token": "admin-token"})
+            self.admin_tokens += 1
+            return httpx.Response(200, json={"access_token": f"admin-token-{self.admin_tokens}"})
         found = self.codes.pop(form.get("code", ""), None)
         if found is None:
             return httpx.Response(400, json={"error": "invalid_grant"})
@@ -142,6 +148,9 @@ class FakeKeycloak:
         )
 
     def admin(self, path: str) -> httpx.Response:
+        if self.admin_expired_once and "/users/" in path:
+            self.admin_expired_once = False
+            return httpx.Response(401)
         if self.admin_status != 200:
             return httpx.Response(self.admin_status)
         if path.startswith("/clients"):

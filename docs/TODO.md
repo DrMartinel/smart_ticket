@@ -441,8 +441,9 @@ ADR-0026 is accepted or superseded on a full run, and no Jev-scale threshold is 
 5. `OutboundHttp` checks the resolved address, then connects by name: a DNS
    answer that changes between the two is not caught. Pin the connection to
    the checked address if webhooks ever reach untrusted hosts.
-6. Sign-in (ADR-0029): lock an account after repeated failed passwords, and
-   show a user their sign-ins (`GET /api/auth/sessions`) with a way to end them.
+6. Sign-in (ADR-0029): ~~lock an account after repeated failed passwords~~
+   (done by F13: Keycloak's brute-force detection, and the break-glass lockout),
+   and show a user their sign-ins (`GET /api/auth/sessions`) with a way to end them.
 
 ### Done when
 

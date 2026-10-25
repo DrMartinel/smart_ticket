@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 import httpx
+import jwt
 import pytest
 from django.db import IntegrityError, transaction
 from django.test import Client
@@ -57,6 +58,15 @@ def exchange(code: str, *, client: str = "chat", nonce: str = "nonce-1", **body:
 
 def sign_in(realm: FakeKeycloak, person: Person, client: str = "admin"):
     return exchange(realm.code_for(person), client=client)
+
+
+def local_login(username: str, password: str):
+    return Client().post(
+        "/api/auth/login",
+        {"username": username, "password": password},
+        content_type="application/json",
+        headers={"X-Auth-Client": "admin"},
+    )
 
 
 def me(access: str):
@@ -237,7 +247,7 @@ class TestSignIn:
 
         sign_in(realm, lan)
 
-        assert User.objects.get(external_id=lan.sub).username == "lan.nt-3f9b"
+        assert User.objects.get(external_id=lan.sub).username == "lan.nt-3f9b2c41"
 
     def test_unknown_roles_and_groups_are_ignored_and_logged(self, realm, teams):
         """BR-F13-03."""
@@ -262,8 +272,9 @@ class TestSignIn:
 
 
 class TestKeycloakDown:
-    def test_keycloak_down_does_not_end_existing_sessions(self, realm):
-        """AC-F13-06."""
+    def test_keycloak_down_does_not_end_existing_sessions(self, realm, settings):
+        """AC-F13-06 (the sign-in page sees the outage once OIDC_MIN_REFETCH_SEC has passed)."""
+        settings.OIDC_MIN_REFETCH_SEC = 0
         lan = realm.add(lan_person())
         client = Client()
         signed_in = client.post(
@@ -289,20 +300,22 @@ class TestKeycloakDown:
 
 
 class TestLocalSignIn:
-    def test_local_login_is_closed_to_normal_users(self, django_user_model):
-        """AC-F13-07."""
+    def test_local_login_refuses_everyone_alike(self, django_user_model, glass_user):
+        """AC-F13-07 (v0.6.3): a normal user, an unknown name and a wrong break-glass password
+        get the same answer, so nobody learns which accounts are break-glass."""
         django_user_model.objects.create_user(username="duc.tm", password="x", role="technician")
 
-        response = Client().post(
-            "/api/auth/login",
-            {"username": "duc.tm", "password": "x"},
-            content_type="application/json",
-            headers={"X-Auth-Client": "admin"},
-        )
+        answers = [
+            local_login(username, password)
+            for username, password in (("duc.tm", "x"), ("nobody", "x"), ("glass", "wrong"))
+        ]
 
-        assert response.status_code == 403
-        assert response.json()["code"] == "local_login_disabled"
+        assert {(a.status_code, a.content) for a in answers} == {
+            (401, b'{"detail": "invalid username or password"}')
+        }
         assert not RefreshSession.objects.exists()
+        reasons = [a.payload["reason"] for a in events("auth_login_failed")]
+        assert reasons == ["local_login_disabled", "local_login_disabled", "invalid_credentials"]
 
     def test_break_glass_use_alerts_security(self, glass_user):
         """AC-F13-08 (the audit row; the notice to security is F4's)."""
@@ -319,21 +332,33 @@ class TestLocalSignIn:
         assert events("auth_login")[0].payload["method"] == "local"
 
     def test_break_glass_locks_after_repeated_failures(self, glass_user, settings):
-        """FR-F13-009."""
+        """FR-F13-009: once locked, even the right password is refused, with the same answer."""
         attempts = settings.THRESHOLDS.identity.local_max_failures
-        post = lambda password: Client().post(  # noqa: E731
-            "/api/auth/login",
-            {"username": "glass", "password": password},
-            content_type="application/json",
-            headers={"X-Auth-Client": "admin"},
-        )
 
-        statuses = [post("wrong").status_code for _ in range(attempts)]
-        locked = post("x")
+        statuses = [local_login("glass", "wrong").status_code for _ in range(attempts)]
+        locked = local_login("glass", "x")
 
         assert statuses == [401] * attempts
-        assert locked.status_code == 423
-        assert locked.json()["code"] == "account_locked"
+        assert locked.status_code == 401
+        assert events("auth_login_failed")[-1].payload["reason"] == "account_locked"
+        assert not RefreshSession.objects.exists()
+
+    def test_old_failures_fall_out_of_the_window(self, glass_user, settings):
+        """FR-F13-009: failures count only within identity.local_failure_window_minutes."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        attempts = settings.THRESHOLDS.identity.local_max_failures
+        for _ in range(attempts - 1):
+            local_login("glass", "wrong")
+        window = settings.THRESHOLDS.identity.local_failure_window_minutes
+        User.objects.filter(pk=glass_user.pk).update(
+            last_failed_login_at=timezone.now() - timedelta(minutes=window + 1)
+        )
+        local_login("glass", "wrong")
+
+        assert local_login("glass", "x").status_code == 200
 
     def test_break_glass_only_manager(self, django_user_model):
         """BR-F13-06: the database refuses a break-glass flag on any other role."""
@@ -462,3 +487,161 @@ class TestLeavers:
 
         assert first is not None and second is not None
         assert (first.changed, second.changed) == (0, 0)
+
+
+class TestLinking:
+    def test_a_break_glass_account_is_never_linked(self, realm, django_user_model):
+        """A break-glass manager's company sign-in gets its own user; the local account stays local."""
+        glass = django_user_model.objects.create_user(
+            username="glass",
+            email="huy.pq@congty.vn",
+            password="x",
+            role="manager",
+            is_break_glass=True,
+        )
+        huy = realm.add(Person(username="huy.pq", roles=["manager"], email="huy.pq@congty.vn"))
+
+        response = sign_in(realm, huy)
+
+        assert response.status_code == 200
+        glass.refresh_from_db()
+        assert (glass.external_id, glass.auth_source, glass.is_break_glass) == (None, "local", True)
+        assert User.objects.get(external_id=huy.sub).username == "huy.pq"
+        assert events("identity_link_skipped")[0].payload["reason"] == "break_glass"
+
+    def test_a_break_glass_account_is_never_synced(self, realm, django_user_model):
+        """Even marked oidc with a sub Keycloak doesn't know, the sync leaves it alone."""
+        glass = django_user_model.objects.create_user(
+            username="glass",
+            password="x",
+            role="manager",
+            is_break_glass=True,
+            auth_source="oidc",
+            external_id="not-in-keycloak",
+        )
+
+        run = sync(realm)
+
+        assert run is not None and run.ok and run.checked == 0
+        glass.refresh_from_db()
+        assert glass.is_active
+
+    @pytest.mark.parametrize("second_match", [True, False], ids=["ambiguous", "inactive"])
+    def test_an_ambiguous_or_inactive_match_is_not_linked(
+        self, realm, django_user_model, second_match
+    ):
+        first = django_user_model.objects.create_user(
+            username="lan", email="lan.nt@congty.vn", password="x"
+        )
+        if second_match:
+            django_user_model.objects.create_user(
+                username="lan2", email="LAN.NT@congty.vn", password="x"
+            )
+        else:
+            first.is_active = False
+            first.save(update_fields=["is_active"])
+        lan = realm.add(lan_person())
+
+        sign_in(realm, lan)
+
+        first.refresh_from_db()
+        assert first.external_id is None
+        assert User.objects.get(external_id=lan.sub).username == "lan.nt"
+        reason = events("identity_link_skipped")[0].payload["reason"]
+        assert reason == ("ambiguous_email" if second_match else "inactive")
+
+    def test_a_linked_user_loses_the_local_password(self, realm, django_user_model):
+        local = django_user_model.objects.create_user(
+            username="lan", email="lan.nt@congty.vn", password="x"
+        )
+
+        sign_in(realm, realm.add(lan_person()))
+
+        local.refresh_from_db()
+        assert not local.has_usable_password()
+
+
+class TestTokenChecks:
+    def test_a_token_without_exp_is_refused(self, realm, monkeypatch):
+        """FR-F13-002: exp is required, not merely checked when present."""
+        lan = realm.add(lan_person())
+        original = realm.id_token
+
+        def no_exp(person, nonce):
+            claims = jwt.decode(original(person, nonce), options={"verify_signature": False})
+            claims.pop("exp")
+            return realm.sign(claims)
+
+        monkeypatch.setattr(realm, "id_token", no_exp)
+
+        assert sign_in(realm, lan).json()["code"] == "oidc_token_invalid"
+
+    def test_unknown_key_ids_dont_each_reach_keycloak(self, realm):
+        """Random back-channel tokens can't turn into one Keycloak call each."""
+        duc = realm.add(Person(username="duc.tm", roles=["technician"]))
+        sign_in(realm, duc)
+        before = len(realm.calls)
+
+        for i in range(5):
+            token = realm.sign(
+                {"iss": "x", "aud": "smart-ticket", "sub": duc.sub, "iat": 0, "exp": 0},
+                kid=f"unknown-{i}",
+            )
+            Client().post("/api/auth/oidc/backchannel-logout", {"logout_token": token})
+
+        assert len(realm.calls) == before
+
+    def test_a_garbled_keycloak_answer_is_idp_unavailable(self, realm):
+        realm.garbled = True
+
+        response = Client().get("/api/auth/oidc/config")
+
+        assert response.status_code == 502
+        assert response.json()["code"] == "idp_unavailable"
+
+
+class TestSyncRobustness:
+    def test_an_expired_admin_token_is_replaced_mid_run(self, realm):
+        duc = realm.add(Person(username="duc.tm", roles=["technician"]))
+        sign_in(realm, duc)
+        realm.admin_expired_once = True
+
+        run = sync(realm)
+
+        assert run is not None and run.ok
+        assert realm.admin_tokens == 2
+
+    def test_an_unexpected_read_error_is_a_failed_run(self, realm, monkeypatch):
+        duc = realm.add(Person(username="duc.tm", roles=["technician"]))
+        sign_in(realm, duc)
+        monkeypatch.setattr(
+            IdentitySync, "read_one", lambda *a: (_ for _ in ()).throw(KeyError("name"))
+        )
+
+        run = sync(realm)
+
+        assert run is not None and not run.ok
+        assert "KeyError" in run.error
+        assert User.objects.get(external_id=duc.sub).is_active
+
+    def test_one_users_failure_doesnt_stop_the_others(self, realm, monkeypatch):
+        """A user whose change fails is rolled back and reported; the rest still change."""
+        duc = realm.add(Person(username="duc.tm", roles=["technician"]))
+        mai = realm.add(Person(username="mai.bn", roles=["technician"]))
+        sign_in(realm, duc)
+        sign_in(realm, mai)
+        duc.enabled = mai.enabled = False
+        real_deprovision = Identities.deprovision
+
+        def flaky(self, user, reason):
+            if user.username == "duc.tm":
+                raise IntegrityError("boom")
+            real_deprovision(self, user, reason)
+
+        monkeypatch.setattr(Identities, "deprovision", flaky)
+
+        run = sync(realm)
+
+        assert run is not None and not run.ok and "duc.tm" in run.error
+        assert User.objects.get(external_id=duc.sub).is_active is True
+        assert User.objects.get(external_id=mai.sub).is_active is False

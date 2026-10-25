@@ -51,7 +51,7 @@ class User(AbstractUser, BaseModel):
         choices=[(r.value, r.value) for r in UserRole],
         default=UserRole.EMPLOYEE.value,
     )
-    external_id = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    external_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     auth_source = models.CharField(
         max_length=10,
         choices=[(s.value, s.value) for s in AuthSource],
@@ -60,6 +60,7 @@ class User(AbstractUser, BaseModel):
     is_break_glass = models.BooleanField(default=False)
     rights_synced_at = models.DateTimeField(null=True, blank=True)
     failed_logins = models.PositiveIntegerField(default=0)
+    last_failed_login_at = models.DateTimeField(null=True, blank=True)
     locked_until = models.DateTimeField(null=True, blank=True)
     language = models.CharField(
         max_length=5, choices=[(lang.value, lang.value) for lang in Language], default="vi"

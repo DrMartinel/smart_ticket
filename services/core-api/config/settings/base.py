@@ -195,6 +195,8 @@ OIDC_CLIENT_ID = env("OIDC_CLIENT_ID")
 OIDC_CLIENT_SECRET = env("OIDC_CLIENT_SECRET")
 OIDC_REDIRECT_URIS = env("OIDC_REDIRECT_URIS").split(",")
 OIDC_JWKS_CACHE_SEC = int(env("OIDC_JWKS_CACHE_SEC"))
+OIDC_MIN_REFETCH_SEC = float(env("OIDC_MIN_REFETCH_SEC"))
+OIDC_CLOCK_SKEW_SEC = int(env("OIDC_CLOCK_SKEW_SEC"))
 OIDC_HTTP_CONNECT_TIMEOUT_SEC = float(env("OIDC_HTTP_CONNECT_TIMEOUT_SEC"))
 OIDC_HTTP_READ_TIMEOUT_SEC = float(env("OIDC_HTTP_READ_TIMEOUT_SEC"))
 KEYCLOAK_ADMIN_CLIENT_ID = env("KEYCLOAK_ADMIN_CLIENT_ID")
@@ -333,9 +335,12 @@ class IdentityThresholds(BaseModel):
     sync_interval_minutes: int = Field(ge=1)
     # Failed passwords before a break-glass account locks, and for how long.
     local_max_failures: int = Field(ge=1)
+    local_failure_window_minutes: int = Field(ge=1)
     local_lockout_minutes: int = Field(ge=1)
     # Break-glass accounts allowed at once (BR-F13-06).
     max_break_glass_accounts: int = Field(ge=0)
+    # Failed sync runs in a row before identity_sync_failed is audited.
+    sync_failures_before_alert: int = Field(ge=1)
 
 
 class Thresholds(BaseModel):

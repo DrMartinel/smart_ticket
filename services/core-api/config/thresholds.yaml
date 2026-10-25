@@ -153,9 +153,12 @@ identity:
   # Minutes between Keycloak syncs (F13). A leaver whose back-channel logout
   # was not delivered keeps access at most this long (K11 <= 5 min).
   sync_interval_minutes: 5
-  # Break-glass local sign-in: failed passwords before the account locks, and
-  # for how many minutes (FR-F13-009). 🔧 OQ-11 defaults.
+  # Break-glass local sign-in: this many failed passwords within the window
+  # lock the account for local_lockout_minutes (FR-F13-009). 🔧 OQ-11 defaults.
   local_max_failures: 5
+  local_failure_window_minutes: 15
   local_lockout_minutes: 15
   # Accounts that may keep a local password at all (BR-F13-06).
   max_break_glass_accounts: 2
+  # Failed syncs in a row before identity_sync_failed is audited (UC-F13-03).
+  sync_failures_before_alert: 3
