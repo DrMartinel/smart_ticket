@@ -169,7 +169,9 @@ class PiiReveal:
             PiiAccessLog.objects.by_actor_since(actor, hour_ago).count()
             + AuditLog.objects.filter(
                 event="pii_reveal_refused", actor_id=actor.id, occurred_at__gte=hour_ago
-            ).count()
+            )
+            .exclude(payload__reason=RevealRefusal.REVEAL_RATE_LIMITED.value)
+            .count()
         )
         if attempts >= self.thresholds.max_per_user_per_hour:
             raise RevealError(

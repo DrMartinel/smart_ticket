@@ -194,6 +194,19 @@ class TicketManager(models.Manager["Ticket"]):
             )
         return tickets.order_by("-created_at")
 
+    def for_detail(self) -> QuerySet[Ticket]:
+        """Tickets with what the staff detail shows loaded, each list in display order."""
+        from apps.review.models import ReviewItem
+
+        return self.select_related(
+            "reporter", "assigned_to", "workflow_status__base"
+        ).prefetch_related(
+            models.Prefetch("routing_decisions", RoutingDecision.objects.order_by("-decided_at")),
+            models.Prefetch("review_items", ReviewItem.objects.order_by("-created_at")),
+            models.Prefetch("clarifications", TicketClarification.objects.order_by("asked_at")),
+            models.Prefetch("ai_runs", AiRun.objects.order_by("-created_at")),
+        )
+
     def board(self, workflow_id: uuid.UUID, *, query: str, per_column: int) -> TicketBoard:
         """The newest `per_column` tickets of each status in `workflow_id`, and every status's count."""
         tickets = self.filter(workflow_status__workflow_id=workflow_id)
@@ -620,6 +633,15 @@ class AiRun(BaseModel):
         db_table = "ai_runs"
 
     objects = AiRunManager()
+
+    def cited_kb_title(self) -> str | None:
+        """The title of the KB page the run's proposal names, if it still exists."""
+        from apps.kb.models import KbArticle
+
+        slug = (self.proposed_draft or {}).get("kb_slug")
+        if not slug:
+            return None
+        return KbArticle.objects.filter(slug=slug).values_list("title", flat=True).first()
 
 
 class RoutingDecision(BaseModel):
