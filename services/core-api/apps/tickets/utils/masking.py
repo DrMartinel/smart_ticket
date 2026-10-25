@@ -178,6 +178,15 @@ def _apply(
     return masked, placeholder_map, level
 
 
+def mask_regex_tier(text: str) -> tuple[str, PIILevel]:
+    """Masks `text` with the regex tier alone and returns it with the worst level found."""
+    hits = regex_scan(text)
+    (masked,), _, level = _apply([(text, hits)], {})
+    if any(h.level is PIILevel.CRITICAL for h in hits):
+        level = PIILevel.CRITICAL
+    return masked, level
+
+
 @dataclass(frozen=True)
 class MaskResult:
     subject_masked: str

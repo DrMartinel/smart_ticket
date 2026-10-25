@@ -12,7 +12,7 @@ import httpx
 import pytest
 from asgiref.sync import async_to_sync
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.utils.patterns import ALL_GROUPS, LEVEL_BY_GROUP, PIILevel, placeholder_level
 from apps.tickets.request_schema import TicketIn
 
 from apps.tickets.utils.masking import (
@@ -20,6 +20,7 @@ from apps.tickets.utils.masking import (
     _apply,
     _spans_to_hits,
     mask,
+    mask_regex_tier,
     mask_reply,
     llm_ner,
     ner_share,
@@ -545,3 +546,45 @@ class TestMaskReply:
         ner_finds(["the access portal one"])
         r = run_mask_reply("the access portal one", [])
         assert r.pii_level is PIILevel.MASK_FAILED
+
+
+class TestMaskRegexTier:
+    """The regex tier alone, for short staff-typed text such as a reveal reason (F5)."""
+
+    def test_a_secret_is_critical(self):
+        masked, level = mask_regex_tier("mật khẩu: Abc@12345 để thử")
+
+        assert level is PIILevel.CRITICAL
+        assert "Abc@12345" not in masked
+
+    def test_a_sensitive_value_is_masked(self):
+        assert mask_regex_tier("CCCD 001203004567 cần đối chiếu") == (
+            "CCCD [CCCD_1] cần đối chiếu",
+            PIILevel.SENSITIVE,
+        )
+
+    def test_plain_text_passes_unchanged(self):
+        assert mask_regex_tier("Đối chiếu với hồ sơ nhân sự") == (
+            "Đối chiếu với hồ sơ nhân sự",
+            PIILevel.ROUTINE,
+        )
+
+
+class TestPlaceholderLevel:
+    """A placeholder's level drives who may reveal it (F5)."""
+
+    @pytest.mark.parametrize(
+        "group,label",
+        [(group, label) for group, patterns in ALL_GROUPS.items() for label in patterns],
+    )
+    def test_every_known_label_keeps_its_level(self, group, label):
+        assert placeholder_level(f"[{label}_1]") is LEVEL_BY_GROUP[group]
+
+    def test_an_ner_span_is_routine(self):
+        assert placeholder_level("[FREEFORM_3]") is PIILevel.ROUTINE
+
+    @pytest.mark.parametrize(
+        "placeholder", ["[PGP2_KEY_1]", "[NEW_SECRET_1]", "CCCD_1", "[cccd_1]", ""]
+    )
+    def test_an_unknown_or_malformed_label_is_critical(self, placeholder):
+        assert placeholder_level(placeholder) is PIILevel.CRITICAL

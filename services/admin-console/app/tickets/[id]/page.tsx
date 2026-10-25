@@ -7,7 +7,8 @@ import { useRequireAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { BRANCH_LABEL, INTENT_LABEL, QUEUE_LABEL, reasonText } from "@/lib/explain";
 import { dateTime, humanize, percent, relativeTime } from "@/lib/format";
-import { priorityClasses } from "@/lib/badges";
+import { piiLevelClasses, priorityClasses } from "@/lib/badges";
+import PiiText from "@/components/PiiText";
 import StatusChip from "@/components/StatusChip";
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
 import TrustSignalsPanel, { type TrustSignalsPanelProps } from "@/components/TrustSignalsPanel";
@@ -112,6 +113,7 @@ export default function TicketPage() {
   };
 
   const latest = detail.routing[0];
+  const mayReveal = user.role === "technician" || user.role === "security";
 
   return (
     <div className="mx-auto max-w-[1280px]">
@@ -139,7 +141,21 @@ export default function TicketPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
           <Section title="Request">
-            <p className="whitespace-pre-wrap text-[15px] leading-6">{detail.body_masked}</p>
+            <div className="whitespace-pre-wrap text-[15px] leading-7">
+              <PiiText
+                publicId={detail.public_id}
+                text={detail.body_masked}
+                placeholders={detail.pii_placeholders ?? []}
+                canReveal={mayReveal}
+                isSecurity={user.role === "security"}
+              />
+            </div>
+            {mayReveal && (detail.pii_placeholders ?? []).length > 0 && (
+              <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+                Chips are placeholders. Click one to reveal it; you need the claim on this ticket&apos;s review item or its
+                assignment, and every reveal is logged.
+              </p>
+            )}
             {detail.clarifications.map((c) => (
               <div key={c.asked_at} className="mt-4 border-t border-[var(--border)] pt-3 text-sm">
                 <p className="text-[var(--text-muted)]">Asked the requester · {relativeTime(c.asked_at)}</p>
@@ -345,7 +361,9 @@ export default function TicketPage() {
               <dt className="text-[var(--text-muted)]">Requester</dt>
               <dd className="truncate">{detail.reporter_person.email || detail.reporter_person.username}</dd>
               <dt className="text-[var(--text-muted)]">Personal data</dt>
-              <dd>{humanize(detail.pii_level)}</dd>
+              <dd>
+                <span className={`badge ${piiLevelClasses(detail.pii_level)}`}>PII: {humanize(detail.pii_level).toLowerCase()}</span>
+              </dd>
               <dt className="text-[var(--text-muted)]">SLA due</dt>
               <dd>{dateTime(detail.sla_due_at)}</dd>
               <dt className="text-[var(--text-muted)]">Resolved</dt>

@@ -10,7 +10,7 @@ from __future__ import annotations
 import uuid
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from enum import StrEnum
 from typing import TYPE_CHECKING, Literal, cast
 
@@ -25,7 +25,7 @@ from pgvector.django import CosineDistance, VectorField
 from apps.core.models import BaseModel
 from apps.tickets.utils.patterns import PIILevel
 from infrastructure.dtos import TicketCategory
-from apps.tickets.request_schema import TicketIn
+from apps.tickets.request_schema import RevealReason, TicketIn
 
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
@@ -540,14 +540,53 @@ class PiiQuarantine(models.Model):
     objects = PiiQuarantineManager()
 
 
+class PiiAccessLogQuerySet(models.QuerySet["PiiAccessLog"]):
+    def matching(
+        self,
+        *,
+        ticket: str | None = None,
+        actor: str | None = None,
+        since: datetime | None = None,
+        until: datetime | None = None,
+        reason_code: RevealReason | None = None,
+    ) -> PiiAccessLogQuerySet:
+        """Rows for a ticket's public id, an actor's username, a time range and a reason."""
+        rows = self.select_related("actor", "ticket")
+        if ticket:
+            rows = rows.filter(ticket__public_id=ticket)
+        if actor:
+            rows = rows.filter(actor__username=actor)
+        if since:
+            rows = rows.filter(accessed_at__gte=since)
+        if until:
+            rows = rows.filter(accessed_at__lt=until)
+        if reason_code:
+            rows = rows.filter(reason_code=reason_code.value)
+        return rows.order_by("-accessed_at")
+
+    def by_actor_since(self, actor: User, since: datetime) -> PiiAccessLogQuerySet:
+        """The actor's reveals since a time."""
+        return self.filter(actor=actor, accessed_at__gte=since)
+
+
 class PiiAccessLog(BaseModel):
-    """Every raw-PII read is a row here. No exceptions — enforced by
-    routing every quarantine read through one service function."""
+    """One row per raw-PII value returned to a person (spec §3.1, F5)."""
 
     ref = models.UUIDField()
     actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
-    reason = models.TextField()  # required, non-empty (enforced in service)
+    ticket = models.ForeignKey(Ticket, on_delete=models.PROTECT, related_name="pii_reveals")
+    placeholder = models.CharField(max_length=40)
+    reason_code = models.CharField(
+        max_length=30, choices=[(r.value, r.value) for r in RevealReason]
+    )
+    reason = models.TextField()  # masked by the regex tier
+    review_item = models.ForeignKey(
+        "review.ReviewItem", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    outcome = models.CharField(max_length=20, default="revealed")
     accessed_at = models.DateTimeField(auto_now_add=True)
+
+    objects = PiiAccessLogQuerySet.as_manager()
 
     class Meta(BaseModel.Meta):
         db_table = "pii_access_log"

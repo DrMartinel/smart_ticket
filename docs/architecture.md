@@ -347,7 +347,7 @@ Tables mirror the spec's DDL exactly (same names, via `db_table`).
 | `tickets` | Masked text only | `category` written **only** by the router |
 | `ticket_embeddings` | Vectors | Split out so re-embedding never locks the main table |
 | `pii_quarantine` | Encrypted real values | AES-GCM, key outside the DB, hard 72h TTL |
-| `pii_access_log` | Every raw-PII read | Mandatory reason. *Read path not yet built — [`status.md`](status.md) Gap 1* |
+| `pii_access_log` | Every raw-PII read | Reason code and a 10–500 character reason, masked by the regex tier; written in the decrypt's transaction by `PiiReveal.reveal()`; append-only (trigger, `infra/migrations/sql/0007`) |
 | `kb_articles` | KB + **auto-reply authority** | DB `CHECK`: the flag cannot be true without a named approver |
 | `kb_chunks` | Chunks + embedding | HNSW index; pg_search BM25 index on content + section title (ADR-0013) |
 | `kb_authority_log` | Every authority change | Append-only, reason required |

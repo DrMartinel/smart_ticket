@@ -11,6 +11,8 @@ from ninja_extra import NinjaExtraAPI
 from apps.accounts.permissions import AccessError, gate_authentication
 from apps.accounts.views import auth_router
 from apps.accounts.views import router as accounts_router
+from apps.tickets.utils.pii_reveal import RevealError
+from apps.tickets.views import pii_router
 from apps.tickets.views import router as tickets_router
 from apps.kb.views import router as kb_router
 from apps.review.views import router as review_router
@@ -26,6 +28,7 @@ api = NinjaExtraAPI(title="Smart Ticket Triage — core-api", version="1.0.0")
 api.add_router("/auth", auth_router)
 api.add_router("/accounts", accounts_router)
 api.add_router("/tickets", tickets_router)
+api.add_router("/pii", pii_router)
 api.add_router("/kb", kb_router)
 api.add_router("/review", review_router)
 api.add_router("/fewshot", fewshot_router)
@@ -52,6 +55,17 @@ def access_refused(request: HttpRequest, exc: AccessError) -> HttpResponse:
         {"code": exc.code.value, "message": exc.message, "details": exc.details},
         status=exc.status,
     )
+
+
+@api.exception_handler(RevealError)
+def reveal_refused(request: HttpRequest, exc: RevealError) -> HttpResponse:
+    response = api.create_response(
+        request,
+        {"code": exc.code.value, "message": exc.message, "details": exc.details},
+        status=exc.status,
+    )
+    response["Cache-Control"] = "no-store"
+    return response
 
 
 urlpatterns = [

@@ -87,12 +87,12 @@ No ticket status changes. A `pii_quarantine` row is read, never changed.
 
 | ID | Rule | Rationale | Enforced where |
 |---|---|---|---|
-| BR-F5-01 | A technician may reveal only on a ticket where they hold the claim on a `pending` review item, or are `assigned_to` (F2) | Need-to-know: the claim or the assignment is the reason they are looking (`TODO.md` item 1) | Reveal service, before decrypt |
+| BR-F5-01 | A technician may reveal only on a ticket where they hold the claim on a review item (state `claimed`, v0.6.2), or are `assigned_to` | Need-to-know: the claim or the assignment is the reason they are looking (`TODO.md` item 1) | Reveal service, before decrypt |
 | BR-F5-02 | Critical labels (`PASSWORD`, `TOKEN`, `AWS_KEY`, `GENERIC_SECRET_ASSIGN`) only for `security` | A leaked credential is an incident, not a support detail | Reveal service |
 | BR-F5-03 | Reason code from a fixed list **and** reason text of 10–500 characters | Spec §3.1: reason mandatory, non-empty | Request schema + service |
 | BR-F5-04 | Reason text is masked by the regex tier (`patterns.py`) only, not NER. A critical hit in the reason refuses the reveal | BR-X-06, without making reveals depend on ai-engine being up. Documented exception | Reveal service |
 | BR-F5-05 | Log row, decrypt and audit row are in one transaction. If the log insert fails, no plaintext leaves the function | Spec §3.1, CLAUDE.md "Current state" | `PiiReveal.reveal()`; test with a forced insert failure |
-| BR-F5-06 | `pii_access_log` is append-only: `REVOKE UPDATE, DELETE` from the app role | Same guarantee as `audit_log` | `infra/migrations/sql/0007_pii_access_log_lockdown.sql` |
+| BR-F5-06 | `pii_access_log` is append-only: a trigger refuses UPDATE and DELETE for every role; `REVOKE UPDATE, DELETE` from the app role as well (v0.6.2) | Same guarantee as `audit_log` | `infra/migrations/sql/0007_pii_access_log_lockdown.sql` |
 | BR-F5-07 | At most `pii_reveal.max_per_user_per_hour` reveals (default 20); the next is refused and alerts `security` | Bulk reading looks like exfiltration | `thresholds.yaml`, service |
 | BR-F5-08 | The value never appears in logs, audit payloads, notifications, exports, or the URL. Response carries `Cache-Control: no-store` | One person, one screen | Code review; log-capture test |
 
@@ -183,6 +183,37 @@ No Celery task. No webhook event.
 - **ADRs / rules:** spec §3.1; BR-X-02, 03, 06, 08.
 - **Regression tests:** `test_reveal_writes_exactly_one_access_log_row`; `test_no_plaintext_when_access_log_insert_fails`; `test_decrypt_has_one_caller`; `test_expired_entry_is_gone`; `test_masking_coverage_still_100`; `test_revealed_value_absent_from_logs`.
 
+## v0.6.2 — where the code differs (built 2026-10-17)
+
+Code wins (README §0.4 item 5). Each change and its reason:
+
+1. **"Claim on a `pending` item" → state `claimed`.** `ReviewItem.claim()` moves
+   an item from `pending` to `claimed`, so a claimed item is never pending
+   (`apps/review/models.py`). BR-F5-01 and the §j Background now say `claimed`.
+2. **Append-only by trigger.** core-api's role owns `pii_access_log`; a REVOKE
+   against a table's owner is a no-op in Postgres (as `infra/migrations/sql/0004`
+   says for `audit_log`). `0007_pii_access_log_lockdown.sql` adds the REVOKE and
+   a trigger; Postgres's message is "pii_access_log is append-only" (AC-F5-09).
+3. **New 500 code `access_log_failed`** for a failed access-log insert (AC-F5-06),
+   beside `decrypt_failed`. Both audit `pii_reveal_failed` and raise
+   `security_alert` in a separate transaction.
+4. **Assignee needs no F2.** `Ticket.assigned_to` exists today and the lifecycle's
+   assign action sets it, so BR-F5-01's assignee branch works in wave 0.
+5. **The reveal lives on `tickets/[id]`**, not `review/[id]`: the admin console
+   folded the review page into the ticket page (it redirects). The ticket detail
+   (`GET /api/tickets/{id}/detail`) gained `pii_placeholders: [{placeholder,
+   level}]` so the page can colour each chip and mark credentials security-only.
+   Access-log rows carry `level` for the same reason.
+6. **The button says "Reveal"**, not "Reveal for 60 s": the display time is
+   `pii_reveal.display_seconds` in `thresholds.yaml`, and the dialog counts down
+   from the response's `shown_until`.
+7. **Reason length** outside 10–500 answers `reason_required` (one code for empty,
+   short and long), and a time filter without a zone is UTC (BR-X-09).
+8. **Refused reveals are audited and counted** (`pii_reveal_refused`, code and
+   placeholder only) toward `pii_reveal.max_per_user_per_hour`, so probing with
+   refused attempts meets the same limit; the count runs under a per-person lock.
+   A placeholder whose label isn't known is treated as critical.
+
 ## j. Acceptance criteria
 
 ```gherkin
@@ -190,7 +221,7 @@ Feature: F5 PII reveal
 
   Background:
     Given ticket "TKT-2026-000412" has placeholder "[CCCD_1]" in quarantine, expiring in 30 hours
-    And a pending low_confidence review item for it is claimed by "duc.tm"
+    And a low_confidence review item for it is claimed by "duc.tm"
 
   @BR-F5-01 @BR-F5-03 @BR-F5-05
   Scenario: AC-F5-01 claim holder reveals with a reason
@@ -247,7 +278,7 @@ Feature: F5 PII reveal
   Scenario: AC-F5-09 the access log can't be edited
     Given one pii_access_log row exists for "[CCCD_1]" on "TKT-2026-000412"
     When core-api's database role runs UPDATE or DELETE on pii_access_log
-    Then Postgres refuses with "permission denied"
+    Then Postgres refuses with "pii_access_log is append-only"
 
   @BR-F5-08
   Scenario: AC-F5-10 the value leaves no trace

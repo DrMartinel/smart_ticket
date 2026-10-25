@@ -119,6 +119,22 @@ guard and that comment is later trimmed, the entry is the record.
   *`apps/core/tests/test_settings_env.py::test_productions_denylist_is_the_templates_dev_secrets`.*
 - **No `decrypt()` call without a `PiiAccessLog` row** in the same transaction, with
   a mandatory non-empty reason. *CLAUDE.md "Current state".*
+- **`PiiReveal.read_logged` inserts the access-log row before it decrypts**, inside
+  the reveal's transaction. Decrypting first looks equivalent. Then a failed insert
+  leaves plaintext already in memory on a path that can return it.
+  *`test_no_plaintext_when_access_log_insert_fails`, `test_decrypt_has_one_caller`.*
+- **`PiiReveal.check_rate` inside the reveal's transaction, under a per-actor
+  advisory lock.** Counting before the transaction looks the same. Then parallel
+  requests all see the same count and a script gets past the hourly limit.
+- **`placeholder_level` answering critical for an unknown label.** Defaulting to
+  routine looks harmless today. A new credential label would then be revealable
+  by technicians, with no error (hard rule 3). *`TestPlaceholderLevel`.*
+- **The `pii_access_log` trigger** (`infra/migrations/sql/0007`). The REVOKE beside
+  it does nothing to core-api's own role, which owns the table; only the trigger
+  stops an UPDATE or DELETE. *`test_access_log_rejects_update_and_delete`.*
+- **The reveal reason masked by the regex tier only** (`mask_regex_tier`), not NER.
+  Going through `mask_reply` would make every reveal depend on ai-engine being up
+  (BR-F5-04).
 - **Idempotency key `{ticket_id}:{attempt}` plus `acks_late`.** A redelivered task
   must not send a second auto-reply. *The `tasks.py` and `utils/pipeline.py` module
   docstrings.*

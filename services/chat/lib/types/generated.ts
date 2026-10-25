@@ -268,6 +268,11 @@ export interface ClarificationOut {
   answered_at: string | null;
 }
 
+export interface PlaceholderOut {
+  placeholder: string;
+  level: string;
+}
+
 export interface StaffTicketDetail {
   public_id: string;
   subject_masked: string;
@@ -283,6 +288,7 @@ export interface StaffTicketDetail {
   review: OpenReviewOut | null;
   version: number;
   body_masked: string;
+  pii_placeholders?: PlaceholderOut[];
   reporter_person: PersonOut;
   resolved_at: string | null;
   reopened_count: number;
@@ -290,6 +296,25 @@ export interface StaffTicketDetail {
   ai: AiSummaryOut | null;
   reviews: OpenReviewOut[];
   clarifications: ClarificationOut[];
+}
+
+export interface RevealOut {
+  placeholder: string;
+  value: string;
+  shown_until: string;
+}
+
+export interface AccessLogRowOut {
+  id: string;
+  accessed_at: string;
+  actor: string;
+  ticket: string;
+  placeholder: string;
+  level: string;
+  reason_code: string;
+  reason: string;
+  review_item: string | null;
+  outcome: string;
 }
 
 export type LLMProposal =

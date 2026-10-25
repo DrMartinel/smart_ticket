@@ -53,7 +53,10 @@ MODELS = [
     "RoutingOut",
     "AiSummaryOut",
     "ClarificationOut",
+    "PlaceholderOut",
     "StaffTicketDetail",
+    "RevealOut",
+    "AccessLogRowOut",
 ]
 
 ENUMS = {

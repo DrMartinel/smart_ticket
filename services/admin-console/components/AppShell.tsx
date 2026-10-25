@@ -56,6 +56,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
               Help pages
             </NavItem>
           </Group>
+          {user.role === "security" && (
+            <Group label="Security">
+              <NavItem href="/security/access-log" active={pathname.startsWith("/security/access-log")}>
+                PII access log
+              </NavItem>
+            </Group>
+          )}
           {user.role === "manager" && (
             <Group label="Settings">
               <NavItem href="/settings/workflows" active={pathname.startsWith("/settings/workflows")}>
