@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
+import { duration, percent } from "@/lib/format";
 
 interface DashboardData {
   quality: {
@@ -32,32 +33,36 @@ interface DashboardData {
   };
 }
 
-function pct(v: number | null): string {
-  return v === null ? "—" : `${(v * 100).toFixed(1)}%`;
-}
-
-function num(v: number | null, digits = 0): string {
-  return v === null ? "—" : v.toFixed(digits);
-}
-
-function StatTile({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Headline({ label, value, note, warn = false }: { label: string; value: string; note: string; warn?: boolean }) {
   return (
-    <div className="card p-4">
-      <div className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{label}</div>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-      {hint && <div className="mt-1 text-xs text-[var(--text-muted)]">{hint}</div>}
+    <div className="card p-5">
+      <p className="text-sm text-[var(--text-muted)]">{label}</p>
+      <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${warn ? "text-[var(--danger)]" : ""}`}>{value}</p>
+      <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{note}</p>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Rows({ title, rows }: { title: string; rows: { label: string; value: string; note: string }[] }) {
   return (
-    <section className="mb-8">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--text-muted)]">{title}</h2>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">{children}</div>
+    <section className="card">
+      <h2 className="border-b border-[var(--border)] px-5 py-3 text-sm font-semibold">{title}</h2>
+      <dl>
+        {rows.map((r) => (
+          <div key={r.label} className="grid grid-cols-[minmax(0,1fr)_110px] gap-4 border-b border-[var(--border)] px-5 py-3 last:border-0">
+            <div>
+              <dt className="text-sm">{r.label}</dt>
+              <p className="text-xs text-[var(--text-muted)]">{r.note}</p>
+            </div>
+            <dd className="text-right font-mono text-sm tabular-nums">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
+
+const WINDOW_DAYS = 30;
 
 export default function DashboardPage() {
   const user = useRequireAuth();
@@ -67,65 +72,102 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     api
-      .get<DashboardData>("/api/metrics/dashboard?window_days=30")
+      .get<DashboardData>(`/api/metrics/dashboard?window_days=${WINDOW_DAYS}`)
       .then(setData)
-      .catch(() => setError("Failed to load dashboard metrics."));
+      .catch(() => setError("Couldn't load the dashboard."));
   }, [user]);
 
   if (!user) return null;
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
+  if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
   if (!data) return <p className="text-sm text-[var(--text-muted)]">Loading…</p>;
 
+  const waiting = data.hitl_health.queue_depth_by_queue.reduce((sum, q) => sum + q.n, 0);
+  const reopen = data.quality.reopen_rate_after_autoreply;
+
   return (
-    <div>
-      <h1 className="mb-1 text-xl font-semibold">Dashboard</h1>
-      <p className="mb-6 text-sm text-[var(--text-muted)]">
-        Quality first — the reopen rate after auto-reply is the single most important number here (spec §11.1: a
-        wrong auto-reply that closes the ticket is an invisible failure).
-      </p>
+    <div className="mx-auto max-w-[1280px]">
+      <header className="mb-6">
+        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+        <p className="mt-0.5 text-sm text-[var(--text-muted)]">Last {WINDOW_DAYS} days</p>
+      </header>
 
-      <Section title="Quality">
-        <StatTile
-          label="Reopen rate after auto-reply"
-          value={pct(data.quality.reopen_rate_after_autoreply)}
-          hint="metric #1"
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Headline
+          label="Reopened after an automatic answer"
+          value={percent(reopen)}
+          note="The number that matters most: an automatic answer that was wrong but closed the ticket stays invisible until the requester reopens it."
+          warn={reopen !== null && reopen > 0.05}
         />
-        <StatTile label="Override rate" value={pct(data.quality.override_rate)} />
-        <StatTile label="Reroute rate" value={pct(data.quality.reroute_rate)} />
-        <StatTile label="Refusal rate" value={pct(data.quality.refusal_rate)} />
-        <StatTile label="Hallucination catch rate" value={pct(data.quality.hallucination_catch_rate)} />
-      </Section>
+        <Headline
+          label="Handled without a person"
+          value={percent(data.business.automation_rate)}
+          note="Tickets answered or routed automatically, out of all tickets."
+        />
+        <Headline
+          label="Met their SLA"
+          value={percent(data.business.sla_compliance)}
+          note="Tickets with a due time that were resolved before it."
+        />
+        <Headline
+          label="Waiting for review"
+          value={String(waiting)}
+          note={`Half wait under ${duration(data.hitl_health.time_in_queue_p50_sec)}; the slowest 5% wait over ${duration(data.hitl_health.time_in_queue_p95_sec)}.`}
+        />
+      </div>
 
-      <Section title="HITL health">
-        <StatTile label="Queue depth (total)" value={String(data.hitl_health.queue_depth_by_queue.reduce((s, q) => s + q.n, 0))} />
-        <StatTile label="Time in queue p50" value={num(data.hitl_health.time_in_queue_p50_sec)} hint="seconds" />
-        <StatTile label="Time in queue p95" value={num(data.hitl_health.time_in_queue_p95_sec)} hint="seconds" />
-        {data.hitl_health.approve_rate_per_reviewer.map((r) => (
-          <StatTile
-            key={r.reviewer__username}
-            label={`${r.reviewer__username} approve rate`}
-            value={pct(r.approve_rate)}
-            hint={
-              r.median_time_spent_sec !== null && r.median_time_spent_sec < 10
-                ? "⚠ median < 10s — may not be reading"
-                : undefined
-            }
-          />
-        ))}
-      </Section>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Rows
+          title="Quality of AI decisions"
+          rows={[
+            { label: "Overridden by a reviewer", value: percent(data.quality.override_rate), note: "Reviews where the person did something other than approve." },
+            { label: "Rerouted", value: percent(data.quality.reroute_rate), note: "Sent to a different team than proposed." },
+            { label: "Refused to answer", value: percent(data.quality.refusal_rate), note: "No help page matched well enough, so no answer was attempted." },
+            { label: "Bad answers caught", value: percent(data.quality.hallucination_catch_rate), note: "Answers the checks stopped because they misquoted or contradicted the page." },
+          ]}
+        />
+        <Rows
+          title="System"
+          rows={[
+            { label: "Time to triage (median)", value: duration((data.ops.latency_p50_ms ?? 0) / 1000), note: "From submission to a routing decision." },
+            { label: "Time to triage (slowest 5%)", value: duration((data.ops.latency_p95_ms ?? 0) / 1000), note: "Cold model loads land here." },
+            { label: "AI cost per ticket", value: data.ops.cost_per_ticket_usd === null ? "—" : `$${data.ops.cost_per_ticket_usd.toFixed(4)}`, note: "Model and API spend, averaged." },
+            { label: "Degraded runs", value: percent(data.ops.degraded_run_ratio), note: "Runs where part of the AI was down, so a person took over." },
+          ]}
+        />
+      </div>
 
-      <Section title="Operations">
-        <StatTile label="Latency p50" value={num(data.ops.latency_p50_ms)} hint="ms" />
-        <StatTile label="Latency p95" value={num(data.ops.latency_p95_ms)} hint="ms" />
-        <StatTile label="Cost per ticket" value={data.ops.cost_per_ticket_usd === null ? "—" : `$${data.ops.cost_per_ticket_usd.toFixed(4)}`} />
-        <StatTile label="Degraded run ratio" value={pct(data.ops.degraded_run_ratio)} />
-        <StatTile label="Circuit-open events" value={String(data.ops.circuit_open_events)} />
-      </Section>
-
-      <Section title="Business">
-        <StatTile label="Automation rate" value={pct(data.business.automation_rate)} hint="(auto_reply + auto_route) / total" />
-        <StatTile label="SLA compliance" value={pct(data.business.sla_compliance)} />
-      </Section>
+      <section className="card mt-6">
+        <h2 className="border-b border-[var(--border)] px-5 py-3 text-sm font-semibold">Reviewers</h2>
+        {data.hitl_health.approve_rate_per_reviewer.length === 0 ? (
+          <p className="px-5 py-4 text-sm text-[var(--text-muted)]">No reviews in this period.</p>
+        ) : (
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-[var(--text-muted)]">
+              <tr>
+                <th className="px-5 py-2 font-medium">Reviewer</th>
+                <th className="px-5 py-2 text-right font-medium">Reviews</th>
+                <th className="px-5 py-2 text-right font-medium">Approved as proposed</th>
+                <th className="px-5 py-2 text-right font-medium">Median time per review</th>
+                <th className="px-5 py-2 font-medium" />
+              </tr>
+            </thead>
+            <tbody>
+              {data.hitl_health.approve_rate_per_reviewer.map((r) => {
+                const rushed = r.median_time_spent_sec !== null && r.median_time_spent_sec < 10;
+                return (
+                  <tr key={r.reviewer__username} className="border-t border-[var(--border)]">
+                    <td className="px-5 py-2.5">{r.reviewer__username}</td>
+                    <td className="px-5 py-2.5 text-right font-mono tabular-nums">{r.total}</td>
+                    <td className="px-5 py-2.5 text-right font-mono tabular-nums">{percent(r.approve_rate)}</td>
+                    <td className="px-5 py-2.5 text-right font-mono tabular-nums">{duration(r.median_time_spent_sec)}</td>
+                    <td className="px-5 py-2.5 text-xs text-[var(--warn)]">{rushed ? "Under 10 s: may not be reading" : ""}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 }

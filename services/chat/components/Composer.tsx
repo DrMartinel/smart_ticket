@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SendIcon } from "./icons";
 
 // Mirrors ChatAskIn.message in core-api (apps/chat/request_schema.py):
 // shorter is a 422 there, so it is caught here first.
@@ -38,41 +37,35 @@ export default function Composer({
   };
 
   return (
-    <div className="surface rounded-2xl p-2 transition focus-within:border-[var(--accent)]">
-      <div className="flex items-end gap-2">
-        <label htmlFor="composer" className="sr-only">
-          Describe your problem
-        </label>
-        <textarea
-          id="composer"
-          ref={ref}
-          rows={1}
-          value={text}
-          maxLength={MAX_CHARS}
-          autoFocus={autoFocus}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-              e.preventDefault();
-              send();
-            }
-          }}
-          placeholder="Describe what's wrong, e.g. I can't SSH into my EC2 instance…"
-          className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] leading-6 outline-none placeholder:text-[var(--text-muted)]"
-        />
-        <button
-          type="button"
-          onClick={send}
-          disabled={!canSend}
-          aria-label="Send"
-          className="brand-gradient grid h-10 w-10 shrink-0 place-items-center rounded-xl text-white transition enabled:hover:brightness-110 disabled:opacity-35"
-        >
-          <SendIcon />
+    <div className="panel transition-colors hover:border-[var(--text-muted)] focus-within:border-[var(--text)]">
+      <label htmlFor="composer" className="sr-only">
+        Describe your problem
+      </label>
+      <textarea
+        id="composer"
+        ref={ref}
+        rows={2}
+        value={text}
+        maxLength={MAX_CHARS}
+        autoFocus={autoFocus}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            e.preventDefault();
+            send();
+          }
+        }}
+        placeholder="Describe the problem: what you tried, what happened, any error message."
+        className="block max-h-[200px] min-h-[64px] w-full resize-none bg-transparent focus-visible:outline-none px-3.5 pt-3 text-[15px] leading-6 outline-none placeholder:text-[var(--text-muted)]"
+      />
+      <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-2">
+        <p className="text-xs text-[var(--text-muted)]" aria-live="polite">
+          {tooShort ? `Add a little more detail (${MIN_CHARS}+ characters).` : "Enter to send, Shift+Enter for a new line"}
+        </p>
+        <button type="button" onClick={send} disabled={!canSend} className="btn btn-primary py-1.5">
+          Send
         </button>
       </div>
-      <p className="flex justify-between px-3 pb-1 pt-1 text-xs text-[var(--text-muted)]" aria-live="polite">
-        <span>{tooShort ? `A little more detail, please (${MIN_CHARS}+ characters).` : "Enter to send · Shift+Enter for a new line"}</span>
-      </p>
     </div>
   );
 }

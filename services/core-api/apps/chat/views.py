@@ -25,7 +25,9 @@ router = Router(tags=["chat"])
 
 
 def _own_chat_tickets(request: AuthedRequest) -> QuerySet[Ticket]:
-    return Ticket.objects.filter(reporter=request.auth, source=TicketSource.CHAT.value)
+    return Ticket.objects.filter(
+        reporter=request.auth, source=TicketSource.CHAT.value
+    ).select_related("workflow_status")
 
 
 def _own_chat_ticket(request: AuthedRequest, public_id: str) -> Ticket:

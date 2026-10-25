@@ -44,6 +44,16 @@ MODELS = [
     "ChatClarifyIn",
     "ChatClarificationOut",
     "ChatTurnOut",
+    "PersonOut",
+    "StatusOut",
+    "OpenReviewOut",
+    "StaffTicketRow",
+    "StaffTicketPage",
+    "StaffTicketBoard",
+    "RoutingOut",
+    "AiSummaryOut",
+    "ClarificationOut",
+    "StaffTicketDetail",
 ]
 
 ENUMS = {
@@ -114,12 +124,27 @@ type JsonSchema = dict[str, Any]
 def _models() -> dict[str, type[BaseModel]]:
     """Each schema lives in the module that uses it, so gather them by name."""
     from apps.chat import request_schema as chat_request, response_schema as chat_response
-    from apps.tickets import request_schema
+    from apps.tickets import request_schema, response_schema as tickets_response
     from apps.tickets.utils import router, trust_scorer
     from infrastructure import dtos
 
-    modules = (request_schema, router, trust_scorer, dtos, chat_request, chat_response)
-    return {name: getattr(m, name) for name in MODELS for m in modules if hasattr(m, name)}
+    modules = (
+        request_schema,
+        router,
+        trust_scorer,
+        dtos,
+        chat_request,
+        chat_response,
+        tickets_response,
+    )
+    found: dict[str, type[BaseModel]] = {}
+    for name in MODELS:
+        for module in modules:
+            candidate = getattr(module, name, None)
+            if isinstance(candidate, type) and issubclass(candidate, BaseModel):
+                found[name] = candidate
+                break
+    return found
 
 
 PY_TO_TS = {
@@ -147,6 +172,8 @@ def _ts_type(prop: JsonSchema, defs: JsonSchema) -> str:
         return " | ".join(f'"{v}"' for v in prop["enum"])
     if "const" in prop:
         return f'"{prop["const"]}"'
+    if prop.get("type") == "object" and isinstance(prop.get("additionalProperties"), dict):
+        return f"Record<string, {_ts_type(prop['additionalProperties'], defs)}>"
     return PY_TO_TS.get(prop.get("type", ""), "unknown")
 
 

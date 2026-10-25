@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { ChatClarificationOut, ChatTurnOut } from "@/lib/types/generated";
 import { SLOW_AFTER_MS, type Turn } from "@/lib/conversation";
-import { BookIcon, CheckIcon, ShieldIcon, SparkleIcon, TicketIcon } from "./icons";
+import AnswerText, { InlineText } from "./AnswerText";
+import { ArrowUpRightIcon, CheckIcon } from "./icons";
 
 // The masking placeholders core-api writes in place of PII, e.g. [EMAIL_1].
 const PLACEHOLDER = /\[[A-Z]+(?:_[A-Z]+)*_\d+\]/;
@@ -28,7 +29,7 @@ export default function TurnView({
       <>
         <Question text={turn.text} />
         <Reply>
-          <Thinking label="Reading your question…" />
+          <Working label="Reading your question" />
         </Reply>
       </>
     );
@@ -39,7 +40,7 @@ export default function TurnView({
         <Question text={turn.text} />
         <Reply>
           <p className="text-[var(--danger)]">{turn.error}</p>
-          <button onClick={() => onRetry(turn.key)} className="mt-2 text-sm font-medium text-[var(--accent)] hover:underline">
+          <button onClick={() => onRetry(turn.key)} className="btn btn-secondary mt-3">
             Try again
           </button>
         </Reply>
@@ -51,7 +52,7 @@ export default function TurnView({
   const asked = t.state === "clarify" ? null : t.clarification;
   return (
     <>
-      <Question text={t.question_masked} masked={PLACEHOLDER.test(t.question_masked)} />
+      <Question text={t.question_masked} masked={PLACEHOLDER.test(t.question_masked)} at={t.created_at} ticket={t.public_id} />
       {asked && (
         // A question asked earlier: answered, or closed unanswered. Shown
         // as the exchange it was, before what came of it.
@@ -59,9 +60,7 @@ export default function TurnView({
           <Reply>
             <p>{asked.question}</p>
           </Reply>
-          {asked.answer_masked && (
-            <Question text={asked.answer_masked} masked={PLACEHOLDER.test(asked.answer_masked)} />
-          )}
+          {asked.answer_masked && <Question text={asked.answer_masked} masked={PLACEHOLDER.test(asked.answer_masked)} />}
         </>
       )}
       <Reply>
@@ -82,7 +81,7 @@ export default function TurnView({
 }
 
 // The router chose to ask which page the requester means (ADR-0023). The
-// pages are core-api's, from Jev's ranking; tapping one answers with its
+// pages are core-api's, from Jev's ranking; picking one answers with its
 // title. "None of these" opens a box to say it in their own words, and
 // asking for a person carries out the held decision.
 function ClarifyCard({
@@ -110,27 +109,33 @@ function ClarifyCard({
     <div className="flex flex-col gap-3">
       <p>{clarification.question}</p>
       {clarification.options.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <ul className="divide-y divide-[var(--border)] overflow-hidden rounded-[5px] border border-[var(--border)]">
           {clarification.options.map((title) => (
-            <button
-              key={title}
-              onClick={() => onAnswer(title)}
-              disabled={busy}
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 text-left text-sm transition hover:border-[var(--accent)] disabled:opacity-50"
-            >
-              {title}
-            </button>
+            <li key={title}>
+              <button
+                onClick={() => onAnswer(title)}
+                disabled={busy}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-[var(--surface-2)] disabled:opacity-50"
+              >
+                {title}
+                <span aria-hidden className="text-[var(--text-muted)]">
+                  →
+                </span>
+              </button>
+            </li>
           ))}
           {!typing && (
-            <button
-              onClick={() => setTyping(true)}
-              disabled={busy}
-              className="rounded-xl border border-dashed border-[var(--border)] px-3 py-1.5 text-left text-sm text-[var(--text-muted)] transition hover:border-[var(--accent)] disabled:opacity-50"
-            >
-              None of these
-            </button>
+            <li>
+              <button
+                onClick={() => setTyping(true)}
+                disabled={busy}
+                className="w-full px-3 py-2 text-left text-sm text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-2)] disabled:opacity-50"
+              >
+                None of these
+              </button>
+            </li>
           )}
-        </div>
+        </ul>
       )}
       {(typing || clarification.options.length === 0) && (
         <form
@@ -148,13 +153,9 @@ function ClarifyCard({
             autoFocus
             placeholder="Describe what you need in your own words"
             aria-label="Your answer"
-            className="min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-1.5 text-sm outline-none focus:border-[var(--accent)]"
+            className="field min-w-0 flex-1 text-sm"
           />
-          <button
-            type="submit"
-            disabled={busy || !text.trim()}
-            className="brand-gradient rounded-xl px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
-          >
+          <button type="submit" disabled={busy || !text.trim()} className="btn btn-primary">
             {answering ? "Sending…" : "Send"}
           </button>
         </form>
@@ -162,7 +163,7 @@ function ClarifyCard({
       <button
         onClick={onCreateTicket}
         disabled={busy}
-        className="self-start text-xs text-[var(--text-muted)] underline-offset-2 hover:underline disabled:opacity-50"
+        className="self-start text-sm text-[var(--accent)] underline underline-offset-2 disabled:opacity-50"
       >
         {creating ? "Creating ticket…" : "Talk to a person instead"}
       </button>
@@ -170,85 +171,68 @@ function ClarifyCard({
   );
 }
 
-function Question({ text, masked = false }: { text: string; masked?: boolean }) {
+function Question({
+  text,
+  masked = false,
+  at,
+  ticket,
+}: {
+  text: string;
+  masked?: boolean;
+  at?: string;
+  ticket?: string;
+}) {
   return (
-    <div className="turn-in flex flex-col items-end">
-      <div className="brand-gradient max-w-[85%] whitespace-pre-wrap break-words rounded-2xl rounded-br-md px-4 py-2.5 text-[15px] leading-6 text-white shadow-sm">
+    <article className="flex flex-col gap-1.5">
+      <Byline who="You" at={at} ticket={ticket} />
+      <div className="whitespace-pre-wrap break-words rounded-[6px] bg-[var(--surface-2)] px-4 py-3 text-[15px] leading-6">
         {text}
       </div>
       {masked && (
-        <p className="mt-1 flex items-center gap-1 text-xs text-[var(--text-muted)]">
-          <ShieldIcon /> Personal details were hidden before anything else read this.
+        <p className="text-xs text-[var(--text-muted)]">
+          Personal details (shown in brackets) were removed before anyone else read this.
         </p>
       )}
-    </div>
+    </article>
   );
 }
 
 function Reply({ children }: { children: React.ReactNode }) {
   return (
-    <div className="turn-in flex items-start gap-3">
-      <div className="brand-gradient mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-white">
-        <SparkleIcon />
-      </div>
-      <div className="surface min-w-0 max-w-[85%] rounded-2xl rounded-tl-md px-4 py-3 text-[15px] leading-6">{children}</div>
-    </div>
+    <article className="flex flex-col gap-1.5">
+      <Byline who="IT Help" />
+      <div className="panel border-l-2 border-l-[var(--accent)] px-4 py-3 text-[15px] leading-6">{children}</div>
+    </article>
   );
 }
 
-function AnswerText({ text }: { text: string }) {
-  const parts = splitSteps(text);
-  if (!parts) return <p className="whitespace-pre-wrap break-words">{text}</p>;
+function Byline({ who, at, ticket }: { who: string; at?: string; ticket?: string }) {
   return (
-    <div className="flex flex-col gap-2 break-words">
-      {parts.intro && <p>{parts.intro}</p>}
-      <ol className="list-decimal space-y-1 pl-5 marker:text-[var(--text-muted)]">
-        {parts.steps.map((step, i) => (
-          <li key={i}>{step}</li>
-        ))}
-      </ol>
-      {parts.outro && <p>{parts.outro}</p>}
-    </div>
+    <p className="flex items-baseline gap-2 text-xs text-[var(--text-muted)]">
+      <span className="font-medium text-[var(--text)]">{who}</span>
+      {at && <time dateTime={at}>{formatTime(at)}</time>}
+      {ticket && <span className="font-mono">{ticket}</span>}
+    </p>
   );
 }
 
-// The model writes steps inline ("…these steps: 1. Do this. 2. Do that.").
-// Only markers numbered 1, 2, 3… in order count as steps, so a stray
-// "Windows 10. " never splits the text; fewer than two leaves it as written.
-// The last step keeps its first sentence, and whatever follows it ("If the
-// issue persists, …") is the closing paragraph, not part of the step.
-function splitSteps(text: string): { intro: string; steps: string[]; outro: string } | null {
-  if (text.includes("\n")) return null;
-  const marks: { start: number; end: number }[] = [];
-  const marker = /(?:^|\s)(\d{1,2})\.\s+/g;
-  for (let m = marker.exec(text); m; m = marker.exec(text)) {
-    if (Number(m[1]) === marks.length + 1) marks.push({ start: m.index, end: m.index + m[0].length });
-  }
-  if (marks.length < 2) return null;
-
-  const steps = marks.map((mk, i) => text.slice(mk.end, marks[i + 1]?.start ?? text.length).trim());
-  const last = steps[steps.length - 1].match(/^(.*?[.!?])\s+([A-Z][\s\S]*)$/);
-  let outro = "";
-  if (last) {
-    steps[steps.length - 1] = last[1];
-    outro = last[2];
-  }
-  return { intro: text.slice(0, marks[0].start).trim(), steps, outro };
+function formatTime(iso: string): string {
+  const date = new Date(iso);
+  const sameDay = date.toDateString() === new Date().toDateString();
+  return sameDay
+    ? date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : date.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function Thinking({ label, slow = false }: { label: string; slow?: boolean }) {
+function Working({ label, slow = false }: { label: string; slow?: boolean }) {
   return (
-    <div role="status" className="flex flex-col gap-1">
-      <div className="flex items-center gap-3">
-        <span className="flex gap-1" aria-hidden>
-          <span className="dot" />
-          <span className="dot" />
-          <span className="dot" />
-        </span>
-        <span className="text-[var(--text-muted)]">{label}</span>
-      </div>
+    <div role="status" className="flex flex-col gap-2">
+      <p className="text-[var(--text-muted)]">{label}…</p>
+      <span className="progress" aria-hidden />
       {slow && (
-        <p className="text-xs text-[var(--text-muted)]">This is taking longer than usual. You can leave; it will be here when you return.</p>
+        <p className="text-xs text-[var(--text-muted)]">
+          This is taking longer than usual. You can leave; the answer will be here when you return.
+        </p>
       )}
     </div>
   );
@@ -267,29 +251,33 @@ function Outcome({
 }) {
   switch (turn.state) {
     case "thinking":
-      return <Thinking label="Searching the knowledge base…" slow={Date.now() - startedAt > SLOW_AFTER_MS} />;
+      return <Working label="Searching the help pages" slow={Date.now() - startedAt > SLOW_AFTER_MS} />;
 
     case "answered":
       if (!turn.answer) return <p>Answered.</p>;
       return (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-4">
           <AnswerText text={turn.answer.text} />
-          <figure className="rounded-xl border-l-[3px] border-[var(--accent)] bg-[var(--surface-2)] px-3 py-2">
-            <blockquote className="text-sm italic text-[var(--text-muted)]">“{turn.answer.quote}”</blockquote>
-            <figcaption className="mt-1.5 flex items-center gap-1.5 text-xs font-medium">
-              <BookIcon className="h-3.5 w-3.5 text-[var(--accent)]" />
-              {turn.answer.kb_url ? (
-                <a href={turn.answer.kb_url} target="_blank" rel="noreferrer" className="text-[var(--accent)] hover:underline">
-                  {turn.answer.kb_title}
-                </a>
-              ) : (
-                <span>{turn.answer.kb_title}</span>
-              )}
-            </figcaption>
+          <figure className="border-t border-[var(--border)] pt-3 text-sm">
+            <figcaption className="mb-1 text-xs uppercase tracking-wide text-[var(--text-muted)]">Source</figcaption>
+            {turn.answer.kb_url ? (
+              <a
+                href={turn.answer.kb_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+              >
+                {turn.answer.kb_title}
+                <ArrowUpRightIcon />
+              </a>
+            ) : (
+              <span className="font-medium">{turn.answer.kb_title}</span>
+            )}
+            <blockquote className="answer mt-1.5 border-l border-[var(--border-strong)] pl-3 text-[var(--text-muted)]">
+              <InlineText text={turn.answer.quote} />
+            </blockquote>
           </figure>
-          <p className="text-xs text-[var(--text-muted)]">
-            From an approved knowledge-base page. Still stuck? Ask again with more detail and I&apos;ll offer a ticket.
-          </p>
+          <p className="text-xs text-[var(--text-muted)]">Didn&apos;t solve it? Ask again with more detail and you&apos;ll be offered a ticket.</p>
         </div>
       );
 
@@ -301,32 +289,25 @@ function Outcome({
       return (
         <div className="flex flex-col gap-3">
           <p>
-            I couldn&apos;t find an answer I&apos;m confident in, so I&apos;d rather not guess. A person on the support team can
-            take this from here.
+            None of the approved help pages answers this closely enough, so rather than guess, this should go to the
+            support team.
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={() => onCreateTicket(turn.public_id)}
-              disabled={creating}
-              className="brand-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:brightness-110 disabled:opacity-50"
-            >
-              <TicketIcon />
+            <button onClick={() => onCreateTicket(turn.public_id)} disabled={creating} className="btn btn-primary">
               {creating ? "Creating ticket…" : "Create a ticket"}
             </button>
-            <span className="text-xs text-[var(--text-muted)]">Your question goes to support as written above.</span>
+            <span className="text-xs text-[var(--text-muted)]">Support receives your question as written above.</span>
           </div>
         </div>
       );
 
     case "with_support":
       return (
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--ok-soft)] text-[var(--ok)]">
-            <CheckIcon className="h-3.5 w-3.5" />
-          </span>
+        <div className="flex items-start gap-2.5">
+          <CheckIcon className="mt-1 h-4 w-4 shrink-0 text-[var(--ok)]" />
           <div>
             <p>
-              Ticket <span className="font-mono text-sm font-semibold">{turn.public_id}</span> is with the support team.
+              Ticket <span className="font-mono font-medium">{turn.public_id}</span> is with the support team.
             </p>
             <p className="text-sm text-[var(--text-muted)]">A technician will follow up with you.</p>
           </div>

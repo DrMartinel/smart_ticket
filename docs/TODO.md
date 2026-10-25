@@ -426,9 +426,10 @@ ADR-0026 is accepted or superseded on a full run, and no Jev-scale threshold is 
 ### Work
 
 1. Accept or reject ADR-0028.
-2. An admin-console page for workflows (statuses, transitions, fields) and
-   the ticket's moves, fields, transfer log and approvals. The API is
-   `/api/lifecycle/...`; no frontend calls it yet.
+2. ~~An admin-console page for workflows (statuses, transitions, fields) and
+   the ticket's moves, fields and transfer log~~ (`/settings/workflows`,
+   `/settings/stages`, `/board`, `/tickets/[id]`). Still missing: an
+   approvals screen for `GET /api/lifecycle/approvals/mine`.
 3. Notify approvers when `require_approval` asks them (only the audit log
    and `GET /api/lifecycle/approvals/mine` show it today).
 4. Run an n8n round trip and a real SMTP send once against the Dockerized

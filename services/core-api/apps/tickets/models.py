@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, Literal, cast
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import connection, models, transaction
+from django.db.models import F, QuerySet, Window
+from django.db.models.functions import RowNumber
 from django.utils import timezone
 from pgvector.django import CosineDistance, VectorField
 
@@ -136,7 +138,111 @@ class IncidentVerdict:
     baseline_rate: float | None = None
 
 
+@dataclass(frozen=True)
+class TicketPage:
+    """A page of a staff view."""
+
+    items: list[Ticket]
+    total: int
+    counts: dict[str, int]
+
+
+@dataclass(frozen=True)
+class TicketBoard:
+    """A workflow's tickets by status: the newest of each, and how many each holds."""
+
+    items: list[Ticket]
+    counts: dict[str, int]
+
+
+class StaffView(StrEnum):
+    """The saved ticket lists staff work from."""
+
+    REVIEW = "review"
+    MINE = "mine"
+    OPEN = "open"
+    RESOLVED = "resolved"
+    ALL = "all"
+
+
+# Review item states that still wait for a person.
 class TicketManager(models.Manager["Ticket"]):
+    def in_view(self, view: StaffView, user: User, query: str = "") -> QuerySet[Ticket]:
+        """The tickets `view` shows `user`, newest first, matching `query` on id or subject."""
+        tickets = self.select_related(
+            "reporter", "assigned_to", "workflow_status__base"
+        ).prefetch_related("review_items")
+        match view:
+            case StaffView.REVIEW:
+                from apps.review.models import ReviewItem
+
+                tickets = tickets.filter(review_items__state__in=ReviewItem.OPEN_STATES).distinct()
+            case StaffView.MINE:
+                tickets = tickets.filter(assigned_to=user, resolved_at__isnull=True)
+            case StaffView.OPEN:
+                tickets = tickets.filter(resolved_at__isnull=True)
+            case StaffView.RESOLVED:
+                tickets = tickets.filter(resolved_at__isnull=False)
+        query = query.strip()
+        if query:
+            tickets = tickets.filter(
+                models.Q(public_id__icontains=query) | models.Q(subject_masked__icontains=query)
+            )
+        return tickets.order_by("-created_at")
+
+    def for_detail(self) -> QuerySet[Ticket]:
+        """Tickets with what the staff detail shows loaded, each list in display order."""
+        from apps.review.models import ReviewItem
+
+        return self.select_related(
+            "reporter", "assigned_to", "workflow_status__base"
+        ).prefetch_related(
+            models.Prefetch("routing_decisions", RoutingDecision.objects.order_by("-decided_at")),
+            models.Prefetch("review_items", ReviewItem.objects.order_by("-created_at")),
+            models.Prefetch("clarifications", TicketClarification.objects.order_by("asked_at")),
+            models.Prefetch("ai_runs", AiRun.objects.order_by("-created_at")),
+        )
+
+    def board(self, workflow_id: uuid.UUID, *, query: str, per_column: int) -> TicketBoard:
+        """The newest `per_column` tickets of each status in `workflow_id`, and every status's count."""
+        tickets = self.filter(workflow_status__workflow_id=workflow_id)
+        query = query.strip()
+        if query:
+            tickets = tickets.filter(
+                models.Q(public_id__icontains=query) | models.Q(subject_masked__icontains=query)
+            )
+        counts = dict(tickets.values_list("status").annotate(n=models.Count("id")).order_by())
+        newest = (
+            tickets.annotate(
+                rank=Window(
+                    RowNumber(),
+                    partition_by=F("workflow_status_id"),
+                    order_by=F("created_at").desc(),
+                )
+            )
+            .filter(rank__lte=per_column)
+            .select_related("reporter", "assigned_to", "workflow_status__base")
+            .prefetch_related("review_items")
+            .order_by("-created_at")
+        )
+        return TicketBoard(items=list(newest), counts=counts)
+
+    def page(
+        self, view: StaffView, user: User, *, query: str, number: int, size: int
+    ) -> TicketPage:
+        """One page of `view`, with the size of every view for the sidebar."""
+        tickets = self.in_view(view, user, query)
+        start = (number - 1) * size
+        return TicketPage(
+            items=list(tickets[start : start + size]),
+            total=tickets.count(),
+            counts=self.view_counts(user),
+        )
+
+    def view_counts(self, user: User) -> dict[str, int]:
+        """How many tickets each staff view holds for `user`."""
+        return {view.value: self.in_view(view, user).count() for view in StaffView}
+
     def next_public_id(self) -> str:
         # Backed by a dedicated Postgres sequence (apps/tickets/migrations/
         # 0002_sequences_and_sql.py), not a row count, so IDs stay monotonic and
@@ -484,6 +590,15 @@ class AiRun(BaseModel):
         db_table = "ai_runs"
 
     objects = AiRunManager()
+
+    def cited_kb_title(self) -> str | None:
+        """The title of the KB page the run's proposal names, if it still exists."""
+        from apps.kb.models import KbArticle
+
+        slug = (self.proposed_draft or {}).get("kb_slug")
+        if not slug:
+            return None
+        return KbArticle.objects.filter(slug=slug).values_list("title", flat=True).first()
 
 
 class RoutingDecision(BaseModel):

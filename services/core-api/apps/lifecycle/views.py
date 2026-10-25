@@ -23,6 +23,7 @@ from apps.lifecycle.models import (
 )
 from apps.lifecycle.request_schema import (
     AdoptIn,
+    AssignIn,
     ApprovalDecisionIn,
     CallbackIn,
     ChangeWorkflowIn,
@@ -354,6 +355,15 @@ def list_moves(request: AuthedRequest, public_id: str) -> list[MoveOption]:
     return lifecycle.options(_ticket(public_id))
 
 
+@router.post("/tickets/{public_id}/assign", auth=SessionAuth(), response=TicketLifecycleOut)
+@require_role(*_READ)
+def assign_ticket(request: AuthedRequest, public_id: str, payload: AssignIn) -> Ticket:
+    lifecycle.assign(
+        _ticket(public_id).id, username=payload.assignee, team=payload.team, actor=request.auth
+    )
+    return _lifecycle_of(public_id)
+
+
 @router.post("/tickets/{public_id}/move", auth=SessionAuth(), response=TicketLifecycleOut)
 @require_role(*_READ)
 def move_ticket(request: AuthedRequest, public_id: str, payload: MoveIn) -> Ticket:
@@ -392,7 +402,7 @@ def write_fields(request: AuthedRequest, public_id: str, payload: FieldValuesIn)
 def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]:
     return (
         Transfer.objects.filter(ticket=_ticket(public_id))
-        .select_related("ticket")
+        .select_related("ticket", "before_status", "after_status", "actor")
         .prefetch_related("runs")
         .order_by("-created_at")
     )
@@ -402,7 +412,11 @@ def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]
 @require_role(*_READ)
 def retry_transfer(request: AuthedRequest, public_id: str) -> Transfer:
     transfer = lifecycle.retry(_ticket(public_id).id, request.auth)
-    return Transfer.objects.select_related("ticket").prefetch_related("runs").get(pk=transfer.id)
+    return (
+        Transfer.objects.select_related("ticket", "before_status", "after_status", "actor")
+        .prefetch_related("runs")
+        .get(pk=transfer.id)
+    )
 
 
 @router.get("/transfers/failed", auth=SessionAuth(), response=list[TransferOut])
