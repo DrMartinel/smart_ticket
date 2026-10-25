@@ -9,7 +9,6 @@ from datetime import datetime
 
 from ninja import Field, Schema
 
-from apps.kb.models import KbArticle
 from apps.tickets.models import RoutingDecision, Ticket
 
 
@@ -168,13 +167,13 @@ class StaffTicketDetail(StaffTicketRow):
 
     @staticmethod
     def resolve_routing(ticket: Ticket) -> list[RoutingDecision]:
-        return list(ticket.routing_decisions.order_by("-decided_at"))
+        return list(ticket.routing_decisions.all())
 
     @staticmethod
     def resolve_reviews(ticket: Ticket) -> list[OpenReviewOut]:
         return [
             OpenReviewOut(id=r.id, queue=r.queue, priority=r.priority, state=r.state)
-            for r in ticket.review_items.order_by("-created_at")
+            for r in ticket.review_items.all()
         ]
 
     @staticmethod
@@ -187,19 +186,18 @@ class StaffTicketDetail(StaffTicketRow):
                 asked_at=c.asked_at,
                 answered_at=c.answered_at,
             )
-            for c in ticket.clarifications.order_by("asked_at")
+            for c in ticket.clarifications.all()
         ]
 
     @staticmethod
     def resolve_ai(ticket: Ticket) -> AiSummaryOut | None:
-        run = ticket.ai_runs.order_by("-created_at").first()
+        run = next(iter(ticket.ai_runs.all()), None)
         if run is None:
             return None
         proposal = run.proposed_draft or {}
         signals = run.trust_signals or {}
         classification = signals.get("classification") or {}
         slug = proposal.get("kb_slug")
-        kb = KbArticle.objects.filter(slug=slug).only("title").first() if slug else None
         return AiSummaryOut(
             proposed_intent=proposal.get("proposed_intent"),
             category=classification.get("category_choice"),
@@ -207,7 +205,7 @@ class StaffTicketDetail(StaffTicketRow):
             if classification
             else None,
             kb_slug=slug,
-            kb_title=kb.title if kb else None,
+            kb_title=run.cited_kb_title(),
             answer_draft=proposal.get("answer_draft"),
             verbatim_quote=proposal.get("verbatim_quote"),
             trust_score=float(run.trust_score) if run.trust_score is not None else None,
