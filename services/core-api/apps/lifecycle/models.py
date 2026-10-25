@@ -316,7 +316,7 @@ class TransferQuerySet(QuerySet["Transfer"]):
         """Failed transfers, newest first, for a person to retry or dismiss."""
         return (
             self.filter(state=TransferState.FAILED.value)
-            .select_related("ticket", "before_status", "after_status")
+            .select_related("ticket", "before_status", "after_status", "actor")
             .order_by("-created_at")
         )
 

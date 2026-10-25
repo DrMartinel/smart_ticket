@@ -9,18 +9,9 @@ import { priorityClasses } from "@/lib/badges";
 import { QUEUE_LABEL } from "@/lib/explain";
 import { dateTime, humanize, relativeTime } from "@/lib/format";
 import type { Status, Workflow, WorkflowDetail } from "@/lib/lifecycle";
+import type { StaffTicketRow } from "@/lib/types/generated";
 
-interface Card {
-  public_id: string;
-  subject_masked: string;
-  status: { key: string; name: string; color: string; is_completed: boolean };
-  category: string | null;
-  assigned_team: string | null;
-  assignee: string | null;
-  sla_due_at: string | null;
-  created_at: string;
-  review: { queue: string; priority: number } | null;
-}
+type Card = StaffTicketRow;
 
 interface MoveOption {
   status: { id: string };
@@ -48,11 +39,21 @@ export default function BoardPage() {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [over, setOver] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ tone: "danger" | "ok"; text: string; ticket?: string } | null>(null);
+  const [unavailable, setUnavailable] = useState<string | null>(null);
 
   const workflowId = search.get("workflow") ?? workflows.find((w) => w.is_default)?.id ?? null;
 
   useEffect(() => {
-    if (user) api.get<Workflow[]>("/api/lifecycle/workflows").then(setWorkflows).catch(() => setNotice({ tone: "danger", text: "Couldn't load workflows." }));
+    if (!user) return;
+    api
+      .get<Workflow[]>("/api/lifecycle/workflows")
+      .then((all) => {
+        setWorkflows(all);
+        if (!all.some((w) => w.is_default)) setUnavailable("There is no default workflow yet. Create one in Settings → Workflows.");
+      })
+      .catch((err) =>
+        setUnavailable(err instanceof ApiError && err.status === 403 ? "The board isn't available to your role." : "Couldn't load workflows."),
+      );
   }, [user]);
 
   const load = useCallback(async () => {
@@ -67,8 +68,8 @@ export default function BoardPage() {
       setWf(w);
       setCards(b.items);
       setCounts(b.counts);
-    } catch {
-      setNotice({ tone: "danger", text: "Couldn't load the board." });
+    } catch (err) {
+      setUnavailable(err instanceof ApiError && err.status === 403 ? "The board isn't available to your role." : "Couldn't load the board.");
     }
   }, [workflowId, submitted]);
 
@@ -103,7 +104,10 @@ export default function BoardPage() {
     const previous = cards;
     setCards((cs) => cs && cs.map((c) => (c.public_id === d.card.public_id ? { ...c, status: { ...c.status, key: target.key, name: target.name, color: target.color } } : c)));
     try {
-      const res = await api.post<{ waiting_transform: boolean }>(`/api/lifecycle/tickets/${d.card.public_id}/move`, { status_id: target.id });
+      const res = await api.post<{ waiting_transform: boolean }>(`/api/lifecycle/tickets/${d.card.public_id}/move`, {
+        status_id: target.id,
+        expected_version: d.card.version,
+      });
       setNotice(
         res.waiting_transform
           ? { tone: "ok", text: `${d.card.public_id} is waiting on an action (an approval or a webhook) before it reaches ${target.name}.`, ticket: d.card.public_id }
@@ -174,7 +178,9 @@ export default function BoardPage() {
         </p>
       )}
 
-      {!cards || !wf ? (
+      {unavailable ? (
+        <p className="text-sm text-[var(--text-muted)]">{unavailable}</p>
+      ) : !cards || !wf ? (
         <p className="text-sm text-[var(--text-muted)]">Loading…</p>
       ) : (
         <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2">
