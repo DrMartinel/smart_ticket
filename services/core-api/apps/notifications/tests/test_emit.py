@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from typing import Any
 from datetime import timedelta
 
 import pytest
@@ -356,7 +357,9 @@ def test_a_send_refused_after_commit_is_logged_not_raised(
 
     # Django's own robust path, outside the test's atomic block it would refuse to run in.
     monkeypatch.setattr(connection, "validate_no_atomic_block", lambda: None)
-    connection.run_on_commit = [(set(), callback, True) for callback in callbacks]
+    # (savepoints, callback, robust): the stubs know only the first two.
+    hooks: Any = [(set(), callback, True) for callback in callbacks]
+    connection.run_on_commit = hooks
     connection.run_and_clear_commit_hooks()
 
     assert "broker down" in caplog.text
