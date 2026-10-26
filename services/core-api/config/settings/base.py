@@ -86,6 +86,7 @@ INSTALLED_APPS = [
     "apps.lifecycle",
     "apps.teams",
     "apps.notifications",
+    "apps.sla",
 ]
 
 MIDDLEWARE = [
@@ -174,6 +175,15 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.notifications.tasks.sweep",
         "schedule": float(env("NOTIFICATION_SWEEP_INTERVAL_SEC")),
     },
+    "sla-sweep": {
+        "task": "apps.sla.tasks.sweep",
+        "schedule": float(env("SLA_SWEEP_INTERVAL_SEC")),
+    },
+    "sla-holiday-check": {
+        "task": "apps.sla.tasks.holiday_check",
+        # 07:00 Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
+        "schedule": crontab(minute=0, hour=0),
+    },
     "notifications-purge": {
         "task": "apps.notifications.tasks.purge",
         # 02:00 Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
@@ -254,8 +264,6 @@ NOTIFICATION_POLL_SEC = int(env("NOTIFICATION_POLL_SEC"))
 NOTIFICATION_PUBLIC_BASE_URL = env("NOTIFICATION_PUBLIC_BASE_URL")
 NOTIFICATION_SECRET_KEY = env("NOTIFICATION_SECRET_KEY")
 
-# ── Teams and assignment (F2); `.env.example` explains the value ─────────
-ASSIGNMENT_TIMEZONE = env("ASSIGNMENT_TIMEZONE")
 
 # The schema of thresholds.yaml (spec §8, §13). Parsed at boot, so a missing
 # or malformed file stops core-api starting instead of surfacing mid-routing.
@@ -371,6 +379,15 @@ class NotificationThresholds(BaseModel):
     in_app_retention_days: int = Field(ge=1)
 
 
+class SlaThresholds(BaseModel):
+    # Share of a clock's target at which its warning fires (F1, BR-F1-08).
+    warn_at_percent: float = Field(gt=0, lt=100)
+    # Share of the target at which a breach is escalated to managers.
+    escalate_at_percent: float = Field(gt=100)
+    # From this day (MM-DD) a calendar with no holidays for next year is reported.
+    holidays_reminder_month_day: str = Field(pattern=r"^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
+
+
 class AssignmentThresholds(BaseModel):
     # Shortest note a manual reassignment carries (F2, BR-F2-05).
     reassign_note_min_chars: int = Field(ge=1)
@@ -398,6 +415,7 @@ class Thresholds(BaseModel):
     identity: IdentityThresholds
     notifications: NotificationThresholds
     assignment: AssignmentThresholds
+    sla: SlaThresholds
 
     @property
     def retrieval_floor(self) -> float:

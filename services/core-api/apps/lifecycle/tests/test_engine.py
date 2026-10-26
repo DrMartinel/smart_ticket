@@ -656,12 +656,18 @@ def test_adopting_tickets_needs_every_custom_status_mapped(ticket, strict, manag
     with pytest.raises(LifecycleError) as e:
         lifecycle.adopt_tickets(Workflow.objects.default(), strict.workflow, {}, actor=manager_user)
     assert e.value.code is FailureCode.UNMAPPED_STATUSES
-    assert {d["key"] for d in e.value.details} >= {"in_progress", "on_hold", "resolved", "closed"}
+    assert {d["key"] for d in e.value.details} >= {
+        "in_progress",
+        "on_hold",
+        "waiting_on_requester",
+        "resolved",
+        "closed",
+    }
 
     default = Workflow.objects.default()
     mapping = {
         status_of(default, k).id: strict.working.id
-        for k in ("in_progress", "on_hold", "resolved", "closed")
+        for k in ("in_progress", "on_hold", "waiting_on_requester", "resolved", "closed")
     }
     result = lifecycle.adopt_tickets(default, strict.workflow, mapping, actor=manager_user)
 
@@ -673,7 +679,7 @@ def test_a_pipeline_status_is_adopted_into_the_same_pipeline_status(ticket, stri
     default = Workflow.objects.default()
     mapping = {
         status_of(default, k).id: strict.working.id
-        for k in ("in_progress", "on_hold", "resolved", "closed")
+        for k in ("in_progress", "on_hold", "waiting_on_requester", "resolved", "closed")
     }
 
     lifecycle.adopt_tickets(default, strict.workflow, mapping, actor=manager_user)

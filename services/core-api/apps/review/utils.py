@@ -10,6 +10,7 @@ from django.db import transaction
 from apps.accounts.models import User
 from apps.review.models import EvalCandidate, ReviewAction, ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import DecisionIn
+from apps.sla.utils.clocks import sla_clocks
 from apps.teams.utils.assignment import assignment
 from apps.teams.utils.vocabulary import AssignmentTrigger
 
@@ -44,6 +45,7 @@ class ReviewDecisions:
         )
         item.state = "resolved"
         item.save(update_fields=["state"])
+        sla_clocks.responded(item.ticket, reviewer)
 
         ticket = item.ticket
         before = ticket.category

@@ -1,6 +1,6 @@
 # 6. F1 SLA & business hours — NEW + CHANGED
 
-Must · Wave 2 · Proposed ADR-0030. Defaults from OQ-04…07 (accepted 2026-10-17).
+Must · Wave 2 · ADR-0030 (accepted 2026-10-26). Defaults from OQ-04…07 (accepted 2026-10-17).
 
 ## a. Problem & goal
 
@@ -373,6 +373,52 @@ Webhook events: `sla.warning`, `sla.breached`, `sla.breached_escalated` through 
 - **Must not change:** `system_move` never fails for a workflow reason (ADR-0028 §2) — the hook runs in a savepoint and swallows its own errors; reserved pipeline statuses carry no actions; routing; shadow mode (clocks run in shadow mode too, because people still work every ticket — that's the data K1/K2 need).
 - **ADRs:** 0028 (§2 respected; amended by proposed 0030), 0001 (priority never from a proposal).
 - **Regression tests:** `test_system_move_succeeds_when_sla_hook_raises`; `test_no_clock_time_in_triage_statuses`; `test_business_time_skips_weekend_and_holiday`; `test_pause_resume_keeps_elapsed`; `test_policy_edit_does_not_change_running_clock`; `test_each_sla_level_fires_once`; `test_dst_free_zone_round_trip_utc`; existing `test_hardening` `set_sla` cases updated to business hours.
+
+## v0.6.6 — where the code differs (build, 2026-10-26)
+
+Code wins (README §0.4 item 5). Each change and its reason:
+
+1. **Clocks store `escalate_at`** beside `warn_at` and `due_at`, so the sweep
+   compares times instead of recomputing business time for every clock.
+2. **Failed updates queue in `sla_rebuilds`** (one row per ticket); the sweep
+   rebuilds each from `lifecycle_transfers` and review decisions, then deletes
+   the row. `POST …/sla/rebuild` does the same on demand.
+3. **Changing an active policy means drafting a replacement** (`replaces_id`);
+   approval activates the draft and retires the one it replaces. Only drafts can
+   be edited (409 `not_a_draft`); two active policies can't share an order
+   (409 `order_taken` on approval). A retirement needs a reason too.
+4. **`ASSIGNMENT_TIMEZONE` is gone** (owner's decision for F2): "on leave today"
+   is now judged in the team's calendar zone, else the default calendar's.
+5. **What counts as a response today:** a staff member's manual (or forced) move
+   and a review decision. F3 adds the public comment and the requester's reopen,
+   F7 the incident pause (AC-F1-10's comment half, AC-F1-11, AC-F1-12). A
+   person moving a resolved ticket back already resumes its resolution clock.
+6. **Back to triage cancels the clocks** (a `clarify` re-run); the next handoff
+   starts fresh ones. A ticket that goes straight to a completed status (an
+   auto-reply) gets none.
+7. **`set_sla` takes `{business_hours, reason}`**; migration `lifecycle.0005`
+   converts saved `offset_hours`. On a ticket with no running clock the run fails
+   (`invalid_param`).
+8. **`tickets.sla_due_at` is empty while the clock is paused or finished**, so a
+   `before_sla` rule never fires on a ticket waiting for its requester.
+9. **API additions:** staff ticket rows carry `priority` and an `sla` badge
+   (business minutes left, level, both clocks); breach rows carry the badge too.
+   The requester's `GET …/sla` returns only the resolution clock's state, due and
+   met times.
+10. **Notices are keyed by ticket, clock kind, start time and level**, so a
+    rebuild never sends a warning or breach again.
+11. **The breach list is for all staff, filtered by team**; the Figma note "a
+    lead sees own teams" is not enforced.
+12. **A clock past its target keeps the due time it passed**, not the time of a
+    later recompute (a resume, rebuild or retarget).
+13. **Workflows get `waiting_on_requester` but no transitions to it**: an open
+    workflow (the default) can use it at once; a strict one needs an admin to add
+    the transitions.
+14. **`requester.auto_close_after_business_days` is left to F3**, which reads it.
+15. **Screens:** the badge on the ticket list, team queue and ticket page;
+    "SLA at risk" (`/sla`) under Tickets; policies with the preview, calendars
+    and holidays under Settings. Approve and retire ask for the reason in a
+    prompt.
 
 ## j. Acceptance criteria
 

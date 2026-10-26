@@ -453,7 +453,9 @@ def test_names_are_unique_ignoring_case_and_spaces(manager_user):
         ("call_webhook", {"url": "http://localhost:99999/x"}),
         ("send_email", {"to": "not-an-address", "subject": "s", "body": "b"}),
         ("send_email", {"to": "a@example.com", "subject": "two\nlines", "body": "b"}),
-        ("set_sla", {"offset_hours": 1e300}),
+        ("set_sla", {"business_hours": 1e300, "reason": "contract"}),
+        ("set_sla", {"business_hours": 4}),
+        ("set_sla", {"offset_hours": 4, "reason": "old wall-clock form"}),
     ],
 )
 def test_an_action_that_can_never_work_is_refused_when_saved(strict, action, params):

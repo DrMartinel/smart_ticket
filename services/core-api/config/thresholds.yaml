@@ -178,3 +178,12 @@ assignment:
   # A manual reassignment's note must be at least this long, so the reason is
   # teachable (F2, BR-F2-05).
   reassign_note_min_chars: 10
+
+sla:
+  # A clock warns at this share of its target, and a breach is escalated to
+  # managers at the second (F1, BR-F1-08). 🔧 OQ-04 defaults, not measured.
+  warn_at_percent: 75
+  escalate_at_percent: 125
+  # From this day (MM-DD) on, a calendar with no holidays entered for next year
+  # sends sla.holidays_missing to workflow admins (BR-F1-14).
+  holidays_reminder_month_day: "12-01"

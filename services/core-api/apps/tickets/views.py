@@ -5,6 +5,7 @@ it returns lives in `TicketManager.submit` (models.py).
 """
 
 import uuid
+from typing import Any
 
 from django.conf import settings
 from django.db.models import QuerySet
@@ -26,6 +27,9 @@ from apps.tickets.response_schema import (
     TicketSubmitOut,
 )
 from apps.accounts.permissions import ALL_ROLES, STAFF, AuthedRequest, SessionAuth, require_role
+from apps.sla.request_schema import PriorityIn
+from apps.sla.response_schema import TicketSlaOut
+from apps.sla.utils.clocks import sla_clocks
 from apps.teams.request_schema import ReassignIn, TakeIn
 from apps.teams.response_schema import AssignedTicketOut
 from apps.teams.utils.assignment import ReassignRequest, assignment
@@ -110,6 +114,44 @@ def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Tic
             expected_version=payload.expected_version,
         ),
     )
+
+
+@router.get("/{public_id}/sla", auth=SessionAuth(), response=TicketSlaOut)
+@require_role(*ALL_ROLES)
+def ticket_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
+    try:
+        ticket = Ticket.objects.visible_to(request.auth).get(public_id=public_id)
+    except Ticket.DoesNotExist as e:
+        raise HttpError(404, "ticket not found") from e
+    return sla_clocks.view(ticket, staff=request.auth.is_support_staff)
+
+
+@router.patch("/{public_id}/priority", auth=SessionAuth(), response=TicketSlaOut)
+@require_role(*STAFF)
+def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn) -> dict[str, Any]:
+    ticket = sla_clocks.change_priority(
+        _staff_ticket(public_id),
+        request.auth,
+        payload.priority,
+        payload.reason,
+        payload.expected_version,
+    )
+    return sla_clocks.view(ticket, staff=True)
+
+
+@router.post("/{public_id}/sla/rebuild", auth=SessionAuth(), response=TicketSlaOut)
+@require_role(UserRole.MANAGER)
+def rebuild_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
+    ticket = _staff_ticket(public_id)
+    sla_clocks.rebuild(ticket, request.auth)
+    return sla_clocks.view(ticket, staff=True)
+
+
+def _staff_ticket(public_id: str) -> Ticket:
+    try:
+        return Ticket.objects.get(public_id=public_id)
+    except Ticket.DoesNotExist as e:
+        raise HttpError(404, "ticket not found") from e
 
 
 @router.post("/{public_id}/quarantine/reveal", auth=SessionAuth(), response=RevealOut)

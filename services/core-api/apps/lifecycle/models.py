@@ -135,6 +135,8 @@ class WorkflowStatus(BaseModel):
     color = models.CharField(max_length=9)
     order = models.IntegerField(default=0)
     coordinates = models.CharField(max_length=50, null=True, blank=True)
+    # Entering it pauses the ticket's SLA clocks; leaving resumes them (F1, BR-F1-07).
+    pauses_sla = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
