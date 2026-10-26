@@ -78,7 +78,9 @@ def engine(monkeypatch) -> dict[str, list]:
 
 
 @pytest.fixture
-def chat(employee_user, api_as, ner_finds_nothing, enqueued, engine):
+def chat(employee_user, api_as, ner_finds_nothing, enqueued, engine, settings):
+    """A live chat: questions are held for the requester, as outcomes like suggest_ticket need."""
+    settings.SHADOW_MODE = False
     client = api_as(employee_user)
 
     def ask(message: str, conversation_id: str | None = None, *, run: bool = True):
