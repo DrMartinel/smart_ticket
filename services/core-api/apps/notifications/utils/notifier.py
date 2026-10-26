@@ -8,7 +8,6 @@ import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
-from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from django.db import transaction
@@ -103,7 +102,11 @@ class Notifier:
             return []
         queued = [m.id for m in messages if m.state == MessageState.QUEUED.value]
         if queued:
-            transaction.on_commit(partial(self.queue_dispatch, queued), robust=True)
+
+            def dispatch_queued() -> None:
+                self.queue_dispatch(queued)
+
+            transaction.on_commit(dispatch_queued, robust=True)
         return messages
 
     def assignment_changed(self, ticket: Ticket, previous: User | None, actor: str) -> None:
