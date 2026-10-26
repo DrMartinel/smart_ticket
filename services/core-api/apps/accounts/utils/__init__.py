@@ -21,6 +21,8 @@ from ninja_jwt.tokens import AccessToken
 
 from apps.accounts.models import AuthClient, RefreshSession, User
 from apps.audit.models import AuditLog
+from apps.security.utils.alerts import security_alerts
+from apps.security.utils.vocabulary import AlertKind
 from apps.core.errors import CodedError
 from apps.notifications.utils.notifier import Notice, notifier
 from apps.notifications.utils.vocabulary import NotificationEvent
@@ -96,15 +98,18 @@ class Sessions:
         User.objects.filter(pk=user.pk).update(failed_logins=0, last_failed_login_at=None)
         issued = self.start(user, client, requester, method="local")
         with transaction.atomic():
-            AuditLog.objects.record(
-                "security_alert",
+            security_alerts.raise_(
+                AlertKind.BREAK_GLASS_SIGN_IN,
                 actor_type="human",
                 actor_id=user.id,
+                subject_user=user,
+                reason="break_glass_used",
                 payload={
-                    "reason": "break_glass_used",
                     "client": client.value,
                     "ip": requester.ip_address,
                 },
+                detail=f"{user.username}, {client.value}, IP {requester.ip_address or 'unknown'}",
+                notify=False,
             )
             notifier.emit(
                 NotificationEvent.IDENTITY_BREAK_GLASS_USED,
@@ -210,20 +215,15 @@ class Sessions:
                 )
                 issued = self.issue(successor, raw_new)
         if reused is not None:
-            AuditLog.objects.record(
-                "security_alert",
-                actor_type="system",
+            security_alerts.raise_(
+                AlertKind.REFRESH_TOKEN_REUSED,
                 actor_id=reused.user_id,
+                subject_user=reused.user,
                 payload={
-                    "reason": "refresh_token_reused",
                     "session": str(reused.family),
                     "client": client.value,
                     "ip": requester.ip_address,
                 },
-            )
-            notifier.security_alert(
-                "refresh_token_reused",
-                actor="system",
                 detail=f"{reused.user.username}, {client.value}, IP {requester.ip_address or 'unknown'}",
             )
             raise SessionRefused("refresh token reused: every token of this sign-in is revoked")

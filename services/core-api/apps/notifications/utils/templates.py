@@ -184,6 +184,28 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
             "{{notice.actor}} asks to move it to “{{transfer.afterStatus}}”.\n{{notice.message}}",
         ),
     },
+    E.SECURITY_CREDENTIAL_EXPOSED: {
+        VI: (
+            "Hãy đổi mật khẩu ngay: {{ticket.id}}",
+            "Bạn đã gửi mật khẩu trong phiếu {{ticket.id}}. Hãy đổi mật khẩu ngay. "
+            "Bộ phận bảo mật đã che thông tin này; đừng gửi lại mật khẩu trong phiếu.",
+        ),
+        EN: (
+            "Change your password now: {{ticket.id}}",
+            "You sent a password in ticket {{ticket.id}}. Change it now. Security has hidden it; "
+            "never send a password in a ticket.",
+        ),
+    },
+    E.SECURITY_ACK_OVERDUE: {
+        VI: (
+            "Cảnh báo bảo mật chưa được xác nhận: {{notice.reason}}",
+            "Quá hạn xác nhận ({{notice.detail}}). {{ticket.id}}",
+        ),
+        EN: (
+            "Security alert not acknowledged: {{notice.reason}}",
+            "Acknowledgement overdue ({{notice.detail}}). {{ticket.id}}",
+        ),
+    },
     E.SECURITY_ALERT: {
         VI: ("Cảnh báo bảo mật: {{notice.reason}}", "{{notice.detail}}"),
         EN: ("Security alert: {{notice.reason}}", "{{notice.detail}}"),

@@ -20,7 +20,8 @@ from apps.accounts.utils.oidc import (
     rights_from_claims,
 )
 from apps.audit.models import AuditLog
-from apps.notifications.utils.notifier import notifier
+from apps.security.utils.alerts import security_alerts
+from apps.security.utils.vocabulary import AlertKind
 
 LOCK_KEY = "identity_sync"
 
@@ -140,14 +141,12 @@ class IdentitySync:
         if desired.rights is None:
             self.identities.deprovision(user, desired.reason or "no_access")
             if desired.reason == SignInRefusal.AMBIGUOUS_ROLE.value:
-                AuditLog.objects.record(
-                    "security_alert",
-                    actor_type="system",
+                security_alerts.raise_(
+                    AlertKind.AMBIGUOUS_ROLE,
                     actor_id=user.id,
-                    payload={"reason": "ambiguous_role", "source": "identity_sync"},
-                )
-                notifier.security_alert(
-                    "ambiguous_role", actor="system", detail=f"{user.username}, identity sync"
+                    subject_user=user,
+                    payload={"source": "identity_sync"},
+                    detail=f"{user.username}, identity sync",
                 )
             return True
         if self.identities.apply(user, desired.rights):
