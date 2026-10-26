@@ -337,7 +337,7 @@ def test_a_send_refused_after_commit_is_logged_not_raised(
 
     monkeypatch.setattr(notifier, "queue_dispatch", refuse)
     with django_capture_on_commit_callbacks() as callbacks:
-        assign(ticket, people["ha"], people["huy"])
+        assign_to(ticket, people["ha"], people["huy"])
     assert callbacks
 
     # Django's own robust path, outside the test's atomic block it would refuse to run in.
