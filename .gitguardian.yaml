@@ -1,0 +1,16 @@
+# GitGuardian: the public dev values in .env.example that production.py refuses
+# (DEV_ONLY_SECRETS). Matched by SHA-256; apps/core/tests/test_settings_env.py
+# fails if an entry here is anything else.
+version: 2
+secret:
+  ignored-matches:
+    - name: SECRET_KEY dev value
+      match: 73ea83a5e43e407cc32c1663743edbdc4f478af44f625207c231adcefce1c2d1
+    - name: PII_ENCRYPTION_KEY dev value
+      match: 76b84da24f520747e3c2d94a48b6ba789de94767c3c9c09865ab9a3b15bb78b1
+    - name: OIDC_CLIENT_SECRET dev value
+      match: 94eea5c6016fa87d9e7937ade9fde3ea40ff8f94f6ed194692aeb51d4ce7fd59
+    - name: KEYCLOAK_ADMIN_CLIENT_SECRET dev value
+      match: 578e95fac5fc37c35c95cd5b432cb7bd70019b0031e98989499b1c9ce60ebeb6
+    - name: NOTIFICATION_SECRET_KEY dev value
+      match: 8b80bfc66fbb18a65d887d93cd91e16a850e0ccd1c00d96180a5279ca47598ac

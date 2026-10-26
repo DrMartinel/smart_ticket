@@ -7,7 +7,7 @@
  * to show them (`apps/chat`), never a model's raw output.
  */
 
-import type { ChatTurnOut } from "@/lib/types/generated";
+import type { ChatTurnOut, InboxOut } from "@/lib/types/generated";
 import { accessTokenForRequest, refreshSession, type SessionUser } from "./session";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -42,6 +42,7 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
     }
     throw new ApiError(resp.status, detail);
   }
+  if (resp.status === 204) return undefined as T;
   return (await resp.json()) as T;
 }
 
@@ -59,4 +60,11 @@ export const chatApi = {
       method: "POST",
       body: JSON.stringify({ answer }),
     }),
+};
+
+export const notificationsApi = {
+  unread: () => request<InboxOut>("/api/notifications?unread=true&limit=1"),
+  recent: (limit = 10) => request<InboxOut>(`/api/notifications?limit=${limit}`),
+  read: (id: string) => request<void>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: "POST" }),
+  readAll: () => request<void>("/api/notifications/read-all", { method: "POST" }),
 };

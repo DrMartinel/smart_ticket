@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useConversation, type Turn } from "@/lib/conversation";
 import Composer from "@/components/Composer";
+import NotificationBell from "@/components/NotificationBell";
 import TurnView from "@/components/TurnView";
 import Welcome from "@/components/Welcome";
 
@@ -50,6 +51,7 @@ export default function ChatPage() {
             <span className="hidden text-sm text-[var(--text-muted)] sm:inline">Service desk</span>
           </p>
           <div className="flex items-center gap-4 text-sm">
+            <NotificationBell />
             <span className="hidden text-[var(--text-muted)] sm:inline">{user.username}</span>
             <button onClick={() => void logout()} className="text-[var(--text-muted)] hover:text-[var(--text)]">
               Sign out

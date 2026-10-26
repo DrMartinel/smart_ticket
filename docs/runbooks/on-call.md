@@ -172,6 +172,27 @@ during an outage (spec §9).
    either the lock path regressed or the two batches genuinely differ in
    category — check `incidents.category` before merging by hand.
 
+## Notifications not arriving (failed rows in the delivery log)
+
+**What this means:** email or webhook messages are `failed` in
+`/settings/deliveries` (`GET /api/notifications/deliveries?state=failed`).
+Tickets are unaffected: a failed send never changes a ticket (BR-F4-05). In-app
+notices are written with the event and don't depend on SMTP or webhooks.
+
+**Actions:**
+1. Read `last_error`. `no_address`: the user has no email in Keycloak.
+   `template_error`: a template edited through the API names a variable no notice
+   fills; fix it with `PUT /api/notifications/templates/…`. `send_failed` after
+   `notifications.max_attempts`: the relay or host was down. `send_refused`: a
+   5xx SMTP answer, a refused recipient, a webhook 4xx, or a host no longer on
+   `LIFECYCLE_WEBHOOK_ALLOWED_HOSTS`.
+2. Fix the cause, then **Retry all failed** (audited `notif_delivery_retried`).
+3. Messages stuck `sending` go back to the queue on the next sweep
+   (`notifications.stuck_after_sec`). If nothing moves, check the `worker` and
+   `beat` containers.
+4. Don't turn off a mandatory cell to quiet a noisy alert: the API refuses, and
+   the alert is the point.
+
 ## DB read-only
 
 **What this means:** spec §10.3 asks the submission endpoint to answer `503`

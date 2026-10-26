@@ -28,6 +28,8 @@ from apps.lifecycle.utils.templates import (
     json_template_errors,
     placeholders,
 )
+from apps.notifications.utils.notifier import Notice, notifier
+from apps.notifications.utils.vocabulary import NotificationEvent
 from apps.lifecycle.utils.vocabulary import (
     ActionCode,
     ApprovalState,
@@ -230,8 +232,10 @@ class AssignUser(ActionHandler):
                 FailureCode.INVALID_PARAM, f"no active technician or manager {params.username!r}"
             )
         user = found[0]
+        previous = ctx.ticket.assigned_to
         ctx.ticket.assigned_to = user
         ctx.ticket.save(update_fields=["assigned_to"])
+        notifier.assignment_changed(ctx.ticket, previous, "system")
         AuditLog.objects.record(
             "ticket_assigned",
             actor_type="system",
@@ -525,6 +529,20 @@ class RequireApproval(ActionHandler):
             actor_type="system",
             ticket_id=ctx.ticket.id,
             payload={"approval": str(approval.id), "approvers": [u.username for u in approvers]},
+        )
+        requester = ctx.transfer.actor if ctx.transfer else None
+        notifier.emit(
+            NotificationEvent.APPROVAL_REQUESTED,
+            ctx.ticket,
+            Notice(
+                actor=requester.username if requester else "system",
+                message=params.message,
+                link=f"/tickets/{ctx.ticket.public_id}?approval={approval.id}",
+                approvers=tuple(approvers),
+                transfer=ctx.transfer,
+                data={"approval": str(approval.id), "approvers": [u.username for u in approvers]},
+            ),
+            event_id=approval.id,
         )
         return ActionResult({"approval": str(approval.id)}, awaiting_until=expires)
 

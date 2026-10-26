@@ -18,6 +18,7 @@ from typing import Any
 import yaml
 from corsheaders.defaults import default_headers as default_cors_headers
 from django.core.exceptions import ImproperlyConfigured
+from celery.schedules import crontab
 from dotenv import dotenv_values
 from pydantic import BaseModel, Field
 
@@ -84,6 +85,7 @@ INSTALLED_APPS = [
     "apps.chat",
     "apps.lifecycle",
     "apps.teams",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [
@@ -168,6 +170,15 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.lifecycle.tasks.watchdog",
         "schedule": float(env("LIFECYCLE_WATCHDOG_INTERVAL_SEC")),
     },
+    "notifications-sweep": {
+        "task": "apps.notifications.tasks.sweep",
+        "schedule": float(env("NOTIFICATION_SWEEP_INTERVAL_SEC")),
+    },
+    "notifications-purge": {
+        "task": "apps.notifications.tasks.purge",
+        # 02:00 Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
+        "schedule": crontab(minute=0, hour=19),
+    },
 }
 
 # ── CORS (web talks to core-api from a different origin in dev) ────────────
@@ -237,6 +248,11 @@ EMAIL_BACKEND = env("EMAIL_BACKEND")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 EMAIL_HOST = env("EMAIL_HOST")
 EMAIL_PORT = int(env("EMAIL_PORT"))
+
+# ── Notifications (F4, ADR-0033); `.env.example` explains each value ─────
+NOTIFICATION_POLL_SEC = int(env("NOTIFICATION_POLL_SEC"))
+NOTIFICATION_PUBLIC_BASE_URL = env("NOTIFICATION_PUBLIC_BASE_URL")
+NOTIFICATION_SECRET_KEY = env("NOTIFICATION_SECRET_KEY")
 
 # The schema of thresholds.yaml (spec §8, §13). Parsed at boot, so a missing
 # or malformed file stops core-api starting instead of surfacing mid-routing.
@@ -343,6 +359,15 @@ class IdentityThresholds(BaseModel):
     sync_failures_before_alert: int = Field(ge=1)
 
 
+class NotificationThresholds(BaseModel):
+    # Sends of one email or webhook message before it is failed (F4, FR-F4-007).
+    max_attempts: int = Field(ge=1)
+    # A message `sending` this long has lost its worker; the sweep re-queues it.
+    stuck_after_sec: int = Field(ge=1)
+    # In-app messages older than this are deleted (FR-F4-010).
+    in_app_retention_days: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -363,6 +388,7 @@ class Thresholds(BaseModel):
     access_denied: AccessDeniedThresholds
     pii_reveal: PiiRevealThresholds
     identity: IdentityThresholds
+    notifications: NotificationThresholds
 
     @property
     def retrieval_floor(self) -> float:

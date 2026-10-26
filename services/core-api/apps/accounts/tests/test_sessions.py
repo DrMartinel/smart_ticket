@@ -11,6 +11,7 @@ from ninja_jwt.tokens import AccessToken
 
 from apps.accounts.models import RefreshSession
 from apps.audit.models import AuditLog
+from apps.notifications.models import Message
 from apps.core.testing import api_client_with
 
 pytestmark = pytest.mark.django_db
@@ -82,7 +83,7 @@ def test_refresh_rotates_the_cookie_and_issues_a_working_access_token(glass_user
     assert me(response.json()["access"]) == 200
 
 
-def test_a_reused_refresh_token_ends_the_whole_sign_in(glass_user, settings):
+def test_a_reused_refresh_token_ends_the_whole_sign_in(glass_user, security_user, settings):
     settings.AUTH_REFRESH_REUSE_GRACE_SEC = 0
     client = Client()
     first = login(client).cookies[COOKIE].value
@@ -97,6 +98,9 @@ def test_a_reused_refresh_token_ends_the_whole_sign_in(glass_user, settings):
     assert me(access) == 401
     assert AuditLog.objects.filter(
         event="security_alert", payload__reason="refresh_token_reused"
+    ).exists()
+    assert Message.objects.filter(
+        user=security_user, event="security.alert", subject__contains="refresh_token_reused"
     ).exists()
 
 
