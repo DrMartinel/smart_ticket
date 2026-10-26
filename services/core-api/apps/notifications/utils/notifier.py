@@ -11,6 +11,7 @@ from datetime import datetime
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -368,7 +369,8 @@ class Emission:
         if self.ticket is None:
             return ""
         if kind in REQUESTER_KINDS:
-            return f"/?ticket={self.ticket.public_id}"
+            base = settings.NOTIFICATION_CHAT_BASE_URL.rstrip("/")
+            return f"{base}/tickets/{self.ticket.public_id}"
         return f"/tickets/{self.ticket.public_id}"
 
     def webhook_message(self, subscription: WebhookSubscription) -> Message:

@@ -29,6 +29,8 @@ def ticket(reporter, public_id: str = "TKT-FS-001") -> Ticket:
         body_masked="b",
         pii_level=PIILevel.ROUTINE.value,
         status="resolved",
+        resolved_at=timezone.now(),
+        resolution_seq=1,
     )
 
 

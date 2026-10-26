@@ -75,3 +75,18 @@ def test_starting_outside_hours_starts_at_the_next_opening():
 def test_a_bad_calendar_is_refused(hours):
     with pytest.raises(CalendarError):
         parse_hours(hours)
+
+
+def test_whole_days_count_only_working_days_that_are_over():
+    """BR-F3-11: a wait entered Monday has five whole business days at Monday's close a week on."""
+    entered = vn(2026, 10, 26, 10, 0)
+
+    assert office().whole_days(entered, vn(2026, 10, 30, 18, 0)) == 4
+    assert office().whole_days(entered, vn(2026, 11, 2, 12, 0)) == 4
+    assert office().whole_days(entered, vn(2026, 11, 2, 17, 30)) == 5
+
+
+def test_whole_days_skip_holidays():
+    entered = vn(2026, 10, 26, 10, 0)
+
+    assert office(date(2026, 10, 28)).whole_days(entered, vn(2026, 11, 2, 18, 0)) == 4

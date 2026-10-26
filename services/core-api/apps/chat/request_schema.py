@@ -4,6 +4,8 @@ Request bodies for the chat endpoints.
 
 from __future__ import annotations
 
+import uuid
+
 from ninja import Schema
 from pydantic import ConfigDict, Field
 
@@ -15,6 +17,8 @@ class ChatAskIn(Schema):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     message: str = Field(min_length=10, max_length=10_000)
+    # The conversation the chat is showing; none starts or joins the current one (F3).
+    conversation_id: uuid.UUID | None = None
 
 
 class ChatClarifyIn(Schema):

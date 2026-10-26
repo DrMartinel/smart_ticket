@@ -27,6 +27,7 @@ from config.settings.base import (
     PiiRevealThresholds,
     RetrievalThresholds,
     RoutingThresholds,
+    RequesterThresholds,
     SlaThresholds,
     Thresholds,
 )
@@ -98,6 +99,15 @@ def make_thresholds(**overrides) -> Thresholds:
         assignment=AssignmentThresholds(reassign_note_min_chars=10),
         sla=SlaThresholds(
             warn_at_percent=75, escalate_at_percent=125, holidays_reminder_month_day="12-01"
+        ),
+        requester=RequesterThresholds(
+            conversation_idle_minutes=30,
+            max_prior_turns=6,
+            answer_excerpt_chars=300,
+            reopen_window_days=7,
+            list_resolved_days=30,
+            auto_close_after_business_days=5,
+            low_rating_at_most=2,
         ),
     )
     base.update(overrides)

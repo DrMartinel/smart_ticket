@@ -92,6 +92,20 @@ class BusinessCalendar:
             day += timedelta(days=1)
         return int(total)
 
+    def whole_days(self, start: datetime, end: datetime) -> int:
+        """Working days after `start`'s day whose working hours were over by `end`."""
+        count = 0
+        day = start.astimezone(self.zone).date() + timedelta(days=1)
+        last = end.astimezone(self.zone).date()
+        while day <= last:
+            if self.is_24x7:
+                count += day < last
+            else:
+                spans = self.spans(day)
+                count += bool(spans) and end >= spans[-1][1]
+            day += timedelta(days=1)
+        return count
+
     def add(self, start: datetime, seconds: float) -> datetime:
         """The moment `seconds` of business time after `start`."""
         if seconds <= 0:

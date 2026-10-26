@@ -16,6 +16,7 @@ from ai_engine.core.providers.clients import AllLLMDownError, LLMResult
 from ai_engine.graph.nodes.infer.proposals import LLMProposalEnvelope
 from ai_engine.core.prompts import PROPOSE_PROMPT, load_system_prompt
 from ai_engine.graph.nodes.infer.node import infer
+from ai_engine.graph.ticket import PriorTurn
 
 _VALID_OUTPUT = json.dumps(
     {
@@ -192,3 +193,35 @@ def test_the_decoding_schema_asks_for_no_category():
 
     assert "proposed_category" not in schema
     assert "proposed_subcategory" not in schema
+
+
+def test_earlier_turns_sit_between_the_examples_and_the_ticket(
+    fake_llm, make_state, make_node, make_ticket
+):
+    """ADR-0034: the proposal sees the conversation's earlier masked turns as context."""
+    ticket = make_ticket("Still failing", "Did that").model_copy(
+        update={
+            "prior_turns": [
+                PriorTurn(question_masked="VPN TLS handshake failed", outcome="with_support"),
+                PriorTurn(question_masked="Which client?", outcome="clarify"),
+            ]
+        }
+    )
+    llm = fake_llm(result=_result())
+    make_node(llm)(make_state(ticket=ticket))
+
+    _, user = llm.prompts[0]
+    earlier = (
+        "## Earlier in this conversation\n"
+        "Turn 1 (handed to support): VPN TLS handshake failed\n"
+        "Turn 2 (asked which page they meant): Which client?\n\n"
+        "## Ticket\nSubject: Still failing\nBody: Did that"
+    )
+    assert user.endswith(earlier)
+
+
+def test_a_ticket_without_earlier_turns_has_no_earlier_section(fake_llm, make_state, make_node):
+    llm = fake_llm(result=_result())
+    make_node(llm)(make_state())
+
+    assert "Earlier in this conversation" not in llm.prompts[0][1]

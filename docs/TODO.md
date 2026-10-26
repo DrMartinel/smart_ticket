@@ -450,3 +450,30 @@ ADR-0026 is accepted or superseded on a full run, and no Jev-scale threshold is 
 ADR-0028 is accepted, a manager can configure a workflow without the API,
 and one webhook, one n8n callback and one approval have run end to end.
 
+---
+
+## 15. Review the multi-turn golden cases and run F3's eval gate (ADR-0034)
+
+### Problem
+
+`propose.v10` and `hyde_draft.v3` read a chat conversation's earlier turns
+(phase 2 F3). The prompts are eval-gated like code, and F3 §g asks for at
+least 20 multi-turn cases reviewed by someone other than their author
+(CLAUDE.md rule 9). The 24 cases in `evals/golden/multi_turn.jsonl` were
+written by Claude and are `pending`; the live gate in
+`evals/suites/test_multi_turn.py` counts approved cases only, so it skips.
+
+### Work
+
+1. A reviewer reads each case and the page it names: does the follow-up need
+   the earlier turn, does the page resolve it, is the expected branch right?
+   Set `review.status` to `approved` or `rejected` and `review.reviewer`.
+2. With the owner's go, run the full suites (`EVAL_FULL_RUN=1`) against the
+   stack with `propose.v10` and `hyde_draft.v3`, and record the run in
+   `evals/HISTORY.md`, single-turn deltas explained.
+
+### Done when
+
+At least 20 cases are approved, auto-reply precision is ≥ 0.95 on the
+single-turn set and on the approved multi-turn cases, and the run is in
+`evals/HISTORY.md`.

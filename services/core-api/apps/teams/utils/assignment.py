@@ -103,6 +103,12 @@ class Assignment:
         actor: User | None,
     ) -> None:
         team = Team.objects.owning(category) if category else None
+        if (
+            trigger is AssignmentTrigger.REOPEN
+            and ticket.team is not None
+            and ticket.team.is_active
+        ):
+            team = ticket.team
         failure = None
         if team is None:
             failure = (
@@ -117,10 +123,12 @@ class Assignment:
             )
             return
         self.lock(team)
-        member = self.inherited(ticket, team)
+        member = self.inherited(ticket, team, trigger)
         if member is not None:
             pick = Pick(member, 1)
-            strategy = "duplicate_of"
+            strategy = (
+                "previous_assignee" if trigger is AssignmentTrigger.REOPEN else "duplicate_of"
+            )
         else:
             pick = self.pick(team)
             strategy = team.strategy
@@ -157,16 +165,19 @@ class Assignment:
             ),
         )
 
-    def inherited(self, ticket: Ticket, team: Team) -> TeamMembership | None:
-        """A duplicate's original assignee, when they are eligible in `team` now (UC-F2-01 3a)."""
-        original = ticket.duplicate_of
-        if original is None or original.assigned_to_id is None:
+    def inherited(
+        self, ticket: Ticket, team: Team, trigger: AssignmentTrigger
+    ) -> TeamMembership | None:
+        """A reopened ticket's last assignee, or a duplicate's original assignee, when they are
+        eligible in `team` now (UC-F3-04 step 4, UC-F2-01 3a)."""
+        if trigger is AssignmentTrigger.REOPEN:
+            holder_id = ticket.assigned_to_id
+        else:
+            original = ticket.duplicate_of
+            holder_id = original.assigned_to_id if original is not None else None
+        if holder_id is None:
             return None
-        return (
-            TeamMembership.objects.eligible(team, today(team))
-            .filter(user_id=original.assigned_to_id)
-            .first()
-        )
+        return TeamMembership.objects.eligible(team, today(team)).filter(user_id=holder_id).first()
 
     def pick(self, team: Team) -> Pick:
         """The member the team's strategy chooses now, under the team's lock (BR-F2-03)."""

@@ -15,9 +15,17 @@ from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
 
 from apps.accounts.models import UserRole
-from apps.tickets.models import PiiAccessLog, StaffView, Ticket, TicketBoard, TicketPage
-from apps.tickets.request_schema import AccessLogFilter, RevealIn, TicketIn
+from apps.tickets.models import (
+    CommentVisibility,
+    PiiAccessLog,
+    StaffView,
+    Ticket,
+    TicketBoard,
+    TicketPage,
+)
+from apps.tickets.request_schema import AccessLogFilter, CommentIn, RevealIn, TicketIn
 from apps.tickets.response_schema import (
+    CommentOut,
     AccessLogRowOut,
     RevealOut,
     StaffTicketDetail,
@@ -33,6 +41,7 @@ from apps.sla.utils.clocks import sla_clocks
 from apps.teams.request_schema import ReassignIn, TakeIn
 from apps.teams.response_schema import AssignedTicketOut
 from apps.teams.utils.assignment import ReassignRequest, assignment
+from apps.tickets.utils.comments import comments
 from apps.tickets.utils.pii_reveal import PiiReveal, Revealed
 
 router = Router(tags=["tickets"])
@@ -114,6 +123,30 @@ def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Tic
             expected_version=payload.expected_version,
         ),
     )
+
+
+@router.get("/{public_id}/comments", auth=SessionAuth(), response=list[CommentOut])
+@require_role(*STAFF)
+def ticket_comments(request: AuthedRequest, public_id: str) -> list[CommentOut]:
+    ticket = _staff_ticket(public_id)
+    assignment.check_category_scope(request.auth, ticket)
+    rows = ticket.comments.select_related("author").prefetch_related("review_items")
+    rows = rows.order_by("created_at")
+    return [CommentOut.of(c) for c in rows]
+
+
+@router.post("/{public_id}/comments", auth=SessionAuth(), response=CommentOut)
+@require_role(*STAFF)
+def add_comment(request: AuthedRequest, public_id: str, payload: CommentIn) -> CommentOut:
+    comment = comments.by_staff(
+        _staff_ticket(public_id),
+        request.auth,
+        payload.body,
+        visibility=CommentVisibility(payload.visibility),
+        move_to_waiting=payload.move_to_waiting,
+        expected_version=payload.expected_version,
+    )
+    return CommentOut.of(comment)
 
 
 @router.get("/{public_id}/sla", auth=SessionAuth(), response=TicketSlaOut)

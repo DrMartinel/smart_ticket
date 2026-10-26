@@ -14,14 +14,13 @@ sent to the user (spec §10.3). The key and the collision handling are in
 
 from __future__ import annotations
 
+import uuid
+
 from celery import Task, shared_task
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
-from apps.fewshot.models import FewshotExample
-from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.vocabulary import PipelineStatus
-from apps.tickets.models import PiiQuarantine, Ticket
+from apps.tickets.models import PiiQuarantine
 from apps.tickets.utils.pipeline import TaskResult, ticket_process
 
 
@@ -32,20 +31,10 @@ def process_ticket(self: Task[[str], TaskResult], ticket_id: str) -> TaskResult:
 
 @shared_task
 def reopen_ticket(ticket_id: str) -> None:
-    """Called by whatever surface lets a reporter reopen a resolved ticket
-    (not built out as its own endpoint in this build, but wired here so
-    the few-shot retraction rule — spec §3.5 — has a concrete trigger)."""
-    ticket = Ticket.objects.get(id=ticket_id)
-    ticket.reopened_count += 1
-    ticket.save(update_fields=["reopened_count"])
-    lifecycle.system_move(ticket, PipelineStatus.REOPENED)
-    FewshotExample.objects.retract_for_ticket(ticket)
-    AuditLog.objects.record(
-        "ticket_reopened",
-        actor_type="human",
-        ticket_id=ticket.id,
-        payload={"reopened_count": ticket.reopened_count},
-    )
+    """Reopens a completed ticket; the requester's reopen endpoint runs the same service (F3)."""
+    from apps.requester.utils.tickets import requester_tickets
+
+    requester_tickets.reopen_now(uuid.UUID(ticket_id), None)
 
 
 @shared_task

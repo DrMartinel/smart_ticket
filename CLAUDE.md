@@ -126,7 +126,7 @@ Whole workspace, from the repo root:
 ```bash
 uv run pytest                              # everything (unit + eval)
 uv run pytest services/ai-engine/tests -q
-uv run pytest evals/suites -q              # 9 files; live ones skip if ai-engine is down
+uv run pytest evals/suites -q              # 10 files; live ones skip if ai-engine is down
 uv run mypy                                # all three packages
 ```
 
@@ -171,6 +171,8 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Ticket lifecycle after triage: workflows, transitions, rules, actions (ADR-0028) | [apps/lifecycle/](services/core-api/apps/lifecycle/), the engine in [engine.py](services/core-api/apps/lifecycle/utils/engine.py) |
 | SLA clocks, calendars and policies (F1, ADR-0030); business time in [business_time.py](services/core-api/apps/sla/utils/business_time.py) | [apps/sla/](services/core-api/apps/sla/), the clocks in [clocks.py](services/core-api/apps/sla/utils/clocks.py) |
 | Teams, assignment at handoff, take and reassign (F2, ADR-0031) | [apps/teams/](services/core-api/apps/teams/), the service in [assignment.py](services/core-api/apps/teams/utils/assignment.py) |
+| Chat conversations and the earlier masked turns a question carries (F3, ADR-0034) | [conversations.py](services/core-api/apps/chat/utils/conversations.py) |
+| A requester's tickets: list, thread, reply, reopen, rating, the stale-wait sweep (F3) | [apps/requester/](services/core-api/apps/requester/), the service in [tickets.py](services/core-api/apps/requester/utils/tickets.py); comments in [comments.py](services/core-api/apps/tickets/utils/comments.py) |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
@@ -269,6 +271,8 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | What a workflow action can do | `apps/lifecycle/utils/actions.py` (a handler and an `ActionCode`); rules and events in `utils/rules.py` |
 | SLA targets, hours, holidays | Data: `/settings/sla` (policies change by draft and another manager's approval), calendars and holidays; percentages in `thresholds.yaml` `sla`. Clocks change only through `sla_clocks`, called by the engine after a status change |
 | Who gets a ticket | `assignment.assign_after_handoff` after the decision is carried out (pipeline, review decisions), `take` / `reassign` for people; never `ticket.assigned_to = …` in new code. Team ownership of categories is data (`team_categories`) |
+| A comment on a ticket | `comments.add` (or `by_staff`), which masks inline and holds a mask-failed one for review; never `TicketComment.objects.create` with raw text |
+| What a chat question tells the model about earlier turns | `Conversations.prior_turns` (which turns count) and `requester:` in `thresholds.yaml`; ai-engine's `TicketMasked.earlier_turns()` (how they read) and `propose.v*` / `hyde_draft.v*`. Never the router or a signal (ADR-0034) |
 | Who is told about an event | `notifier.emit(event, ticket, Notice(...))` from the service that owns the event, never `router.py` or the routing step; new events go in the catalog (`apps/notifications/utils/vocabulary.py`) and its seed migration |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
@@ -352,6 +356,12 @@ copies that directory — a new SQL file that isn't copied fails at container st
   again, and a second `clarify` goes to a person (`clarify_round_cap`).
   Unanswered after `clarification.wait_minutes`, the chat offers a ticket.
   Form tickets and shadow mode: a review item in the `clarification` queue.
+- **Chat memory** (phase 2 F3, ADR-0034, accepted 2026-10-26): a chat question
+  carries up to 6 earlier *decided* turns of the same conversation and
+  requester, masked, to the draft and proposal prompts only
+  (`hyde_draft.v3`, `propose.v10`). A blocked or mask-failed turn ends the
+  conversation. The multi-turn golden cases await a reviewer other than their
+  author, and no eval has run on the two prompts yet (TODO 15).
 - PII quarantine **read** path is done (phase 2 F5): `PiiReveal.reveal()` in
   `apps/tickets/utils/pii_reveal.py` is the only `decrypt()` caller
   (`test_decrypt_has_one_caller`). **Never add another caller of the PII `crypto.decrypt()`; anything
@@ -442,4 +452,4 @@ this early, the codebase is dense with it) · [development.md](docs/development.
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
 [runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirty-eight
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
-0030–0038 come from the phase 2 pack; 0030–0033 are accepted, 0034–0038 proposed).
+0030–0038 come from the phase 2 pack; 0030–0034 are accepted, 0035–0038 proposed).

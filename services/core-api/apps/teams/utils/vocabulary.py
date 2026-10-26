@@ -14,6 +14,7 @@ class AssignmentTrigger(StrEnum):
     ACTION = "action"
     TAKE = "take"
     REASSIGN = "reassign"
+    REOPEN = "reopen"
 
 
 class ReassignReason(StrEnum):
