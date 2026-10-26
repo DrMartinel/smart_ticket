@@ -15,10 +15,12 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 export class ApiError extends Error {
   status: number;
   code: string | null;
-  constructor(status: number, message: string, code: string | null = null) {
+  details: unknown;
+  constructor(status: number, message: string, code: string | null = null, details: unknown = null) {
     super(message);
     this.status = status;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -38,16 +40,18 @@ async function authedFetch(path: string, options: RequestInit = {}, retried = fa
   if (!resp.ok) {
     let detail = resp.statusText;
     let code: string | null = null;
+    let details: unknown = null;
     try {
       const body = await resp.json();
       if (typeof body.code === "string") code = body.code;
+      details = body.details ?? null;
       if (typeof body.message === "string") detail = body.message;
       else if (typeof body.detail === "string") detail = body.detail;
       else if (Array.isArray(body.detail)) detail = body.detail.map((d: { msg?: string }) => d.msg).join("; ");
     } catch {
       // response wasn't JSON — keep statusText
     }
-    throw new ApiError(resp.status, detail, code);
+    throw new ApiError(resp.status, detail, code, details);
   }
   return resp;
 }

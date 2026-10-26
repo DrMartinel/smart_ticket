@@ -22,7 +22,6 @@ from apps.lifecycle.models import (
 )
 from apps.lifecycle.request_schema import (
     AdoptIn,
-    AssignIn,
     ApprovalDecisionIn,
     CallbackIn,
     ChangeWorkflowIn,
@@ -352,15 +351,6 @@ def get_ticket_lifecycle(request: AuthedRequest, public_id: str) -> Ticket:
 @require_role(*_READ)
 def list_moves(request: AuthedRequest, public_id: str) -> list[MoveOption]:
     return lifecycle.options(_ticket(public_id))
-
-
-@router.post("/tickets/{public_id}/assign", auth=SessionAuth(), response=TicketLifecycleOut)
-@require_role(*_READ)
-def assign_ticket(request: AuthedRequest, public_id: str, payload: AssignIn) -> Ticket:
-    lifecycle.assign(
-        _ticket(public_id).id, username=payload.assignee, team=payload.team, actor=request.auth
-    )
-    return _lifecycle_of(public_id)
 
 
 @router.post("/tickets/{public_id}/move", auth=SessionAuth(), response=TicketLifecycleOut)

@@ -22,6 +22,8 @@ from apps.metrics.views import router as metrics_router
 from apps.chat.views import router as chat_router
 from apps.lifecycle.views import router as lifecycle_router
 from apps.notifications.views import router as notifications_router
+from apps.teams.views import me_router
+from apps.teams.views import router as teams_router
 
 api = NinjaExtraAPI(title="Smart Ticket Triage — core-api", version="1.0.0")
 
@@ -37,6 +39,8 @@ api.add_router("/metrics", metrics_router)
 api.add_router("/chat", chat_router)
 api.add_router("/lifecycle", lifecycle_router)
 api.add_router("/notifications", notifications_router)
+api.add_router("/teams", teams_router)
+api.add_router("/me", me_router)
 gate_authentication(api._routers)
 
 

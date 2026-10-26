@@ -279,7 +279,7 @@ def test_force_skips_rules_but_not_actions(ticket, strict, manager_user, celery)
     resolution_gate(strict, manager_user)
     workflow_config.update_status(
         strict.done,
-        StatusPatch(actions=actions({"action": "assign_team", "params": {"team": "closers"}})),
+        StatusPatch(actions=actions({"action": "assign_team", "params": {"team": "hardware"}})),
     )
     put_in(ticket, strict.working)
 
@@ -288,7 +288,7 @@ def test_force_skips_rules_but_not_actions(ticket, strict, manager_user, celery)
 
     ticket = reload(ticket)
     assert ticket.status == strict.done.key
-    assert ticket.assigned_team == "closers"
+    assert ticket.assigned_team == "hardware"
     assert last_transfer(ticket).trigger == Trigger.FORCE.value
 
 

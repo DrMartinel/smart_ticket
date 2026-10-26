@@ -26,6 +26,9 @@ from apps.tickets.response_schema import (
     TicketSubmitOut,
 )
 from apps.accounts.permissions import ALL_ROLES, STAFF, AuthedRequest, SessionAuth, require_role
+from apps.teams.request_schema import ReassignIn, TakeIn
+from apps.teams.response_schema import AssignedTicketOut
+from apps.teams.utils.assignment import ReassignRequest, assignment
 from apps.tickets.utils.pii_reveal import PiiReveal, Revealed
 
 router = Router(tags=["tickets"])
@@ -84,6 +87,29 @@ def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
         return Ticket.objects.visible_to(request.auth).get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
+
+
+@router.post("/{public_id}/take", auth=SessionAuth(), response=AssignedTicketOut)
+@require_role(*STAFF)
+def take(request: AuthedRequest, public_id: str, payload: TakeIn) -> Ticket:
+    return assignment.take(public_id, request.auth, payload.expected_version)
+
+
+@router.post("/{public_id}/reassign", auth=SessionAuth(), response=AssignedTicketOut)
+@require_role(*STAFF)
+def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Ticket:
+    return assignment.reassign(
+        public_id,
+        request.auth,
+        ReassignRequest(
+            to_user=payload.to_user,
+            to_team=payload.to_team,
+            to_category=payload.to_category.value if payload.to_category else None,
+            reason_code=payload.reason_code,
+            note=payload.note,
+            expected_version=payload.expected_version,
+        ),
+    )
 
 
 @router.post("/{public_id}/quarantine/reveal", auth=SessionAuth(), response=RevealOut)

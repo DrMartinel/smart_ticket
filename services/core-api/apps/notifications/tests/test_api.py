@@ -9,7 +9,7 @@ from django.test import Client, override_settings
 
 from apps.accounts.models import User, UserRole
 from apps.audit.models import AuditLog
-from apps.lifecycle.utils.engine import lifecycle
+from apps.notifications.tests.conftest import assign_to
 from apps.notifications.models import MatrixRule, Message, Template, WebhookSubscription
 from apps.notifications.utils.vocabulary import MessageState
 
@@ -24,10 +24,6 @@ def post(client: Client, url: str, body=None):
     return client.post(url, json.dumps(body or {}), content_type=JSON)
 
 
-def assign(ticket, username: str, actor):
-    lifecycle.assign(ticket.id, username=username, team=None, actor=actor)
-
-
 def matrix_cell(event: str, kind: str, channel: str) -> MatrixRule:
     return MatrixRule.objects.get(event=event, recipient_kind=kind, channel=channel)
 
@@ -37,7 +33,7 @@ def matrix_cell(event: str, kind: str, channel: str) -> MatrixRule:
 
 def test_the_inbox_lists_my_unread_notices_with_the_poll_interval(api_as, people, ticket):
     """UC-F4-02 / spec §g stage 4."""
-    assign(ticket, "duc.tm", people["huy"])
+    assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
 
     body = api_as(people["duc"]).get("/api/notifications?unread=true").json()
 
@@ -51,7 +47,7 @@ def test_the_inbox_lists_my_unread_notices_with_the_poll_interval(api_as, people
 
 
 def test_the_inbox_never_shows_someone_elses_notices(api_as, people, ticket):
-    assign(ticket, "duc.tm", people["huy"])
+    assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
 
     body = api_as(people["ha"]).get("/api/notifications").json()
 
@@ -59,7 +55,7 @@ def test_the_inbox_never_shows_someone_elses_notices(api_as, people, ticket):
 
 
 def test_reading_a_notice_marks_it_and_only_mine(api_as, people, ticket):
-    assign(ticket, "duc.tm", people["huy"])
+    assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
     notice = Message.objects.get(user=people["duc"], channel="in_app")
 
     assert api_as(people["ha"]).post(f"/api/notifications/{notice.id}/read").status_code == 404
@@ -70,7 +66,7 @@ def test_reading_a_notice_marks_it_and_only_mine(api_as, people, ticket):
 
 
 def test_an_email_message_is_not_an_inbox_notice(api_as, people, ticket):
-    assign(ticket, "duc.tm", people["huy"])
+    assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
     email = Message.objects.get(user=people["duc"], channel="email")
 
     response = api_as(people["duc"]).post(f"/api/notifications/{email.id}/read")
@@ -80,7 +76,7 @@ def test_an_email_message_is_not_an_inbox_notice(api_as, people, ticket):
 
 
 def test_read_all_clears_the_count(api_as, people, ticket):
-    assign(ticket, "duc.tm", people["huy"])
+    assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
     client = api_as(people["duc"])
 
     assert client.post("/api/notifications/read-all").status_code == 204
@@ -137,7 +133,7 @@ def test_choosing_english_changes_my_next_notice(api_as, people, ticket):
     response = put(api_as(people["duc"]), "/api/notifications/language", {"language": "en"})
 
     assert response.json() == {"language": "en"}
-    assign(ticket, "duc.tm", people["huy"])
+    assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
     notice = Message.objects.get(user=people["duc"], channel="in_app")
     assert notice.subject.startswith("Assigned to you: TKT-")
     assert AuditLog.objects.filter(event="account_language_changed").count() == 1
@@ -320,7 +316,7 @@ def test_a_manager_lists_failed_deliveries_and_retries_them(api_as, people, tick
     """UC-F4-05: retried rows are queued again, with a fresh set of attempts, audited."""
     from apps.notifications.utils.dispatcher import dispatcher
 
-    assign(ticket, "duc.tm", people["huy"])
+    assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
     email = Message.objects.get(user=people["duc"], channel="email")
     dispatcher.dispatch(email.id)
     client = api_as(people["huy"])
@@ -433,7 +429,7 @@ def test_an_edited_template_is_used_for_the_next_notice(api_as, people, ticket):
     )
     assert saved.status_code == 200 and saved.json()["is_default"] is False
 
-    assign(ticket, "duc.tm", people["huy"])
+    assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
     notice = Message.objects.get(user=people["duc"], channel="in_app")
     assert notice.subject == "Việc mới: TKT-2026-000412"
     assert AuditLog.objects.filter(event="notif_template_changed").count() == 1

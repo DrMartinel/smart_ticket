@@ -72,6 +72,22 @@ MODELS = [
     "WebhookIn",
     "WebhookPatch",
     "WebhookOut",
+    "TeamOut",
+    "MemberOut",
+    "TeamDetailOut",
+    "WorkloadRowOut",
+    "ReassignmentOut",
+    "AssignedTicketOut",
+    "MembershipOut",
+    "LeaveOut",
+    "MyAvailabilityOut",
+    "TeamIn",
+    "TeamPatch",
+    "MemberIn",
+    "TakeIn",
+    "ReassignIn",
+    "AvailabilityIn",
+    "LeaveIn",
 ]
 
 ENUMS = {
@@ -91,6 +107,16 @@ ENUMS = {
     "UserRole": ["employee", "technician", "manager", "security"],
     "RiskTier": ["low", "medium", "high"],
     "ChatState": ["thinking", "answered", "clarify", "suggest_ticket", "with_support"],
+    "TeamStrategy": ["round_robin", "least_loaded"],
+    "ReassignReason": [
+        "wrong_team",
+        "workload",
+        "skill",
+        "leave",
+        "escalation",
+        "requester_request",
+        "other",
+    ],
     "RecipientKind": [
         "requester",
         "assignee",
@@ -160,6 +186,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as notifications_request,
         response_schema as notifications_response,
     )
+    from apps.teams import request_schema as teams_request, response_schema as teams_response
     from apps.tickets import request_schema, response_schema as tickets_response
     from apps.tickets.utils import router, trust_scorer
     from infrastructure import dtos
@@ -174,6 +201,8 @@ def _models() -> dict[str, type[BaseModel]]:
         tickets_response,
         notifications_request,
         notifications_response,
+        teams_request,
+        teams_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

@@ -389,11 +389,15 @@ class Ticket(BaseModel):
     # exactly this decision. Never re-routed on release, so what was decided
     # and what was done cannot drift apart. None once released.
     held_decision = models.JSONField(null=True, blank=True)
-    # Set ONLY by router.py, never directly from an LLM proposal (ADR-0001).
+    # Set by router.py or a person's recorded reroute, never from a proposal (ADR-0001, BR-F2-06).
     category = models.CharField(
         max_length=20, choices=[(c.value, c.value) for c in TicketCategory], null=True, blank=True
     )
+    # The team's slug, kept equal to `team` for existing readers (FR-F2-013).
     assigned_team = models.CharField(max_length=50, null=True, blank=True)
+    team = models.ForeignKey(
+        "teams.Team", on_delete=models.PROTECT, null=True, blank=True, related_name="tickets"
+    )
     assigned_to = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
