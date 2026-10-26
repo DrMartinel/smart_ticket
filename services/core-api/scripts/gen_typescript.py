@@ -57,6 +57,21 @@ MODELS = [
     "StaffTicketDetail",
     "RevealOut",
     "AccessLogRowOut",
+    "NotificationOut",
+    "InboxOut",
+    "PreferenceOut",
+    "PreferenceIn",
+    "LanguageIn",
+    "LanguageOut",
+    "MatrixCellOut",
+    "MatrixChangeIn",
+    "MatrixIn",
+    "DeliveryOut",
+    "RetryIn",
+    "RetryOut",
+    "WebhookIn",
+    "WebhookPatch",
+    "WebhookOut",
 ]
 
 ENUMS = {
@@ -76,6 +91,20 @@ ENUMS = {
     "UserRole": ["employee", "technician", "manager", "security"],
     "RiskTier": ["low", "medium", "high"],
     "ChatState": ["thinking", "answered", "clarify", "suggest_ticket", "with_support"],
+    "RecipientKind": [
+        "requester",
+        "assignee",
+        "team_lead",
+        "team_members",
+        "manager",
+        "security",
+        "workflow_admins",
+        "kb_editors",
+        "incident_managers",
+        "approver",
+        "linked_requesters",
+        "previous_assignee",
+    ],
 }
 
 REASON_CODES = [
@@ -127,6 +156,10 @@ type JsonSchema = dict[str, Any]
 def _models() -> dict[str, type[BaseModel]]:
     """Each schema lives in the module that uses it, so gather them by name."""
     from apps.chat import request_schema as chat_request, response_schema as chat_response
+    from apps.notifications import (
+        request_schema as notifications_request,
+        response_schema as notifications_response,
+    )
     from apps.tickets import request_schema, response_schema as tickets_response
     from apps.tickets.utils import router, trust_scorer
     from infrastructure import dtos
@@ -139,6 +172,8 @@ def _models() -> dict[str, type[BaseModel]]:
         chat_request,
         chat_response,
         tickets_response,
+        notifications_request,
+        notifications_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

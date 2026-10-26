@@ -10,6 +10,7 @@ DEV_ONLY_SECRETS = {
     "PII_ENCRYPTION_KEY": "Zm9yLWRldi1vbmx5LTMyLWJ5dGUta2V5LWhlcmUhISE=",
     "OIDC_CLIENT_SECRET": "dev-only-oidc-client-secret",
     "KEYCLOAK_ADMIN_CLIENT_SECRET": "dev-only-keycloak-sync-secret",
+    "NOTIFICATION_SECRET_KEY": "ZGV2LW9ubHktbm90aWZpY2F0aW9uLXNlY3JldC1rZXk=",
 }
 for _key, _dev_value in DEV_ONLY_SECRETS.items():
     if env(_key) == _dev_value:  # noqa: F405

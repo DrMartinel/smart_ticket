@@ -19,6 +19,8 @@ export type RiskTier = "low" | "medium" | "high";
 
 export type ChatState = "thinking" | "answered" | "clarify" | "suggest_ticket" | "with_support";
 
+export type RecipientKind = "requester" | "assignee" | "team_lead" | "team_members" | "manager" | "security" | "workflow_admins" | "kb_editors" | "incident_managers" | "approver" | "linked_requesters" | "previous_assignee";
+
 export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
 
 export interface TicketIn {
@@ -315,6 +317,121 @@ export interface AccessLogRowOut {
   reason: string;
   review_item: string | null;
   outcome: string;
+}
+
+export interface NotificationOut {
+  id: string;
+  event: string;
+  subject: string;
+  body: string;
+  link: string;
+  ticket?: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface InboxOut {
+  unread: number;
+  poll_sec: number;
+  items: NotificationOut[];
+}
+
+export interface PreferenceOut {
+  event: string;
+  label: string;
+  channel: string;
+  enabled: boolean;
+  default_on: boolean;
+  mandatory: boolean;
+  via: string[];
+}
+
+export interface PreferenceIn {
+  event: string;
+  channel: "in_app" | "email";
+  enabled: boolean;
+}
+
+export interface LanguageIn {
+  language: "vi" | "en";
+}
+
+export interface LanguageOut {
+  language: string;
+}
+
+export interface MatrixCellOut {
+  event: string;
+  label: string;
+  owner: string;
+  active: boolean;
+  recipient_kind: string;
+  channel: string;
+  default_on: boolean;
+  mandatory: boolean;
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface MatrixChangeIn {
+  event: string;
+  recipient_kind: RecipientKind;
+  channel: "in_app" | "email";
+  default_on: boolean;
+}
+
+export interface MatrixIn {
+  changes: MatrixChangeIn[];
+  reason?: string;
+}
+
+export interface DeliveryOut {
+  id: string;
+  event: string;
+  channel: string;
+  recipient: string;
+  ticket: string | null;
+  state: string;
+  attempts: number;
+  last_error: string;
+  created_at: string;
+  last_attempt_at: string | null;
+  next_attempt_at: string | null;
+  delivered_at: string | null;
+}
+
+export interface RetryIn {
+  ids?: string[];
+  all_failed?: boolean;
+}
+
+export interface RetryOut {
+  requeued: number;
+}
+
+export interface WebhookIn {
+  name: string;
+  url: string;
+  events: string[];
+  secret: string;
+}
+
+export interface WebhookPatch {
+  name?: string | null;
+  url?: string | null;
+  events?: string[] | null;
+  secret?: string | null;
+  is_active?: boolean | null;
+}
+
+export interface WebhookOut {
+  id: string;
+  name: string;
+  url: string;
+  events: string[];
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
 }
 
 export type LLMProposal =

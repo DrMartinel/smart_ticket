@@ -54,3 +54,33 @@ export function piiLevelClasses(level: string): string {
       return "tone-neutral";
   }
 }
+
+/** A notification event: security first, then approvals, deadlines, assignment. */
+export function notificationEventClasses(event: string): string {
+  if (event.startsWith("security.") || event.startsWith("identity.")) return "tone-danger";
+  if (event.startsWith("approval.") || event.startsWith("incident.")) return "tone-alert";
+  if (event.startsWith("sla.") || event.startsWith("thresholds.")) return "tone-warn";
+  if (event.startsWith("ticket.")) return "tone-info";
+  return "tone-neutral";
+}
+
+/** A delivery's state: delivered, queued (or retrying), sending, failed. */
+export function deliveryStateClasses(state: string, attempts = 0): string {
+  switch (state) {
+    case "delivered":
+      return "tone-ok";
+    case "failed":
+      return "tone-danger";
+    case "queued":
+      return attempts > 0 ? "tone-warn" : "tone-neutral";
+    default:
+      return "tone-info";
+  }
+}
+
+/** What a delivery state is called on screen: a queued message already tried is retrying. */
+export function deliveryStateLabel(state: string, attempts = 0): string {
+  if (state === "delivered") return "sent";
+  if (state === "queued" && attempts > 0) return "retrying";
+  return state;
+}

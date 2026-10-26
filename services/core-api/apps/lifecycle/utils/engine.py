@@ -54,6 +54,7 @@ from apps.lifecycle.utils.vocabulary import (
     TransferState,
     Trigger,
 )
+from apps.notifications.utils.notifier import notifier
 from apps.tickets.models import Ticket
 
 logger = logging.getLogger(__name__)
@@ -659,9 +660,11 @@ class Lifecycle:
                 "assignee": ticket.assigned_to.username if ticket.assigned_to else None,
                 "team": ticket.assigned_team,
             }
+            previous = ticket.assigned_to
             ticket.assigned_to = assignee
             ticket.assigned_team = (team or "").strip()[:50] or None
             ticket.save(update_fields=["assigned_to", "assigned_team"])
+            notifier.assignment_changed(ticket, previous, actor.username)
             AuditLog.objects.record(
                 "ticket_assigned",
                 actor_type="human",

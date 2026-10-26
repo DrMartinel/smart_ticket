@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import timedelta
+import re
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User, UserRole
 from apps.audit.models import AuditLog
+from apps.notifications.models import Message
 from apps.review.models import ReviewItem
 from apps.tickets.models import PiiAccessLog, PiiQuarantine, Ticket
 from apps.tickets.utils.crypto import build_quarantine_entries
@@ -203,6 +205,7 @@ def test_a_decrypt_failure_rolls_back_the_log_row(api_as, people, ticket):
     assert not PiiAccessLog.objects.exists()
     assert not events("pii_revealed")
     assert [e.payload["reason"] for e in events("security_alert")] == ["decrypt_failed"]
+    assert Message.objects.filter(user=people["anh"], event="security.alert").count() == 2
 
 
 def test_rate_limit_refuses_and_alerts_security(api_as, people, ticket):
@@ -226,6 +229,9 @@ def test_rate_limit_refuses_and_alerts_security(api_as, people, ticket):
     (alert,) = events("security_alert")
     assert alert.payload["reason"] == "reveal_rate_limited"
     assert PiiAccessLog.objects.count() == limit
+    (notice,) = Message.objects.filter(user=people["anh"], event="security.alert", channel="in_app")
+    assert notice.subject == "Cảnh báo bảo mật: reveal_rate_limited"
+    assert CCCD not in notice.body
 
 
 def test_reason_with_a_secret_is_refused(api_as, people, ticket):
@@ -315,17 +321,30 @@ class TestAccessLog:
 
 
 def test_decrypt_has_one_caller():
-    """FR-F5-010: only the reveal service calls crypto.decrypt."""
+    """FR-F5-010: only the reveal service calls crypto.decrypt, and only crypto.py reads the PII key."""
     root = Path(settings.BASE_DIR)
-    callers = {
-        str(path.relative_to(root))
+    sources = {
+        str(path.relative_to(root)): path.read_text()
         for path in root.rglob("*.py")
-        if "tests" not in path.parts
-        and ".venv" not in path.parts
-        and "decrypt(" in path.read_text()
+        if "tests" not in path.parts and ".venv" not in path.parts
     }
+    callers = {
+        path
+        for path, text in sources.items()
+        if re.search(
+            r"\bcrypto\.decrypt\(|^\s*from apps\.tickets\.utils\.crypto import[^\n]*\bdecrypt\b",
+            text,
+            re.M,
+        )
+    }
+    key_readers = {path for path, text in sources.items() if "PII_ENCRYPTION_KEY" in text}
 
-    assert callers == {"apps/tickets/utils/crypto.py", "apps/tickets/utils/pii_reveal.py"}
+    assert callers == {"apps/tickets/utils/pii_reveal.py"}
+    assert key_readers == {
+        "apps/tickets/utils/crypto.py",
+        "config/settings/base.py",
+        "config/settings/production.py",
+    }
 
 
 def test_the_ticket_detail_lists_placeholders_with_their_level(api_as, people, ticket):
