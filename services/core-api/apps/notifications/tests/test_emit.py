@@ -323,3 +323,26 @@ def test_a_notice_for_no_ticket_renders_without_ticket_values(people):
     assert notice.subject == "Đăng nhập khẩn cấp: manager1"
     assert notice.ticket is None
     assert notice.created_at > timezone.now() - timedelta(minutes=1)
+
+
+def test_a_send_refused_after_commit_is_logged_not_raised(
+    people, ticket, monkeypatch, django_capture_on_commit_callbacks, caplog
+):
+    """A broker that refuses the send after commit is logged; Django names the callback when it
+    logs, so the callback must have a name (a `functools.partial` has none)."""
+    from django.db import connection
+
+    def refuse(ids):
+        raise ConnectionError("broker down")
+
+    monkeypatch.setattr(notifier, "queue_dispatch", refuse)
+    with django_capture_on_commit_callbacks() as callbacks:
+        assign_to(ticket, people["ha"], people["huy"])
+    assert callbacks
+
+    # Django's own robust path, outside the test's atomic block it would refuse to run in.
+    monkeypatch.setattr(connection, "validate_no_atomic_block", lambda: None)
+    connection.run_on_commit = [(set(), callback, True) for callback in callbacks]
+    connection.run_and_clear_commit_hooks()
+
+    assert "broker down" in caplog.text
