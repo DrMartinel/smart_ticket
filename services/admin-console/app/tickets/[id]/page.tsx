@@ -1,5 +1,7 @@
 "use client";
 
+import PriorityDialog from "@/components/PriorityDialog";
+import SlaBadge, { PriorityChip } from "@/components/SlaBadge";
 import ReassignDialog from "@/components/ReassignDialog";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -65,6 +67,7 @@ export default function TicketPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [priorityOpen, setPriorityOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -376,13 +379,40 @@ export default function TicketPage() {
               <dd>
                 <span className={`badge ${piiLevelClasses(detail.pii_level)}`}>PII: {humanize(detail.pii_level).toLowerCase()}</span>
               </dd>
-              <dt className="text-[var(--text-muted)]">SLA due</dt>
-              <dd>{dateTime(detail.sla_due_at)}</dd>
+              <dt className="text-[var(--text-muted)]">Priority</dt>
+              <dd className="flex items-center gap-2">
+                <PriorityChip priority={detail.priority} />
+                {user.role !== "employee" && (
+                  <button className="text-xs text-[var(--accent)]" onClick={() => setPriorityOpen(true)}>
+                    Change…
+                  </button>
+                )}
+              </dd>
+              <dt className="text-[var(--text-muted)]">SLA</dt>
+              <dd>
+                <SlaBadge badge={detail.sla} />
+              </dd>
               <dt className="text-[var(--text-muted)]">Resolved</dt>
               <dd>{dateTime(detail.resolved_at)}</dd>
               <dt className="text-[var(--text-muted)]">Reopened</dt>
               <dd>{detail.reopened_count}×</dd>
             </dl>
+            <PriorityDialog
+              open={priorityOpen}
+              onClose={() => setPriorityOpen(false)}
+              onDone={() => {
+                setPriorityOpen(false);
+                void load();
+              }}
+              ticket={{
+                public_id: detail.public_id,
+                subject: detail.subject_masked,
+                category: detail.category,
+                priority: detail.priority ?? null,
+                version: detail.version,
+                sla: detail.sla,
+              }}
+            />
           </Section>
 
           {lifecycle && lifecycle.field_values.length > 0 && (

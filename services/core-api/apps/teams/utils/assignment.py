@@ -58,9 +58,18 @@ class ReassignRequest:
     expected_version: int
 
 
-def today() -> date:
-    """Today in `ASSIGNMENT_TIMEZONE`, the day leave is judged by."""
-    return timezone.now().astimezone(ZoneInfo(settings.ASSIGNMENT_TIMEZONE)).date()
+def today(team: Team | None = None) -> date:
+    """Today in the zone of the team's calendar, else the default calendar's: the day leave is
+    judged by (BR-F2-03, BR-F1-04)."""
+    from apps.sla.models import Calendar
+
+    calendar = (
+        team.calendar
+        if team is not None and team.calendar_id is not None
+        else Calendar.objects.filter(is_default=True).first()
+    )
+    zone = ZoneInfo(calendar.timezone if calendar else "UTC")
+    return timezone.now().astimezone(zone).date()
 
 
 class Assignment:
@@ -154,14 +163,14 @@ class Assignment:
         if original is None or original.assigned_to_id is None:
             return None
         return (
-            TeamMembership.objects.eligible(team, today())
+            TeamMembership.objects.eligible(team, today(team))
             .filter(user_id=original.assigned_to_id)
             .first()
         )
 
     def pick(self, team: Team) -> Pick:
         """The member the team's strategy chooses now, under the team's lock (BR-F2-03)."""
-        eligible = list(TeamMembership.objects.eligible(team, today()))
+        eligible = list(TeamMembership.objects.eligible(team, today(team)))
         return Pick(eligible[0] if eligible else None, len(eligible))
 
     def lock(self, team: Team) -> None:
@@ -302,7 +311,7 @@ class Assignment:
         if ticket.assigned_to_id is None:
             return False
         holder = (
-            TeamMembership.objects.with_load(today())
+            TeamMembership.objects.with_load(today(team))
             .filter(team=team, user_id=ticket.assigned_to_id)
             .first()
         )

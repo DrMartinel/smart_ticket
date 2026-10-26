@@ -115,7 +115,7 @@ def set_member_availability(
 def queue(request: AuthedRequest, slug: str, unassigned: bool = False) -> QuerySet[Ticket]:
     return people.queue(
         assignment.team(slug), request.auth, unassigned=unassigned
-    ).prefetch_related("review_items")
+    ).prefetch_related("review_items", "sla_clocks")
 
 
 @router.get("/{slug}/workload", auth=SessionAuth(), response=list[WorkloadRowOut])

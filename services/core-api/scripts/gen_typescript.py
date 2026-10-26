@@ -88,6 +88,24 @@ MODELS = [
     "ReassignIn",
     "AvailabilityIn",
     "LeaveIn",
+    "PolicyOut",
+    "HolidayOut",
+    "CalendarOut",
+    "DueOut",
+    "PreviewOut",
+    "ClockOut",
+    "TicketSlaOut",
+    "BreachOut",
+    "PolicyIn",
+    "PolicyPatch",
+    "ReasonIn",
+    "CalendarIn",
+    "CalendarPatch",
+    "HolidayIn",
+    "PreviewIn",
+    "PriorityIn",
+    "BadgeClockOut",
+    "SlaBadgeOut",
 ]
 
 ENUMS = {
@@ -108,6 +126,7 @@ ENUMS = {
     "RiskTier": ["low", "medium", "high"],
     "ChatState": ["thinking", "answered", "clarify", "suggest_ticket", "with_support"],
     "TeamStrategy": ["round_robin", "least_loaded"],
+    "Priority": ["P1", "P2", "P3", "P4"],
     "ReassignReason": [
         "wrong_team",
         "workload",
@@ -186,6 +205,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as notifications_request,
         response_schema as notifications_response,
     )
+    from apps.sla import request_schema as sla_request, response_schema as sla_response
     from apps.teams import request_schema as teams_request, response_schema as teams_response
     from apps.tickets import request_schema, response_schema as tickets_response
     from apps.tickets.utils import router, trust_scorer
@@ -203,6 +223,8 @@ def _models() -> dict[str, type[BaseModel]]:
         notifications_response,
         teams_request,
         teams_response,
+        sla_request,
+        sla_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

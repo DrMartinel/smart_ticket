@@ -5,11 +5,11 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import SlaBadge, { PriorityChip } from "@/components/SlaBadge";
 import StatusChip from "@/components/StatusChip";
 import TeamPicker, { useVisibleTeams } from "@/components/TeamPicker";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
-import { dateTime, relativeTime } from "@/lib/format";
 import type { StaffTicketRow } from "@/lib/types/generated";
 
 interface Page {
@@ -92,9 +92,10 @@ export default function TeamQueuePage() {
             <tr>
               <th className="px-4 py-2 font-normal">Ticket</th>
               <th className="px-4 py-2 font-normal">Subject</th>
+              <th className="px-4 py-2 font-normal">Priority</th>
               <th className="px-4 py-2 font-normal">Assignee</th>
               <th className="px-4 py-2 font-normal">Status</th>
-              <th className="px-4 py-2 font-normal">SLA due</th>
+              <th className="px-4 py-2 font-normal">SLA</th>
               <th className="px-4 py-2 font-normal" />
             </tr>
           </thead>
@@ -107,12 +108,15 @@ export default function TeamQueuePage() {
                   </Link>
                 </td>
                 <td className="max-w-[360px] px-4 py-2.5">{row.subject_masked}</td>
+                <td className="px-4 py-2.5">
+                  <PriorityChip priority={row.priority} />
+                </td>
                 <td className="px-4 py-2.5">{row.assignee ?? <span className="text-[var(--text-muted)]">Unassigned</span>}</td>
                 <td className="px-4 py-2.5">
                   <StatusChip name={row.status.name} color={row.status.color} />
                 </td>
-                <td className="whitespace-nowrap px-4 py-2.5" title={dateTime(row.sla_due_at)}>
-                  {row.sla_due_at ? relativeTime(row.sla_due_at) : "—"}
+                <td className="whitespace-nowrap px-4 py-2.5">
+                  <SlaBadge badge={row.sla} />
                 </td>
                 <td className="px-4 py-2.5 text-right">
                   {!row.assignee ? (
@@ -127,7 +131,7 @@ export default function TeamQueuePage() {
             ))}
             {page && page.items.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-[var(--text-muted)]">
+                <td colSpan={7} className="px-4 py-6 text-center text-[var(--text-muted)]">
                   Nothing in this queue.
                 </td>
               </tr>
@@ -135,7 +139,6 @@ export default function TeamQueuePage() {
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-[var(--text-muted)]">Priority and SLA badges arrive with F1.</p>
     </div>
   );
 }

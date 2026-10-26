@@ -54,6 +54,7 @@ from apps.lifecycle.utils.vocabulary import (
     TransferState,
     Trigger,
 )
+from apps.sla.utils.clocks import sla_clocks
 from apps.tickets.models import Ticket
 
 logger = logging.getLogger(__name__)
@@ -176,6 +177,7 @@ class Lifecycle:
         )
         ticket.enter_status(target)
         self.audit_status_change(ticket, transfer, current, target, extra=extra)
+        sla_clocks.on_status_entered(ticket, transfer)
         return transfer
 
     # ── people's and actions' moves ──
@@ -339,6 +341,7 @@ class Lifecycle:
         transfer.committed_at = timezone.now()
         transfer.save(update_fields=["state", "committed_at"])
         self.audit_status_change(ticket, transfer, transfer.before_status, transfer.after_status)
+        sla_clocks.on_status_entered(ticket, transfer)
 
     def audit_status_change(
         self,

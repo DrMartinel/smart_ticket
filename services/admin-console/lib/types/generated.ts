@@ -21,6 +21,8 @@ export type ChatState = "thinking" | "answered" | "clarify" | "suggest_ticket" |
 
 export type TeamStrategy = "round_robin" | "least_loaded";
 
+export type Priority = "P1" | "P2" | "P3" | "P4";
+
 export type ReassignReason = "wrong_team" | "workload" | "skill" | "leave" | "escalation" | "requester_request" | "other";
 
 export type RecipientKind = "requester" | "assignee" | "team_lead" | "team_members" | "manager" | "security" | "workflow_admins" | "kb_editors" | "incident_managers" | "approver" | "linked_requesters" | "previous_assignee";
@@ -230,6 +232,8 @@ export interface StaffTicketRow {
   pii_level: string;
   created_at: string;
   sla_due_at: string | null;
+  priority?: string | null;
+  sla?: SlaBadgeOut | null;
   review: OpenReviewOut | null;
   version: number;
 }
@@ -291,6 +295,8 @@ export interface StaffTicketDetail {
   pii_level: string;
   created_at: string;
   sla_due_at: string | null;
+  priority?: string | null;
+  sla?: SlaBadgeOut | null;
   review: OpenReviewOut | null;
   version: number;
   body_masked: string;
@@ -572,6 +578,165 @@ export interface LeaveIn {
   ends_on: string;
   note?: string;
   user?: string | null;
+}
+
+export interface PolicyOut {
+  id: string;
+  name: string;
+  order: number;
+  category: string | null;
+  priority: string | null;
+  response_minutes: number;
+  resolution_minutes: number;
+  calendar: string | null;
+  is_24x7: boolean;
+  state: string;
+  replaces: string | null;
+  created_by: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+}
+
+export interface HolidayOut {
+  id: string;
+  date: string;
+  name: string;
+}
+
+export interface CalendarOut {
+  id: string;
+  name: string;
+  timezone: string;
+  working_hours: Record<string, string[][]>;
+  is_default: boolean;
+  holidays_count: number;
+}
+
+export interface DueOut {
+  due_at: string;
+  warn_at: string;
+}
+
+export interface PreviewOut {
+  policy: string;
+  calendar: string;
+  response: DueOut;
+  resolution: DueOut;
+}
+
+export interface ClockOut {
+  kind: string;
+  state: string;
+  target_minutes: number;
+  elapsed_minutes: number;
+  remaining_minutes: number;
+  due_at: string | null;
+  warn_at: string | null;
+  met_at: string | null;
+  breached_at: string | null;
+  paused: boolean;
+  breached: boolean;
+  warned: boolean;
+}
+
+export interface TicketSlaOut {
+  priority: string | null;
+  policy: string | null;
+  calendar: string | null;
+  clocks: ClockOut[];
+}
+
+export interface BreachOut {
+  ticket: string;
+  subject: string;
+  team: string | null;
+  assignee: string | null;
+  priority: string | null;
+  kind: string;
+  state: string;
+  due_at: string | null;
+  breached_at: string | null;
+  warned_at: string | null;
+  sla: SlaBadgeOut | null;
+}
+
+export interface PolicyIn {
+  name: string;
+  order: number;
+  category?: TicketCategory | null;
+  priority?: Priority | null;
+  response_minutes: number;
+  resolution_minutes: number;
+  calendar_id?: string | null;
+  is_24x7?: boolean;
+  replaces_id?: string | null;
+}
+
+export interface PolicyPatch {
+  name?: string | null;
+  order?: number | null;
+  category?: TicketCategory | null;
+  priority?: Priority | null;
+  response_minutes?: number | null;
+  resolution_minutes?: number | null;
+  calendar_id?: string | null;
+  is_24x7?: boolean | null;
+}
+
+export interface ReasonIn {
+  reason?: string;
+}
+
+export interface CalendarIn {
+  name: string;
+  timezone: string;
+  working_hours: Record<string, string[][]>;
+  is_default?: boolean;
+}
+
+export interface CalendarPatch {
+  name?: string | null;
+  timezone?: string | null;
+  working_hours?: Record<string, string[][]> | null;
+  is_default?: boolean | null;
+}
+
+export interface HolidayIn {
+  date?: string | null;
+  from?: string | null;
+  to?: string | null;
+  name: string;
+}
+
+export interface PreviewIn {
+  category?: TicketCategory | null;
+  priority: Priority;
+  start_at: string;
+}
+
+export interface PriorityIn {
+  priority: Priority;
+  reason?: string;
+  expected_version: number;
+}
+
+export interface BadgeClockOut {
+  kind: string;
+  state: string;
+  due_at: string | null;
+  met_at: string | null;
+  elapsed_minutes: number;
+  target_minutes: number;
+}
+
+export interface SlaBadgeOut {
+  kind: string;
+  level: string;
+  remaining_minutes: number;
+  due_at: string | null;
+  policy: string;
+  calendar: string;
+  clocks: BadgeClockOut[];
 }
 
 export type LLMProposal =
