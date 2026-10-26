@@ -6,6 +6,8 @@ and takes the answer (ADR-0023).
 from datetime import timedelta
 
 import pytest
+
+from apps.rollout.testing import all_live
 from django.utils import timezone
 
 from config.settings.base import ClarificationThresholds
@@ -142,8 +144,8 @@ def _chat_ticket(reporter, *, pii_map: dict[str, str] | None = None) -> Ticket:
 
 
 @pytest.fixture
-def live(settings):
-    settings.SHADOW_MODE = False
+def live(settings, db):
+    all_live(settings)
 
 
 @pytest.mark.django_db

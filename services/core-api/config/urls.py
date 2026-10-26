@@ -23,6 +23,8 @@ from apps.chat.views import router as chat_router
 from apps.lifecycle.views import router as lifecycle_router
 from apps.notifications.views import router as notifications_router
 from apps.requester.views import router as requester_router
+from apps.rollout.views import router as rollout_router
+from apps.rollout.views import thresholds_router
 from apps.security.views import router as security_router
 from apps.sla.views import router as sla_router
 from apps.teams.views import me_router
@@ -47,6 +49,8 @@ api.add_router("/me", me_router)
 api.add_router("/sla", sla_router)
 api.add_router("/requester", requester_router)
 api.add_router("/security", security_router)
+api.add_router("/rollout", rollout_router)
+api.add_router("/thresholds", thresholds_router)
 gate_authentication(api._routers)
 
 

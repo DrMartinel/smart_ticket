@@ -711,6 +711,8 @@ class RoutingDecision(BaseModel):
     gate_failed = models.CharField(max_length=100, null=True, blank=True)
     thresholds_used = models.JSONField()
     shadow_mode = models.BooleanField(default=True)
+    # The flags, env switch and thresholds version the decision ran under (F9, BR-F9-09).
+    rollout_snapshot = models.JSONField(default=dict, blank=True)
     decided_at = models.DateTimeField(auto_now_add=True)
 
     class Meta(BaseModel.Meta):

@@ -6,6 +6,8 @@ never allowed, or "create ticket" handing a question to support twice.
 
 import pytest
 
+from apps.rollout.testing import all_live
+
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
 from apps.tickets.models import AiRun, RoutingDecision, Ticket, TicketSource
@@ -35,8 +37,8 @@ def enqueued(monkeypatch):
 
 
 @pytest.fixture
-def live(settings):
-    settings.SHADOW_MODE = False
+def live(settings, db):
+    all_live(settings)
 
 
 def ask(client, message: str):

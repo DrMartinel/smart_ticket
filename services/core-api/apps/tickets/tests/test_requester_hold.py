@@ -12,6 +12,8 @@ holdable.
 
 import pytest
 
+from apps.rollout.testing import all_live
+
 from apps.audit.models import AuditLog
 from apps.review.models import ReviewItem
 from apps.tickets.models import Ticket, TicketSource
@@ -125,8 +127,8 @@ class TestHoldAndRelease:
     test says otherwise."""
 
     @pytest.fixture(autouse=True)
-    def live(self, settings):
-        settings.SHADOW_MODE = False
+    def live(self, settings, db):
+        all_live(settings)
 
     def test_shadow_chat_ticket_goes_straight_to_review(
         self, employee_user, ner_finds_nothing, no_celery, settings
