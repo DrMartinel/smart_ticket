@@ -11,8 +11,14 @@
 # is active is snapshotted verbatim into `routing_decisions.thresholds_used`
 # so a decision made months ago can always be explained with the numbers
 # that were actually in effect at the time.
+#
+# `version` is the id of the approved threshold change request this file is
+# (F9, ADR-0035): change a number by proposing the whole file at
+# /settings/thresholds, and ship it under the id it was approved as. CI fails a
+# change to this file that keeps the old version. CR-2026-000 is the baseline
+# the F9 migration approves.
 
-version: "2026-07-27"
+version: "CR-2026-000"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -223,3 +229,8 @@ security:
     critical: 60
     high: 240
     medium: 570
+
+rollout:
+  # A request to turn a branch live expires after this many hours without its
+  # second approval (F9, §c).
+  flag_request_expiry_hours: 72

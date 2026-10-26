@@ -206,6 +206,46 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
             "Acknowledgement overdue ({{notice.detail}}). {{ticket.id}}",
         ),
     },
+    E.ROLLOUT_FLAG_REQUESTED: {
+        VI: ("Yêu cầu bật tự động: {{notice.reason}}", "{{notice.actor}}: {{notice.message}}"),
+        EN: ("Request to turn on {{notice.reason}}", "{{notice.actor}}: {{notice.message}}"),
+    },
+    E.ROLLOUT_FLAG_CHANGED: {
+        VI: ("Triển khai thay đổi: {{notice.reason}}", "{{notice.actor}}: {{notice.message}}"),
+        EN: ("Rollout changed: {{notice.reason}}", "{{notice.actor}}: {{notice.message}}"),
+    },
+    E.ROLLOUT_GATE_UNMET: {
+        VI: (
+            "Điều kiện triển khai không còn đạt: {{notice.reason}}",
+            "Nhánh {{notice.reason}} đang bật nhưng chưa đạt: {{notice.detail}}. Cân nhắc tắt.",
+        ),
+        EN: (
+            "Rollout gate no longer met: {{notice.reason}}",
+            "{{notice.reason}} is on but no longer meets: {{notice.detail}}. Consider turning it off.",
+        ),
+    },
+    E.THRESHOLDS_CR_PENDING: {
+        VI: (
+            "Thay đổi ngưỡng chờ duyệt: {{notice.reason}}",
+            "{{notice.actor}}: {{notice.message}}",
+        ),
+        EN: (
+            "Threshold change to review: {{notice.reason}}",
+            "{{notice.actor}}: {{notice.message}}",
+        ),
+    },
+    E.THRESHOLDS_UNAPPROVED: {
+        VI: (
+            "Ngưỡng chưa được duyệt: {{notice.reason}}",
+            "thresholds.yaml đang chạy ({{notice.detail}}) không khớp yêu cầu nào đã duyệt. "
+            "Mọi nhánh đang ở chế độ shadow.",
+        ),
+        EN: (
+            "Unapproved thresholds: {{notice.reason}}",
+            "The thresholds.yaml in use ({{notice.detail}}) matches no approved change request. "
+            "Every branch is in shadow.",
+        ),
+    },
     E.SECURITY_ALERT: {
         VI: ("Cảnh báo bảo mật: {{notice.reason}}", "{{notice.detail}}"),
         EN: ("Security alert: {{notice.reason}}", "{{notice.detail}}"),

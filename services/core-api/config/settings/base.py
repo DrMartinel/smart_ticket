@@ -89,6 +89,7 @@ INSTALLED_APPS = [
     "apps.sla",
     "apps.requester",
     "apps.security",
+    "apps.rollout",
 ]
 
 MIDDLEWARE = [
@@ -189,6 +190,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.security.tasks.sweep",
         "schedule": float(env("SECURITY_SWEEP_INTERVAL_SEC")),
     },
+    "rollout-sweep": {
+        "task": "apps.rollout.tasks.sweep",
+        "schedule": float(env("ROLLOUT_SWEEP_INTERVAL_SEC")),
+    },
     "sla-holiday-check": {
         "task": "apps.sla.tasks.holiday_check",
         # 07:00 Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
@@ -235,6 +240,9 @@ KEYCLOAK_ADMIN_CLIENT_SECRET = env("KEYCLOAK_ADMIN_CLIENT_SECRET")
 
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = env_bool("SHADOW_MODE")
+# A loaded thresholds.yaml must match an approved change request to act live (F9, BR-F9-07);
+# production.py forces it on.
+THRESHOLDS_REQUIRE_APPROVAL = env_bool("THRESHOLDS_REQUIRE_APPROVAL")
 # ai-engine is the only vLLM client (ADR-0012): core-api's embeddings and PII
 # NER go through AI_ENGINE_URL, so core-api has no model URL, model name or
 # embedding provider.
@@ -434,6 +442,11 @@ class SecurityThresholds(BaseModel):
         return value
 
 
+class RolloutThresholds(BaseModel):
+    # A request to turn a branch live expires after this many hours unapproved (F9).
+    flag_request_expiry_hours: int = Field(ge=1)
+
+
 class AssignmentThresholds(BaseModel):
     # Shortest note a manual reassignment carries (F2, BR-F2-05).
     reassign_note_min_chars: int = Field(ge=1)
@@ -464,6 +477,7 @@ class Thresholds(BaseModel):
     sla: SlaThresholds
     requester: RequesterThresholds
     security: SecurityThresholds
+    rollout: RolloutThresholds
 
     @property
     def retrieval_floor(self) -> float:
