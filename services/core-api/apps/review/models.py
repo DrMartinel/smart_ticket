@@ -41,7 +41,7 @@ class ReviewItemManager(models.Manager["ReviewItem"]):
         """The HITL queue (spec §3.4): most urgent first (priority 1 = blocked,
         escalated or mask-failed), then longest-waiting first within a
         priority."""
-        qs = self.select_related("ticket", "ai_run").filter(state=state)
+        qs = self.select_related("ticket", "ai_run", "comment").filter(state=state)
         if queue:
             qs = qs.filter(queue=queue)
         return qs.order_by("priority", "created_at")
@@ -55,6 +55,14 @@ class ReviewItem(BaseModel):
         AiRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
     queue = models.CharField(max_length=30, choices=[(q.value, q.value) for q in ReviewQueue])
+    # A comment whose masking failed (F3 UC-F3-03 3y); None for a ticket's routing review.
+    comment = models.ForeignKey(
+        "tickets.TicketComment",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="review_items",
+    )
     priority = models.SmallIntegerField(default=3)
     state = models.CharField(max_length=20, default="pending")
     claimed_by = models.ForeignKey(
@@ -117,7 +125,9 @@ class EvalCandidate(BaseModel):
     §12.4's free-label loop."""
 
     ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="eval_candidates")
-    source = models.CharField(max_length=30)  # human_override|reroute|reopen|refusal_spike
+    source = models.CharField(
+        max_length=30
+    )  # human_override|reroute|reopen|low_rating|refusal_spike
     ai_prediction = models.JSONField()
     human_truth = models.JSONField()
     promoted = models.BooleanField(default=False)

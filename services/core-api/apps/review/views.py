@@ -7,7 +7,7 @@ from ninja import Router
 from ninja.errors import HttpError
 
 from apps.review.models import ReviewDecision, ReviewError, ReviewItem
-from apps.review.request_schema import DecisionIn
+from apps.review.request_schema import CommentDecisionIn, DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
 from apps.review.utils import review_decisions
 from apps.accounts.permissions import (
@@ -18,6 +18,7 @@ from apps.accounts.permissions import (
     refuse_unless,
     require_role,
 )
+from apps.tickets.utils.comments import CommentReviewChoice, comments
 from apps.tickets.utils.router import ReviewQueue
 
 router = Router(tags=["review"])
@@ -52,6 +53,8 @@ def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
 @require_role(*STAFF)
 def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn) -> ReviewDecision:
     item = _get_or_404(item_id)
+    if item.comment_id is not None:
+        raise HttpError(422, "a held comment is decided at /comment-decision")
     if item.queue == ReviewQueue.RUNBOOK_APPROVAL:
         refuse_unless(request, request.auth, TECHNICIAN_OR_MANAGER)
     try:
@@ -60,8 +63,18 @@ def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn)
         raise HttpError(422, str(e)) from e
 
 
+@router.post("/items/{item_id}/comment-decision", auth=SessionAuth(), response=ReviewItemOut)
+@require_role(*STAFF)
+def decide_comment(
+    request: AuthedRequest, item_id: uuid.UUID, payload: CommentDecisionIn
+) -> ReviewItem:
+    _get_or_404(item_id)
+    comments.review(item_id, request.auth, CommentReviewChoice(payload.choice))
+    return _get_or_404(item_id)
+
+
 def _get_or_404(item_id: uuid.UUID) -> ReviewItem:
     try:
-        return ReviewItem.objects.select_related("ticket", "ai_run").get(id=item_id)
+        return ReviewItem.objects.select_related("ticket", "ai_run", "comment").get(id=item_id)
     except ReviewItem.DoesNotExist as e:
         raise HttpError(404, "review item not found") from e

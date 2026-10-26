@@ -117,8 +117,11 @@ class Dispatcher:
     def send_email(self, message: Message) -> None:
         """Sends the text and HTML parts with a link to the page the notice opens (FR-F4-006)."""
         assert message.user is not None
+        link = message.link
         url = (
-            settings.NOTIFICATION_PUBLIC_BASE_URL.rstrip("/") + message.link if message.link else ""
+            settings.NOTIFICATION_PUBLIC_BASE_URL.rstrip("/") + link
+            if link.startswith("/")
+            else link
         )
         text = f"{message.body}\n\n{url}" if url else message.body
         html = "".join(f"<p>{escape(line)}</p>" for line in message.body.splitlines() if line)

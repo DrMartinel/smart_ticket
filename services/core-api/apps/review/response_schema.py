@@ -31,6 +31,16 @@ class RoutingDecisionOut(Schema):
     shadow_mode: bool
 
 
+class ReviewCommentOut(Schema):
+    """A comment whose masking failed, as the regex tier left it (F3 UC-F3-03 3y)."""
+
+    id: uuid.UUID
+    author_kind: str
+    visibility: str
+    body_masked: str
+    created_at: datetime
+
+
 class ReviewItemOut(Schema):
     id: uuid.UUID
     ticket_public_id: str = Field(alias="ticket.public_id")
@@ -47,6 +57,7 @@ class ReviewItemOut(Schema):
     trust_contributions: dict[str, float] | None
     proposed_draft: dict[str, Any] | None
     routing_decisions: list[RoutingDecisionOut]
+    comment: ReviewCommentOut | None = None
 
     @staticmethod
     def resolve_trust_signals(item: ReviewItem) -> dict[str, Any] | None:

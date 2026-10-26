@@ -19,6 +19,8 @@ from pathlib import Path
 import httpx
 
 GOLDEN_PATH = Path(__file__).parent.parent / "golden" / "tickets.jsonl"
+# Chat follow-ups with the conversation's earlier turns (F3, ADR-0034).
+MULTI_TURN_PATH = Path(__file__).parent.parent / "golden" / "multi_turn.jsonl"
 # The demo KB snapshot's manifest: slug -> proposed category, for resolving
 # the category of an auto_reply proposal. Read by the eval, never by the
 # system under test.
@@ -47,6 +49,19 @@ def load_golden(*tags: str) -> list[dict]:
     if not tags:
         return cases
     return [c for c in cases if any(t in c["tags"] for t in tags)]
+
+
+def load_multi_turn(*, reviewed_only: bool = False) -> list[dict]:
+    """The multi-turn cases; with `reviewed_only`, those a reviewer other than their author
+    approved (CLAUDE.md rule 9)."""
+    cases = [
+        json.loads(line)
+        for line in MULTI_TURN_PATH.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if reviewed_only:
+        return [c for c in cases if c["review"]["status"] == "approved"]
+    return cases
 
 
 @functools.cache
@@ -81,7 +96,14 @@ def record_metric(name: str, value: float, **extra) -> None:
     RESULTS_PATH.write_text(json.dumps(results, indent=2, ensure_ascii=False) + "\n")
 
 
-def analyze(client: httpx.Client, subject: str, body: str, *, never_refuse: bool = False) -> dict:
+def analyze(
+    client: httpx.Client,
+    subject: str,
+    body: str,
+    *,
+    never_refuse: bool = False,
+    prior_turns: list[dict] | None = None,
+) -> dict:
     """POST /v1/analyze with thresholds.yaml's floor, or 0.0 when
     `never_refuse`, so the model answers unless Jev chose no passage
     (ADR-0026).
@@ -93,13 +115,17 @@ def analyze(client: httpx.Client, subject: str, body: str, *, never_refuse: bool
     production. Before, the harness sent raw text as "masked" with the level
     pinned to routine: g144's raw password was auto-replied in the
     2026-10-04 run instead of blocked, and no masking regression could show
-    up here. Masking calls ai-engine's NER, so a run needs it up."""
+    up here. Masking calls ai-engine's NER, so a run needs it up.
+
+    `prior_turns` are a chat conversation's earlier turns ({question, outcome,
+    answer_excerpt}); each question is masked the way core-api stored it, as
+    `Conversations.prior_turns` sends them (ADR-0034)."""
 
     from asgiref.sync import async_to_sync
     from django.conf import settings
 
     from apps.tickets.request_schema import TicketIn
-    from apps.tickets.utils.masking import mask
+    from apps.tickets.utils.masking import mask, mask_reply
 
     floor = 0.0 if never_refuse else settings.THRESHOLDS.retrieval_floor
     masked = async_to_sync(mask)(
@@ -114,6 +140,18 @@ def analyze(client: httpx.Client, subject: str, body: str, *, never_refuse: bool
             "body_masked": masked.body_masked,
             "pii_level": masked.pii_level.value,
             "placeholder_keys": list(masked.placeholder_map),
+            "prior_turns": [
+                {
+                    "question_masked": async_to_sync(mask_reply)(
+                        t["question"], settings.THRESHOLDS.masking.ner_max_share, []
+                    ).text_masked,
+                    "outcome": t["outcome"],
+                    "answer_excerpt": t["answer_excerpt"][
+                        : settings.THRESHOLDS.requester.answer_excerpt_chars
+                    ],
+                }
+                for t in prior_turns or []
+            ],
         },
         "retrieval_floor": floor,
     }

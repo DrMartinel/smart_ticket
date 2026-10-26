@@ -1,10 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import type { ChatClarificationOut, ChatTurnOut } from "@/lib/types/generated";
 import { SLOW_AFTER_MS, type Turn } from "@/lib/conversation";
 import AnswerText, { InlineText } from "./AnswerText";
 import { ArrowUpRightIcon, CheckIcon } from "./icons";
+import Rating from "./Rating";
+import ReopenBox from "./ReopenBox";
 
 // The masking placeholders core-api writes in place of PII, e.g. [EMAIL_1].
 const PLACEHOLDER = /\[[A-Z]+(?:_[A-Z]+)*_\d+\]/;
@@ -277,7 +280,7 @@ function Outcome({
               <InlineText text={turn.answer.quote} />
             </blockquote>
           </figure>
-          <p className="text-xs text-[var(--text-muted)]">Didn&apos;t solve it? Ask again with more detail and you&apos;ll be offered a ticket.</p>
+          <AnswerFeedback publicId={turn.public_id} />
         </div>
       );
 
@@ -310,8 +313,37 @@ function Outcome({
               Ticket <span className="font-mono font-medium">{turn.public_id}</span> is with the support team.
             </p>
             <p className="text-sm text-[var(--text-muted)]">A technician will follow up with you.</p>
+            <Link href={`/tickets/${turn.public_id}`} className="text-sm text-[var(--accent)] underline-offset-2 hover:underline">
+              Xem trong Đơn của tôi · Open in My tickets →
+            </Link>
           </div>
         </div>
       );
   }
+}
+
+// "Đã giải quyết?" under an auto-reply (F3 · Answer card 10-500): fixed opens the rating, not
+// fixed reopens the ticket for a person.
+function AnswerFeedback({ publicId }: { publicId: string }) {
+  const [choice, setChoice] = useState<"fixed" | "not_fixed" | null>(null);
+  return (
+    <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-3">
+      {choice === null && (
+        <div className="flex flex-wrap gap-2">
+          <button onClick={() => setChoice("fixed")} className="btn btn-secondary">
+            ✓ Đã giải quyết · Fixed
+          </button>
+          <button onClick={() => setChoice("not_fixed")} className="btn btn-secondary">
+            Chưa giải quyết được · Still not fixed
+          </button>
+        </div>
+      )}
+      {choice === "fixed" && <Rating publicId={publicId} current={null} until={null} compact />}
+      {choice === "not_fixed" && <ReopenBox publicId={publicId} until={null} />}
+      <p className="text-xs text-[var(--text-muted)]">
+        {publicId} · From an approved knowledge-base page. &ldquo;Still not fixed&rdquo; reopens this ticket for a person
+        within 7 days.
+      </p>
+    </div>
+  );
 }

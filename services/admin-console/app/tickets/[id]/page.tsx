@@ -1,5 +1,6 @@
 "use client";
 
+import CommentsPanel from "@/components/CommentsPanel";
 import PriorityDialog from "@/components/PriorityDialog";
 import SlaBadge, { PriorityChip } from "@/components/SlaBadge";
 import ReassignDialog from "@/components/ReassignDialog";
@@ -290,6 +291,16 @@ export default function TicketPage() {
               )}
             </Section>
           )}
+
+          <Section title="Comments">
+            <CommentsPanel
+              publicId={detail.public_id}
+              version={detail.version}
+              canWrite={user.role !== "employee" && !TRIAGE.has(detail.status.key) && !detail.resolved_at}
+              canWait={moves.some((m) => m.status.key === "waiting_on_requester")}
+              onChanged={() => void load()}
+            />
+          </Section>
 
           <Section title="History">
             <Timeline detail={detail} transfers={transfers} />

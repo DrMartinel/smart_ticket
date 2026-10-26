@@ -19,6 +19,8 @@ export type RiskTier = "low" | "medium" | "high";
 
 export type ChatState = "thinking" | "answered" | "clarify" | "suggest_ticket" | "with_support";
 
+export type CommentState = "shown" | "checking" | "discarded";
+
 export type TeamStrategy = "round_robin" | "least_loaded";
 
 export type Priority = "P1" | "P2" | "P3" | "P4";
@@ -41,6 +43,13 @@ export interface TicketMasked {
   body_masked: string;
   pii_level: PIILevel;
   placeholder_keys?: string[];
+  prior_turns?: PriorTurn[];
+}
+
+export interface PriorTurn {
+  question_masked: string;
+  outcome: "answered" | "with_support" | "clarify" | "suggest_ticket";
+  answer_excerpt?: string;
 }
 
 export interface AutoReplyProposal {
@@ -170,6 +179,7 @@ export interface AIRunResponse {
 
 export interface ChatAskIn {
   message: string;
+  conversation_id?: string | null;
 }
 
 export interface ChatAnswerOut {
@@ -198,6 +208,7 @@ export interface ChatTurnOut {
   created_at: string;
   status_name?: string | null;
   resolved?: boolean;
+  conversation_id?: string | null;
 }
 
 export interface PersonOut {
@@ -737,6 +748,106 @@ export interface SlaBadgeOut {
   policy: string;
   calendar: string;
   clocks: BadgeClockOut[];
+}
+
+export interface CommentIn {
+  body: string;
+  visibility: "public" | "internal";
+  move_to_waiting?: boolean;
+  expected_version?: number | null;
+}
+
+export interface CommentOut {
+  id: string;
+  author: string | null;
+  author_kind: string;
+  visibility: string;
+  body_masked: string;
+  pii_level: string;
+  hidden_for_review: boolean;
+  discarded: boolean;
+  created_at: string;
+  review_item: string | null;
+}
+
+export interface ReplyIn {
+  body: string;
+}
+
+export interface ReopenIn {
+  reason: string;
+}
+
+export interface RatingIn {
+  score: number;
+  comment?: string | null;
+}
+
+export interface RatingOut {
+  score: number;
+  comment_masked: string | null;
+  resolution_seq: number;
+  rated_at: string;
+  updated_at: string;
+}
+
+export interface RequesterTicketRow {
+  public_id: string;
+  subject_masked: string;
+  source: string;
+  status_label: string;
+  team: string | null;
+  resolution_due_at: string | null;
+  sla_paused: boolean;
+  unread_comments: number;
+  created_at: string;
+  resolved_at: string | null;
+  can_reopen_until: string | null;
+  rating: number | null;
+}
+
+export interface RequesterTicketList {
+  open: RequesterTicketRow[];
+  recent: RequesterTicketRow[];
+  more_before: string | null;
+}
+
+export interface ThreadCommentOut {
+  id: string;
+  author_kind: string;
+  author: string;
+  mine: boolean;
+  state: CommentState;
+  body_masked: string;
+  credential_masked: boolean;
+  created_at: string;
+}
+
+export interface RequesterTicketOut {
+  public_id: string;
+  subject_masked: string;
+  source: string;
+  status_label: string;
+  team: string | null;
+  resolution_due_at: string | null;
+  sla_paused: boolean;
+  unread_comments: number;
+  created_at: string;
+  resolved_at: string | null;
+  can_reopen_until: string | null;
+  rating: number | null;
+  body_masked: string;
+  thread: ThreadCommentOut[];
+  rating_detail: RatingOut | null;
+  can_reply: boolean;
+  can_rate: boolean;
+  reopened_count: number;
+  reopened_from: string | null;
+}
+
+export interface ReopenOut {
+  reopened: boolean;
+  new_ticket?: string | null;
 }
 
 export type LLMProposal =

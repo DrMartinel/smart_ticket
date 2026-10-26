@@ -302,7 +302,7 @@ class TestClarify:
 
 @pytest.mark.django_db
 def test_a_turn_names_the_status_a_person_moved_the_ticket_into(employee_user):
-    from apps.chat.utils import chat_turn
+    from apps.chat.utils.turns import chat_turn
     from apps.lifecycle.models import WorkflowStatus
     from apps.lifecycle.tests.conftest import make_ticket
 
@@ -322,7 +322,7 @@ def test_a_turn_names_the_status_a_person_moved_the_ticket_into(employee_user):
 @pytest.mark.parametrize("status", ["pending_review", "blocked", "escalated", "auto_replied"])
 def test_a_turn_never_names_a_pipeline_status(employee_user, status):
     """A requester can't tell a blocked (e.g. injection) ticket from one waiting for review."""
-    from apps.chat.utils import chat_turn
+    from apps.chat.utils.turns import chat_turn
     from apps.lifecycle.tests.conftest import make_ticket
     from apps.lifecycle.utils.vocabulary import PipelineStatus
 

@@ -574,6 +574,7 @@ class SlaClocks:
         """Recreates a ticket's clocks by replaying its status changes and responses (FR-F1-015)."""
         from apps.lifecycle.models import Transfer
         from apps.review.models import ReviewDecision
+        from apps.tickets.models import CommentAuthorKind, CommentVisibility, TicketComment
 
         with transaction.atomic():
             Clock.objects.filter(ticket=ticket).delete()
@@ -589,9 +590,20 @@ class SlaClocks:
                 (m.committed_at, m) for m in moves if m.committed_at
             ]
             timeline += [(d.decided_at, d) for d in decisions]
+            replies = TicketComment.objects.filter(
+                ticket=ticket,
+                author_kind=CommentAuthorKind.STAFF.value,
+                visibility=CommentVisibility.PUBLIC.value,
+                author__isnull=False,
+            ).select_related("author")
+            timeline += [(c.created_at, c) for c in replies]
             for at, item in sorted(timeline, key=lambda pair: pair[0]):
                 if isinstance(item, ReviewDecision):
                     self.respond(ticket, item.reviewer, at, None)
+                    continue
+                if isinstance(item, TicketComment):
+                    assert item.author is not None
+                    self.respond(ticket, item.author, at, None)
                     continue
                 manual = item.trigger in ("manual", "force")
                 self.apply(

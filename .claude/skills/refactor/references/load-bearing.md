@@ -269,6 +269,33 @@ guard and that comment is later trimmed, the entry is the record.
   target would otherwise stamp "due now" over the real breach time.
   *`test_a_rebuild_keeps_the_time_a_clock_fell_due`.*
 
+### Requester chat and comments (F3, ADR-0034)
+
+- **Prior turns built only from decided turns, re-checked for a block or a
+  mask failure on every build.** A turn still at `new` hasn't passed the
+  injection check, and a blocked turn decided after the next question was
+  asked must still never become context.
+  *`test_an_undecided_turn_is_never_context`,
+  `test_a_blocked_turn_is_never_context_even_if_the_conversation_stayed_open`.*
+- **The `reporter_id` filter beside `conversation` in `prior_turns`.** A forged
+  or misattached ticket in the conversation would otherwise reach the model.
+  *`test_prior_turns_only_from_same_conversation_and_requester`.*
+- **`context_for` catching every error and analysing the ticket alone.** The
+  context is an extra; a failure building it must never keep the ticket from
+  a decision (ADR-0034, BR-X-07). *`test_a_failure_building_context_analyses_the_ticket_alone`.*
+- **Only `draft_answer`, `infer` and `graph/ticket.py` read `prior_turns` in
+  ai-engine.** Anywhere else it could become a signal or a score.
+  *ai-engine `test_only_the_draft_and_the_proposal_read_earlier_turns`.*
+- **`hidden_for_review` and the comment's review item.** A comment whose NER
+  failed carries only the regex tier's masking; staff must not read it until a
+  person checks it, exactly as a `mask_failed` ticket. *`test_reply_mask_failed_hidden_and_queued`.*
+- **The placeholder-collision retry in `Comments.add`.** Two comments masked at
+  once would both take `[EMAIL_n]`, and the second would overwrite the first's
+  quarantine reference in `pii_map`.
+- **`reopen_now` refusing an open ticket.** The old `reopen_ticket` reopened
+  anything, which would inflate K7 (`reopen_rate_after_autoreply`).
+  *`test_the_reopen_task_refuses_an_open_ticket`.*
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).

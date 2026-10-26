@@ -82,7 +82,7 @@ There is no shared schema package (ADR-0010). Each type is defined in the module
 
 Two details worth understanding rather than just accepting:
 
-**`TicketMasked` is `frozen=True`.** Once masked, no downstream code can alter the content. It carries `placeholder_keys` (`["[EMAIL_1]"]`) but never the values — looking those up requires the quarantine path, which is access-controlled and logged.
+**`TicketMasked` is `frozen=True`.** Once masked, no downstream code can alter the content. It carries `placeholder_keys` (`["[EMAIL_1]"]`) but never the values — looking those up requires the quarantine path, which is access-controlled and logged. A chat ticket also carries `prior_turns` (ADR-0034): up to six earlier *decided* turns of the same conversation and requester, as stored (masked), built by `Conversations.prior_turns` just before the call. They reach the draft and proposal prompts only; the router, the trust score and every gate see the new ticket alone.
 
 **`LLMProposalEnvelope` is a discriminated union** on `proposed_intent`. Pydantic routes by lookup table rather than trying each variant, which is faster and produces errors pointing at the right variant. `InsufficientContext` is a legitimate member, not an error case: the model needs a sanctioned way to say "I don't know", because a model with no such exit will invent something instead.
 
@@ -143,7 +143,9 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
        ▼
    draft_answer      the chat model writes the documentation passage it expects
                      would answer the ticket (HyDE, ADR-0021); steers retrieval
-                     only, never shown, quoted or scored. Fails → 500 → HITL
+                     only, never shown, quoted or scored. Fails → 500 → HITL.
+                     A chat follow-up's earlier masked turns (prior_turns,
+                     ADR-0034) are context here and in infer only
        ▼
    hybrid_retrieve   vector top-20 on the ticket ∥ BM25 top-20 on the draft ∥
                      vector top-20 on the draft ──► RRF (k=60) ──► top-10 pages,

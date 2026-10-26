@@ -83,8 +83,9 @@ export default function NotificationBell() {
     if (!notice.read_at) await notificationsApi.read(notice.id).catch(() => undefined);
     setTick((t) => t + 1);
     setOpen(false);
-    // Opens chat links (`/?…`) only.
-    if (notice.link.startsWith("/?")) router.push(notice.link);
+    // Opens links into this app only: a requester's notice links to its ticket here.
+    const path = chatPath(notice.link);
+    if (path) router.push(path);
   };
 
   const readAll = async () => {
@@ -149,4 +150,15 @@ export default function NotificationBell() {
       )}
     </div>
   );
+}
+
+/** The in-app path of a notice link into this app, absolute or relative; null for elsewhere. */
+function chatPath(link: string): string | null {
+  if (link.startsWith("/")) return link;
+  try {
+    const url = new URL(link);
+    return url.origin === window.location.origin ? `${url.pathname}${url.search}` : null;
+  } catch {
+    return null;
+  }
 }

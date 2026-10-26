@@ -321,6 +321,72 @@ Webhook events: through F4 only.
 - **Eval:** prompt bumps go through the gate; auto-reply precision must stay ≥ 0.95 on single-turn cases **and** the new multi-turn cases (rule 9: no floor lowered).
 - **Regression tests:** `test_prior_turns_only_from_same_conversation_and_requester`; `test_blocked_turn_ends_conversation`; `test_router_ignores_prior_turns` (same signals → same branch with and without prior turns); `test_reply_masked_before_store`; `test_reply_mask_failed_hidden_and_queued`; `test_reopen_after_window_creates_linked_ticket`; `test_reopen_autoreply_creates_eval_candidate`; `test_one_rating_per_resolution`.
 
+## v0.6.7 — where the code differs (build, 2026-10-26)
+
+Code wins (README §0.4 item 5). Each change and its reason; items 1–4 are the
+owner's decisions of 2026-10-26:
+
+1. **ADR-0034 is accepted.** Prior turns are context for `draft_answer`
+   (`hyde_draft.v3`, built from v1, the prompt in use) and `infer`
+   (`propose.v10`) only; an ai-engine test pins that no other module reads them.
+2. **A comment whose masking failed** is a `mask_failed` review item that
+   points at the comment (`review_items.comment`). The reviewer chooses **show
+   to staff** or **discard** (`POST /api/review/items/{id}/comment-decision`);
+   a discarded comment stays hidden and the requester is asked to resend. Such
+   an item is never decided through `/decide` and isn't the ticket's review on
+   the ticket page.
+3. **`ticket.status_changed` fires only into `waiting_on_requester`**; entering
+   a completed status sends `ticket.resolved` alone, so the requester gets one
+   notice, not two (F4 §f and §7 listed both).
+4. **New tunables in `requester:`**: `answer_excerpt_chars` (300), how much of
+   an earlier auto-reply goes with its turn, and `low_rating_at_most` (2), the
+   "rating 1–2" of UC-F3-05.
+5. **Only decided turns are context.** A turn still at `new` hasn't passed the
+   injection check, so it is left out. A blocked turn ends the conversation when
+   it is decided; a `mask_failed` one at submit. Building the context again
+   checks every earlier turn, and a failure there analyses the ticket alone and
+   ends the conversation (`context_failed`, audited `prior_turns_failed`).
+6. **One active conversation per requester** (a partial unique index). `ask`
+   without `conversation_id` joins the current one unless it is idle; naming an
+   ended or idle one is 409 `conversation_ended`; someone else's is 404.
+7. **`lifecycle.automatic_move(ticket, status_key)`** takes no reason argument;
+   the callers audit their own events (`requester_replied`,
+   `ticket_auto_closed`), which carry it.
+8. **A reply resumes the status before the wait**, or `in_progress` when that
+   status was a pipeline one (shadow-mode tickets wait from `pending_review`,
+   which no person's or action's move may enter). A refusal is audited
+   `requester_reply_move_refused`; the comment stays and the assignee is told.
+9. **An auto-close the workflow refuses** is audited once
+   (`ticket_auto_close_refused`) and the ticket left as it is; the sweep doesn't
+   retry it until the ticket moves again. "5 business days" is five working days
+   of the team's calendar (else the default one) that have ended since the wait
+   began.
+10. **A reopened ticket goes back to its last assignee** if they are eligible in
+    its team now, else to the team's strategy (`AssignmentTrigger.REOPEN`). The
+    reopen reason is stored as the requester's public comment, masked.
+11. **After the window, the linked ticket is a form ticket** (`source=form`), so
+    it goes to support without being held in the chat.
+12. **`unread_comments`** counts support's public comments since the
+    requester last wrote; nothing records what they have read.
+13. **A rating comment whose masking fails is dropped**, the score kept
+    (audited `comment_dropped`); one with a credential is masked and alerts
+    security like a reply.
+14. **`resolution_seq`** counts entries into a completed status from an open
+    one (resolved → closed doesn't count); tickets resolved before F3 start at 1.
+15. **Requester links open the chat app**: `NOTIFICATION_CHAT_BASE_URL` (new
+    setting) builds `…/tickets/{id}` for requester notices and their emails.
+16. **Staff comments** need a staff role and, for security staff, a security
+    ticket (BR-F2-04's scope); they are refused while the ticket is in triage.
+    The first public one meets the response clock (AC-F1-10's other half), and
+    an SLA rebuild replays it as one.
+17. **Screens:** the chat shows one conversation with "+ Cuộc trò chuyện mới";
+    My tickets (`/tickets`) and the ticket page (`/tickets/{id}`) in the chat
+    app; the answer card's "Đã giải quyết / Chưa giải quyết được"; the comment
+    box on the admin console's ticket page, where a held comment is reviewed.
+18. **The multi-turn golden cases** (`evals/golden/multi_turn.jsonl`, 24) are
+    marked `pending` until a reviewer other than their author approves them;
+    the live gate counts approved cases only.
+
 ## j. Acceptance criteria
 
 ```gherkin
