@@ -57,6 +57,21 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </NavItem>
             </Group>
           )}
+          {user.role !== "employee" && ((user.teams ?? []).length > 0 || isManager) && (
+            <Group label="Teams">
+              {(user.teams ?? []).map((t) => (
+                <NavItem key={t.team} href={`/teams/${t.team}`} active={pathname === `/teams/${t.team}` || pathname.startsWith(`/teams/${t.team}/`)}>
+                  {t.team}
+                  {t.role === "lead" ? " · lead" : ""}
+                </NavItem>
+              ))}
+              {isManager && (user.teams ?? []).length === 0 && (
+                <NavItem href="/teams" active={pathname.startsWith("/teams")}>
+                  All teams
+                </NavItem>
+              )}
+            </Group>
+          )}
           <Group label="Knowledge">
             <NavItem href="/kb" active={pathname.startsWith("/kb")}>
               Help pages
@@ -81,6 +96,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   </NavItem>
                 </>
               )}
+              <NavItem href="/settings/teams" active={pathname.startsWith("/settings/teams")}>
+                Teams
+              </NavItem>
               <NavItem href="/settings/notifications" active={pathname.startsWith("/settings/notifications")}>
                 Notifications
               </NavItem>
@@ -99,10 +117,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div className="border-t border-[var(--border)] px-5 py-4 text-sm">
           <p className="font-medium">{user.username}</p>
           <p className="text-xs capitalize text-[var(--text-muted)]">{user.role}</p>
-          <div className="mt-2 flex gap-3 text-xs text-[var(--text-muted)]">
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
             <Link href="/me/notifications" className="hover:text-[var(--text)]">
               My notifications
             </Link>
+            {user.role !== "employee" && (
+              <Link href="/me/availability" className="hover:text-[var(--text)]">
+                Availability
+              </Link>
+            )}
             <button onClick={() => void logout()} className="hover:text-[var(--text)]">
               Sign out
             </button>

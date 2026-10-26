@@ -109,7 +109,9 @@ class Notifier:
             transaction.on_commit(dispatch_queued, robust=True)
         return messages
 
-    def assignment_changed(self, ticket: Ticket, previous: User | None, actor: str) -> None:
+    def assignment_changed(
+        self, ticket: Ticket, previous: User | None, actor: str, notice: Notice | None = None
+    ) -> None:
         """Tells people a ticket was assigned, reassigned or unassigned; nothing if it wasn't."""
         current = ticket.assigned_to
         if (current.id if current else None) == (previous.id if previous else None):
@@ -120,13 +122,33 @@ class Notifier:
             event = NotificationEvent.TICKET_UNASSIGNED
         else:
             event = NotificationEvent.TICKET_REASSIGNED
+        self.emit(event, ticket, self.assignment_notice(ticket, previous, actor, notice))
+
+    def left_in_queue(self, ticket: Ticket, previous: User | None, actor: str) -> None:
+        """Tells the team lead nobody holds the ticket now (FR-F2-008)."""
+        self.emit(
+            NotificationEvent.TICKET_UNASSIGNED,
+            ticket,
+            self.assignment_notice(ticket, previous, actor, None),
+        )
+
+    def assignment_notice(
+        self, ticket: Ticket, previous: User | None, actor: str, notice: Notice | None
+    ) -> Notice:
+        current = ticket.assigned_to
         data = {
             "assignee": current.username if current else None,
             "previous_assignee": previous.username if previous else None,
             "team": ticket.assigned_team,
             "by": actor,
         }
-        self.emit(event, ticket, Notice(actor=actor, previous_assignee=previous, data=data))
+        return Notice(
+            actor=actor,
+            previous_assignee=previous,
+            reason=notice.reason if notice else "",
+            detail=notice.detail if notice else "",
+            data=data | ({"reason": notice.reason} if notice and notice.reason else {}),
+        )
 
     def security_alert(
         self, reason: str, *, actor: str, detail: str, ticket: Ticket | None = None

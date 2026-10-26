@@ -19,6 +19,10 @@ export type RiskTier = "low" | "medium" | "high";
 
 export type ChatState = "thinking" | "answered" | "clarify" | "suggest_ticket" | "with_support";
 
+export type TeamStrategy = "round_robin" | "least_loaded";
+
+export type ReassignReason = "wrong_team" | "workload" | "skill" | "leave" | "escalation" | "requester_request" | "other";
+
 export type RecipientKind = "requester" | "assignee" | "team_lead" | "team_members" | "manager" | "security" | "workflow_admins" | "kb_editors" | "incident_managers" | "approver" | "linked_requesters" | "previous_assignee";
 
 export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
@@ -432,6 +436,142 @@ export interface WebhookOut {
   is_active: boolean;
   created_by: string;
   created_at: string;
+}
+
+export interface TeamOut {
+  slug: string;
+  name: string;
+  categories: string[];
+  strategy: string;
+  max_open_per_member: number | null;
+  keycloak_group: string | null;
+  is_fallback: boolean;
+  is_active: boolean;
+  members_count: number;
+  leads: string[];
+}
+
+export interface MemberOut {
+  username: string;
+  role: string;
+  is_available: boolean;
+  source: string;
+}
+
+export interface TeamDetailOut {
+  slug: string;
+  name: string;
+  categories: string[];
+  strategy: string;
+  max_open_per_member: number | null;
+  keycloak_group: string | null;
+  is_fallback: boolean;
+  is_active: boolean;
+  members_count: number;
+  leads: string[];
+  members: MemberOut[];
+}
+
+export interface WorkloadRowOut {
+  user: string;
+  role: string;
+  available: boolean;
+  on_leave: boolean;
+  open: number;
+  cap: number | null;
+  oldest_due: string | null;
+  last_assigned_at: string | null;
+  next_pick: boolean;
+  flagged: boolean;
+}
+
+export interface ReassignmentOut {
+  reason_code: string;
+  note_masked: string;
+  actor: string;
+  created_at: string;
+}
+
+export interface AssignedTicketOut {
+  public_id: string;
+  team: string | null;
+  assigned_to: string | null;
+  category: string | null;
+  version: number;
+  last_reassignment: ReassignmentOut | null;
+}
+
+export interface MembershipOut {
+  team: string;
+  team_name: string;
+  role: string;
+  is_available: boolean;
+}
+
+export interface LeaveOut {
+  id: string;
+  user: string;
+  starts_on: string;
+  ends_on: string;
+  note: string;
+}
+
+export interface MyAvailabilityOut {
+  memberships: MembershipOut[];
+  leaves: LeaveOut[];
+}
+
+export interface TeamIn {
+  slug: string;
+  name: string;
+  categories?: TicketCategory[];
+  strategy?: TeamStrategy;
+  max_open_per_member?: number | null;
+  keycloak_group?: string | null;
+  is_fallback?: boolean;
+  move_categories?: boolean;
+  reason?: string;
+}
+
+export interface TeamPatch {
+  name?: string | null;
+  categories?: TicketCategory[] | null;
+  strategy?: TeamStrategy | null;
+  max_open_per_member?: number | null;
+  keycloak_group?: string | null;
+  is_fallback?: boolean | null;
+  is_active?: boolean | null;
+  move_categories?: boolean;
+  reason?: string;
+}
+
+export interface MemberIn {
+  username: string;
+  role?: "member" | "lead";
+}
+
+export interface TakeIn {
+  expected_version: number;
+}
+
+export interface ReassignIn {
+  to_user?: string | null;
+  to_team?: string | null;
+  to_category?: TicketCategory | null;
+  reason_code: ReassignReason;
+  note?: string;
+  expected_version: number;
+}
+
+export interface AvailabilityIn {
+  is_available: boolean;
+}
+
+export interface LeaveIn {
+  starts_on: string;
+  ends_on: string;
+  note?: string;
+  user?: string | null;
 }
 
 export type LLMProposal =

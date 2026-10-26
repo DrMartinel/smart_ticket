@@ -173,3 +173,8 @@ notifications:
   stuck_after_sec: 120
   # In-app notices older than this are deleted by the daily purge (FR-F4-010).
   in_app_retention_days: 90
+
+assignment:
+  # A manual reassignment's note must be at least this long, so the reason is
+  # teachable (F2, BR-F2-05).
+  reassign_note_min_chars: 10

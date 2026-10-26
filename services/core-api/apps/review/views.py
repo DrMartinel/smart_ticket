@@ -9,6 +9,7 @@ from ninja.errors import HttpError
 from apps.review.models import ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
+from apps.review.utils import review_decisions
 from apps.accounts.permissions import (
     TECHNICIAN_OR_MANAGER,
     STAFF,
@@ -54,16 +55,7 @@ def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn)
     if item.queue == ReviewQueue.RUNBOOK_APPROVAL:
         refuse_unless(request, request.auth, TECHNICIAN_OR_MANAGER)
     try:
-        return item.decide(
-            request.auth,
-            action_taken=payload.action_taken,
-            kb_verdict=payload.kb_verdict,
-            category_verdict=payload.category_verdict,
-            corrected_category=payload.corrected_category,
-            corrected_kb_id=payload.corrected_kb_id,
-            override_reason=payload.override_reason,
-            time_spent_sec=payload.time_spent_sec,
-        )
+        return review_decisions.decide(item, request.auth, payload)
     except ReviewError as e:
         raise HttpError(422, str(e)) from e
 

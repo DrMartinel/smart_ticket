@@ -12,7 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
-from apps.lifecycle.utils.engine import lifecycle
+from apps.notifications.tests.conftest import assign_to
 from apps.notifications.models import MatrixRule, Message, Preference, Template
 from apps.notifications.utils.configuration import config
 from apps.notifications.utils.notifier import Notice, notifier
@@ -24,7 +24,7 @@ from apps.notifications.utils.vocabulary import (
     NotificationEvent,
 )
 from apps.notifications.models import WebhookSubscription
-from apps.teams.models import MembershipRole, Team, TeamMembership
+from apps.teams.models import TeamMembership
 from apps.tickets.models import PiiQuarantine
 from apps.tickets.utils.crypto import build_quarantine_entries
 
@@ -36,15 +36,9 @@ def messages(user, event: NotificationEvent | None = None, **filters):
     return list(rows.filter(event=event.value) if event else rows)
 
 
-def assign(ticket, user, actor):
-    return lifecycle.assign(
-        ticket.id, username=user.username if user else None, team=None, actor=actor
-    )
-
-
 def test_an_assignee_gets_an_in_app_notice_with_masked_text(people, ticket):
     """AC-F4-01: one unread in-app notice whose body keeps the placeholder."""
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     (notice,) = messages(people["ha"], NotificationEvent.TICKET_ASSIGNED, channel="in_app")
     assert notice.state == MessageState.DELIVERED.value
@@ -70,7 +64,7 @@ def test_notice_uses_masked_text_only(people, ticket):
         },
     )
 
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     sent = Message.objects.filter(event=NotificationEvent.TICKET_ASSIGNED.value)
     assert {m.channel for m in sent} == {"in_app", "email", "webhook"}
@@ -86,7 +80,7 @@ def test_a_preference_turns_off_email(people, ticket):
         user=people["duc"], event="ticket.assigned", channel="email", enabled=False
     )
 
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
 
     assert [m.channel for m in messages(people["duc"], NotificationEvent.TICKET_ASSIGNED)] == [
         "in_app"
@@ -126,7 +120,7 @@ def test_a_committed_event_queues_its_email_after_commit(
 ):
     """BR-F4-01: sending starts only once the event's transaction commits."""
     with django_capture_on_commit_callbacks() as callbacks:
-        assign(ticket, people["ha"], people["huy"])
+        assign_to(ticket, people["ha"], people["huy"])
         assert queue.sent == []
 
     for callback in callbacks:
@@ -137,7 +131,7 @@ def test_a_committed_event_queues_its_email_after_commit(
 
 def test_language_follows_the_user(people, ticket):
     """AC-F4-08."""
-    assign(ticket, people["mai"], people["huy"])
+    assign_to(ticket, people["mai"], people["huy"])
 
     (notice,) = messages(people["mai"], NotificationEvent.TICKET_ASSIGNED, channel="in_app")
     assert notice.subject.startswith("Assigned to you: TKT-")
@@ -160,43 +154,35 @@ def test_a_re_emitted_event_never_double_sends(people, ticket):
 
 
 def test_reassigning_tells_the_new_and_previous_assignee_and_the_team_lead(people, ticket):
-    team = Team.objects.create(slug="network", name="Network")
-    TeamMembership.objects.create(
-        team=team, user=people["huy"], role=MembershipRole.LEAD.value, source="local"
-    )
-    ticket.assigned_team = "network"
-    ticket.assigned_to = people["duc"]
-    ticket.save(update_fields=["assigned_team", "assigned_to"])
+    assign_to(ticket, people["duc"], people["huy"])
+    Message.objects.all().delete()
 
-    lifecycle.assign(ticket.id, username="ha.vt", team="network", actor=people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     event = NotificationEvent.TICKET_REASSIGNED
     assert sorted(m.channel for m in messages(people["ha"], event)) == ["email", "in_app"]
     assert [m.channel for m in messages(people["duc"], event)] == ["in_app"]
     (lead,) = messages(people["huy"], event)
     assert "duc.tm" in lead.body
+    assert "workload" in lead.body
 
 
-def test_unassigning_tells_the_team_lead(people, ticket):
-    team = Team.objects.create(slug="network", name="Network")
-    TeamMembership.objects.create(
-        team=team, user=people["huy"], role=MembershipRole.LEAD.value, source="local"
-    )
-    ticket.assigned_team = "network"
-    ticket.assigned_to = people["duc"]
-    ticket.save(update_fields=["assigned_team", "assigned_to"])
+def test_a_ticket_nobody_can_take_tells_the_team_lead(people, ticket):
+    assign_to(ticket, people["duc"], people["huy"])
+    TeamMembership.objects.filter(team=ticket.team).update(is_available=False)
+    Message.objects.all().delete()
 
-    lifecycle.assign(ticket.id, username=None, team="network", actor=people["huy"])
+    assign_to(ticket, None, people["huy"])
 
     assert messages(people["huy"], NotificationEvent.TICKET_UNASSIGNED)
     assert not messages(people["duc"])
 
 
 def test_assigning_the_same_person_again_tells_nobody(people, ticket):
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
     Message.objects.all().delete()
 
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     assert not Message.objects.exists()
 
@@ -211,7 +197,7 @@ def test_a_template_error_fails_the_message_and_not_the_assignment(people, ticke
         body_template="x",
     )
 
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     ticket.refresh_from_db()
     assert ticket.assigned_to == people["ha"]
@@ -226,7 +212,7 @@ def test_an_emit_that_crashes_is_audited_and_the_event_goes_on(people, ticket, m
 
     monkeypatch.setattr(notifier, "deliveries", broken)
 
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     ticket.refresh_from_db()
     assert ticket.assigned_to == people["ha"]
@@ -238,7 +224,7 @@ def test_a_user_without_an_email_address_gets_a_failed_email_to_look_at(people, 
     people["ha"].email = ""
     people["ha"].save(update_fields=["email"])
 
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     (email,) = messages(people["ha"], channel="email")
     assert email.state == MessageState.FAILED.value
@@ -257,7 +243,7 @@ def test_an_inactive_user_is_never_notified(people, ticket):
 def test_a_matrix_cell_turned_off_drops_its_default(people, ticket):
     MatrixRule.objects.filter(event="ticket.assigned", channel="email").update(default_on=False)
 
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     assert [m.channel for m in messages(people["ha"])] == ["in_app"]
 
@@ -268,7 +254,7 @@ def test_a_user_can_opt_in_to_a_cell_the_matrix_turned_off(people, ticket):
         user=people["ha"], event="ticket.assigned", channel="email", enabled=True
     )
 
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     assert sorted(m.channel for m in messages(people["ha"])) == ["email", "in_app"]
 
@@ -285,7 +271,7 @@ def test_a_webhook_subscription_gets_the_fixed_body(people, ticket):
         },
     )
 
-    assign(ticket, people["ha"], people["huy"])
+    assign_to(ticket, people["ha"], people["huy"])
 
     body = json.loads(Message.objects.get(channel=Channel.WEBHOOK.value).body)
     assert set(body) == {"event", "event_id", "occurred_at", "ticket", "data"}
@@ -352,7 +338,7 @@ def test_a_send_refused_after_commit_is_logged_not_raised(
 
     monkeypatch.setattr(notifier, "queue_dispatch", refuse)
     with django_capture_on_commit_callbacks() as callbacks:
-        assign(ticket, people["ha"], people["huy"])
+        assign_to(ticket, people["ha"], people["huy"])
     assert callbacks
 
     # Django's own robust path, outside the test's atomic block it would refuse to run in.

@@ -10,6 +10,8 @@ import pytest
 from apps.tickets.utils.patterns import PIILevel
 from apps.review.models import EvalCandidate, ReviewAction, ReviewDecision, ReviewError, ReviewItem
 from apps.tickets.utils.router import ReviewQueue
+from apps.review.request_schema import DecisionIn
+from apps.review.utils import review_decisions
 
 from apps.tickets.models import AiRun, Ticket
 
@@ -38,16 +40,19 @@ def review_item(reporter) -> ReviewItem:
     )
 
 
-def decide_as(item, reviewer, action: ReviewAction, reason: str | None):
-    return item.decide(
+def decide_as(
+    item, reviewer, action: ReviewAction, reason: str | None, corrected: str | None = "access"
+):
+    return review_decisions.decide(
+        item,
         reviewer,
-        action_taken=action.value,
-        kb_verdict=None,
-        category_verdict="wrong",
-        corrected_category="access",
-        corrected_kb_id=None,
-        override_reason=reason,
-        time_spent_sec=45,
+        DecisionIn(
+            action_taken=action.value,
+            category_verdict="wrong" if corrected else None,
+            corrected_category=corrected,
+            override_reason=reason,
+            time_spent_sec=45,
+        ),
     )
 
 
@@ -71,7 +76,7 @@ def test_an_override_without_a_reason_is_refused_and_writes_nothing(
 def test_an_override_becomes_an_eval_candidate_with_the_reason(employee_user, technician_user):
     item = review_item(employee_user)
 
-    decide_as(item, technician_user, ReviewAction.REROUTE, "this is an access request")
+    decide_as(item, technician_user, ReviewAction.ESCALATE, "this is an access request")
 
     candidate = EvalCandidate.objects.get(ticket=item.ticket)
     assert candidate.source == "human_override"
@@ -86,7 +91,7 @@ def test_an_override_becomes_an_eval_candidate_with_the_reason(employee_user, te
 def test_an_approval_resolves_the_item_without_an_eval_candidate(employee_user, technician_user):
     item = review_item(employee_user)
 
-    decide_as(item, technician_user, ReviewAction.APPROVE, None)
+    decide_as(item, technician_user, ReviewAction.APPROVE, None, corrected=None)
 
     item.refresh_from_db()
     assert item.state == "resolved"
