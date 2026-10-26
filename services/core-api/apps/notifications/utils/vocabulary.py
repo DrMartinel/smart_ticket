@@ -243,14 +243,14 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.SECURITY_CREDENTIAL_EXPOSED: EventSpec(
         "F8",
-        False,
+        True,
         "Credential exposed",
         "Lộ thông tin đăng nhập",
         _cells((K.REQUESTER,), BOTH, mandatory=BOTH),
     ),
     E.SECURITY_ACK_OVERDUE: EventSpec(
         "F8",
-        False,
+        True,
         "Security alert unacknowledged",
         "Cảnh báo bảo mật chưa được xác nhận",
         _cells((K.SECURITY,), BOTH, mandatory=BOTH),

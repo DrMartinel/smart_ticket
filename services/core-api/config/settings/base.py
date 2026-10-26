@@ -20,7 +20,7 @@ from corsheaders.defaults import default_headers as default_cors_headers
 from django.core.exceptions import ImproperlyConfigured
 from celery.schedules import crontab
 from dotenv import dotenv_values
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -88,6 +88,7 @@ INSTALLED_APPS = [
     "apps.notifications",
     "apps.sla",
     "apps.requester",
+    "apps.security",
 ]
 
 MIDDLEWARE = [
@@ -183,6 +184,10 @@ CELERY_BEAT_SCHEDULE = {
     "requester-sweep": {
         "task": "apps.requester.tasks.sweep",
         "schedule": float(env("REQUESTER_SWEEP_INTERVAL_SEC")),
+    },
+    "security-sweep": {
+        "task": "apps.security.tasks.sweep",
+        "schedule": float(env("SECURITY_SWEEP_INTERVAL_SEC")),
     },
     "sla-holiday-check": {
         "task": "apps.sla.tasks.holiday_check",
@@ -411,6 +416,24 @@ class RequesterThresholds(BaseModel):
     low_rating_at_most: int = Field(ge=1, le=5)
 
 
+class SecurityThresholds(BaseModel):
+    # Repeats of one kind on one ticket (else user) within this join one alert (F8, BR-F8-03).
+    group_window_minutes: int = Field(ge=1)
+    # Refused calls by one user within the window that make an access_denied_burst (BR-F8-08).
+    access_denied_burst: int = Field(ge=1)
+    access_denied_window_minutes: int = Field(ge=1)
+    # Business minutes to acknowledge, per severity (BR-F8-04).
+    ack_business_minutes: dict[str, int]
+
+    @field_validator("ack_business_minutes")
+    @classmethod
+    def every_severity(cls, value: dict[str, int]) -> dict[str, int]:
+        """One target for each of critical, high and medium, all positive."""
+        if set(value) != {"critical", "high", "medium"} or min(value.values()) < 1:
+            raise ValueError("needs critical, high and medium, each at least 1")
+        return value
+
+
 class AssignmentThresholds(BaseModel):
     # Shortest note a manual reassignment carries (F2, BR-F2-05).
     reassign_note_min_chars: int = Field(ge=1)
@@ -440,6 +463,7 @@ class Thresholds(BaseModel):
     assignment: AssignmentThresholds
     sla: SlaThresholds
     requester: RequesterThresholds
+    security: SecurityThresholds
 
     @property
     def retrieval_floor(self) -> float:

@@ -6,7 +6,8 @@ from django.db.models import QuerySet
 from ninja import Router
 from ninja.errors import HttpError
 
-from apps.review.models import ReviewDecision, ReviewError, ReviewItem
+from apps.accounts.models import UserRole
+from apps.review.models import SECURITY_QUEUES, ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import CommentDecisionIn, DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
 from apps.review.utils import review_decisions
@@ -29,19 +30,21 @@ router = Router(tags=["review"])
 def list_queue(
     request: AuthedRequest, queue: str | None = None, state: str = "pending"
 ) -> QuerySet[ReviewItem]:
-    return ReviewItem.objects.for_queue(queue=queue, state=state)
+    return ReviewItem.objects.for_queue(
+        queue=queue, state=state, security=request.auth.role == UserRole.SECURITY.value
+    )
 
 
 @router.get("/items/{item_id}", auth=SessionAuth(), response=ReviewItemOut)
 @require_role(*STAFF)
 def get_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
-    return _get_or_404(item_id)
+    return _visible(request, _get_or_404(item_id))
 
 
 @router.post("/items/{item_id}/claim", auth=SessionAuth(), response=ReviewItemOut)
 @require_role(*STAFF)
 def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
-    item = _get_or_404(item_id)
+    item = _visible(request, _get_or_404(item_id))
     try:
         item.claim(request.auth)
     except ReviewError as e:
@@ -52,7 +55,7 @@ def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
 @router.post("/items/{item_id}/decide", auth=SessionAuth(), response=DecisionOut)
 @require_role(*STAFF)
 def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn) -> ReviewDecision:
-    item = _get_or_404(item_id)
+    item = _visible(request, _get_or_404(item_id))
     if item.comment_id is not None:
         raise HttpError(422, "a held comment is decided at /comment-decision")
     if item.queue == ReviewQueue.RUNBOOK_APPROVAL:
@@ -71,6 +74,13 @@ def decide_comment(
     _get_or_404(item_id)
     comments.review(item_id, request.auth, CommentReviewChoice(payload.choice))
     return _get_or_404(item_id)
+
+
+def _visible(request: AuthedRequest, item: ReviewItem) -> ReviewItem:
+    """Refuses a blocked ticket's item to anyone but security (BR-F8-07)."""
+    if item.queue in SECURITY_QUEUES:
+        refuse_unless(request, request.auth, (UserRole.SECURITY,))
+    return item
 
 
 def _get_or_404(item_id: uuid.UUID) -> ReviewItem:

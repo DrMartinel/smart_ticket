@@ -229,6 +229,23 @@ NER is down, as for `mask_failed` tickets.
 4. Waits never auto-closing or conversations never ending: check `beat`
    (`requester-sweep`, `REQUESTER_SWEEP_INTERVAL_SEC`).
 
+## Security alerts piling up or overdue (F8)
+
+**What this means:** the inbox (`/security/alerts`, security only) has alerts
+past their ack target; `security.ack_overdue` went out once for each.
+
+**Actions:**
+1. Acknowledge what you're looking at; the timer is K12.
+2. Many `injection_detected` alerts at once: check whether one requester or one
+   template is tripping the detector before releasing tickets one by one.
+   Release only with a reason: it becomes a training label.
+3. `pii_critical` / `credential_in_reply`: send "Notify requester" first; the
+   requester is the only one who can change the password.
+4. `refresh_token_reused`, `break_glass_*`, `access_denied_burst`: "End sign-ins"
+   on the alert; disable the user in Keycloak if it was an account takeover.
+5. No alerts at all while audit rows say `security_alert`: `beat` isn't the cause
+   (raising is inline); check that core-api is on a build with F8.
+
 ## DB read-only
 
 **What this means:** spec §10.3 asks the submission endpoint to answer `503`

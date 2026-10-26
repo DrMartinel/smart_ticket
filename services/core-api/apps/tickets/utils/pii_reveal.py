@@ -14,8 +14,9 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
+from apps.security.utils.alerts import security_alerts
+from apps.security.utils.vocabulary import AlertKind
 from apps.core.errors import CodedError
-from apps.notifications.utils.notifier import notifier
 from apps.review.models import ReviewItem
 from apps.tickets.models import PiiAccessLog, PiiQuarantine, Ticket
 from apps.tickets.request_schema import RevealReason
@@ -230,35 +231,35 @@ class PiiReveal:
     ) -> None:
         """Audits a refused or failed reveal outside its rolled-back transaction, alerting
         security on a failure and on the first rate-limit refusal in an hour."""
-        events = (
-            ["pii_reveal_failed", "security_alert"] if status >= 500 else ["pii_reveal_refused"]
+        AuditLog.objects.record(
+            "pii_reveal_failed" if status >= 500 else "pii_reveal_refused",
+            actor_type="human",
+            actor_id=actor.id,
+            ticket_id=ticket.id if ticket else None,
+            payload={"reason": code.value, "placeholder": placeholder[:40]},
+            trace_id=trace_id,
         )
-        if (
-            code is RevealRefusal.REVEAL_RATE_LIMITED
-            and not AuditLog.objects.filter(
-                event="security_alert",
-                actor_id=actor.id,
-                payload__reason=code.value,
-                occurred_at__gte=timezone.now() - timedelta(hours=1),
-            ).exists()
-        ):
-            events.append("security_alert")
-        for event in events:
-            AuditLog.objects.record(
-                event,
-                actor_type="human",
-                actor_id=actor.id,
-                ticket_id=ticket.id if ticket else None,
-                payload={"reason": code.value, "placeholder": placeholder[:40]},
-                trace_id=trace_id,
+        if status >= 500:
+            kind = (
+                AlertKind.DECRYPT_FAILED
+                if code is RevealRefusal.DECRYPT_FAILED
+                else AlertKind.REVEAL_FAILED
             )
-        if "security_alert" in events:
-            notifier.security_alert(
-                code.value,
-                actor=actor.username,
-                detail=f"PII reveal of {placeholder[:40]} by {actor.username}",
-                ticket=ticket,
-            )
+        elif code is RevealRefusal.REVEAL_RATE_LIMITED:
+            kind = AlertKind.REVEAL_RATE_LIMITED
+        else:
+            return
+        security_alerts.raise_(
+            kind,
+            actor_type="human",
+            actor_id=actor.id,
+            ticket=ticket,
+            subject_user=actor,
+            reason=code.value,
+            payload={"placeholder": placeholder[:40]},
+            detail=f"PII reveal of {placeholder[:40]} by {actor.username}",
+            trace_id=trace_id,
+        )
 
     def export_log(self, rows: Any, actor: User, filters: dict[str, Any]) -> str:
         """The rows as CSV, with no values, audited as `pii_access_log_exported`."""
