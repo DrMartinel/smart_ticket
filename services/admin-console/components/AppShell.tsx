@@ -54,6 +54,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 SLA at risk
               </NavItem>
             )}
+            {user.role !== "employee" && (
+              <NavItem href="/incidents" active={pathname.startsWith("/incidents")}>
+                Sự cố · Incidents
+              </NavItem>
+            )}
           </Group>
           {user.role !== "security" && (
             <Group label="Insights">

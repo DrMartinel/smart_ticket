@@ -90,6 +90,7 @@ INSTALLED_APPS = [
     "apps.requester",
     "apps.security",
     "apps.rollout",
+    "apps.incidents",
 ]
 
 MIDDLEWARE = [
@@ -189,6 +190,10 @@ CELERY_BEAT_SCHEDULE = {
     "security-sweep": {
         "task": "apps.security.tasks.sweep",
         "schedule": float(env("SECURITY_SWEEP_INTERVAL_SEC")),
+    },
+    "incidents-sweep": {
+        "task": "apps.incidents.tasks.sweep",
+        "schedule": float(env("INCIDENT_SWEEP_INTERVAL_SEC")),
     },
     "rollout-sweep": {
         "task": "apps.rollout.tasks.sweep",
@@ -307,6 +312,10 @@ class IncidentThresholds(BaseModel):
     window_minutes: int
     min_count: int
     sigma_multiplier: float
+    # A confirmed incident's own target, 24×7 (F7, BR-F7-10).
+    resolve_target_minutes: int = Field(ge=1)
+    # Days after which a resolved incident closes itself.
+    auto_close_after_days: int = Field(ge=1)
 
 
 class FewshotThresholds(BaseModel):

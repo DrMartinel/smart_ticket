@@ -25,6 +25,10 @@ export type TeamStrategy = "round_robin" | "least_loaded";
 
 export type Priority = "P1" | "P2" | "P3" | "P4";
 
+export type IncidentStatus = "proposed" | "confirmed" | "dismissed" | "resolved" | "closed";
+
+export type IncidentStage = "investigating" | "identified" | "monitoring" | "resolved";
+
 export type ReassignReason = "wrong_team" | "workload" | "skill" | "leave" | "escalation" | "requester_request" | "other";
 
 export type RecipientKind = "requester" | "assignee" | "team_lead" | "team_members" | "manager" | "security" | "workflow_admins" | "kb_editors" | "incident_managers" | "approver" | "linked_requesters" | "previous_assignee";
@@ -209,6 +213,7 @@ export interface ChatTurnOut {
   status_name?: string | null;
   resolved?: boolean;
   conversation_id?: string | null;
+  incident?: IncidentBannerOut | null;
 }
 
 export interface PersonOut {
@@ -843,6 +848,7 @@ export interface RequesterTicketOut {
   can_rate: boolean;
   reopened_count: number;
   reopened_from: string | null;
+  incident: IncidentBannerOut | null;
 }
 
 export interface ReopenOut {
@@ -1093,6 +1099,127 @@ export interface GateChangeIn {
 export interface ChangeRequestIn {
   yaml_text: string;
   evidence?: string;
+}
+
+export interface IncidentRowOut {
+  public_id: string;
+  title: string;
+  status: string;
+  stage: string;
+  category: string | null;
+  service: string;
+  ticket_count: number;
+  detected_by: string;
+  eta: string | null;
+  eta_unknown: boolean;
+  target_resolve_at: string | null;
+  target_breached: boolean;
+  created_at: string;
+  confirmed_at: string | null;
+  resolved_at: string | null;
+}
+
+export interface IncidentLinkOut {
+  ticket: string;
+  subject_masked: string;
+  requester: string;
+  status: string;
+  assigned_to: string | null;
+  linked_by: string;
+  linked_at: string;
+  similarity: number | null;
+  clock_state: string | null;
+}
+
+export interface BroadcastDeliveryOut {
+  requesters: number;
+  in_app_delivered: number;
+  email_delivered: number;
+  email_failed: number;
+}
+
+export interface BroadcastOut {
+  id: string;
+  stage: string;
+  body_vi_masked: string;
+  body_en_masked: string;
+  eta: string | null;
+  eta_unknown: boolean;
+  sent_by: string;
+  sent_at: string;
+  delivery: BroadcastDeliveryOut;
+}
+
+export interface IncidentDetailOut {
+  public_id: string;
+  title: string;
+  status: string;
+  stage: string;
+  category: string | null;
+  service: string;
+  ticket_count: number;
+  detected_by: string;
+  eta: string | null;
+  eta_unknown: boolean;
+  target_resolve_at: string | null;
+  target_breached: boolean;
+  created_at: string;
+  confirmed_at: string | null;
+  resolved_at: string | null;
+  detector: Record<string, number>;
+  confirmed_by: string | null;
+  resolved_by: string | null;
+  resolution_note_masked: string;
+  dismiss_reason: string;
+  requesters: number;
+  links: IncidentLinkOut[];
+  broadcasts: BroadcastOut[];
+}
+
+export interface CloseResultOut {
+  closed: string[];
+  failed: Record<string, string>[];
+}
+
+export interface IncidentBannerOut {
+  title: string;
+  status: string;
+  stage: string;
+  eta: string | null;
+  eta_unknown: boolean;
+  last_update: string | null;
+  last_update_at: string | null;
+}
+
+export interface ConfirmIn {
+  title: string;
+  category?: string | null;
+  service?: string;
+}
+
+export interface BroadcastIn {
+  stage?: IncidentStage;
+  body_vi: string;
+  body_en?: string;
+  eta?: string | null;
+  eta_unknown?: boolean;
+}
+
+export interface DeclareIn {
+  title: string;
+  category?: string | null;
+  service?: string;
+  ticket_ids?: string[];
+  broadcast?: BroadcastIn | null;
+}
+
+export interface ResolveIn {
+  resolution_note: string;
+  close_all?: boolean;
+}
+
+export interface LinksIn {
+  ticket_ids: string[];
 }
 
 export type LLMProposal =

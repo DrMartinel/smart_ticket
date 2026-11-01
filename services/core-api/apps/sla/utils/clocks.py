@@ -111,11 +111,19 @@ def initial_priority(ticket: Ticket) -> Priority:
     """P1 for a ticket in an open incident, P2 for security, else P3; never from a proposal
     (BR-F1-02)."""
     incident = ticket.incident if ticket.incident_id is not None else None
-    if incident is not None and incident.status == "open":
+    if incident is not None and incident.is_open:
         return Priority.P1
     if ticket.category == "security":
         return Priority.P2
     return Priority.P3
+
+
+def held_by_incident(ticket: Ticket) -> bool:
+    """Whether the ticket's incident is confirmed: its resolution clock waits (BR-F1-15)."""
+    from apps.tickets.models import IncidentStatus
+
+    incident = ticket.incident if ticket.incident_id is not None else None
+    return incident is not None and incident.status == IncidentStatus.CONFIRMED.value
 
 
 def snapshot_of(policy: Policy, calendar: Calendar) -> dict[str, Any]:
@@ -221,10 +229,31 @@ class SlaClocks:
                 if clock.state in _COUNTING:
                     self.pause(clock, at, transfer)
         elif was_paused and not after.pauses_sla:
+            held = held_by_incident(ticket)
             for clock in self.locked(ticket).values():
-                if clock.state == ClockState.PAUSED.value:
+                if clock.state == ClockState.PAUSED.value and not (
+                    held and clock.kind == ClockKind.RESOLUTION.value
+                ):
                     self.resume(clock, at, transfer)
         self.mirror(ticket)
+
+    def incident_hold(self, ticket: Ticket, held: bool) -> None:
+        """Pauses a linked ticket's resolution clock while its incident is confirmed and resumes
+        it after, unless the ticket is waiting on its requester (BR-F1-15, BR-F7-07)."""
+
+        def change() -> None:
+            clock = self.locked(ticket).get(ClockKind.RESOLUTION.value)
+            if clock is None:
+                return
+            now = timezone.now()
+            waiting = ticket.workflow_status is not None and ticket.workflow_status.pauses_sla
+            if held and clock.state in _COUNTING:
+                self.pause(clock, now, None)
+            elif not held and clock.state == ClockState.PAUSED.value and not waiting:
+                self.resume(clock, now, None)
+            self.mirror(ticket)
+
+        self.guarded(ticket, change)
 
     def start(self, ticket: Ticket, at: datetime, transfer: Transfer | None) -> dict[str, Clock]:
         """Picks priority, policy and calendar and starts both clocks at handoff (UC-F1-01)."""

@@ -151,26 +151,32 @@ toward humans**, per spec §10.3) and all go to HITL with
 2. This is the safest failure mode in the system; it is not an emergency
    for ticket handling, only for the backlog it creates.
 
-## Mass incident declared (`ReasonCode.MASS_INCIDENT`)
+## Mass incident proposed (`ReasonCode.MASS_INCIDENT`, F7)
 
-**What this means:** the detector saw similar tickets exceeding
-`baseline + 3σ` for that category *and* at least `incident.min_count` (5)
-within the window. Affected tickets are linked to a parent `Incident`,
-escalated, and **skip the AI engine entirely** — no auto-reply is possible
-during an outage (spec §9).
+**What this means:** similar tickets exceeded `baseline + 3σ` and at least
+`incident.min_count` (5) within the window, so the detector **proposed** an
+incident (`incident.proposed` to incident managers). Its tickets, and any new
+ticket matching its centroid, are escalated and **skip the AI engine
+entirely**: no auto-reply is possible during an outage (spec §9).
 
-**Actions:**
-1. Treat it as an outage first, tickets second. `incidents.baseline_rate`
-   records what "normal" was at detection time, so the call is auditable
-   after the fact.
-2. Use the parent incident to notify every linked reporter once, with an
-   ETA. That single broadcast — rather than 40 individually-generated,
-   possibly-wrong answers — is the entire point of this branch.
-3. **If you see two `Incident` rows for one real outage:** the dedup lookup
-   is serialized by a Postgres advisory lock keyed on category, so
-   concurrent Celery workers should converge on one row. Duplicates mean
-   either the lock path regressed or the two batches genuinely differ in
-   category — check `incidents.category` before merging by hand.
+**Actions (incident manager, Incidents in the console):**
+1. Confirm or dismiss it. Confirming approves the linked tickets' pending
+   review items in your name, pauses their resolution clocks and starts the
+   incident's own 4-hour 24×7 target (`incident.sla_breached` to managers
+   when it passes). Dismissing unlinks the tickets; they stay in review.
+2. Broadcast with an ETA ("chưa xác định" is allowed). Each requester gets
+   one notice per broadcast however many tickets they have; delivery counts
+   are on the incident page and failures in `/settings/deliveries`.
+   `503 mask_failed` means masking is down (ai-engine NER): nothing was sent;
+   retry once it's back, never paste the text elsewhere.
+3. Resolve with "Đóng tất cả phiếu liên quan". The result lists tickets a
+   workflow refused (assignees are told). In a strict workflow, tickets still
+   at `escalated` can't move to `resolved`: assign and close them by hand
+   (TODO 16).
+4. **Two incidents for one outage:** matching is by centroid under one
+   advisory lock (`mass_incident`), so concurrent workers converge. Two rows
+   mean the second burst didn't match the first's centroid at
+   `incident.similarity`; link the tickets by hand and dismiss the other.
 
 ## Notifications not arriving (failed rows in the delivery log)
 

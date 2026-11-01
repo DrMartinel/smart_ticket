@@ -174,6 +174,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Chat conversations and the earlier masked turns a question carries (F3, ADR-0034) | [conversations.py](services/core-api/apps/chat/utils/conversations.py) |
 | A requester's tickets: list, thread, reply, reopen, rating, the stale-wait sweep (F3) | [apps/requester/](services/core-api/apps/requester/), the service in [tickets.py](services/core-api/apps/requester/utils/tickets.py); comments in [comments.py](services/core-api/apps/tickets/utils/comments.py) |
 | Rollout flags, gates and threshold change requests (F9, ADR-0035) | [apps/rollout/](services/core-api/apps/rollout/), the live check in [rollout.py](services/core-api/apps/rollout/utils/rollout.py) |
+| Mass incidents: matching, the detector, confirm, broadcasts, close-all (F7) | [apps/incidents/](services/core-api/apps/incidents/), the service in [incidents.py](services/core-api/apps/incidents/utils/incidents.py) |
 | Security alerts: raising, grouping, ack targets, triage and release (F8) | [apps/security/](services/core-api/apps/security/), the service in [alerts.py](services/core-api/apps/security/utils/alerts.py) |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
 
@@ -276,6 +277,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | Who gets a ticket | `assignment.assign_after_handoff` after the decision is carried out (pipeline, review decisions), `take` / `reassign` for people; never `ticket.assigned_to = …` in new code. Team ownership of categories is data (`team_categories`) |
 | A comment on a ticket | `comments.add` (or `by_staff`), which masks inline and holds a mask-failed one for review; never `TicketComment.objects.create` with raw text |
 | What a chat question tells the model about earlier turns | `Conversations.prior_turns` (which turns count) and `requester:` in `thresholds.yaml`; ai-engine's `TicketMasked.earlier_turns()` (how they read) and `propose.v*` / `hyde_draft.v*`. Never the router or a signal (ADR-0034) |
+| What happens to a mass incident's tickets | `incidents.confirm` / `resolve` / `unlink` in `apps/incidents/utils/incidents.py`; never `ticket.incident = …` or a status write. Close-all moves each ticket with `lifecycle.automatic_move` |
 | A security event | `security_alerts.raise_(AlertKind…)`, which writes the `security_alert` audit row and the alert together; never `AuditLog.objects.record("security_alert", …)` |
 | Who is told about an event | `notifier.emit(event, ticket, Notice(...))` from the service that owns the event, never `router.py` or the routing step; new events go in the catalog (`apps/notifications/utils/vocabulary.py`) and its seed migration |
 

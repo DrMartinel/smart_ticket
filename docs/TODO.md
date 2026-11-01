@@ -477,3 +477,21 @@ written by Claude and are `pending`; the live gate in
 At least 20 cases are approved, auto-reply precision is ≥ 0.95 on the
 single-turn set and on the approved multi-turn cases, and the run is in
 `evals/HISTORY.md`.
+
+---
+
+## 16. Close-all in strict workflows (F7)
+
+**Priority:** Medium · **Spec:** F7 BR-F7-03, BR-F7-06 (v0.6.10 item 6)
+
+Confirming an incident hands its tickets to nobody (agreement only), so they
+stay at the pipeline status `escalated`. In a strict workflow a pipeline
+status only leads to `assigned`, so close-all refuses every one of them with
+`transition_not_allowed` and the incident manager has to assign and close
+them by hand. Seen on the dev database. Options for the product owner: let
+`automatic_move` from a pipeline status into a completed status pass for
+close-all (a governance change, ADR-0028), assign linked tickets to the
+incident manager at confirm, or require workflows to carry an
+`escalated → resolved` transition. Also open from F7: users have no
+department, so the linked-ticket list shows usernames only.
+

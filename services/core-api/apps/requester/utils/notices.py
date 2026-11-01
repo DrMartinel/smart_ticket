@@ -35,13 +35,28 @@ class TicketNotices:
                 f"waiting:{transfer.id}",
                 Notice(data={"status": "waiting_on_requester"}),
             )
-        if after.base.is_completed and not (before is not None and before.base.is_completed):
+        if (
+            after.base.is_completed
+            and not (before is not None and before.base.is_completed)
+            and not self.closed_with_incident(ticket)
+        ):
             self.emit(
                 NotificationEvent.TICKET_RESOLVED,
                 ticket,
                 f"resolved:{ticket.resolution_seq}",
                 Notice(data={"resolution_seq": ticket.resolution_seq}),
             )
+
+    def closed_with_incident(self, ticket: Ticket) -> bool:
+        """Whether the ticket's incident is resolved: its requester had the final broadcast."""
+        from apps.tickets.models import Incident, IncidentStatus
+
+        return (
+            ticket.incident_id is not None
+            and Incident.objects.filter(
+                pk=ticket.incident_id, status=IncidentStatus.RESOLVED.value
+            ).exists()
+        )
 
     def emit(
         self, event: NotificationEvent, ticket: Ticket, key: str, notice: Notice | None = None

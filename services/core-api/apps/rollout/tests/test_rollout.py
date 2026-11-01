@@ -9,6 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pytest
+from django.conf import settings as django_settings
 from django.utils import timezone
 
 from apps.accounts.models import Capability, User, UserCapability, UserRole
@@ -373,7 +374,7 @@ class TestGates:
 class TestThresholdChanges:
     def current_with(self, version: str, **changes: str) -> str:
         text = threshold_changes.current_text().replace(
-            'version: "CR-2026-000"', f'version: "{version}"'
+            f'version: "{django_settings.THRESHOLDS.version}"', f'version: "{version}"'
         )
         for old, new in changes.items():
             text = text.replace(old, new)

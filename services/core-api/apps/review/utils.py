@@ -29,11 +29,14 @@ class ReviewDecisions:
     """Records review decisions."""
 
     @transaction.atomic
-    def decide(self, item: ReviewItem, reviewer: User, choice: DecisionIn) -> ReviewDecision:
+    def decide(
+        self, item: ReviewItem, reviewer: User, choice: DecisionIn, *, handoff: bool = True
+    ) -> ReviewDecision:
         """Records the decision and resolves the item. Any action other than a clean approve
         becomes an `EvalCandidate` with the reviewer's correction and stated reason; one that
         changes the category is a `reroute` label (BR-F2-06). Approving a blocked ticket's item
-        agrees with the block and hands nothing off (F8)."""
+        agrees with the block and hands nothing off (F8); `handoff=False` records agreement only, as
+        an incident's confirmation does (F7)."""
         action = choice.action_taken
         if action != ReviewAction.APPROVE.value and not (
             choice.override_reason and choice.override_reason.strip()
@@ -69,7 +72,7 @@ class ReviewDecisions:
                 else ((ai_run.proposed_draft or {}) if ai_run is not None else {}),
                 human_truth=self.human_truth(choice),
             )
-        if action in _HANDOFF and item.queue not in SECURITY_QUEUES:
+        if handoff and action in _HANDOFF and item.queue not in SECURITY_QUEUES:
             category = self.category_for(item, choice)
             if rerouted:
                 ticket.category = corrected

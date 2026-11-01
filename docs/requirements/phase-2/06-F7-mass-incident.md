@@ -282,6 +282,56 @@ in the catalog.
 - **ADRs:** 0001, 0028 (`automatic_move` governed), spec §9.
 - **Regression tests:** `test_unrelated_outages_get_separate_incidents` (defect 1); `test_ticket_count_counts_each_ticket_once` (defect 2); `test_confirm_approves_without_eval_candidates`; `test_linked_ticket_never_auto_replied`; `test_broadcast_once_per_requester`; `test_close_all_continues_after_refusal`; `test_linked_clock_paused_while_confirmed`.
 
+## v0.6.10 — where the code differs (build, 2026-11-01)
+
+Code wins (README §0.4 item 5). Item 1 is the owner's decision of 2026-10-26:
+
+1. **Attaching without a review item happens only when `SHADOW_MODE` is off**
+   (BR-F7-04). In shadow mode a ticket escalated into a confirmed incident
+   still gets its review item; its resolution clock waits either way.
+2. **Both defects are fixed and pinned:** a ticket joins the open incident
+   whose centroid it matches, under one advisory lock for every category
+   (`test_unrelated_outages_get_separate_incidents`); the detector leaves out
+   the ticket itself and tickets already linked, and `ticket_count` is counted
+   from the links (`test_ticket_count_counts_each_ticket_once`).
+   `Incident.objects.get_or_create_for_mass_incident` and
+   `Ticket.classify_similarity` are gone; the service is
+   `apps/incidents/utils/incidents.py`.
+3. **Confirm approves every pending review item of a linked ticket**, not only
+   `escalate` ones: the detector links tickets that were routed (HITL) before
+   the incident existed. Routing decisions are never changed, no eval
+   candidate is written, and nothing is handed off to a team.
+4. **Close-all runs inside the resolve request**, one governed
+   `automatic_move` per ticket, already-resolved tickets skipped; §h's
+   `incidents.close_all` Celery task isn't used, since the response is the
+   result list. Each ticket gets the note through the final broadcast's
+   public comment, not a second one. A refused ticket's assignee gets the new
+   event `incident.ticket_not_closed` (in-app); a ticket with no assignee is
+   only listed.
+5. **No per-ticket `ticket.resolved` notice** for a ticket closed with its
+   incident: the requester had the final broadcast.
+6. **In a strict workflow close-all can't close a ticket still at
+   `escalated`**: confirm hands nothing off, and a pipeline status only leads
+   to `assigned`. Those tickets are listed with `transition_not_allowed` and
+   their clocks resume (seen on the dev database, whose default workflow is
+   strict). Open: TODO 16.
+7. **Broadcasts, the resolution note and every reason are masked with both
+   tiers**, like a comment; values are dropped, never quarantined. When
+   masking fails nothing is sent or stored (`503 mask_failed`).
+8. **The linked-ticket list shows the requester's username**: users have no
+   department field (UC-F7-01 step 1).
+9. **Detector numbers** also record `window_minutes` and `min_count`; the
+   incident's own target and the auto-close are `incident.resolve_target_minutes`
+   (240) and `incident.auto_close_after_days` (7) in `thresholds.yaml`,
+   shipped as `CR-2026-001`.
+10. **New setting** `INCIDENT_SWEEP_INTERVAL_SEC` (60 s): the target-breach
+    notice, once, and auto-close.
+11. **Screens:** Incidents in the console's Tickets group (all staff read,
+    incident managers act), the incident page with the broadcast composer,
+    history with delivery counts, linked tickets with their clock, and the
+    confirm, dismiss, resolve, reopen and unlink dialogs; Declare incident;
+    the chat's banner on the ticket page and on a chat turn.
+
 ## j. Acceptance criteria
 
 ```gherkin
