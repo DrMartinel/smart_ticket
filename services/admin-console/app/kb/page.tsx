@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
+import { KbTabs, canEditKb } from "@/components/kb/KbTabs";
 import { useRequireAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { riskTierClasses } from "@/lib/badges";
@@ -63,6 +65,7 @@ export default function KbPage() {
   if (!user) return null;
 
   const isManager = user.role === "manager";
+  const isEditor = canEditKb(user);
 
   const toggle = async (article: KbArticle) => {
     if (!reason.trim()) {
@@ -85,13 +88,21 @@ export default function KbPage() {
 
   return (
     <div className="mx-auto max-w-[1280px]">
-      <header className="mb-5">
+      <KbTabs user={user} />
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div>
         <h1 className="text-2xl font-semibold tracking-tight">Help pages</h1>
         <p className="mt-0.5 max-w-2xl text-sm text-[var(--text-muted)]">
           {isManager
             ? "Only pages allowed here can be used for automatic answers. Changing that needs a reason, and every change is logged. The AI can never grant it."
             : "Only pages allowed here can be used for automatic answers. Managers change which ones."}
         </p>
+        </div>
+        {isEditor && (
+          <Link href="/kb/drafts/new" className="btn btn-primary">
+            Trang mới · New page
+          </Link>
+        )}
       </header>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -143,7 +154,7 @@ export default function KbPage() {
                 <th className="w-32 px-4 py-2.5 font-medium">Category</th>
                 <th className="w-28 px-4 py-2.5 font-medium">Risk</th>
                 <th className="w-44 px-4 py-2.5 font-medium">Automatic answers</th>
-                <th className="w-28 px-4 py-2.5" />
+                <th className="w-44 px-4 py-2.5" />
               </tr>
             </thead>
             <tbody>
@@ -168,6 +179,16 @@ export default function KbPage() {
                       {a.auto_reply_allowed ? <span className="badge tone-ok">Allowed</span> : <span className="text-[var(--text-muted)]">Not allowed</span>}
                     </td>
                     <td className="px-4 py-3 text-right">
+                      {isEditor && (
+                        <span className="mr-2 inline-flex gap-2 text-xs">
+                          <Link href={`/kb/drafts/new?kind=edit&slug=${encodeURIComponent(a.slug)}`} className="text-[var(--accent)] hover:underline">
+                            Sửa
+                          </Link>
+                          <Link href={`/kb/drafts/new?kind=retire&slug=${encodeURIComponent(a.slug)}`} className="text-[var(--danger)] hover:underline">
+                            Gỡ
+                          </Link>
+                        </span>
+                      )}
                       {isManager && (
                         <button onClick={() => setPendingSlug(pendingSlug === a.slug ? null : a.slug)} className="btn btn-secondary py-1 text-xs">
                           {a.auto_reply_allowed ? "Revoke" : "Allow"}

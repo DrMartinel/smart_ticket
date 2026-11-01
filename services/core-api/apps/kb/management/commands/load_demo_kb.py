@@ -32,6 +32,7 @@ from django.core.management.base import BaseCommand, CommandError, CommandParser
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from apps.accounts.models import User
+from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
 from apps.kb.utils.chunking import clean_markdown
 from apps.kb.utils.indexing import indexer
@@ -153,6 +154,12 @@ class Command(BaseCommand):
             hashes = {p.slug: p.sha256 for p in pages}
             self._apply_approvals(curation.auto_reply, hashes, approver)
 
+        AuditLog.objects.record(
+            "kb_snapshot_loaded",
+            actor_type="human" if approver else "system",
+            actor_id=approver.id if approver else None,
+            payload={"snapshot_sha256": manifest.snapshot_sha256, **counts},
+        )
         self.stdout.write(
             self.style.SUCCESS(
                 f"demo KB snapshot {manifest.snapshot_sha256[:12]}: "
@@ -215,6 +222,6 @@ class Command(BaseCommand):
                         f"({approval.sha256[:12]} -> {current[:12]}); needs re-review",
                     )
                 continue
-            if not article.auto_reply_allowed:
+            if not article.is_authorized():
                 article.set_auto_reply_allowed(allowed=True, actor=approver, reason=approval.reason)
                 self.stdout.write(f"  auto_reply_allowed=True: {approval.slug}")

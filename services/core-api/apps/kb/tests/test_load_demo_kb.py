@@ -18,7 +18,8 @@ from pathlib import Path
 import pytest
 from django.core.management import CommandError, call_command
 
-from apps.kb.models import KbArticle, KbAuthorityLog, KbChunk
+from apps.audit.models import AuditLog
+from apps.kb.models import KbArticle, KbAuthorityLog, KbChunk, KbDraft
 
 SSH = '# Resolve SSH errors\n<a name="ssh"></a>\n\nCheck that port 22 is open.\n'
 MFA = "# Use MFA\n\nRegister a virtual MFA device.\n"
@@ -315,3 +316,23 @@ def test_a_page_skipped_for_a_hash_mismatch_is_not_reactivated(snapshot):
     load(snapshot)
 
     assert not KbArticle.objects.get(slug="iam.mfa").is_active
+
+
+@pytest.mark.django_db
+def test_the_snapshot_import_is_audited_and_writes_no_drafts(snapshot, manager_user):
+    """AC-F6-08 (BR-F6-09)."""
+    load(snapshot, approver=manager_user.username)
+
+    assert KbArticle.objects.filter(slug="ec2.ssh", auto_reply_allowed=True).exists()
+    assert AuditLog.objects.filter(event="kb_snapshot_loaded").count() == 1
+    assert not KbDraft.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_reload_regrants_a_page_whose_approval_no_longer_matches_its_text(snapshot, manager_user):
+    load(snapshot, approver=manager_user.username)
+    KbArticle.objects.filter(slug="ec2.ssh").update(approved_text_sha256="0" * 64)
+
+    load(snapshot, approver=manager_user.username)
+
+    assert KbArticle.objects.get(slug="ec2.ssh").is_authorized()

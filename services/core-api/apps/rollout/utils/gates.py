@@ -77,9 +77,7 @@ class RolloutMetrics:
     def approved_low_pages(self) -> int:
         from apps.kb.models import KbArticle
 
-        return KbArticle.objects.filter(
-            is_active=True, auto_reply_allowed=True, risk_tier="low"
-        ).count()
+        return KbArticle.objects.authorized().filter(risk_tier="low").count()
 
     def value(self, gate: RolloutGate, entered: dict[str, Any]) -> tuple[float | None, str]:
         """A gate's value now, and its evidence when the requester entered it."""

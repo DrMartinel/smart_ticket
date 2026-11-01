@@ -265,20 +265,20 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.KB_REVIEW_REQUESTED: EventSpec(
         "F6",
-        False,
+        True,
         "KB review requested",
         "Cần duyệt trang KB",
         _cells((K.KB_EDITORS, K.MANAGER), IN_APP),
     ),
     E.KB_AUTHORITY_NEEDED: EventSpec(
         "F6",
-        False,
+        True,
         "KB authority needed",
         "Cần cấp quyền trả lời tự động",
         _cells((K.MANAGER,), BOTH),
     ),
     E.KB_GAPS_READY: EventSpec(
-        "F6", False, "KB gaps ready", "Danh sách thiếu KB", _cells((K.KB_EDITORS,), BOTH)
+        "F6", True, "KB gaps ready", "Danh sách thiếu KB", _cells((K.KB_EDITORS,), BOTH)
     ),
     E.ROLLOUT_FLAG_REQUESTED: EventSpec(
         "F9",

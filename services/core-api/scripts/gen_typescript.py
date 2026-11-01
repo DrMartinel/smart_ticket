@@ -156,6 +156,22 @@ MODELS = [
     "DeclareIn",
     "ResolveIn",
     "LinksIn",
+    "ArticleOut",
+    "UserRefOut",
+    "DraftOut",
+    "ChunkPreviewOut",
+    "DraftDiffOut",
+    "AuthorityQueueItemOut",
+    "BulkAllowedOut",
+    "AuthorityLogOut",
+    "GapTicketOut",
+    "GapClusterOut",
+    "GapReportOut",
+    "DraftIn",
+    "DraftPatchIn",
+    "DraftReviewIn",
+    "BulkAllowedIn",
+    "GapDismissIn",
 ]
 
 ENUMS = {
@@ -180,6 +196,10 @@ ENUMS = {
     "Priority": ["P1", "P2", "P3", "P4"],
     "IncidentStatus": ["proposed", "confirmed", "dismissed", "resolved", "closed"],
     "IncidentStage": ["investigating", "identified", "monitoring", "resolved"],
+    "DraftKind": ["create", "edit", "retire"],
+    "DraftState": ["draft", "in_review", "changes_requested", "published", "withdrawn", "conflict"],
+    "GapLabel": ["gap", "update"],
+    "GapState": ["open", "drafted", "dismissed"],
     "ReassignReason": [
         "wrong_team",
         "workload",
@@ -244,7 +264,9 @@ def emit_json_schema(model_name: str) -> str:
     is more maintainable than a heavy codegen dependency.
     """
     model = _models()[model_name]
-    schema = model.model_json_schema()
+    schema = model.model_json_schema(
+        mode="serialization" if model_name.endswith("Out") else "validation"
+    )
     return _schema_to_ts(model_name, schema)
 
 
@@ -258,6 +280,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as incidents_request,
         response_schema as incidents_response,
     )
+    from apps.kb import request_schema as kb_request, response_schema as kb_response
     from apps.notifications import (
         request_schema as notifications_request,
         response_schema as notifications_response,
@@ -302,6 +325,8 @@ def _models() -> dict[str, type[BaseModel]]:
         rollout_response,
         incidents_request,
         incidents_response,
+        kb_request,
+        kb_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

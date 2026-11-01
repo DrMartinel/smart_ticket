@@ -380,3 +380,62 @@ Feature: F6 KB governance
     And one audit row "kb_snapshot_loaded" exists
     And no kb_drafts rows are created
 ```
+
+## v0.6.11 — where the code differs (build, 2026-11-01)
+
+Code wins (README §0.4 item 5). ADR-0036 was accepted by the owner on
+2026-10-26.
+
+1. **A stale draft is detected by the live page's text, not its version.**
+   A draft records `base_text_sha256` beside `base_version`; approving it
+   conflicts when the page's title + body hash differs, or the page was
+   retired. A grant or revoke bumps `version` without changing the text, so
+   a version check would turn every pending draft into a conflict
+   (`test_a_grant_alone_is_not_a_conflict`). AC-F6-07 holds: a published edit
+   changes the text (`test_a_stale_draft_is_caught`). The author rebases
+   (`POST /api/kb/drafts/{id}/rebase`), which keeps their text.
+2. **The page is written in the approve transaction; `kb.publish_draft` only
+   ingests.** The revoke, its `kb_authority_log` row and the page write must
+   share one transaction (BR-F6-04). The task runs `on_commit`, re-ingests in
+   its own transaction, and on failure keeps the old chunks and audits
+   `kb_ingest_failed` (UC-F6-02 3y). Retiring doesn't ingest.
+3. **A new page goes live high-risk, with no authority**, whatever tier the
+   draft proposed; the proposal reaches the manager through the authority
+   queue (`new`). A published edit queues the page when it had authority
+   (`regrant`), or when the proposed tier differs (`tier`). A manager's
+   grant, revoke or tier change settles it.
+4. **The queue also lists pages allowed for auto-reply whose text no longer
+   matches the approved hash** (e.g. a `load_demo_kb` text change without an
+   approval), as `regrant`.
+5. **The router's input reads `KbArticle.is_authorized()`**: active, allowed,
+   and `approved_text_sha256` equal to the current text's hash.
+   `KbArticle.objects.authorized()` computes the same hash in Postgres for the
+   F9 gate's count of approved low-risk pages. Migration
+   `kb.0006_backfill_approved_sha` pins every page allowed today to its
+   current text.
+6. **Bulk revoke is allowed for any tier**; only a bulk *grant* refuses
+   high-risk pages (BR-F6-06), all or nothing.
+7. **`load_demo_kb` re-grants a page whose approval no longer matches its
+   text** (it granted only pages that weren't allowed), and writes one
+   `kb_snapshot_loaded` audit row per run.
+8. **The gap report's window ends at 00:00 UTC on the run's day**; a re-run
+   on the same day replaces the report's open topics and keeps the ones
+   already drafted or dismissed. A dismissed topic is hidden from later
+   reports while `dismissed_until` holds, matched by centroid at
+   `kb_gaps.cluster_similarity`. Clustering is greedy on ticket embeddings in
+   arrival order. The report lists every ticket of a cluster; the console
+   shows three.
+9. **More audit events** than FR-F6-015: `kb_authority_granted` and
+   `kb_authority_revoked` for a manager's single or bulk change,
+   `kb_authority_log_exported`, `kb_gaps_built`, `kb_ingest_failed`.
+10. **Extra endpoints:** `GET /api/kb/drafts/{id}`, `POST …/withdraw`,
+    `POST …/rebase`. `GET /api/kb/authority-log` is paginated
+    (`limit`, `offset`); `GET /api/kb/gaps` returns the latest report and
+    leaves out dismissed topics. `POST /api/kb` keeps its body and returns
+    201 with a draft.
+11. **Who may do what:** drafting and reviewing need `kb_editor` or a
+    manager; the authority log also opens to security. The dev realm gives
+    `kb_editor` to `mai.bn` and `ha.vt` (as in §4 personas).
+12. **Screens:** the KB section's tabs (Pages, Drafts, Authority queue,
+    Authority log, Gaps); the draft page is the editor for its author and the
+    review for anyone else; Edit and Retire on each page row.

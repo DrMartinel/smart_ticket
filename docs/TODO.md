@@ -495,3 +495,21 @@ incident manager at confirm, or require workflows to carry an
 `escalated → resolved` transition. Also open from F7: users have no
 department, so the linked-ticket list shows usernames only.
 
+
+## 17. KB governance follow-ups (F6)
+
+**Priority:** Low · **Spec:** F6 UC-F6-02 3y, UC-F6-06, v0.6.11
+
+- **A page whose ingest failed is only audited** (`kb_ingest_failed`); the
+  spec says it is "listed for `/reingest`". Done when the Pages tab marks pages
+  whose chunks aren't current (`KbArticle.chunks_are_current()`) with a
+  reingest button for managers.
+- **The gap report's numbers are assumptions** (`kb_gaps.cluster_similarity`
+  0.80, `update_similarity` 0.65, both 🔧). On the dev database's 203 refused
+  tickets they give nine topics of three to six, most labelled `update` at
+  0.65–0.73. Calibrate them on the shadow pilot's refusals before editors
+  rely on the labels; a change is a `thresholds.yaml` change request (F9).
+- **The running dev Keycloak keeps its old realm**: `kb_editor` for `mai.bn`
+  and `ha.vt` is in `infra/keycloak/smart-ticket-realm.json`, but Keycloak's
+  `--import-realm` skips a realm that already exists. Recreate the keycloak
+  container's data, or grant the role in its admin console.

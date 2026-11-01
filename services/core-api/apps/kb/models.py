@@ -6,8 +6,13 @@ to require an approver, never something the LLM can grant itself.
 
 from __future__ import annotations
 
+import hashlib
+from enum import StrEnum
+
 from django.conf import settings
 from django.db import models, transaction
+from django.db.models import F, Func, Value
+from django.db.models.functions import Concat
 from django.utils import timezone
 from pgvector.django import VectorField
 
@@ -23,7 +28,40 @@ class KBGovernanceError(Exception):
     pass
 
 
+def text_sha256(title: str, body: str) -> str:
+    """The SHA-256 of a page's title and body, the text an auto-reply approval is pinned to."""
+    return hashlib.sha256(f"{title}\n{body}".encode()).hexdigest()
+
+
+class TextSha256(Func):
+    """`text_sha256` of the row's title and body, computed by Postgres."""
+
+    template = "ENCODE(SHA256(CONVERT_TO(%(expressions)s, 'UTF8')), 'hex')"
+    output_field = models.CharField()
+
+    def __init__(self) -> None:
+        super().__init__(
+            Concat(F("title"), Value("\n"), F("body"), output_field=models.TextField())
+        )
+
+
+class KbArticleQuerySet(models.QuerySet["KbArticle"]):
+    def authorized(self) -> KbArticleQuerySet:
+        """Active pages allowed to auto-reply whose text is the text a manager approved."""
+        return (
+            self.filter(is_active=True, auto_reply_allowed=True)
+            .annotate(current_sha256=TextSha256())
+            .filter(approved_text_sha256=F("current_sha256"))
+        )
+
+
 class KbArticleManager(models.Manager["KbArticle"]):
+    def get_queryset(self) -> KbArticleQuerySet:
+        return KbArticleQuerySet(self.model, using=self._db)
+
+    def authorized(self) -> KbArticleQuerySet:
+        return self.get_queryset().authorized()
+
     def create_and_ingest(
         self, *, slug: str, title: str, body: str, category: str, risk_tier: str
     ) -> KbArticle:
@@ -132,6 +170,8 @@ class KbArticle(BaseModel):
         db_column="approved_by",
     )
     approved_at = models.DateTimeField(null=True, blank=True)
+    # The SHA-256 of the title and body the approving manager read (F6 BR-F6-05).
+    approved_text_sha256 = models.CharField(max_length=64, null=True, blank=True)
     version = models.IntegerField(default=1)
     is_active = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -145,6 +185,18 @@ class KbArticle(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.slug}: {self.title}"
+
+    def text_sha256(self) -> str:
+        return text_sha256(self.title, self.body)
+
+    def is_authorized(self) -> bool:
+        """Whether the page may be cited by an auto-reply: allowed, active, and its text is the
+        text that was approved."""
+        return (
+            self.is_active
+            and self.auto_reply_allowed
+            and self.approved_text_sha256 == self.text_sha256()
+        )
 
     def chunks_are_current(self) -> bool:
         """Whether the stored chunks are exactly what `chunk_sections` makes
@@ -172,12 +224,14 @@ class KbArticle(BaseModel):
         if allowed:
             self.approved_by = actor
             self.approved_at = timezone.now()
+            self.approved_text_sha256 = self.text_sha256()
         self.version += 1
         self.save(
             update_fields=[
                 "auto_reply_allowed",
                 "approved_by",
                 "approved_at",
+                "approved_text_sha256",
                 "version",
                 "updated_at",
             ]
@@ -305,3 +359,149 @@ class KbAuthorityLog(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "kb_authority_log"
+
+
+class DraftKind(StrEnum):
+    CREATE = "create"
+    EDIT = "edit"
+    RETIRE = "retire"
+
+
+class DraftState(StrEnum):
+    DRAFT = "draft"
+    IN_REVIEW = "in_review"
+    CHANGES_REQUESTED = "changes_requested"
+    PUBLISHED = "published"
+    WITHDRAWN = "withdrawn"
+    CONFLICT = "conflict"
+
+
+EDITABLE_DRAFT_STATES = (DraftState.DRAFT.value, DraftState.CHANGES_REQUESTED.value)
+
+
+class KbDraftQuerySet(models.QuerySet["KbDraft"]):
+    def awaiting_authority(self) -> KbDraftQuerySet:
+        """Published drafts whose page still needs a manager's grant, re-grant or tier decision."""
+        return self.filter(
+            state=DraftState.PUBLISHED.value,
+            authority_pending=True,
+            article__is_active=True,
+        )
+
+
+class KbDraft(BaseModel):
+    """A new page, an edit or a retirement before a second person approves it (ADR-0036). Never
+    read by ai-engine."""
+
+    kind = models.CharField(max_length=10, choices=[(k.value, k.value) for k in DraftKind])
+    article = models.ForeignKey(
+        KbArticle, on_delete=models.SET_NULL, null=True, blank=True, related_name="drafts"
+    )
+    slug = models.CharField(max_length=128)
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    category = models.CharField(max_length=20, choices=[(c.value, c.value) for c in TicketCategory])
+    proposed_risk_tier = models.CharField(
+        max_length=10, choices=[(r.value, r.value) for r in RiskTier], default=RiskTier.HIGH.value
+    )
+    change_note = models.TextField(blank=True, default="")
+    state = models.CharField(
+        max_length=20,
+        choices=[(s.value, s.value) for s in DraftState],
+        default=DraftState.DRAFT.value,
+    )
+    base_version = models.IntegerField(null=True, blank=True)
+    # The live page's text when the draft started: a change to it is a conflict.
+    base_text_sha256 = models.CharField(max_length=64, blank=True, default="")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    review_comment = models.TextField(blank=True, default="")
+    gap_cluster = models.ForeignKey(
+        "KbGapCluster", on_delete=models.SET_NULL, null=True, blank=True, related_name="drafts"
+    )
+    # The live page's title and body this draft replaced, for the authority queue's diff.
+    previous_title = models.CharField(max_length=255, blank=True, default="")
+    previous_body = models.TextField(blank=True, default="")
+    # Published, and a manager still has to decide the page's authority or tier.
+    authority_pending = models.BooleanField(default=False)
+    authority_reason = models.CharField(max_length=20, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+
+    objects = KbDraftQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "kb_drafts"
+        indexes = [models.Index(fields=["state", "updated_at"], name="idx_kb_drafts_state")]
+
+    def is_editable(self) -> bool:
+        return self.state in EDITABLE_DRAFT_STATES
+
+
+class KbGapReport(BaseModel):
+    """One weekly grouping of refused tickets (F6 UC-F6-06)."""
+
+    window_start = models.DateTimeField()
+    window_end = models.DateTimeField()
+    tickets_considered = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "kb_gap_reports"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(fields=["window_start", "window_end"], name="uniq_gap_window")
+        ]
+
+
+class GapLabel(StrEnum):
+    GAP = "gap"
+    UPDATE = "update"
+
+
+class GapState(StrEnum):
+    OPEN = "open"
+    DRAFTED = "drafted"
+    DISMISSED = "dismissed"
+
+
+class KbGapCluster(BaseModel):
+    """Refused tickets on one topic, with the nearest live page."""
+
+    report = models.ForeignKey(KbGapReport, on_delete=models.CASCADE, related_name="clusters")
+    label = models.CharField(max_length=10, choices=[(g.value, g.value) for g in GapLabel])
+    size = models.IntegerField()
+    sample_tickets = models.JSONField(default=list)
+    nearest_article = models.ForeignKey(
+        KbArticle, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    nearest_similarity = models.FloatField(null=True, blank=True)
+    centroid = VectorField(dimensions=1024, null=True, blank=True)
+    state = models.CharField(
+        max_length=10,
+        choices=[(g.value, g.value) for g in GapState],
+        default=GapState.OPEN.value,
+    )
+    dismiss_reason = models.TextField(blank=True, default="")
+    dismissed_until = models.DateTimeField(null=True, blank=True)
+    tickets = models.ManyToManyField(
+        "tickets.Ticket", through="KbGapClusterTicket", related_name="+"
+    )
+
+    class Meta(BaseModel.Meta):
+        db_table = "kb_gap_clusters"
+        ordering = ["-size"]
+
+
+class KbGapClusterTicket(BaseModel):
+    cluster = models.ForeignKey(KbGapCluster, on_delete=models.CASCADE)
+    ticket = models.ForeignKey("tickets.Ticket", on_delete=models.CASCADE, related_name="+")
+
+    class Meta(BaseModel.Meta):
+        db_table = "kb_gap_cluster_tickets"
+        constraints = [
+            models.UniqueConstraint(fields=["cluster", "ticket"], name="uniq_gap_cluster_ticket")
+        ]

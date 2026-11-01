@@ -210,7 +210,8 @@
       ],
       "clientRoles": {
         "smart-ticket": [
-          "technician"
+          "technician",
+          "kb_editor"
         ]
       },
       "groups": [
@@ -233,7 +234,8 @@
       ],
       "clientRoles": {
         "smart-ticket": [
-          "technician"
+          "technician",
+          "kb_editor"
         ]
       },
       "groups": [
