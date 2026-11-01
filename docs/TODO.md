@@ -513,3 +513,18 @@ department, so the linked-ticket list shows usernames only.
   and `ha.vt` is in `infra/keycloak/smart-ticket-realm.json`, but Keycloak's
   `--import-realm` skips a realm that already exists. Recreate the keycloak
   container's data, or grant the role in its admin console.
+
+## 18. Reporting follow-ups (F10)
+
+**Priority:** Low · **Spec:** F10 v0.6.12
+
+- **Confirm the reviewer report's scope** (v0.6.12 item 2): UC-F10-03's
+  "team lead → 403" and AC-F10-04 disagree; the build gives every non-manager
+  their own row and refuses anyone else's. The product owner decides.
+- **Team at resolution**: facts carry the ticket's current team, category and
+  priority. Recording them at resolution needs a column written when the
+  resolution clock stops (F1).
+- **Notification latency from the event**: messages don't store when their
+  event happened, so K8 reads write-to-delivery. Add an event time to
+  `notif_messages` if the in-app number has to include queueing.
+

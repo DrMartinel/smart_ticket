@@ -1370,6 +1370,256 @@ export interface GapDismissIn {
   reason: string;
 }
 
+export interface ComplianceOut {
+  met: number;
+  breached: number;
+  compliance: number | null;
+}
+
+export interface WarnedOut {
+  warned: number;
+  breached: number;
+  rate: number | null;
+}
+
+export interface SlaCellOut {
+  key: string;
+  response: ComplianceOut;
+  resolution: ComplianceOut;
+}
+
+export interface SlaExcludedOut {
+  linked_incident: number;
+  no_sla_data: number;
+}
+
+export interface SlaReportOut {
+  month: string;
+  team: string | null;
+  priority: string | null;
+  category: string | null;
+  response: ComplianceOut;
+  resolution: ComplianceOut;
+  breaches_warned_in_time: WarnedOut;
+  excluded: SlaExcludedOut;
+  open_overdue_now: number;
+  by_team: SlaCellOut[];
+  by_priority: SlaCellOut[];
+  by_category: SlaCellOut[];
+}
+
+export interface SlaTicketOut {
+  id: string;
+  public_id: string;
+  subject: string;
+  team: string | null;
+  priority: string | null;
+  category: string | null;
+  state: string;
+  met_at: string | null;
+  linked_incident: boolean;
+}
+
+export interface SlaTicketPageOut {
+  items: SlaTicketOut[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface MemberRowOut {
+  username: string;
+  display_name: string;
+  role: string;
+  open_now: number;
+  age_buckets: Record<string, number>;
+  resolved_in_period: number;
+  time_to_assign_median_min: number | null;
+  time_to_assign_p90_min: number | null;
+  reassigned_in: number;
+  reassigned_out: number;
+}
+
+export interface TeamReportOut {
+  team: string;
+  start: string;
+  end: string;
+  members: MemberRowOut[];
+  tickets_assigned: number;
+  tickets_reassigned_cross_team: number;
+  reassignment_rate: number | null;
+  unassigned_now: number;
+  time_to_assign_median_min: number | null;
+  time_to_assign_p90_min: number | null;
+}
+
+export interface ReviewerRowOut {
+  username: string;
+  decisions: number;
+  approved: number;
+  approve_rate: number | null;
+  median_seconds: number | null;
+  previous_approve_rate: number | null;
+  flagged: boolean;
+}
+
+export interface ReviewerReportOut {
+  days: number;
+  min_decisions_for_flag: number;
+  approve_rate_max: number;
+  median_time_min_sec: number;
+  rows: ReviewerRowOut[];
+}
+
+export interface RefusalWeekOut {
+  week_start: string;
+  decisions: number;
+  refused: number;
+  refusal_rate: number | null;
+}
+
+export interface GapClosureOut {
+  cluster_id: string;
+  label: string;
+  size: number;
+  article_slug: string | null;
+  published_at: string;
+  before: number;
+  after: number;
+  closure: number | null;
+  complete: boolean;
+}
+
+export interface KbReportOut {
+  weeks: number;
+  refusals: RefusalWeekOut[];
+  open_clusters: number;
+  open_by_label: Record<string, number>;
+  closures: GapClosureOut[];
+}
+
+export interface CsatLineOut {
+  ratings: number;
+  resolved: number;
+  mean: number | null;
+  response_rate: number | null;
+  distribution: Record<string, number>;
+}
+
+export interface CsatTeamOut {
+  team: string;
+  auto: CsatLineOut;
+  person: CsatLineOut;
+}
+
+export interface LowRatingOut {
+  ticket_public_id: string;
+  team: string | null;
+  score: number;
+  comment: string;
+  rated_at: string;
+}
+
+export interface CsatReportOut {
+  month: string;
+  team: string | null;
+  auto: CsatLineOut;
+  person: CsatLineOut;
+  by_team: CsatTeamOut[];
+  low_rated: LowRatingOut[];
+}
+
+export interface AgreementReportOut {
+  decided: number;
+  agreed: number;
+  rerouted: number;
+  rate: number | null;
+  reroute_rate: number | null;
+}
+
+export interface GateValueReportOut {
+  metric: string;
+  comparator: string;
+  threshold: number;
+  window_days: number | null;
+  phase: string;
+  value: number | null;
+  met: boolean;
+  entered: boolean;
+}
+
+export interface BranchReadinessOut {
+  branch: string;
+  decision_branch: string;
+  live: boolean;
+  agreement: AgreementReportOut;
+  shadow_decisions: number;
+  total_decisions: number;
+  coverage: number | null;
+  gates: GateValueReportOut[];
+}
+
+export interface AutomationOut {
+  total: number;
+  live: number;
+  would_have: number;
+  live_rate: number | null;
+  would_have_rate: number | null;
+}
+
+export interface RolloutReportOut {
+  days: number;
+  branches: BranchReadinessOut[];
+  automation: AutomationOut;
+}
+
+export interface SecurityKindOut {
+  kind: string;
+  count: number;
+  open: number;
+}
+
+export interface SecurityReportOut {
+  month: string;
+  detail: boolean;
+  total: number;
+  by_kind: SecurityKindOut[];
+  ack_p50_sec: number | null;
+  ack_p90_sec: number | null;
+  ack_in_target: number | null;
+  acknowledged: number | null;
+  closed: number | null;
+  false_positive: number | null;
+  false_positive_rate: number | null;
+}
+
+export interface IncidentReportOut {
+  month: string;
+  detected: number;
+  confirmed: number;
+  dismissed: number;
+  linked_tickets: number;
+  links_created: number;
+  links_unlinked: number;
+  unlink_rate: number | null;
+  confirm_p50_sec: number | null;
+  first_broadcast_p50_sec: number | null;
+  first_broadcast_p90_sec: number | null;
+}
+
+export interface ChannelRowOut {
+  channel: string;
+  messages: number;
+  delivered: number;
+  failed: number;
+  latency_p95_sec: number | null;
+}
+
+export interface NotificationReportOut {
+  days: number;
+  channels: ChannelRowOut[];
+}
+
 export type LLMProposal =
   | AutoReplyProposal
   | RouteProposal

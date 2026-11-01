@@ -172,6 +172,34 @@ MODELS = [
     "DraftReviewIn",
     "BulkAllowedIn",
     "GapDismissIn",
+    "ComplianceOut",
+    "WarnedOut",
+    "SlaCellOut",
+    "SlaExcludedOut",
+    "SlaReportOut",
+    "SlaTicketOut",
+    "SlaTicketPageOut",
+    "MemberRowOut",
+    "TeamReportOut",
+    "ReviewerRowOut",
+    "ReviewerReportOut",
+    "RefusalWeekOut",
+    "GapClosureOut",
+    "KbReportOut",
+    "CsatLineOut",
+    "CsatTeamOut",
+    "LowRatingOut",
+    "CsatReportOut",
+    "AgreementReportOut",
+    "GateValueReportOut",
+    "BranchReadinessOut",
+    "AutomationOut",
+    "RolloutReportOut",
+    "SecurityKindOut",
+    "SecurityReportOut",
+    "IncidentReportOut",
+    "ChannelRowOut",
+    "NotificationReportOut",
 ]
 
 ENUMS = {
@@ -289,6 +317,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as requester_request,
         response_schema as requester_response,
     )
+    from apps.reports import response_schema as reports_response
     from apps.rollout import (
         request_schema as rollout_request,
         response_schema as rollout_response,
@@ -327,6 +356,7 @@ def _models() -> dict[str, type[BaseModel]]:
         incidents_response,
         kb_request,
         kb_response,
+        reports_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

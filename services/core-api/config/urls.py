@@ -19,6 +19,7 @@ from apps.review.views import router as review_router
 from apps.fewshot.views import router as fewshot_router
 from apps.itsm_mock.views import router as itsm_router
 from apps.metrics.views import router as metrics_router
+from apps.reports.views import router as reports_router
 from apps.chat.views import router as chat_router
 from apps.lifecycle.views import router as lifecycle_router
 from apps.notifications.views import router as notifications_router
@@ -42,6 +43,7 @@ api.add_router("/review", review_router)
 api.add_router("/fewshot", fewshot_router)
 api.add_router("/itsm", itsm_router)
 api.add_router("/metrics", metrics_router)
+api.add_router("/reports", reports_router)
 api.add_router("/chat", chat_router)
 api.add_router("/lifecycle", lifecycle_router)
 api.add_router("/notifications", notifications_router)

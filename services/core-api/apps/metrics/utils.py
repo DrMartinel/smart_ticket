@@ -16,16 +16,20 @@ import uuid
 from collections.abc import Sequence
 from typing import Any
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from django.db.models import Count, F, Q
+from django.db.models import Count, Exists, OuterRef, Q
 from django.utils import timezone
 
+from apps.incidents.models import IncidentLink
+from apps.reports.models import FactState, TicketFacts
+from apps.reports.utils.facts import clock_state, report_zone
 from apps.review.models import ReviewDecision, ReviewItem
+from apps.sla.models import Clock, ClockKind, ClockState
 from apps.tickets.models import AiRun, RoutingDecision, Ticket
 
 
-def _percentile(values: Sequence[float], p: float) -> float | None:
+def percentile(values: Sequence[float], p: float) -> float | None:
     if not values:
         return None
     values = sorted(values)
@@ -122,17 +126,15 @@ def hitl_health_metrics(window_days: int = 30) -> dict[str, Any]:
         {
             **row,
             "approve_rate": row["approved"] / row["total"] if row["total"] else None,
-            "median_time_spent_sec": _percentile(
-                times_by_reviewer.get(row["reviewer_id"], []), 0.5
-            ),
+            "median_time_spent_sec": percentile(times_by_reviewer.get(row["reviewer_id"], []), 0.5),
         }
         for row in per_reviewer_counts
     ]
 
     return {
         "queue_depth_by_queue": queue_depth,
-        "time_in_queue_p50_sec": _percentile(wait_times, 0.5),
-        "time_in_queue_p95_sec": _percentile(wait_times, 0.95),
+        "time_in_queue_p50_sec": percentile(wait_times, 0.5),
+        "time_in_queue_p95_sec": percentile(wait_times, 0.95),
         "approve_rate_per_reviewer": per_reviewer,
     }
 
@@ -147,27 +149,50 @@ def ops_metrics(window_days: int = 7) -> dict[str, Any]:
     total_tickets = Ticket.objects.filter(created_at__gte=since).count()
 
     return {
-        "latency_p50_ms": _percentile(latencies, 0.5),
-        "latency_p95_ms": _percentile(latencies, 0.95),
+        "latency_p50_ms": percentile(latencies, 0.5),
+        "latency_p95_ms": percentile(latencies, 0.95),
         "cost_per_ticket_usd": float(total_cost) / total_tickets if total_tickets else None,
         "degraded_run_ratio": degraded_runs / total_runs if total_runs else None,
         "circuit_open_events": runs.filter(degraded_reason="circuit_open").count(),
     }
 
 
+def sla_compliance(since: datetime) -> float | None:
+    """Resolution clocks stopped since `since`, without incident-linked tickets: past days from
+    the facts table, today live (BR-F10-02, FR-F10-015)."""
+    now = timezone.now()
+    today = now.astimezone(report_zone()).replace(hour=0, minute=0, second=0, microsecond=0)
+    past = TicketFacts.objects.filter(linked_incident=False).stopped(
+        "resolution", since, max(since, today)
+    )
+    states = list(past.values_list("resolution_state", flat=True))
+    live = Clock.objects.filter(
+        kind=ClockKind.RESOLUTION.value,
+        state=ClockState.MET.value,
+        met_at__gte=max(since, today),
+        met_at__lt=now,
+    ).exclude(
+        Exists(IncidentLink.objects.filter(ticket=OuterRef("ticket"), unlinked_at__isnull=True))
+    )
+    states += [clock_state(c).value for c in live]
+    met = states.count(FactState.MET.value)
+    return met / len(states) if states else None
+
+
 def business_metrics(window_days: int = 30) -> dict[str, Any]:
     since = timezone.now() - timedelta(days=window_days)
     routed = RoutingDecision.objects.filter(decided_at__gte=since)
     total = routed.count()
-    automated = routed.filter(branch__in=["auto_reply", "auto_route"]).count()
-
-    tickets = Ticket.objects.filter(created_at__gte=since, sla_due_at__isnull=False)
-    total_sla = tickets.count()
-    met_sla = tickets.filter(resolved_at__isnull=False, resolved_at__lte=F("sla_due_at")).count()
+    automated = routed.filter(branch__in=["auto_reply", "auto_route"])
+    would_have = automated.count() / total if total else None
 
     return {
-        "automation_rate": automated / total if total else None,
-        "sla_compliance": met_sla / total_sla if total_sla else None,
+        "automation_rate_live": automated.filter(shadow_mode=False).count() / total
+        if total
+        else None,
+        "automation_rate_would_have": would_have,
+        "automation_rate": would_have,
+        "sla_compliance": sla_compliance(since),
     }
 
 

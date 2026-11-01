@@ -65,6 +65,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <NavItem href="/dashboard" active={pathname.startsWith("/dashboard")}>
                 Dashboard
               </NavItem>
+              <NavItem href="/reports" active={pathname.startsWith("/reports")}>
+                Báo cáo · Reports
+              </NavItem>
               {isManager && (
                 <NavItem href="/security/summary" active={pathname.startsWith("/security/summary")}>
                   Security alerts
@@ -96,6 +99,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <Group label="Security">
               <NavItem href="/security/alerts" active={pathname.startsWith("/security/alerts")}>
                 Alerts
+              </NavItem>
+              <NavItem href="/reports/security" active={pathname.startsWith("/reports")}>
+                Báo cáo · Reports
               </NavItem>
               <NavItem href="/security/access-log" active={pathname.startsWith("/security/access-log")}>
                 PII access log

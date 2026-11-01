@@ -316,7 +316,7 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
         _cells((K.MANAGER, K.SECURITY), BOTH, mandatory=BOTH),
     ),
     E.REPORT_WEEKLY: EventSpec(
-        "F10", False, "Weekly report", "Báo cáo tuần", _cells((K.MANAGER,), (Channel.EMAIL,))
+        "F10", True, "Weekly report", "Báo cáo tuần", _cells((K.MANAGER,), (Channel.EMAIL,))
     ),
 }
 

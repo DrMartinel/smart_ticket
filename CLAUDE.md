@@ -177,6 +177,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Mass incidents: matching, the detector, confirm, broadcasts, close-all (F7) | [apps/incidents/](services/core-api/apps/incidents/), the service in [incidents.py](services/core-api/apps/incidents/utils/incidents.py) |
 | Security alerts: raising, grouping, ack targets, triage and release (F8) | [apps/security/](services/core-api/apps/security/), the service in [alerts.py](services/core-api/apps/security/utils/alerts.py) |
 | KB drafts, review, authority queue and gap report (F6, ADR-0036) | [apps/kb/utils/](services/core-api/apps/kb/utils/): [drafts.py](services/core-api/apps/kb/utils/drafts.py), [authority.py](services/core-api/apps/kb/utils/authority.py), [gaps.py](services/core-api/apps/kb/utils/gaps.py) |
+| Reports: the nightly facts table, every report and its scope, CSV, the weekly email (F10) | [apps/reports/](services/core-api/apps/reports/), the queries in [reports.py](services/core-api/apps/reports/utils/reports.py), the facts in [facts.py](services/core-api/apps/reports/utils/facts.py) |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
@@ -281,6 +282,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | What a chat question tells the model about earlier turns | `Conversations.prior_turns` (which turns count) and `requester:` in `thresholds.yaml`; ai-engine's `TicketMasked.earlier_turns()` (how they read) and `propose.v*` / `hyde_draft.v*`. Never the router or a signal (ADR-0034) |
 | What happens to a mass incident's tickets | `incidents.confirm` / `resolve` / `unlink` in `apps/incidents/utils/incidents.py`; never `ticket.incident = …` or a status write. Close-all moves each ticket with `lifecycle.automatic_move` |
 | A security event | `security_alerts.raise_(AlertKind…)`, which writes the `security_alert` audit row and the alert together; never `AuditLog.objects.record("security_alert", …)` |
+| What a report counts or who may read it | `apps/reports/utils/reports.py` (`Reports`, scope in `team_scope`); a new fact goes on `TicketFacts` and `ReportFacts.facts_of`; shadow agreement only through `rollout_metrics.shadow_agreement` |
 | Who is told about an event | `notifier.emit(event, ticket, Notice(...))` from the service that owns the event, never `router.py` or the routing step; new events go in the catalog (`apps/notifications/utils/vocabulary.py`) and its seed migration |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -28,7 +29,8 @@ interface DashboardData {
     circuit_open_events: number;
   };
   business: {
-    automation_rate: number | null;
+    automation_rate_live: number | null;
+    automation_rate_would_have: number | null;
     sla_compliance: number | null;
   };
 }
@@ -88,7 +90,12 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-[1280px]">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-0.5 text-sm text-[var(--text-muted)]">Last {WINDOW_DAYS} days</p>
+        <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+          Last {WINDOW_DAYS} days · full reports under{" "}
+          <Link href="/reports" className="text-[var(--accent)] hover:underline">
+            Báo cáo · Reports
+          </Link>
+        </p>
       </header>
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -99,14 +106,14 @@ export default function DashboardPage() {
           warn={reopen !== null && reopen > 0.05}
         />
         <Headline
-          label="Handled without a person"
-          value={percent(data.business.automation_rate)}
-          note="Tickets answered or routed automatically, out of all tickets."
+          label="Tự động hoá (thực tế) · Automation, live"
+          value={percent(data.business.automation_rate_live)}
+          note={`Carried out without a person. Would have, counting shadow decisions: ${percent(data.business.automation_rate_would_have)}. Not a target (BR-F10-09).`}
         />
         <Headline
-          label="Met their SLA"
+          label="SLA giải quyết · Resolution SLA"
           value={percent(data.business.sla_compliance)}
-          note="Tickets with a due time that were resolved before it."
+          note="Resolution clocks stopped in the period that met their target, in business time; incident-linked tickets excluded (BR-F10-02)."
         />
         <Headline
           label="Waiting for review"

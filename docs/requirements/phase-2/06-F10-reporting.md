@@ -345,3 +345,64 @@ Feature: F10 Reporting
     Then shadow agreement for auto_route is 210 / 248 = 84.7 %
     And F9 reads the same value
 ```
+
+## v0.6.12 — where the code differs (build, 2026-11-01)
+
+Code wins (README §0.4 item 5).
+
+1. **Reports live in their own section, `/reports/{tab}`**, as the Figma
+   frames draw it (17-1291 … 17-2311, a "Reports" item beside "Dashboard"),
+   not as tabs on `/dashboard` (§i). `/dashboard` keeps its tiles with
+   `automation_rate_live` and `_would_have`, both labelled "not a target",
+   and the clock-based resolution SLA, and links to Reports.
+2. **The reviewer report's scope, for the owner to confirm.** UC-F10-03
+   says a team lead gets 403; AC-F10-04 has `ha.vt`, the Access lead, get
+   their own row. Built so both hold: a manager sees every reviewer; anyone
+   else gets only their own row, and asking for someone else's
+   (`?reviewer=`) is 403 `report_scope_denied`.
+3. **`automation_rate_would_have` counts every automation the router chose,
+   live or shadow**, so the kept `automation_rate` alias is exactly the old
+   formula. `automation_rate_live` counts decisions recorded with
+   `shadow_mode = false`. AC-F10-05 holds either way.
+4. **More tunables in `thresholds.yaml` `reports:`**: `gap_closure_weeks` (4,
+   BR-F10-07), default windows `window_days` (30), `kb_weeks` (8) and
+   `rollout_days` (14). F9's rollout page and its gate fallback now read
+   `rollout_days` instead of a constant, so the readiness report and the gate
+   share one window (BR-F10-10). Change request `CR-2026-003`.
+5. **No backfill migration**: the first `report.build_facts` run builds every
+   ticket without a facts row (pre-F1 tickets get `none`).
+6. **"Changed since the last build"** is read from status transfers, clock
+   `elapsed_as_of`, ratings, reassignments, review and routing decisions and
+   incident links (link or unlink); `tickets` has no `updated_at`.
+7. **`team`, `category`, `priority` are the ticket's current values**, not
+   the values at resolution (nothing records them).
+8. **An open breached clock** is `breached` in the facts with no stop time:
+   it is left out of SLA % (BR-F10-01) and counted live in
+   `open_overdue_now`, which counts tickets with a breached clock or a
+   running clock past its due time.
+9. **`no_sla_data`** counts tickets created, resolved or stopped in the
+   month with no clocks; **K3** counts response and resolution breaches
+   together.
+10. **The dashboard's `sla_compliance`** reads stopped resolution clocks:
+    past days from the facts, today live from `sla_clocks`; incident-linked
+    tickets are left out, as in team SLA (BR-F10-04).
+11. **Notification latency** is `delivered_at − created_at` per channel; no
+    event time is stored, and an in-app row is delivered when written.
+12. **Security for a manager** is counts by kind and open only (BR-F8-01);
+    acknowledgement times, the in-target count and the false-positive rate
+    are in the response only for `security`.
+13. **Team workload**: ticket age is whole working days on the ticket's team
+    calendar (else the default); "resolved this week" is resolved in the
+    `from`–`to` window (default the last 7 days); time to assign is per
+    member from the facts.
+14. **Low-rated comments** are ratings at or below
+    `requester.low_rating_at_most`, masked text only.
+15. **Gap closure** lists each published draft written from a gap topic,
+    with `complete` false until four weeks have passed since publication.
+16. **The weekly email** is one `report.weekly` event whose id is derived
+    from `report:YYYY-WW`, so a retry sends nothing; it carries K1–K7 for the
+    last full week and writes `report_weekly_sent`. Each facts build writes
+    `report_facts_built`.
+17. **Extra**: `GET /api/reports/sla/tickets?state=excluded` lists the
+    tickets left out (BR-F10-03/04); every list endpoint's CSV exports all
+    rows, not one page.

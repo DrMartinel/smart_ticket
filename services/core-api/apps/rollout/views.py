@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 
+from django.conf import settings
 from ninja import Router
 
 from apps.accounts.models import Capability, UserRole
@@ -40,7 +41,7 @@ from apps.rollout.response_schema import (
     RolloutOut,
     ThresholdsStatusOut,
 )
-from apps.rollout.utils.gates import rollout_metrics
+from apps.rollout.utils.gates import AGREEMENT_BRANCH, rollout_metrics
 from apps.rollout.utils.rollout import rollout
 from apps.rollout.utils.thresholds import threshold_changes
 from apps.rollout.utils.vocabulary import (
@@ -53,12 +54,6 @@ from apps.rollout.utils.vocabulary import (
 router = Router(tags=["rollout"])
 
 # The router branch whose shadow decisions each flag would carry out, and the window shown.
-_AGREEMENT_BRANCH = {
-    FlagBranch.AUTO_ROUTE: "auto_route",
-    FlagBranch.AUTO_REPLY: "auto_reply",
-    FlagBranch.REQUESTER_QUESTIONS: "clarify",
-}
-_AGREEMENT_DAYS = 14
 thresholds_router = Router(tags=["thresholds"])
 
 
@@ -80,7 +75,9 @@ def _rollout() -> RolloutOut:
                 rollout.is_live(branch, snapshot),
                 rollout_metrics.snapshot(branch, entered),
                 pending,
-                rollout_metrics.shadow_agreement(_AGREEMENT_BRANCH[branch], _AGREEMENT_DAYS),
+                rollout_metrics.shadow_agreement(
+                    AGREEMENT_BRANCH[branch], settings.THRESHOLDS.reports.rollout_days
+                ),
             )
         )
     return RolloutOut(

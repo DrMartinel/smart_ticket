@@ -376,6 +376,29 @@ guard and that comment is later trimmed, the entry is the record.
   report would cascade to a dismissed topic and bring it back next week.
   *`test_a_dismissed_topic_is_hidden_from_later_reports`.*
 
+### Reporting (F10)
+
+- **SLA % from stopped clocks only (`TicketFactsQuerySet.stopped`), never
+  `sla_due_at`.** `sla_due_at` is wall-clock and written only by `set_sla`;
+  a running or cancelled clock in the denominator changes last month's number
+  every night. *`test_sla_compliance_uses_clocks_not_sla_due_at`,
+  `test_an_open_breached_clock_is_only_open_overdue`.*
+- **`linked_incident` rows left out of every SLA %.** Their clocks were paused
+  by design; counting them makes a mass incident look like a team failing.
+  *`test_incident_tickets_excluded_from_team_sla`.*
+- **`automation_rate_live` and `_would_have` as separate fields, labelled
+  "not a target".** One number counts shadow decisions as automation that
+  never happened (ADR-0006). *`test_automation_rate_split_live_vs_shadow`.*
+- **The rollout report calling `rollout_metrics.shadow_agreement` over
+  `reports.rollout_days`.** A second query or window would show a manager a
+  different number than the gate approves on.
+  *`test_ac_f10_10_shadow_agreement_uses_the_gate_query`.*
+- **`Reports.team_scope` / `reviewers` refusing instead of filtering
+  silently.** Per-person rows are need-to-know (BR-F10-05).
+  *`test_lead_cannot_read_other_team`, `test_ac_f10_04_a_reviewer_sees_only_themself`.*
+- **The weekly email's event id derived from the ISO week.** A beat retry
+  would otherwise email every manager twice. *`test_the_weekly_email_goes_once_per_week`.*
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).
