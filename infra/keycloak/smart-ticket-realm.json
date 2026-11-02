@@ -72,6 +72,17 @@
     },
     {
       "name": "finance"
+    },
+    {
+      "name": "apps",
+      "subGroups": [
+        {
+          "name": "jira-users"
+        },
+        {
+          "name": "vpn-users"
+        }
+      ]
     }
   ],
   "clients": [
@@ -140,6 +151,18 @@
       "publicClient": false,
       "clientAuthenticatorType": "client-secret",
       "secret": "${KEYCLOAK_ADMIN_CLIENT_SECRET}",
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false
+    },
+    {
+      "clientId": "smart-ticket-runbooks",
+      "name": "Smart Ticket runbooks",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${KEYCLOAK_RUNBOOK_CLIENT_SECRET}",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false
@@ -398,6 +421,16 @@
           "view-clients",
           "query-clients",
           "query-groups"
+        ]
+      }
+    },
+    {
+      "username": "service-account-smart-ticket-runbooks",
+      "enabled": true,
+      "serviceAccountClientId": "smart-ticket-runbooks",
+      "clientRoles": {
+        "realm-management": [
+          "manage-users"
         ]
       }
     }

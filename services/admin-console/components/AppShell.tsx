@@ -147,6 +147,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <NavItem href="/settings/deliveries" active={pathname.startsWith("/settings/deliveries")}>
                 Delivery log
               </NavItem>
+              <NavItem href="/settings/runbooks" active={pathname.startsWith("/settings/runbooks")}>
+                Runbooks
+              </NavItem>
               {isWorkflowAdmin && (
                 <NavItem href="/settings/webhooks" active={pathname.startsWith("/settings/webhooks")}>
                   Webhooks

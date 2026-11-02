@@ -546,3 +546,34 @@ guard and that comment is later trimmed, the entry is the record.
   none; counting them as fused understates the expansion share.
   *`test_the_expansion_share_counts_only_runs_that_report_origins`.*
 
+
+### Runbook executors (F12, ADR-0038)
+
+- **`Runbooks.start` returning None for any row past `queued`, under the row
+  lock.** Celery may deliver a task twice; without it a grant or a restart
+  runs twice. *`test_a_row_past_queued_is_never_sent_again`,
+  `test_timeout_after_send_is_unknown_not_retried`.*
+- **`Runbooks.why_not_runnable`, the worker's second look at ADR-0006, the
+  catalog and the second approver.** A row queued by any other path, or a
+  decision deleted after the execute, would otherwise reach Keycloak.
+  *`test_the_worker_refuses_a_run_whose_approval_disappeared`,
+  `test_the_worker_refuses_a_high_risk_run_without_a_second_approval`,
+  `test_a_catalog_change_after_approval_stops_the_run`.*
+- **`KeycloakAdmin.change` and `N8nExecutor.run` telling "never sent"
+  (`failed`) from "sent, no answer" (`unknown`).** `OutboundNoAnswer` is the
+  outbound client's half of it: a read timeout used to look like a connect
+  failure, and a `failed` grant invites a person to grant again.
+  *`test_an_unreachable_keycloak_is_failed`,
+  `test_timeout_after_send_is_unknown_not_retried`,
+  `test_n8n_without_an_answer_is_unknown`.*
+- **The reporter rule checked on the approver's payload, not the draft's.**
+  The LLM's target is a suggestion; the approver's edit is what runs, so
+  that is what the rule must see. *`test_reset_targets_only_the_reporter`,
+  `test_what_runs_is_what_the_approver_saw`.*
+- **`ITSM_GRANTABLE_GROUP_PREFIXES` checked at the catalog and again at
+  execute.** `/it/<team>/lead` groups carry Smart Ticket roles (F13); a
+  runbook that could grant them would let an approved ticket make someone a
+  team lead. *`test_a_group_carrying_rights_is_never_grantable`.*
+- **Catalog changes held in `pending_change`.** Writing them to the live
+  fields would let a workflow admin change what an approved runbook does
+  without a manager. *`test_a_catalog_change_needs_a_manager`.*

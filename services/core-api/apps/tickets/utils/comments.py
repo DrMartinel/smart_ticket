@@ -163,14 +163,18 @@ class Comments:
         )
 
     def system(
-        self, ticket: Ticket, text: str, broadcast: IncidentBroadcast | None = None
+        self,
+        ticket: Ticket,
+        text: str,
+        broadcast: IncidentBroadcast | None = None,
+        visibility: CommentVisibility = CommentVisibility.PUBLIC,
     ) -> TicketComment:
-        """A public comment the system writes, from fixed or already masked text."""
+        """A comment the system writes, from fixed or already masked text."""
         comment = TicketComment.objects.create(
             ticket=ticket,
             author=None,
             author_kind=CommentAuthorKind.SYSTEM.value,
-            visibility=CommentVisibility.PUBLIC.value,
+            visibility=visibility.value,
             body_masked=text,
             pii_level=PIILevel.ROUTINE.value,
             broadcast=broadcast,
@@ -183,7 +187,7 @@ class Comments:
                 "ticket_public_id": ticket.public_id,
                 "comment": str(comment.id),
                 "author_kind": CommentAuthorKind.SYSTEM.value,
-                "visibility": CommentVisibility.PUBLIC.value,
+                "visibility": visibility.value,
                 "pii_level": PIILevel.ROUTINE.value,
                 "hidden_for_review": False,
             },

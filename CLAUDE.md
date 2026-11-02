@@ -180,6 +180,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Reports: the nightly facts table, every report and its scope, CSV, the weekly email (F10) | [apps/reports/](services/core-api/apps/reports/), the queries in [reports.py](services/core-api/apps/reports/utils/reports.py), the facts in [facts.py](services/core-api/apps/reports/utils/facts.py) |
 | The entity graph as a KB feature: a page's edges, editor overrides, rebuild requests, graph health (F11, ADR-0037) | [graph.py](services/core-api/apps/kb/utils/graph.py); the `--pending` build in ai-engine [build.py](services/ai-engine/src/ai_engine/core/associations/build.py), run by compose's `graph-builder` |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
+| Runbooks: the catalog, execution, Keycloak and n8n executors (F12, ADR-0038) | [apps/itsm_mock/](services/core-api/apps/itsm_mock/), the service in [runbooks.py](services/core-api/apps/itsm_mock/utils/runbooks.py), the executors in [executors.py](services/core-api/apps/itsm_mock/utils/executors.py) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
 but one** (the `entity_graph` association rows, written by ai-engine's
@@ -286,6 +287,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | A security event | `security_alerts.raise_(AlertKind…)`, which writes the `security_alert` audit row and the alert together; never `AuditLog.objects.record("security_alert", …)` |
 | What a report counts or who may read it | `apps/reports/utils/reports.py` (`Reports`, scope in `team_scope`); a new fact goes on `TicketFacts` and `ReportFacts.facts_of`; shadow agreement only through `rollout_metrics.shadow_agreement` |
 | Who is told about an event | `notifier.emit(event, ticket, Notice(...))` from the service that owns the event, never `router.py` or the routing step; new events go in the catalog (`apps/notifications/utils/vocabulary.py`) and its seed migration |
+| What a runbook does, or who may run it | Data: Settings → Runbooks (a workflow admin drafts, another manager approves); grantable groups in `ITSM_GRANTABLE_GROUP_PREFIXES`; executor code in `apps/itsm_mock/utils/executors.py`. Never a path around `runbooks.execute` and the worker's `runbooks.run`, which both check ADR-0006 |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
 `/ai-engine-feature` for any ai-engine change · `/ai-engine-review` before a PR ·
@@ -468,4 +470,4 @@ this early, the codebase is dense with it) · [development.md](docs/development.
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
 [runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirty-eight
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
-0030–0038 come from the phase 2 pack; 0030–0037 are accepted, 0038 proposed).
+0030–0038 come from the phase 2 pack, all accepted).

@@ -76,6 +76,8 @@ class NotificationEvent(StrEnum):
     THRESHOLDS_CR_PENDING = "thresholds.cr_pending"
     THRESHOLDS_UNAPPROVED = "thresholds.unapproved"
     REPORT_WEEKLY = "report.weekly"
+    RUNBOOK_SECOND_APPROVAL = "runbook.second_approval_requested"
+    RUNBOOK_FINISHED = "runbook.finished"
 
 
 class NotificationRefusal(StrEnum):
@@ -317,6 +319,16 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.REPORT_WEEKLY: EventSpec(
         "F10", True, "Weekly report", "Báo cáo tuần", _cells((K.MANAGER,), (Channel.EMAIL,))
+    ),
+    E.RUNBOOK_SECOND_APPROVAL: EventSpec(
+        "F12",
+        True,
+        "Runbook needs a second approval",
+        "Runbook cần quản lý duyệt lần hai",
+        _cells((K.MANAGER,), BOTH),
+    ),
+    E.RUNBOOK_FINISHED: EventSpec(
+        "F12", True, "Runbook finished", "Runbook đã chạy xong", _cells((K.ASSIGNEE,), IN_APP)
     ),
 }
 

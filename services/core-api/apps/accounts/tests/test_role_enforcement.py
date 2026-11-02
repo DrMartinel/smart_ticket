@@ -14,7 +14,7 @@ from ninja import Router
 from apps.accounts.models import User, UserRole
 from apps.accounts.permissions import SessionAuth, gate_of
 from apps.audit.models import AuditLog
-from apps.itsm_mock.models import RunbookExecution
+from apps.itsm_mock.models import Runbook, RunbookExecution
 from apps.review.models import ReviewDecision, ReviewItem
 from apps.tickets.models import AiRun, Ticket
 from apps.tickets.utils.patterns import PIILevel
@@ -27,6 +27,7 @@ UNGATED_BY_DESIGN = {
     "apps.accounts.views.refresh",
     "apps.accounts.views.logout",
     "apps.lifecycle.views.run_callback",
+    "apps.itsm_mock.views.callback",
     "apps.accounts.views.oidc_config",
     "apps.accounts.views.oidc_exchange",
     "apps.accounts.views.oidc_backchannel_logout",
@@ -212,10 +213,19 @@ class TestRunbooks:
         item = runbook_item(user("lan.nt", UserRole.EMPLOYEE))
         client = api_as(duc)
 
+        Runbook.objects.filter(code="RB-RESET-PASSWORD").update(
+            approved_by=user("huy.pq", UserRole.MANAGER),
+            approved_at=timezone.now() - timedelta(minutes=1),
+        )
+
         decided = client.post(
             f"/api/review/items/{item.id}/decide", APPROVE, content_type="application/json"
         )
-        executed = client.post(f"/api/itsm/review-items/{item.id}/execute")
+        executed = client.post(
+            f"/api/itsm/review-items/{item.id}/execute",
+            {"payload": {"target_username": "lan.nt"}},
+            content_type="application/json",
+        )
 
         assert decided.status_code == 200
         assert executed.status_code == 200
@@ -231,7 +241,11 @@ class TestRunbooks:
             time_spent_sec=30,
         )
 
-        response = api_as(user("caller", role)).post(f"/api/itsm/review-items/{item.id}/execute")
+        response = api_as(user("caller", role)).post(
+            f"/api/itsm/review-items/{item.id}/execute",
+            {"payload": {"target_username": "lan.nt"}},
+            content_type="application/json",
+        )
 
         assert response.status_code == 403
         assert not RunbookExecution.objects.exists()
@@ -256,6 +270,10 @@ GATED_ROUTES: list[tuple[str, str, dict[str, Any] | None, set[UserRole]]] = [
     ("get", "/api/metrics/dashboard", None, _TECH_MGR),
     ("get", "/api/itsm/runbooks", None, _TECH_MGR),
     ("post", f"/api/itsm/review-items/{_ID}/execute", None, _TECH_MGR),
+    ("get", f"/api/itsm/review-items/{_ID}/runbook", None, _TECH_MGR),
+    ("post", f"/api/itsm/executions/{_ID}/second-approval", None, {UserRole.MANAGER}),
+    ("post", f"/api/itsm/executions/{_ID}/resolve", None, _TECH_MGR),
+    ("post", "/api/itsm/runbooks/RB-X/approve", None, {UserRole.MANAGER}),
     ("get", "/api/fewshot/category/access", None, _TECH_MGR),
 ]
 

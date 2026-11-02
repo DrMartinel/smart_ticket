@@ -544,3 +544,19 @@ department, so the linked-ticket list shows usernames only.
   used to resolve to a requested page and now resolves elsewhere keeps its
   old row until a full build.
 
+## 20. Runbook executor follow-ups (F12)
+
+**Priority:** Medium · **Spec:** F12 v0.6.14 · **ADR:** 0038
+
+- **Drop `runbook_executions.status`.** F12 stopped writing it (`state`
+  replaced it, backfilled by `itsm_mock.0003`); nothing reads it.
+- **Check the runbook panel and the catalog against Figma** 20-2041 and
+  20-2142 once the Figma connector is re-authorised.
+- **Give the dev realm an SMTP server** (a mail catcher in compose): without
+  one a password-reset runbook ends `unknown`, because Keycloak answers 500.
+  Only unlock and add-to-group ran live.
+- **An n8n workflow for `RB-RESTART-SERVICE`.** The seed's URL is the spec's
+  `n8n.congty.vn`, not on the dev allow-list; no n8n runbook has run
+  against a real n8n.
+- **Approve the seeded runbooks in production** (a manager, in Settings →
+  Runbooks): all four ship unapproved.
