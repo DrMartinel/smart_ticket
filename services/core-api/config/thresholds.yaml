@@ -18,7 +18,7 @@
 # change to this file that keeps the old version. CR-2026-000 is the baseline
 # the F9 migration approves.
 
-version: "CR-2026-002"
+version: "CR-2026-003"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -251,3 +251,19 @@ kb_gaps:
   # new page is missing (BR-F6-08).
   update_similarity: 0.65    # 🔧 assumption, on bge-m3 cosine
   dismiss_days: 90
+
+reports:
+  # A reviewer is flagged for rubber-stamping only with at least this many
+  # decisions in the window (F10, BR-F10-06), using alerts.reviewer_* below.
+  min_decisions_for_flag: 20
+  # Rows per page of a report's drill-down list.
+  list_page_size: 50
+  # Gap closure compares refusals this many weeks before and after a page is
+  # published (BR-F10-07).
+  gap_closure_weeks: 4
+  # Default windows when a report is opened without one: days for the reviewer
+  # and notification reports, weeks for the KB refusal trend. The rollout report
+  # defaults to the same 14-day shadow-agreement window F9's gates read.
+  window_days: 30
+  kb_weeks: 8
+  rollout_days: 14

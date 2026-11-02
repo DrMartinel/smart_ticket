@@ -57,6 +57,9 @@ class OpsOut(Schema):
 
 
 class BusinessOut(Schema):
+    automation_rate_live: float | None
+    automation_rate_would_have: float | None
+    # Alias of automation_rate_would_have for one release (F10).
     automation_rate: float | None
     sla_compliance: float | None
 

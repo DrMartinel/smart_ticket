@@ -74,6 +74,7 @@ x-core-api-env: &core-api-env
   REQUESTER_SWEEP_INTERVAL_SEC: ${REQUESTER_SWEEP_INTERVAL_SEC:?see .env.example}
   SECURITY_SWEEP_INTERVAL_SEC: ${SECURITY_SWEEP_INTERVAL_SEC:?see .env.example}
   INCIDENT_SWEEP_INTERVAL_SEC: ${INCIDENT_SWEEP_INTERVAL_SEC:?see .env.example}
+  REPORT_FACTS_BUILD_HOUR: ${REPORT_FACTS_BUILD_HOUR:?see .env.example}
   ROLLOUT_SWEEP_INTERVAL_SEC: ${ROLLOUT_SWEEP_INTERVAL_SEC:?see .env.example}
   OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:?see .env.example}
   # Keycloak as the containers reach it; the issuer stays the browser's.

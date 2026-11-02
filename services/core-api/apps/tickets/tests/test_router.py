@@ -29,6 +29,7 @@ from config.settings.base import (
     RoutingThresholds,
     RequesterThresholds,
     KbGapsThresholds,
+    ReportsThresholds,
     RolloutThresholds,
     SecurityThresholds,
     SlaThresholds,
@@ -130,6 +131,14 @@ def make_thresholds(**overrides) -> Thresholds:
             min_cluster_size=3,
             update_similarity=0.65,
             dismiss_days=90,
+        ),
+        reports=ReportsThresholds(
+            min_decisions_for_flag=20,
+            list_page_size=50,
+            gap_closure_weeks=4,
+            window_days=30,
+            kb_weeks=8,
+            rollout_days=14,
         ),
     )
     base.update(overrides)

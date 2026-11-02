@@ -91,6 +91,7 @@ INSTALLED_APPS = [
     "apps.security",
     "apps.rollout",
     "apps.incidents",
+    "apps.reports",
 ]
 
 MIDDLEWARE = [
@@ -208,6 +209,16 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.kb.tasks.gaps_build",
         # Monday 06:00 Asia/Ho_Chi_Minh (UTC+7) is Sunday 23:00 UTC; CELERY_TIMEZONE is UTC.
         "schedule": crontab(minute=0, hour=23, day_of_week=0),
+    },
+    "reports-build-facts": {
+        "task": "apps.reports.tasks.build_facts",
+        # REPORT_FACTS_BUILD_HOUR is Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
+        "schedule": crontab(minute=0, hour=(int(env("REPORT_FACTS_BUILD_HOUR")) - 7) % 24),
+    },
+    "reports-weekly-email": {
+        "task": "apps.reports.tasks.weekly_email",
+        # Monday 07:30 Asia/Ho_Chi_Minh (UTC+7) is Monday 00:30 UTC.
+        "schedule": crontab(minute=30, hour=0, day_of_week=1),
     },
     "notifications-purge": {
         "task": "apps.notifications.tasks.purge",
@@ -461,6 +472,18 @@ class RolloutThresholds(BaseModel):
     flag_request_expiry_hours: int = Field(ge=1)
 
 
+class ReportsThresholds(BaseModel):
+    # Decisions a reviewer needs in the window before the rubber-stamp flag applies (F10).
+    min_decisions_for_flag: int = Field(ge=1)
+    list_page_size: int = Field(ge=1)
+    # Weeks before and after a page's publication that gap closure compares.
+    gap_closure_weeks: int = Field(ge=1)
+    # Default report windows (days, KB trend weeks, rollout agreement days).
+    window_days: int = Field(ge=1)
+    kb_weeks: int = Field(ge=1)
+    rollout_days: int = Field(ge=1)
+
+
 class KbGapsThresholds(BaseModel):
     # Refused tickets of the last `window_days` form the weekly gap report (F6).
     window_days: int = Field(ge=1)
@@ -505,6 +528,7 @@ class Thresholds(BaseModel):
     security: SecurityThresholds
     rollout: RolloutThresholds
     kb_gaps: KbGapsThresholds
+    reports: ReportsThresholds
 
     @property
     def retrieval_floor(self) -> float:

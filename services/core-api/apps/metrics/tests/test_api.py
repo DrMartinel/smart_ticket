@@ -32,7 +32,12 @@ GROUPS = {
         "degraded_run_ratio",
         "circuit_open_events",
     },
-    "business": {"automation_rate", "sla_compliance"},
+    "business": {
+        "automation_rate",
+        "automation_rate_live",
+        "automation_rate_would_have",
+        "sla_compliance",
+    },
 }
 
 

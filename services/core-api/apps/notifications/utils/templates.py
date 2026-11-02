@@ -250,6 +250,13 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
         VI: ("Cảnh báo bảo mật: {{notice.reason}}", "{{notice.detail}}"),
         EN: ("Security alert: {{notice.reason}}", "{{notice.detail}}"),
     },
+    E.REPORT_WEEKLY: {
+        VI: (
+            "Báo cáo tuần {{notice.reason}}",
+            "{{notice.message}}\n\nXem chi tiết: {{notice.link}}",
+        ),
+        EN: ("Weekly report {{notice.reason}}", "{{notice.message}}\n\nDetails: {{notice.link}}"),
+    },
     E.IDENTITY_BREAK_GLASS_USED: {
         VI: (
             "Đăng nhập khẩn cấp: {{notice.actor}}",

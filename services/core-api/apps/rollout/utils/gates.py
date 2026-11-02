@@ -7,11 +7,19 @@ from dataclasses import asdict, dataclass
 from datetime import timedelta
 from typing import Any
 
+from django.conf import settings
 from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.rollout.models import RolloutGate
 from apps.rollout.utils.vocabulary import ENTERED_METRICS, FlagBranch, GateMetric
+
+# The routing branch whose shadow decisions each flag's agreement reads.
+AGREEMENT_BRANCH = {
+    FlagBranch.AUTO_ROUTE: "auto_route",
+    FlagBranch.AUTO_REPLY: "auto_reply",
+    FlagBranch.REQUESTER_QUESTIONS: "clarify",
+}
 
 
 @dataclass(frozen=True)
@@ -88,7 +96,7 @@ class RolloutMetrics:
             return (float(raw) if raw is not None else None), str(given.get("evidence", ""))
         if metric is GateMetric.APPROVED_LOW_PAGES:
             return float(self.approved_low_pages()), ""
-        days = gate.window_days or 14
+        days = gate.window_days or settings.THRESHOLDS.reports.rollout_days
         if metric is GateMetric.REROUTE_RATE:
             return self.shadow_agreement("auto_route", days).reroute_rate, ""
         return self.shadow_agreement("clarify", days).rate, ""
