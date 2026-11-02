@@ -114,7 +114,7 @@ def _kb_meta(proposal: LLMProposalEnvelope | None) -> KBArticleMeta | None:
         id=kb.id,
         slug=kb.slug,
         category=TicketCategory(kb.category),
-        auto_reply_allowed=kb.auto_reply_allowed,
+        auto_reply_allowed=kb.is_authorized(),
         risk_tier=RiskTier(kb.risk_tier),
     )
 

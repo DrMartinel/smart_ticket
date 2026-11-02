@@ -18,7 +18,7 @@
 # change to this file that keeps the old version. CR-2026-000 is the baseline
 # the F9 migration approves.
 
-version: "CR-2026-001"
+version: "CR-2026-002"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -240,3 +240,14 @@ rollout:
   # A request to turn a branch live expires after this many hours without its
   # second approval (F9, §c).
   flag_request_expiry_hours: 72
+
+kb_gaps:
+  # Refused tickets of the last 28 days, grouped weekly into topics KB editors
+  # should write or update (F6, BR-F6-07).
+  window_days: 28
+  cluster_similarity: 0.80   # 🔧 assumption
+  min_cluster_size: 3
+  # Nearest live chunk at least this similar: the page needs an update; else a
+  # new page is missing (BR-F6-08).
+  update_similarity: 0.65    # 🔧 assumption, on bge-m3 cosine
+  dismiss_days: 90

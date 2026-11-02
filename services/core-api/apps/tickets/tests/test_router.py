@@ -28,6 +28,7 @@ from config.settings.base import (
     RetrievalThresholds,
     RoutingThresholds,
     RequesterThresholds,
+    KbGapsThresholds,
     RolloutThresholds,
     SecurityThresholds,
     SlaThresholds,
@@ -123,6 +124,13 @@ def make_thresholds(**overrides) -> Thresholds:
             ack_business_minutes={"critical": 60, "high": 240, "medium": 570},
         ),
         rollout=RolloutThresholds(flag_request_expiry_hours=72),
+        kb_gaps=KbGapsThresholds(
+            window_days=28,
+            cluster_similarity=0.8,
+            min_cluster_size=3,
+            update_similarity=0.65,
+            dismiss_days=90,
+        ),
     )
     base.update(overrides)
     return Thresholds(**base)

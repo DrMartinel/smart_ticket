@@ -348,6 +348,34 @@ guard and that comment is later trimmed, the entry is the record.
 - **Close-all catching `LifecycleError` per ticket.** One refused move must not
   stop the rest. *`test_close_all_continues_after_refusal`.*
 
+### KB governance (F6, ADR-0036)
+
+- **Drafts in their own table, with no grant to `ai_engine_ro`.** A status on
+  `kb_articles` would need a filter in every ai-engine query; one forgotten
+  filter puts unreviewed text in front of the model.
+  *`test_draft_invisible_to_ai_engine_queries`.*
+- **`KbDrafts.publish` revoking in the approve transaction, and never
+  granting.** Split from the page write, a crash leaves new text under the old
+  approval. *`test_edit_revokes_authority_with_log_row`, `test_publish_never_grants_authority`.*
+- **`_kb_meta` reading `is_authorized()`, not `auto_reply_allowed`.** Text
+  changed outside a draft (a reload, a SQL fix) would otherwise keep its
+  approval silently. *`test_hash_mismatch_means_not_authorized`.*
+- **`TextSha256` hashing exactly `title + "\n" + body` as UTF-8, like
+  `text_sha256`.** If the two drift, every page reads as not authorized in the
+  F9 gate count and nothing fails. *`test_the_database_hash_matches_the_python_hash`.*
+- **Conflicts compared by the text hash, not `version`.** A grant bumps the
+  version, so a version check makes every open draft a conflict.
+  *`test_a_grant_alone_is_not_a_conflict`.*
+- **`KbAuthority.bulk` checking every page before changing any.** A partial
+  bulk grant would approve the low-risk half of a request that had to be
+  refused. *`test_bulk_refuses_high_risk`.*
+- **`KbDrafts.ingest` running `indexer.ingest` inside `transaction.atomic`.**
+  `ingest` deletes the chunks first; outside a transaction a failed embed
+  leaves the page with none. *`test_a_failed_ingest_keeps_the_old_chunks`.*
+- **`KbGaps.build` deleting only open clusters on a re-run.** Deleting the
+  report would cascade to a dismissed topic and bring it back next week.
+  *`test_a_dismissed_topic_is_hidden_from_later_reports`.*
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).

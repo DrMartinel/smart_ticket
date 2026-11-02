@@ -1,18 +1,53 @@
+import uuid
+
 from django.db.models import QuerySet
-from ninja import Query, Router
-from ninja.errors import HttpError
+from django.http import HttpResponse
+from ninja import Query, Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.kb.models import KBGovernanceError, KbArticle
-from apps.kb.request_schema import ArticleFilter, ArticleIn, AutoReplyFlagIn, RiskTierIn
-from apps.kb.response_schema import ArticleOut, ReingestOut
+from apps.accounts.models import Capability, UserRole
+from apps.accounts.permissions import (
+    ALL_ROLES,
+    AuthedRequest,
+    SessionAuth,
+    require_access,
+    require_role,
+)
+from apps.kb.models import DraftKind, GapState, KbArticle, KbAuthorityLog, KbDraft
+from apps.kb.request_schema import (
+    ArticleFilter,
+    ArticleIn,
+    AuthorityLogFilter,
+    AutoReplyFlagIn,
+    BulkAllowedIn,
+    GapDismissIn,
+    DraftFilter,
+    DraftIn,
+    DraftPatchIn,
+    DraftReviewIn,
+    RiskTierIn,
+)
+from apps.kb.response_schema import (
+    ArticleOut,
+    AuthorityLogOut,
+    AuthorityQueueItemOut,
+    BulkAllowedOut,
+    DraftDiffOut,
+    DraftOut,
+    GapClusterOut,
+    GapReportOut,
+    ReingestOut,
+)
+from apps.kb.utils.authority import kb_authority
+from apps.kb.utils.drafts import DraftDiff, kb_drafts
+from apps.kb.utils.gaps import kb_gaps
 from apps.kb.utils.indexing import indexer
-from apps.accounts.models import UserRole
-from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_role
 
 router = Router(tags=["kb"])
 
 _MANAGER = (UserRole.MANAGER,)
+_EDITOR = (Capability.KB_EDITOR,)
+_LOG_READERS = (UserRole.MANAGER, UserRole.SECURITY)
 
 
 # No `from __future__ import annotations` in this module: @paginate makes
@@ -25,22 +60,27 @@ def list_articles(request: AuthedRequest, filters: Query[ArticleFilter]) -> Quer
     return filters.filter(KbArticle.objects.filter(is_active=True)).order_by("slug")
 
 
-@router.post("", auth=SessionAuth(), response=ArticleOut)
-@require_role(*_MANAGER)
-def create_article(request: AuthedRequest, payload: ArticleIn) -> KbArticle:
-    return KbArticle.objects.create_and_ingest(
-        slug=payload.slug,
-        title=payload.title,
-        body=payload.body,
-        category=payload.category,
-        risk_tier=payload.risk_tier,
+@router.post("", auth=SessionAuth(), response={201: DraftOut})
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def create_article(request: AuthedRequest, payload: ArticleIn) -> Status[KbDraft]:
+    draft = kb_drafts.create(
+        request.auth,
+        {
+            "kind": DraftKind.CREATE,
+            "slug": payload.slug,
+            "title": payload.title,
+            "body": payload.body,
+            "category": payload.category,
+            "proposed_risk_tier": payload.risk_tier,
+        },
     )
+    return Status(201, draft)
 
 
 @router.post("/{slug}/reingest", auth=SessionAuth(), response=ReingestOut)
 @require_role(*_MANAGER)
 def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
-    article = _get_or_404(slug)
+    article = kb_authority.article(slug)
     chunks = indexer.ingest(article)
     return ReingestOut(slug=slug, chunks=len(chunks))
 
@@ -48,31 +88,140 @@ def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
 @router.post("/{slug}/auto-reply-allowed", auth=SessionAuth(), response=ArticleOut)
 @require_role(*_MANAGER)
 def toggle_auto_reply(request: AuthedRequest, slug: str, payload: AutoReplyFlagIn) -> KbArticle:
-    article = _get_or_404(slug)
-    try:
-        article.set_auto_reply_allowed(
-            allowed=payload.allowed, actor=request.auth, reason=payload.reason
-        )
-    except KBGovernanceError as e:
-        raise HttpError(403, str(e)) from e
-    return article
+    return kb_authority.set_allowed(slug, request.auth, payload.allowed, payload.reason)
 
 
 @router.post("/{slug}/risk-tier", auth=SessionAuth(), response=ArticleOut)
 @require_role(*_MANAGER)
 def change_risk_tier(request: AuthedRequest, slug: str, payload: RiskTierIn) -> KbArticle:
-    article = _get_or_404(slug)
-    try:
-        article.set_risk_tier(
-            risk_tier=payload.risk_tier, actor=request.auth, reason=payload.reason
+    return kb_authority.set_tier(slug, request.auth, payload.risk_tier, payload.reason)
+
+
+# ── drafts (F6 UC-F6-01, 02, 07) ──
+
+
+@router.get("/drafts", auth=SessionAuth(), response=list[DraftOut])
+@paginate(LimitOffsetPagination)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def list_drafts(request: AuthedRequest, filters: Query[DraftFilter]) -> QuerySet[KbDraft]:
+    rows = KbDraft.objects.select_related("author", "reviewer", "article").order_by("-updated_at")
+    if filters.state:
+        rows = rows.filter(state=filters.state.value)
+    if filters.author:
+        rows = rows.filter(author__username=filters.author)
+    return rows
+
+
+@router.post("/drafts", auth=SessionAuth(), response={201: DraftOut})
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def create_draft(request: AuthedRequest, payload: DraftIn) -> Status[KbDraft]:
+    return Status(201, kb_drafts.create(request.auth, payload.model_dump()))
+
+
+@router.get("/drafts/{draft_id}", auth=SessionAuth(), response=DraftOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def get_draft(request: AuthedRequest, draft_id: uuid.UUID) -> KbDraft:
+    return kb_drafts.get(draft_id)
+
+
+@router.patch("/drafts/{draft_id}", auth=SessionAuth(), response=DraftOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def update_draft(request: AuthedRequest, draft_id: uuid.UUID, payload: DraftPatchIn) -> KbDraft:
+    return kb_drafts.update(draft_id, request.auth, payload.model_dump(exclude_none=True))
+
+
+@router.post("/drafts/{draft_id}/submit", auth=SessionAuth(), response=DraftOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def submit_draft(request: AuthedRequest, draft_id: uuid.UUID) -> KbDraft:
+    return kb_drafts.submit(draft_id, request.auth)
+
+
+@router.post("/drafts/{draft_id}/review", auth=SessionAuth(), response=DraftOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def review_draft(request: AuthedRequest, draft_id: uuid.UUID, payload: DraftReviewIn) -> KbDraft:
+    return kb_drafts.review(draft_id, request.auth, payload.decision == "approve", payload.comment)
+
+
+@router.post("/drafts/{draft_id}/withdraw", auth=SessionAuth(), response=DraftOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def withdraw_draft(request: AuthedRequest, draft_id: uuid.UUID) -> KbDraft:
+    return kb_drafts.withdraw(draft_id, request.auth)
+
+
+@router.post("/drafts/{draft_id}/rebase", auth=SessionAuth(), response=DraftOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def rebase_draft(request: AuthedRequest, draft_id: uuid.UUID) -> KbDraft:
+    return kb_drafts.rebase(draft_id, request.auth)
+
+
+@router.get("/drafts/{draft_id}/diff", auth=SessionAuth(), response=DraftDiffOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def draft_diff(request: AuthedRequest, draft_id: uuid.UUID) -> DraftDiff:
+    return kb_drafts.diff(kb_drafts.get(draft_id))
+
+
+# ── authority (UC-F6-03, 04, 05) ──
+
+
+@router.get("/authority-queue", auth=SessionAuth(), response=list[AuthorityQueueItemOut])
+@require_role(*_MANAGER)
+def authority_queue(request: AuthedRequest) -> list[AuthorityQueueItemOut]:
+    return [
+        AuthorityQueueItemOut.of(item, kb_drafts.diff(item.draft) if item.draft else None)
+        for item in kb_authority.queue()
+    ]
+
+
+@router.post("/auto-reply-allowed/bulk", auth=SessionAuth(), response=BulkAllowedOut)
+@require_role(*_MANAGER)
+def bulk_auto_reply(request: AuthedRequest, payload: BulkAllowedIn) -> BulkAllowedOut:
+    return BulkAllowedOut(
+        updated=kb_authority.bulk(payload.slugs, request.auth, payload.allowed, payload.reason)
+    )
+
+
+@router.get("/authority-log", auth=SessionAuth(), response=list[AuthorityLogOut])
+@paginate(LimitOffsetPagination)
+@require_access(roles=_LOG_READERS, capabilities=_EDITOR)
+def authority_log(
+    request: AuthedRequest, filters: Query[AuthorityLogFilter]
+) -> QuerySet[KbAuthorityLog]:
+    return kb_authority.log(**filters.dict())
+
+
+@router.get("/authority-log.csv", auth=SessionAuth())
+@require_access(roles=_LOG_READERS, capabilities=_EDITOR)
+def authority_log_csv(request: AuthedRequest, filters: Query[AuthorityLogFilter]) -> HttpResponse:
+    response = HttpResponse(
+        kb_authority.export(request.auth, filters.dict()), content_type="text/csv; charset=utf-8"
+    )
+    response["Content-Disposition"] = 'attachment; filename="kb-authority-log.csv"'
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+# ── gaps (UC-F6-06) ──
+
+
+@router.get("/gaps", auth=SessionAuth(), response=GapReportOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def gaps(request: AuthedRequest) -> GapReportOut:
+    report = kb_gaps.latest()
+    clusters = (
+        list(
+            report.clusters.exclude(state=GapState.DISMISSED.value)
+            .select_related("nearest_article")
+            .prefetch_related("tickets", "drafts")
         )
-    except KBGovernanceError as e:
-        raise HttpError(403, str(e)) from e
-    return article
+        if report
+        else []
+    )
+    return GapReportOut.of(report, clusters)
 
 
-def _get_or_404(slug: str) -> KbArticle:
-    try:
-        return KbArticle.objects.get(slug=slug)
-    except KbArticle.DoesNotExist as e:
-        raise HttpError(404, "KB article not found") from e
+@router.post("/gaps/{cluster_id}/dismiss", auth=SessionAuth(), response=GapClusterOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def dismiss_gap(
+    request: AuthedRequest, cluster_id: uuid.UUID, payload: GapDismissIn
+) -> GapClusterOut:
+    return GapClusterOut.of(kb_gaps.dismiss(cluster_id, request.auth, payload.reason))

@@ -204,6 +204,11 @@ CELERY_BEAT_SCHEDULE = {
         # 07:00 Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
         "schedule": crontab(minute=0, hour=0),
     },
+    "kb-gaps-build": {
+        "task": "apps.kb.tasks.gaps_build",
+        # Monday 06:00 Asia/Ho_Chi_Minh (UTC+7) is Sunday 23:00 UTC; CELERY_TIMEZONE is UTC.
+        "schedule": crontab(minute=0, hour=23, day_of_week=0),
+    },
     "notifications-purge": {
         "task": "apps.notifications.tasks.purge",
         # 02:00 Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
@@ -456,6 +461,18 @@ class RolloutThresholds(BaseModel):
     flag_request_expiry_hours: int = Field(ge=1)
 
 
+class KbGapsThresholds(BaseModel):
+    # Refused tickets of the last `window_days` form the weekly gap report (F6).
+    window_days: int = Field(ge=1)
+    # Cosine to a cluster's centroid for a ticket to join it.
+    cluster_similarity: float = Field(gt=0, le=1)
+    min_cluster_size: int = Field(ge=2)
+    # A cluster whose nearest live chunk is at least this similar is `update`, else `gap`.
+    update_similarity: float = Field(gt=0, le=1)
+    # A dismissed topic stays out of reports this long.
+    dismiss_days: int = Field(ge=1)
+
+
 class AssignmentThresholds(BaseModel):
     # Shortest note a manual reassignment carries (F2, BR-F2-05).
     reassign_note_min_chars: int = Field(ge=1)
@@ -487,6 +504,7 @@ class Thresholds(BaseModel):
     requester: RequesterThresholds
     security: SecurityThresholds
     rollout: RolloutThresholds
+    kb_gaps: KbGapsThresholds
 
     @property
     def retrieval_floor(self) -> float:

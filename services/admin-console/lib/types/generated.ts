@@ -29,6 +29,14 @@ export type IncidentStatus = "proposed" | "confirmed" | "dismissed" | "resolved"
 
 export type IncidentStage = "investigating" | "identified" | "monitoring" | "resolved";
 
+export type DraftKind = "create" | "edit" | "retire";
+
+export type DraftState = "draft" | "in_review" | "changes_requested" | "published" | "withdrawn" | "conflict";
+
+export type GapLabel = "gap" | "update";
+
+export type GapState = "open" | "drafted" | "dismissed";
+
 export type ReassignReason = "wrong_team" | "workload" | "skill" | "leave" | "escalation" | "requester_request" | "other";
 
 export type RecipientKind = "requester" | "assignee" | "team_lead" | "team_members" | "manager" | "security" | "workflow_admins" | "kb_editors" | "incident_managers" | "approver" | "linked_requesters" | "previous_assignee";
@@ -1220,6 +1228,146 @@ export interface ResolveIn {
 
 export interface LinksIn {
   ticket_ids: string[];
+}
+
+export interface ArticleOut {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  source_url: string;
+  auto_reply_allowed: boolean;
+  risk_tier: string;
+  approved_by: string | null;
+  is_active: boolean;
+  version: number;
+}
+
+export interface UserRefOut {
+  id: string;
+  username: string;
+}
+
+export interface DraftOut {
+  id: string;
+  kind: string;
+  slug: string;
+  title: string;
+  body: string;
+  category: string;
+  proposed_risk_tier: string;
+  change_note: string;
+  state: string;
+  base_version: number | null;
+  author: UserRefOut;
+  reviewer: UserRefOut | null;
+  review_comment: string;
+  gap_cluster_id: string | null;
+  article: ArticleOut | null;
+  authority_pending: boolean;
+  authority_reason: string;
+  created_at: string;
+  updated_at: string;
+  published_at: string | null;
+}
+
+export interface ChunkPreviewOut {
+  section_title: string | null;
+  content: string;
+}
+
+export interface DraftDiffOut {
+  title_diff: string[];
+  body_diff: string[];
+  chunks_preview: ChunkPreviewOut[];
+}
+
+export interface AuthorityQueueItemOut {
+  article: ArticleOut;
+  reason: string;
+  draft_id: string | null;
+  proposed_risk_tier: string | null;
+  change_note: string;
+  published_at: string | null;
+  published_by: string | null;
+  title_diff: string[];
+  body_diff: string[];
+}
+
+export interface BulkAllowedOut {
+  updated: number;
+}
+
+export interface AuthorityLogOut {
+  id: string;
+  slug: string;
+  field: string;
+  old_value: string | null;
+  new_value: string | null;
+  actor: string;
+  reason: string;
+  changed_at: string;
+}
+
+export interface GapTicketOut {
+  public_id: string;
+  subject_masked: string;
+}
+
+export interface GapClusterOut {
+  id: string;
+  label: string;
+  size: number;
+  tickets: GapTicketOut[];
+  nearest_slug: string | null;
+  nearest_title: string | null;
+  nearest_similarity: number | null;
+  state: string;
+  dismiss_reason: string;
+  dismissed_until: string | null;
+  draft_id: string | null;
+}
+
+export interface GapReportOut {
+  id: string | null;
+  window_start: string | null;
+  window_end: string | null;
+  tickets_considered: number;
+  clusters: GapClusterOut[];
+}
+
+export interface DraftIn {
+  kind?: DraftKind;
+  slug: string;
+  title?: string;
+  body?: string;
+  category?: TicketCategory | null;
+  proposed_risk_tier?: RiskTier | null;
+  change_note?: string;
+  gap_cluster_id?: string | null;
+}
+
+export interface DraftPatchIn {
+  title?: string | null;
+  body?: string | null;
+  category?: TicketCategory | null;
+  proposed_risk_tier?: RiskTier | null;
+  change_note?: string | null;
+}
+
+export interface DraftReviewIn {
+  decision: "approve" | "request_changes";
+  comment?: string;
+}
+
+export interface BulkAllowedIn {
+  slugs: string[];
+  allowed: boolean;
+  reason: string;
+}
+
+export interface GapDismissIn {
+  reason: string;
 }
 
 export type LLMProposal =

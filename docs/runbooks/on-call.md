@@ -269,6 +269,26 @@ reach people; nothing automated acts.
 To stop automation for any other reason: Settings → Rollout → "Turn off" on the
 branch. One manager or security, instant, no deploy.
 
+## Auto-replies citing a page went to people (`kb_not_authorized`, F6)
+
+**What this means:** the page's text no longer matches the text a manager
+approved: a published edit revoked its authority (a `kb_authority_log` row,
+reason "Nội dung thay đổi ở bản nháp …"), or its text changed some other way
+(`approved_text_sha256` differs). Tickets still reach people; nothing is lost.
+
+**Actions:**
+1. KB → Authority queue lists the page with why it is there. A manager reads
+   the change and grants it again, or leaves it off.
+2. A page in the queue that no draft changed (e.g. after `load_demo_kb`) had
+   its text changed outside review: check `kb_authority_log` and the audit log
+   before granting.
+3. Never set `auto_reply_allowed` or `approved_text_sha256` in SQL: a grant
+   needs a manager, a reason and a log row (ADR-0002).
+
+**A published page reads its old text:** look for `kb_ingest_failed` in the
+audit log. The page kept its old chunks; once ai-engine's `/v1/embed` answers,
+`POST /api/kb/{slug}/reingest` as a manager.
+
 ## DB read-only
 
 **What this means:** spec §10.3 asks the submission endpoint to answer `503`

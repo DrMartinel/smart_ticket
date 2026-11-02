@@ -176,6 +176,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Rollout flags, gates and threshold change requests (F9, ADR-0035) | [apps/rollout/](services/core-api/apps/rollout/), the live check in [rollout.py](services/core-api/apps/rollout/utils/rollout.py) |
 | Mass incidents: matching, the detector, confirm, broadcasts, close-all (F7) | [apps/incidents/](services/core-api/apps/incidents/), the service in [incidents.py](services/core-api/apps/incidents/utils/incidents.py) |
 | Security alerts: raising, grouping, ack targets, triage and release (F8) | [apps/security/](services/core-api/apps/security/), the service in [alerts.py](services/core-api/apps/security/utils/alerts.py) |
+| KB drafts, review, authority queue and gap report (F6, ADR-0036) | [apps/kb/utils/](services/core-api/apps/kb/utils/): [drafts.py](services/core-api/apps/kb/utils/drafts.py), [authority.py](services/core-api/apps/kb/utils/authority.py), [gaps.py](services/core-api/apps/kb/utils/gaps.py) |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
@@ -258,7 +259,8 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 
 | To change… | Go to |
 |---|---|
-| When something is auto-replied | `thresholds.yaml`, or `kb_articles.auto_reply_allowed` — **not** the prompt |
+| When something is auto-replied | `thresholds.yaml`, or a page's authority (granted by a manager, pinned to its text's SHA-256, `KbArticle.is_authorized()`) — **not** the prompt |
+| A KB page's text | A draft (`kb_drafts`) a second person approves (F6, ADR-0036); never a direct write to a page's title or body (only `load_demo_kb` imports the snapshot) |
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/utils/pipeline.py` — not `tasks.py`, which is only the entry point |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `PROMPT_VERSION` in `.env.example` (and your `.env`) |
@@ -462,4 +464,4 @@ this early, the codebase is dense with it) · [development.md](docs/development.
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
 [runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirty-eight
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
-0030–0038 come from the phase 2 pack; 0030–0035 are accepted, 0036–0038 proposed).
+0030–0038 come from the phase 2 pack; 0030–0036 are accepted, 0037–0038 proposed).
