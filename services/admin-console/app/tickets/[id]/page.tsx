@@ -144,9 +144,9 @@ export default function TicketPage() {
       </header>
 
       {notice && (
-        <p className={`mb-4 rounded-md px-3 py-2 text-sm ${notice.startsWith("Not done") ? "danger" : "ok"}`}>
-          {notice}
-        </p>
+        <Alert variant={notice.startsWith("Not done") ? "danger" : "ok"} className="mb-4">
+          <AlertDescription>{notice}</AlertDescription>
+        </Alert>
       )}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -458,7 +458,7 @@ export default function TicketPage() {
 function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
     <Card asChild>
-      <section className="p-5">
+      <section className="p-5" data-tour={`ticket-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold">{title}</h2>
           {aside}

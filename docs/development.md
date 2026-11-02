@@ -110,6 +110,10 @@ Bump the version in the filename and the setting in the root `.env.example` (and
 
 Via the API/UI, or for the demo KB: add a guide to `demo_kb/sources.json`, run `python3 demo_kb/fetch.py`, commit the updated `manifest.json`, and run `make load-demo-kb`. Articles are split into chunks at Markdown headings (`apps/kb/utils/chunking.py`), and each chunk records its section title. Note that `auto_reply_allowed` cannot be set directly — it goes through the governance path (manager role, mandatory reason, `kb_authority_log` entry). `load_demo_kb` follows that same path for the approvals in `demo_kb/curation.json`, each pinned to the SHA-256 of the reviewed text, which is why the DB `CHECK` constraint holds for every row.
 
+### Change a screen that has a guide
+
+Both frontends carry step-by-step guides (Hướng dẫn · Guides): the steps are data in each app's `lib/tours.ts`, and the engine is `components/tour/` (a copy in each app; the frontends share no package). A step points at an element by CSS selector, optionally narrowed by `text`; prefer a `data-tour` attribute or an existing `aria-label` over a class. When you rename, move or remove a guided element, or change who may use it, update its step in the same PR: a step whose target is gone tells the user it isn't on the page and lets them go on, so nothing fails loudly. Guide text is written in both languages (`vi`, `en`) and shown in the user's language. A step opens its page once, when it starts, and the getting-started guide opens once per sign-in, so someone who wanders off or closes a guide is never pulled back. Which guides someone has finished is kept in their browser only.
+
 ### Add a golden eval case
 
 Append to `evals/golden/tickets.jsonl` following [`SCHEMA.md`](../evals/golden/SCHEMA.md), tagged with one of the six distribution buckets (or `edge`, with a specific kind tag). Best sources are real `eval_candidates` rows — humans correcting the system is exactly the signal calibration needs.
