@@ -175,7 +175,7 @@ class TicketManager(models.Manager["Ticket"]):
         """The tickets `view` shows `user`, newest first, matching `query` on id or subject."""
         tickets = self.select_related(
             "reporter", "assigned_to", "workflow_status__base"
-        ).prefetch_related("review_items")
+        ).prefetch_related("review_items", "sla_clocks")
         match view:
             case StaffView.REVIEW:
                 from apps.review.models import ReviewItem
@@ -226,7 +226,7 @@ class TicketManager(models.Manager["Ticket"]):
             )
             .filter(rank__lte=per_column)
             .select_related("reporter", "assigned_to", "workflow_status__base")
-            .prefetch_related("review_items")
+            .prefetch_related("review_items", "sla_clocks")
             .order_by("-created_at")
         )
         return TicketBoard(items=list(newest), counts=counts)
@@ -413,7 +413,11 @@ class Ticket(BaseModel):
         "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="duplicates"
     )
 
+    # Mirror of the resolution clock's due time (F1); `before_sla` rules read it.
     sla_due_at = models.DateTimeField(null=True, blank=True)
+    priority = models.CharField(
+        max_length=2, null=True, blank=True, choices=[(p, p) for p in ("P1", "P2", "P3", "P4")]
+    )
     resolved_at = models.DateTimeField(null=True, blank=True)
     reopened_count = models.SmallIntegerField(default=0)  # the most important metric
     created_at = models.DateTimeField(auto_now_add=True)

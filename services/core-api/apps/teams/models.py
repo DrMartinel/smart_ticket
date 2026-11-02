@@ -48,6 +48,9 @@ class Team(BaseModel):
     )
     max_open_per_member = models.PositiveIntegerField(null=True, blank=True)
     keycloak_group = models.CharField(max_length=200, null=True, blank=True)
+    calendar = models.ForeignKey(
+        "sla.Calendar", on_delete=models.PROTECT, null=True, blank=True, related_name="teams"
+    )
     is_fallback = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
 

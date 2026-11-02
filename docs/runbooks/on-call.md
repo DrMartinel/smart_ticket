@@ -193,6 +193,23 @@ notices are written with the event and don't depend on SMTP or webhooks.
 4. Don't turn off a mandatory cell to quiet a noisy alert: the API refuses, and
    the alert is the point.
 
+## SLA clocks missing or wrong (`sla_update_failed` in the audit log)
+
+**What this means:** the SLA hook failed on a status change. The move itself went
+through (ADR-0030 §2); the ticket is queued in `sla_rebuilds` and the next sweep
+(`SLA_SWEEP_INTERVAL_SEC`) rebuilds its clocks from the transfer log.
+
+**Actions:**
+1. Check the `beat` and `worker` containers: without the sweep nothing is rebuilt,
+   warned or breached.
+2. If one ticket stays wrong, a manager can rebuild it:
+   `POST /api/tickets/{id}/sla/rebuild`.
+3. Many failures at once usually mean a calendar can't be read (no working hours,
+   a bad zone) or no active default policy: check `/settings/sla` and
+   `/settings/sla/calendars`.
+4. Never fix a breach by editing a clock row: change the priority or the policy,
+   which are audited.
+
 ## DB read-only
 
 **What this means:** spec §10.3 asks the submission endpoint to answer `503`

@@ -29,6 +29,7 @@ from apps.lifecycle.utils.templates import (
     placeholders,
 )
 from apps.notifications.utils.notifier import Notice, notifier
+from apps.sla.utils.clocks import SlaError, sla_clocks
 from apps.teams.models import Team
 from apps.teams.utils.assignment import assignment
 from apps.notifications.utils.vocabulary import NotificationEvent
@@ -288,21 +289,27 @@ class AssignTeam(ActionHandler):
 
 
 class SetSlaParams(Params):
-    offset_hours: float = Field(
-        gt=0, le=87600, description="Hours from now", json_schema_extra={"widget": "text"}
+    business_hours: float = Field(
+        gt=0,
+        le=87600,
+        description="Resolution target in business hours on the ticket's calendar",
+        json_schema_extra={"widget": "text"},
     )
+    reason: str = widget("text", "Why this ticket gets its own target")
 
 
 class SetSla(ActionHandler):
     code = ActionCode.SET_SLA
     name = "Set SLA"
-    description = "Sets the SLA due time to now plus an offset."
+    description = "Overrides the resolution target in business hours, audited (ADR-0030)."
     params_model = SetSlaParams
 
     def execute(self, params: SetSlaParams, ctx: ActionContext) -> ActionResult:
-        ctx.ticket.sla_due_at = timezone.now() + timedelta(hours=params.offset_hours)
-        ctx.ticket.save(update_fields=["sla_due_at"])
-        return ActionResult({"sla_due_at": ctx.ticket.sla_due_at.isoformat()})
+        try:
+            clock = sla_clocks.override(ctx.ticket, params.business_hours, params.reason)
+        except SlaError as e:
+            raise ActionError(FailureCode.INVALID_PARAM, e.message) from e
+        return ActionResult({"sla_due_at": clock.due_at.isoformat() if clock.due_at else None})
 
 
 class MoveStatusParams(Params):

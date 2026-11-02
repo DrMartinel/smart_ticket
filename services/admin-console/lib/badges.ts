@@ -84,3 +84,31 @@ export function deliveryStateLabel(state: string, attempts = 0): string {
   if (state === "queued" && attempts > 0) return "retrying";
   return state;
 }
+
+/** A ticket priority, P1 (critical) to P4 (low). */
+export function ticketPriorityClasses(priority: string | null | undefined): string {
+  switch (priority) {
+    case "P1":
+      return "tone-danger";
+    case "P2":
+      return "tone-warn";
+    default:
+      return "tone-neutral";
+  }
+}
+
+/** An SLA badge level: on_track, at_risk, breached, paused, met. */
+export function slaLevelClasses(level: string): string {
+  switch (level) {
+    case "on_track":
+      return "tone-info";
+    case "at_risk":
+      return "tone-warn";
+    case "breached":
+      return "tone-danger";
+    case "met":
+      return "tone-ok";
+    default:
+      return "tone-neutral";
+  }
+}

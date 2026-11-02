@@ -8,6 +8,7 @@ import { QUEUE_LABEL } from "@/lib/explain";
 import { dateTime, humanize, relativeTime } from "@/lib/format";
 import { VIEWS } from "@/lib/views";
 import StatusChip from "@/components/StatusChip";
+import SlaBadge, { PriorityChip } from "@/components/SlaBadge";
 import { priorityClasses } from "@/lib/badges";
 import type { StaffTicketPage, StaffTicketRow } from "@/lib/types/generated";
 
@@ -104,7 +105,7 @@ export default function TicketsPage() {
                 <th className="w-44 px-4 py-2.5 font-medium">Status</th>
                 <th className="w-52 px-4 py-2.5 font-medium">Needs</th>
                 <th className="hidden w-40 px-4 py-2.5 font-medium xl:table-cell">Owner</th>
-                <th className="hidden w-36 px-4 py-2.5 font-medium xl:table-cell">SLA</th>
+                <th className="hidden w-56 px-4 py-2.5 font-medium xl:table-cell">SLA</th>
                 <th className="hidden w-28 px-4 py-2.5 text-right font-medium lg:table-cell">Created</th>
               </tr>
             </thead>
@@ -146,7 +147,10 @@ export default function TicketsPage() {
                     {t.assigned_team && <p className="text-xs text-[var(--text-muted)]">{t.assigned_team}</p>}
                   </td>
                   <td className="hidden whitespace-nowrap px-4 py-3 xl:table-cell">
-                    <SlaCell due={t.sla_due_at} done={t.status.is_completed} />
+                    <span className="inline-flex items-center gap-1.5">
+                      {t.priority && <PriorityChip priority={t.priority} />}
+                      <SlaBadge badge={t.sla} />
+                    </span>
                   </td>
                   <td className="hidden whitespace-nowrap px-4 py-3 text-right text-[var(--text-muted)] lg:table-cell" title={dateTime(t.created_at)}>
                     {relativeTime(t.created_at)}
@@ -173,16 +177,5 @@ export default function TicketsPage() {
         </div>
       )}
     </div>
-  );
-}
-
-function SlaCell({ due, done }: { due: string | null; done: boolean }) {
-  if (!due) return <span className="text-[var(--text-muted)]">—</span>;
-  if (done) return <span className="text-[var(--text-muted)]">Met</span>;
-  const overdue = new Date(due).getTime() < Date.now();
-  return (
-    <span className={overdue ? "font-medium text-[var(--danger)]" : ""} title={dateTime(due)}>
-      {overdue ? `Overdue ${relativeTime(due).replace(" ago", "")}` : `Due ${relativeTime(due)}`}
-    </span>
   );
 }

@@ -146,7 +146,9 @@ class People:
 
         self.check_member_or_manager(actor, team)
         rows = (
-            TeamMembership.objects.with_load(today()).filter(team=team).order_by("user__username")
+            TeamMembership.objects.with_load(today(team))
+            .filter(team=team)
+            .order_by("user__username")
         )
         if actor.role != UserRole.MANAGER.value and not team.is_lead(actor):
             rows = rows.filter(user=actor)
@@ -160,7 +162,9 @@ class People:
             .values_list("assigned_to", "oldest")
         )
         nxt = (
-            TeamMembership.objects.eligible(team, today()).values_list("user_id", flat=True).first()
+            TeamMembership.objects.eligible(team, today(team))
+            .values_list("user_id", flat=True)
+            .first()
         )
         return [
             WorkloadRow(

@@ -62,6 +62,48 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
             "{{notice.detail}}. The ticket is with team {{ticket.assignedTeam}}.",
         ),
     },
+    E.SLA_WARNING: {
+        VI: (
+            "Sắp hết hạn SLA ({{notice.reason}}): {{ticket.id}}",
+            "Hạn {{notice.detail}}. {{ticket.subject}}",
+        ),
+        EN: (
+            "SLA due soon ({{notice.reason}}): {{ticket.id}}",
+            "Due {{notice.detail}}. {{ticket.subject}}",
+        ),
+    },
+    E.SLA_BREACHED: {
+        VI: (
+            "Quá hạn SLA ({{notice.reason}}): {{ticket.id}}",
+            "Hạn là {{notice.detail}}. {{ticket.subject}}",
+        ),
+        EN: (
+            "SLA breached ({{notice.reason}}): {{ticket.id}}",
+            "It was due {{notice.detail}}. {{ticket.subject}}",
+        ),
+    },
+    E.SLA_BREACHED_ESCALATED: {
+        VI: (
+            "Quá hạn SLA kéo dài ({{notice.reason}}): {{ticket.id}}",
+            "Hạn là {{notice.detail}}. Nhóm {{ticket.assignedTeam}}, người xử lý "
+            "{{ticket.assignee}}. {{ticket.subject}}",
+        ),
+        EN: (
+            "SLA breach escalated ({{notice.reason}}): {{ticket.id}}",
+            "It was due {{notice.detail}}. Team {{ticket.assignedTeam}}, assignee "
+            "{{ticket.assignee}}. {{ticket.subject}}",
+        ),
+    },
+    E.SLA_HOLIDAYS_MISSING: {
+        VI: (
+            "Chưa nhập ngày nghỉ lễ năm {{notice.reason}}",
+            "{{notice.detail}}. Hãy nhập lịch nghỉ trước khi hết năm.",
+        ),
+        EN: (
+            "Holidays for {{notice.reason}} not entered",
+            "{{notice.detail}}. Enter them before the year ends.",
+        ),
+    },
     E.APPROVAL_REQUESTED: {
         VI: (
             "Cần bạn phê duyệt {{ticket.id}}: {{ticket.subject}}",

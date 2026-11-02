@@ -25,12 +25,16 @@ DEFAULT_STATUSES = [
     ("reopened", "Reopened", "Open", "#F97316"),
     ("in_progress", "In progress", "In progress", "#F59E0B"),
     ("on_hold", "On hold", "On hold", "#8B5CF6"),
+    ("waiting_on_requester", "Waiting on requester", "On hold", "#A78BFA"),
     ("auto_replied", "Auto-replied", "Resolved", "#10B981"),
     ("resolved", "Resolved", "Resolved", "#22C55E"),
     ("closed", "Closed", "Closed", "#64748B"),
 ]
 
 DEFAULT_WORKFLOW = "Default"
+
+# Statuses whose time doesn't count toward the SLA (F1, BR-F1-07).
+PAUSES_SLA = frozenset({"waiting_on_requester"})
 
 
 def seed_default_workflow(system_status: Any, workflow: Any, workflow_status: Any) -> Any:
@@ -59,10 +63,11 @@ def seed_default_workflow(system_status: Any, workflow: Any, workflow_status: An
     )
     default.is_default = True
     default.save(update_fields=["is_default"])
+    # Migrations before lifecycle 0004 pass a model without `pauses_sla`.
+    has_pause = any(f.name == "pauses_sla" for f in workflow_status._meta.get_fields())
     for order, (key, name, base, color) in enumerate(DEFAULT_STATUSES, start=1):
-        workflow_status.objects.get_or_create(
-            workflow=default,
-            key=key,
-            defaults={"base": bases[base], "name": name, "color": color, "order": order},
-        )
+        defaults = {"base": bases[base], "name": name, "color": color, "order": order}
+        if has_pause:
+            defaults["pauses_sla"] = key in PAUSES_SLA
+        workflow_status.objects.get_or_create(workflow=default, key=key, defaults=defaults)
     return default

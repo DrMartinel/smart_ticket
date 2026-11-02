@@ -49,6 +49,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 Board
               </NavItem>
             )}
+            {user.role !== "employee" && (
+              <NavItem href="/sla" active={pathname === "/sla"}>
+                SLA at risk
+              </NavItem>
+            )}
           </Group>
           {user.role !== "security" && (
             <Group label="Insights">
@@ -96,6 +101,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
                   </NavItem>
                 </>
               )}
+              <NavItem href="/settings/sla" active={pathname === "/settings/sla"}>
+                SLA policies
+              </NavItem>
+              <NavItem href="/settings/sla/calendars" active={pathname.startsWith("/settings/sla/calendars")}>
+                Calendars
+              </NavItem>
+              <NavItem href="/settings/sla/holidays" active={pathname.startsWith("/settings/sla/holidays")}>
+                Holidays
+              </NavItem>
               <NavItem href="/settings/teams" active={pathname.startsWith("/settings/teams")}>
                 Teams
               </NavItem>

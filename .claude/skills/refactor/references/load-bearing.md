@@ -253,6 +253,22 @@ guard and that comment is later trimmed, the entry is the record.
   reviewer confirmed (Jev's signal). Reading the proposal would let the LLM pick
   the team (ADR-0001).
 
+### SLA clocks (F1, ADR-0030)
+
+- **`SlaClocks.guarded` wrapping every clock change in a savepoint and catching
+  every error.** The hook runs inside `system_move`, which must never fail for a
+  workflow reason (ADR-0028 §2). *`test_system_move_succeeds_when_sla_hook_raises`.*
+- **`policy_snapshot` on each clock.** Reading the live policy would move every
+  running ticket's due time when someone edits a target (BR-F1-05).
+  *`test_policy_edit_does_not_change_running_clock`.*
+- **The `warned_at` / `breached_at` / `escalated_at` null checks under
+  `skip_locked`, and notice ids from ticket, kind, start and level.** Without
+  both, overlapping sweeps or a rebuild send the same breach again.
+  *`test_each_sla_level_fires_once`, `test_a_rebuild_does_not_send_a_breach_again`.*
+- **`recompute` keeping a due time that has already passed.** Recomputing past the
+  target would otherwise stamp "due now" over the real breach time.
+  *`test_a_rebuild_keeps_the_time_a_clock_fell_due`.*
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).

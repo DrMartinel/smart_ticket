@@ -9,6 +9,8 @@ from datetime import datetime
 
 from ninja import Field, Schema
 
+from apps.sla.response_schema import SlaBadgeOut
+from apps.sla.utils.clocks import Badge, sla_clocks
 from apps.tickets.models import PiiAccessLog, RoutingDecision, Ticket
 from apps.tickets.utils.patterns import placeholder_level
 
@@ -90,8 +92,14 @@ class StaffTicketRow(Schema):
     pii_level: str
     created_at: datetime
     sla_due_at: datetime | None
+    priority: str | None = None
+    sla: SlaBadgeOut | None = None
     review: OpenReviewOut | None
     version: int
+
+    @staticmethod
+    def resolve_sla(ticket: Ticket) -> Badge | None:
+        return sla_clocks.badge(ticket)
 
     @staticmethod
     def resolve_status(ticket: Ticket) -> StatusOut:

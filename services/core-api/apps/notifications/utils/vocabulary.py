@@ -178,24 +178,24 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.SLA_WARNING: EventSpec(
         "F1",
-        False,
+        True,
         "SLA warning",
         "Cảnh báo SLA",
         _cells((K.ASSIGNEE,), BOTH) + _cells((K.TEAM_LEAD,), IN_APP),
     ),
     E.SLA_BREACHED: EventSpec(
-        "F1", False, "SLA breached", "Vi phạm SLA", _cells((K.ASSIGNEE, K.TEAM_LEAD), BOTH)
+        "F1", True, "SLA breached", "Vi phạm SLA", _cells((K.ASSIGNEE, K.TEAM_LEAD), BOTH)
     ),
     E.SLA_BREACHED_ESCALATED: EventSpec(
         "F1",
-        False,
+        True,
         "SLA breach escalated",
         "Vi phạm SLA được báo cấp trên",
         _cells((K.MANAGER,), BOTH),
     ),
     E.SLA_HOLIDAYS_MISSING: EventSpec(
         "F1",
-        False,
+        True,
         "Holiday calendar missing",
         "Thiếu lịch nghỉ lễ",
         _cells((K.WORKFLOW_ADMINS,), BOTH),

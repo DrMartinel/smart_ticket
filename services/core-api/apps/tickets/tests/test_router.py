@@ -27,6 +27,7 @@ from config.settings.base import (
     PiiRevealThresholds,
     RetrievalThresholds,
     RoutingThresholds,
+    SlaThresholds,
     Thresholds,
 )
 from apps.tickets.utils.patterns import PIILevel
@@ -95,6 +96,9 @@ def make_thresholds(**overrides) -> Thresholds:
             max_attempts=5, stuck_after_sec=120, in_app_retention_days=90
         ),
         assignment=AssignmentThresholds(reassign_note_min_chars=10),
+        sla=SlaThresholds(
+            warn_at_percent=75, escalate_at_percent=125, holidays_reminder_month_day="12-01"
+        ),
     )
     base.update(overrides)
     return Thresholds(**base)
