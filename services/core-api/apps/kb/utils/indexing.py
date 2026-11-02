@@ -7,21 +7,31 @@ from __future__ import annotations
 
 import uuid
 
-from django.db import models, transaction
+from django.db import transaction
 
 from infrastructure.ai_engine import ai_engine
 
-from apps.kb.models import AssociationSource, KbArticle, KbArticleAssociation, KbChunk
+from apps.kb.models import (
+    AssociationSource,
+    KbArticle,
+    KbArticleAssociation,
+    KbChunk,
+    RebuildReason,
+)
 from apps.kb.utils.associations import build_id, link_scores, linked_urls
 from apps.kb.utils.chunking import chunk_sections, rough_token_count
+from apps.kb.utils.graph import kb_graph
 
 
 class ArticleIndexer:
     """Writes the chunks and associations retrieval reads, and which articles are active."""
 
     @transaction.atomic
-    def ingest(self, article: KbArticle) -> list[KbChunk]:
-        """Re-chunks and re-embeds `article`, and refreshes its associations (ADR-0025)."""
+    def ingest(
+        self, article: KbArticle, *, graph_rebuild: RebuildReason | None = RebuildReason.PUBLISH
+    ) -> list[KbChunk]:
+        """Re-chunks and re-embeds `article`, rebuilds its authored links, marks its entity-graph
+        edges stale and, unless `graph_rebuild` is None, files a rebuild request (F11)."""
 
         KbChunk.objects.filter(article=article).delete()
         chunks: list[KbChunk] = []
@@ -38,10 +48,9 @@ class ArticleIndexer:
                 embedding=embedding,
             )
             chunks.append(chunk)
-        KbArticleAssociation.objects.filter(
-            models.Q(source_article=article) | models.Q(target_article=article),
-            source=AssociationSource.ENTITY_GRAPH,
-        ).delete()
+        kb_graph.mark_stale(article)
+        if graph_rebuild is not None:
+            kb_graph.request_rebuild(article, graph_rebuild)
         self.rebuild_authored_links([article])
         return chunks
 

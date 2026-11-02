@@ -128,12 +128,27 @@ class GapClosureOut(Schema):
     complete: bool
 
 
+class GraphHealthOut(Schema):
+    pages: int
+    pages_with_edges: int
+    edges: int
+    stale_edges: int
+    hidden: int
+    added: int
+    pending_requests: int
+    failed_requests: int
+    auto_replies: int
+    auto_replies_from_expansion: int
+    expansion_share: float | None
+
+
 class KbReportOut(Schema):
     weeks: int
     refusals: list[RefusalWeekOut]
     open_clusters: int
     open_by_label: dict[str, int]
     closures: list[GapClosureOut]
+    graph: GraphHealthOut
 
 
 class CsatLineOut(Schema):

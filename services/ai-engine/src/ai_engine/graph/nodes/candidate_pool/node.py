@@ -18,10 +18,12 @@ from ai_engine.graph.build.node import BaseNode
 from ai_engine.graph.nodes.candidate_pool.shortlister import shortlister
 from ai_engine.graph.state import Candidate
 from ai_engine.graph.nodes.candidate_pool.links import linked_article_ids, nearest_chunks
-from ai_engine.graph.state import RankedChunk, TriageState
+from ai_engine.graph.state import ChunkOrigin, RankedChunk, TriageState
 
 
-def _scored(query: str, candidates: list[Candidate]) -> list[RankedChunk]:
+def _scored(
+    query: str, candidates: list[Candidate], origin: ChunkOrigin = ChunkOrigin.FUSED
+) -> list[RankedChunk]:
     """The candidates with their cross-encoder scores, in input order. A
     shortlister failure raises: the pool is never silently smaller."""
 
@@ -33,6 +35,7 @@ def _scored(query: str, candidates: list[Candidate]) -> list[RankedChunk]:
             article_slug=c.article_slug,
             content=c.content,
             shortlist_score=s,
+            origin=origin,
         )
         for c, s in zip(candidates, scores, strict=True)
     ]
@@ -72,7 +75,7 @@ class CandidatePoolNode(BaseNode):
         )
         added = [c for c in added if c.chunk_id not in seen]
         if added:
-            pool = _by_score(pool + _scored(query, added))
+            pool = _by_score(pool + _scored(query, added, ChunkOrigin.EXPANSION))
         return {"pool": pool}
 
 

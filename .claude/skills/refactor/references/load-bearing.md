@@ -522,3 +522,27 @@ guard and that comment is later trimmed, the entry is the record.
 - **Only the tables `ai_engine_ro` is granted are declared in `core/db/tables.py`,
   and only the offline entity-graph build writes.** *ADR-0004, ADR-0025;
   `tests/test_db_tables.py`.*
+
+### Entity graph as a KB feature (F11, ADR-0037)
+
+- **`ArticleIndexer.ingest` marking `entity_graph` edges stale instead of
+  deleting them.** Deleting drops the page out of link expansion until a
+  manual build; an old pointer to a live fix page is better than none.
+  *`test_ingest_marks_edges_stale_not_deleted`.*
+- **`upsert_from_source` passing `graph_rebuild=None`.** A snapshot load
+  would otherwise file one request per page, and the next `--pending` run
+  re-extracts the whole KB through DeepSeek.
+  *`test_a_snapshot_reload_files_no_rebuild_request`.*
+- **The link query dropping every overridden pair from the built edges.**
+  Without it an `add` over a built edge takes two of the seed's slots, and a
+  `hide` is ignored. Overrides live in their own table, which no build
+  writes, so they outlive rebuilds. *`test_an_overridden_pair_is_never_read_from_the_built_edges`,
+  `test_hide_override_survives_rebuild`, `test_add_override_ranks_first`.*
+- **`--pending` closing its requests in the same `db.write` as the edges.**
+  Closed separately, a failure between the two leaves new edges with an
+  open request (rebuilt again) or a `done` request with old edges.
+  *`test_pending_rebuilds_only_requested_pages_and_closes_them`.*
+- **Graph health counting only runs that report `origin`.** Older runs have
+  none; counting them as fused understates the expansion share.
+  *`test_the_expansion_share_counts_only_runs_that_report_origins`.*
+

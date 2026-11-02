@@ -268,9 +268,22 @@ def _no_match(texts):
     return [[1.0, 0.0] if t != "Quota increase form" else [0.0, 1.0] for t in texts]
 
 
+def _answer(pending=(), reviewed=()):
+    """The build's reads: pending requests, confirmed pairs, then the KB pages."""
+
+    def rows(sql, params):
+        if "FROM kb_graph_rebuild_requests" in sql:
+            return list(pending)
+        if "FROM kb_article_associations" in sql:
+            return list(reviewed)
+        return list(ROWS)
+
+    return rows
+
+
 @pytest.fixture
 def kb(fake_db, monkeypatch):
-    fake = fake_db(lambda sql, params: list(ROWS))
+    fake = fake_db(_answer())
     monkeypatch.setattr(build, "db", fake)
     return fake
 
@@ -365,14 +378,14 @@ def test_the_edges_replace_every_entity_graph_row_in_one_transaction(kb, run):
     assert insert_sql.startswith("INSERT INTO kb_article_associations")
     assert _inserted(kb.writes[0]) == {(FINDINGS, FIX), (COPY, FIX)}
     assert {r["source"] for r in rows} == {"entity_graph"}
-    assert all(r["reviewed"] is False and r["id"] for r in rows)
+    assert all(r["reviewed"] is False and r["stale"] is False and r["id"] for r in rows)
 
 
 def test_a_failed_write_exits_1(fake_db, monkeypatch, capsys, run):
     from sqlalchemy.exc import ProgrammingError
 
     denied = ProgrammingError("INSERT", {}, Exception("permission denied"))
-    monkeypatch.setattr(build, "db", fake_db(lambda sql, params: list(ROWS), write_error=denied))
+    monkeypatch.setattr(build, "db", fake_db(_answer(), write_error=denied))
 
     assert run(ScriptedChat()) == 1
     assert "permission denied" in capsys.readouterr().err
@@ -406,6 +419,144 @@ def test_rescore_only_needs_no_model(kb, run):
     assert run(ScriptedChat()) == 0
 
     assert run(None, "--rescore-only") == 0
+
+
+# --- the pending build (ADR-0037) ---------------------------------------------
+
+REQUEST = uuid.UUID(int=100)
+
+
+@pytest.fixture
+def pending(fake_db, monkeypatch, tmp_path):
+    """A KB where gd.findings has a pending rebuild request and every page's pairs are stored."""
+
+    def use(reviewed=(), write_error=None):
+        fake = fake_db(
+            _answer(pending=[(REQUEST, FINDINGS)], reviewed=reviewed), write_error=write_error
+        )
+        monkeypatch.setattr(build, "db", fake)
+        out = tmp_path / "out"
+        out.mkdir(exist_ok=True)
+        build.BuildFiles(out).write(
+            build.BuildFiles.PAIRS,
+            [
+                build.PagePair("gd.findings", "old symptom", "old fix", "Sandbox"),
+                build.PagePair(
+                    "gd.findings-copy", "backdoor finding", "isolate", "Fixing instances"
+                ),
+            ],
+        )
+        return fake
+
+    return use
+
+
+def test_pending_rebuilds_only_requested_pages_and_closes_them(pending, tmp_path, run):
+    """AC-F11-01, second half (FR-F11-002): only the requested page is re-extracted, only the
+    edges touching it are replaced, fresh, and the request is closed in the same write."""
+    kb = pending()
+    chat = ScriptedChat()
+
+    assert run(chat, "--pending") == 0
+
+    assert len(chat.sections) == 1 and "Backdoor" in chat.sections[0]
+    [write] = kb.writes
+    (clear_sql, _), (insert_sql, rows), (close_sql, _) = write
+    assert clear_sql.startswith("DELETE FROM kb_article_associations")
+    assert "source_article_id IN" in clear_sql and "target_article_id IN" in clear_sql
+    assert insert_sql.startswith("INSERT INTO kb_article_associations")
+    assert {(r["source_article_id"], r["target_article_id"]) for r in rows} == {(FINDINGS, FIX)}
+    assert all(r["stale"] is False for r in rows)
+    assert close_sql.startswith("UPDATE kb_graph_rebuild_requests SET state=")
+    pairs = _lines(tmp_path / "out" / build.BuildFiles.PAIRS)
+    assert {(p["article_slug"], p["symptom"]) for p in pairs} == {
+        ("gd.findings", "backdoor finding"),
+        ("gd.findings-copy", "backdoor finding"),
+    }
+
+
+def test_a_confirmed_edge_stays_confirmed_after_a_rebuild(pending, run):
+    kb = pending(reviewed=[(FINDINGS, FIX)])
+
+    assert run(ScriptedChat(), "--pending") == 0
+
+    [(_, _), (_, rows), _] = kb.writes[0]
+    assert [r["reviewed"] for r in rows] == [True]
+
+
+def test_hide_override_survives_rebuild(pending, run):
+    """AC-F11-02 (BR-F11-03): the build rewrites edges but never touches an editor's override;
+    the link query drops the hidden pair (test_links)."""
+    kb = pending()
+
+    assert run(ScriptedChat(), "--pending") == 0
+
+    statements = [sql for write in kb.writes for sql, _ in write]
+    assert statements and not any("kb_association_overrides" in sql for sql in statements)
+
+
+def test_a_failed_pending_build_marks_the_requests_failed_and_keeps_the_edges(pending, capsys, run):
+    kb = pending()
+
+    assert run(ScriptedChat(failing=("Backdoor",)), "--pending") == 1
+
+    [[(sql, _)]] = kb.writes
+    assert sql.startswith("UPDATE kb_graph_rebuild_requests SET state=")
+    assert "gd.findings" in capsys.readouterr().err
+
+
+def test_a_pending_build_with_no_stored_pairs_fails_its_requests(fake_db, monkeypatch, run):
+    kb = fake_db(_answer(pending=[(REQUEST, FINDINGS)]))
+    monkeypatch.setattr(build, "db", kb)
+
+    assert run(ScriptedChat(), "--pending") == 1
+
+    assert [sql.split(" SET")[0] for write in kb.writes for sql, _ in write] == [
+        "UPDATE kb_graph_rebuild_requests"
+    ]
+
+
+def test_no_pending_request_reads_no_page_and_calls_no_model(kb, run):
+    assert run(None, "--pending") == 0
+
+    assert kb.writes == []
+    assert len(kb.sessions) == 1
+
+
+def test_rebuilds_read_kb_text_only(pending, run):
+    """AC-F11-05 (BR-F11-05): every query reads KB tables, and every section sent to DeepSeek is
+    page text."""
+    kb = pending()
+    chat = ScriptedChat()
+
+    assert run(chat, "--pending") == 0
+
+    tables = {
+        t
+        for session in kb.sessions
+        for sql, _ in session.executed
+        for t in re.findall(r"FROM (\w+)", sql)
+    }
+    assert tables <= {"kb_articles", "kb_article_associations", "kb_graph_rebuild_requests"}
+    assert chat.sections == [
+        build.SectionSplitter(
+            max_tokens=settings.entity_graph_section_tokens,
+            count=len,
+            strip_links=EntityGraphPolicy.load(settings.entity_graph_policy_version).strip_links,
+        ).split(ROWS[0][3])[0]
+    ]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [["--watch"], ["--pending", "--rescore-only"], ["--pending", "--sample", "1"]],
+    ids=["watch-without-pending", "pending-and-rescore", "pending-and-sample"],
+)
+def test_pending_takes_no_other_mode(argv, tmp_path):
+    with pytest.raises(SystemExit):
+        build.EntityGraphBuild.parse_args(
+            ["--working-dir", str(tmp_path), "--out", str(tmp_path), *argv]
+        )
 
 
 def test_the_shipped_policy_loads():

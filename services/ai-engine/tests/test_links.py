@@ -10,6 +10,7 @@ import uuid
 import pytest
 
 from ai_engine.core.config import settings
+from ai_engine.graph.nodes.candidate_pool import links
 from ai_engine.graph.nodes.candidate_pool.links import linked_article_ids
 
 SEED_A, SEED_B = uuid.UUID(int=1), uuid.UUID(int=2)
@@ -37,15 +38,43 @@ def test_reads_one_source_active_targets_ranked_by_score_per_seed(fake_db, sourc
     linked_article_ids([SEED_A], max_per_seed=3)
     sql, params = _sql(db)
 
-    assert "FROM kb_article_associations JOIN kb_articles" in sql
-    assert "kb_articles.id = kb_article_associations.target_article_id" in sql
-    assert "kb_articles.is_active IS true" in sql
-    assert (
-        "PARTITION BY kb_article_associations.source_article_id ORDER BY "
-        "kb_article_associations.score DESC, kb_article_associations.target_article_id" in sql
-    )
+    assert "FROM kb_article_associations" in sql
+    assert "kb_articles.id = anon_" in sql and "kb_articles.is_active IS true" in sql
+    assert "PARTITION BY anon_2.seed ORDER BY anon_2.tier, anon_2.score DESC, anon_2.target" in sql
     assert "entity_graph" in params.values()
     assert 3 in params.values()
+
+
+def test_an_overridden_pair_is_never_read_from_the_built_edges(fake_db, source, use_db):
+    """BR-F11-03: a hidden pair is dropped, and an added pair is not counted twice."""
+    source("entity_graph")
+    db = use_db(fake_db())
+
+    linked_article_ids([SEED_A], max_per_seed=3)
+    sql, _ = _sql(db)
+
+    assert "NOT (EXISTS (SELECT kb_association_overrides.id" in sql
+    assert (
+        "kb_association_overrides.source_article_id = kb_article_associations.source_article_id"
+        in sql
+    )
+    assert "kb_association_overrides.action = " in sql
+
+
+def test_add_override_ranks_first(fake_db, source, use_db):
+    """BR-F11-03: the query ranks added pointers (tier 0) before every built edge (tier 1)."""
+    source("entity_graph")
+    db = use_db(fake_db([(SEED_A, T3, None), (SEED_A, T1, 9.0), (SEED_A, T2, 1.0)]))
+
+    associations = links.associations([SEED_A], max_per_seed=3)
+    sql, params = _sql(db)
+
+    assert [(a.target, a.score) for a in associations] == [(T3, None), (T1, 9.0), (T2, 1.0)]
+    assert (
+        "1 AS tier" in sql and "UNION ALL SELECT kb_association_overrides.source_article_id" in sql
+    )
+    assert "NULL AS score, 0 AS tier FROM kb_association_overrides" in sql
+    assert "add" in params.values()
 
 
 def test_seed_order_then_score_order_each_target_once(fake_db, source, use_db):

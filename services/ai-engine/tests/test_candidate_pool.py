@@ -11,6 +11,7 @@ from uuid import UUID
 import pytest
 
 from ai_engine.graph.nodes.candidate_pool.node import candidate_pool
+from ai_engine.graph.state import ChunkOrigin
 
 
 @pytest.fixture(autouse=True)
@@ -172,3 +173,24 @@ def test_the_pool_without_a_draft_raises(
 
     with pytest.raises(ValueError, match="drafted answer"):
         candidate_pool(make_state(candidates=[make_candidate(1, "a")], draft_embedding=[]))
+
+
+def test_expansion_chunks_are_tagged_and_fused_ones_are_not(
+    fake_db, fake_shortlister, make_candidate, make_state, monkeypatch, use_db, use_shortlister
+):
+    """FR-F11-006: a chunk reached only through link expansion says so."""
+    from ai_engine.graph.nodes.candidate_pool import node as pool_node
+
+    linked = UUID(int=99)
+    # The first nearest-chunks read is the fused pages', the second the linked page's.
+    answers = iter([[], [(UUID(int=98), linked, "kb-linked", "linked")]])
+    use_db(fake_db(rows=lambda sql, params: next(answers)))
+    use_shortlister(fake_shortlister(scores=[0.5]))
+    monkeypatch.setattr(pool_node, "linked_article_ids", lambda seeds, max_per_seed: [linked])
+
+    pool = candidate_pool(make_state(candidates=[make_candidate(1, "a")]))["pool"]
+
+    assert {(c.article_slug, c.origin) for c in pool} == {
+        ("kb-a", ChunkOrigin.FUSED),
+        ("kb-linked", ChunkOrigin.EXPANSION),
+    }

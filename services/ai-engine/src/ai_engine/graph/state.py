@@ -8,6 +8,7 @@ would be silently discarded, so it raises instead.
 from __future__ import annotations
 
 import uuid
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -29,6 +30,14 @@ class Candidate(BaseModel):
     content: str
 
 
+class ChunkOrigin(StrEnum):
+    """How a chunk joined the pool: retrieval's fused candidates (and their
+    pages' chunks nearest the draft), or link expansion (ADR-0037)."""
+
+    FUSED = "fused"
+    EXPANSION = "expansion"
+
+
 class RankedChunk(BaseModel):
     """A chunk with one score per reranking stage (never an RRF score,
     ADR-0005). `shortlist_score`: the cross-encoder's (lexical in CI), which
@@ -44,6 +53,7 @@ class RankedChunk(BaseModel):
     content: str
     shortlist_score: float
     rerank_score: float | None = None
+    origin: ChunkOrigin = ChunkOrigin.FUSED
 
     def final_score(self) -> float:
         """Raises when Jev hasn't scored the chunk: falling back to the

@@ -13,9 +13,19 @@ from apps.accounts.permissions import (
     require_access,
     require_role,
 )
-from apps.kb.models import DraftKind, GapState, KbArticle, KbAuthorityLog, KbDraft
+from apps.kb.models import (
+    DraftKind,
+    GapState,
+    KbArticle,
+    KbAssociationOverride,
+    KbAuthorityLog,
+    KbDraft,
+    KbGraphRebuildRequest,
+)
 from apps.kb.request_schema import (
     ArticleFilter,
+    GraphOverrideIn,
+    GraphReasonIn,
     ArticleIn,
     AuthorityLogFilter,
     AutoReplyFlagIn,
@@ -29,6 +39,10 @@ from apps.kb.request_schema import (
 )
 from apps.kb.response_schema import (
     ArticleOut,
+    AssociationOverrideOut,
+    GraphEdgeOut,
+    PageGraphOut,
+    RebuildRequestOut,
     AuthorityLogOut,
     AuthorityQueueItemOut,
     BulkAllowedOut,
@@ -41,6 +55,7 @@ from apps.kb.response_schema import (
 from apps.kb.utils.authority import kb_authority
 from apps.kb.utils.drafts import DraftDiff, kb_drafts
 from apps.kb.utils.gaps import kb_gaps
+from apps.kb.utils.graph import GraphEdge, PageGraph, kb_graph
 from apps.kb.utils.indexing import indexer
 
 router = Router(tags=["kb"])
@@ -225,3 +240,44 @@ def dismiss_gap(
     request: AuthedRequest, cluster_id: uuid.UUID, payload: GapDismissIn
 ) -> GapClusterOut:
     return GapClusterOut.of(kb_gaps.dismiss(cluster_id, request.auth, payload.reason))
+
+
+# ── page graph (F11, ADR-0037) ──
+
+
+@router.get("/{slug}/graph", auth=SessionAuth(), response=PageGraphOut)
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def page_graph(request: AuthedRequest, slug: str) -> PageGraph:
+    return kb_graph.page(slug)
+
+
+@router.post("/{slug}/graph/edges/{target}/confirm", auth=SessionAuth(), response=GraphEdgeOut)
+@require_access(capabilities=_EDITOR)
+def confirm_edge(request: AuthedRequest, slug: str, target: str) -> GraphEdge:
+    return kb_graph.confirm(slug, target, request.auth)
+
+
+@router.post("/{slug}/graph/overrides", auth=SessionAuth(), response={201: AssociationOverrideOut})
+@require_access(capabilities=_EDITOR)
+def add_override(
+    request: AuthedRequest, slug: str, payload: GraphOverrideIn
+) -> Status[KbAssociationOverride]:
+    override = kb_graph.add_override(
+        slug, payload.target, payload.action, payload.reason, request.auth
+    )
+    return Status(201, override)
+
+
+@router.delete("/{slug}/graph/overrides/{target}", auth=SessionAuth(), response={204: None})
+@require_access(capabilities=_EDITOR)
+def remove_override(
+    request: AuthedRequest, slug: str, target: str, payload: GraphReasonIn
+) -> Status[None]:
+    kb_graph.remove_override(slug, target, payload.reason, request.auth)
+    return Status(204, None)
+
+
+@router.post("/{slug}/graph/rebuild", auth=SessionAuth(), response={201: RebuildRequestOut})
+@require_access(roles=_MANAGER, capabilities=_EDITOR)
+def rebuild_graph(request: AuthedRequest, slug: str) -> Status[KbGraphRebuildRequest]:
+    return Status(201, kb_graph.rebuild(slug, request.auth))

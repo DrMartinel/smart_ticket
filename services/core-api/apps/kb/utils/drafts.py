@@ -44,6 +44,11 @@ class KbRefusal(StrEnum):
     HIGH_RISK_BULK = "high_risk_needs_single_review"
     REASON_REQUIRED = "reason_required"
     CLUSTER_NOT_FOUND = "cluster_not_found"
+    EDGE_NOT_FOUND = "edge_not_found"
+    OVERRIDE_NOT_FOUND = "override_not_found"
+    OVERRIDE_EXISTS = "override_exists"
+    SELF_EDGE = "self_edge"
+    ALREADY_PENDING = "already_pending"
 
 
 class KbError(CodedError):

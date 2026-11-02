@@ -13,7 +13,7 @@ from ninja import Field, Schema
 from pydantic import AliasChoices
 
 if TYPE_CHECKING:
-    from apps.kb.models import KbAuthorityLog, KbGapCluster, KbGapReport
+    from apps.kb.models import KbAssociationOverride, KbAuthorityLog, KbGapCluster, KbGapReport
     from apps.kb.utils.authority import QueueItem
     from apps.kb.utils.drafts import DraftDiff
 
@@ -185,3 +185,57 @@ class GapReportOut(Schema):
             tickets_considered=report.tickets_considered if report else 0,
             clusters=[GapClusterOut.of(c) for c in clusters],
         )
+
+
+# ── page graph (F11) ──
+
+
+class GraphOverrideOut(Schema):
+    action: str
+    reason: str
+    created_by: str
+    created_at: datetime
+
+
+class GraphEdgeOut(Schema):
+    slug: str
+    title: str
+    score: float | None
+    evidence: list[str]
+    build_id: str
+    stale: bool
+    reviewed: bool
+    override: GraphOverrideOut | None
+
+
+class RebuildRequestOut(Schema):
+    id: uuid.UUID
+    reason: str
+    state: str
+    requested_at: datetime
+    done_at: datetime | None
+    build_id: str
+
+
+class PageGraphOut(Schema):
+    slug: str
+    outgoing: list[GraphEdgeOut]
+    incoming: list[GraphEdgeOut]
+    last_build: RebuildRequestOut | None
+    pending_request: RebuildRequestOut | None
+
+
+class AssociationOverrideOut(Schema):
+    source: str
+    target: str
+    action: str
+    reason: str
+    created_at: datetime
+
+    @staticmethod
+    def resolve_source(obj: KbAssociationOverride) -> str:
+        return obj.source_article.slug
+
+    @staticmethod
+    def resolve_target(obj: KbAssociationOverride) -> str:
+        return obj.target_article.slug

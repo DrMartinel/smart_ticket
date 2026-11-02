@@ -153,7 +153,9 @@ gets no signals at all.
 - The role is `ai_engine_ro`, which has SELECT on `kb_articles`, `kb_chunks`,
   `fewshot_examples` and `kb_article_associations` (ADR-0018), plus INSERT and
   DELETE on `kb_article_associations` for the offline entity-graph build only
-  (ADR-0025), and **nothing else**. A new table means a new grant in
+  (ADR-0025), SELECT on `kb_association_overrides` and SELECT plus UPDATE of
+  `state`, `done_at` and `build_id` on `kb_graph_rebuild_requests` (ADR-0037),
+  and **nothing else**. A new table means a new grant in
   `infra/migrations/sql/` *and* an ADR-0004 conversation. It is not a code change.
 - No `session.add/commit/flush/delete`, and no `create_all`. The one write is
   `db.write` from `core/associations/build.py`; `tests/test_db_tables.py` greps

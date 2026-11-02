@@ -1,12 +1,12 @@
 """
-Partial query descriptions of the four tables `ai_engine_ro` may read
-(ADR-0004, ADR-0008, ADR-0018). NOT the schema: core-api owns that, and only the columns
+Partial query descriptions of the six tables `ai_engine_ro` may read
+(ADR-0004, ADR-0008, ADR-0018, ADR-0037). NOT the schema: core-api owns that, and only the columns
 ai-engine uses are declared.
 
 - Never call `create_all()` / `drop_all()`: these are not full definitions.
 - Never instantiate these classes or `session.add()` them.
-- Never add a table outside the grants in
-  0004_grants_and_audit_lockdown.sql and 0006_association_grant.sql.
+- Never add a table outside the grants in 0004_grants_and_audit_lockdown.sql,
+  0006_association_grant.sql and 0009_graph_feature_grants.sql.
 
 `tests/test_db_tables.py` pins the table set and the absence of DDL/write
 calls; "never instantiated" is on review.
@@ -74,6 +74,31 @@ class KbArticleAssociation(Base):
     score: Mapped[float]
     evidence: Mapped[Any] = mapped_column(JSONB)
     reviewed: Mapped[bool]
+    stale: Mapped[bool]
+    build_id: Mapped[str]
+
+
+class KbAssociationOverride(Base):
+    """A KB editor's hide or add between two pages, applied by link expansion (ADR-0037)."""
+
+    __tablename__ = "kb_association_overrides"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    source_article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
+    target_article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
+    action: Mapped[str]
+
+
+class KbGraphRebuildRequest(Base):
+    """A page whose edges the `--pending` build replaces; the build closes it (ADR-0037)."""
+
+    __tablename__ = "kb_graph_rebuild_requests"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    article_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("kb_articles.id"))
+    state: Mapped[str]
+    requested_at: Mapped[datetime]
+    done_at: Mapped[datetime | None]
     build_id: Mapped[str]
 
 

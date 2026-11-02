@@ -9,6 +9,7 @@ networks:
 
 volumes:
   db_data:
+  graph_build:
 
 # Every value comes from .env beside this file (`cp .env.example .env`, the
 # template that documents each one); nothing here repeats a default, and
@@ -190,7 +191,7 @@ services:
     build:
       context: .
       dockerfile: services/ai-engine/Dockerfile
-    environment:
+    environment: &ai-engine-env
       # read-only DSN — the ai_engine_ro role has SELECT-only grants on
       # kb_articles / kb_chunks / fewshot_examples (see infra/migrations/sql).
       # This is a structural permission boundary, not a convention (ADR-0004).
@@ -241,6 +242,7 @@ services:
       ENTITY_GRAPH_SECTION_TOKENS: ${ENTITY_GRAPH_SECTION_TOKENS:?see .env.example}
       ENTITY_GRAPH_LLM_MAX_ASYNC: ${ENTITY_GRAPH_LLM_MAX_ASYNC:?see .env.example}
       ENTITY_GRAPH_RESOLVE_MIN_SIMILARITY: ${ENTITY_GRAPH_RESOLVE_MIN_SIMILARITY:?see .env.example}
+      GRAPH_BUILD_INTERVAL_MIN: ${GRAPH_BUILD_INTERVAL_MIN:?see .env.example}
       RERANK_POOL: ${RERANK_POOL:?see .env.example}
       JEV_BASE_URL: ${JEV_BASE_URL:?see .env.example}
       JEV_MODEL: ${JEV_MODEL:?see .env.example}
@@ -250,6 +252,35 @@ services:
       CLARIFY_OPTION_QUESTION_VERSION: ${CLARIFY_OPTION_QUESTION_VERSION:?see .env.example}
     ports:
       - "8001:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [smart-triage]
+
+  # The entity graph's scheduled `--pending` build (ADR-0037): re-extracts the
+  # pages with a rebuild request every GRAPH_BUILD_INTERVAL_MIN minutes. Same
+  # image and allowlist as ai-engine; its pairs file and reply cache live in
+  # the graph_build volume, first seeded from the demo KB's committed pairs.
+  graph-builder:
+    build:
+      context: .
+      dockerfile: services/ai-engine/Dockerfile
+      args:
+        SYNC_GROUPS: --group build
+    environment: *ai-engine-env
+    command:
+      - sh
+      - -c
+      - >-
+        test -f /graph/out/entity_graph_pairs.jsonl
+        || (mkdir -p /graph/out && cp /seed/entity_graph_pairs.jsonl /graph/out/);
+        exec python -m ai_engine.core.associations.build --pending --watch
+        --out /graph/out --working-dir /graph/cache
+    volumes:
+      - graph_build:/graph
+      - ./demo_kb/associations:/seed:ro
     depends_on:
       db:
         condition: service_healthy

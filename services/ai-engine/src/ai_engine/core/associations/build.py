@@ -16,10 +16,11 @@ import uuid
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, or_, select, update
 from sqlalchemy.exc import SQLAlchemyError
 
 from ai_engine.core.associations.extract import PairExtractor, ReplyCache
@@ -27,8 +28,8 @@ from ai_engine.core.associations.policy import EntityGraphPolicy
 from ai_engine.core.associations.resolve import PageIndex, Resolution
 from ai_engine.core.associations.sections import SectionSplitter
 from ai_engine.core.config import settings
-from ai_engine.core.db.client import db
-from ai_engine.core.db.tables import KbArticle, KbArticleAssociation
+from ai_engine.core.db.client import WriteStep, db
+from ai_engine.core.db.tables import KbArticle, KbArticleAssociation, KbGraphRebuildRequest
 
 # The association source this build writes.
 SOURCE = "entity_graph"
@@ -128,14 +129,37 @@ class KbSnapshot:
                 copies[a.slug] = original
         return copies
 
-    def replace_entity_graph(self, rows: list[AssociationRow]) -> tuple[int, int]:
-        """Replaces the `entity_graph` rows with `rows`."""
+    def replace_entity_graph(
+        self,
+        rows: list[AssociationRow],
+        *,
+        pages: set[uuid.UUID] | None = None,
+        closing: RebuildRequests | None = None,
+    ) -> tuple[int, int]:
+        """Replaces the `entity_graph` rows with `rows`, or only the rows touching `pages`, keeps
+        each surviving pair's `reviewed`, and closes `closing` in the same transaction."""
 
         article_id = {a.slug: a.id for a in self.articles}
+        known = [r for r in rows if r.source_slug in article_id and r.target_slug in article_id]
+        replaced = delete(KbArticleAssociation).where(KbArticleAssociation.source == SOURCE)
+        if pages is not None:
+            known = [
+                r
+                for r in known
+                if article_id[r.source_slug] in pages or article_id[r.target_slug] in pages
+            ]
+            replaced = replaced.where(
+                or_(
+                    KbArticleAssociation.source_article_id.in_(pages),
+                    KbArticleAssociation.target_article_id.in_(pages),
+                )
+            )
+        reviewed = self.reviewed_pairs()
         values = [
             {
                 "id": uuid.uuid4(),
-                "reviewed": False,
+                "reviewed": (article_id[r.source_slug], article_id[r.target_slug]) in reviewed,
+                "stale": False,
                 "source_article_id": article_id[r.source_slug],
                 "target_article_id": article_id[r.target_slug],
                 "source": SOURCE,
@@ -143,16 +167,65 @@ class KbSnapshot:
                 "evidence": list(r.evidence),
                 "build_id": r.build_id,
             }
-            for r in rows
-            if r.source_slug in article_id and r.target_slug in article_id
+            for r in known
         ]
-        db.write(
-            [
-                (delete(KbArticleAssociation).where(KbArticleAssociation.source == SOURCE), None),
-                (insert(KbArticleAssociation), values),
-            ]
+        steps: list[WriteStep] = [(replaced, None), (insert(KbArticleAssociation), values)]
+        if closing is not None:
+            steps.append(closing.close(RebuildState.DONE, rows[0].build_id if rows else ""))
+        db.write(steps)
+        if pages is None:
+            return len(values), len(rows) - len(values)
+        return len(values), 0
+
+    @staticmethod
+    def reviewed_pairs() -> set[tuple[uuid.UUID, uuid.UUID]]:
+        """The `entity_graph` pairs a KB editor confirmed (ADR-0037)."""
+
+        return {
+            (source, target)
+            for source, target in db.all(
+                select(
+                    KbArticleAssociation.source_article_id, KbArticleAssociation.target_article_id
+                ).where(
+                    KbArticleAssociation.source == SOURCE,
+                    KbArticleAssociation.reviewed.is_(True),
+                )
+            )
+        }
+
+
+class RebuildState(StrEnum):
+    DONE = "done"
+    FAILED = "failed"
+
+
+@dataclass(frozen=True)
+class RebuildRequests:
+    """The pending rebuild requests one `--pending` build answers (ADR-0037)."""
+
+    ids: tuple[uuid.UUID, ...]
+    article_ids: frozenset[uuid.UUID]
+
+    @classmethod
+    def read(cls) -> RebuildRequests:
+        """Reads every pending request."""
+
+        rows = db.all(
+            select(KbGraphRebuildRequest.id, KbGraphRebuildRequest.article_id)
+            .where(KbGraphRebuildRequest.state == "pending")
+            .order_by(KbGraphRebuildRequest.requested_at)
         )
-        return len(values), len(rows) - len(values)
+        return cls(tuple(r[0] for r in rows), frozenset(r[1] for r in rows))
+
+    def close(self, state: RebuildState, build_id: str) -> WriteStep:
+        """The statement that marks these requests `state`."""
+
+        return (
+            update(KbGraphRebuildRequest)
+            .where(KbGraphRebuildRequest.id.in_(self.ids))
+            .values(state=state.value, done_at=datetime.now(UTC), build_id=build_id),
+            None,
+        )
 
 
 class EdgeScorer:
@@ -318,6 +391,16 @@ class EntityGraphBuild:
             action="store_true",
             help="resolve, score and write the existing entity_graph_pairs.jsonl; no model call",
         )
+        parser.add_argument(
+            "--pending",
+            action="store_true",
+            help="re-extract only the pages with a pending rebuild request and replace their edges",
+        )
+        parser.add_argument(
+            "--watch",
+            action="store_true",
+            help="with --pending, run it every GRAPH_BUILD_INTERVAL_MIN minutes",
+        )
         args = parser.parse_args(argv)
         if not args.rescore_only and not args.working_dir:
             parser.error("--working-dir is required unless --rescore-only")
@@ -325,10 +408,66 @@ class EntityGraphBuild:
             parser.error("--rescore-only scores the existing pairs; it takes no --sample")
         if args.include and args.sample is None:
             parser.error("--include needs --sample")
+        if args.pending and (args.rescore_only or args.sample is not None):
+            parser.error("--pending takes no --rescore-only or --sample")
+        if args.watch and not args.pending:
+            parser.error("--watch needs --pending")
         return args
 
     def run(self) -> int:
         """Runs the build."""
+
+        if self._args.watch:
+            while True:
+                try:
+                    self.run_pending()
+                except SQLAlchemyError as e:
+                    print(f"pending build could not read the KB: {e}", file=sys.stderr)
+                time.sleep(settings.graph_build_interval_min * 60)
+        if self._args.pending:
+            return self.run_pending()
+        return self.run_full()
+
+    def run_pending(self) -> int:
+        """Re-extracts the pages with pending rebuild requests, re-scores every pair, and
+        replaces the edges touching those pages; a failure marks the requests failed."""
+
+        requests = RebuildRequests.read()
+        if not requests.ids:
+            print("no pending rebuild request")
+            return 0
+        started = time.monotonic()
+        policy = EntityGraphPolicy.load(settings.entity_graph_policy_version)
+        files = BuildFiles(Path(self._args.out))
+        every_page = KbSnapshot.read()
+        pending = KbSnapshot([a for a in every_page.articles if a.id in requests.article_ids])
+        slugs = {a.slug for a in pending.articles}
+        try:
+            kept = [p for p in files.read_pairs() if p.article_slug not in slugs]
+            extracted, calls = self._extract(policy, pending)
+            pairs = sorted(set(kept) | set(extracted), key=PagePair.order)
+            rows, resolutions = EdgeScorer(policy=policy).score(pairs, every_page)
+            files.write(BuildFiles.PAIRS, pairs)
+            files.write(BuildFiles.RESOLUTIONS, resolutions)
+            files.write(BuildFiles.GRAPH, rows)
+            written, _ = every_page.replace_entity_graph(
+                rows, pages=set(requests.article_ids), closing=requests
+            )
+        except (BuildFailed, OSError, SQLAlchemyError) as e:
+            print(f"pending build failed: {e}", file=sys.stderr)
+            try:
+                db.write([requests.close(RebuildState.FAILED, "")])
+            except SQLAlchemyError as closing:
+                print(f"could not mark the requests failed: {closing}", file=sys.stderr)
+            return 1
+        print(
+            f"{len(requests.ids)} requests, {len(pending.articles)} pages re-extracted, "
+            f"{written} edges written, {calls} model calls, {time.monotonic() - started:.0f}s"
+        )
+        return 0
+
+    def run_full(self) -> int:
+        """Builds the whole graph, a sample of it, or re-scores the stored pairs."""
 
         args = self._args
         policy = EntityGraphPolicy.load(settings.entity_graph_policy_version)

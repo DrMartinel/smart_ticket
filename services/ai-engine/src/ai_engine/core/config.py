@@ -96,6 +96,8 @@ class Settings(BaseSettings):
     entity_graph_section_tokens: int
     entity_graph_llm_max_async: int
     entity_graph_resolve_min_similarity: float
+    # Minutes between `--pending --watch` builds (ADR-0037).
+    graph_build_interval_min: int
 
     # --- Reranker (Jev) ---
     rerank_pool: int

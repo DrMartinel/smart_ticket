@@ -22,7 +22,7 @@ mechanisms enforce it at three levels:
 |---|---|
 | Types | Every LLM-authored field is prefixed `proposed_` |
 | Code | `router.py` is the only place a `Branch` is chosen, by a pure `Router` built from the thresholds |
-| Database | `ai-engine` connects as a role that can only `SELECT`, except that the offline entity-graph build replaces its own `kb_article_associations` rows (ADR-0025) |
+| Database | `ai-engine` connects as a role that can only `SELECT`, except that the offline entity-graph build replaces its own `kb_article_associations` rows (ADR-0025) and closes the rebuild requests it answers (ADR-0037) |
 
 Things that look needlessly indirect — the `proposed_` prefixes, auto-reply
 authority living on KB rows instead of in model output, a pure router built
@@ -178,11 +178,13 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Security alerts: raising, grouping, ack targets, triage and release (F8) | [apps/security/](services/core-api/apps/security/), the service in [alerts.py](services/core-api/apps/security/utils/alerts.py) |
 | KB drafts, review, authority queue and gap report (F6, ADR-0036) | [apps/kb/utils/](services/core-api/apps/kb/utils/): [drafts.py](services/core-api/apps/kb/utils/drafts.py), [authority.py](services/core-api/apps/kb/utils/authority.py), [gaps.py](services/core-api/apps/kb/utils/gaps.py) |
 | Reports: the nightly facts table, every report and its scope, CSV, the weekly email (F10) | [apps/reports/](services/core-api/apps/reports/), the queries in [reports.py](services/core-api/apps/reports/utils/reports.py), the facts in [facts.py](services/core-api/apps/reports/utils/facts.py) |
+| The entity graph as a KB feature: a page's edges, editor overrides, rebuild requests, graph health (F11, ADR-0037) | [graph.py](services/core-api/apps/kb/utils/graph.py); the `--pending` build in ai-engine [build.py](services/ai-engine/src/ai_engine/core/associations/build.py), run by compose's `graph-builder` |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
 but one** (the `entity_graph` association rows, written by ai-engine's
-offline build, ADR-0025) · `ai-engine` (FastAPI + LangGraph) has **no
+offline build, which also closes the rebuild requests it answers, ADR-0025,
+ADR-0037) · `ai-engine` (FastAPI + LangGraph) has **no
 authority**, returns signals and a proposal only, writes nothing while
 triaging, and is the **only vLLM client** (ADR-0012: core-api's embeddings
 and PII NER go through its `/v1/embed` and `/v1/pii/detect`) · `web` (Next.js) is a thin client with no business logic.
@@ -268,7 +270,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | What Jev is asked | `ai-engine/core/prompts/*.json` — bump the version in filename and `RERANK_PROMPT_VERSION` or `CATEGORY_QUESTION_VERSION` the same way |
 | What counts as PII | `patterns.py` (regex) or the NER prompt `ai-engine/core/prompts/pii_ner.v*.md` |
 | What is in the demo KB | `demo_kb/sources.json` (then `fetch.py`), approvals and risk tiers in `demo_kb/curation.json` — never by editing fetched pages |
-| The entity-graph edges link expansion follows | ai-engine `core/associations/build.py`, which writes them; after `load-demo-kb`, its `--rescore-only` (`demo_kb/README.md`) |
+| The entity-graph edges link expansion follows | ai-engine `core/associations/build.py`, which writes them; after `load-demo-kb`, its `--rescore-only` (`demo_kb/README.md`). An edit marks them stale and `graph-builder`'s `--pending` rebuilds them; an editor's correction is a `kb_association_overrides` row (`KbGraph`), never an edit of an edge |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question `core/prompts/category.v*.json`; the confidence bar in `thresholds.yaml` |
 | Any tunable number | `thresholds.yaml`, nowhere else; its `version` becomes the id of the change request that approved the edit (CI checks it changes with the file) |
@@ -466,4 +468,4 @@ this early, the codebase is dense with it) · [development.md](docs/development.
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
 [runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirty-eight
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
-0030–0038 come from the phase 2 pack; 0030–0036 are accepted, 0037–0038 proposed).
+0030–0038 come from the phase 2 pack; 0030–0037 are accepted, 0038 proposed).

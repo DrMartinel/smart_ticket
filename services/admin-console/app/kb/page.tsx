@@ -181,6 +181,9 @@ export default function KbPage() {
                     <td className="px-4 py-3 text-right">
                       {isEditor && (
                         <span className="mr-2 inline-flex gap-2 text-xs">
+                          <Link href={`/kb/graph/${encodeURIComponent(a.slug)}`} className="text-[var(--accent)] hover:underline">
+                            Đồ thị
+                          </Link>
                           <Link href={`/kb/drafts/new?kind=edit&slug=${encodeURIComponent(a.slug)}`} className="text-[var(--accent)] hover:underline">
                             Sửa
                           </Link>
