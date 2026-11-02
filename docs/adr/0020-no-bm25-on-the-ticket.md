@@ -1,6 +1,6 @@
 # ADR-0020: No BM25 on the ticket; the keyword-agreement trust feature is removed
 
-**Status:** Proposed
+**Status:** Accepted (2026-11-02), the owner's decision
 **Date:** 2026-10-11
 **Supersedes:** ADR-0013's use of BM25 on the ticket, in retrieval and as the
 `bm25_keyword_hit` trust feature. ADR-0013's choice of pg_search and its

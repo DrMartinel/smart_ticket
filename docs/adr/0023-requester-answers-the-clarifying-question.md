@@ -1,6 +1,6 @@
 # ADR-0023: The requester answers the clarifying question
 
-**Status:** Proposed
+**Status:** Accepted (2026-11-02), the owner's decision
 **Date:** 2026-10-12
 **Builds on:** ADR-0016 (the `clarify` branch), and closes its *Not decided*
 section for chat tickets

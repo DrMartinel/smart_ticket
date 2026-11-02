@@ -339,7 +339,7 @@ Retrieval recall meets the gate against a reviewed baseline measured on this KB.
 
 ## 10. Ask the requester when a ticket is ambiguous (clarification branch)
 
-**Status (2026-10-12):** the requester side is built for chat tickets, [ADR-0023](adr/0023-requester-answers-the-clarifying-question.md) (Proposed): the question is shown, the answer masked and re-run, one round, then a person (`clarify_round_cap`); unanswered after `clarification.wait_minutes` (60 🔧) the chat offers a ticket instead of sending it to support (the owner's choice). **Left:** a live run, golden cases for the second run, and form tickets (no channel back). Earlier, 2026-10-04: the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (Proposed): `ClarificationProposal` and `classify.v6` (`v7` since), the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
+**Status (2026-10-12):** the requester side is built for chat tickets, [ADR-0023](adr/0023-requester-answers-the-clarifying-question.md) (accepted 2026-11-02): the question is shown, the answer masked and re-run, one round, then a person (`clarify_round_cap`); unanswered after `clarification.wait_minutes` (60 🔧) the chat offers a ticket instead of sending it to support (the owner's choice). **Left:** a live run, golden cases for the second run, and form tickets (no channel back). Earlier, 2026-10-04: the decision path is implemented, [ADR-0016](adr/0016-clarify-branch.md) (accepted 2026-11-02): `ClarificationProposal` and `classify.v6` (`v7` since), the validator's `clarify_options_in_topk`, `Branch.CLARIFY` in `router.py` (after every hard gate, never for `security`), and execution as a review item in the `clarification` queue. g151-g156 expect `clarify`. **Left:** the requester side (steps 4 and 6 below, the round cap of step 3), decided in a later ADR before shadow mode ends.
 
 **Priority:** Medium · **Spec:** §5, §8 · **ADR:** [0016](adr/0016-clarify-branch.md)
 
@@ -372,7 +372,7 @@ The ADR is accepted. Ambiguous tickets reach `clarify` in the evals without lowe
 
 ## 11. Accept or reject ADR-0017 (Jev chooses the category)
 
-**Status (2026-10-14):** built, [ADR-0017](adr/0017-jev-classifies-the-category.md) (Proposed): `ClassifyCategoryNode` asks Jev `category.v2`, `EngineSignals.classification` carries the answer, and `router.py` routes clarify and auto-route on Jev's choice, sending it to a human as `category_low_confidence` below `classification.min_confidence` (0.65 🔧). The LLM proposes no category (`propose.v8`).
+**Status (2026-10-14):** built, [ADR-0017](adr/0017-jev-classifies-the-category.md) (accepted 2026-11-02): `ClassifyCategoryNode` asks Jev `category.v2`, `EngineSignals.classification` carries the answer, and `router.py` routes clarify and auto-route on Jev's choice, sending it to a human as `category_low_confidence` below `classification.min_confidence` (0.65 🔧). The LLM proposes no category (`propose.v8`).
 
 **Priority:** High · **Spec:** §8, §12.2 · **ADR:** 0017
 
@@ -406,7 +406,7 @@ ADR-0018 is accepted or superseded.
 
 ## 13. Accept or reject ADR-0026 (Jev reranks with one choice question)
 
-**Status (2026-10-13):** built and unit-tested, [ADR-0026](adr/0026-jev-reranks-with-one-choice-question.md) (Proposed): `RERANK_PROMPT_VERSION=rerank_choice.v1`, one choice over the shortlist plus `none`; an auto-reply must cite Jev's choice with confidence ≥ `retrieval.min_rerank_confidence` (0.9 🔧). Probe only (recall@5 0.919 → 0.929 on the same pools); no eval run, at the owner's call.
+**Status (2026-10-13):** built and unit-tested, [ADR-0026](adr/0026-jev-reranks-with-one-choice-question.md) (accepted 2026-11-02): `RERANK_PROMPT_VERSION=rerank_choice.v1`, one choice over the shortlist plus `none`; an auto-reply must cite Jev's choice with confidence ≥ `retrieval.min_rerank_confidence` (0.9 🔧). Probe only (recall@5 0.919 → 0.929 on the same pools); no eval run, at the owner's call.
 
 **Priority:** High, before P3 · **Spec:** §6.3, §7.1 · **ADR:** 0005, 0015, 0026
 

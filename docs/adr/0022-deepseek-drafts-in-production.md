@@ -1,6 +1,6 @@
 # ADR-0022: The drafted answer runs on DeepSeek in production
 
-**Status:** Proposed
+**Status:** Accepted (2026-11-02), the owner's decision
 **Date:** 2026-10-12
 **Supersedes:** ADR-0019 for the drafted answer only: DeepSeek is no longer
 evaluation-only for the draft. ADR-0019 stands for the proposal, PII NER and

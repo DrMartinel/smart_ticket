@@ -465,14 +465,14 @@ Per-category F1 is deliberately not averaged — a rare-but-serious category lik
 | [0013](docs/adr/0013-pg-search-bm25-and-keyword-agreement.md) | pg_search BM25 and keyword agreement (BM25 on the ticket superseded by 0020) |
 | [0014](docs/adr/0014-candidate-expansion-and-llm-reorder.md) | Candidate expansion through page links (Proposed) |
 | [0015](docs/adr/0015-jev-reranks-the-shortlist.md) | Jev reranks the cross-encoder's shortlist; thresholds read its score |
-| [0016](docs/adr/0016-clarify-branch.md) | A `clarify` branch (Proposed) |
-| [0017](docs/adr/0017-jev-classifies-the-category.md) | Jev chooses the category; the LLM's is log-only (Proposed) |
+| [0016](docs/adr/0016-clarify-branch.md) | A `clarify` branch |
+| [0017](docs/adr/0017-jev-classifies-the-category.md) | Jev chooses the category; the LLM's is log-only |
 | [0018](docs/adr/0018-association-sources.md) | Association sources for link expansion: authored links or an entity graph (entity graph shipped) |
 | [0019](docs/adr/0019-deepseek-for-evaluation.md) | DeepSeek's hosted API, for evaluation (draft superseded by 0022) |
 | [0020](docs/adr/0020-no-bm25-on-the-ticket.md) | No BM25 on the ticket; the keyword-agreement trust feature removed |
 | [0021](docs/adr/0021-hyde-drafted-answer-steers-retrieval.md) | A drafted answer steers retrieval (HyDE) |
 | [0022](docs/adr/0022-deepseek-drafts-in-production.md) | The drafted answer runs on DeepSeek in production |
-| [0023](docs/adr/0023-requester-answers-the-clarifying-question.md) | The requester answers the clarifying question (Proposed) |
+| [0023](docs/adr/0023-requester-answers-the-clarifying-question.md) | The requester answers the clarifying question |
 | [0024](docs/adr/0024-drafted-answer-grounded-in-kb-pages.md) | The drafted answer is grounded in the KB's pages (Rejected for now: no measured gain on this KB) |
 
 ADR-0006 is flagged in the spec as the one most likely to erode once `automation_rate` becomes a KPI. Read it before proposing a bypass.

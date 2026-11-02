@@ -1,6 +1,6 @@
 # ADR-0026: Jev reranks with one choice question, and an auto-reply must cite Jev's choice
 
-**Status:** Proposed (2026-10-13), the owner's decision; not yet eval-gated
+**Status:** Accepted (2026-11-02), the owner's decision
 **Date:** 2026-10-13
 **Supersedes:** ADR-0015 decision 2 (one noul question per chunk) and its
 "Why a noul, not a `score` or `choice`" section. ADR-0015's other

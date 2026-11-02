@@ -1,6 +1,6 @@
 # ADR-0021: A drafted answer steers retrieval (HyDE)
 
-**Status:** Proposed
+**Status:** Accepted (2026-11-02), the owner's decision
 **Date:** 2026-10-11
 **Builds on:** ADR-0020 (no BM25 on the ticket), ADR-0014 / ADR-0018 (link
 expansion), ADR-0015 (Jev reranks)

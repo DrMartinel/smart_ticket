@@ -1,7 +1,6 @@
 # ADR-0018: Association sources for link expansion: authored links or an entity graph
 
-**Status:** Proposed. Both sources are built and measured
-(`evals/HISTORY.md` 2026-10-08 to 2026-10-10); awaiting review.
+**Status:** Accepted (2026-11-02), the owner's decision. Both sources are built and measured (`evals/HISTORY.md` 2026-10-08 to 2026-10-10).
 **Date:** 2026-10-07, simplified 2026-10-10
 **Builds on:** ADR-0014 decision 1 (an article-associations layer feeds
 candidate expansion) and its *Before this is accepted* #3 (a KB-agnostic
@@ -22,7 +21,7 @@ nothing else does. It has two limits:
 2. **It extracted links per request**, regex over every seed's chunk text on
    every ticket, because there was no table to read them from.
 
-## Decision (proposed)
+## Decision
 
 **1. `kb_article_associations` holds every association, tagged by source.**
 core-api owns the table (`source_article`, `target_article`, `source`,

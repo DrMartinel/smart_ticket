@@ -331,9 +331,9 @@ copies that directory — a new SQL file that isn't copied fails at container st
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
   Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
-  The `bm25_keyword_hit` feature is gone with BM25 on the ticket (ADR-0020,
-  Proposed), and the remaining hand-set features score every ticket.
-- **Retrieval drafts first** (HyDE, ADR-0021, Proposed): `draft_answer` has
+  The `bm25_keyword_hit` feature is gone with BM25 on the ticket (ADR-0020),
+  and the remaining hand-set features score every ticket.
+- **Retrieval drafts first** (HyDE, ADR-0021): `draft_answer` has
   the chat model write the passage it expects would answer the ticket;
   retrieval fuses vector search on the ticket with BM25 and vector search on
   the draft, and each page's chunks nearest the draft join the pool. The
@@ -351,8 +351,8 @@ copies that directory — a new SQL file that isn't copied fails at container st
 - Every run shortlists, then reranks: the shortlister, a cross-encoder (`vllm`,
   bge-reranker-v2-m3; `lexical` for CI/offline), orders the fused candidates plus
   link-expanded chunks, and **Jev**, the reranker (hosted, needs `JEV_API_KEY`),
-  answers one choice question over its top 15 (`RERANK_POOL`, ADR-0026,
-  Proposed): each chunk's probability is its score, and `none` is below the
+  answers one choice question over its top 15 (`RERANK_POOL`, ADR-0026):
+  each chunk's probability is its score, and `none` is below the
   floor. An auto-reply must cite Jev's chosen page with confidence ≥
   `retrieval.min_rerank_confidence` (0.9 🔧), else HITL `rerank_disagrees` /
   `rerank_low_confidence`. The floor reads Jev's passages' total
@@ -362,13 +362,13 @@ copies that directory — a new SQL file that isn't copied fails at container st
   the old noul scale. Trust coefficients and `t_auto`/`t_route` were hand-set for
   the cross-encoder's `rerank_top1`: another reason P3 waits. Every ticket's
   *masked* text goes to Jev's API.
-- **Jev also chooses the category** (ADR-0017, Proposed): `classify_category`
+- **Jev also chooses the category** (ADR-0017): `classify_category`
   asks it one choice question after reranking; the router routes auto-route
   and clarify on that choice and sends it to a human below
   `classification.min_confidence` (0.65 🔧) as `category_low_confidence`.
   The LLM no longer proposes a category (`propose.v8`). A Jev failure, reranking or
   category, is a 500 → HITL `ai_engine_unavailable`, never a fallback.
-- **`clarify`** (ADR-0016, ADR-0023, Proposed): the router can choose to
+- **`clarify`** (ADR-0016, ADR-0023): the router can choose to
   ask the requester which shown page they mean. A live chat ticket shows
   the question; the answer is masked like a ticket and the pipeline runs
   again, and a second `clarify` goes to a person (`clarify_round_cap`).

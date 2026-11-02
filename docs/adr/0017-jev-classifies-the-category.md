@@ -1,7 +1,6 @@
 # ADR-0017: Jev chooses the ticket's category; the LLM's category is log-only
 
-**Status:** Proposed. Supported by a probe on the golden set; built
-2026-10-04 (below), not yet measured end to end (*Before this is accepted*).
+**Status:** Accepted (2026-11-02), the owner's decision. Built 2026-10-04 and measured in the 2026-10-14 full run; the held-out check under *Before this is accepted* has not run.
 **Date:** 2026-10-04
 **Builds on:** ADR-0001 (code decides, the LLM proposes), ADR-0015 (Jev, the
 reranker), ADR-0016 (the direction: the LLM writes, it doesn't decide)
