@@ -1,6 +1,6 @@
 # ADR-0034: A chat conversation gives the model its earlier masked turns
 
-**Status:** Proposed (phase 2 pack, stage 2; copied 2026-10-17, awaiting the owner's decision)
+**Status:** Accepted (2026-10-26), the owner's decision
 **Date:** 2026-10-17
 **Builds on:** ADR-0001, ADR-0003, ADR-0023 (requester answers the clarifying question)
 **Feature:** F3 ([spec](../requirements/phase-2/06-F3-requester-chat.md))

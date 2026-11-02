@@ -50,6 +50,7 @@ from apps.tickets.utils.router import (
 from apps.tickets.utils.patterns import PIILevel
 
 from apps.audit.models import AuditLog
+from apps.chat.utils.conversations import conversations
 from apps.kb.models import KbArticle
 from apps.lifecycle.utils.engine import lifecycle
 from apps.lifecycle.utils.vocabulary import PipelineStatus
@@ -218,6 +219,8 @@ def _finalize(
             },
             trace_id=trace_id,
         )
+
+        conversations.after_decision(ticket, decision.branch)
 
         if decision.alert_security:
             AuditLog.objects.record(
@@ -409,7 +412,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
     Does not raise for an embedding, ai-engine, LLM or budget failure; those
     reach a human with their own `ReasonCode`.
     """
-    ticket = Ticket.objects.select_related("reporter").get(id=ticket_id)
+    ticket = Ticket.objects.select_related("reporter", "conversation").get(id=ticket_id)
     trace_id = f"ticket-{ticket.public_id}"
 
     attempt = AiRun.objects.filter(ticket=ticket).count() + 1
@@ -480,6 +483,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
         body_masked=ticket.body_masked,
         pii_level=PIILevel(ticket.pii_level),
         placeholder_keys=list(ticket.pii_map.keys()),
+        prior_turns=conversations.context_for(ticket) if ticket.conversation_id else [],
     )
 
     try:

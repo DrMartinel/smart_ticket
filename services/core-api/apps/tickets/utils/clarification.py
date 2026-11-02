@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 # The question every clarifying chat ticket asks (ADR-0023, amended 2026-10-13).
 CLARIFY_QUESTION = "Which of these is closest to what you need?"
 
-# Marks the requester's answer in the ticket body; `propose.v9` names it.
+# Marks the requester's answer in the ticket body; `propose.v9` and later name it.
 CLARIFIED_LABEL = "Requester clarified:"
 
 

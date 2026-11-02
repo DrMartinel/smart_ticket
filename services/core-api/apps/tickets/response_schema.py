@@ -11,7 +11,7 @@ from ninja import Field, Schema
 
 from apps.sla.response_schema import SlaBadgeOut
 from apps.sla.utils.clocks import Badge, sla_clocks
-from apps.tickets.models import PiiAccessLog, RoutingDecision, Ticket
+from apps.tickets.models import PiiAccessLog, RoutingDecision, Ticket, TicketComment
 from apps.tickets.utils.patterns import placeholder_level
 
 
@@ -72,8 +72,9 @@ def status_of(ticket: Ticket) -> StatusOut:
 
 
 def open_review_of(ticket: Ticket) -> OpenReviewOut | None:
-    """The review item still waiting for a person, most urgent first."""
-    waiting = [r for r in ticket.review_items.all() if r.is_open]
+    """The ticket's review item still waiting for a person, most urgent first; a held comment's
+    is decided from the comment."""
+    waiting = [r for r in ticket.review_items.all() if r.is_open and r.comment_id is None]
     if not waiting:
         return None
     first = min(waiting, key=lambda r: (r.priority, r.created_at))
@@ -269,3 +270,35 @@ class AccessLogRowOut(Schema):
     @staticmethod
     def resolve_review_item(row: PiiAccessLog) -> uuid.UUID | None:
         return row.review_item_id
+
+
+class CommentOut(Schema):
+    """A comment as staff see it: one held for a masking review shows no text (UC-F3-03 3y)."""
+
+    id: uuid.UUID
+    author: str | None
+    author_kind: str
+    visibility: str
+    body_masked: str
+    pii_level: str
+    hidden_for_review: bool
+    discarded: bool
+    created_at: datetime
+    # The open review item deciding a held comment.
+    review_item: uuid.UUID | None
+
+    @classmethod
+    def of(cls, comment: TicketComment) -> CommentOut:
+        held = comment.hidden_for_review or comment.discarded_at is not None
+        return cls(
+            id=comment.id,
+            author=comment.author.username if comment.author else None,
+            author_kind=comment.author_kind,
+            visibility=comment.visibility,
+            body_masked="" if held else comment.body_masked,
+            pii_level=comment.pii_level,
+            hidden_for_review=comment.hidden_for_review,
+            discarded=comment.discarded_at is not None,
+            created_at=comment.created_at,
+            review_item=next((r.id for r in comment.review_items.all() if r.is_open), None),
+        )

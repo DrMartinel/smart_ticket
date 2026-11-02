@@ -13,6 +13,7 @@ from ai_engine.core.config import settings
 from ai_engine.core.prompts import DRAFT_PROMPT
 from ai_engine.core.providers.clients import AllLLMDownError, LLMResult
 from ai_engine.graph.nodes.draft_answer.node import draft_answer
+from ai_engine.graph.ticket import PriorTurn
 
 
 def _reply(text: str) -> LLMResult:
@@ -78,3 +79,27 @@ def test_the_draft_runs_on_its_own_model_never_the_proposals(
 
     assert len(draft_model.prompts) == 1
     assert proposal_model.prompts == []
+
+
+def test_earlier_turns_precede_the_ticket_in_the_draft_request(run, make_ticket):
+    """ADR-0034: a follow-up is drafted with the conversation's earlier masked turns."""
+    ticket = make_ticket("Still failing", "Did that, still fails on [PHONE_VN_1]").model_copy(
+        update={
+            "prior_turns": [
+                PriorTurn(
+                    question_masked="VPN TLS handshake failed",
+                    outcome="answered",
+                    answer_excerpt="Reconnect the AWS VPN Client",
+                )
+            ]
+        }
+    )
+    _, llm, _ = run(reply=_reply('{"draft": "VPN"}'), ticket=ticket)
+
+    _, user = llm.prompts[0]
+    assert user == (
+        "Earlier in this conversation:\n"
+        "Turn 1 (answered): VPN TLS handshake failed\n"
+        "Answer given: Reconnect the AWS VPN Client\n\n"
+        "Subject: Still failing\n\nDid that, still fails on [PHONE_VN_1]"
+    )

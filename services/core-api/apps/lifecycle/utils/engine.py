@@ -54,13 +54,21 @@ from apps.lifecycle.utils.vocabulary import (
     TransferState,
     Trigger,
 )
+from apps.requester.utils.notices import ticket_notices
 from apps.sla.utils.clocks import sla_clocks
 from apps.tickets.models import Ticket
 
 logger = logging.getLogger(__name__)
 
 # Ticket fields a move changes, copied back onto a caller's stale instance.
-_MOVED_FIELDS = ("workflow_status", "status", "version", "resolved_at", "waiting_transform")
+_MOVED_FIELDS = (
+    "workflow_status",
+    "status",
+    "version",
+    "resolved_at",
+    "resolution_seq",
+    "waiting_transform",
+)
 
 
 @dataclass(frozen=True)
@@ -178,6 +186,7 @@ class Lifecycle:
         ticket.enter_status(target)
         self.audit_status_change(ticket, transfer, current, target, extra=extra)
         sla_clocks.on_status_entered(ticket, transfer)
+        ticket_notices.on_status_entered(ticket, transfer)
         return transfer
 
     # ── people's and actions' moves ──
@@ -200,6 +209,19 @@ class Lifecycle:
             expected_version=expected_version,
         )
         return Ticket.objects.select_related("workflow_status").get(pk=ticket_id)
+
+    def automatic_move(self, ticket: Ticket, status_key: str) -> Transfer | None:
+        """A move no person asked for (a requester's reply, an auto-close), held to the workflow
+        like an action's, never into a pipeline status; updates the caller's instance."""
+        workflow = Workflow.objects.of_ticket(ticket)
+        target = workflow.statuses.filter(key=status_key).first()
+        if target is None:
+            raise LifecycleError(
+                404, FailureCode.STATUS_NOT_IN_WORKFLOW, f"no status {status_key!r} in the workflow"
+            )
+        transfer = self.request_move(ticket.pk, target.id, actor=None, trigger=Trigger.ACTION)
+        ticket.refresh_from_db(fields=[*_MOVED_FIELDS])
+        return transfer
 
     def request_move(
         self,
@@ -342,6 +364,7 @@ class Lifecycle:
         transfer.save(update_fields=["state", "committed_at"])
         self.audit_status_change(ticket, transfer, transfer.before_status, transfer.after_status)
         sla_clocks.on_status_entered(ticket, transfer)
+        ticket_notices.on_status_entered(ticket, transfer)
 
     def audit_status_change(
         self,

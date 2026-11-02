@@ -44,10 +44,12 @@ class InferNode(BaseNode):
             for f in state.fewshots
         )
 
+        earlier = ticket.earlier_turns()
         user_prompt = (
             f"## KB excerpts\n{excerpts or '(no relevant excerpts found)'}\n\n"
             f"## Few-shot examples\n{examples or '(none available)'}\n\n"
-            f"## Ticket\nSubject: {ticket.subject_masked}\nBody: {ticket.body_masked}"
+            + (f"## Earlier in this conversation\n{earlier}\n\n" if earlier else "")
+            + f"## Ticket\nSubject: {ticket.subject_masked}\nBody: {ticket.body_masked}"
         )
 
         try:

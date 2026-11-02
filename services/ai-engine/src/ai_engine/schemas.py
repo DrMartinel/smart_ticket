@@ -29,7 +29,7 @@ class AIRunRequest(BaseModel):
     request_id: str
     ticket: TicketMasked
     retrieval_floor: float = Field(ge=0, le=1)
-    prompt_version: str = "propose.v8"
+    prompt_version: str = "propose.v10"
 
 
 class AIRunResponse(BaseModel):

@@ -6,6 +6,7 @@ import ast
 from pathlib import Path
 
 import pytest
+from django.utils import timezone
 
 from apps.lifecycle.models import Workflow
 from apps.lifecycle.request_schema import FieldIn, RuleIn, TransitionPatch
@@ -119,6 +120,7 @@ def test_a_workflows_rules_never_stop_a_reopen(ticket, strict):
         TransitionPatch(rules=[RuleIn(field_id=field.id, rule=RuleCode.REQUIRED)]),
     )
     put_in(ticket, strict.done)
+    Ticket.objects.filter(pk=ticket.pk).update(resolved_at=timezone.now(), resolution_seq=1)
 
     reopen_ticket.apply(args=(str(ticket.id),)).get()
 

@@ -5,6 +5,7 @@ as the requester is allowed to see it.
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from enum import StrEnum
 
@@ -70,3 +71,5 @@ class ChatTurnOut(Schema):
     # Where support has the ticket, in the workflow's words ("In progress").
     status_name: str | None = None
     resolved: bool = False
+    # The chat conversation the question belongs to (F3).
+    conversation_id: uuid.UUID | None = None

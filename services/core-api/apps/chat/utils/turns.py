@@ -35,12 +35,13 @@ def chat_turn(ticket: Ticket) -> ChatTurnOut:
         public_id=ticket.public_id,
         # What the requester typed, before any answer was appended.
         question_masked=asked.ticket_body_masked if asked else ticket.body_masked,
-        state=_state(ticket, asked),
+        state=chat_state(ticket, asked),
         answer=_answer(ticket) if ticket.status == "auto_replied" else None,
         clarification=ChatClarificationOut.from_row(asked) if asked else None,
         created_at=ticket.created_at,
         status_name=_support_status_name(ticket),
         resolved=ticket.resolved_at is not None,
+        conversation_id=ticket.conversation_id,
     )
 
 
@@ -50,7 +51,8 @@ def _support_status_name(ticket: Ticket) -> str | None:
     return status.name if status is not None and not status.is_pipeline else None
 
 
-def _state(ticket: Ticket, asked: TicketClarification | None) -> ChatState:
+def chat_state(ticket: Ticket, asked: TicketClarification | None) -> ChatState:
+    """Where a chat question stands, as the requester sees it."""
     if ticket.status == "new":
         return ChatState.THINKING
     if ticket.status == "auto_replied":

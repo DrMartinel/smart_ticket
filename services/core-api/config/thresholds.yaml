@@ -187,3 +187,24 @@ sla:
   # From this day (MM-DD) on, a calendar with no holidays entered for next year
   # sends sla.holidays_missing to workflow admins (BR-F1-14).
   holidays_reminder_month_day: "12-01"
+
+requester:
+  # A chat conversation ends after this many minutes without a turn; the next
+  # question starts a new one with no earlier turns (F3, BR-F3-02, OQ-08).
+  conversation_idle_minutes: 30
+  # Earlier masked turns of the same conversation sent to ai-engine with a new
+  # one, as context for the draft and the proposal only (BR-F3-01, ADR-0034).
+  max_prior_turns: 6
+  # Characters of an earlier turn's auto-reply sent with it. 🔧 assumption.
+  answer_excerpt_chars: 300
+  # Calendar days after resolution in which a requester reopens the ticket;
+  # afterwards reopening submits a new ticket linked to it (BR-F3-08, OQ-09).
+  reopen_window_days: 7
+  # My tickets lists completed tickets resolved in this many days after the open ones.
+  list_resolved_days: 30
+  # Business days (the team's calendar) a ticket waits on its requester before
+  # the sweep resolves it (BR-F3-11, F1 UC-F1-03 1a). 🔧 assumption.
+  auto_close_after_business_days: 5
+  # A rating at or below this sends ticket.rated_low to the team lead and, on an
+  # auto-reply, becomes an eval candidate (UC-F3-05 3x: "Rating 1–2").
+  low_rating_at_most: 2

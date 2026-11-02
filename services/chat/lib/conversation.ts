@@ -18,8 +18,11 @@ export type Turn =
   | { kind: "failed"; key: string; text: string; error: string }
   | { kind: "server"; key: string; turn: ChatTurnOut; startedAt: number };
 
+/** The current chat conversation (F3): its turns, and the id each new question joins. */
 export function useConversation(enabled: boolean) {
   const [turns, setTurns] = useState<Turn[]>([]);
+  // The conversation the next question joins; null starts a new one.
+  const conversationRef = useRef<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState<string | null>(null);
   const [answering, setAnswering] = useState<string | null>(null);
@@ -33,6 +36,7 @@ export function useConversation(enabled: boolean) {
       .history()
       .then((history) => {
         if (cancelled) return;
+        conversationRef.current = history.at(-1)?.conversation_id ?? null;
         setTurns(
           history.map((t) => ({
             kind: "server" as const,
@@ -81,9 +85,19 @@ export function useConversation(enabled: boolean) {
       const key = `local-${Date.now()}`;
       const startedAt = Date.now();
       setTurns((prev) => [...prev, { kind: "sending", key, text, startedAt }]);
-      void chatApi
-        .ask(text)
-        .then((turn) => replace(key, { kind: "server", key, turn, startedAt }))
+      const send = () => chatApi.ask(text, conversationRef.current);
+      void send()
+        .catch((err) => {
+          // Idle for too long, or ended elsewhere: the question starts a new conversation.
+          if (!(err instanceof ApiError && err.code === "conversation_ended")) throw err;
+          conversationRef.current = null;
+          setTurns((prev) => prev.filter((t) => t.key === key));
+          return send();
+        })
+        .then((turn) => {
+          conversationRef.current = turn.conversation_id ?? null;
+          replace(key, { kind: "server", key, turn, startedAt });
+        })
         .catch((err) => {
           const error =
             err instanceof ApiError && err.status === 422
@@ -145,5 +159,15 @@ export function useConversation(enabled: boolean) {
     [ask],
   );
 
-  return { turns, loaded, ask, createTicket, creating, answer, answering, retry };
+  /** Ends the conversation on screen ("Cuộc trò chuyện mới"): the next question has no context. */
+  const startNew = useCallback(async () => {
+    const current = conversationRef.current;
+    conversationRef.current = null;
+    setTurns([]);
+    if (current) await chatApi.endConversation(current).catch(() => undefined);
+  }, []);
+
+  const startedAt = turns.find((t) => t.kind === "server")?.startedAt ?? null;
+
+  return { turns, loaded, ask, createTicket, creating, answer, answering, retry, startNew, startedAt };
 }

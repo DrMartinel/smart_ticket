@@ -53,3 +53,21 @@ def test_no_upward_imports(part):
         if module.startswith(_FORBIDDEN[part])
     ]
     assert bad == []
+
+
+# The only modules that may read a ticket's earlier turns (ADR-0034, BR-F3-03).
+_PRIOR_TURN_READERS = {
+    "graph/ticket.py",
+    "graph/nodes/draft_answer/node.py",
+    "graph/nodes/infer/node.py",
+}
+
+
+def test_only_the_draft_and_the_proposal_read_earlier_turns():
+    """Earlier turns are context for the draft and the proposal, never a signal or a score."""
+    readers = {
+        str(path.relative_to(_SRC))
+        for path in _SRC.rglob("*.py")
+        if "prior_turns" in path.read_text() or "earlier_turns" in path.read_text()
+    }
+    assert readers == _PRIOR_TURN_READERS

@@ -17,6 +17,7 @@ from apps.tickets.models import AiRun, RoutingDecision, Ticket
 
 ITEM_KEYS = {
     "id",
+    "comment",
     "ticket_public_id",
     "subject_masked",
     "body_masked",

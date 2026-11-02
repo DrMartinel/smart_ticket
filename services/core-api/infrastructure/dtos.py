@@ -44,6 +44,16 @@ class TicketCategory(StrEnum):
     OTHER = "other"
 
 
+class PriorTurn(BaseModel):
+    """An earlier turn of the same chat conversation, masked as stored (ADR-0034)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    question_masked: str
+    outcome: Literal["answered", "with_support", "clarify", "suggest_ticket"]
+    answer_excerpt: str = ""
+
+
 class TicketMasked(BaseModel):
     """The only thing allowed to flow into the AI engine.
 
@@ -60,6 +70,8 @@ class TicketMasked(BaseModel):
     body_masked: str
     pii_level: PIILevel
     placeholder_keys: list[str] = Field(default_factory=list)
+    # Context for the draft and the proposal only; never a trust signal or router input.
+    prior_turns: list[PriorTurn] = Field(default_factory=list)
 
 
 class AutoReplyProposal(BaseModel):
@@ -218,7 +230,7 @@ class AIRunRequest(BaseModel):
     ticket: TicketMasked
     # thresholds.yaml `retrieval.floor`, on Jev's scale (ADR-0015).
     retrieval_floor: float = Field(ge=0, le=1)
-    prompt_version: str = "propose.v8"
+    prompt_version: str = "propose.v10"
 
 
 class AIRunResponse(BaseModel):

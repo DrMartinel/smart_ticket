@@ -4,6 +4,8 @@ Request bodies for the tickets endpoints.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from datetime import UTC, datetime
 from enum import StrEnum
 
@@ -58,3 +60,15 @@ class AccessLogFilter(Schema):
     def in_utc(cls, value: datetime | None) -> datetime | None:
         """A time given without a zone is UTC (BR-X-09)."""
         return value.replace(tzinfo=UTC) if value and value.tzinfo is None else value
+
+
+class CommentIn(Schema):
+    """A public comment or internal note from staff (F3 UC-F3-06)."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    body: str = Field(min_length=1, max_length=10_000)
+    visibility: Literal["public", "internal"]
+    # Also move the ticket to `waiting_on_requester` in the same action.
+    move_to_waiting: bool = False
+    expected_version: int | None = None

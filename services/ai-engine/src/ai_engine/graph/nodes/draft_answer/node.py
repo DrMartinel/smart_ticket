@@ -26,9 +26,11 @@ _DRAFT_SCHEMA = {
 class DraftAnswerNode(BaseNode):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         ticket = state.ticket
+        earlier = ticket.earlier_turns()
+        context = f"Earlier in this conversation:\n{earlier}\n\n" if earlier else ""
         result = clients.draft.complete(
             DRAFT_PROMPT,
-            f"Subject: {ticket.subject_masked}\n\n{ticket.body_masked}",
+            f"{context}Subject: {ticket.subject_masked}\n\n{ticket.body_masked}",
             schema_name="draft_answer",
             schema=_DRAFT_SCHEMA,
             temperature=settings.draft_temperature,

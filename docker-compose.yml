@@ -66,9 +66,11 @@ x-core-api-env: &core-api-env
   EMAIL_PORT: ${EMAIL_PORT:?see .env.example}
   NOTIFICATION_POLL_SEC: ${NOTIFICATION_POLL_SEC:?see .env.example}
   NOTIFICATION_PUBLIC_BASE_URL: ${NOTIFICATION_PUBLIC_BASE_URL:?see .env.example}
+  NOTIFICATION_CHAT_BASE_URL: ${NOTIFICATION_CHAT_BASE_URL:?see .env.example}
   NOTIFICATION_SECRET_KEY: ${NOTIFICATION_SECRET_KEY:?see .env.example}
   NOTIFICATION_SWEEP_INTERVAL_SEC: ${NOTIFICATION_SWEEP_INTERVAL_SEC:?see .env.example}
   SLA_SWEEP_INTERVAL_SEC: ${SLA_SWEEP_INTERVAL_SEC:?see .env.example}
+  REQUESTER_SWEEP_INTERVAL_SEC: ${REQUESTER_SWEEP_INTERVAL_SEC:?see .env.example}
   OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:?see .env.example}
   # Keycloak as the containers reach it; the issuer stays the browser's.
   OIDC_SERVER_URL: http://keycloak:8080

@@ -18,7 +18,8 @@ from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import connection, models, transaction
 from django.db.models import F, QuerySet, Window
-from django.db.models.functions import RowNumber
+from django.db.models import Max
+from django.db.models.functions import Coalesce, Greatest, RowNumber
 from django.utils import timezone
 from pgvector.django import CosineDistance, VectorField
 
@@ -32,6 +33,7 @@ from apps.audit.models import AuditLog
 from apps.tickets.utils.crypto import QuarantineEntry, build_quarantine_entries
 
 if TYPE_CHECKING:
+    from apps.chat.models import Conversation
     from apps.lifecycle.models import WorkflowStatus
 from apps.tickets.utils.masking import mask
 
@@ -171,6 +173,21 @@ class TicketManager(models.Manager["Ticket"]):
         """Every ticket for support staff; a requester's own tickets otherwise."""
         return self.all() if user.is_support_staff else self.filter(reporter=user)
 
+    def for_requester(self, user: User) -> QuerySet[Ticket]:
+        """Tickets `user` reported, form and chat, with when each last changed (BR-F3-04)."""
+        return (
+            self.filter(reporter=user)
+            .select_related("workflow_status__base", "team", "reopened_from")
+            .prefetch_related("sla_clocks", "ratings")
+            .annotate(
+                last_update=Greatest(
+                    "created_at",
+                    Coalesce(Max("transfers__created_at"), "created_at"),
+                    Coalesce(Max("comments__created_at"), "created_at"),
+                )
+            )
+        )
+
     def in_view(self, view: StaffView, user: User, query: str = "") -> QuerySet[Ticket]:
         """The tickets `view` shows `user`, newest first, matching `query` on id or subject."""
         tickets = self.select_related(
@@ -306,6 +323,8 @@ class TicketManager(models.Manager["Ticket"]):
         ticket_in: TicketIn,
         trace_id: str | None,
         source: TicketSource = TicketSource.FORM,
+        conversation: Conversation | None = None,
+        reopened_from: Ticket | None = None,
     ) -> Ticket:
         """Ticket submission — spec §5. Masks, persists and enqueues one
         validated submission.
@@ -332,6 +351,8 @@ class TicketManager(models.Manager["Ticket"]):
                 pii_level=result.pii_level.value,
                 pii_map={ph: str(entry.ref) for ph, entry in quarantine_entries.items()},
                 source=source.value,
+                conversation=conversation,
+                reopened_from=reopened_from,
             )
             PiiQuarantine.objects.store(ticket, quarantine_entries)
             # Imported here: the lifecycle engine imports this module.
@@ -412,6 +433,18 @@ class Ticket(BaseModel):
     duplicate_of = models.ForeignKey(
         "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="duplicates"
     )
+    # The chat conversation the question was asked in (F3); None for form tickets.
+    conversation = models.ForeignKey(
+        "chat.Conversation",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tickets",
+    )
+    # The completed ticket this one was submitted to reopen, after its window (BR-F3-08).
+    reopened_from = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="reopened_as"
+    )
 
     # Mirror of the resolution clock's due time (F1); `before_sla` rules read it.
     sla_due_at = models.DateTimeField(null=True, blank=True)
@@ -420,6 +453,8 @@ class Ticket(BaseModel):
     )
     resolved_at = models.DateTimeField(null=True, blank=True)
     reopened_count = models.SmallIntegerField(default=0)  # the most important metric
+    # How many times the ticket has entered a completed status; ratings are per value (BR-F3-10).
+    resolution_seq = models.SmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     # The lifecycle's position (ADR-0028); `status` holds this status's key.
@@ -450,7 +485,10 @@ class Ticket(BaseModel):
             self.resolved_at = None
         elif self.resolved_at is None:
             self.resolved_at = timezone.now()
-        self.save(update_fields=["workflow_status", "status", "version", "resolved_at"])
+            self.resolution_seq += 1
+        self.save(
+            update_fields=["workflow_status", "status", "version", "resolved_at", "resolution_seq"]
+        )
 
     def latest_clarification(self) -> TicketClarification | None:
         """Finds the last question this ticket asked its requester."""
@@ -694,3 +732,77 @@ class TicketClarification(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "ticket_clarifications"
+
+
+class CommentAuthorKind(StrEnum):
+    REQUESTER = "requester"
+    STAFF = "staff"
+    SYSTEM = "system"
+
+
+class CommentVisibility(StrEnum):
+    PUBLIC = "public"
+    INTERNAL = "internal"
+
+
+class TicketCommentQuerySet(models.QuerySet["TicketComment"]):
+    def public(self) -> TicketCommentQuerySet:
+        return self.filter(visibility=CommentVisibility.PUBLIC.value)
+
+    def for_staff(self) -> TicketCommentQuerySet:
+        """Comments staff may read: none still held for a masking review (UC-F3-03 3y)."""
+        return self.filter(hidden_for_review=False)
+
+
+class TicketComment(BaseModel):
+    """A public comment or an internal note on a ticket, masked before it was stored (BR-F3-06)."""
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="ticket_comments",
+    )
+    author_kind = models.CharField(
+        max_length=10, choices=[(k.value, k.value) for k in CommentAuthorKind]
+    )
+    visibility = models.CharField(
+        max_length=10, choices=[(v.value, v.value) for v in CommentVisibility]
+    )
+    body_masked = models.TextField()
+    pii_level = models.CharField(max_length=20, choices=[(p.value, p.value) for p in PIILevel])
+    # Masking failed: staff don't see it until a reviewer shows it.
+    hidden_for_review = models.BooleanField(default=False)
+    # A reviewer discarded it; it stays hidden and the requester is asked to resend.
+    discarded_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = TicketCommentQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "ticket_comments"
+        indexes = [models.Index(fields=["ticket", "created_at"], name="ticket_comments_thread")]
+
+
+class TicketRating(BaseModel):
+    """The requester's 1–5 rating of one resolution of a ticket (BR-F3-10)."""
+
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="ratings")
+    resolution_seq = models.SmallIntegerField()
+    score = models.SmallIntegerField()
+    comment_masked = models.TextField(null=True, blank=True)
+    rated_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "ticket_ratings"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ticket", "resolution_seq"], name="ticket_ratings_one_per_resolution"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(score__gte=1, score__lte=5), name="ticket_ratings_score_1_5"
+            ),
+        ]

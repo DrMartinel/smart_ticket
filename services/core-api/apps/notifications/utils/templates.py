@@ -24,6 +24,76 @@ VI, EN = Language.VI, Language.EN
 
 # (subject, body) per event and language; in-app and email share them unless overridden.
 DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
+    E.TICKET_RECEIVED: {
+        VI: (
+            "Đã nhận yêu cầu {{ticket.id}}: {{ticket.subject}}",
+            "Bộ phận hỗ trợ đã nhận yêu cầu của bạn. Theo dõi tại {{notice.link}}",
+        ),
+        EN: (
+            "We received {{ticket.id}}: {{ticket.subject}}",
+            "Support has your request. Follow it at {{notice.link}}",
+        ),
+    },
+    E.TICKET_PUBLIC_COMMENT: {
+        VI: (
+            "Phản hồi mới cho {{ticket.id}}: {{ticket.subject}}",
+            "{{notice.actor}}: {{notice.message}}\n\nTrả lời tại {{notice.link}}",
+        ),
+        EN: (
+            "New reply on {{ticket.id}}: {{ticket.subject}}",
+            "{{notice.actor}}: {{notice.message}}\n\nAnswer at {{notice.link}}",
+        ),
+    },
+    E.TICKET_REQUESTER_REPLIED: {
+        VI: (
+            "{{notice.actor}} đã trả lời {{ticket.id}}",
+            "{{notice.message}}\n\n{{ticket.subject}}",
+        ),
+        EN: (
+            "{{notice.actor}} replied on {{ticket.id}}",
+            "{{notice.message}}\n\n{{ticket.subject}}",
+        ),
+    },
+    E.TICKET_STATUS_CHANGED: {
+        VI: (
+            "{{ticket.id}} đang chờ bạn phản hồi",
+            "Bộ phận hỗ trợ cần thêm thông tin từ bạn: {{notice.link}}",
+        ),
+        EN: (
+            "{{ticket.id}} is waiting for you",
+            "Support needs more from you: {{notice.link}}",
+        ),
+    },
+    E.TICKET_RESOLVED: {
+        VI: (
+            "Đã giải quyết {{ticket.id}}: {{ticket.subject}}",
+            "Yêu cầu của bạn đã được giải quyết. Đánh giá hoặc mở lại tại {{notice.link}}",
+        ),
+        EN: (
+            "Resolved: {{ticket.id}} — {{ticket.subject}}",
+            "Your request is resolved. Rate it or reopen it at {{notice.link}}",
+        ),
+    },
+    E.TICKET_REOPENED: {
+        VI: (
+            "{{ticket.id}} được mở lại: {{ticket.subject}}",
+            "Người yêu cầu mở lại: {{notice.message}}",
+        ),
+        EN: (
+            "{{ticket.id}} reopened: {{ticket.subject}}",
+            "The requester reopened it: {{notice.message}}",
+        ),
+    },
+    E.TICKET_RATED_LOW: {
+        VI: (
+            "Đánh giá thấp ({{notice.reason}}/5): {{ticket.id}}",
+            "{{notice.message}}\n\nNgười xử lý {{ticket.assignee}}. {{ticket.subject}}",
+        ),
+        EN: (
+            "Low rating ({{notice.reason}}/5): {{ticket.id}}",
+            "{{notice.message}}\n\nAssignee {{ticket.assignee}}. {{ticket.subject}}",
+        ),
+    },
     E.TICKET_ASSIGNED: {
         VI: ("Bạn được giao {{ticket.id}}: {{ticket.subject}}", "{{ticket.body}}"),
         EN: ("Assigned to you: {{ticket.id}} — {{ticket.subject}}", "{{ticket.body}}"),

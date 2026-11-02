@@ -210,6 +210,25 @@ through (ADR-0030 §2); the ticket is queued in `sla_rebuilds` and the next swee
 4. Never fix a breach by editing a clock row: change the priority or the policy,
    which are audited.
 
+## Requester replies held, or waits not closing (F3)
+
+**What this means:** a comment whose masking failed (`mask_failed` review items
+with a comment) is hidden from staff until a reviewer shows or discards it; the
+requester sees "Đã nhận, đang kiểm tra". Many at once usually mean ai-engine's
+NER is down, as for `mask_failed` tickets.
+
+**Actions:**
+1. Check ai-engine and its NER model; new replies mask normally once it is back.
+2. Work the held comments from the ticket page ("Review it"): **Show to staff**
+   if the regex tier's masking is enough, **Discard** if raw personal data
+   remains (the requester is asked to resend). Never copy the text elsewhere.
+3. `requester_reply_move_refused` or `ticket_auto_close_refused` in the audit log:
+   the workflow has no transition out of `waiting_on_requester` (strict
+   workflows), or the ticket's last move is still running. Add the transition in
+   `/settings/workflows`; the reply and the ticket are unchanged meanwhile.
+4. Waits never auto-closing or conversations never ending: check `beat`
+   (`requester-sweep`, `REQUESTER_SWEEP_INTERVAL_SEC`).
+
 ## DB read-only
 
 **What this means:** spec §10.3 asks the submission endpoint to answer `503`

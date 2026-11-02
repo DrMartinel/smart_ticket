@@ -87,6 +87,7 @@ INSTALLED_APPS = [
     "apps.teams",
     "apps.notifications",
     "apps.sla",
+    "apps.requester",
 ]
 
 MIDDLEWARE = [
@@ -179,6 +180,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.sla.tasks.sweep",
         "schedule": float(env("SLA_SWEEP_INTERVAL_SEC")),
     },
+    "requester-sweep": {
+        "task": "apps.requester.tasks.sweep",
+        "schedule": float(env("REQUESTER_SWEEP_INTERVAL_SEC")),
+    },
     "sla-holiday-check": {
         "task": "apps.sla.tasks.holiday_check",
         # 07:00 Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
@@ -262,6 +267,7 @@ EMAIL_PORT = int(env("EMAIL_PORT"))
 # ── Notifications (F4, ADR-0033); `.env.example` explains each value ─────
 NOTIFICATION_POLL_SEC = int(env("NOTIFICATION_POLL_SEC"))
 NOTIFICATION_PUBLIC_BASE_URL = env("NOTIFICATION_PUBLIC_BASE_URL")
+NOTIFICATION_CHAT_BASE_URL = env("NOTIFICATION_CHAT_BASE_URL")
 NOTIFICATION_SECRET_KEY = env("NOTIFICATION_SECRET_KEY")
 
 
@@ -388,6 +394,23 @@ class SlaThresholds(BaseModel):
     holidays_reminder_month_day: str = Field(pattern=r"^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
 
 
+class RequesterThresholds(BaseModel):
+    # Minutes without a turn after which a chat conversation ends (F3, BR-F3-02).
+    conversation_idle_minutes: int = Field(ge=1)
+    # Earlier turns of the conversation sent to ai-engine with a new one (BR-F3-01).
+    max_prior_turns: int = Field(ge=0)
+    # Characters of an earlier turn's answer sent with it.
+    answer_excerpt_chars: int = Field(ge=0)
+    # Days after resolution a requester may reopen; later, a linked ticket (BR-F3-08).
+    reopen_window_days: int = Field(ge=1)
+    # Days of completed tickets My tickets lists after the open ones.
+    list_resolved_days: int = Field(ge=1)
+    # Business days a ticket waits on its requester before it is resolved (BR-F3-11).
+    auto_close_after_business_days: int = Field(ge=1)
+    # A rating at or below this alerts the team lead (UC-F3-05 3x).
+    low_rating_at_most: int = Field(ge=1, le=5)
+
+
 class AssignmentThresholds(BaseModel):
     # Shortest note a manual reassignment carries (F2, BR-F2-05).
     reassign_note_min_chars: int = Field(ge=1)
@@ -416,6 +439,7 @@ class Thresholds(BaseModel):
     notifications: NotificationThresholds
     assignment: AssignmentThresholds
     sla: SlaThresholds
+    requester: RequesterThresholds
 
     @property
     def retrieval_floor(self) -> float:

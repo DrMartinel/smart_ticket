@@ -135,7 +135,7 @@ E = NotificationEvent
 # Spec F4 §f's catalog. Events of features not built yet stay inactive: nothing emits them.
 CATALOG: dict[NotificationEvent, EventSpec] = {
     E.TICKET_RECEIVED: EventSpec(
-        "F3", False, "Ticket received", "Đã nhận yêu cầu", _cells((K.REQUESTER,), BOTH)
+        "F3", True, "Ticket received", "Đã nhận yêu cầu", _cells((K.REQUESTER,), BOTH)
     ),
     E.TICKET_ASSIGNED: EventSpec(
         "F2", True, "Ticket assigned", "Được giao yêu cầu", _cells((K.ASSIGNEE,), BOTH)
@@ -152,29 +152,29 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.TICKET_PUBLIC_COMMENT: EventSpec(
         "F3",
-        False,
+        True,
         "Reply from support",
         "Phản hồi từ bộ phận hỗ trợ",
         _cells((K.REQUESTER,), BOTH),
     ),
     E.TICKET_REQUESTER_REPLIED: EventSpec(
-        "F3", False, "Requester replied", "Người yêu cầu đã trả lời", _cells((K.ASSIGNEE,), BOTH)
+        "F3", True, "Requester replied", "Người yêu cầu đã trả lời", _cells((K.ASSIGNEE,), BOTH)
     ),
     E.TICKET_STATUS_CHANGED: EventSpec(
-        "F3", False, "Status changed", "Trạng thái thay đổi", _cells((K.REQUESTER,), IN_APP)
+        "F3", True, "Status changed", "Trạng thái thay đổi", _cells((K.REQUESTER,), IN_APP)
     ),
     E.TICKET_RESOLVED: EventSpec(
-        "F3", False, "Ticket resolved", "Yêu cầu đã được giải quyết", _cells((K.REQUESTER,), BOTH)
+        "F3", True, "Ticket resolved", "Yêu cầu đã được giải quyết", _cells((K.REQUESTER,), BOTH)
     ),
     E.TICKET_REOPENED: EventSpec(
         "F3",
-        False,
+        True,
         "Ticket reopened",
         "Yêu cầu được mở lại",
         _cells((K.ASSIGNEE, K.TEAM_LEAD), IN_APP),
     ),
     E.TICKET_RATED_LOW: EventSpec(
-        "F3", False, "Low rating", "Đánh giá thấp", _cells((K.TEAM_LEAD,), BOTH)
+        "F3", True, "Low rating", "Đánh giá thấp", _cells((K.TEAM_LEAD,), BOTH)
     ),
     E.SLA_WARNING: EventSpec(
         "F1",

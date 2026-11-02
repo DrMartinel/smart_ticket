@@ -24,6 +24,7 @@ FRONTENDS = ["admin-console", "chat"]
 MODELS = [
     "TicketIn",
     "TicketMasked",
+    "PriorTurn",
     "AutoReplyProposal",
     "RouteProposal",
     "RunbookProposal",
@@ -106,6 +107,17 @@ MODELS = [
     "PriorityIn",
     "BadgeClockOut",
     "SlaBadgeOut",
+    "CommentIn",
+    "CommentOut",
+    "ReplyIn",
+    "ReopenIn",
+    "RatingIn",
+    "RatingOut",
+    "RequesterTicketRow",
+    "RequesterTicketList",
+    "ThreadCommentOut",
+    "RequesterTicketOut",
+    "ReopenOut",
 ]
 
 ENUMS = {
@@ -125,6 +137,7 @@ ENUMS = {
     "UserRole": ["employee", "technician", "manager", "security"],
     "RiskTier": ["low", "medium", "high"],
     "ChatState": ["thinking", "answered", "clarify", "suggest_ticket", "with_support"],
+    "CommentState": ["shown", "checking", "discarded"],
     "TeamStrategy": ["round_robin", "least_loaded"],
     "Priority": ["P1", "P2", "P3", "P4"],
     "ReassignReason": [
@@ -205,6 +218,10 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as notifications_request,
         response_schema as notifications_response,
     )
+    from apps.requester import (
+        request_schema as requester_request,
+        response_schema as requester_response,
+    )
     from apps.sla import request_schema as sla_request, response_schema as sla_response
     from apps.teams import request_schema as teams_request, response_schema as teams_response
     from apps.tickets import request_schema, response_schema as tickets_response
@@ -225,6 +242,8 @@ def _models() -> dict[str, type[BaseModel]]:
         teams_response,
         sla_request,
         sla_response,
+        requester_request,
+        requester_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:
