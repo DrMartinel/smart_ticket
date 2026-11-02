@@ -10,6 +10,7 @@ networks:
 volumes:
   db_data:
   graph_build:
+  keycloak_data:
 
 # Every value comes from .env beside this file (`cp .env.example .env`, the
 # template that documents each one); nothing here repeats a default, and
@@ -410,6 +411,7 @@ services:
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?see .env.example}
       KEYCLOAK_RUNBOOK_CLIENT_SECRET: ${KEYCLOAK_RUNBOOK_CLIENT_SECRET:?see .env.example}
     volumes:
+      - keycloak_data:/opt/keycloak/data
       - ./infra/keycloak/smart-ticket-realm.json:/opt/keycloak/data/import/smart-ticket-realm.json:ro
     ports:
       - "8081:8080"

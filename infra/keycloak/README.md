@@ -12,4 +12,13 @@ the client roles F13 maps (four primary roles, three capabilities), the
 Client secrets are `${…}` placeholders Keycloak fills from the container's
 environment, i.e. from `.env`.
 
+Keycloak keeps its database in the `keycloak_data` volume, so users keep
+their IDs across restarts and rebuilds, and core-api's users stay linked to
+them. The import skips a realm that already exists: to load an edited
+`smart-ticket-realm.json`, remove the volume
+(`docker compose rm -sf keycloak && docker volume rm infra_keycloak_data`) and
+start Keycloak again. Every test user then gets a new ID, and core-api's
+identity sync deactivates the old links (`not_in_keycloak`); a sign-in before
+they are re-linked creates a second account with a suffixed username.
+
 Dev only. Production realms are configured as `docs/runbooks/keycloak.md` says.
