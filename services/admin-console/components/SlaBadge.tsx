@@ -3,8 +3,9 @@
 // The SLA badge (F1 · SLA badge 8-604): business time left on the response clock until it is met,
 // then on the resolution clock; the tooltip lists both.
 
-import { slaLevelClasses, ticketPriorityClasses } from "@/lib/badges";
+import { slaLevelTone, ticketPriorityTone } from "@/lib/badges";
 import type { SlaBadgeOut } from "@/lib/types/generated";
+import { Badge } from "@/components/ui/badge";
 
 /** "35p", "3g 20p", "28g": business minutes in Vietnamese short units. */
 export function businessDuration(minutes: number): string {
@@ -52,16 +53,16 @@ function tooltip(badge: SlaBadgeOut): string {
 }
 
 export default function SlaBadge({ badge }: { badge: SlaBadgeOut | null | undefined }) {
-  if (!badge) return <span className="text-[var(--text-muted)]">—</span>;
+  if (!badge) return <span className="text-muted-foreground">—</span>;
   const text = tooltip(badge);
   return (
-    <span className={`badge ${slaLevelClasses(badge.level)}`} title={text} aria-label={`${slaLabel(badge)}. ${text}`} tabIndex={0}>
+    <Badge variant={slaLevelTone(badge.level)} title={text} aria-label={`${slaLabel(badge)}. ${text}`} tabIndex={0}>
       {slaLabel(badge)}
-    </span>
+    </Badge>
   );
 }
 
 export function PriorityChip({ priority }: { priority: string | null | undefined }) {
-  if (!priority) return <span className="text-[var(--text-muted)]">—</span>;
-  return <span className={`badge ${ticketPriorityClasses(priority)}`}>{priority}</span>;
+  if (!priority) return <span className="text-muted-foreground">—</span>;
+  return <Badge variant={ticketPriorityTone(priority)}>{priority}</Badge>;
 }

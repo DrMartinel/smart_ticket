@@ -14,19 +14,19 @@ export default function IncidentBanner({ incident, publicId }: { incident: Incid
   return (
     <section
       role="status"
-      className={`rounded-[8px] px-4 py-3 text-sm ${
-        resolved ? "bg-[var(--ok-soft)] text-[var(--ok)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"
+      className={`rounded-lg px-4 py-3 text-sm ${
+        resolved ? "bg-ok-soft text-ok" : "bg-warn-soft text-warn"
       }`}
     >
       <p className="font-semibold">
         {resolved ? "✓ Sự cố đã khắc phục · Resolved" : "⚠ Sự cố đang xử lý · Known issue"}: {incident.title}
       </p>
-      <p className="mt-1 text-[var(--text)]">
+      <p className="mt-1 text-foreground">
         {incident.last_update ?? "Đội IT đã nhận sự cố và đang kiểm tra."}
         {!resolved && eta && ` Dự kiến: ${eta}.`} Your ticket {publicId} is linked — no need to open another.
       </p>
       {incident.last_update_at && (
-        <p className="mt-1 text-xs text-[var(--text-muted)]">
+        <p className="mt-1 text-xs text-muted-foreground">
           Cập nhật {hm(incident.last_update_at)} · stage {incident.stage}
         </p>
       )}

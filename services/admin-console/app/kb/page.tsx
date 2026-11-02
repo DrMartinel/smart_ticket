@@ -5,7 +5,14 @@ import { Fragment, useEffect, useState } from "react";
 import { KbTabs, canEditKb } from "@/components/kb/KbTabs";
 import { useRequireAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
-import { riskTierClasses } from "@/lib/badges";
+import { riskTierTone } from "@/lib/badges";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface KbArticle {
   id: string;
@@ -92,22 +99,24 @@ export default function KbPage() {
       <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
         <div>
         <h1 className="text-2xl font-semibold tracking-tight">Help pages</h1>
-        <p className="mt-0.5 max-w-2xl text-sm text-[var(--text-muted)]">
+        <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">
           {isManager
             ? "Only pages allowed here can be used for automatic answers. Changing that needs a reason, and every change is logged. The AI can never grant it."
             : "Only pages allowed here can be used for automatic answers. Managers change which ones."}
         </p>
         </div>
         {isEditor && (
-          <Link href="/kb/drafts/new" className="btn btn-primary">
-            Trang mới · New page
-          </Link>
+          <Button asChild>
+            <Link href="/kb/drafts/new">
+              Trang mới · New page
+            </Link>
+          </Button>
         )}
       </header>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <input
-          className="field min-w-0 max-w-md flex-1"
+        <Input
+          className="min-w-0 max-w-md flex-1"
           placeholder="Search by title or slug"
           aria-label="Search help pages"
           value={query}
@@ -116,8 +125,7 @@ export default function KbPage() {
             setOffset(0);
           }}
         />
-        <select
-          className="field w-48"
+        <NativeSelect wrapperClassName="w-48"
           aria-label="Category"
           value={category}
           onChange={(e) => {
@@ -130,78 +138,78 @@ export default function KbPage() {
               {c || "All categories"}
             </option>
           ))}
-        </select>
-        <span className="ml-auto text-sm text-[var(--text-muted)]">
+        </NativeSelect>
+        <span className="ml-auto text-sm text-muted-foreground">
           {count === 0 ? "0" : `${offset + 1}–${Math.min(offset + PAGE_SIZE, count)}`} of {count}
         </span>
-        <button disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))} className="btn btn-secondary py-1">
+        <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
           Previous
-        </button>
-        <button disabled={offset + PAGE_SIZE >= count} onClick={() => setOffset(offset + PAGE_SIZE)} className="btn btn-secondary py-1">
+        </Button>
+        <Button variant="outline" size="sm" disabled={offset + PAGE_SIZE >= count} onClick={() => setOffset(offset + PAGE_SIZE)}>
           Next
-        </button>
+        </Button>
       </div>
 
-      {error && <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
-      {articles === null && !error && <p className="text-sm text-[var(--text-muted)]">Loading…</p>}
+      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
+      {articles === null && !error && <p className="text-sm text-muted-foreground">Loading…</p>}
 
       {articles && (
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[720px] table-fixed text-sm">
-            <thead className="bg-[var(--surface-2)] text-left text-xs text-[var(--text-muted)]">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Page</th>
-                <th className="w-32 px-4 py-2.5 font-medium">Category</th>
-                <th className="w-28 px-4 py-2.5 font-medium">Risk</th>
-                <th className="w-44 px-4 py-2.5 font-medium">Automatic answers</th>
-                <th className="w-44 px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
+        <Card className="overflow-x-auto">
+          <Table className="w-full min-w-[720px] table-fixed text-sm">
+            <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+              <TableRow>
+                <TableHead className="px-4 py-2.5 font-medium">Page</TableHead>
+                <TableHead className="w-32 px-4 py-2.5 font-medium">Category</TableHead>
+                <TableHead className="w-28 px-4 py-2.5 font-medium">Risk</TableHead>
+                <TableHead className="w-44 px-4 py-2.5 font-medium">Automatic answers</TableHead>
+                <TableHead className="w-44 px-4 py-2.5" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {articles.map((a) => (
                 <Fragment key={a.slug}>
-                  <tr className="border-t border-[var(--border)] align-top">
-                    <td className="px-4 py-3">
+                  <TableRow className="border-t border-border align-top">
+                    <TableCell className="px-4 py-3">
                       {a.source_url ? (
-                        <a href={a.source_url} target="_blank" rel="noopener noreferrer" className="block truncate font-medium hover:text-[var(--accent)]">
+                        <a href={a.source_url} target="_blank" rel="noopener noreferrer" className="block truncate font-medium hover:text-primary">
                           {a.title}
                         </a>
                       ) : (
                         <span className="block truncate font-medium">{a.title}</span>
                       )}
-                      <span className="block truncate font-mono text-xs text-[var(--text-muted)]">{a.slug}</span>
-                    </td>
-                    <td className="px-4 py-3">{a.category}</td>
-                    <td className="px-4 py-3">
-                      <span className={`badge ${riskTierClasses(a.risk_tier)}`}>{a.risk_tier}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {a.auto_reply_allowed ? <span className="badge tone-ok">Allowed</span> : <span className="text-[var(--text-muted)]">Not allowed</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
+                      <span className="block truncate font-mono text-xs text-muted-foreground">{a.slug}</span>
+                    </TableCell>
+                    <TableCell className="px-4 py-3">{a.category}</TableCell>
+                    <TableCell className="px-4 py-3">
+                      <Badge variant={riskTierTone(a.risk_tier)}>{a.risk_tier}</Badge>
+                    </TableCell>
+                    <TableCell className="px-4 py-3">
+                      {a.auto_reply_allowed ? <Badge variant="ok">Allowed</Badge> : <span className="text-muted-foreground">Not allowed</span>}
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-right">
                       {isEditor && (
                         <span className="mr-2 inline-flex gap-2 text-xs">
-                          <Link href={`/kb/graph/${encodeURIComponent(a.slug)}`} className="text-[var(--accent)] hover:underline">
+                          <Link href={`/kb/graph/${encodeURIComponent(a.slug)}`} className="text-primary hover:underline">
                             Đồ thị
                           </Link>
-                          <Link href={`/kb/drafts/new?kind=edit&slug=${encodeURIComponent(a.slug)}`} className="text-[var(--accent)] hover:underline">
+                          <Link href={`/kb/drafts/new?kind=edit&slug=${encodeURIComponent(a.slug)}`} className="text-primary hover:underline">
                             Sửa
                           </Link>
-                          <Link href={`/kb/drafts/new?kind=retire&slug=${encodeURIComponent(a.slug)}`} className="text-[var(--danger)] hover:underline">
+                          <Link href={`/kb/drafts/new?kind=retire&slug=${encodeURIComponent(a.slug)}`} className="text-danger hover:underline">
                             Gỡ
                           </Link>
                         </span>
                       )}
                       {isManager && (
-                        <button onClick={() => setPendingSlug(pendingSlug === a.slug ? null : a.slug)} className="btn btn-secondary py-1 text-xs">
+                        <Button variant="outline" size="xs" onClick={() => setPendingSlug(pendingSlug === a.slug ? null : a.slug)}>
                           {a.auto_reply_allowed ? "Revoke" : "Allow"}
-                        </button>
+                        </Button>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                   {pendingSlug === a.slug && (
-                    <tr className="bg-[var(--surface-2)]">
-                      <td colSpan={5} className="px-4 py-3">
+                    <TableRow className="bg-muted">
+                      <TableCell colSpan={5} className="px-4 py-3">
                         <form
                           className="flex items-center gap-2"
                           onSubmit={(e) => {
@@ -209,28 +217,28 @@ export default function KbPage() {
                             void toggle(a);
                           }}
                         >
-                          <input
-                            className="field flex-1"
+                          <Input
+                            className="flex-1"
                             placeholder={`Why ${a.auto_reply_allowed ? "revoke" : "allow"} automatic answers from this page? (required, logged)`}
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             autoFocus
                           />
-                          <button type="submit" className="btn btn-primary">
+                          <Button type="submit">
                             Confirm
-                          </button>
-                          <button type="button" className="btn btn-secondary" onClick={() => setPendingSlug(null)}>
+                          </Button>
+                          <Button variant="outline" type="button" onClick={() => setPendingSlug(null)}>
                             Cancel
-                          </button>
+                          </Button>
                         </form>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
                 </Fragment>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
     </div>
   );

@@ -12,6 +12,9 @@ import ReopenBox from "@/components/ReopenBox";
 import { ApiError, notificationsApi, requesterApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { RequesterTicketOut, ThreadCommentOut } from "@/lib/types/generated";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 // Until the first poll says otherwise (NOTIFICATION_POLL_SEC, FR-F3-014).
 const FIRST_POLL_SEC = 15;
@@ -93,26 +96,26 @@ export default function TicketPage() {
     <div className="flex min-h-dvh flex-col">
       <AppHeader />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 md:px-6">
-        {missing && <p className="text-sm text-[var(--text-muted)]">Không tìm thấy yêu cầu · No such ticket.</p>}
+        {missing && <p className="text-sm text-muted-foreground">Không tìm thấy yêu cầu · No such ticket.</p>}
         {ticket && (
           <>
             <header className="flex flex-col gap-1">
               <p className="flex items-start justify-between gap-3">
-                <span className="font-mono text-xs text-[var(--text-muted)]">{ticket.public_id}</span>
+                <span className="font-mono text-xs text-muted-foreground">{ticket.public_id}</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                     ticket.sla_paused
-                      ? "bg-[var(--warn-soft)] text-[var(--warn)]"
+                      ? "bg-warn-soft text-warn"
                       : ticket.resolved_at
-                        ? "bg-[var(--ok-soft)] text-[var(--ok)]"
-                        : "bg-[var(--accent-soft)] text-[var(--accent)]"
+                        ? "bg-ok-soft text-ok"
+                        : "bg-primary-soft text-primary"
                   }`}
                 >
                   {ticket.status_label}
                 </span>
               </p>
               <h1 className="text-lg font-semibold">{ticket.subject_masked}</h1>
-              <p className="text-xs text-[var(--text-muted)]">
+              <p className="text-xs text-muted-foreground">
                 {[
                   ticket.team ? `${ticket.team} team` : null,
                   `opened ${day(ticket.created_at)}`,
@@ -139,46 +142,52 @@ export default function TicketPage() {
               ))}
             </ol>
 
-            {notice && <p className="rounded-[5px] bg-[var(--warn-soft)] px-3 py-2 text-xs text-[var(--warn)]">{notice}</p>}
+            {notice && <p className="rounded-md bg-warn-soft px-3 py-2 text-xs text-warn">{notice}</p>}
 
             {ticket.can_reply && (
-              <form
-                className="panel flex flex-col gap-2 px-4 py-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void send();
-                }}
-              >
-                <textarea
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  maxLength={10_000}
-                  placeholder="Viết trả lời… · Write a reply…"
-                  aria-label="Reply"
-                  className="min-h-[64px] resize-none bg-transparent text-[15px] outline-none"
-                />
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-[var(--text-muted)]">
-                    {ticket.sla_paused ? "Replying moves the ticket back to the team." : "Personal details are hidden before saving."}
-                  </span>
-                  <button type="submit" disabled={sending || !text.trim()} className="btn btn-primary">
-                    {sending ? "…" : "Gửi · Send"}
-                  </button>
-                </div>
-              </form>
+              <Card asChild>
+                <form
+                  className="flex flex-col gap-2 px-4 py-3"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void send();
+                  }}
+                >
+                  <Textarea
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    maxLength={10_000}
+                    placeholder="Viết trả lời… · Write a reply…"
+                    aria-label="Reply"
+                    className="min-h-[64px] resize-none rounded-none border-0 bg-transparent p-0 text-[15px] shadow-none focus-visible:ring-0 md:text-[15px]"
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-muted-foreground">
+                      {ticket.sla_paused ? "Replying moves the ticket back to the team." : "Personal details are hidden before saving."}
+                    </span>
+                    <Button type="submit" disabled={sending || !text.trim()}>
+                      {sending ? "…" : "Gửi · Send"}
+                    </Button>
+                  </div>
+                </form>
+              </Card>
             )}
 
             {ticket.resolved_at && (
               <>
                 {ticket.can_rate && (
-                  <section className="panel px-4 py-4">
-                    <Rating publicId={ticket.public_id} current={ticket.rating_detail} until={ticket.can_reopen_until} />
-                  </section>
+                  <Card asChild>
+                    <section className="px-4 py-4">
+                      <Rating publicId={ticket.public_id} current={ticket.rating_detail} until={ticket.can_reopen_until} />
+                    </section>
+                  </Card>
                 )}
-                <section className="panel flex flex-col gap-2 px-4 py-4">
-                  <h2 className="font-medium">Chưa giải quyết được? · Still not fixed?</h2>
-                  <ReopenBox publicId={ticket.public_id} until={ticket.can_reopen_until} onDone={() => void load()} />
-                </section>
+                <Card asChild>
+                  <section className="flex flex-col gap-2 px-4 py-4">
+                    <h2 className="font-medium">Chưa giải quyết được? · Still not fixed?</h2>
+                    <ReopenBox publicId={ticket.public_id} until={ticket.can_reopen_until} onDone={() => void load()} />
+                  </section>
+                </Card>
               </>
             )}
           </>
@@ -198,12 +207,12 @@ function Comment({ comment }: { comment: ThreadCommentOut }) {
         : comment.body_masked;
   return (
     <article
-      className={`rounded-[6px] px-4 py-3 ${comment.mine ? "bg-[var(--accent-soft)]" : "panel"}`}
+      className={`rounded-lg px-4 py-3 ${comment.mine ? "bg-primary-soft" : "border bg-card"}`}
     >
-      <p className="text-xs text-[var(--text-muted)]">
+      <p className="text-xs text-muted-foreground">
         {who} · {new Date(comment.created_at).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
       </p>
-      <p className={`mt-1 whitespace-pre-wrap break-words text-[15px] ${comment.state === "shown" ? "" : "italic text-[var(--text-muted)]"}`}>
+      <p className={`mt-1 whitespace-pre-wrap break-words text-[15px] ${comment.state === "shown" ? "" : "italic text-muted-foreground"}`}>
         {body}
       </p>
     </article>

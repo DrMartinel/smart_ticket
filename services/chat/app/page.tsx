@@ -11,6 +11,7 @@ import AppHeader from "@/components/AppHeader";
 import Composer from "@/components/Composer";
 import TurnView from "@/components/TurnView";
 import Welcome from "@/components/Welcome";
+import { Button } from "@/components/ui/button";
 
 export default function ChatPage() {
   const { user, loading } = useAuth();
@@ -39,14 +40,14 @@ export default function ChatPage() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6 md:px-6">
           {turns.length > 0 && (
-            <p className="flex flex-wrap items-center justify-between gap-2 rounded-[5px] bg-[var(--accent-soft)] px-3 py-2 text-xs text-[var(--accent)]">
+            <p className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-primary-soft px-3 py-2 text-xs text-primary">
               <span>
                 {startedAt ? `Cuộc trò chuyện từ ${clock(startedAt)} · ` : ""}the assistant remembers the last 6 turns of
                 this conversation · ends after 30 min idle
               </span>
-              <button onClick={() => void startNew()} disabled={busy} className="font-medium hover:underline">
+              <Button variant="link" size="inline" onClick={() => void startNew()} disabled={busy} className="font-medium">
                 + Cuộc trò chuyện mới · New conversation
-              </button>
+              </Button>
             </p>
           )}
           {turns.length === 0 ? (
@@ -67,10 +68,10 @@ export default function ChatPage() {
           <div ref={endRef} />
         </div>
       </div>
-      <footer className="border-t border-[var(--border)] bg-[var(--bg)]">
+      <footer className="border-t border-border bg-background">
         <div className="mx-auto max-w-3xl px-4 py-3 md:px-6">
           <Composer onSend={ask} disabled={busy} autoFocus />
-          <p className="mt-2 text-xs text-[var(--text-muted)]">
+          <p className="mt-2 text-xs text-muted-foreground">
             Every question is logged as a ticket. A person reviews anything the assistant isn&apos;t sure about.
           </p>
         </div>

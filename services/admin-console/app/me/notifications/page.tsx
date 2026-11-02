@@ -7,6 +7,9 @@ import Switch from "@/components/Switch";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { LanguageOut, PreferenceIn, PreferenceOut } from "@/lib/types/generated";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const VIA: Record<string, string> = {
   requester: "requester",
@@ -89,7 +92,7 @@ export default function MyNotificationsPage() {
 
   const cell = (row: Row, channel: "in_app" | "email") => {
     const c = row.cells[channel];
-    if (!c) return <span className="text-[var(--text-muted)]">—</span>;
+    if (!c) return <span className="text-muted-foreground">—</span>;
     return (
       <Switch
         checked={c.enabled}
@@ -105,59 +108,59 @@ export default function MyNotificationsPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">My notification settings</h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             Turn email or in-app off per event. Required notices can&apos;t be turned off.
           </p>
         </div>
         <label className="flex w-[200px] flex-col gap-1">
-          <span className="text-[11px] text-[var(--text-muted)]">Language of my notices</span>
-          <select value={language} onChange={(e) => void changeLanguage(e.target.value)} className="field">
+          <span className="text-[11px] text-muted-foreground">Language of my notices</span>
+          <NativeSelect value={language} onChange={(e) => void changeLanguage(e.target.value)}>
             <option value="vi">Tiếng Việt</option>
             <option value="en">English</option>
-          </select>
+          </NativeSelect>
         </label>
       </header>
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[680px] text-left text-xs">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Event</th>
-              <th className="px-4 py-2 font-normal">When you get it</th>
-              <th className="px-4 py-2 font-normal">In-app</th>
-              <th className="px-4 py-2 font-normal">Email</th>
-              <th className="px-4 py-2 font-normal" />
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[680px] text-left text-xs">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Event</TableHead>
+              <TableHead className="px-4 py-2 font-normal">When you get it</TableHead>
+              <TableHead className="px-4 py-2 font-normal">In-app</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Email</TableHead>
+              <TableHead className="px-4 py-2 font-normal" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {prefs &&
               rows(prefs).map((row) => (
-                <tr key={row.event} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-2.5">
+                <TableRow key={row.event} className="border-t border-border">
+                  <TableCell className="px-4 py-2.5">
                     <span className="font-mono">{row.event}</span>
-                    <span className="block text-[11px] text-[var(--text-muted)]">{row.label}</span>
-                  </td>
-                  <td className="px-4 py-2.5">As {row.via.map((v) => VIA[v] ?? v).join(", ")}</td>
-                  <td className="px-4 py-2.5">{cell(row, "in_app")}</td>
-                  <td className="px-4 py-2.5">{cell(row, "email")}</td>
-                  <td className="px-4 py-2.5 text-[var(--text-muted)]">
+                    <span className="block text-[11px] text-muted-foreground">{row.label}</span>
+                  </TableCell>
+                  <TableCell className="px-4 py-2.5">As {row.via.map((v) => VIA[v] ?? v).join(", ")}</TableCell>
+                  <TableCell className="px-4 py-2.5">{cell(row, "in_app")}</TableCell>
+                  <TableCell className="px-4 py-2.5">{cell(row, "email")}</TableCell>
+                  <TableCell className="px-4 py-2.5 text-muted-foreground">
                     {required(row)}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
             {prefs?.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                   No notices reach you yet.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[11px] text-[var(--text-muted)]">Changes apply to the next notice and are recorded in the audit log.</p>
+          </TableBody>
+        </Table>
+      </Card>
+      <p className="text-[11px] text-muted-foreground">Changes apply to the next notice and are recorded in the audit log.</p>
     </div>
   );
 }

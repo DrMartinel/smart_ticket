@@ -7,6 +7,13 @@ import Modal, { Labeled } from "@/components/Modal";
 import StatusChip from "@/components/StatusChip";
 import { ColorPicker } from "@/components/workflow/Dialogs";
 import { PALETTE, type Stage } from "@/lib/lifecycle";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 type Kind = "backlog" | "active" | "completed";
 
@@ -60,72 +67,71 @@ export default function StagesPage() {
       <header className="mb-5 flex items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Stages</h1>
-          <p className="mt-0.5 max-w-2xl text-sm text-[var(--text-muted)]">
+          <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">
             The system stages every workflow status maps onto. Reports and SLAs read the stage, so workflows can name their statuses freely.
           </p>
         </div>
         {canEdit && (
-          <button className="btn btn-primary" onClick={() => setEditing("new")}>
+          <Button onClick={() => setEditing("new")}>
             New stage
-          </button>
+          </Button>
         )}
       </header>
 
-      {error && <p className="tone-danger mb-4 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
+      {error && <Alert variant="danger" className="mb-4 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
       {stages && (
-        <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-[var(--surface-2)] text-left text-xs text-[var(--text-muted)]">
-              <tr>
-                <th className="w-12 px-4 py-2.5 font-medium">#</th>
-                <th className="px-4 py-2.5 font-medium">Stage</th>
-                <th className="px-4 py-2.5 font-medium">Counts as</th>
-                <th className="px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
+        <Card className="overflow-hidden">
+          <Table className="w-full text-sm">
+            <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+              <TableRow>
+                <TableHead className="w-12 px-4 py-2.5 font-medium">#</TableHead>
+                <TableHead className="px-4 py-2.5 font-medium">Stage</TableHead>
+                <TableHead className="px-4 py-2.5 font-medium">Counts as</TableHead>
+                <TableHead className="px-4 py-2.5" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {stages.map((s, i) => (
-                <tr key={s.id} className="border-t border-[var(--border)]">
-                  <td className="px-4 py-3 text-[var(--text-muted)]">{i + 1}</td>
-                  <td className="px-4 py-3">
+                <TableRow key={s.id} className="border-t border-border">
+                  <TableCell className="px-4 py-3 text-muted-foreground">{i + 1}</TableCell>
+                  <TableCell className="px-4 py-3">
                     <StatusChip name={s.name} color={s.color} />
-                    {s.description && <p className="text-xs text-[var(--text-muted)]">{s.description}</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`badge ${s.is_completed ? "tone-ok" : s.is_backlog ? "tone-neutral" : "tone-info"}`}>{KIND_LABEL[kindOf(s)]}</span>
-                  </td>
-                  <td className="px-4 py-3">
+                    {s.description && <p className="text-xs text-muted-foreground">{s.description}</p>}
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
+                    <Badge variant={s.is_completed ? "ok" : s.is_backlog ? "neutral" : "info"}>{KIND_LABEL[kindOf(s)]}</Badge>
+                  </TableCell>
+                  <TableCell className="px-4 py-3">
                     {canEdit && (
                       <span className="flex items-center justify-end gap-1 text-xs">
-                        <button className="btn btn-secondary px-2 py-0.5" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${s.name} up`}>
+                        <Button variant="outline" size="sm" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${s.name} up`}>
                           ↑
-                        </button>
-                        <button
-                          className="btn btn-secondary px-2 py-0.5"
+                        </Button>
+                        <Button variant="outline" size="sm"
                           disabled={i === stages.length - 1}
                           onClick={() => move(i, 1)}
                           aria-label={`Move ${s.name} down`}
                         >
                           ↓
-                        </button>
-                        <button className="ml-2 hover:underline" onClick={() => setEditing(s)}>
+                        </Button>
+                        <Button variant="link" size="inline" className="ml-2" onClick={() => setEditing(s)}>
                           Edit
-                        </button>
-                        <button
-                          className="ml-2 text-[var(--danger)] hover:underline"
+                        </Button>
+                        <Button variant="link" size="inline"
+                          className="ml-2 text-danger"
                           onClick={() => confirm(`Delete stage "${s.name}"?`) && run(() => api.delete(`/api/lifecycle/system-statuses/${s.id}`))}
                         >
                           Delete
-                        </button>
+                        </Button>
                       </span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
       <StageDialog
@@ -189,35 +195,37 @@ function StageDialog({
       title={stage ? `Edit ${stage.name}` : "New stage"}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button className="btn btn-primary" disabled={busy || !name.trim()} onClick={save}>
+          </Button>
+          <Button disabled={busy || !name.trim()} onClick={save}>
             Save
-          </button>
+          </Button>
         </>
       }
     >
-      {error && <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
+      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="grid gap-4">
         <Labeled label="Name">
-          <input className="field" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
         </Labeled>
         <Labeled label="Description">
-          <input className="field" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <Input value={description} onChange={(e) => setDescription(e.target.value)} />
         </Labeled>
         <ColorPicker value={color} onChange={setColor} />
-        <fieldset className="grid gap-2 text-sm">
-          <legend className="mb-1 text-xs font-medium text-[var(--text-muted)]">Counts as</legend>
+        <fieldset className="text-sm">
+          <legend className="mb-2 text-xs font-medium text-muted-foreground">Counts as</legend>
+          <RadioGroup value={kind} onValueChange={(next) => setKind(next as Kind)} className="gap-2">
           {(["backlog", "active", "completed"] as Kind[]).map((k) => (
             <label key={k} className="flex items-center gap-2">
-              <input type="radio" name="kind" checked={kind === k} onChange={() => setKind(k)} />
+              <RadioGroupItem value={k} />
               {KIND_LABEL[k]}
-              <span className="text-xs text-[var(--text-muted)]">
+              <span className="text-xs text-muted-foreground">
                 {k === "completed" ? "the ticket is resolved and its SLA stops" : k === "backlog" ? "not yet picked up" : "someone is working on it"}
               </span>
             </label>
           ))}
+          </RadioGroup>
         </fieldset>
       </div>
     </Modal>

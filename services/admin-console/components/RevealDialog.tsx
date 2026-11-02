@@ -5,7 +5,11 @@
 import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { ApiError, api } from "@/lib/api";
-import { piiLevelClasses } from "@/lib/badges";
+import { piiLevelTone } from "@/lib/badges";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 
 const REASONS: { code: string; label: string }[] = [
   { code: "verify_identity", label: "verify_identity — Đối chiếu danh tính" },
@@ -86,21 +90,20 @@ export default function RevealDialog({
       width="max-w-[520px]"
       footer={
         revealed ? (
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Hide now
-          </button>
+          </Button>
         ) : (
           <>
-            <button className="btn btn-secondary" onClick={onClose} disabled={busy}>
+            <Button variant="outline" onClick={onClose} disabled={busy}>
               Cancel
-            </button>
-            <button
-              className="btn btn-danger"
+            </Button>
+            <Button variant="destructive"
               disabled={busy || length < REASON_MIN || length > REASON_MAX}
               onClick={() => void submit()}
             >
               {busy ? "Revealing…" : "Reveal"}
-            </button>
+            </Button>
           </>
         )
       }
@@ -108,10 +111,10 @@ export default function RevealDialog({
       {revealed ? (
         <div aria-live="polite" className="flex flex-col gap-3">
           <p className="flex items-center gap-2.5">
-            <span className={`badge ${piiLevelClasses(level)}`}>{placeholder}</span>
+            <Badge variant={piiLevelTone(level)}>{placeholder}</Badge>
             <span className="font-mono text-base font-semibold">{revealed.value}</span>
           </p>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             <span aria-hidden>
               Hides in {Math.floor(left / 60)}:{String(left % 60).padStart(2, "0")}
             </span>
@@ -121,37 +124,24 @@ export default function RevealDialog({
       ) : (
         <div className="flex flex-col gap-3.5 text-sm">
           <fieldset>
-            <legend className="mb-1.5 text-[11px] uppercase tracking-wide text-[var(--text-muted)]">Reason code</legend>
-            <div className="flex flex-col gap-1.5">
+            <legend className="mb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">Reason code</legend>
+            <RadioGroup value={reasonCode} onValueChange={(next) => setReasonCode(next as typeof reasonCode)} className="gap-2">
               {REASONS.map((r) => (
-                <label key={r.code} className="flex items-center gap-1.5 text-xs">
-                  <input
-                    type="radio"
-                    name="reason_code"
-                    value={r.code}
-                    checked={reasonCode === r.code}
-                    onChange={() => setReasonCode(r.code)}
-                    className="size-3.5 accent-[var(--accent)]"
-                  />
+                <label key={r.code} className="flex items-center gap-2 text-xs">
+                  <RadioGroupItem value={r.code} />
                   {r.label}
                 </label>
               ))}
-            </div>
+            </RadioGroup>
           </fieldset>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-[var(--text-muted)]">
+            <span className="text-[11px] text-muted-foreground">
               Reason ({REASON_MIN}–{REASON_MAX} chars, masked by regex before saving)
             </span>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={2}
-              maxLength={REASON_MAX}
-              className="rounded-[5px] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 text-sm"
-            />
+            <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} maxLength={REASON_MAX} />
           </label>
           {refusal && (
-            <p role="alert" className="text-xs text-[var(--danger)]">
+            <p role="alert" className="text-xs text-danger">
               {refusal}
             </p>
           )}

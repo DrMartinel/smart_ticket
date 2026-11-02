@@ -9,6 +9,12 @@ import { vnTime } from "@/components/security/badges";
 import { api, download } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { AuthorityLogOut } from "@/lib/types/generated";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Filters {
   slug: string;
@@ -68,8 +74,8 @@ export default function AuthorityLogPage() {
 
   const input = (key: keyof Filters, label: string, width: string, type = "text") => (
     <label className={`flex flex-col gap-1 ${width}`}>
-      <span className="text-[11px] text-[var(--text-muted)]">{label}</span>
-      <input className="field" type={type} value={filters[key]} onChange={(e) => setFilters({ ...filters, [key]: e.target.value })} />
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <Input type={type} value={filters[key]} onChange={(e) => setFilters({ ...filters, [key]: e.target.value })} />
     </label>
   );
 
@@ -78,7 +84,7 @@ export default function AuthorityLogPage() {
       <KbTabs user={user} />
       <header className="mb-4">
         <h1 className="text-xl font-semibold">Nhật ký quyền · Authority log</h1>
-        <p className="text-xs text-[var(--text-muted)]">Mọi thay đổi quyền trả lời tự động và mức rủi ro. Việc xuất CSV được ghi audit.</p>
+        <p className="text-xs text-muted-foreground">Mọi thay đổi quyền trả lời tự động và mức rủi ro. Việc xuất CSV được ghi audit.</p>
       </header>
 
       <form
@@ -91,61 +97,61 @@ export default function AuthorityLogPage() {
         {input("slug", "Page", "w-64")}
         {input("actor", "Actor", "w-40")}
         <label className="flex w-44 flex-col gap-1">
-          <span className="text-[11px] text-[var(--text-muted)]">Field</span>
-          <select className="field" value={filters.field} onChange={(e) => setFilters({ ...filters, field: e.target.value })}>
+          <span className="text-[11px] text-muted-foreground">Field</span>
+          <NativeSelect value={filters.field} onChange={(e) => setFilters({ ...filters, field: e.target.value })}>
             <option value="">all</option>
             <option value="auto_reply_allowed">auto_reply_allowed</option>
             <option value="risk_tier">risk_tier</option>
-          </select>
+          </NativeSelect>
         </label>
         {input("from", "From", "w-40", "date")}
         {input("to", "To", "w-40", "date")}
-        <button type="submit" className="btn btn-secondary">
+        <Button variant="outline" type="submit">
           Lọc
-        </button>
-        <button type="button" className="btn btn-secondary ml-auto" onClick={() => void exportCsv()}>
+        </Button>
+        <Button variant="outline" type="button" className="ml-auto" onClick={() => void exportCsv()}>
           Xuất CSV
-        </button>
+        </Button>
       </form>
 
-      {error && <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
+      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[900px] text-left text-sm">
-          <thead className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">When</th>
-              <th className="px-4 py-2.5 font-medium">Page</th>
-              <th className="px-4 py-2.5 font-medium">Field</th>
-              <th className="px-4 py-2.5 font-medium">Change</th>
-              <th className="px-4 py-2.5 font-medium">Actor</th>
-              <th className="px-4 py-2.5 font-medium">Reason</th>
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[900px] text-left text-sm">
+          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2.5 font-medium">When</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Page</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Field</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Change</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Actor</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Reason</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows?.map((r) => (
-              <tr key={r.id} className="border-t border-[var(--border)] align-top">
-                <td className="whitespace-nowrap px-4 py-2.5">{vnTime(r.changed_at)}</td>
-                <td className="px-4 py-2.5 font-mono text-xs">{r.slug}</td>
-                <td className="px-4 py-2.5">{r.field}</td>
-                <td className="whitespace-nowrap px-4 py-2.5">
+              <TableRow key={r.id} className="border-t border-border align-top">
+                <TableCell className="whitespace-nowrap px-4 py-2.5">{vnTime(r.changed_at)}</TableCell>
+                <TableCell className="px-4 py-2.5 font-mono text-xs">{r.slug}</TableCell>
+                <TableCell className="px-4 py-2.5">{r.field}</TableCell>
+                <TableCell className="whitespace-nowrap px-4 py-2.5">
                   {r.old_value ?? "—"} → {r.new_value ?? "—"}
-                </td>
-                <td className="px-4 py-2.5">{r.actor}</td>
-                <td className="px-4 py-2.5">{r.reason}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{r.actor}</TableCell>
+                <TableCell className="px-4 py-2.5">{r.reason}</TableCell>
+              </TableRow>
             ))}
             {rows?.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
                   Không có dòng nào.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
-      {rows && count > rows.length && <p className="mt-2 text-xs text-[var(--text-muted)]">Hiển thị {rows.length} / {count}; lọc hẹp hơn hoặc xuất CSV.</p>}
+          </TableBody>
+        </Table>
+      </Card>
+      {rows && count > rows.length && <p className="mt-2 text-xs text-muted-foreground">Hiển thị {rows.length} / {count}; lọc hẹp hơn hoặc xuất CSV.</p>}
     </div>
   );
 }

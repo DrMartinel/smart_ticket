@@ -17,5 +17,5 @@ export default function TeamsIndexPage() {
   }, [teams, router]);
 
   if (!user) return null;
-  return <p className="text-sm text-[var(--text-muted)]">{teams.length === 0 ? "You're not in a team yet." : "Opening…"}</p>;
+  return <p className="text-sm text-muted-foreground">{teams.length === 0 ? "You're not in a team yet." : "Opening…"}</p>;
 }

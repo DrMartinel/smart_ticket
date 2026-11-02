@@ -7,6 +7,8 @@ import { useState } from "react";
 import { ApiError, requesterApi } from "@/lib/api";
 import type { ReopenOut } from "@/lib/types/generated";
 import { day } from "./Rating";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function ReopenBox({
   publicId,
@@ -47,7 +49,7 @@ export default function ReopenBox({
     ) : (
       <p className="text-sm">
         Đã tạo yêu cầu mới · A new ticket{" "}
-        <Link href={`/tickets/${result.new_ticket}`} className="font-mono text-[var(--accent)] underline">
+        <Link href={`/tickets/${result.new_ticket}`} className="font-mono text-primary underline">
           {result.new_ticket}
         </Link>{" "}
         is linked to this one.
@@ -57,23 +59,23 @@ export default function ReopenBox({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs text-[var(--text-muted)]">
+      <p className="text-xs text-muted-foreground">
         {until && !late
           ? `Mở lại trước ${day(until)}. After that we open a new ticket linked to this one.`
           : "Quá 7 ngày: we open a new ticket linked to this one."}
       </p>
-      <textarea
+      <Textarea
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         maxLength={2000}
         placeholder="Còn lỗi gì? · What still doesn't work?"
         aria-label="Why it isn't solved"
-        className="field min-h-[64px] text-sm"
+        className="min-h-[64px] text-sm"
       />
-      <button onClick={() => void send()} disabled={busy || !reason.trim()} className="btn btn-secondary self-start">
+      <Button variant="outline" onClick={() => void send()} disabled={busy || !reason.trim()} className="self-start">
         {late ? "Tạo yêu cầu mới · New linked ticket" : "Mở lại · Reopen"}
-      </button>
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      </Button>
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

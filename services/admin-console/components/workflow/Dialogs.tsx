@@ -20,6 +20,11 @@ import {
   type Transition,
   type WorkflowDetail,
 } from "@/lib/lifecycle";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 
 function useSubmit(onDone: () => void) {
   const [busy, setBusy] = useState(false);
@@ -40,7 +45,7 @@ function useSubmit(onDone: () => void) {
 }
 
 function ErrorLine({ error }: { error: string | null }) {
-  return error ? <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p> : null;
+  return error ? <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert> : null;
 }
 
 export function StatusDialog({
@@ -99,12 +104,12 @@ export function StatusDialog({
       width="max-w-2xl"
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button className="btn btn-primary" disabled={busy || !name.trim() || !base} onClick={save}>
+          </Button>
+          <Button disabled={busy || !name.trim() || !base} onClick={save}>
             {status ? "Save" : "Add status"}
-          </button>
+          </Button>
         </>
       }
     >
@@ -122,17 +127,17 @@ export function StatusDialog({
       {tab === "info" ? (
         <div className="grid gap-4">
           <Labeled label="Name">
-            <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Waiting on vendor" autoFocus />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Waiting on vendor" autoFocus />
           </Labeled>
           <Labeled label="Stage" hint="The system stage this status reports as. A resolved stage stops the SLA clock.">
-            <select className="field" value={base} onChange={(e) => setBase(e.target.value)} disabled={locked}>
+            <NativeSelect value={base} onChange={(e) => setBase(e.target.value)} disabled={locked}>
               {stages.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                   {s.is_completed ? " (resolved)" : s.is_backlog ? " (backlog)" : ""}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Labeled>
           <ColorPicker value={color} onChange={setColor} />
         </div>
@@ -146,7 +151,7 @@ export function StatusDialog({
 export function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   return (
     <div className="flex flex-col gap-1.5 text-sm">
-      <span className="text-xs font-medium text-[var(--text-muted)]">Colour</span>
+      <span className="text-xs font-medium text-muted-foreground">Colour</span>
       <div className="flex flex-wrap items-center gap-2">
         {PALETTE.map((c) => (
           <button
@@ -154,11 +159,11 @@ export function ColorPicker({ value, onChange }: { value: string; onChange: (c: 
             type="button"
             aria-label={c}
             onClick={() => onChange(c)}
-            className={`h-7 w-7 rounded-full border-2 ${value.toLowerCase() === c ? "border-[var(--text)]" : "border-transparent"}`}
+            className={`h-7 w-7 rounded-full border-2 ${value.toLowerCase() === c ? "border-foreground" : "border-transparent"}`}
             style={{ background: c }}
           />
         ))}
-        <input className="field w-28 font-mono text-[13px]" value={value} onChange={(e) => onChange(e.target.value)} aria-label="Hex colour" />
+        <Input className="w-28 font-mono text-[13px]" value={value} onChange={(e) => onChange(e.target.value)} aria-label="Hex colour" />
       </div>
     </div>
   );
@@ -263,12 +268,12 @@ export function TransitionDialog({
       width="max-w-2xl"
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button className="btn btn-primary" disabled={busy || !name.trim() || !from || !to || from === to} onClick={save}>
+          </Button>
+          <Button disabled={busy || !name.trim() || !from || !to || from === to} onClick={save}>
             {transition ? "Save" : "Add transition"}
-          </button>
+          </Button>
         </>
       }
     >
@@ -285,21 +290,21 @@ export function TransitionDialog({
       {tab === "info" && (
         <div className="grid gap-4">
           <Labeled label="Name" hint="The button people see on the ticket.">
-            <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Start work" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Start work" />
           </Labeled>
           <div className="grid gap-4 sm:grid-cols-2">
             <Labeled label="From">
-              <select className="field" value={from} onChange={(e) => setFrom(e.target.value)} disabled={!!transition}>
+              <NativeSelect value={from} onChange={(e) => setFrom(e.target.value)} disabled={!!transition}>
                 <option value="">Choose…</option>
                 {statuses.map((s) => (
                   <option key={s.id} value={s.id}>
                     {s.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </Labeled>
             <Labeled label="To">
-              <select className="field" value={to} onChange={(e) => setTo(e.target.value)} disabled={!!transition}>
+              <NativeSelect value={to} onChange={(e) => setTo(e.target.value)} disabled={!!transition}>
                 <option value="">Choose…</option>
                 {statuses
                   .filter((s) => !s.is_pipeline && s.id !== from)
@@ -308,7 +313,7 @@ export function TransitionDialog({
                       {s.name}
                     </option>
                   ))}
-              </select>
+              </NativeSelect>
             </Labeled>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -316,10 +321,10 @@ export function TransitionDialog({
             <PointPicker label="Arrives at" color={toStatus?.color} value={pointEnd} onChange={setPointEnd} taken={to ? used(to, transition?.id) : new Set()} />
           </div>
           <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" className="mt-0.5" checked={both} onChange={(e) => setBoth(e.target.checked)} disabled={!!fromStatus?.is_pipeline} />
+            <Checkbox className="mt-0.5" checked={both} onCheckedChange={(checked) => setBoth(checked === true)} disabled={!!fromStatus?.is_pipeline} />
             <span>
               Both ways
-              <span className="block text-xs text-[var(--text-muted)]">
+              <span className="block text-xs text-muted-foreground">
                 {fromStatus?.is_pipeline ? "Not possible from a triage status: only the pipeline moves tickets into it." : "Tickets can also move back along this transition."}
               </span>
             </span>
@@ -328,13 +333,13 @@ export function TransitionDialog({
       )}
       {tab === "rules" && (
         <>
-          <p className="mb-3 text-sm text-[var(--text-muted)]">Every check must pass before the ticket moves. A failing check names the field to fix.</p>
+          <p className="mb-3 text-sm text-muted-foreground">Every check must pass before the ticket moves. A failing check names the field to fix.</p>
           <RulesEditor rules={rules} onChange={setRules} catalog={catalog} fields={workflow.fields} />
         </>
       )}
       {tab === "actions" && (
         <>
-          <p className="mb-3 text-sm text-[var(--text-muted)]">
+          <p className="mb-3 text-sm text-muted-foreground">
             Run in order. A failing action before the move stops it; after the move, it is recorded on the ticket for a retry.
           </p>
           <ActionsEditor actions={actions} onChange={setActions} catalog={catalog} where="transition" context={context} />
@@ -371,9 +376,9 @@ function PointPicker({
   };
   return (
     <div className="flex flex-col gap-1 text-sm">
-      <span className="text-xs font-medium text-[var(--text-muted)]">{label}</span>
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-[168px]" role="radiogroup" aria-label={label}>
-        <rect x={P} y={P} width={W - 2 * P} height={H - 2 * P} rx={6} fill="var(--surface-2)" stroke={color || "var(--border-strong)"} />
+        <rect x={P} y={P} width={W - 2 * P} height={H - 2 * P} rx={6} fill="var(--muted)" stroke={color || "var(--border-strong)"} />
         {POINTS.map((p) => {
           const { x, y } = xy(p);
           const selected = value === p;
@@ -385,15 +390,15 @@ function PointPicker({
                 cx={x}
                 cy={y}
                 r={selected ? 6 : 4.5}
-                fill={selected ? color || "var(--text)" : isTaken ? "var(--border-strong)" : "var(--surface)"}
-                stroke={selected ? "var(--surface)" : "var(--text-muted)"}
+                fill={selected ? color || "var(--foreground)" : isTaken ? "var(--border-strong)" : "var(--card)"}
+                stroke={selected ? "var(--card)" : "var(--muted-foreground)"}
                 strokeWidth={selected ? 2 : 1}
               />
             </g>
           );
         })}
       </svg>
-      <span className="text-xs text-[var(--text-muted)]">Grey points are used by other transitions.</span>
+      <span className="text-xs text-muted-foreground">Grey points are used by other transitions.</span>
     </div>
   );
 }
@@ -427,34 +432,33 @@ export function ReorderDialog({
       subtitle="The order of the board's columns and of status lists."
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="btn btn-primary"
+          </Button>
+          <Button
             disabled={busy}
             onClick={() => submit(() => api.post(`/api/lifecycle/workflows/${workflow.id}/statuses/reorder`, { ids: order.map((s) => s.id) }))}
           >
             Save order
-          </button>
+          </Button>
         </>
       }
     >
       <ErrorLine error={error} />
       <ol className="flex flex-col gap-1">
         {order.map((s, i) => (
-          <li key={s.id} className="flex items-center gap-3 rounded-[5px] border border-[var(--border)] px-3 py-2">
-            <span className="w-5 text-xs text-[var(--text-muted)]">{i + 1}</span>
+          <li key={s.id} className="flex items-center gap-3 rounded-md border border-border px-3 py-2">
+            <span className="w-5 text-xs text-muted-foreground">{i + 1}</span>
             <span className="flex-1">
               <StatusChip name={s.name} color={s.color} />
             </span>
-            <span className="text-xs text-[var(--text-muted)]">{s.base.name}</span>
-            <button className="btn btn-secondary px-2 py-0.5" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${s.name} up`}>
+            <span className="text-xs text-muted-foreground">{s.base.name}</span>
+            <Button variant="outline" size="sm" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${s.name} up`}>
               ↑
-            </button>
-            <button className="btn btn-secondary px-2 py-0.5" disabled={i === order.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${s.name} down`}>
+            </Button>
+            <Button variant="outline" size="sm" disabled={i === order.length - 1} onClick={() => move(i, 1)} aria-label={`Move ${s.name} down`}>
               ↓
-            </button>
+            </Button>
           </li>
         ))}
       </ol>
@@ -493,11 +497,10 @@ export function DeleteDialog({
       title={`Delete ${what}?`}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            className="btn bg-[var(--danger)] text-[var(--on-accent)]"
+          </Button>
+          <Button variant="destructive"
             disabled={busy}
             onClick={() =>
               submit(() =>
@@ -508,7 +511,7 @@ export function DeleteDialog({
             }
           >
             Delete
-          </button>
+          </Button>
         </>
       }
     >
@@ -521,14 +524,14 @@ export function DeleteDialog({
               : "No transitions use this status."}
           </p>
           <Labeled label="Move its tickets to" hint="Required if any ticket is in this status now.">
-            <select className="field" value={migrateTo} onChange={(e) => setMigrateTo(e.target.value)}>
+            <NativeSelect value={migrateTo} onChange={(e) => setMigrateTo(e.target.value)}>
               <option value="">No tickets to move</option>
               {targets.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Labeled>
         </div>
       ) : (

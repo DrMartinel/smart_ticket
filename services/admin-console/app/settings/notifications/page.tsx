@@ -7,6 +7,11 @@ import Switch from "@/components/Switch";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { MatrixCellOut, MatrixChangeIn, MatrixIn, RecipientKind } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 type Channel = "in_app" | "email";
 
@@ -114,7 +119,7 @@ export default function NotificationMatrixPage() {
 
   const cell = (row: Row, channel: Channel) => {
     const c = row.cells[channel];
-    if (!c) return <span className="text-[var(--text-muted)]">—</span>;
+    if (!c) return <span className="text-muted-foreground">—</span>;
     return (
       <Switch
         checked={valueOf(c)}
@@ -130,43 +135,43 @@ export default function NotificationMatrixPage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Notification matrix</h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             Defaults for who gets each event on which channel. Events and recipient kinds are code; defaults are data.
           </p>
         </div>
         {canEdit && (
-          <button className="btn btn-primary" disabled={changes === 0} onClick={() => void save()}>
+          <Button disabled={changes === 0} onClick={() => void save()}>
             Save {changes > 0 ? `${changes} change${changes > 1 ? "s" : ""}` : "changes"}…
-          </button>
+          </Button>
         )}
       </header>
 
-      {!canEdit && cells && <p className="text-xs text-[var(--text-muted)]">Read-only: only a workflow admin changes defaults.</p>}
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-      {saved && <p className="text-sm text-[var(--ok)]">Saved. The change is in the audit log.</p>}
+      {!canEdit && cells && <p className="text-xs text-muted-foreground">Read-only: only a workflow admin changes defaults.</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
+      {saved && <p className="text-sm text-ok">Saved. The change is in the audit log.</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-xs">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Event</th>
-              <th className="px-4 py-2 font-normal">Recipient</th>
-              <th className="px-4 py-2 font-normal">In-app</th>
-              <th className="px-4 py-2 font-normal">Email</th>
-              <th className="px-4 py-2 font-normal">Mandatory</th>
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[720px] text-left text-xs">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Event</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Recipient</TableHead>
+              <TableHead className="px-4 py-2 font-normal">In-app</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Email</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Mandatory</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {shown.map((row) => (
-              <tr key={row.key} className={`border-t border-[var(--border)] ${row.active ? "" : "text-[var(--text-muted)]"}`}>
-                <td className="px-4 py-2.5">
+              <TableRow key={row.key} className={`border-t border-border ${row.active ? "" : "text-muted-foreground"}`}>
+                <TableCell className="px-4 py-2.5">
                   <span className="font-mono">{row.event}</span>
-                  {!row.active && <span className="ml-2 badge tone-neutral">ships with {row.owner}</span>}
-                </td>
-                <td className="px-4 py-2.5">{row.kind.replaceAll("_", " ")}</td>
-                <td className="px-4 py-2.5">{cell(row, "in_app")}</td>
-                <td className="px-4 py-2.5">{cell(row, "email")}</td>
-                <td className="px-4 py-2.5 text-[var(--text-muted)]">
+                  {!row.active && <Badge variant="neutral" className="ml-2">ships with {row.owner}</Badge>}
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{row.kind.replaceAll("_", " ")}</TableCell>
+                <TableCell className="px-4 py-2.5">{cell(row, "in_app")}</TableCell>
+                <TableCell className="px-4 py-2.5">{cell(row, "email")}</TableCell>
+                <TableCell className="px-4 py-2.5 text-muted-foreground">
                   {(["in_app", "email"] as const).filter((c) => row.cells[c]?.mandatory).length === 2
                     ? "🔒 mandatory"
                     : row.cells.in_app?.mandatory
@@ -174,26 +179,26 @@ export default function NotificationMatrixPage() {
                       : row.cells.email?.mandatory
                         ? "🔒 email"
                         : "—"}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
       {inactive > 0 && (
-        <button className="self-start text-xs text-[var(--accent)] hover:underline" onClick={() => setShowInactive((s) => !s)}>
+        <Button variant="link" size="inline" className="self-start text-xs" onClick={() => setShowInactive((s) => !s)}>
           {showInactive ? "Hide" : "Show"} {inactive} rows for events of features not built yet
-        </button>
+        </Button>
       )}
 
       {canEdit && (
-        <div className="card flex flex-col gap-2 p-4">
+        <Card className="flex flex-col gap-2 p-4">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-[var(--text-muted)]">Reason (required when saving)</span>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} className="field max-w-[640px]" placeholder="Why the defaults change" />
+            <span className="text-[11px] text-muted-foreground">Reason (required when saving)</span>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} className="max-w-[640px]" placeholder="Why the defaults change" />
           </label>
-          <p className="text-[11px] text-[var(--text-muted)]">Saving writes notif_matrix_changed to the audit log. Mandatory cells are read-only.</p>
-        </div>
+          <p className="text-[11px] text-muted-foreground">Saving writes notif_matrix_changed to the audit log. Mandatory cells are read-only.</p>
+        </Card>
       )}
     </div>
   );

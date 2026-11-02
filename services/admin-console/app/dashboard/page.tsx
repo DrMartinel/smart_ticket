@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { duration, percent } from "@/lib/format";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 interface DashboardData {
   quality: {
@@ -37,30 +39,32 @@ interface DashboardData {
 
 function Headline({ label, value, note, warn = false }: { label: string; value: string; note: string; warn?: boolean }) {
   return (
-    <div className="card p-5">
-      <p className="text-sm text-[var(--text-muted)]">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${warn ? "text-[var(--danger)]" : ""}`}>{value}</p>
-      <p className="mt-2 text-xs leading-5 text-[var(--text-muted)]">{note}</p>
-    </div>
+    <Card className="p-5">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className={`mt-1 text-3xl font-semibold tabular-nums tracking-tight ${warn ? "text-danger" : ""}`}>{value}</p>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">{note}</p>
+    </Card>
   );
 }
 
 function Rows({ title, rows }: { title: string; rows: { label: string; value: string; note: string }[] }) {
   return (
-    <section className="card">
-      <h2 className="border-b border-[var(--border)] px-5 py-3 text-sm font-semibold">{title}</h2>
-      <dl>
-        {rows.map((r) => (
-          <div key={r.label} className="grid grid-cols-[minmax(0,1fr)_110px] gap-4 border-b border-[var(--border)] px-5 py-3 last:border-0">
-            <div>
-              <dt className="text-sm">{r.label}</dt>
-              <p className="text-xs text-[var(--text-muted)]">{r.note}</p>
+    <Card asChild>
+      <section>
+        <h2 className="border-b border-border px-5 py-3 text-sm font-semibold">{title}</h2>
+        <dl>
+          {rows.map((r) => (
+            <div key={r.label} className="grid grid-cols-[minmax(0,1fr)_110px] gap-4 border-b border-border px-5 py-3 last:border-0">
+              <div>
+                <dt className="text-sm">{r.label}</dt>
+                <p className="text-xs text-muted-foreground">{r.note}</p>
+              </div>
+              <dd className="text-right font-mono text-sm tabular-nums">{r.value}</dd>
             </div>
-            <dd className="text-right font-mono text-sm tabular-nums">{r.value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+          ))}
+        </dl>
+      </section>
+    </Card>
   );
 }
 
@@ -80,8 +84,8 @@ export default function DashboardPage() {
   }, [user]);
 
   if (!user) return null;
-  if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
-  if (!data) return <p className="text-sm text-[var(--text-muted)]">Loading…</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!data) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   const waiting = data.hitl_health.queue_depth_by_queue.reduce((sum, q) => sum + q.n, 0);
   const reopen = data.quality.reopen_rate_after_autoreply;
@@ -90,9 +94,9 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-[1280px]">
       <header className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+        <p className="mt-0.5 text-sm text-muted-foreground">
           Last {WINDOW_DAYS} days · full reports under{" "}
-          <Link href="/reports" className="text-[var(--accent)] hover:underline">
+          <Link href="/reports" className="text-primary hover:underline">
             Báo cáo · Reports
           </Link>
         </p>
@@ -143,38 +147,40 @@ export default function DashboardPage() {
         />
       </div>
 
-      <section className="card mt-6">
-        <h2 className="border-b border-[var(--border)] px-5 py-3 text-sm font-semibold">Reviewers</h2>
-        {data.hitl_health.approve_rate_per_reviewer.length === 0 ? (
-          <p className="px-5 py-4 text-sm text-[var(--text-muted)]">No reviews in this period.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs text-[var(--text-muted)]">
-              <tr>
-                <th className="px-5 py-2 font-medium">Reviewer</th>
-                <th className="px-5 py-2 text-right font-medium">Reviews</th>
-                <th className="px-5 py-2 text-right font-medium">Approved as proposed</th>
-                <th className="px-5 py-2 text-right font-medium">Median time per review</th>
-                <th className="px-5 py-2 font-medium" />
-              </tr>
-            </thead>
-            <tbody>
-              {data.hitl_health.approve_rate_per_reviewer.map((r) => {
-                const rushed = r.median_time_spent_sec !== null && r.median_time_spent_sec < 10;
-                return (
-                  <tr key={r.reviewer__username} className="border-t border-[var(--border)]">
-                    <td className="px-5 py-2.5">{r.reviewer__username}</td>
-                    <td className="px-5 py-2.5 text-right font-mono tabular-nums">{r.total}</td>
-                    <td className="px-5 py-2.5 text-right font-mono tabular-nums">{percent(r.approve_rate)}</td>
-                    <td className="px-5 py-2.5 text-right font-mono tabular-nums">{duration(r.median_time_spent_sec)}</td>
-                    <td className="px-5 py-2.5 text-xs text-[var(--warn)]">{rushed ? "Under 10 s: may not be reading" : ""}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
+      <Card asChild>
+        <section className="mt-6">
+          <h2 className="border-b border-border px-5 py-3 text-sm font-semibold">Reviewers</h2>
+          {data.hitl_health.approve_rate_per_reviewer.length === 0 ? (
+            <p className="px-5 py-4 text-sm text-muted-foreground">No reviews in this period.</p>
+          ) : (
+            <Table className="w-full text-sm">
+              <TableHeader className="text-left text-xs text-muted-foreground">
+                <TableRow>
+                  <TableHead className="px-5 py-2 font-medium">Reviewer</TableHead>
+                  <TableHead className="px-5 py-2 text-right font-medium">Reviews</TableHead>
+                  <TableHead className="px-5 py-2 text-right font-medium">Approved as proposed</TableHead>
+                  <TableHead className="px-5 py-2 text-right font-medium">Median time per review</TableHead>
+                  <TableHead className="px-5 py-2 font-medium" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.hitl_health.approve_rate_per_reviewer.map((r) => {
+                  const rushed = r.median_time_spent_sec !== null && r.median_time_spent_sec < 10;
+                  return (
+                    <TableRow key={r.reviewer__username} className="border-t border-border">
+                      <TableCell className="px-5 py-2.5">{r.reviewer__username}</TableCell>
+                      <TableCell className="px-5 py-2.5 text-right font-mono tabular-nums">{r.total}</TableCell>
+                      <TableCell className="px-5 py-2.5 text-right font-mono tabular-nums">{percent(r.approve_rate)}</TableCell>
+                      <TableCell className="px-5 py-2.5 text-right font-mono tabular-nums">{duration(r.median_time_spent_sec)}</TableCell>
+                      <TableCell className="px-5 py-2.5 text-xs text-warn">{rushed ? "Under 10 s: may not be reading" : ""}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </section>
+      </Card>
     </div>
   );
 }

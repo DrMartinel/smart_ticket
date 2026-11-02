@@ -1,15 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
-import { priorityClasses } from "@/lib/badges";
+import { priorityTone } from "@/lib/badges";
 import { QUEUE_LABEL } from "@/lib/explain";
 import { dateTime, humanize, relativeTime } from "@/lib/format";
 import type { Status, Workflow, WorkflowDetail } from "@/lib/lifecycle";
 import type { StaffTicketRow } from "@/lib/types/generated";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Card = StaffTicketRow;
 
@@ -131,13 +138,12 @@ export default function BoardPage() {
       <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Board</h1>
-          <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             Drag a ticket to another column to move it. Columns it can't move to fade while you drag.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="field w-56"
+          <NativeSelect wrapperClassName="w-56"
             value={workflowId ?? ""}
             onChange={(e) => router.replace(`/board?workflow=${e.target.value}`)}
             aria-label="Workflow"
@@ -147,29 +153,31 @@ export default function BoardPage() {
                 {w.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
           <form
             onSubmit={(e) => {
               e.preventDefault();
               setSubmitted(query.trim());
             }}
           >
-            <input className="field w-56" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by ID or subject" aria-label="Filter tickets" />
+            <Input className="w-56" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by ID or subject" aria-label="Filter tickets" />
           </form>
-          <label className="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
-            <input type="checkbox" checked={hideTriage} onChange={(e) => setHideTriage(e.target.checked)} />
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Checkbox checked={hideTriage} onCheckedChange={(checked) => setHideTriage(checked === true)} />
             Hide empty triage columns
           </label>
           {wf && user.role === "manager" && (
-            <Link href={`/settings/workflows/${wf.id}`} className="btn btn-secondary">
-              Edit workflow
-            </Link>
+            <Button asChild variant="outline">
+              <Link href={`/settings/workflows/${wf.id}`}>
+                Edit workflow
+              </Link>
+            </Button>
           )}
         </div>
       </header>
 
       {notice && (
-        <p className={`tone-${notice.tone} mb-3 flex items-center justify-between gap-3 rounded-[5px] px-3 py-2 text-sm`}>
+        <Alert variant={notice.tone} className="mb-3 flex items-center justify-between gap-3">
           <span>{notice.text}</span>
           <span className="flex shrink-0 gap-3">
             {notice.ticket && (
@@ -177,17 +185,17 @@ export default function BoardPage() {
                 Open ticket
               </Link>
             )}
-            <button onClick={() => setNotice(null)} aria-label="Dismiss">
-              ×
-            </button>
+            <Button variant="ghost" size="icon-xs" onClick={() => setNotice(null)} aria-label="Dismiss">
+              <XIcon />
+            </Button>
           </span>
-        </p>
+        </Alert>
       )}
 
       {unavailable ? (
-        <p className="text-sm text-[var(--text-muted)]">{unavailable}</p>
+        <p className="text-sm text-muted-foreground">{unavailable}</p>
       ) : !cards || !wf ? (
-        <p className="text-sm text-[var(--text-muted)]">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading…</p>
       ) : (
         <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2">
           {columns.map((status) => {
@@ -212,18 +220,18 @@ export default function BoardPage() {
                   e.preventDefault();
                   void drop(status);
                 }}
-                className={`flex w-[272px] shrink-0 flex-col rounded-[6px] border transition-opacity ${
-                  over === status.id ? "border-[var(--text)] bg-[var(--surface-2)]" : "border-[var(--border)] bg-[var(--surface-2)]/60"
+                className={`flex w-[272px] shrink-0 flex-col rounded-lg border transition-opacity ${
+                  over === status.id ? "border-foreground bg-muted" : "border-border bg-muted/60"
                 } ${faded ? "opacity-40" : ""}`}
               >
                 <div className="flex items-center gap-2 px-3 pb-2 pt-3">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: status.color || "var(--border-strong)" }} />
                   <h2 className="truncate text-sm font-semibold">{status.name}</h2>
-                  <span className="text-xs text-[var(--text-muted)]">{total}</span>
-                  <span className="ml-auto truncate text-[11px] text-[var(--text-muted)]">{status.is_pipeline ? "Triage" : status.base.name}</span>
+                  <span className="text-xs text-muted-foreground">{total}</span>
+                  <span className="ml-auto truncate text-[11px] text-muted-foreground">{status.is_pipeline ? "Triage" : status.base.name}</span>
                 </div>
                 {drag && allowed && option && (
-                  <p className="mx-3 mb-2 truncate text-[11px] text-[var(--text-muted)]">
+                  <p className="mx-3 mb-2 truncate text-[11px] text-muted-foreground">
                     {option.transition_name ?? "Allowed"}
                     {option.rule_count > 0 && ` · ${option.rule_count} check${option.rule_count === 1 ? "" : "s"}`}
                   </p>
@@ -242,30 +250,30 @@ export default function BoardPage() {
                         setDrag(null);
                         setOver(null);
                       }}
-                      className={`cursor-grab rounded-[5px] border border-[var(--border)] bg-[var(--surface)] p-2.5 text-sm shadow-[0_1px_0_var(--border)] active:cursor-grabbing ${
+                      className={`cursor-grab rounded-md border border-border bg-card p-2.5 text-sm shadow-[0_1px_0_var(--border)] active:cursor-grabbing ${
                         drag?.card.public_id === c.public_id ? "opacity-50" : ""
                       }`}
                     >
-                      <Link href={`/tickets/${c.public_id}`} className="line-clamp-2 font-medium hover:text-[var(--accent)]" draggable={false}>
+                      <Link href={`/tickets/${c.public_id}`} className="line-clamp-2 font-medium hover:text-primary" draggable={false}>
                         {c.subject_masked}
                       </Link>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                         <span className="font-mono">{c.public_id}</span>
                         {c.review && (
-                          <span className={`badge ${priorityClasses(c.review.priority)}`} title={QUEUE_LABEL[c.review.queue] ?? humanize(c.review.queue)}>
+                          <Badge variant={priorityTone(c.review.priority)} title={QUEUE_LABEL[c.review.queue] ?? humanize(c.review.queue)}>
                             P{c.review.priority}
-                          </span>
+                          </Badge>
                         )}
                         {c.category && <span>· {c.category}</span>}
                       </div>
                       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
-                        <span className="truncate text-[var(--text-muted)]">{c.assignee ?? c.assigned_team ?? "Unassigned"}</span>
+                        <span className="truncate text-muted-foreground">{c.assignee ?? c.assigned_team ?? "Unassigned"}</span>
                         <Sla due={c.sla_due_at} done={c.status.is_completed} />
                       </div>
                     </li>
                   ))}
                   {total > items.length && (
-                    <li className="px-1 py-1 text-xs text-[var(--text-muted)]">
+                    <li className="px-1 py-1 text-xs text-muted-foreground">
                       Showing the newest {items.length} of {total}.{" "}
                       <Link href={`/tickets?view=all`} className="underline">
                         See all tickets
@@ -286,7 +294,7 @@ function Sla({ due, done }: { due: string | null; done: boolean }) {
   if (!due || done) return null;
   const overdue = new Date(due).getTime() < Date.now();
   return (
-    <span className={`shrink-0 ${overdue ? "font-medium text-[var(--danger)]" : "text-[var(--text-muted)]"}`} title={dateTime(due)}>
+    <span className={`shrink-0 ${overdue ? "font-medium text-danger" : "text-muted-foreground"}`} title={dateTime(due)}>
       {overdue ? `Overdue ${relativeTime(due).replace(" ago", "")}` : `Due ${relativeTime(due)}`}
     </span>
   );

@@ -4,7 +4,9 @@
 
 import { Fragment, useState } from "react";
 import RevealDialog from "@/components/RevealDialog";
-import { piiLevelClasses } from "@/lib/badges";
+import { piiLevelTone } from "@/lib/badges";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const PLACEHOLDER = /(\[[A-Z_]+_\d+\])/g;
 
@@ -38,21 +40,23 @@ export default function PiiText({
         const label = securityOnly ? `${part} 🔒 security only` : part;
         if (!canReveal || securityOnly) {
           return (
-            <span key={i} className={`badge ${piiLevelClasses(level)}`} title={securityOnly ? "Only security can reveal a credential" : undefined}>
+            <Badge variant={piiLevelTone(level)} key={i} title={securityOnly ? "Only security can reveal a credential" : undefined}>
               {label}
-            </span>
+            </Badge>
           );
         }
         return (
-          <button
-            key={i}
-            type="button"
-            onClick={() => setTarget({ placeholder: part, level })}
-            className={`badge ${piiLevelClasses(level)} cursor-pointer underline-offset-2 hover:underline`}
-            aria-label={`Reveal ${part}`}
-          >
-            {label}
-          </button>
+          <Badge asChild variant={piiLevelTone(level)}>
+            <Button variant="link" size="inline"
+              key={i}
+              type="button"
+              onClick={() => setTarget({ placeholder: part, level })}
+              className="cursor-pointer underline-offset-2"
+              aria-label={`Reveal ${part}`}
+            >
+              {label}
+            </Button>
+          </Badge>
         );
       })}
       {target && (

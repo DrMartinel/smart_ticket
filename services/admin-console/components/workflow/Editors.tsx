@@ -4,6 +4,12 @@
 
 import type { Action, Catalog, Field, Rule, Status } from "@/lib/lifecycle";
 import { humanize } from "@/lib/format";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export interface ActionContext {
   fields: Field[];
@@ -38,7 +44,7 @@ export function ActionsEditor({
   return (
     <div className="flex flex-col gap-3">
       {actions.length === 0 && (
-        <p className="text-sm text-[var(--text-muted)]">
+        <p className="text-sm text-muted-foreground">
           {where === "status" ? "Nothing runs when a ticket enters this status." : where === "event" ? "Nothing runs on this event." : "Nothing runs on this move."}
         </p>
       )}
@@ -48,11 +54,10 @@ export function ActionsEditor({
           p === "both" ? spec?.phases.includes("before") && spec?.phases.includes("after") : spec?.phases.includes(p),
         );
         return (
-          <div key={i} className="rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+          <div key={i} className="rounded-lg border border-border bg-muted p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="w-5 text-xs text-[var(--text-muted)]">{i + 1}.</span>
-              <select
-                className="field min-w-0 flex-1"
+              <span className="w-5 text-xs text-muted-foreground">{i + 1}.</span>
+              <NativeSelect wrapperClassName="min-w-0 flex-1"
                 value={a.action}
                 onChange={(e) => update(i, { action: e.target.value, params: {}, position: defaultPosition(catalog, e.target.value) })}
               >
@@ -61,18 +66,18 @@ export function ActionsEditor({
                     {s.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {where === "transition" && (
-                <select className="field w-44" value={a.position} onChange={(e) => update(i, { position: e.target.value as Action["position"] })}>
+                <NativeSelect wrapperClassName="w-44" value={a.position} onChange={(e) => update(i, { position: e.target.value as Action["position"] })}>
                   {positions.map((p) => (
                     <option key={p} value={p}>
                       {p === "before" ? "Before the move" : p === "after" ? "After the move" : "Before and after"}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               )}
-              <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                <input type="checkbox" checked={a.is_active} onChange={(e) => update(i, { is_active: e.target.checked })} />
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Checkbox checked={a.is_active} onCheckedChange={(checked) => update(i, { is_active: checked === true })} />
                 On
               </label>
               <span className="flex gap-1">
@@ -89,7 +94,7 @@ export function ActionsEditor({
             </div>
             {spec && (
               <>
-                <p className="ml-7 mt-1.5 text-xs text-[var(--text-muted)]">
+                <p className="ml-7 mt-1.5 text-xs text-muted-foreground">
                   {spec.description}
                   {spec.blocking && " Waits for an answer before the move continues."}
                 </p>
@@ -112,16 +117,15 @@ export function ActionsEditor({
         );
       })}
       <div className="flex items-center justify-between">
-        <button
+        <Button variant="outline"
           type="button"
-          className="btn btn-secondary"
           disabled={available.length === 0}
           onClick={() =>
             onChange([...actions, { action: available[0].code, params: {}, position: defaultPosition(catalog, available[0].code), is_active: true }])
           }
         >
           Add action
-        </button>
+        </Button>
         <Placeholders variables={catalog.variables} />
       </div>
     </div>
@@ -147,7 +151,7 @@ function ParamInput({
   actionCode: string;
 }) {
   const label = (
-    <span className="text-xs text-[var(--text-muted)]">
+    <span className="text-xs text-muted-foreground">
       {param.description}
       {!param.required && " (optional)"}
     </span>
@@ -155,28 +159,28 @@ function ParamInput({
   let input;
   if (param.type === "checkbox") {
     return (
-      <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
-        <input type="checkbox" checked={value === "true"} onChange={(e) => onChange(e.target.checked ? "true" : "false")} />
+      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Checkbox checked={value === "true"} onCheckedChange={(checked) => onChange(checked === true ? "true" : "false")} />
         {param.description}
       </label>
     );
   }
   if (param.type === "textarea") {
-    input = <textarea className="field min-h-20 font-mono text-[13px]" value={value} onChange={(e) => onChange(e.target.value)} />;
+    input = <Textarea className="min-h-20 font-mono text-[13px]" value={value} onChange={(e) => onChange(e.target.value)} />;
   } else if (param.type === "customfield") {
     input = (
-      <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">Choose a field…</option>
         {context.fields.map((f) => (
           <option key={f.id} value={f.name}>
             {f.name}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     );
   } else if (param.type === "workflowstatus" && actionCode !== "change_workflow") {
     input = (
-      <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">Choose a status…</option>
         {context.statuses
           .filter((s) => !s.is_pipeline)
@@ -185,21 +189,21 @@ function ParamInput({
               {s.name}
             </option>
           ))}
-      </select>
+      </NativeSelect>
     );
   } else if (param.type === "workflow") {
     input = (
-      <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
         <option value="">Choose a workflow…</option>
         {context.workflows.map((w) => (
           <option key={w.id} value={w.name}>
             {w.name}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     );
   } else {
-    input = <input className="field" value={value} onChange={(e) => onChange(e.target.value)} placeholder={param.type === "user" ? "username" : param.type === "team" ? "team slug, e.g. network" : undefined} />;
+    input = <Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={param.type === "user" ? "username" : param.type === "team" ? "team slug, e.g. network" : undefined} />;
   }
   return (
     <label className="flex flex-col gap-1">
@@ -211,22 +215,26 @@ function ParamInput({
 
 export function Placeholders({ variables }: { variables: Record<string, string> }) {
   return (
-    <details className="relative text-xs">
-      <summary className="cursor-pointer text-[var(--text-muted)] hover:text-[var(--text)]">Placeholders</summary>
-      <div className="absolute bottom-6 right-0 z-10 max-h-72 w-96 overflow-y-auto rounded-[6px] border border-[var(--border)] bg-[var(--surface)] p-3 shadow-lg">
-        <p className="mb-2 text-[var(--text-muted)]">
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="link" size="inline" className="text-xs text-muted-foreground hover:text-foreground">
+          Placeholders
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" className="max-h-72 w-96 overflow-y-auto p-3 text-xs">
+        <p className="mb-2 text-muted-foreground">
           Write <code className="font-mono">{"{{ticket.id}}"}</code> in any text to insert the value.
         </p>
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
           {Object.entries(variables).map(([k, v]) => (
             <div key={k} className="contents">
               <dt className="font-mono">{k}</dt>
-              <dd className="text-[var(--text-muted)]">{v}</dd>
+              <dd className="text-muted-foreground">{v}</dd>
             </div>
           ))}
         </dl>
-      </div>
-    </details>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -244,21 +252,20 @@ export function RulesEditor({
   const update = (i: number, patch: Partial<Rule>) => onChange(rules.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
   if (fields.length === 0) {
-    return <p className="text-sm text-[var(--text-muted)]">Checks test the ticket's fields. Add a field to this workflow first.</p>;
+    return <p className="text-sm text-muted-foreground">Checks test the ticket's fields. Add a field to this workflow first.</p>;
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {rules.length === 0 && <p className="text-sm text-[var(--text-muted)]">Anyone allowed to move the ticket can make this move.</p>}
+      {rules.length === 0 && <p className="text-sm text-muted-foreground">Anyone allowed to move the ticket can make this move.</p>}
       {rules.map((r, i) => {
         const field = fields.find((f) => f.id === r.field_id);
         const choices = catalog.rules.filter((s) => !field || s.field_types.includes(field.field_type));
         const spec = catalog.rules.find((s) => s.code === r.rule);
         return (
-          <div key={i} className="rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+          <div key={i} className="rounded-lg border border-border bg-muted p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <select
-                className="field min-w-0 flex-1"
+              <NativeSelect wrapperClassName="min-w-0 flex-1"
                 value={r.field_id}
                 onChange={(e) => {
                   const f = fields.find((x) => x.id === e.target.value);
@@ -271,44 +278,43 @@ export function RulesEditor({
                     {f.name}
                   </option>
                 ))}
-              </select>
-              <select className="field min-w-0 flex-1" value={r.rule} onChange={(e) => update(i, { rule: e.target.value, params: {} })}>
+              </NativeSelect>
+              <NativeSelect wrapperClassName="min-w-0 flex-1" value={r.rule} onChange={(e) => update(i, { rule: e.target.value, params: {} })}>
                 {choices.map((s) => (
                   <option key={s.code} value={s.code}>
                     {s.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {spec?.params.map((p) => (
-                <input
+                <Input
                   key={p}
-                  className="field w-40"
+                  className="w-40"
                   placeholder={p === "values" ? "a, b, c" : p}
                   value={r.params[p] ?? ""}
                   onChange={(e) => update(i, { params: { ...r.params, [p]: e.target.value } })}
                   aria-label={humanize(p)}
                 />
               ))}
-              <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                <input type="checkbox" checked={r.is_active} onChange={(e) => update(i, { is_active: e.target.checked })} />
+              <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Checkbox checked={r.is_active} onCheckedChange={(checked) => update(i, { is_active: checked === true })} />
                 On
               </label>
               <IconButton label="Remove" onClick={() => onChange(rules.filter((_, j) => j !== i))}>
                 ×
               </IconButton>
             </div>
-            {spec && <p className="mt-1.5 text-xs text-[var(--text-muted)]">{spec.description}</p>}
+            {spec && <p className="mt-1.5 text-xs text-muted-foreground">{spec.description}</p>}
           </div>
         );
       })}
       <div>
-        <button
+        <Button variant="outline"
           type="button"
-          className="btn btn-secondary"
           onClick={() => onChange([...rules, { field_id: fields[0].id, rule: "required", params: {}, is_active: true }])}
         >
           Add check
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -326,16 +332,9 @@ export function IconButton({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="grid h-7 w-7 place-items-center rounded-[4px] text-[var(--text-muted)] hover:bg-[var(--surface)] hover:text-[var(--text)] disabled:opacity-30"
-    >
+    <Button type="button" variant="ghost" size="icon-sm" aria-label={label} title={label} disabled={disabled} onClick={onClick} className="size-7 text-muted-foreground">
       {children}
-    </button>
+    </Button>
   );
 }
 

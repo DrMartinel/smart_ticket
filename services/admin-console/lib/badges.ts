@@ -1,80 +1,77 @@
-/**
- * Semantic tone for Branch / queue / risk_tier — kept in one place so a
- * tone always means the same thing across every page (spec's own principle
- * for TrustSignalsPanel: show WHY, consistently). The tones are defined in
- * globals.css.
- */
+/** Semantic badge tone for Branch, queue and risk tier, one meaning on every page. */
 
-export function branchClasses(branch: string): string {
+import type { Tone } from "@/components/ui/badge";
+
+export function branchTone(branch: string): Tone {
   switch (branch) {
     case "auto_reply":
-      return "tone-ok";
+      return "ok";
     case "auto_route":
-      return "tone-info";
+      return "info";
     case "escalate":
-      return "tone-warn";
+      return "warn";
     case "block":
-      return "tone-danger";
+      return "danger";
     default:
-      return "tone-neutral";
+      return "neutral";
   }
 }
 
-export function riskTierClasses(tier: string): string {
+export function riskTierTone(tier: string): Tone {
   switch (tier) {
     case "low":
-      return "tone-ok";
+      return "ok";
     case "medium":
-      return "tone-warn";
+      return "warn";
     case "high":
-      return "tone-danger";
+      return "danger";
     default:
-      return "tone-neutral";
+      return "neutral";
   }
 }
 
-export function priorityClasses(priority: number): string {
-  if (priority <= 1) return "tone-danger";
-  if (priority === 2) return "tone-warn";
-  return "tone-neutral";
+export function priorityTone(priority: number): Tone {
+  if (priority <= 1) return "danger";
+  if (priority === 2) return "warn";
+  return "neutral";
 }
 
 /** A ticket's or a placeholder's PII level: routine, sensitive, critical, mask_failed. */
-export function piiLevelClasses(level: string): string {
+export function piiLevelTone(level: string): Tone {
   switch (level) {
     case "routine":
-      return "tone-info";
+      return "info";
     case "sensitive":
-      return "tone-warn";
+      return "warn";
     case "critical":
-      return "tone-danger";
+      return "danger";
     case "mask_failed":
-      return "tone-alert";
+      return "alert";
     default:
-      return "tone-neutral";
+      return "neutral";
   }
 }
 
 /** A notification event: security first, then approvals, deadlines, assignment. */
-export function notificationEventClasses(event: string): string {
-  if (event.startsWith("security.") || event.startsWith("identity.")) return "tone-danger";
-  if (event.startsWith("approval.") || event.startsWith("incident.")) return "tone-alert";
-  if (event.startsWith("sla.") || event.startsWith("thresholds.")) return "tone-warn";
-  if (event.startsWith("ticket.")) return "tone-info";
-  return "tone-neutral";
+export function notificationEventTone(event: string): Tone {
+  if (event.startsWith("security.") || event.startsWith("identity.")) return "danger";
+  if (event.startsWith("approval.") || event.startsWith("incident.")) return "alert";
+  if (event.startsWith("sla.") || event.startsWith("thresholds.")) return "warn";
+  if (event.startsWith("ticket.")) return "info";
+  return "neutral";
 }
 
 /** A delivery's state: delivered, queued (or retrying), sending, failed. */
-export function deliveryStateClasses(state: string, attempts = 0): string {
+export function deliveryStateTone(state: string, attempts = 0): Tone {
   switch (state) {
     case "delivered":
-      return "tone-ok";
+      return "ok";
     case "failed":
-      return "tone-danger";
+      return "danger";
     case "queued":
-      return attempts > 0 ? "tone-warn" : "tone-neutral";
+      return attempts > 0 ? "warn" : "neutral";
     default:
-      return "tone-info";
+      return "info";
   }
 }
 
@@ -86,29 +83,29 @@ export function deliveryStateLabel(state: string, attempts = 0): string {
 }
 
 /** A ticket priority, P1 (critical) to P4 (low). */
-export function ticketPriorityClasses(priority: string | null | undefined): string {
+export function ticketPriorityTone(priority: string | null | undefined): Tone {
   switch (priority) {
     case "P1":
-      return "tone-danger";
+      return "danger";
     case "P2":
-      return "tone-warn";
+      return "warn";
     default:
-      return "tone-neutral";
+      return "neutral";
   }
 }
 
 /** An SLA badge level: on_track, at_risk, breached, paused, met. */
-export function slaLevelClasses(level: string): string {
+export function slaLevelTone(level: string): Tone {
   switch (level) {
     case "on_track":
-      return "tone-info";
+      return "info";
     case "at_risk":
-      return "tone-warn";
+      return "warn";
     case "breached":
-      return "tone-danger";
+      return "danger";
     case "met":
-      return "tone-ok";
+      return "ok";
     default:
-      return "tone-neutral";
+      return "neutral";
   }
 }

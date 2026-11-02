@@ -6,6 +6,10 @@ import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, download } from "@/lib/api";
 import type { CurrentUser } from "@/lib/auth";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 
 export type ReportTab =
   | "sla"
@@ -41,15 +45,15 @@ export function reportTabs(user: CurrentUser): { key: ReportTab; label: string }
 
 export function ReportTabs({ user, active }: { user: CurrentUser; active: ReportTab }) {
   return (
-    <nav className="mb-5 flex flex-wrap gap-5 border-b border-[var(--border)] text-sm">
+    <nav className="mb-5 flex flex-wrap gap-5 border-b border-border text-sm">
       {reportTabs(user).map((t) => (
         <Link
           key={t.key}
           href={`/reports/${t.key}`}
           className={`-mb-px border-b-2 pb-2 ${
             active === t.key
-              ? "border-[var(--accent)] font-medium text-[var(--accent)]"
-              : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
+              ? "border-primary font-medium text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
           }`}
         >
           {t.label}
@@ -65,13 +69,13 @@ export function pickableTeams(user: CurrentUser, all: string[]): string[] {
 }
 
 export function Stat({ label, value, note, tone }: { label: string; value: string; note?: ReactNode; tone?: "warn" | "danger" }) {
-  const color = tone === "danger" ? "text-[var(--danger)]" : tone === "warn" ? "text-[var(--warn)]" : "";
+  const color = tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : "";
   return (
-    <div className="card p-4">
-      <p className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">{label}</p>
+    <Card className="p-4">
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
       <p className={`mt-1 text-2xl font-semibold tabular-nums ${color}`}>{value}</p>
-      {note && <p className="mt-1 text-xs text-[var(--text-muted)]">{note}</p>}
-    </div>
+      {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
+    </Card>
   );
 }
 
@@ -80,7 +84,7 @@ export function Header({ title, note, children }: { title: string; note: string;
     <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 className="text-xl font-semibold">{title}</h1>
-        <p className="text-xs text-[var(--text-muted)]">{note}</p>
+        <p className="text-xs text-muted-foreground">{note}</p>
       </div>
       <div className="flex flex-wrap items-end gap-2">{children}</div>
     </header>
@@ -90,7 +94,7 @@ export function Header({ title, note, children }: { title: string; note: string;
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1 text-sm">
-      <span className="text-xs text-[var(--text-muted)]">{label}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       {children}
     </label>
   );
@@ -106,7 +110,7 @@ export function thisMonth(): string {
 export function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
     <Field label="Tháng · Month">
-      <input type="month" className="field w-40" value={value} onChange={(e) => onChange(e.target.value)} />
+      <Input type="month" className="w-40" value={value} onChange={(e) => onChange(e.target.value)} />
     </Field>
   );
 }
@@ -135,10 +139,10 @@ export function ExportButton({ path, filename }: { path: string; filename: strin
   };
   return (
     <div className="flex flex-col items-end">
-      <button className="btn btn-secondary" onClick={() => void run()}>
+      <Button variant="outline" onClick={() => void run()}>
         Xuất CSV · Export CSV
-      </button>
-      {error && <span className="text-xs text-[var(--danger)]">Không xuất được CSV.</span>}
+      </Button>
+      {error && <span className="text-xs text-danger">Không xuất được CSV.</span>}
     </div>
   );
 }
@@ -169,9 +173,9 @@ export function useReport<T>(path: string | null): { data: T | null; error: stri
 export function Bar({ value, good }: { value: number | null; good?: boolean }) {
   const pct = value === null ? 0 : Math.max(0, Math.min(1, value)) * 100;
   return (
-    <div className="h-2 w-full rounded-full bg-[var(--surface-2)]">
+    <div className="h-2 w-full rounded-full bg-muted">
       <div
-        className={`h-2 rounded-full ${good ? "bg-[var(--ok)]" : "bg-[var(--warn)]"}`}
+        className={`h-2 rounded-full ${good ? "bg-ok" : "bg-warn"}`}
         style={{ width: `${pct}%` }}
       />
     </div>
@@ -179,26 +183,26 @@ export function Bar({ value, good }: { value: number | null; good?: boolean }) {
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="px-4 py-6 text-center text-sm text-[var(--text-muted)]">{children}</p>;
+  return <p className="px-4 py-6 text-center text-sm text-muted-foreground">{children}</p>;
 }
 
-export function Table({ head, children }: { head: string[]; children: ReactNode }) {
+export function ReportTable({ head, children }: { head: string[]; children: ReactNode }) {
   return (
-    <div className="card overflow-x-auto">
-      <table className="w-full min-w-[640px] text-left text-sm">
-        <thead className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-          <tr>
+    <Card className="overflow-x-auto">
+      <Table className="w-full min-w-[640px] text-left text-sm">
+        <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+          <TableRow>
             {head.map((h, i) => (
-              <th key={i} className={`px-4 py-2.5 font-medium ${i > 0 ? "text-right" : ""}`}>
+              <TableHead key={i} className={`px-4 py-2.5 font-medium ${i > 0 ? "text-right" : ""}`}>
                 {h}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody className="[&_td]:px-4 [&_td]:py-2 [&_td+td]:text-right [&_td+td]:font-mono [&_td+td]:tabular-nums [&_tr]:border-t [&_tr]:border-[var(--border)]">
+          </TableRow>
+        </TableHeader>
+        <TableBody className="[&_td]:px-4 [&_td]:py-2 [&_td+td]:text-right [&_td+td]:font-mono [&_td+td]:tabular-nums [&_tr]:border-t [&_tr]:border-border">
           {children}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </Card>
   );
 }

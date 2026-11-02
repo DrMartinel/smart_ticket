@@ -12,6 +12,12 @@ import WorkflowCanvas from "@/components/workflow/WorkflowCanvas";
 import FieldDialog from "@/components/workflow/FieldDialog";
 import { DeleteDialog, ReorderDialog, StatusDialog, TransitionDialog, type TransitionDraft } from "@/components/workflow/Dialogs";
 import type { Action, Catalog, Field, Stage, Status, Transition, Workflow, WorkflowDetail } from "@/lib/lifecycle";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Selection = { kind: "status" | "transition"; id: string } | null;
 type Open =
@@ -61,7 +67,7 @@ export default function WorkflowEditorPage() {
   );
 
   if (!user) return null;
-  if (!wf || !catalog) return <p className="text-sm text-[var(--text-muted)]">{error ?? "Loading…"}</p>;
+  if (!wf || !catalog) return <p className="text-sm text-muted-foreground">{error ?? "Loading…"}</p>;
 
   const canEdit = user.role === "manager";
   const byId = Object.fromEntries(wf.statuses.map((s) => [s.id, s]));
@@ -95,43 +101,44 @@ export default function WorkflowEditorPage() {
     <div className="-mx-2 flex h-[calc(100dvh-3.5rem)] flex-col">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/settings/workflows" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
+          <Link href="/settings/workflows" className="text-sm text-muted-foreground hover:text-foreground">
             ← Workflows
           </Link>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">
             {wf.name}
-            {wf.is_default && <span className="badge tone-info ml-3 align-middle">Default for new tickets</span>}
+            {wf.is_default && <Badge variant="info" className="ml-3 align-middle">Default for new tickets</Badge>}
           </h1>
-          <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+          <p className="mt-0.5 text-sm text-muted-foreground">
             {wf.statuses.length} statuses · {wf.transitions.length} transitions · {wf.fields.length} fields
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Link href={`/board?workflow=${wf.id}`} className="btn btn-secondary">
-            Open board
-          </Link>
+          <Button asChild variant="outline">
+            <Link href={`/board?workflow=${wf.id}`}>
+              Open board
+            </Link>
+          </Button>
           {canEdit && (
             <>
-              <select
-                className="field w-60"
+              <NativeSelect wrapperClassName="w-60"
                 value={wf.transition_policy}
                 onChange={(e) => void patchWorkflow({ transition_policy: e.target.value })}
                 aria-label="Which moves are allowed"
               >
                 <option value="strict">Only the drawn transitions</option>
                 <option value="open">Any status to any status</option>
-              </select>
+              </NativeSelect>
               {!wf.is_default && (
-                <button className="btn btn-secondary" onClick={() => void patchWorkflow({ is_default: true })}>
+                <Button variant="outline" onClick={() => void patchWorkflow({ is_default: true })}>
                   Make default
-                </button>
+                </Button>
               )}
             </>
           )}
         </div>
       </div>
 
-      {error && <p className="tone-danger mt-3 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
+      {error && <Alert variant="danger" className="mt-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
       <div className="mt-4 flex items-end justify-between gap-4">
         <Tabs
@@ -144,27 +151,27 @@ export default function WorkflowEditorPage() {
         />
         {canEdit && tab === "diagram" && (
           <div className="mb-3 flex gap-2">
-            <button className="btn btn-secondary" onClick={() => setOpen({ kind: "status", status: null })}>
+            <Button variant="outline" onClick={() => setOpen({ kind: "status", status: null })}>
               Add status
-            </button>
-            <button className="btn btn-secondary" onClick={() => setOpen({ kind: "transition", transition: null })}>
+            </Button>
+            <Button variant="outline" onClick={() => setOpen({ kind: "transition", transition: null })}>
               Add transition
-            </button>
-            <button className="btn btn-secondary" onClick={() => setOpen({ kind: "reorder" })}>
+            </Button>
+            <Button variant="outline" onClick={() => setOpen({ kind: "reorder" })}>
               Reorder
-            </button>
+            </Button>
           </div>
         )}
         {canEdit && tab === "fields" && (
-          <button className="btn btn-primary mb-3" onClick={() => setOpen({ kind: "field", field: null })}>
+          <Button className="mb-3" onClick={() => setOpen({ kind: "field", field: null })}>
             Add field
-          </button>
+          </Button>
         )}
       </div>
 
       {tab === "diagram" ? (
         <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_320px]">
-          <div className="card relative min-h-[420px] overflow-hidden">
+          <Card className="relative min-h-[420px] overflow-hidden">
             <WorkflowCanvas
               statuses={wf.statuses}
               transitions={wf.transitions}
@@ -183,37 +190,39 @@ export default function WorkflowEditorPage() {
               onEditTransition={(t) => canEdit && setOpen({ kind: "transition", transition: t })}
             />
             {canEdit && (
-              <p className="pointer-events-none absolute left-3 top-3 rounded-[4px] bg-[var(--surface)]/90 px-2 py-1 text-xs text-[var(--text-muted)]">
+              <p className="pointer-events-none absolute left-3 top-3 rounded-md bg-card/90 px-2 py-1 text-xs text-muted-foreground">
                 Drag from a status's edge to another status to connect them. Double-click to edit.
               </p>
             )}
-          </div>
-          <aside className="card min-h-0 overflow-y-auto">
-            {selectedStatus ? (
-              <StatusPanel
-                status={selectedStatus}
-                wf={wf}
-                catalog={catalog}
-                canEdit={canEdit}
-                onBack={() => setSelected(null)}
-                onEdit={() => setOpen({ kind: "status", status: selectedStatus })}
-                onDelete={() => setOpen({ kind: "delete", status: selectedStatus })}
-                onPickTransition={(t) => setSelected({ kind: "transition", id: t.id })}
-              />
-            ) : selectedTransition ? (
-              <TransitionPanel
-                transition={selectedTransition}
-                wf={wf}
-                catalog={catalog}
-                canEdit={canEdit}
-                onBack={() => setSelected(null)}
-                onEdit={() => setOpen({ kind: "transition", transition: selectedTransition })}
-                onDelete={() => setOpen({ kind: "delete", transition: selectedTransition })}
-              />
-            ) : (
-              <StatusList wf={wf} onPick={(s) => setSelected({ kind: "status", id: s.id })} />
-            )}
-          </aside>
+          </Card>
+          <Card asChild>
+            <aside className="min-h-0 overflow-y-auto">
+              {selectedStatus ? (
+                <StatusPanel
+                  status={selectedStatus}
+                  wf={wf}
+                  catalog={catalog}
+                  canEdit={canEdit}
+                  onBack={() => setSelected(null)}
+                  onEdit={() => setOpen({ kind: "status", status: selectedStatus })}
+                  onDelete={() => setOpen({ kind: "delete", status: selectedStatus })}
+                  onPickTransition={(t) => setSelected({ kind: "transition", id: t.id })}
+                />
+              ) : selectedTransition ? (
+                <TransitionPanel
+                  transition={selectedTransition}
+                  wf={wf}
+                  catalog={catalog}
+                  canEdit={canEdit}
+                  onBack={() => setSelected(null)}
+                  onEdit={() => setOpen({ kind: "transition", transition: selectedTransition })}
+                  onDelete={() => setOpen({ kind: "delete", transition: selectedTransition })}
+                />
+              ) : (
+                <StatusList wf={wf} onPick={(s) => setSelected({ kind: "status", id: s.id })} />
+              )}
+            </aside>
+          </Card>
         </div>
       ) : (
         <FieldsTable
@@ -279,35 +288,35 @@ export default function WorkflowEditorPage() {
 
 function PanelHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center justify-between border-b border-[var(--border)] px-4 py-3">
+    <div className="flex items-center justify-between border-b border-border px-4 py-3">
       <h2 className="text-sm font-semibold">{title}</h2>
-      <button onClick={onBack} className="text-xs text-[var(--text-muted)] hover:text-[var(--text)]">
+      <Button variant="ghost" size="xs" onClick={onBack} className="text-muted-foreground">
         All statuses
-      </button>
+      </Button>
     </div>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-b border-[var(--border)] px-4 py-3 last:border-0">
-      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">{title}</h3>
+    <section className="border-b border-border px-4 py-3 last:border-0">
+      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{title}</h3>
       {children}
     </section>
   );
 }
 
 function ActionList({ actions, catalog, empty }: { actions: Action[]; catalog: Catalog; empty: string }) {
-  if (actions.length === 0) return <p className="text-sm text-[var(--text-muted)]">{empty}</p>;
+  if (actions.length === 0) return <p className="text-sm text-muted-foreground">{empty}</p>;
   return (
     <ol className="flex flex-col gap-1.5 text-sm">
       {actions.map((a, i) => (
-        <li key={a.id ?? i} className={a.is_active ? "" : "text-[var(--text-muted)] line-through"}>
-          <span className="mr-1.5 text-xs text-[var(--text-muted)]">{i + 1}.</span>
+        <li key={a.id ?? i} className={a.is_active ? "" : "text-muted-foreground line-through"}>
+          <span className="mr-1.5 text-xs text-muted-foreground">{i + 1}.</span>
           {catalog.actions.find((s) => s.code === a.action)?.name ?? humanize(a.action)}
-          {a.position !== "after" && <span className="ml-1.5 text-xs text-[var(--text-muted)]">({a.position === "both" ? "before & after" : a.position})</span>}
+          {a.position !== "after" && <span className="ml-1.5 text-xs text-muted-foreground">({a.position === "both" ? "before & after" : a.position})</span>}
           {Object.values(a.params).some(Boolean) && (
-            <span className="block truncate pl-5 font-mono text-xs text-[var(--text-muted)]">
+            <span className="block truncate pl-5 font-mono text-xs text-muted-foreground">
               {Object.entries(a.params)
                 .filter(([, v]) => v)
                 .map(([k, v]) => `${k}=${v}`)
@@ -324,25 +333,25 @@ function StatusList({ wf, onPick }: { wf: WorkflowDetail; onPick: (s: Status) =>
   const statuses = [...wf.statuses].sort((a, b) => a.order - b.order);
   return (
     <>
-      <div className="border-b border-[var(--border)] px-4 py-3">
+      <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold">Statuses</h2>
-        <p className="text-xs text-[var(--text-muted)]">Select a status or transition to see what it does.</p>
+        <p className="text-xs text-muted-foreground">Select a status or transition to see what it does.</p>
       </div>
       <ul>
         {statuses.map((s) => {
           const out = wf.transitions.filter((t) => t.from_status_id === s.id || (t.is_bidirectional && t.to_status_id === s.id)).length;
           return (
             <li key={s.id}>
-              <button onClick={() => onPick(s)} className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-[var(--surface-2)]">
-                <span className="w-5 text-xs text-[var(--text-muted)]">{s.order}</span>
+              <button onClick={() => onPick(s)} className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-muted">
+                <span className="w-5 text-xs text-muted-foreground">{s.order}</span>
                 <span className="min-w-0 flex-1">
                   <StatusChip name={s.name} color={s.color} />
-                  <span className="block truncate text-xs text-[var(--text-muted)]">
+                  <span className="block truncate text-xs text-muted-foreground">
                     {s.base.name}
                     {s.is_pipeline && " · triage"}
                   </span>
                 </span>
-                <span className="text-xs text-[var(--text-muted)]" title="Moves out">
+                <span className="text-xs text-muted-foreground" title="Moves out">
                   {out} →
                 </span>
               </button>
@@ -378,10 +387,10 @@ function StatusPanel({
   const incoming = wf.transitions.filter((t) => t.to_status_id === status.id);
   const row = (t: Transition, other: Status | undefined, arrow: string) => (
     <li key={t.id}>
-      <button onClick={() => onPickTransition(t)} className="flex w-full items-center gap-2 rounded-[4px] px-1 py-1 text-left text-sm hover:bg-[var(--surface-2)]">
-        <span className="text-[var(--text-muted)]">{t.is_bidirectional ? "↔" : arrow}</span>
+      <button onClick={() => onPickTransition(t)} className="flex w-full items-center gap-2 rounded-md px-1 py-1 text-left text-sm hover:bg-muted">
+        <span className="text-muted-foreground">{t.is_bidirectional ? "↔" : arrow}</span>
         <StatusChip name={other?.name ?? "?"} color={other?.color} />
-        <span className="ml-auto truncate text-xs text-[var(--text-muted)]">{t.name}</span>
+        <span className="ml-auto truncate text-xs text-muted-foreground">{t.name}</span>
       </button>
     </li>
   );
@@ -391,17 +400,17 @@ function StatusPanel({
       <Section title="Status">
         <StatusChip name={status.name} color={status.color} />
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          <dt className="text-[var(--text-muted)]">Stage</dt>
+          <dt className="text-muted-foreground">Stage</dt>
           <dd>
             {status.base.name}
-            {status.base.is_completed && <span className="text-xs text-[var(--text-muted)]"> (resolved)</span>}
+            {status.base.is_completed && <span className="text-xs text-muted-foreground"> (resolved)</span>}
           </dd>
-          <dt className="text-[var(--text-muted)]">Key</dt>
+          <dt className="text-muted-foreground">Key</dt>
           <dd className="font-mono text-xs leading-5">{status.key}</dd>
-          <dt className="text-[var(--text-muted)]">Order</dt>
+          <dt className="text-muted-foreground">Order</dt>
           <dd>{status.order}</dd>
         </dl>
-        {status.is_pipeline && <p className="mt-2 text-xs text-[var(--text-muted)]">Triage status: only the triage pipeline moves tickets into it.</p>}
+        {status.is_pipeline && <p className="mt-2 text-xs text-muted-foreground">Triage status: only the triage pipeline moves tickets into it.</p>}
       </Section>
       {!status.is_pipeline && (
         <Section title="On enter">
@@ -409,20 +418,20 @@ function StatusPanel({
         </Section>
       )}
       <Section title={`Moves out (${outgoing.length})`}>
-        {outgoing.length ? <ul>{outgoing.map((t) => row(t, byId[t.to_status_id], "→"))}</ul> : <p className="text-sm text-[var(--text-muted)]">None.</p>}
+        {outgoing.length ? <ul>{outgoing.map((t) => row(t, byId[t.to_status_id], "→"))}</ul> : <p className="text-sm text-muted-foreground">None.</p>}
       </Section>
       <Section title={`Moves in (${incoming.length})`}>
-        {incoming.length ? <ul>{incoming.map((t) => row(t, byId[t.from_status_id], "←"))}</ul> : <p className="text-sm text-[var(--text-muted)]">None.</p>}
+        {incoming.length ? <ul>{incoming.map((t) => row(t, byId[t.from_status_id], "←"))}</ul> : <p className="text-sm text-muted-foreground">None.</p>}
       </Section>
       {canEdit && (
         <div className="flex gap-2 px-4 py-3">
-          <button className="btn btn-secondary flex-1 justify-center" onClick={onEdit}>
+          <Button variant="outline" className="flex-1" onClick={onEdit}>
             Edit
-          </button>
+          </Button>
           {!status.is_pipeline && (
-            <button className="btn btn-secondary flex-1 justify-center text-[var(--danger)]" onClick={onDelete}>
+            <Button variant="outline" className="flex-1 text-danger" onClick={onDelete}>
               Delete
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -457,23 +466,23 @@ function TransitionPanel({
       <Section title={transition.name}>
         <span className="inline-flex flex-wrap items-center gap-2">
           <StatusChip name={from?.name ?? "?"} color={from?.color} />
-          <span className="text-[var(--text-muted)]">{transition.is_bidirectional ? "↔" : "→"}</span>
+          <span className="text-muted-foreground">{transition.is_bidirectional ? "↔" : "→"}</span>
           <StatusChip name={to?.name ?? "?"} color={to?.color} />
         </span>
-        {transition.is_bidirectional && <p className="mt-1.5 text-xs text-[var(--text-muted)]">Tickets can move both ways.</p>}
+        {transition.is_bidirectional && <p className="mt-1.5 text-xs text-muted-foreground">Tickets can move both ways.</p>}
       </Section>
       <Section title={`Checks (${transition.rules.length})`}>
         {transition.rules.length ? (
           <ul className="flex flex-col gap-1 text-sm">
             {transition.rules.map((r, i) => (
-              <li key={r.id ?? i} className={r.is_active ? "" : "text-[var(--text-muted)] line-through"}>
+              <li key={r.id ?? i} className={r.is_active ? "" : "text-muted-foreground line-through"}>
                 <span className="font-medium">{fieldName[r.field_id] ?? "?"}</span> {catalog.rules.find((s) => s.code === r.rule)?.name.toLowerCase() ?? r.rule}
-                {Object.values(r.params).some(Boolean) && <span className="font-mono text-xs text-[var(--text-muted)]"> {Object.values(r.params).join(", ")}</span>}
+                {Object.values(r.params).some(Boolean) && <span className="font-mono text-xs text-muted-foreground"> {Object.values(r.params).join(", ")}</span>}
               </li>
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-[var(--text-muted)]">No checks.</p>
+          <p className="text-sm text-muted-foreground">No checks.</p>
         )}
       </Section>
       <Section title={`Actions (${transition.actions.length})`}>
@@ -481,12 +490,12 @@ function TransitionPanel({
       </Section>
       {canEdit && (
         <div className="flex gap-2 px-4 py-3">
-          <button className="btn btn-secondary flex-1 justify-center" onClick={onEdit}>
+          <Button variant="outline" className="flex-1" onClick={onEdit}>
             Edit
-          </button>
-          <button className="btn btn-secondary flex-1 justify-center text-[var(--danger)]" onClick={onDelete}>
+          </Button>
+          <Button variant="outline" className="flex-1 text-danger" onClick={onDelete}>
             Delete
-          </button>
+          </Button>
         </div>
       )}
     </>
@@ -506,53 +515,53 @@ function FieldsTable({
 }) {
   if (wf.fields.length === 0) {
     return (
-      <div className="card px-6 py-12 text-center text-sm text-[var(--text-muted)]">
+      <Card className="px-6 py-12 text-center text-sm text-muted-foreground">
         No fields yet. Fields hold extra information on tickets in this workflow; transitions can require them.
-      </div>
+      </Card>
     );
   }
   return (
-    <div className="card overflow-hidden">
-      <table className="w-full text-sm">
-        <thead className="bg-[var(--surface-2)] text-left text-xs text-[var(--text-muted)]">
-          <tr>
-            <th className="px-4 py-2.5 font-medium">Field</th>
-            <th className="px-4 py-2.5 font-medium">Type</th>
-            <th className="px-4 py-2.5 font-medium">Checks</th>
-            <th className="px-4 py-2.5 font-medium">When it changes</th>
-            <th className="px-4 py-2.5" />
-          </tr>
-        </thead>
-        <tbody>
+    <Card className="overflow-hidden">
+      <Table className="w-full text-sm">
+        <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+          <TableRow>
+            <TableHead className="px-4 py-2.5 font-medium">Field</TableHead>
+            <TableHead className="px-4 py-2.5 font-medium">Type</TableHead>
+            <TableHead className="px-4 py-2.5 font-medium">Checks</TableHead>
+            <TableHead className="px-4 py-2.5 font-medium">When it changes</TableHead>
+            <TableHead className="px-4 py-2.5" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {[...wf.fields]
             .sort((a, b) => a.order - b.order)
             .map((f) => (
-              <tr key={f.id} className="border-t border-[var(--border)]">
-                <td className="px-4 py-3 font-medium">{f.name}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">
+              <TableRow key={f.id} className="border-t border-border">
+                <TableCell className="px-4 py-3 font-medium">{f.name}</TableCell>
+                <TableCell className="px-4 py-3 text-muted-foreground">
                   {humanize(f.field_type)}
                   {f.options.length > 0 && <span className="block text-xs">{f.options.join(", ")}</span>}
-                </td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">{f.rules.length || "—"}</td>
-                <td className="px-4 py-3 text-[var(--text-muted)]">
+                </TableCell>
+                <TableCell className="px-4 py-3 text-muted-foreground">{f.rules.length || "—"}</TableCell>
+                <TableCell className="px-4 py-3 text-muted-foreground">
                   {f.events.length ? f.events.map((e) => `${humanize(e.event)} (${e.actions.length})`).join(", ") : "—"}
-                </td>
-                <td className="px-4 py-3 text-right">
+                </TableCell>
+                <TableCell className="px-4 py-3 text-right">
                   {canEdit && (
                     <span className="flex justify-end gap-3 text-xs">
-                      <button className="hover:underline" onClick={() => onEdit(f)}>
+                      <Button variant="link" size="inline"  onClick={() => onEdit(f)}>
                         Edit
-                      </button>
-                      <button className="text-[var(--danger)] hover:underline" onClick={() => onDelete(f)}>
+                      </Button>
+                      <Button variant="link" size="inline" className="text-danger" onClick={() => onDelete(f)}>
                         Delete
-                      </button>
+                      </Button>
                     </span>
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-        </tbody>
-      </table>
-    </div>
+        </TableBody>
+      </Table>
+    </Card>
   );
 }

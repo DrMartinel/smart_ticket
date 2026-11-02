@@ -11,6 +11,9 @@ import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import type { WorkloadRowOut } from "@/lib/types/generated";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 export default function WorkloadPage() {
   const user = useRequireAuth();
@@ -56,10 +59,10 @@ export default function WorkloadPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">{team?.name ?? slug} workload</h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             Strategy {team?.strategy ?? "—"} · cap {team?.max_open_per_member ?? "none"} open per member. Going unavailable or on
             leave moves nothing.{" "}
-            <Link href={`/teams/${slug}`} className="text-[var(--accent)] hover:underline">
+            <Link href={`/teams/${slug}`} className="text-primary hover:underline">
               Team queue
             </Link>
           </p>
@@ -67,62 +70,62 @@ export default function WorkloadPage() {
         <TeamPicker teams={teams} value={slug} onChange={(next) => router.push(`/teams/${next}/workload`)} />
       </header>
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[860px] text-left text-sm">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Member</th>
-              <th className="px-4 py-2 font-normal">Role</th>
-              <th className="px-4 py-2 font-normal">Available</th>
-              <th className="px-4 py-2 font-normal">Leave</th>
-              <th className="px-4 py-2 font-normal">Open / cap</th>
-              <th className="px-4 py-2 font-normal">Oldest SLA due</th>
-              <th className="px-4 py-2 font-normal">Last assigned</th>
-              <th className="px-4 py-2 font-normal" />
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[860px] text-left text-sm">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Member</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Role</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Available</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Leave</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Open / cap</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Oldest SLA due</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Last assigned</TableHead>
+              <TableHead className="px-4 py-2 font-normal" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows?.map((r) => (
-              <tr key={r.user} className={`border-t border-[var(--border)] ${r.flagged ? "bg-[var(--warn-soft)]" : ""}`}>
-                <td className="px-4 py-2.5">{r.user}</td>
-                <td className="px-4 py-2.5">{r.role}</td>
-                <td className="px-4 py-2.5">
+              <TableRow key={r.user} className={`border-t border-border ${r.flagged ? "bg-warn-soft" : ""}`}>
+                <TableCell className="px-4 py-2.5">{r.user}</TableCell>
+                <TableCell className="px-4 py-2.5">{r.role}</TableCell>
+                <TableCell className="px-4 py-2.5">
                   <Switch
                     checked={r.available}
                     disabled={!canEdit}
                     label={`${r.user} available`}
                     onChange={(next) => void setAvailable(r.user, next)}
                   />
-                </td>
-                <td className="px-4 py-2.5">{r.on_leave ? <span className="badge tone-warn">On leave today</span> : "—"}</td>
-                <td className="px-4 py-2.5 tabular-nums">
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{r.on_leave ? <Badge variant="warn">On leave today</Badge> : "—"}</TableCell>
+                <TableCell className="px-4 py-2.5 tabular-nums">
                   {r.open} / {r.cap ?? "—"}
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5">{dateTime(r.oldest_due)}</td>
-                <td className="whitespace-nowrap px-4 py-2.5">{dateTime(r.last_assigned_at)}</td>
-                <td className="px-4 py-2.5">
+                </TableCell>
+                <TableCell className="whitespace-nowrap px-4 py-2.5">{dateTime(r.oldest_due)}</TableCell>
+                <TableCell className="whitespace-nowrap px-4 py-2.5">{dateTime(r.last_assigned_at)}</TableCell>
+                <TableCell className="px-4 py-2.5">
                   {r.flagged ? (
-                    <span className="text-[var(--warn)]">
+                    <span className="text-warn">
                       {r.open} ticket{r.open === 1 ? "" : "s"} still assigned
                     </span>
                   ) : r.next_pick ? (
-                    <span className="text-[var(--ok)]">Next pick</span>
+                    <span className="text-ok">Next pick</span>
                   ) : !r.available ? (
-                    <span className="text-[var(--text-muted)]">Skipped: unavailable</span>
+                    <span className="text-muted-foreground">Skipped: unavailable</span>
                   ) : r.on_leave ? (
-                    <span className="text-[var(--text-muted)]">Skipped: leave</span>
+                    <span className="text-muted-foreground">Skipped: leave</span>
                   ) : (
                     "—"
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[11px] text-[var(--text-muted)]">
+          </TableBody>
+        </Table>
+      </Card>
+      <p className="text-[11px] text-muted-foreground">
         Reassign a flagged person&apos;s tickets one by one from the team queue or the ticket page.
       </p>
     </div>

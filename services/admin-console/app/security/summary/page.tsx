@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { SummaryOut } from "@/lib/types/generated";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const STATES = ["new", "acknowledged", "investigating", "closed"];
 
@@ -26,42 +28,42 @@ export default function SecuritySummaryPage() {
     <div className="mx-auto flex max-w-[900px] flex-col gap-4">
       <header>
         <h1 className="text-xl font-semibold">Security alerts · last {summary?.days ?? 30} days</h1>
-        <p className="text-xs text-[var(--text-muted)]">Counts only: the alerts themselves are for security (BR-F8-01).</p>
+        <p className="text-xs text-muted-foreground">Counts only: the alerts themselves are for security (BR-F8-01).</p>
       </header>
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-      <div className="card overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Kind</th>
+      {error && <p className="text-sm text-danger">{error}</p>}
+      <Card className="overflow-x-auto">
+        <Table className="w-full text-left text-sm">
+          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2.5 font-medium">Kind</TableHead>
               {STATES.map((s) => (
-                <th key={s} className="px-4 py-2.5 text-right font-medium">
+                <TableHead key={s} className="px-4 py-2.5 text-right font-medium">
                   {s}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {kinds.map((k) => (
-              <tr key={k} className="border-t border-[var(--border)]">
-                <td className="px-4 py-2.5 font-mono text-xs">{k}</td>
+              <TableRow key={k} className="border-t border-border">
+                <TableCell className="px-4 py-2.5 font-mono text-xs">{k}</TableCell>
                 {STATES.map((s) => (
-                  <td key={s} className="px-4 py-2.5 text-right">
+                  <TableCell key={s} className="px-4 py-2.5 text-right">
                     {count(k, s)}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
             {summary && kinds.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                   No alerts in the window.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

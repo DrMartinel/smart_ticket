@@ -19,7 +19,7 @@ export default function AnswerText({ text }: { text: string }) {
         return (
           <List
             key={i}
-            className={`${block.kind === "ol" ? "list-decimal" : "list-disc"} space-y-1.5 pl-5 marker:text-[var(--text-muted)]`}
+            className={`${block.kind === "ol" ? "list-decimal" : "list-disc"} space-y-1.5 pl-5 marker:text-muted-foreground`}
           >
             {block.items.map((item, j) => (
               <li key={j} className="pl-1">

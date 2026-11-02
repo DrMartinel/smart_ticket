@@ -22,16 +22,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-dvh">
-      <aside className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)]">
+      <aside className="sticky top-0 flex h-dvh w-60 shrink-0 flex-col border-r border-border bg-card">
         <div className="flex items-start justify-between gap-2 pb-4 pl-5 pr-3 pt-5">
           <Link href="/tickets?view=review">
             <span className="block text-[15px] font-semibold">Smart Ticket</span>
-            <span className="block text-xs text-[var(--text-muted)]">Support console</span>
+            <span className="block text-xs text-muted-foreground">Support console</span>
           </Link>
           <NotificationBell />
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 text-sm">
+        <nav className="scrollbar-none flex-1 overflow-y-auto px-3 text-sm">
           <Group label="Tickets">
             {VIEWS.map((v) => (
               <NavItem
@@ -159,19 +159,19 @@ export default function AppShell({ children }: { children: ReactNode }) {
           )}
         </nav>
 
-        <div className="border-t border-[var(--border)] px-5 py-4 text-sm">
+        <div className="border-t border-border px-5 py-4 text-sm">
           <p className="font-medium">{user.username}</p>
-          <p className="text-xs capitalize text-[var(--text-muted)]">{user.role}</p>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--text-muted)]">
-            <Link href="/me/notifications" className="hover:text-[var(--text)]">
+          <p className="text-xs capitalize text-muted-foreground">{user.role}</p>
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <Link href="/me/notifications" className="hover:text-foreground">
               My notifications
             </Link>
             {user.role !== "employee" && (
-              <Link href="/me/availability" className="hover:text-[var(--text)]">
+              <Link href="/me/availability" className="hover:text-foreground">
                 Availability
               </Link>
             )}
-            <button onClick={() => void logout()} className="hover:text-[var(--text)]">
+            <button onClick={() => void logout()} className="hover:text-foreground">
               Sign out
             </button>
           </div>
@@ -186,7 +186,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="mb-5">
-      <p className="px-2 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">{label}</p>
+      <p className="px-2 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <ul className="flex flex-col gap-0.5">{children}</ul>
     </div>
   );
@@ -210,15 +210,15 @@ function NavItem({
       <Link
         href={href}
         aria-current={active ? "page" : undefined}
-        className={`flex items-center justify-between rounded-[5px] px-2 py-1.5 transition-colors ${
-          active ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]" : "hover:bg-[var(--surface-2)]"
+        className={`flex items-center justify-between rounded-md px-2 py-1.5 transition-colors ${
+          active ? "bg-primary-soft font-medium text-primary" : "hover:bg-muted"
         }`}
       >
         {children}
         {count !== undefined && (
           <span
             className={`font-mono text-xs tabular-nums ${
-              emphasise && count > 0 ? "rounded-[3px] bg-[var(--warn-soft)] px-1.5 text-[var(--warn)]" : "text-[var(--text-muted)]"
+              emphasise && count > 0 ? "rounded-[3px] bg-warn-soft px-1.5 text-warn" : "text-muted-foreground"
             }`}
           >
             {count}

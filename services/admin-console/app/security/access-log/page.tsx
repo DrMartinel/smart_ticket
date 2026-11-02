@@ -5,7 +5,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
 import { ApiError, api, download } from "@/lib/api";
-import { piiLevelClasses } from "@/lib/badges";
+import { piiLevelTone } from "@/lib/badges";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 
 interface AccessLogRow {
   id: string;
@@ -91,13 +97,13 @@ export default function AccessLogPage() {
 
   const field = (key: keyof Filters, label: string, width: string, type = "text") => (
     <label className={`flex flex-col gap-1 ${width}`}>
-      <span className="text-[11px] text-[var(--text-muted)]">{label}</span>
-      <input
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <Input
         type={type}
         value={filters[key]}
         placeholder={type === "text" ? "any" : undefined}
         onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
-        className="rounded-[5px] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 text-sm"
+        className="text-sm"
       />
     </label>
   );
@@ -107,11 +113,11 @@ export default function AccessLogPage() {
       <header className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">PII access log</h1>
-          <p className="text-xs text-[var(--text-muted)]">Append-only. Values are never stored here or exported.</p>
+          <p className="text-xs text-muted-foreground">Append-only. Values are never stored here or exported.</p>
         </div>
-        <button className="btn btn-secondary" onClick={() => void exportCsv()}>
+        <Button variant="outline" onClick={() => void exportCsv()}>
           Export CSV
-        </button>
+        </Button>
       </header>
 
       <form
@@ -124,65 +130,61 @@ export default function AccessLogPage() {
         {field("ticket", "Ticket", "w-[200px]")}
         {field("actor", "Actor", "w-[160px]")}
         <label className="flex w-[200px] flex-col gap-1">
-          <span className="text-[11px] text-[var(--text-muted)]">Reason code</span>
-          <select
-            value={filters.reason_code}
-            onChange={(e) => setFilters({ ...filters, reason_code: e.target.value })}
-            className="rounded-[5px] border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 text-sm"
-          >
+          <span className="text-[11px] text-muted-foreground">Reason code</span>
+          <NativeSelect value={filters.reason_code} onChange={(e) => setFilters({ ...filters, reason_code: e.target.value })}>
             <option value="">any</option>
             {REASON_CODES.map((code) => (
               <option key={code} value={code}>
                 {code}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         {field("from", "From", "w-[150px]", "date")}
         {field("to", "To", "w-[150px]", "date")}
-        <button type="submit" className="btn btn-secondary">
+        <Button variant="outline" type="submit">
           Filter
-        </button>
+        </Button>
       </form>
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[720px] text-left text-xs">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Time (+07)</th>
-              <th className="px-4 py-2 font-normal">Actor</th>
-              <th className="px-4 py-2 font-normal">Ticket</th>
-              <th className="px-4 py-2 font-normal">Placeholder</th>
-              <th className="px-4 py-2 font-normal">Reason code</th>
-              <th className="px-4 py-2 font-normal">Reason (masked)</th>
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[720px] text-left text-xs">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Time (+07)</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Actor</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Ticket</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Placeholder</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Reason code</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Reason (masked)</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {page?.items.map((row) => (
-              <tr key={row.id} className="border-t border-[var(--border)]">
-                <td className="whitespace-nowrap px-4 py-2.5">{vnTime(row.accessed_at)}</td>
-                <td className="px-4 py-2.5">{row.actor}</td>
-                <td className="px-4 py-2.5 font-mono">{row.ticket}</td>
-                <td className="px-4 py-2.5">
-                  <span className={`badge ${piiLevelClasses(row.level)}`}>{row.placeholder}</span>
-                </td>
-                <td className="px-4 py-2.5">{row.reason_code}</td>
-                <td className="px-4 py-2.5">{row.reason}</td>
-              </tr>
+              <TableRow key={row.id} className="border-t border-border">
+                <TableCell className="whitespace-nowrap px-4 py-2.5">{vnTime(row.accessed_at)}</TableCell>
+                <TableCell className="px-4 py-2.5">{row.actor}</TableCell>
+                <TableCell className="px-4 py-2.5 font-mono">{row.ticket}</TableCell>
+                <TableCell className="px-4 py-2.5">
+                  <Badge variant={piiLevelTone(row.level)}>{row.placeholder}</Badge>
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{row.reason_code}</TableCell>
+                <TableCell className="px-4 py-2.5">{row.reason}</TableCell>
+              </TableRow>
             ))}
             {page && page.items.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
                   No reveals match these filters.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[11px] text-[var(--text-muted)]">
+          </TableBody>
+        </Table>
+      </Card>
+      <p className="text-[11px] text-muted-foreground">
         {page ? `${Math.min(page.count, LIMIT)} of ${page.count} shown. ` : ""}Export writes pii_access_log_exported to the audit log.
       </p>
     </div>

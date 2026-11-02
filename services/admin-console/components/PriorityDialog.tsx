@@ -6,6 +6,9 @@ import { useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { ApiError, api } from "@/lib/api";
 import type { PolicyOut, Priority, PriorityIn, SlaBadgeOut, TicketSlaOut } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const PRIORITIES: Priority[] = ["P1", "P2", "P3", "P4"];
 
@@ -76,32 +79,34 @@ export default function PriorityDialog({
       subtitle={`${ticket.public_id} · ${ticket.subject}`}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button className="btn btn-primary" disabled={busy || !reason.trim() || priority === ticket.priority} onClick={() => void submit()}>
+          </Button>
+          <Button disabled={busy || !reason.trim() || priority === ticket.priority} onClick={() => void submit()}>
             Change priority
-          </button>
+          </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4 text-sm">
-        <fieldset className="flex flex-wrap gap-4">
-          <legend className="pb-1.5 text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">New priority</legend>
-          {PRIORITIES.map((p) => (
-            <label key={p} className="flex items-center gap-1.5">
-              <input type="radio" name="priority" checked={priority === p} onChange={() => setPriority(p)} />
-              {p}
-              {p === ticket.priority && <span className="text-[var(--text-muted)]">(current)</span>}
-            </label>
-          ))}
+        <fieldset>
+          <legend className="pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">New priority</legend>
+          <RadioGroup value={priority} onValueChange={(next) => setPriority(next as typeof priority)} className="flex flex-wrap gap-4">
+            {PRIORITIES.map((p) => (
+              <label key={p} className="flex items-center gap-1.5">
+                <RadioGroupItem value={p} />
+                {p}
+                {p === ticket.priority && <span className="text-muted-foreground">(current)</span>}
+              </label>
+            ))}
+          </RadioGroup>
         </fieldset>
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-[var(--text-muted)]">Reason (required)</span>
-          <input className="field" value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
+          <span className="text-xs text-muted-foreground">Reason (required)</span>
+          <Input value={reason} maxLength={500} onChange={(e) => setReason(e.target.value)} />
         </label>
         {priority !== ticket.priority && changes.length > 0 && (
-          <div className="rounded-[5px] border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5">
+          <div className="rounded-md border border-border bg-muted px-3 py-2.5">
             <p className="pb-1 font-medium">What changes{target ? ` (policy ${target.name})` : ""}</p>
             {changes.map((line) => (
               <p key={line} className="text-xs">
@@ -110,7 +115,7 @@ export default function PriorityDialog({
             ))}
           </div>
         )}
-        {error && <p className="rounded-[5px] bg-[var(--danger-soft)] px-3 py-2 text-[var(--danger)]">{error}</p>}
+        {error && <p className="rounded-md bg-danger-soft px-3 py-2 text-danger">{error}</p>}
       </div>
     </Modal>
   );
