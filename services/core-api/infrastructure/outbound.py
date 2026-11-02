@@ -1,5 +1,5 @@
 """
-core-api's client for the webhooks lifecycle actions call (ADR-0028). Only
+core-api's client for the webhooks lifecycle actions and notifications call (ADR-0028, ADR-0033). Only
 hosts on `LIFECYCLE_WEBHOOK_ALLOWED_HOSTS` are reached, never a link-local,
 multicast, reserved or unspecified address, and redirects aren't followed.
 Transport only: what a status code means is the action's decision.
@@ -10,6 +10,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -39,8 +40,17 @@ class OutboundResponse:
 class OutboundHttp:
     """Sends one HTTP request to an allowed webhook host."""
 
-    def send(self, url: str, *, method: str, json_body: Any = None) -> OutboundResponse:
-        """Raises `OutboundRefused` for a disallowed destination, `OutboundUnavailable` on transport failure."""
+    def send(
+        self,
+        url: str,
+        *,
+        method: str,
+        json_body: Any = None,
+        content: bytes | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> OutboundResponse:
+        """Sends `json_body` as JSON, or `content` as is; raises `OutboundRefused` for a
+        disallowed destination, `OutboundUnavailable` on transport failure."""
         self.check_destination(url)
         timeout = httpx.Timeout(
             settings.LIFECYCLE_HTTP_READ_TIMEOUT_SEC,
@@ -50,7 +60,10 @@ class OutboundHttp:
         deadline = time.monotonic() + settings.LIFECYCLE_HTTP_TOTAL_TIMEOUT_SEC
         try:
             with httpx.Client(timeout=timeout, follow_redirects=False) as client:
-                with client.stream(method, url, json=json_body) as response:
+                payload: dict[str, Any] = (
+                    {"json": json_body} if content is None else {"content": content}
+                )
+                with client.stream(method, url, headers=headers, **payload) as response:
                     body = b""
                     for chunk in response.iter_bytes():
                         if time.monotonic() > deadline:

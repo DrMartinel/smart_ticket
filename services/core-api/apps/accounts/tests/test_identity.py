@@ -16,6 +16,7 @@ from apps.accounts.tests.fake_keycloak import FakeKeycloak, Person, new_key
 from apps.accounts.utils.identity_sync import IdentitySync
 from apps.accounts.utils.oidc import Identities, Keycloak, oidc_sign_in
 from apps.audit.models import AuditLog
+from apps.notifications.models import Message
 from apps.core.testing import api_client_with
 from apps.teams.models import Team
 
@@ -139,7 +140,7 @@ class TestSignIn:
         assert response.json()["code"] == "no_access"
         assert not User.objects.filter(username="no.role").exists()
 
-    def test_two_primary_roles_refused(self, realm):
+    def test_two_primary_roles_refused(self, realm, security_user):
         """AC-F13-04."""
         both = realm.add(Person(username="two.roles", roles=["technician", "manager"]))
 
@@ -148,6 +149,7 @@ class TestSignIn:
         assert response.status_code == 403
         assert response.json()["code"] == "ambiguous_role"
         assert len(events("security_alert")) == 1
+        assert Message.objects.filter(user=security_user, event="security.alert").count() == 2
         assert not User.objects.filter(username="two.roles").exists()
 
     def test_a_forged_id_token_is_refused(self, realm, monkeypatch):
@@ -317,8 +319,8 @@ class TestLocalSignIn:
         reasons = [a.payload["reason"] for a in events("auth_login_failed")]
         assert reasons == ["local_login_disabled", "local_login_disabled", "invalid_credentials"]
 
-    def test_break_glass_use_alerts_security(self, glass_user):
-        """AC-F13-08 (the audit row; the notice to security is F4's)."""
+    def test_break_glass_use_alerts_security(self, glass_user, security_user):
+        """AC-F13-08: the audit row, and a mandatory "Break-glass sign-in" notice to security."""
         response = Client().post(
             "/api/auth/login",
             {"username": "glass", "password": "x"},
@@ -330,6 +332,9 @@ class TestLocalSignIn:
         (alert,) = events("security_alert")
         assert alert.payload["reason"] == "break_glass_used"
         assert events("auth_login")[0].payload["method"] == "local"
+        notices = Message.objects.filter(user=security_user, event="identity.break_glass_used")
+        assert sorted(notices.values_list("channel", flat=True)) == ["email", "in_app"]
+        assert notices.get(channel="in_app").subject == "Đăng nhập khẩn cấp: glass"
 
     def test_break_glass_locks_after_repeated_failures(self, glass_user, settings):
         """FR-F13-009: once locked, even the right password is refused, with the same answer."""
@@ -468,7 +473,7 @@ class TestLeavers:
         assert run is not None and not run.ok
         assert User.objects.get(external_id=duc.sub).is_active is True
 
-    def test_two_roles_found_by_sync_deactivate_and_alert(self, realm):
+    def test_two_roles_found_by_sync_deactivate_and_alert(self, realm, security_user):
         duc = realm.add(Person(username="duc.tm", roles=["technician"]))
         sign_in(realm, duc)
         duc.roles = ["technician", "manager"]
@@ -477,6 +482,9 @@ class TestLeavers:
 
         assert User.objects.get(external_id=duc.sub).is_active is False
         assert events("security_alert")[-1].payload["reason"] == "ambiguous_role"
+        assert Message.objects.filter(
+            user=security_user, event="security.alert", body__contains="identity sync"
+        ).exists()
 
     def test_a_second_sync_changes_nothing(self, realm, teams):
         """Idempotent: the second run finds nothing to do."""
@@ -686,7 +694,7 @@ class TestOutageAndBreakGlass:
         with pytest.raises(CommandError, match="must be local"):
             call_command("set_break_glass", "huy.pq", stdout=StringIO())
 
-    def test_a_break_glass_account_met_at_sign_in_is_refused(self, realm):
+    def test_a_break_glass_account_met_at_sign_in_is_refused(self, realm, security_user):
         huy = realm.add(Person(username="huy.pq", roles=["manager"]))
         sign_in(realm, huy)
         User.objects.filter(external_id=huy.sub).update(is_break_glass=True)
@@ -695,3 +703,6 @@ class TestOutageAndBreakGlass:
 
         assert response.status_code == 403
         assert events("security_alert")[-1].payload["reason"] == "break_glass_account_in_keycloak"
+        assert Message.objects.filter(
+            user=security_user, subject__contains="break_glass_account_in_keycloak"
+        ).exists()

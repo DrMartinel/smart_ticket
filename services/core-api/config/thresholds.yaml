@@ -162,3 +162,14 @@ identity:
   max_break_glass_accounts: 2
   # Failed syncs in a row before identity_sync_failed is audited (UC-F13-03).
   sync_failures_before_alert: 3
+
+notifications:
+  # Sends of one email or webhook message before it is marked failed for a
+  # person to retry (F4, FR-F4-007). Backoff between them is
+  # LIFECYCLE_RETRY_BACKOFF_* in .env.example. 🔧 assumption, not measured.
+  max_attempts: 5
+  # A message still `sending` after this many seconds has lost its worker; the
+  # sweep puts it back in the queue.
+  stuck_after_sec: 120
+  # In-app notices older than this are deleted by the daily purge (FR-F4-010).
+  in_app_retention_days: 90

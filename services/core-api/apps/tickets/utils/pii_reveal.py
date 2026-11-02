@@ -15,6 +15,7 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
+from apps.notifications.utils.notifier import notifier
 from apps.review.models import ReviewItem
 from apps.tickets.models import PiiAccessLog, PiiQuarantine, Ticket
 from apps.tickets.request_schema import RevealReason
@@ -250,6 +251,13 @@ class PiiReveal:
                 ticket_id=ticket.id if ticket else None,
                 payload={"reason": code.value, "placeholder": placeholder[:40]},
                 trace_id=trace_id,
+            )
+        if "security_alert" in events:
+            notifier.security_alert(
+                code.value,
+                actor=actor.username,
+                detail=f"PII reveal of {placeholder[:40]} by {actor.username}",
+                ticket=ticket,
             )
 
     def export_log(self, rows: Any, actor: User, filters: dict[str, Any]) -> str:

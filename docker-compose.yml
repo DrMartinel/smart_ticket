@@ -64,6 +64,10 @@ x-core-api-env: &core-api-env
   DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:?see .env.example}
   EMAIL_HOST: ${EMAIL_HOST:?see .env.example}
   EMAIL_PORT: ${EMAIL_PORT:?see .env.example}
+  NOTIFICATION_POLL_SEC: ${NOTIFICATION_POLL_SEC:?see .env.example}
+  NOTIFICATION_PUBLIC_BASE_URL: ${NOTIFICATION_PUBLIC_BASE_URL:?see .env.example}
+  NOTIFICATION_SECRET_KEY: ${NOTIFICATION_SECRET_KEY:?see .env.example}
+  NOTIFICATION_SWEEP_INTERVAL_SEC: ${NOTIFICATION_SWEEP_INTERVAL_SEC:?see .env.example}
   OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:?see .env.example}
   # Keycloak as the containers reach it; the issuer stays the browser's.
   OIDC_SERVER_URL: http://keycloak:8080

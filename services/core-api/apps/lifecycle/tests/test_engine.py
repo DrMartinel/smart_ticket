@@ -8,6 +8,7 @@ import pytest
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
+from apps.notifications.models import Message
 from apps.lifecycle.models import ActionRun, ApprovalRequest, Transfer, Workflow
 from apps.lifecycle.request_schema import FieldIn, RuleIn, StatusPatch, TransitionPatch
 from apps.lifecycle.tests.conftest import actions, make_ticket, put_in, status_of
@@ -507,6 +508,9 @@ def test_an_approval_holds_the_move_until_an_approver_approves(
     celery.drain()
     approval = ApprovalRequest.objects.get(run__transfer=last_transfer(ticket))
     assert reload(ticket).status == strict.working.key
+    assert Message.objects.filter(
+        user=manager_user, event="approval.requested", channel="in_app"
+    ).exists()
 
     with pytest.raises(LifecycleError) as e:
         lifecycle.decide_approval(approval.id, user=technician_user, approve=True, comment="")
@@ -517,6 +521,23 @@ def test_an_approval_holds_the_move_until_an_approver_approves(
 
     assert reload(ticket).status == strict.done.key
     assert last_transfer(ticket).state == TransferState.COMPLETED.value
+
+
+def test_the_approver_is_told(ticket, strict, celery, technician_user, django_user_model):
+    """AC-F4-06: an in-app notice for the approver, linking to the approval (closes TODO 14.3)."""
+    huy = django_user_model.objects.create_user(username="huy.pq", password="x", role="manager")
+    approval_before(strict, "huy.pq")
+    put_in(ticket, strict.working)
+
+    lifecycle.request_move(ticket.id, strict.done.id, actor=technician_user, trigger=Trigger.MANUAL)
+    celery.drain()
+
+    approval = ApprovalRequest.objects.get(run__transfer=last_transfer(ticket))
+    (notice,) = Message.objects.filter(user=huy, event="approval.requested", channel="in_app")
+    assert notice.link == f"/tickets/{ticket.public_id}?approval={approval.id}"
+    assert notice.event_id == approval.id
+    assert technician_user.username in notice.body
+    assert "Close it?" in notice.body
 
 
 def test_a_rejection_stops_the_move_with_the_approvers_name(ticket, strict, celery, manager_user):

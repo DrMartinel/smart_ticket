@@ -212,6 +212,30 @@ guard and that comment is later trimmed, the entry is the record.
 - **The sync reading everyone before changing anyone.** Changing users as they
   are read would deactivate half the company on a Keycloak hiccup (BR-F13-08).
 
+### Notifications (F4, ADR-0033)
+
+- **`Notifier.emit` writing in the caller's transaction and sending only
+  `on_commit`.** Sending inline looks simpler. A rolled-back assignment would
+  then have mailed its assignee, and a slow relay would hold the ticket's row
+  lock. *`test_rolled_back_event_sends_nothing`.*
+- **`emit` catching every exception in its own savepoint** and auditing
+  `notification_emit_failed`. A notice must never undo the event it reports
+  (BR-X-07): without the catch, a broken matrix row would fail every assignment.
+  *`test_an_emit_that_crashes_is_audited_and_the_event_goes_on`.*
+- **The unique key on `(event_id, user, subscription, channel)` with
+  `nulls_distinct=False`.** With Postgres's default, a user message's null
+  `subscription` makes every row distinct and a re-emit sends twice (BR-F4-08).
+  *`test_a_re_emitted_event_never_double_sends`.*
+- **`Dispatcher.claim` locking the row (`skip_locked`, `of=self`) and moving it
+  to `sending` before the send.** The on-commit dispatch and the sweep can both
+  pick a message; only the claim makes it one send. *`test_dispatch_twice_sends_once`.*
+- **Mandatory cells read from the catalog, never from `notif_matrix_rules.mandatory`.**
+  The column is a display copy; trusting it lets a database edit silence
+  security alerts. *`test_mandatory_cell_ignores_preference`.*
+- **Webhook secrets under `NOTIFICATION_SECRET_KEY`, not the PII key.** One
+  key would give the PII key a second reader, which F5 forbids.
+  *`test_decrypt_has_one_caller`.*
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).

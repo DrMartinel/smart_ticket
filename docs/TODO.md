@@ -432,8 +432,8 @@ ADR-0026 is accepted or superseded on a full run, and no Jev-scale threshold is 
    the ticket's moves, fields and transfer log~~ (`/settings/workflows`,
    `/settings/stages`, `/board`, `/tickets/[id]`). Still missing: an
    approvals screen for `GET /api/lifecycle/approvals/mine`.
-3. Notify approvers when `require_approval` asks them (only the audit log
-   and `GET /api/lifecycle/approvals/mine` show it today).
+3. ~~Notify approvers when `require_approval` asks them~~ (done by phase 2
+   F4, 2026-10-26: a mandatory in-app notice and an email, linking to the approval).
 4. Run an n8n round trip and a real SMTP send once against the Dockerized
    stack, after rebuilding `core-api`, `worker` and `beat`.
    Still open: PRE-2 accepted both ADRs without it (owner's decision,

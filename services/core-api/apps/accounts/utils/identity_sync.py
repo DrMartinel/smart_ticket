@@ -20,6 +20,7 @@ from apps.accounts.utils.oidc import (
     rights_from_claims,
 )
 from apps.audit.models import AuditLog
+from apps.notifications.utils.notifier import notifier
 
 LOCK_KEY = "identity_sync"
 
@@ -144,6 +145,9 @@ class IdentitySync:
                     actor_type="system",
                     actor_id=user.id,
                     payload={"reason": "ambiguous_role", "source": "identity_sync"},
+                )
+                notifier.security_alert(
+                    "ambiguous_role", actor="system", detail=f"{user.username}, identity sync"
                 )
             return True
         if self.identities.apply(user, desired.rights):

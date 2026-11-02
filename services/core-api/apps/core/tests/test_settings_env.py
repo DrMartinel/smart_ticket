@@ -8,6 +8,7 @@ every key in it does something.
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import re
 import sys
@@ -29,6 +30,7 @@ _PRODUCTION_CHECKED = {
     "PII_ENCRYPTION_KEY",
     "OIDC_CLIENT_SECRET",
     "KEYCLOAK_ADMIN_CLIENT_SECRET",
+    "NOTIFICATION_SECRET_KEY",
 }
 
 
@@ -116,6 +118,17 @@ def test_production_accepts_real_secrets(monkeypatch):
     monkeypatch.delitem(sys.modules, "config.settings.production", raising=False)
 
     importlib.import_module("config.settings.production")
+
+
+def test_gitguardian_ignores_only_the_templates_dev_secrets():
+    """Each match `.gitguardian.yaml` ignores is the hash of a dev secret production refuses."""
+    config = yaml.safe_load((base.REPO_ROOT / ".gitguardian.yaml").read_text())
+    ignored = {entry["match"] for entry in config["secret"]["ignored-matches"]}
+    dev_secrets = {
+        hashlib.sha256(str(_TEMPLATE[k]).encode()).hexdigest() for k in _PRODUCTION_CHECKED
+    }
+
+    assert ignored == dev_secrets
 
 
 def _compose_env(service: str) -> set[str]:

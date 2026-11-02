@@ -216,7 +216,7 @@ All NEW, app `notifications`, written by core-api only.
 | `notif_matrix_rules` | `event`, `recipient_kind`, `channel`, `default_on` bool, `mandatory` bool (copied from catalog, read-only), `updated_by`, `updated_at`. Unique (`event`, `recipient_kind`, `channel`) |
 | `notif_preferences` | `user`, `event`, `channel`, `enabled`. Unique (`user`, `event`, `channel`) |
 | `notif_messages` | `event_id` UUID, `event`, `ticket` FK null, `user` FK null, `subscription` FK null, `channel`, `language`, `subject`, `body`, `link`, `state`, `attempts`, `next_attempt_at`, `last_error`, `created_at`, `delivered_at`, `read_at`. Unique (`event_id`, `user`, `subscription`, `channel`). Index (`user`, `read_at`, `created_at`) |
-| `notif_webhook_subscriptions` | `name`, `url`, `events` (array), `secret` (encrypted with the PII key's AES-GCM helper), `is_active`, `created_by` |
+| `notif_webhook_subscriptions` | `name`, `url`, `events` (array), `secret` (AES-GCM under its own key `NOTIFICATION_SECRET_KEY`, v0.6.4; was the PII key), `is_active`, `created_by` |
 | `notif_templates` | `event`, `channel`, `language`, `subject_template`, `body_template`, `updated_by` |
 
 **`accounts_user` — CHANGED:** NEW `language` varchar(5) default `vi`.
@@ -230,7 +230,7 @@ notifications:
   in_app_retention_days: 90
 ```
 
-**`.env.example` — CHANGED:** `NOTIFICATION_POLL_SEC=15`, `NOTIFICATION_PUBLIC_BASE_URL=http://localhost:3000`; real SMTP values in `EMAIL_*` (already present).
+**`.env.example` — CHANGED:** `NOTIFICATION_POLL_SEC=15`, `NOTIFICATION_PUBLIC_BASE_URL=http://localhost:3000`, `NOTIFICATION_SECRET_KEY`, `NOTIFICATION_SWEEP_INTERVAL_SEC=60` (v0.6.4); real SMTP values in `EMAIL_*` (already present).
 
 PII: message bodies are rendered from masked text; `user.email` is account data
 already stored.
@@ -307,6 +307,55 @@ GET /api/notifications?unread=true
 - **Must not change:** lifecycle `send_email` / `call_webhook` actions keep working as configured actions; routing and pipeline timing (emit is a few inserts); no notice ever contains quarantine data.
 - **ADRs:** 0028 §6 (masked text, allow-list) applied; proposed 0033.
 - **Regression tests:** `test_notice_uses_masked_text_only`; `test_failed_email_leaves_ticket_unchanged`; `test_rolled_back_event_sends_nothing`; `test_mandatory_cell_ignores_preference`; `test_dispatch_twice_sends_once`; lifecycle approval tests assert a notice.
+
+## v0.6.4 — where the code differs (build, 2026-10-26)
+
+Code wins (README §0.4 item 5). Each change and its reason:
+
+1. **Webhook secrets have their own key, `NOTIFICATION_SECRET_KEY`** (owner's
+   decision, 2026-10-17). The PII key keeps exactly one reader (F5 FR-F5-010);
+   `test_decrypt_has_one_caller` now checks callers of the PII `crypto.decrypt`
+   and readers of `PII_ENCRYPTION_KEY`, not every `decrypt(`.
+2. **`ticket.assigned`, `ticket.reassigned` and `ticket.unassigned` are active
+   before F2** (owner's decision, 2026-10-17): today's `Lifecycle.assign` and the
+   `assign_user` action emit them, so AC-F4-01, 02, 04, 08 and 09 run now.
+3. **`security.alert` is emitted where F5 and F13 write `security_alert`:** a
+   failed reveal, the first rate-limited one in an hour, an ambiguous role (sign-in
+   or sync), a break-glass account met at Keycloak sign-in, a reused refresh
+   token. The pipeline's routing alerts (injection, critical PII) are not wired:
+   §b keeps notices out of the routing step, and F8's inbox owns them.
+4. **`Notifier.emit` never raises into its caller** (BR-X-07): a failure rolls back
+   its own savepoint and is audited `notification_emit_failed`; the event commits.
+5. **A user's choice wins in both directions:** a preference can turn on a cell
+   the matrix turned off. A mandatory cell is always on, whatever the matrix or a
+   stored preference says.
+6. **Failures a person can see:** a user with no email address gets a `failed`
+   email (`no_address`); a template error fails that one message
+   (`template_error`). The delivery list shows email, webhook and failed in-app
+   messages. SMTP 5xx, refused recipients and webhook 4xx (but 429) fail at once;
+   the rest retry.
+7. **API additions:** `PUT /api/notifications/language` (the language picker on
+   11-564; audited `account_language_changed`); `GET` of a template, with the
+   variables it may name; the inbox returns `poll_sec`; preferences return
+   `label` and `via` (the recipient kinds, for "When you get it"); matrix cells
+   return `label`, `owner`, `active`, `updated_by`, `updated_at`. Template
+   variables are the lifecycle's plus `notice.*` (actor, reason, detail,
+   message, previousAssignee, link, event).
+8. **The matrix PUT accepts any recipient kind on in-app or email for a catalog
+   event**, adding a row; the screen edits the catalog's cells.
+9. **Webhooks:** `DELETE` removes the subscription and its delivery history
+   (audited); the secret is at least 16 characters and is never returned; the
+   form has a secret field (§h needs one; 11-1047 doesn't show it). The body's
+   `ticket.priority` is `null` until F1.
+10. **Screens:** the bell sits in the sidebar header (the layout F5 used, not
+    11-480's top bar); my settings are `/me/notifications`; the matrix, the
+    delivery log and webhooks are under Settings. There is no template editor
+    screen (none in Figma): templates are edited through the API.
+11. **Links:** a requester's notice opens `/?ticket=…` in the chat; email links
+    are built on `NOTIFICATION_PUBLIC_BASE_URL` (the admin console). A chat base
+    URL for requesters' emails comes with F3.
+12. **The sweep runs every `NOTIFICATION_SWEEP_INTERVAL_SEC`** (60), a setting
+    rather than a constant.
 
 ## j. Acceptance criteria
 

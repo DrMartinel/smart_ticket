@@ -19,6 +19,7 @@ from config.settings.base import (
     ClassificationThresholds,
     FewshotThresholds,
     IdentityThresholds,
+    NotificationThresholds,
     IncidentThresholds,
     LifecycleThresholds,
     MaskingThresholds,
@@ -88,6 +89,9 @@ def make_thresholds(**overrides) -> Thresholds:
             local_lockout_minutes=15,
             max_break_glass_accounts=2,
             sync_failures_before_alert=3,
+        ),
+        notifications=NotificationThresholds(
+            max_attempts=5, stuck_after_sec=120, in_app_retention_days=90
         ),
     )
     base.update(overrides)

@@ -17,6 +17,7 @@ from django.utils import timezone
 from apps.accounts.models import AuthClient, AuthSource, Capability, User, UserCapability, UserRole
 from apps.accounts.utils import IssuedSession, Requester, SignInError, SignInRefusal, sessions
 from apps.audit.models import AuditLog
+from apps.notifications.utils.notifier import notifier
 from apps.teams.models import MembershipRole, Team, TeamMembership
 
 LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"
@@ -433,6 +434,11 @@ class OidcSignIn:
                 actor_id=glass.id,
                 payload={"reason": "break_glass_account_in_keycloak", "sub": claims["sub"]},
             )
+            notifier.security_alert(
+                "break_glass_account_in_keycloak",
+                actor="system",
+                detail=f"{glass.username} signed in through Keycloak",
+            )
             raise SignInError(
                 403, SignInRefusal.NO_ACCESS, "a break-glass account can't sign in through Keycloak"
             )
@@ -470,6 +476,12 @@ class OidcSignIn:
                 "ip": requester.ip_address,
             },
         )
+        if refused.code is SignInRefusal.AMBIGUOUS_ROLE:
+            notifier.security_alert(
+                refused.code.value,
+                actor="system",
+                detail=f"{claims.get('preferred_username')} holds more than one role in Keycloak",
+            )
 
     def backchannel_logout(self, logout_token: str) -> int:
         """Ends every sign-in of the user Keycloak logged out; returns tokens revoked."""

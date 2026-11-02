@@ -22,6 +22,8 @@ from ninja_jwt.tokens import AccessToken
 from apps.accounts.models import AuthClient, RefreshSession, User
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
+from apps.notifications.utils.notifier import Notice, notifier
+from apps.notifications.utils.vocabulary import NotificationEvent
 
 
 INVALID_CREDENTIALS = "invalid username or password"
@@ -93,16 +95,26 @@ class Sessions:
             raise SessionRefused(INVALID_CREDENTIALS)
         User.objects.filter(pk=user.pk).update(failed_logins=0, last_failed_login_at=None)
         issued = self.start(user, client, requester, method="local")
-        AuditLog.objects.record(
-            "security_alert",
-            actor_type="human",
-            actor_id=user.id,
-            payload={
-                "reason": "break_glass_used",
-                "client": client.value,
-                "ip": requester.ip_address,
-            },
-        )
+        with transaction.atomic():
+            AuditLog.objects.record(
+                "security_alert",
+                actor_type="human",
+                actor_id=user.id,
+                payload={
+                    "reason": "break_glass_used",
+                    "client": client.value,
+                    "ip": requester.ip_address,
+                },
+            )
+            notifier.emit(
+                NotificationEvent.IDENTITY_BREAK_GLASS_USED,
+                notice=Notice(
+                    actor=user.username,
+                    reason="break_glass_used",
+                    detail=f"{client.value}, IP {requester.ip_address or 'unknown'}",
+                    data={"username": user.username, "client": client.value},
+                ),
+            )
         return issued
 
     def start(
@@ -208,6 +220,11 @@ class Sessions:
                     "client": client.value,
                     "ip": requester.ip_address,
                 },
+            )
+            notifier.security_alert(
+                "refresh_token_reused",
+                actor="system",
+                detail=f"{reused.user.username}, {client.value}, IP {requester.ip_address or 'unknown'}",
             )
             raise SessionRefused("refresh token reused: every token of this sign-in is revoked")
         assert issued is not None
