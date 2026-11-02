@@ -26,6 +26,9 @@ export default function AppHeader() {
           >
             {onTickets ? "Hỏi đáp · Chat" : "Đơn của tôi · My tickets"}
           </Link>
+          <Link href="/guides" className="text-muted-foreground hover:text-foreground" data-tour="guides-link">
+            Hướng dẫn<span className="hidden sm:inline"> · Guides</span>
+          </Link>
           <NotificationBell />
           {user && <span className="hidden text-muted-foreground sm:inline">{user.username}</span>}
           <Button variant="ghost" size="sm" onClick={() => void logout()} className="text-muted-foreground">

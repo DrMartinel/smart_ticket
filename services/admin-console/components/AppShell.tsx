@@ -159,10 +159,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
           )}
         </nav>
 
-        <div className="border-t border-border px-5 py-4 text-sm">
+        <div className="border-t border-border px-5 py-4 text-sm" data-tour="account">
           <p className="font-medium">{user.username}</p>
           <p className="text-xs capitalize text-muted-foreground">{user.role}</p>
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <Link href="/guides" className="hover:text-foreground" data-tour="guides-link">
+              Hướng dẫn · Guides
+            </Link>
             <Link href="/me/notifications" className="hover:text-foreground">
               My notifications
             </Link>
@@ -185,7 +188,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
 function Group({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="mb-5">
+    <div className="mb-5" data-tour={`nav-${label.toLowerCase()}`}>
       <p className="px-2 pb-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       <ul className="flex flex-col gap-0.5">{children}</ul>
     </div>
