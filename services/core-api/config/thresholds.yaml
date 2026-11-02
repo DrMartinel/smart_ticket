@@ -18,7 +18,7 @@
 # change to this file that keeps the old version. CR-2026-000 is the baseline
 # the F9 migration approves.
 
-version: "CR-2026-000"
+version: "CR-2026-001"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -49,10 +49,16 @@ retrieval:
   # ai-engine's, in .env.example: it never reads this file.
 
 incident:
+  # Cosine bar for "similar" tickets, and since F7 for a new ticket joining an
+  # open incident by its centroid (BR-F7-02).
   similarity: 0.85
   window_minutes: 15
   min_count: 5
   sigma_multiplier: 3.0
+  # A confirmed incident's own P1 target, 24×7 from confirmation (BR-F7-10).
+  resolve_target_minutes: 240
+  # A resolved incident closes itself after this many days (§c).
+  auto_close_after_days: 7
 
 fewshot:
   max_per_category: 5

@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 
 from ninja import Schema
 
+from apps.incidents.response_schema import IncidentBannerOut
+
 if TYPE_CHECKING:
     from apps.tickets.models import TicketClarification
 
@@ -73,3 +75,5 @@ class ChatTurnOut(Schema):
     resolved: bool = False
     # The chat conversation the question belongs to (F3).
     conversation_id: uuid.UUID | None = None
+    # The confirmed incident the ticket is linked to (F7 FR-F7-012).
+    incident: IncidentBannerOut | None = None

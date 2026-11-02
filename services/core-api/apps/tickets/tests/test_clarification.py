@@ -6,15 +6,13 @@ and takes the answer (ADR-0023).
 from datetime import timedelta
 
 import pytest
-
-from apps.rollout.testing import all_live
 from django.utils import timezone
 
-from config.settings.base import ClarificationThresholds
-
 from apps.audit.models import AuditLog
+from apps.incidents.utils.incidents import incidents
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
+from apps.rollout.testing import all_live
 from apps.tickets.models import IncidentVerdict, PiiQuarantine, Ticket, TicketSource
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.clarification import (
@@ -25,6 +23,7 @@ from apps.tickets.utils.clarification import (
 )
 from apps.tickets.utils.pipeline import release_to_support, ticket_process
 from apps.tickets.utils.router import Branch, ReasonCode, ReviewQueue
+from config.settings.base import ClarificationThresholds
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import (
     AIRunResponse,
@@ -105,7 +104,7 @@ def engine_always_clarifies(monkeypatch):
         return _clarify_response(request_id)
 
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
-    monkeypatch.setattr(Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique"))
+    monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
     monkeypatch.setattr(ai_engine, "analyze", analyze)
     return sent
 
@@ -178,9 +177,7 @@ class TestAsking:
         self, employee_user, kb_pages, monkeypatch, live
     ):
         monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
-        monkeypatch.setattr(
-            Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique")
-        )
+        monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
         far = [{"kb_slug": VPN, "option_score": 0.95}, {"kb_slug": WORKSPACES, "option_score": 0.5}]
         monkeypatch.setattr(
             ai_engine, "analyze", lambda masked, request_id: _clarify_response(request_id, far)

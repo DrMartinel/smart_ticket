@@ -144,6 +144,18 @@ MODELS = [
     "ApproveIn",
     "GateChangeIn",
     "ChangeRequestIn",
+    "IncidentRowOut",
+    "IncidentLinkOut",
+    "BroadcastDeliveryOut",
+    "BroadcastOut",
+    "IncidentDetailOut",
+    "CloseResultOut",
+    "IncidentBannerOut",
+    "ConfirmIn",
+    "BroadcastIn",
+    "DeclareIn",
+    "ResolveIn",
+    "LinksIn",
 ]
 
 ENUMS = {
@@ -166,6 +178,8 @@ ENUMS = {
     "CommentState": ["shown", "checking", "discarded"],
     "TeamStrategy": ["round_robin", "least_loaded"],
     "Priority": ["P1", "P2", "P3", "P4"],
+    "IncidentStatus": ["proposed", "confirmed", "dismissed", "resolved", "closed"],
+    "IncidentStage": ["investigating", "identified", "monitoring", "resolved"],
     "ReassignReason": [
         "wrong_team",
         "workload",
@@ -240,6 +254,10 @@ type JsonSchema = dict[str, Any]
 def _models() -> dict[str, type[BaseModel]]:
     """Each schema lives in the module that uses it, so gather them by name."""
     from apps.chat import request_schema as chat_request, response_schema as chat_response
+    from apps.incidents import (
+        request_schema as incidents_request,
+        response_schema as incidents_response,
+    )
     from apps.notifications import (
         request_schema as notifications_request,
         response_schema as notifications_response,
@@ -282,6 +300,8 @@ def _models() -> dict[str, type[BaseModel]]:
         security_response,
         rollout_request,
         rollout_response,
+        incidents_request,
+        incidents_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

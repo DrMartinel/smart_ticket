@@ -51,6 +51,7 @@ from apps.tickets.utils.patterns import PIILevel
 
 from apps.audit.models import AuditLog
 from apps.chat.utils.conversations import conversations
+from apps.incidents.utils.incidents import incidents
 from apps.kb.models import KbArticle
 from apps.lifecycle.utils.engine import lifecycle
 from apps.lifecycle.utils.vocabulary import PipelineStatus
@@ -370,6 +371,10 @@ def _execute_or_enqueue(
 
     if branch is Branch.ESCALATE:
         lifecycle.system_move(ticket, PipelineStatus.ESCALATED)
+        if decision.reason_code is ReasonCode.MASS_INCIDENT and incidents.attach(
+            ticket, live=not shadow
+        ):
+            return
         ReviewItem.objects.create(
             ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=1
         )
@@ -439,7 +444,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
     try:
         embedding = ai_engine.embed(combined_text)
         ticket.store_embedding(embedding.vector, embedding.model)
-        verdict = ticket.classify_similarity(embedding.vector)
+        verdict = incidents.classify(ticket, embedding.vector)
     except (httpx.HTTPError, ValueError) as e:
         # Same fail-open-to-human principle as the AIEngineUnavailable
         # branch below (spec §10.3: "khi degrade, luôn đẩy về con người").

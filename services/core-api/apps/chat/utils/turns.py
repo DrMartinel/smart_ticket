@@ -13,6 +13,7 @@ from apps.chat.response_schema import (
     ChatState,
     ChatTurnOut,
 )
+from apps.incidents.response_schema import IncidentBannerOut
 from apps.kb.models import KbArticle
 from apps.tickets.models import Ticket, TicketClarification
 from apps.tickets.request_schema import TicketIn
@@ -42,6 +43,7 @@ def chat_turn(ticket: Ticket) -> ChatTurnOut:
         status_name=_support_status_name(ticket),
         resolved=ticket.resolved_at is not None,
         conversation_id=ticket.conversation_id,
+        incident=IncidentBannerOut.of(ticket),
     )
 
 

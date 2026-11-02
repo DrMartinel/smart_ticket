@@ -38,6 +38,27 @@ if TYPE_CHECKING:
 from apps.tickets.utils.masking import mask
 
 
+class IncidentStatus(StrEnum):
+    PROPOSED = "proposed"
+    CONFIRMED = "confirmed"
+    DISMISSED = "dismissed"
+    RESOLVED = "resolved"
+    CLOSED = "closed"
+
+
+# Incidents a new ticket can still join (BR-F7-02).
+OPEN_INCIDENT_STATUSES = (IncidentStatus.PROPOSED, IncidentStatus.CONFIRMED)
+
+
+class IncidentStage(StrEnum):
+    """The public stage broadcasts show."""
+
+    INVESTIGATING = "investigating"
+    IDENTIFIED = "identified"
+    MONITORING = "monitoring"
+    RESOLVED = "resolved"
+
+
 class IncidentManager(models.Manager["Incident"]):
     def next_public_id(self) -> str:
         # Backed by a dedicated Postgres sequence (apps/tickets/migrations/
@@ -48,54 +69,8 @@ class IncidentManager(models.Manager["Incident"]):
             n = cast(tuple[int], cur.fetchone())[0]
         return f"INC-{timezone.now().year}-{n:04d}"
 
-    def get_or_create_for_mass_incident(
-        self, ticket: Ticket, similar: list[Ticket], baseline_rate: float
-    ) -> Incident:
-        category = ticket.category or "other"
-
-        # Celery runs with concurrency > 1 (spec §10.3), so two tickets in the
-        # same mass incident can independently reach this function at nearly
-        # the same instant. A plain filter-then-create has a check-then-act
-        # race that produces two separate Incident rows for one real event —
-        # exactly the outcome spec §9 says the detector must prevent (one
-        # notification with an ETA, not a fragmented picture). A Postgres
-        # advisory lock keyed by category serializes that window cheaply
-        # without needing a dedicated "current incident" row to lock first.
-        with transaction.atomic():
-            with connection.cursor() as cur:
-                cur.execute(
-                    "SELECT pg_advisory_xact_lock(hashtext(%s))", [f"mass_incident:{category}"]
-                )
-
-            existing = self.filter(
-                category=category,
-                status="open",
-                created_at__gte=timezone.now() - timedelta(hours=6),
-            ).first()
-            if existing:
-                existing.ticket_count = len(similar) + 1
-                existing.save(update_fields=["ticket_count"])
-                incident = existing
-            else:
-                incident = self.create(
-                    public_id=self.next_public_id(),
-                    title=f"Mass incident: {category} — {ticket.subject_masked[:80]}",
-                    category=category,
-                    severity="high",
-                    detected_by="density_detector",
-                    ticket_count=len(similar) + 1,
-                    detection_window_min=settings.THRESHOLDS.incident.window_minutes,
-                    baseline_rate=baseline_rate,
-                    status="open",
-                )
-
-            # Link every ticket that contributed to the detection, so the
-            # parent incident view can notify every affected reporter at once
-            # — the actual value described in spec §9 ("40 người nhận 1 thông
-            # báo có ETA").
-            Ticket.objects.filter(id__in=[t.id for t in similar]).update(incident=incident)
-
-        return incident
+    def open(self) -> QuerySet[Incident]:
+        return self.filter(status__in=[s.value for s in OPEN_INCIDENT_STATUSES])
 
 
 class TicketSource(StrEnum):
@@ -109,18 +84,53 @@ class TicketSource(StrEnum):
 
 
 class Incident(BaseModel):
-    """§3.5. A mass-incident parent: created when the incident detector
-    (§9) finds ticket volume far above its adaptive baseline."""
+    """§3.5. A mass-incident parent: proposed by the incident detector (§9) or
+    declared by an incident manager, confirmed by one, broadcast to its
+    requesters and resolved with its tickets (F7)."""
 
     public_id = models.CharField(max_length=32, unique=True)  # INC-2026-0007
     title = models.CharField(max_length=255)
-    category = models.CharField(max_length=20, choices=[(c.value, c.value) for c in TicketCategory])
+    # Unknown when the detector proposes it (routing hasn't run); set at confirm.
+    category = models.CharField(
+        max_length=20, choices=[(c.value, c.value) for c in TicketCategory], null=True, blank=True
+    )
+    service = models.CharField(max_length=120, blank=True, default="")
     severity = models.CharField(max_length=20)
     detected_by = models.CharField(max_length=30)  # density_detector|human
+    # Counted from the active links (BR-F7-09); kept for display.
     ticket_count = models.IntegerField(default=0)
     detection_window_min = models.IntegerField(null=True, blank=True)
     baseline_rate = models.DecimalField(max_digits=8, decimal_places=3, null=True, blank=True)
-    status = models.CharField(max_length=20, default="open")
+    # {count, baseline, sigma} when the detector proposed it.
+    detector = models.JSONField(default=dict, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[(s.value, s.value) for s in IncidentStatus],
+        default=IncidentStatus.PROPOSED.value,
+    )
+    stage = models.CharField(
+        max_length=15,
+        choices=[(s.value, s.value) for s in IncidentStage],
+        default=IncidentStage.INVESTIGATING.value,
+    )
+    eta = models.DateTimeField(null=True, blank=True)
+    eta_unknown = models.BooleanField(default=False)
+    # Mean embedding of the linked tickets: a new ticket joins by cosine to it (BR-F7-02).
+    centroid = VectorField(dimensions=1024, null=True, blank=True)
+    confirmed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_note_masked = models.TextField(blank=True, default="")
+    dismiss_reason = models.TextField(blank=True, default="")
+    # The incident's own P1 target, 24×7 from confirmation (BR-F7-10).
+    target_resolve_at = models.DateTimeField(null=True, blank=True)
+    target_breached_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta(BaseModel.Meta):
@@ -130,6 +140,10 @@ class Incident(BaseModel):
 
     def __str__(self) -> str:
         return self.public_id
+
+    @property
+    def is_open(self) -> bool:
+        return self.status in OPEN_INCIDENT_STATUSES
 
 
 @dataclass(frozen=True)
@@ -518,29 +532,6 @@ class Ticket(BaseModel):
             ticket=self, defaults={"model": model_name, "embedding": embedding}
         )[0]
 
-    def classify_similarity(self, embedding: list[float]) -> IncidentVerdict:
-        """Incident Detector — spec §9. Distinguishes an ordinary duplicate from a
-        mass incident using an ADAPTIVE threshold (baseline + 3σ over a rolling
-        30-day window per category), not a fixed constant — 5 network tickets in
-        15 minutes is normal at a 5000-person company and abnormal at a
-        100-person one."""
-        th = settings.THRESHOLDS.incident
-        window = timedelta(minutes=th.window_minutes)
-
-        similar = Ticket.objects.similar_to(embedding, self.category, th.similarity, window)
-        if not similar:
-            return IncidentVerdict(kind="unique")
-
-        baseline, sigma = Ticket.objects.rolling_baseline(
-            self.category, days=30, window_minutes=th.window_minutes
-        )
-
-        if len(similar) > baseline + th.sigma_multiplier * sigma and len(similar) >= th.min_count:
-            parent = Incident.objects.get_or_create_for_mass_incident(self, similar, baseline)
-            return IncidentVerdict(kind="mass_incident", parent=parent, baseline_rate=baseline)
-
-        return IncidentVerdict(kind="duplicate", of=similar[0].id)
-
 
 class TicketEmbedding(models.Model):
     """Split from `tickets` so re-embedding on a model change never locks
@@ -784,6 +775,14 @@ class TicketComment(BaseModel):
     hidden_for_review = models.BooleanField(default=False)
     # A reviewer discarded it; it stays hidden and the requester is asked to resend.
     discarded_at = models.DateTimeField(null=True, blank=True)
+    # The incident broadcast a system comment carries (F7).
+    broadcast = models.ForeignKey(
+        "incidents.IncidentBroadcast",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="comments",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     objects = TicketCommentQuerySet.as_manager()

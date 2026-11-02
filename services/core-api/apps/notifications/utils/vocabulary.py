@@ -64,6 +64,7 @@ class NotificationEvent(StrEnum):
     INCIDENT_BROADCAST = "incident.broadcast"
     INCIDENT_PROPOSED = "incident.proposed"
     INCIDENT_SLA_BREACHED = "incident.sla_breached"
+    INCIDENT_TICKET_NOT_CLOSED = "incident.ticket_not_closed"
     SECURITY_CREDENTIAL_EXPOSED = "security.credential_exposed"
     SECURITY_ACK_OVERDUE = "security.ack_overdue"
     KB_REVIEW_REQUESTED = "kb.review_requested"
@@ -226,20 +227,27 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.INCIDENT_BROADCAST: EventSpec(
         "F7",
-        False,
+        True,
         "Incident update",
         "Cập nhật sự cố",
         _cells((K.LINKED_REQUESTERS,), BOTH, mandatory=BOTH),
     ),
     E.INCIDENT_PROPOSED: EventSpec(
         "F7",
-        False,
+        True,
         "Incident proposed",
         "Đề xuất sự cố",
         _cells((K.INCIDENT_MANAGERS,), BOTH, mandatory=BOTH),
     ),
     E.INCIDENT_SLA_BREACHED: EventSpec(
-        "F7", False, "Incident SLA breached", "Sự cố vi phạm SLA", _cells((K.MANAGER,), BOTH)
+        "F7", True, "Incident SLA breached", "Sự cố vi phạm SLA", _cells((K.MANAGER,), BOTH)
+    ),
+    E.INCIDENT_TICKET_NOT_CLOSED: EventSpec(
+        "F7",
+        True,
+        "Ticket not closed with its incident",
+        "Phiếu chưa đóng cùng sự cố",
+        _cells((K.ASSIGNEE,), IN_APP),
     ),
     E.SECURITY_CREDENTIAL_EXPOSED: EventSpec(
         "F8",

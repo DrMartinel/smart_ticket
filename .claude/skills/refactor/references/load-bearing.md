@@ -327,6 +327,27 @@ guard and that comment is later trimmed, the entry is the record.
   goes to shadow. CI's `thresholds-version` job.
 - **No `runbook` member in `FlagBranch`** (ADR-0006). *`test_no_runbook_flag_exists`.*
 
+### Mass incidents (F7)
+
+- **One advisory lock (`mass_incident`) for matching and detection, with no
+  category in the key.** The category is unknown at detection; keying on it
+  merged every incident into `other`. *`test_unrelated_outages_get_separate_incidents`.*
+- **The detector leaving out the ticket itself and linked tickets, and
+  `ticket_count` recounted from `incident_links`.** The ticket's embedding is
+  stored before detection, so it counted twice.
+  *`test_ticket_count_counts_each_ticket_once`, `test_ticket_count_comes_from_the_links`.*
+- **`Incidents.agree` deciding with `handoff=False`.** Confirming agrees with
+  the router; a hand-off would assign forty tickets to a team, and an
+  eval candidate would teach the eval set from agreement.
+  *`test_confirm_approves_without_eval_candidates`.*
+- **`attach` skipping the review item only when not in shadow mode.** In shadow
+  mode a person still sees every ticket.
+  *`test_in_shadow_mode_a_late_joiner_still_reaches_a_reviewer`.*
+- **`mask_text` raising on `mask_failed`.** A broadcast reaches every linked
+  requester; a failed mask must send nothing. *`test_a_masking_failure_sends_nothing`.*
+- **Close-all catching `LifecycleError` per ticket.** One refused move must not
+  stop the rest. *`test_close_all_continues_after_refusal`.*
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).

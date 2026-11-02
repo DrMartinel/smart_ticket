@@ -7,13 +7,13 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
-
-from apps.rollout.testing import all_live
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.chat.models import Conversation
 from apps.chat.utils.conversations import conversations
+from apps.incidents.utils.incidents import incidents
+from apps.rollout.testing import all_live
 from apps.tickets.models import IncidentVerdict, RoutingDecision, Ticket
 from apps.tickets.utils.masking import NERError
 from apps.tickets.utils.pipeline import _degraded_signals, ticket_process
@@ -69,7 +69,7 @@ def engine(monkeypatch) -> dict[str, list]:
     """Records what reaches ai-engine; `flag` lists tickets it reports as injections."""
     sent: dict[str, list] = {"masked": [], "flag": []}
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
-    monkeypatch.setattr(Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique"))
+    monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
 
     def analyze(masked: TicketMasked, request_id: str) -> AIRunResponse:
         sent["masked"].append(masked)

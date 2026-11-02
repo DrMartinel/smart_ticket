@@ -6,6 +6,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import IncidentBanner from "@/components/IncidentBanner";
 import Rating, { day } from "@/components/Rating";
 import ReopenBox from "@/components/ReopenBox";
 import { ApiError, notificationsApi, requesterApi } from "@/lib/api";
@@ -115,7 +116,11 @@ export default function TicketPage() {
                 {[
                   ticket.team ? `${ticket.team} team` : null,
                   `opened ${day(ticket.created_at)}`,
-                  ticket.sla_paused ? "SLA paused while we wait for you" : null,
+                  ticket.sla_paused
+                    ? ticket.incident?.status === "confirmed"
+                      ? "SLA paused while the incident is fixed"
+                      : "SLA paused while we wait for you"
+                    : null,
                   ticket.resolution_due_at ? `due ${day(ticket.resolution_due_at)}` : null,
                   ticket.reopened_from ? `related to ${ticket.reopened_from}` : null,
                 ]
@@ -123,6 +128,8 @@ export default function TicketPage() {
                   .join(" · ")}
               </p>
             </header>
+
+            {ticket.incident && <IncidentBanner incident={ticket.incident} publicId={ticket.public_id} />}
 
             <ol className="flex flex-col gap-3">
               {ticket.thread.map((c) => (

@@ -9,6 +9,7 @@ from django.utils import timezone
 from ninja import Schema
 
 from apps.accounts.models import User
+from apps.incidents.response_schema import IncidentBannerOut
 from apps.lifecycle.utils.vocabulary import TRIAGE_STATUSES
 from apps.requester.utils.tickets import requester_tickets
 from apps.requester.utils.vocabulary import CommentState, status_label
@@ -118,6 +119,8 @@ class RequesterTicketOut(RequesterTicketRow):
     can_rate: bool
     reopened_count: int
     reopened_from: str | None
+    # The confirmed incident the ticket is linked to (F7 FR-F7-012).
+    incident: IncidentBannerOut | None
 
     @classmethod
     def detail(cls, ticket: Ticket, viewer: User) -> RequesterTicketOut:
@@ -137,6 +140,7 @@ class RequesterTicketOut(RequesterTicketRow):
             can_rate=open_window,
             reopened_count=ticket.reopened_count,
             reopened_from=ticket.reopened_from.public_id if ticket.reopened_from else None,
+            incident=IncidentBannerOut.of(ticket),
         )
 
 

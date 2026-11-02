@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import uuid
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
@@ -28,6 +29,9 @@ from apps.tickets.utils.crypto import build_quarantine_entries
 from apps.tickets.utils.masking import MaskedReply, mask_reply
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.router import ReviewQueue
+
+if TYPE_CHECKING:
+    from apps.incidents.models import IncidentBroadcast
 
 # Attempts at masking a comment whose placeholders another comment took meanwhile.
 _MASK_ATTEMPTS = 3
@@ -158,8 +162,10 @@ class Comments:
             detail=f"{ticket.public_id}: {reason} ({detail})",
         )
 
-    def system(self, ticket: Ticket, text: str) -> TicketComment:
-        """A public comment the system writes, from fixed text with nothing to mask."""
+    def system(
+        self, ticket: Ticket, text: str, broadcast: IncidentBroadcast | None = None
+    ) -> TicketComment:
+        """A public comment the system writes, from fixed or already masked text."""
         comment = TicketComment.objects.create(
             ticket=ticket,
             author=None,
@@ -167,6 +173,7 @@ class Comments:
             visibility=CommentVisibility.PUBLIC.value,
             body_masked=text,
             pii_level=PIILevel.ROUTINE.value,
+            broadcast=broadcast,
         )
         AuditLog.objects.record(
             "ticket_comment_added",

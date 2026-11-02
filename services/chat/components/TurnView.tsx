@@ -6,6 +6,7 @@ import type { ChatClarificationOut, ChatTurnOut } from "@/lib/types/generated";
 import { SLOW_AFTER_MS, type Turn } from "@/lib/conversation";
 import AnswerText, { InlineText } from "./AnswerText";
 import { ArrowUpRightIcon, CheckIcon } from "./icons";
+import IncidentBanner from "./IncidentBanner";
 import Rating from "./Rating";
 import ReopenBox from "./ReopenBox";
 
@@ -305,6 +306,16 @@ function Outcome({
       );
 
     case "with_support":
+      if (turn.incident) {
+        return (
+          <div className="flex flex-col gap-3">
+            <IncidentBanner incident={turn.incident} publicId={turn.public_id} />
+            <p>
+              Đây là sự cố đội IT đang khắc phục; câu hỏi của bạn đã được gắn vào đó, bạn sẽ nhận cập nhật tiếp theo tại đây và qua email.
+            </p>
+          </div>
+        );
+      }
       return (
         <div className="flex items-start gap-2.5">
           <CheckIcon className="mt-1 h-4 w-4 shrink-0 text-[var(--ok)]" />

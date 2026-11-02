@@ -61,7 +61,12 @@ def make_thresholds(**overrides) -> Thresholds:
             min_rerank_confidence=0.9,
         ),
         incident=IncidentThresholds(
-            similarity=0.85, window_minutes=15, min_count=5, sigma_multiplier=3.0
+            similarity=0.85,
+            window_minutes=15,
+            min_count=5,
+            sigma_multiplier=3.0,
+            resolve_target_minutes=240,
+            auto_close_after_days=7,
         ),
         fewshot=FewshotThresholds(
             max_per_category=5, ttl_days=90, min_diversity=0.3, require_user_confirmed=True

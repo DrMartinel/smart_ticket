@@ -11,6 +11,7 @@ queue and dashboard. This is the regression test for that fix.
 import httpx
 import pytest
 
+from apps.incidents.utils.incidents import incidents
 from apps.tickets.utils.router import Branch, ReasonCode
 from apps.tickets.utils.patterns import PIILevel
 
@@ -107,9 +108,7 @@ class TestLlmFailureKeepsItsReasonCode:
 
         ticket = make_ticket(employee_user)
         monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
-        monkeypatch.setattr(
-            Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique")
-        )
+        monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
         monkeypatch.setattr(
             ai_engine,
             "analyze",
@@ -173,7 +172,7 @@ def test_clarify_reaches_a_person_in_the_clarification_queue(
     settings.SHADOW_MODE = shadow
     ticket = make_ticket(employee_user)
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
-    monkeypatch.setattr(Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique"))
+    monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
     monkeypatch.setattr(
         ai_engine, "analyze", lambda masked, request_id: _clarify_response(request_id)
     )

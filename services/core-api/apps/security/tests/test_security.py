@@ -13,6 +13,7 @@ from django.apps import apps as django_apps
 
 from apps.accounts.models import RefreshSession, RefusedCall, User, UserRole
 from apps.audit.models import AuditLog
+from apps.incidents.utils.incidents import incidents
 from apps.lifecycle.tests.conftest import make_ticket
 from apps.lifecycle.utils.vocabulary import PipelineStatus
 from apps.notifications.models import Message
@@ -52,7 +53,7 @@ def engine(monkeypatch) -> dict[str, bool]:
     """ai-engine with every check failed; `injection` flags the ticket."""
     flags = {"injection": False}
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
-    monkeypatch.setattr(Ticket, "classify_similarity", lambda *a: IncidentVerdict(kind="unique"))
+    monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
 
     def analyze(masked, request_id):
         d = _degraded_signals()
