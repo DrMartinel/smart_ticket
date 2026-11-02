@@ -463,7 +463,7 @@ Per-category F1 is deliberately not averaged — a rare-but-serious category lik
 | [0011](docs/adr/0011-uuid-primary-keys.md) | UUID primary keys |
 | [0012](docs/adr/0012-ai-engine-is-the-only-vllm-client.md) | ai-engine is the only vLLM client |
 | [0013](docs/adr/0013-pg-search-bm25-and-keyword-agreement.md) | pg_search BM25 and keyword agreement (BM25 on the ticket superseded by 0020) |
-| [0014](docs/adr/0014-candidate-expansion-and-llm-reorder.md) | Candidate expansion through page links (Proposed) |
+| [0014](docs/adr/0014-candidate-expansion-and-llm-reorder.md) | Candidate expansion through page links (decisions 3 and 4 superseded by 0015, 0026) |
 | [0015](docs/adr/0015-jev-reranks-the-shortlist.md) | Jev reranks the cross-encoder's shortlist; thresholds read its score |
 | [0016](docs/adr/0016-clarify-branch.md) | A `clarify` branch |
 | [0017](docs/adr/0017-jev-classifies-the-category.md) | Jev chooses the category; the LLM's is log-only |

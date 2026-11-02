@@ -1,7 +1,6 @@
 # ADR-0014: Expand retrieval candidates through article associations, and let an LLM re-order chunks above the floor
 
-**Status:** Proposed. The experiments below support it; three checks listed
-under *Before this is accepted* have not run.
+**Status:** Accepted (2026-11-02), the owner's decision, for decisions 1, 2 and 5; decisions 3 and 4 are superseded by [ADR-0015](0015-jev-reranks-the-shortlist.md) and [ADR-0026](0026-jev-reranks-with-one-choice-question.md). *Before this is accepted* #3 was answered by ADR-0018; #1 and #2 were for decision 4.
 **Date:** 2026-10-01
 **Builds on:** ADR-0005 (thresholds compare the cross-encoder score only), ADR-0013 (pg_search BM25)
 **Touches:** ADR-0001 (code decides, the LLM proposes), ADR-0004 (ai-engine's read-only role)
@@ -71,7 +70,7 @@ Three findings explain the table:
    loses 1–5 cases; requiring both orders to agree keeps the gains and loses
    none, in both rounds.
 
-## Decision (proposed)
+## Decision
 
 **1. An article-associations layer feeds candidate expansion.** Each
 association links an article to other articles, tagged with its `source` and
