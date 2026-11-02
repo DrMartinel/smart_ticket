@@ -95,6 +95,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <NavItem href="/security/access-log" active={pathname.startsWith("/security/access-log")}>
                 PII access log
               </NavItem>
+              <NavItem href="/settings/rollout" active={pathname.startsWith("/settings/rollout")}>
+                Rollout
+              </NavItem>
             </Group>
           )}
           {(isManager || isWorkflowAdmin) && (
@@ -120,6 +123,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
               </NavItem>
               <NavItem href="/settings/teams" active={pathname.startsWith("/settings/teams")}>
                 Teams
+              </NavItem>
+              <NavItem href="/settings/rollout" active={pathname.startsWith("/settings/rollout")}>
+                Rollout
+              </NavItem>
+              <NavItem href="/settings/thresholds" active={pathname.startsWith("/settings/thresholds")}>
+                Thresholds
               </NavItem>
               <NavItem href="/settings/notifications" active={pathname.startsWith("/settings/notifications")}>
                 Notifications

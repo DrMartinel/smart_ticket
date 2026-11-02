@@ -41,6 +41,21 @@ jobs:
       - name: ruff format --check
         run: uvx ruff@${{ env.RUFF_VERSION }} format --check . --exclude .venv
 
+  # FR-F9-010: thresholds.yaml only ships under a new version, the approved
+  # change request's id (ADR-0035). Pull requests only: compares with the base.
+  thresholds-version:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v3
+      - name: thresholds.yaml version changed with its content
+        run: >-
+          uv run --no-project --with pyyaml python services/core-api/scripts/check_thresholds_version.py
+          origin/${{ github.base_ref }}
+
   mypy:
     runs-on: ubuntu-latest
     steps:

@@ -173,6 +173,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Teams, assignment at handoff, take and reassign (F2, ADR-0031) | [apps/teams/](services/core-api/apps/teams/), the service in [assignment.py](services/core-api/apps/teams/utils/assignment.py) |
 | Chat conversations and the earlier masked turns a question carries (F3, ADR-0034) | [conversations.py](services/core-api/apps/chat/utils/conversations.py) |
 | A requester's tickets: list, thread, reply, reopen, rating, the stale-wait sweep (F3) | [apps/requester/](services/core-api/apps/requester/), the service in [tickets.py](services/core-api/apps/requester/utils/tickets.py); comments in [comments.py](services/core-api/apps/tickets/utils/comments.py) |
+| Rollout flags, gates and threshold change requests (F9, ADR-0035) | [apps/rollout/](services/core-api/apps/rollout/), the live check in [rollout.py](services/core-api/apps/rollout/utils/rollout.py) |
 | Security alerts: raising, grouping, ack targets, triage and release (F8) | [apps/security/](services/core-api/apps/security/), the service in [alerts.py](services/core-api/apps/security/utils/alerts.py) |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
 
@@ -266,7 +267,8 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | The entity-graph edges link expansion follows | ai-engine `core/associations/build.py`, which writes them; after `load-demo-kb`, its `--rescore-only` (`demo_kb/README.md`) |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question `core/prompts/category.v*.json`; the confidence bar in `thresholds.yaml` |
-| Any tunable number | `thresholds.yaml`, nowhere else |
+| Any tunable number | `thresholds.yaml`, nowhere else; its `version` becomes the id of the change request that approved the edit (CI checks it changes with the file) |
+| Whether a branch acts live | Settings → Rollout (F9 flags); never a code path around `Rollout.is_live` |
 | Sign-in, token lifetimes, who may call what | `apps/accounts/utils.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
 | A ticket's status | `lifecycle.system_move` from pipeline code, `lifecycle.move` for a person: never `ticket.status = …` (ADR-0028) |
 | What a workflow action can do | `apps/lifecycle/utils/actions.py` (a handler and an `ActionCode`); rules and events in `utils/rules.py` |
@@ -292,7 +294,11 @@ copies that directory — a new SQL file that isn't copied fails at container st
 ## Current state
 
 - `SHADOW_MODE=true` is the default: the router decides and records, humans still
-  handle every ticket. This is spec §14's P1 phase, by design.
+  handle every ticket. This is spec §14's P1 phase, by design. Since F9
+  (ADR-0035) going live also needs the branch's rollout flag on (Settings →
+  Rollout: two managers to turn on, one to turn off) and the loaded
+  `thresholds.yaml` approved; all flags start off. Tests that need live call
+  `apps.rollout.testing.all_live(settings)`.
 - **Demo KB is English AWS documentation** (`demo_kb/`: every page of 12 AWS
   guides, 3,542 pages), loaded by `manage.py load_demo_kb`.
   Demo tickets and the golden set are English. The snapshot is frozen: pages
@@ -454,4 +460,4 @@ this early, the codebase is dense with it) · [development.md](docs/development.
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
 [runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirty-eight
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
-0030–0038 come from the phase 2 pack; 0030–0034 are accepted, 0035–0038 proposed).
+0030–0038 come from the phase 2 pack; 0030–0035 are accepted, 0036–0038 proposed).

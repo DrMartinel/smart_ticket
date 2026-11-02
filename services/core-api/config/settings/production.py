@@ -16,6 +16,9 @@ for _key, _dev_value in DEV_ONLY_SECRETS.items():
     if env(_key) == _dev_value:  # noqa: F405
         raise RuntimeError(f"{_key} must be set explicitly in production")
 
+# Production never skips the threshold approval check (F9, BR-F9-08).
+THRESHOLDS_REQUIRE_APPROVAL = True
+
 SECURE_SSL_REDIRECT = True
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True

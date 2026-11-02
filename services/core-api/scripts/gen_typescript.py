@@ -130,6 +130,20 @@ MODELS = [
     "NoteIn",
     "CloseIn",
     "ReasonIn",
+    "GateValueOut",
+    "GateOut",
+    "GateChangeOut",
+    "FlagRequestOut",
+    "FlagOut",
+    "ThresholdsStatusOut",
+    "RolloutOut",
+    "ChangeRequestOut",
+    "ChangeRequestDetailOut",
+    "CurrentThresholdsOut",
+    "FlagRequestIn",
+    "ApproveIn",
+    "GateChangeIn",
+    "ChangeRequestIn",
 ]
 
 ENUMS = {
@@ -234,6 +248,10 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as requester_request,
         response_schema as requester_response,
     )
+    from apps.rollout import (
+        request_schema as rollout_request,
+        response_schema as rollout_response,
+    )
     from apps.security import (
         request_schema as security_request,
         response_schema as security_response,
@@ -262,6 +280,8 @@ def _models() -> dict[str, type[BaseModel]]:
         requester_response,
         security_request,
         security_response,
+        rollout_request,
+        rollout_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

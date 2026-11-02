@@ -7,6 +7,8 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
+
+from apps.rollout.testing import all_live
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
@@ -80,7 +82,7 @@ def engine(monkeypatch) -> dict[str, list]:
 @pytest.fixture
 def chat(employee_user, api_as, ner_finds_nothing, enqueued, engine, settings):
     """A live chat: questions are held for the requester, as outcomes like suggest_ticket need."""
-    settings.SHADOW_MODE = False
+    all_live(settings)
     client = api_as(employee_user)
 
     def ask(message: str, conversation_id: str | None = None, *, run: bool = True):

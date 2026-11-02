@@ -952,6 +952,149 @@ export interface ReasonIn {
   reason?: string;
 }
 
+export interface GateValueOut {
+  metric: string;
+  comparator: string;
+  threshold: number;
+  window_days: number | null;
+  phase: string;
+  value: number | null;
+  met: boolean;
+  entered: boolean;
+  evidence: string;
+}
+
+export interface GateOut {
+  id: string;
+  branch: string;
+  phase: string;
+  metric: string;
+  comparator: string;
+  threshold: number;
+  window_days: number | null;
+}
+
+export interface GateChangeOut {
+  id: string;
+  gate: string;
+  threshold: number;
+  window_days: number | null;
+  reason: string;
+  requested_by: string;
+  state: string;
+  created_at: string;
+}
+
+export interface FlagRequestOut {
+  id: string;
+  branch: string;
+  requested_by: string;
+  reason: string;
+  gate_override_reason: string;
+  entered_values: Record<string, unknown>;
+  gate_snapshot_at_request: Record<string, unknown>[];
+  approvals: Record<string, unknown>[];
+  state: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface FlagOut {
+  branch: string;
+  state: string;
+  live: boolean;
+  changed_by: string | null;
+  changed_at: string | null;
+  reason: string;
+  gates: GateValueOut[];
+  pending: FlagRequestOut | null;
+  agreement: number | null;
+  agreement_decided: number;
+}
+
+export interface ThresholdsStatusOut {
+  version: string;
+  sha256: string;
+  approved: boolean;
+  checked: boolean;
+  change_request: string | null;
+}
+
+export interface RolloutOut {
+  env_shadow: boolean;
+  thresholds: ThresholdsStatusOut;
+  flags: FlagOut[];
+  gates: GateOut[];
+  gate_changes: GateChangeOut[];
+}
+
+export interface ChangeRequestOut {
+  id: string;
+  version: string;
+  sha256: string;
+  base_sha256: string;
+  diff: string;
+  evidence: string;
+  author: string | null;
+  approvals: Record<string, unknown>[];
+  state: string;
+  rejected_reason: string;
+  created_at: string;
+  submitted_at: string | null;
+  approved_at: string | null;
+  loaded_at: string | null;
+}
+
+export interface ChangeRequestDetailOut {
+  id: string;
+  version: string;
+  sha256: string;
+  base_sha256: string;
+  diff: string;
+  evidence: string;
+  author: string | null;
+  approvals: Record<string, unknown>[];
+  state: string;
+  rejected_reason: string;
+  created_at: string;
+  submitted_at: string | null;
+  approved_at: string | null;
+  loaded_at: string | null;
+  yaml_text: string;
+}
+
+export interface CurrentThresholdsOut {
+  version: string;
+  sha256: string;
+  approved: boolean;
+  checked: boolean;
+  change_request: string | null;
+  loaded_at: string | null;
+  next_version: string;
+  yaml: string;
+}
+
+export interface FlagRequestIn {
+  reason: string;
+  gate_override_reason?: string;
+  entered_values?: Record<string, Record<string, unknown>>;
+}
+
+export interface ApproveIn {
+  gate_override_reason?: string;
+}
+
+export interface GateChangeIn {
+  threshold: number;
+  window_days?: number | null;
+  reason: string;
+}
+
+export interface ChangeRequestIn {
+  yaml_text: string;
+  evidence?: string;
+}
+
 export type LLMProposal =
   | AutoReplyProposal
   | RouteProposal

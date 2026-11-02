@@ -312,6 +312,21 @@ guard and that comment is later trimmed, the entry is the record.
   Otherwise agreeing with a block assigns a blocked ticket to a team.
   *`test_a_true_positive_keeps_the_ticket_blocked_and_assigns_nobody`.*
 
+### Rollout and thresholds (F9, ADR-0035)
+
+- **`Rollout.is_live` read in `_finalize`, never in `router.py`.** The flag
+  decides whether a decision is carried out, never which it is; replays depend
+  on the router staying pure. *`test_route_is_identical_whatever_the_flags`.*
+- **Three keys, any one missing is shadow.** *`test_env_shadow_overrides_flags`,
+  `test_unapproved_thresholds_force_shadow`.*
+- **`production.py` assigning `THRESHOLDS_REQUIRE_APPROVAL = True` after the
+  env.** An env value can't turn the check off where it matters.
+  *`test_production_cant_skip_the_threshold_check`.*
+- **A change request's file carrying its own id as `version`.** Otherwise the
+  approved hash and the shipped file can differ by one line and production
+  goes to shadow. CI's `thresholds-version` job.
+- **No `runbook` member in `FlagBranch`** (ADR-0006). *`test_no_runbook_flag_exists`.*
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).

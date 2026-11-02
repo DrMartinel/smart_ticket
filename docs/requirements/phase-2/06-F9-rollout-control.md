@@ -255,6 +255,47 @@ F4 events added: `rollout.flag_requested`, `rollout.flag_changed`,
 - **ADRs:** 0001, 0006, CLAUDE.md hard rules 1, 2, 9; proposed 0035.
 - **Regression tests:** `test_route_is_identical_whatever_the_flags`; `test_env_shadow_overrides_flags`; `test_unapproved_thresholds_force_shadow`; `test_one_person_cannot_turn_on`; `test_one_person_can_turn_off`; `test_no_runbook_flag_exists`; `test_threshold_cr_rejects_invalid_yaml`.
 
+## v0.6.9 — where the code differs (build, 2026-10-26)
+
+Code wins (README §0.4 item 5). Items 1–3 are the owner's decisions of 2026-10-26:
+
+1. **ADR-0035 is accepted.**
+2. **A gate change is pending until a second manager approves it** (AC-F9-08
+   over §h's single PATCH): `PATCH /api/rollout/gates/{id}` proposes;
+   `POST /api/rollout/gate-changes/{id}/approve` or `/reject` decides. The
+   proposer can't approve their own change.
+3. **The holdout precision is entered, not computed**: the auto-reply request
+   carries `entered_values.holdout_precision {value, evidence}` (an eval run,
+   an `evals/HISTORY.md` entry), both approvers see it, and a request without
+   it is refused (`entered_value_required`). "≥ 3 approved low-risk pages" is
+   computed.
+4. **Which decisions a flag governs:** `auto_route` and `auto_reply` decisions
+   read their flag; `requester_questions` decides whether a chat decision is
+   held for the requester. Every other decision (HITL, clarify, block,
+   escalate) records `shadow_mode` from `SHADOW_MODE` as before.
+5. **The thresholds check runs on first use in each process** and again in the
+   hourly `rollout.sweep`, not inside app start-up (no database there). It is
+   cached per file hash and per `THRESHOLDS_REQUIRE_APPROVAL` value; a file
+   matching no approved request raises one `thresholds_unapproved` alert
+   (grouped) and one notice per file.
+6. **A request's id is assigned when it is drafted, and the file must carry
+   it** as `version` (`version_mismatch` otherwise), so the text that ships is
+   the text that was approved. `thresholds.yaml` now says
+   `version: "CR-2026-000"`, the baseline; every later edit ships under a new
+   id, and CI's `thresholds-version` job fails one that doesn't.
+7. **Who approves a change request:** any staff member who isn't its author;
+   two are needed and one of the two must be a manager. Managers,
+   technicians and workflow admins draft them.
+8. **Shadow agreement** (shared with F10): review decisions on the run behind
+   shadow decisions of the branch, agreed = `approve` (for `auto_route`, with
+   the category not corrected). Clarify agreement is the same over `clarify`.
+9. **Turning a flag off also rejects its pending request**, with the same reason.
+10. **New setting** `ROLLOUT_SWEEP_INTERVAL_SEC` (hourly), with
+    `THRESHOLDS_REQUIRE_APPROVAL`.
+11. **Screens:** Settings → Rollout (security also reaches it under Security,
+    to turn a branch off) and Settings → Thresholds with each request's diff
+    and approvals.
+
 ## j. Acceptance criteria
 
 ```gherkin

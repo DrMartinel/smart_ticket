@@ -28,6 +28,7 @@ from config.settings.base import (
     RetrievalThresholds,
     RoutingThresholds,
     RequesterThresholds,
+    RolloutThresholds,
     SecurityThresholds,
     SlaThresholds,
     Thresholds,
@@ -116,6 +117,7 @@ def make_thresholds(**overrides) -> Thresholds:
             access_denied_window_minutes=10,
             ack_business_minutes={"critical": 60, "high": 240, "medium": 570},
         ),
+        rollout=RolloutThresholds(flag_request_expiry_hours=72),
     )
     base.update(overrides)
     return Thresholds(**base)

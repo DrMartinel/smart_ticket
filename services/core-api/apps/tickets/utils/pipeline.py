@@ -55,6 +55,8 @@ from apps.kb.models import KbArticle
 from apps.lifecycle.utils.engine import lifecycle
 from apps.lifecycle.utils.vocabulary import PipelineStatus
 from apps.review.models import ReviewItem
+from apps.rollout.utils.rollout import rollout
+from apps.rollout.utils.vocabulary import FlagBranch
 from apps.security.utils.alerts import security_alerts
 from apps.security.utils.vocabulary import AlertKind
 from apps.tickets.models import (
@@ -186,6 +188,10 @@ def _persist_ai_run(
         return AiRun.objects.get(idempotency_key=idempotency_key)
 
 
+# The automated branches a rollout flag turns live (F9, ADR-0035); every other branch is a person's.
+_FLAGGED = {Branch.AUTO_ROUTE: FlagBranch.AUTO_ROUTE, Branch.AUTO_REPLY: FlagBranch.AUTO_REPLY}
+
+
 def _finalize(
     ticket: Ticket,
     ai_run: AiRun,
@@ -194,7 +200,10 @@ def _finalize(
     *,
     kb: KBArticleMeta | None = None,
 ) -> TaskResult:
-    shadow = settings.SHADOW_MODE
+    snapshot = rollout.snapshot()
+    family = _FLAGGED.get(decision.branch)
+    shadow = not rollout.is_live(family, snapshot) if family else settings.SHADOW_MODE
+    ask_requester = rollout.is_live(FlagBranch.REQUESTER_QUESTIONS, snapshot)
 
     with transaction.atomic():
         RoutingDecision.objects.create(
@@ -206,6 +215,7 @@ def _finalize(
             gate_failed=decision.gate_failed,
             thresholds_used=router.thresholds.model_dump(mode="json"),
             shadow_mode=shadow,
+            rollout_snapshot=snapshot,
         )
 
         AuditLog.objects.record(
@@ -238,7 +248,7 @@ def _finalize(
             )
 
         if ticket.source == TicketSource.CHAT.value and waits_for_requester(
-            decision, shadow, PIILevel(ticket.pii_level)
+            decision, not ask_requester, PIILevel(ticket.pii_level)
         ):
             if decision.branch is Branch.CLARIFY and not clarifications.ask(
                 ticket, ai_run, trace_id

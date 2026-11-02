@@ -12,7 +12,7 @@ _ADR_DIR = base.REPO_ROOT / "docs" / "adr"
 _STATUS = re.compile(r"^\*\*Status:\*\*[ \t]*(.+)$", re.M)
 
 # ADRs the phase 2 features sit on (docs/requirements/phase-2/06-PRE-prerequisites.md).
-PHASE_2_FOUNDATIONS = ("0028", "0029", "0030", "0031", "0032", "0033", "0034")
+PHASE_2_FOUNDATIONS = ("0028", "0029", "0030", "0031", "0032", "0033", "0034", "0035")
 
 
 def _status(number: str) -> str:
