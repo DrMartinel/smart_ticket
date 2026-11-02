@@ -7,6 +7,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "@/lib/api";
 import type { CommentIn, CommentOut } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
 
 type Visibility = "public" | "internal";
 
@@ -74,7 +79,7 @@ export default function CommentsPanel({
   return (
     <div className="flex flex-col gap-4">
       {comments.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)]">No comments yet.</p>
+        <p className="text-sm text-muted-foreground">No comments yet.</p>
       ) : (
         <ol className="flex flex-col gap-2.5">
           {comments.map((c) => (
@@ -86,22 +91,18 @@ export default function CommentsPanel({
       )}
 
       {canWrite && (
-        <div className="rounded-[6px] border border-[var(--border)] p-4">
-          <div role="tablist" className="mb-3 flex gap-5 border-b border-[var(--border)] text-sm">
-            {(["public", "internal"] as const).map((v) => (
-              <button
-                key={v}
-                role="tab"
-                aria-selected={visibility === v}
-                onClick={() => setVisibility(v)}
-                className={`-mb-px border-b-2 pb-2 ${visibility === v ? "border-[var(--accent)] font-medium text-[var(--accent)]" : "border-transparent text-[var(--text-muted)]"}`}
-              >
-                {v === "public" ? "Public reply" : "Internal note"}
-              </button>
-            ))}
-          </div>
-          <textarea
-            className="field min-h-[80px] w-full"
+        <Card className="p-4">
+          <Tabs value={visibility} onValueChange={(next) => setVisibility(next as typeof visibility)} className="mb-3">
+            <TabsList>
+              {(["public", "internal"] as const).map((v) => (
+                <TabsTrigger key={v} value={v}>
+                  {v === "public" ? "Public reply" : "Internal note"}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+          <Textarea
+            className="min-h-[80px] w-full"
             value={body}
             maxLength={10_000}
             onChange={(e) => setBody(e.target.value)}
@@ -109,25 +110,25 @@ export default function CommentsPanel({
           />
           {visibility === "public" && canWait && (
             <label className="mt-2 flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={wait} onChange={(e) => setWait(e.target.checked)} />
+              <Checkbox checked={wait} onCheckedChange={(checked) => setWait(checked === true)} />
               Also move to Waiting on requester (pauses SLA)
             </label>
           )}
           {visibility === "public" && body.trim() && (
-            <p className="mt-2 rounded-[5px] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--text-muted)]">
+            <p className="mt-2 rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
               Requester sees: &ldquo;{body.trim()}&rdquo;. Masked before saving; placeholders show as [EMAIL_1].
             </p>
           )}
           <div className="mt-3 flex items-center justify-between gap-3">
-            <span className="text-xs text-[var(--text-muted)]">
+            <span className="text-xs text-muted-foreground">
               {visibility === "public" ? "First public reply meets the response clock (BR-F1-06)." : "Never shown to the requester."}
             </span>
-            <button className="btn btn-primary" disabled={busy || !body.trim()} onClick={() => void send()}>
+            <Button disabled={busy || !body.trim()} onClick={() => void send()}>
               {visibility === "public" ? "Send reply" : "Add note"}
-            </button>
+            </Button>
           </div>
-          {error && <p className="mt-2 text-sm text-[var(--danger)]">{error}</p>}
-        </div>
+          {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+        </Card>
       )}
     </div>
   );
@@ -139,10 +140,10 @@ function Comment({ comment, onDecided }: { comment: CommentOut; onDecided: () =>
   const who = comment.author_kind === "system" ? "System" : comment.author ?? "—";
   const tone =
     comment.visibility === "internal"
-      ? "bg-[var(--warn-soft)]"
+      ? "bg-warn-soft"
       : comment.author_kind === "requester"
-        ? "bg-[var(--accent-soft)]"
-        : "bg-[var(--surface-2)]";
+        ? "bg-primary-soft"
+        : "bg-muted";
 
   const decide = async (choice: "show" | "discard") => {
     if (!comment.review_item) return;
@@ -156,36 +157,36 @@ function Comment({ comment, onDecided }: { comment: CommentOut; onDecided: () =>
   };
 
   return (
-    <article className={`rounded-[6px] px-3.5 py-2.5 ${tone}`}>
-      <p className="text-xs text-[var(--text-muted)]">
-        <span className="font-medium text-[var(--text)]">{who}</span> · {comment.author_kind}
+    <article className={`rounded-lg px-3.5 py-2.5 ${tone}`}>
+      <p className="text-xs text-muted-foreground">
+        <span className="font-medium text-foreground">{who}</span> · {comment.author_kind}
         {comment.visibility === "internal" && " · internal note"} · {new Date(comment.created_at).toLocaleString()}
       </p>
       {comment.discarded ? (
-        <p className="mt-1 text-sm italic text-[var(--text-muted)]">Discarded after a masking check.</p>
+        <p className="mt-1 text-sm italic text-muted-foreground">Discarded after a masking check.</p>
       ) : comment.hidden_for_review ? (
         <div className="mt-1 flex flex-col gap-2 text-sm">
-          <p className="italic text-[var(--text-muted)]">Held: masking failed, so a reviewer checks it before anyone reads it.</p>
+          <p className="italic text-muted-foreground">Held: masking failed, so a reviewer checks it before anyone reads it.</p>
           {comment.review_item && !held && (
-            <button
-              className="btn btn-secondary self-start"
+            <Button variant="outline"
+              className="self-start"
               onClick={() => void api.get<HeldItem>(`/api/review/items/${comment.review_item}`).then(setHeld)}
             >
               Review it
-            </button>
+            </Button>
           )}
           {held && (
             <>
-              <p className="whitespace-pre-wrap rounded-[5px] border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+              <p className="whitespace-pre-wrap rounded-md border border-border bg-card px-3 py-2">
                 {held.comment?.body_masked}
               </p>
               <div className="flex gap-2">
-                <button className="btn btn-primary" disabled={busy} onClick={() => void decide("show")}>
+                <Button disabled={busy} onClick={() => void decide("show")}>
                   Show to staff
-                </button>
-                <button className="btn btn-secondary" disabled={busy} onClick={() => void decide("discard")}>
+                </Button>
+                <Button variant="outline" disabled={busy} onClick={() => void decide("discard")}>
                   Discard
-                </button>
+                </Button>
               </div>
             </>
           )}

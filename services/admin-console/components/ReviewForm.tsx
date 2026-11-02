@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 export interface ReviewDecisionPayload {
   action_taken: "approve" | "edit_and_send" | "reject" | "reroute" | "escalate";
@@ -87,13 +92,12 @@ export default function ReviewForm({
     <form onSubmit={submit} className="flex flex-col gap-5">
       {hasAutoReplyProposal && (
         <Question legend="Does the cited help page answer this ticket?">
-          <Segmented options={KB_VERDICTS} value={kbVerdict} onChange={setKbVerdict} name="kb_verdict" />
+          <Segmented options={KB_VERDICTS} value={kbVerdict} onChange={setKbVerdict} />
         </Question>
       )}
 
       <Question legend={aiCategory ? `Is "${aiCategory}" the right category?` : "Is the category right?"}>
         <Segmented
-          name="category_verdict"
           options={[
             { value: "correct", label: "Yes" },
             { value: "wrong", label: "No" },
@@ -102,8 +106,7 @@ export default function ReviewForm({
           onChange={setCategoryVerdict}
         />
         {categoryVerdict === "wrong" && (
-          <select
-            className="field mt-2 w-56"
+          <NativeSelect wrapperClassName="mt-2 w-56"
             value={correctedCategory}
             onChange={(e) => setCorrectedCategory(e.target.value)}
             aria-label="Correct category"
@@ -114,40 +117,34 @@ export default function ReviewForm({
                 {c}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         )}
       </Question>
 
       <Question legend="What should happen?">
-        <div className="flex flex-col gap-1">
+        <RadioGroup value={action} onValueChange={(next) => setAction(next as ReviewDecisionPayload["action_taken"])} className="gap-1.5">
           {ACTIONS.map((a) => (
             <label
               key={a.value}
-              className={`flex cursor-pointer items-start gap-2.5 rounded-[5px] border px-3 py-2 text-sm ${
-                action === a.value ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--border)]"
+              className={`flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2 text-sm ${
+                action === a.value ? "border-primary bg-primary-soft" : "border-border"
               }`}
             >
-              <input
-                type="radio"
-                name="action"
-                className="mt-1"
-                checked={action === a.value}
-                onChange={() => setAction(a.value)}
-              />
+              <RadioGroupItem value={a.value} className="mt-0.5" />
               <span>
                 <span className="font-medium">{a.label}</span>
-                <span className="block text-xs text-[var(--text-muted)]">{a.hint}</span>
+                <span className="block text-xs text-muted-foreground">{a.hint}</span>
               </span>
             </label>
           ))}
-        </div>
+        </RadioGroup>
       </Question>
 
       {requiresReason && (
         <label className="flex flex-col gap-1.5 text-sm font-medium">
           Why?
-          <textarea
-            className="field font-normal"
+          <Textarea
+            className="font-normal"
             rows={3}
             value={overrideReason}
             onChange={(e) => setOverrideReason(e.target.value)}
@@ -156,11 +153,11 @@ export default function ReviewForm({
         </label>
       )}
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <button type="submit" disabled={submitting} className="btn btn-primary self-start">
+      <Button type="submit" disabled={submitting} className="self-start">
         {submitting ? "Saving…" : "Submit review"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -175,29 +172,25 @@ function Question({ legend, children }: { legend: string; children: React.ReactN
 }
 
 function Segmented<T extends string>({
-  name,
   options,
   value,
   onChange,
 }: {
-  name: string;
   options: { value: T; label: string }[];
   value: T | null;
   onChange: (value: T) => void;
 }) {
   return (
-    <div role="radiogroup" className="inline-flex overflow-hidden rounded-[5px] border border-[var(--border-strong)]">
-      {options.map((o, i) => (
-        <label
+    <ToggleGroup type="single" variant="outline" value={value ?? ""} onValueChange={(next) => next && onChange(next as T)}>
+      {options.map((o) => (
+        <ToggleGroupItem
           key={o.value}
-          className={`cursor-pointer px-3.5 py-1.5 text-sm ${i > 0 ? "border-l border-[var(--border-strong)]" : ""} ${
-            value === o.value ? "bg-[var(--accent)] text-[var(--on-accent)]" : "hover:bg-[var(--surface-2)]"
-          }`}
+          value={o.value}
+          className="px-3.5 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
         >
-          <input type="radio" name={name} className="sr-only" checked={value === o.value} onChange={() => onChange(o.value)} />
           {o.label}
-        </label>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }

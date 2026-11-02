@@ -31,12 +31,17 @@ import {
   Header,
   MonthPicker,
   Stat,
-  Table,
+  ReportTable,
   pickableTeams,
   query,
   thisMonth,
   useReport,
 } from "./shared";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Card } from "@/components/ui/card";
+import { TableCell, TableRow } from "@/components/ui/table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 
 function ratio(c: ComplianceOut): string {
   return `${c.met}/${c.met + c.breached}`;
@@ -47,7 +52,7 @@ function num(v: number | null | undefined, digits = 1): string {
 }
 
 function Failed({ error }: { error: string | null }) {
-  return error ? <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p> : null;
+  return error ? <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert> : null;
 }
 
 function useTeams(user: CurrentUser): string[] {
@@ -66,12 +71,12 @@ function TeamPicker({ user, value, onChange, allowAll }: { user: CurrentUser; va
   const teams = useTeams(user);
   return (
     <Field label="Nhóm · Team">
-      <select className="field w-40" value={value} onChange={(e) => onChange(e.target.value)}>
+      <NativeSelect wrapperClassName="w-40" value={value} onChange={(e) => onChange(e.target.value)}>
         {allowAll && <option value="">tất cả · all</option>}
         {teams.map((t) => (
           <option key={t}>{t}</option>
         ))}
-      </select>
+      </NativeSelect>
     </Field>
   );
 }
@@ -80,28 +85,30 @@ function TeamPicker({ user, value, onChange, allowAll }: { user: CurrentUser; va
 
 function Cells({ title, cells, onPick }: { title: string; cells: SlaCellOut[]; onPick: (key: string) => void }) {
   return (
-    <section className="card mb-4 p-4">
-      <h2 className="mb-3 text-sm font-medium">{title}</h2>
-      {cells.length === 0 ? (
-        <p className="text-xs text-[var(--text-muted)]">Không có đồng hồ nào dừng trong tháng.</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {cells.map((c) => (
-            <button
-              key={c.key}
-              className="grid grid-cols-[120px_minmax(0,1fr)_150px] items-center gap-3 text-left text-sm hover:text-[var(--accent)]"
-              onClick={() => onPick(c.key)}
-            >
-              <span>{c.key}</span>
-              <Bar value={c.resolution.compliance} good={(c.resolution.compliance ?? 0) >= 0.9} />
-              <span className="font-mono text-xs tabular-nums">
-                {percent(c.resolution.compliance)} ({ratio(c.resolution)})
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-    </section>
+    <Card asChild>
+      <section className="mb-4 p-4">
+        <h2 className="mb-3 text-sm font-medium">{title}</h2>
+        {cells.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Không có đồng hồ nào dừng trong tháng.</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {cells.map((c) => (
+              <button
+                key={c.key}
+                className="grid grid-cols-[120px_minmax(0,1fr)_150px] items-center gap-3 text-left text-sm hover:text-primary"
+                onClick={() => onPick(c.key)}
+              >
+                <span>{c.key}</span>
+                <Bar value={c.resolution.compliance} good={(c.resolution.compliance ?? 0) >= 0.9} />
+                <span className="font-mono text-xs tabular-nums">
+                  {percent(c.resolution.compliance)} ({ratio(c.resolution)})
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+    </Card>
   );
 }
 
@@ -132,7 +139,7 @@ export function SlaReport({ user }: { user: CurrentUser }) {
               note={`${data.excluded.no_sla_data} không có dữ liệu SLA (BR-F10-03) · ${data.excluded.linked_incident} gắn sự cố`}
             />
           </div>
-          <p className="mb-4 text-xs text-[var(--text-muted)]">
+          <p className="mb-4 text-xs text-muted-foreground">
             Trễ được cảnh báo kịp (K3): {percent(data.breaches_warned_in_time.rate)} ({data.breaches_warned_in_time.warned}/
             {data.breaches_warned_in_time.breached})
           </p>
@@ -140,32 +147,32 @@ export function SlaReport({ user }: { user: CurrentUser }) {
           <Cells title="Theo nhóm · by team" cells={data.by_team} onPick={(k) => setDrill({ team: k })} />
           <Cells title="Theo loại · by category" cells={data.by_category} onPick={(k) => setDrill({ category: k })} />
           <div className="mb-2 flex gap-3 text-xs">
-            <button className="text-[var(--accent)] hover:underline" onClick={() => setDrill({ state: "breached" })}>
+            <Button variant="link" size="inline"  onClick={() => setDrill({ state: "breached" })}>
               Xem phiếu trễ · breached tickets
-            </button>
-            <button className="text-[var(--accent)] hover:underline" onClick={() => setDrill({ state: "excluded" })}>
+            </Button>
+            <Button variant="link" size="inline"  onClick={() => setDrill({ state: "excluded" })}>
               Xem phiếu bị loại · excluded tickets
-            </button>
+            </Button>
           </div>
           {drill && tickets.data && (
-            <Table head={["Phiếu · Ticket", "Nhóm", "Ưu tiên", "Trạng thái", "Dừng lúc"]}>
+            <ReportTable head={["Phiếu · Ticket", "Nhóm", "Ưu tiên", "Trạng thái", "Dừng lúc"]}>
               {tickets.data.items.map((t) => (
-                <tr key={t.id}>
-                  <td>
-                    <a className="text-[var(--accent)] hover:underline" href={`/tickets/${t.id}`}>
+                <TableRow key={t.id}>
+                  <TableCell>
+                    <a className="text-primary hover:underline" href={`/tickets/${t.id}`}>
                       {t.public_id}
                     </a>
-                    <div className="text-xs text-[var(--text-muted)]">{t.subject}</div>
-                  </td>
-                  <td>{t.team ?? "—"}</td>
-                  <td>{t.priority ?? "—"}</td>
-                  <td>{t.linked_incident ? "sự cố" : t.state}</td>
-                  <td>{t.met_at ? new Date(t.met_at).toLocaleString("vi-VN") : "—"}</td>
-                </tr>
+                    <div className="text-xs text-muted-foreground">{t.subject}</div>
+                  </TableCell>
+                  <TableCell>{t.team ?? "—"}</TableCell>
+                  <TableCell>{t.priority ?? "—"}</TableCell>
+                  <TableCell>{t.linked_incident ? "sự cố" : t.state}</TableCell>
+                  <TableCell>{t.met_at ? new Date(t.met_at).toLocaleString("vi-VN") : "—"}</TableCell>
+                </TableRow>
               ))}
-            </Table>
+            </ReportTable>
           )}
-          <p className="mt-4 text-xs text-[var(--text-muted)]">
+          <p className="mt-4 text-xs text-muted-foreground">
             Phiếu gắn sự cố ({data.excluded.linked_incident}) được báo cáo ở tab Sự cố, không tính ở đây (BR-F10-04).
           </p>
         </>
@@ -187,11 +194,11 @@ export function TeamsReport({ user }: { user: CurrentUser }) {
     <>
       <Header title="Khối lượng nhóm · Team workload" note="Phiếu đang mở theo tuổi (ngày làm việc), thời gian giao việc (K4), chuyển nhóm (K5).">
         <Field label="Nhóm · Team">
-          <select className="field w-40" value={slug} onChange={(e) => setTeam(e.target.value)}>
+          <NativeSelect wrapperClassName="w-40" value={slug} onChange={(e) => setTeam(e.target.value)}>
             {choices.map((t) => (
               <option key={t}>{t}</option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
         {slug && <ExportButton path={`/api/reports/teams/${slug}.csv`} filename={`team-${slug}.csv`} />}
       </Header>
@@ -205,31 +212,31 @@ export function TeamsReport({ user }: { user: CurrentUser }) {
             <Stat label="Kỳ · Period" value={`${data.start.slice(5)} → ${data.end.slice(5)}`} />
           </div>
           {data.members.length === 0 && (
-            <div className="card mb-3">
+            <Card className="mb-3">
               <Empty>Nhóm chưa có thành viên.</Empty>
-            </div>
+            </Card>
           )}
-          <Table head={["Thành viên", "Đang mở", "0–1 ngày", "1–3", "3–5", "> 5", "Đã giải quyết", "Giao (trung vị)", "Nhận / chuyển đi"]}>
+          <ReportTable head={["Thành viên", "Đang mở", "0–1 ngày", "1–3", "3–5", "> 5", "Đã giải quyết", "Giao (trung vị)", "Nhận / chuyển đi"]}>
             {data.members.map((m) => (
-              <tr key={m.username}>
-                <td>
+              <TableRow key={m.username}>
+                <TableCell>
                   {m.display_name}
-                  {m.role === "lead" && <span className="ml-1 text-xs text-[var(--text-muted)]">· lead</span>}
-                </td>
-                <td>{m.open_now}</td>
+                  {m.role === "lead" && <span className="ml-1 text-xs text-muted-foreground">· lead</span>}
+                </TableCell>
+                <TableCell>{m.open_now}</TableCell>
                 {Object.values(m.age_buckets).map((n, i) => (
-                  <td key={i} className={i === 3 && n > 0 ? "text-[var(--danger)]" : ""}>
+                  <TableCell key={i} className={i === 3 && n > 0 ? "text-danger" : ""}>
                     {n}
-                  </td>
+                  </TableCell>
                 ))}
-                <td>{m.resolved_in_period}</td>
-                <td>{num(m.time_to_assign_median_min, 0)}</td>
-                <td>
+                <TableCell>{m.resolved_in_period}</TableCell>
+                <TableCell>{num(m.time_to_assign_median_min, 0)}</TableCell>
+                <TableCell>
                   {m.reassigned_in} / {m.reassigned_out}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </Table>
+          </ReportTable>
         </>
       )}
     </>
@@ -245,35 +252,35 @@ export function ReviewersReport() {
     <>
       <Header title="Người duyệt · Reviewers" note="Đánh dấu khi tỷ lệ duyệt cao và thời gian đọc ngắn, chỉ khi đủ số quyết định (BR-F10-06).">
         <Field label="Số ngày · Days">
-          <select className="field w-28" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <NativeSelect wrapperClassName="w-28" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[7, 30, 90].map((d) => (
               <option key={d}>{d}</option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
         <ExportButton path={`/api/reports/reviewers.csv?days=${days}`} filename="reviewers.csv" />
       </Header>
       <Failed error={error} />
       {data && (
         <>
-          <p className="mb-3 text-xs text-[var(--text-muted)]">
+          <p className="mb-3 text-xs text-muted-foreground">
             Đánh dấu: ≥ {data.min_decisions_for_flag} quyết định, tỷ lệ duyệt &gt; {percent(data.approve_rate_max)} và trung vị &lt;{" "}
             {data.median_time_min_sec} s.
           </p>
-          <Table head={["Người duyệt", "Quyết định", "Tỷ lệ duyệt", "Kỳ trước", "Trung vị", ""]}>
+          <ReportTable head={["Người duyệt", "Quyết định", "Tỷ lệ duyệt", "Kỳ trước", "Trung vị", ""]}>
             {data.rows.map((r) => (
-              <tr key={r.username}>
-                <td>{r.username}</td>
-                <td>{r.decisions}</td>
-                <td>{percent(r.approve_rate)}</td>
-                <td>{percent(r.previous_approve_rate)}</td>
-                <td>{duration(r.median_seconds)}</td>
-                <td className="text-xs text-[var(--warn)]">
+              <TableRow key={r.username}>
+                <TableCell>{r.username}</TableCell>
+                <TableCell>{r.decisions}</TableCell>
+                <TableCell>{percent(r.approve_rate)}</TableCell>
+                <TableCell>{percent(r.previous_approve_rate)}</TableCell>
+                <TableCell>{duration(r.median_seconds)}</TableCell>
+                <TableCell className="text-xs text-warn">
                   {r.flagged ? "⚠ có thể duyệt theo phản xạ" : r.decisions < data.min_decisions_for_flag ? "chưa đủ mẫu" : ""}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </Table>
+          </ReportTable>
         </>
       )}
     </>
@@ -297,36 +304,38 @@ export function KbReport() {
             <Stat label="Từ chối tuần này · Refused this week" value={percent(data.refusals.at(-1)?.refusal_rate ?? null)} />
             <Stat label="Trang đã đóng khoảng trống · Closures" value={String(data.closures.length)} />
           </div>
-          <section className="card mb-4 p-4">
-            <h2 className="mb-3 text-sm font-medium">Tỷ lệ từ chối theo tuần · Weekly refusal rate</h2>
-            <div className="flex flex-col gap-2">
-              {data.refusals.map((w) => (
-                <div key={w.week_start} className="grid grid-cols-[100px_minmax(0,1fr)_140px] items-center gap-3 text-sm">
-                  <span className="font-mono text-xs">{w.week_start}</span>
-                  <Bar value={w.refusal_rate} good={(w.refusal_rate ?? 0) < 0.1} />
-                  <span className="font-mono text-xs tabular-nums">
-                    {percent(w.refusal_rate)} ({w.refused}/{w.decisions})
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
+          <Card asChild>
+            <section className="mb-4 p-4">
+              <h2 className="mb-3 text-sm font-medium">Tỷ lệ từ chối theo tuần · Weekly refusal rate</h2>
+              <div className="flex flex-col gap-2">
+                {data.refusals.map((w) => (
+                  <div key={w.week_start} className="grid grid-cols-[100px_minmax(0,1fr)_140px] items-center gap-3 text-sm">
+                    <span className="font-mono text-xs">{w.week_start}</span>
+                    <Bar value={w.refusal_rate} good={(w.refusal_rate ?? 0) < 0.1} />
+                    <span className="font-mono text-xs tabular-nums">
+                      {percent(w.refusal_rate)} ({w.refused}/{w.decisions})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </Card>
           {data.closures.length === 0 ? (
-            <div className="card">
+            <Card>
               <Empty>Chưa có trang nào được viết từ một chủ đề thiếu.</Empty>
-            </div>
+            </Card>
           ) : (
-            <Table head={["Trang · Page", "Trước", "Sau", "Đóng", ""]}>
+            <ReportTable head={["Trang · Page", "Trước", "Sau", "Đóng", ""]}>
               {data.closures.map((c) => (
-                <tr key={c.cluster_id}>
-                  <td className="font-mono">{c.article_slug ?? c.cluster_id}</td>
-                  <td>{c.before}</td>
-                  <td>{c.after}</td>
-                  <td>{percent(c.closure, 0)}</td>
-                  <td className="text-xs text-[var(--text-muted)]">{c.complete ? "" : "chưa đủ 4 tuần"}</td>
-                </tr>
+                <TableRow key={c.cluster_id}>
+                  <TableCell className="font-mono">{c.article_slug ?? c.cluster_id}</TableCell>
+                  <TableCell>{c.before}</TableCell>
+                  <TableCell>{c.after}</TableCell>
+                  <TableCell>{percent(c.closure, 0)}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.complete ? "" : "chưa đủ 4 tuần"}</TableCell>
+                </TableRow>
               ))}
-            </Table>
+            </ReportTable>
           )}
           <GraphHealth graph={data.graph} />
         </>
@@ -341,7 +350,7 @@ function GraphHealth({ graph }: { graph: GraphHealthOut }) {
   return (
     <section className="mt-6">
       <h2 className="mb-1 text-sm font-medium">Đồ thị liên kết · Graph health</h2>
-      <p className="mb-3 text-xs text-[var(--text-muted)]">
+      <p className="mb-3 text-xs text-muted-foreground">
         Các liên kết mở rộng tìm kiếm theo; điểm không bao giờ quyết định trả lời tự động (BR-F11-04).
       </p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -372,22 +381,24 @@ function GraphHealth({ graph }: { graph: GraphHealthOut }) {
 function CsatCard({ title, line }: { title: string; line: CsatLineOut }) {
   const max = Math.max(1, ...Object.values(line.distribution));
   return (
-    <section className="card p-4">
-      <h2 className="text-sm font-medium">{title}</h2>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{num(line.mean, 2)}</p>
-      <p className="text-xs text-[var(--text-muted)]">
-        {line.ratings} đánh giá · tỷ lệ phản hồi {percent(line.response_rate)} ({line.ratings}/{line.resolved})
-      </p>
-      <div className="mt-3 flex flex-col gap-1">
-        {["5", "4", "3", "2", "1"].map((s) => (
-          <div key={s} className="grid grid-cols-[24px_minmax(0,1fr)_40px] items-center gap-2 text-xs">
-            <span>{s}★</span>
-            <Bar value={line.distribution[s] / max} good={Number(s) >= 4} />
-            <span className="text-right font-mono">{line.distribution[s]}</span>
-          </div>
-        ))}
-      </div>
-    </section>
+    <Card asChild>
+      <section className="p-4">
+        <h2 className="text-sm font-medium">{title}</h2>
+        <p className="mt-1 text-2xl font-semibold tabular-nums">{num(line.mean, 2)}</p>
+        <p className="text-xs text-muted-foreground">
+          {line.ratings} đánh giá · tỷ lệ phản hồi {percent(line.response_rate)} ({line.ratings}/{line.resolved})
+        </p>
+        <div className="mt-3 flex flex-col gap-1">
+          {["5", "4", "3", "2", "1"].map((s) => (
+            <div key={s} className="grid grid-cols-[24px_minmax(0,1fr)_40px] items-center gap-2 text-xs">
+              <span>{s}★</span>
+              <Bar value={line.distribution[s] / max} good={Number(s) >= 4} />
+              <span className="text-right font-mono">{line.distribution[s]}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+    </Card>
   );
 }
 
@@ -412,33 +423,35 @@ export function CsatReport({ user }: { user: CurrentUser }) {
           </div>
           {data.by_team.length > 0 && (
             <div className="mb-4">
-              <Table head={["Nhóm", "Nhân viên", "Tự động", "Đánh giá"]}>
+              <ReportTable head={["Nhóm", "Nhân viên", "Tự động", "Đánh giá"]}>
                 {data.by_team.map((t) => (
-                  <tr key={t.team}>
-                    <td>{t.team}</td>
-                    <td>{num(t.person.mean, 2)}</td>
-                    <td>{num(t.auto.mean, 2)}</td>
-                    <td>{t.person.ratings + t.auto.ratings}</td>
-                  </tr>
+                  <TableRow key={t.team}>
+                    <TableCell>{t.team}</TableCell>
+                    <TableCell>{num(t.person.mean, 2)}</TableCell>
+                    <TableCell>{num(t.auto.mean, 2)}</TableCell>
+                    <TableCell>{t.person.ratings + t.auto.ratings}</TableCell>
+                  </TableRow>
                 ))}
-              </Table>
+              </ReportTable>
             </div>
           )}
-          <section className="card p-4">
-            <h2 className="mb-2 text-sm font-medium">Đánh giá thấp · Low ratings (đã che PII)</h2>
-            {data.low_rated.length === 0 ? (
-              <p className="text-xs text-[var(--text-muted)]">Không có.</p>
-            ) : (
-              <ul className="flex flex-col gap-2 text-sm">
-                {data.low_rated.map((r) => (
-                  <li key={`${r.ticket_public_id}-${r.rated_at}`}>
-                    <span className="font-mono text-xs">{r.ticket_public_id}</span> · {r.score}★ · {r.team ?? "—"}
-                    <p className="text-[var(--text-muted)]">{r.comment}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
+          <Card asChild>
+            <section className="p-4">
+              <h2 className="mb-2 text-sm font-medium">Đánh giá thấp · Low ratings (đã che PII)</h2>
+              {data.low_rated.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Không có.</p>
+              ) : (
+                <ul className="flex flex-col gap-2 text-sm">
+                  {data.low_rated.map((r) => (
+                    <li key={`${r.ticket_public_id}-${r.rated_at}`}>
+                      <span className="font-mono text-xs">{r.ticket_public_id}</span> · {r.score}★ · {r.team ?? "—"}
+                      <p className="text-muted-foreground">{r.comment}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </Card>
         </>
       )}
     </>
@@ -461,23 +474,23 @@ export function RolloutReport() {
             <Stat label="Tự động hoá (thực tế) · Automation live" value={percent(data.automation.live_rate)} note="đã thực hiện · không phải mục tiêu (BR-F10-09)" />
             <Stat label="Tự động hoá (nếu bật) · would-have" value={percent(data.automation.would_have_rate)} note="gồm quyết định shadow · không phải mục tiêu" />
           </div>
-          <Table head={["Nhánh · Branch", "Đang bật", "Đồng thuận", "Đã duyệt", "Phủ", "Cổng đạt"]}>
+          <ReportTable head={["Nhánh · Branch", "Đang bật", "Đồng thuận", "Đã duyệt", "Phủ", "Cổng đạt"]}>
             {data.branches.map((b) => (
-              <tr key={b.branch}>
-                <td className="font-mono">{b.branch}</td>
-                <td>{b.live ? "live" : "shadow"}</td>
-                <td>{percent(b.agreement.rate)}</td>
-                <td>
+              <TableRow key={b.branch}>
+                <TableCell className="font-mono">{b.branch}</TableCell>
+                <TableCell>{b.live ? "live" : "shadow"}</TableCell>
+                <TableCell>{percent(b.agreement.rate)}</TableCell>
+                <TableCell>
                   {b.agreement.agreed}/{b.agreement.decided}
-                </td>
-                <td>{percent(b.coverage)}</td>
-                <td>
+                </TableCell>
+                <TableCell>{percent(b.coverage)}</TableCell>
+                <TableCell>
                   {b.gates.filter((g) => g.met).length}/{b.gates.length}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </Table>
-          <p className="mt-3 text-xs text-[var(--text-muted)]">{data.days} ngày gần nhất.</p>
+          </ReportTable>
+          <p className="mt-3 text-xs text-muted-foreground">{data.days} ngày gần nhất.</p>
         </>
       )}
     </>
@@ -508,15 +521,15 @@ export function SecurityReport() {
               </>
             )}
           </div>
-          <Table head={["Loại · Kind", "Số lượng", "Đang mở"]}>
+          <ReportTable head={["Loại · Kind", "Số lượng", "Đang mở"]}>
             {data.by_kind.map((k) => (
-              <tr key={k.kind}>
-                <td className="font-mono">{k.kind}</td>
-                <td>{k.count}</td>
-                <td>{k.open}</td>
-              </tr>
+              <TableRow key={k.kind}>
+                <TableCell className="font-mono">{k.kind}</TableCell>
+                <TableCell>{k.count}</TableCell>
+                <TableCell>{k.open}</TableCell>
+              </TableRow>
             ))}
-          </Table>
+          </ReportTable>
         </>
       )}
     </>
@@ -557,27 +570,27 @@ export function NotificationsReport() {
     <>
       <Header title="Thông báo · Notifications" note="Độ trễ p95 từ khi tạo đến khi gửi, và số lần thất bại theo kênh (K8).">
         <Field label="Số ngày · Days">
-          <select className="field w-28" value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          <NativeSelect wrapperClassName="w-28" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[1, 7, 30].map((d) => (
               <option key={d}>{d}</option>
             ))}
-          </select>
+          </NativeSelect>
         </Field>
         <ExportButton path={`/api/reports/notifications.csv?days=${days}`} filename="notifications.csv" />
       </Header>
       <Failed error={error} />
       {data && (
-        <Table head={["Kênh · Channel", "Tin", "Đã gửi", "Thất bại", "Độ trễ p95"]}>
+        <ReportTable head={["Kênh · Channel", "Tin", "Đã gửi", "Thất bại", "Độ trễ p95"]}>
           {data.channels.map((c) => (
-            <tr key={c.channel}>
-              <td className="font-mono">{c.channel}</td>
-              <td>{c.messages}</td>
-              <td>{c.delivered}</td>
-              <td className={c.failed ? "text-[var(--danger)]" : ""}>{c.failed}</td>
-              <td>{duration(c.latency_p95_sec)}</td>
-            </tr>
+            <TableRow key={c.channel}>
+              <TableCell className="font-mono">{c.channel}</TableCell>
+              <TableCell>{c.messages}</TableCell>
+              <TableCell>{c.delivered}</TableCell>
+              <TableCell className={c.failed ? "text-danger" : ""}>{c.failed}</TableCell>
+              <TableCell>{duration(c.latency_p95_sec)}</TableCell>
+            </TableRow>
           ))}
-        </Table>
+        </ReportTable>
       )}
     </>
   );

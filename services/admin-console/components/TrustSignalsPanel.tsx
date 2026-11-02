@@ -1,6 +1,8 @@
 "use client";
 
-import { branchClasses } from "@/lib/badges";
+import { branchTone } from "@/lib/badges";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 
 interface RoutingDecision {
   branch: string;
@@ -47,8 +49,8 @@ export interface TrustSignalsPanelProps {
 function Bar({ value, max = 1 }: { value: number; max?: number }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
-    <div className="h-1.5 w-full overflow-hidden bg-[var(--surface-2)]">
-      <div className="h-full bg-[var(--accent)]" style={{ width: `${pct}%` }} />
+    <div className="h-1.5 w-full overflow-hidden bg-muted">
+      <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -64,17 +66,16 @@ function Bar({ value, max = 1 }: { value: number; max?: number }) {
 function BoolChip({ ok, label, applicable = true }: { ok: boolean; label: string; applicable?: boolean }) {
   if (!applicable) {
     return (
-      <span className="badge bg-black/5 text-[var(--text-muted)] dark:bg-white/10" title="not applicable to this proposal">
+      <Badge variant="neutral" className="bg-black/5 text-muted-foreground dark:bg-white/10" title="not applicable to this proposal">
         – {label}
-      </span>
+      </Badge>
     );
   }
   return (
-    <span
-      className={`badge ${ok ? "tone-ok" : "tone-danger"}`}
+    <Badge variant={ok ? "ok" : "danger"}
     >
       {ok ? "✓" : "✗"} {label}
-    </span>
+    </Badge>
   );
 }
 
@@ -93,10 +94,10 @@ export default function TrustSignalsPanel({
 }: TrustSignalsPanelProps) {
   if (!trustSignals || !routingDecision) {
     return (
-      <div className="card p-4 text-sm text-[var(--text-muted)]">
+      <Card className="p-4 text-sm text-muted-foreground">
         No AI run associated with this ticket — routed to review directly (e.g. degraded / mass incident / mask
         failure path).
-      </div>
+      </Card>
     );
   }
 
@@ -121,29 +122,29 @@ export default function TrustSignalsPanel({
   const quoteApplicable = generation.quote_applicable;
 
   return (
-    <div className="card flex flex-col gap-4 p-4">
+    <Card className="flex flex-col gap-4 p-4">
       <div className="flex items-center justify-between">
         <div>
-          <span className={`badge ${branchClasses(routingDecision.branch)}`}>{routingDecision.branch}</span>
+          <Badge variant={branchTone(routingDecision.branch)}>{routingDecision.branch}</Badge>
           {routingDecision.shadow_mode && (
-            <span className="badge ml-2 tone-neutral">
+            <Badge variant="neutral" className="ml-2">
               shadow mode
-            </span>
+            </Badge>
           )}
         </div>
         {trustScore !== null && (
           <div className="text-right">
             <div className="text-2xl font-semibold tabular-nums">{trustScore.toFixed(2)}</div>
-            <div className="text-xs text-[var(--text-muted)]">trust score</div>
+            <div className="text-xs text-muted-foreground">trust score</div>
           </div>
         )}
       </div>
 
       <div>
         <div className="text-sm font-medium">{routingDecision.reason_code}</div>
-        <div className="text-sm text-[var(--text-muted)]">{routingDecision.reason_detail}</div>
+        <div className="text-sm text-muted-foreground">{routingDecision.reason_detail}</div>
         {routingDecision.gate_failed && (
-          <div className="mt-1 text-xs text-[var(--text-muted)]">
+          <div className="mt-1 text-xs text-muted-foreground">
             gate failed: <code>{routingDecision.gate_failed}</code>
           </div>
         )}
@@ -151,7 +152,7 @@ export default function TrustSignalsPanel({
 
       {trustContributions && Object.keys(trustContributions).length > 0 && (
         <div>
-          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">
+          <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Trust score contributions
           </div>
           <div className="flex flex-col gap-1.5">
@@ -159,8 +160,8 @@ export default function TrustSignalsPanel({
               .sort((a, b) => b[1] - a[1])
               .map(([feature, contribution]) => (
                 <div key={feature} className="flex items-center gap-2 text-xs">
-                  <span className="w-44 shrink-0 truncate text-[var(--text-muted)]">{feature}</span>
-                  <span className={`w-14 shrink-0 text-right tabular-nums ${contribution < 0 ? "text-[var(--danger)]" : ""}`}>
+                  <span className="w-44 shrink-0 truncate text-muted-foreground">{feature}</span>
+                  <span className={`w-14 shrink-0 text-right tabular-nums ${contribution < 0 ? "text-danger" : ""}`}>
                     {contribution >= 0 ? "+" : ""}
                     {contribution.toFixed(3)}
                   </span>
@@ -171,34 +172,34 @@ export default function TrustSignalsPanel({
       )}
 
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Retrieval</div>
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Retrieval</div>
         <div className="flex flex-col gap-1.5 text-xs">
           <div className="flex items-center gap-2">
-            <span className="w-28 shrink-0 text-[var(--text-muted)]">rerank top1</span>
+            <span className="w-28 shrink-0 text-muted-foreground">rerank top1</span>
             <Bar value={retrieval.rerank_top1} />
             <span className="w-10 shrink-0 text-right tabular-nums">{retrieval.rerank_top1.toFixed(2)}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="w-28 shrink-0 text-[var(--text-muted)]">margin (top1-top2)</span>
+            <span className="w-28 shrink-0 text-muted-foreground">margin (top1-top2)</span>
             <Bar value={retrieval.rerank_margin} />
             <span className="w-10 shrink-0 text-right tabular-nums">{retrieval.rerank_margin.toFixed(2)}</span>
           </div>
           <div className="mt-1 flex flex-wrap gap-1.5">
-            <span className="badge tone-neutral">
+            <Badge variant="neutral">
               {retrieval.docs_above_floor} docs above floor
-            </span>
+            </Badge>
           </div>
         </div>
       </div>
 
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Category</div>
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Category</div>
         {trustSignals.classification?.category_choice ? (
           // Jev's choice is the ticket's category (ADR-0017). Whether its
           // confidence is enough is core-api's decision, shown in the
           // reason code above, so no ✓/✗ here.
           <div className="flex items-center gap-2 text-xs">
-            <span className="w-28 shrink-0 text-[var(--text-muted)]">
+            <span className="w-28 shrink-0 text-muted-foreground">
               {trustSignals.classification.category_choice}
             </span>
             <Bar value={trustSignals.classification.category_confidence ?? 0} />
@@ -207,17 +208,17 @@ export default function TrustSignalsPanel({
             </span>
           </div>
         ) : (
-          <div className="text-xs text-[var(--text-muted)]">No category was chosen for this ticket.</div>
+          <div className="text-xs text-muted-foreground">No category was chosen for this ticket.</div>
         )}
       </div>
 
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Generation</div>
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Generation</div>
         {aiDidNotRun ? (
           // Every generation check reads false when no model output was
           // ever produced. Rendering four red ✗ implies the model failed
           // validation; it never got that far. Say so instead.
-          <div className="text-xs text-[var(--text-muted)]">
+          <div className="text-xs text-muted-foreground">
             The AI pipeline did not produce a proposal for this ticket
             {routingDecision.reason_code ? ` (${routingDecision.reason_code})` : ""}, so none of the
             generation checks ran. Review the ticket on its own merits.
@@ -231,32 +232,32 @@ export default function TrustSignalsPanel({
             />
             <BoolChip ok={generation.negation_consistent} label="negation consistent" />
             {quoteApplicable ? (
-              <span className="badge tone-neutral">
+              <Badge variant="neutral">
                 quote match {(generation.quote_match_ratio * 100).toFixed(0)}%
-              </span>
+              </Badge>
             ) : (
-              <span className="badge bg-black/5 text-[var(--text-muted)] dark:bg-white/10">
+              <Badge variant="neutral" className="bg-black/5 text-muted-foreground dark:bg-white/10">
                 no quote to verify
-              </span>
+              </Badge>
             )}
           </div>
         )}
       </div>
 
       <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">Policy</div>
+        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Policy</div>
         <div className="flex flex-wrap gap-1.5">
           <BoolChip ok={policy.kb_auto_reply_allowed} label="KB auto-reply allowed" />
-          <span className="badge tone-neutral">
+          <Badge variant="neutral">
             risk: {policy.kb_risk_tier}
-          </span>
-          <span className="badge tone-neutral">
+          </Badge>
+          <Badge variant="neutral">
             PII: {policy.pii_level}
-          </span>
-          {policy.injection_detected && <span className="badge tone-danger">injection detected</span>}
-          {policy.mass_incident && <span className="badge tone-warn">mass incident</span>}
+          </Badge>
+          {policy.injection_detected && <Badge variant="danger">injection detected</Badge>}
+          {policy.mass_incident && <Badge variant="warn">mass incident</Badge>}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

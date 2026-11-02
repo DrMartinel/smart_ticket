@@ -11,13 +11,17 @@ import { useRequireAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { BRANCH_LABEL, INTENT_LABEL, QUEUE_LABEL, reasonText } from "@/lib/explain";
 import { dateTime, humanize, percent, relativeTime } from "@/lib/format";
-import { piiLevelClasses, priorityClasses } from "@/lib/badges";
+import { piiLevelTone, priorityTone } from "@/lib/badges";
 import PiiText from "@/components/PiiText";
 import StatusChip from "@/components/StatusChip";
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
 import RunbookPanel from "@/components/RunbookPanel";
 import TrustSignalsPanel, { type TrustSignalsPanelProps } from "@/components/TrustSignalsPanel";
 import type { StaffTicketDetail } from "@/lib/types/generated";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Detail = StaffTicketDetail;
 
@@ -101,8 +105,8 @@ export default function TicketPage() {
   }, [user, load]);
 
   if (!user) return null;
-  if (error) return <p className="text-sm text-[var(--danger)]">{error}</p>;
-  if (!detail || (!lifecycle && !lifecycleRefused)) return <p className="text-sm text-[var(--text-muted)]">Loading…</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!detail || (!lifecycle && !lifecycleRefused)) return <p className="text-sm text-muted-foreground">Loading…</p>;
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
@@ -124,13 +128,13 @@ export default function TicketPage() {
 
   return (
     <div className="mx-auto max-w-[1280px]">
-      <Link href="/tickets?view=all" className="text-sm text-[var(--text-muted)] hover:text-[var(--text)]">
+      <Link href="/tickets?view=all" className="text-sm text-muted-foreground hover:text-foreground">
         ← Tickets
       </Link>
       <header className="mb-6 mt-2">
         <h1 className="text-2xl font-semibold tracking-tight">{detail.subject_masked}</h1>
-        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-[var(--text-muted)]">
-          <span className="font-mono text-[var(--text)]">{detail.public_id}</span>
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <span className="font-mono text-foreground">{detail.public_id}</span>
           <StatusChip name={detail.status.name} color={detail.status.color} />
           <span>
             from {detail.reporter_person.username} via {humanize(detail.source).toLowerCase()}
@@ -140,7 +144,7 @@ export default function TicketPage() {
       </header>
 
       {notice && (
-        <p className={`mb-4 rounded-[5px] px-3 py-2 text-sm ${notice.startsWith("Not done") ? "tone-danger" : "tone-ok"}`}>
+        <p className={`mb-4 rounded-md px-3 py-2 text-sm ${notice.startsWith("Not done") ? "danger" : "ok"}`}>
           {notice}
         </p>
       )}
@@ -158,23 +162,23 @@ export default function TicketPage() {
               />
             </div>
             {mayReveal && (detail.pii_placeholders ?? []).length > 0 && (
-              <p className="mt-2 text-[11px] text-[var(--text-muted)]">
+              <p className="mt-2 text-[11px] text-muted-foreground">
                 Chips are placeholders. Click one to reveal it; you need the claim on this ticket&apos;s review item or its
                 assignment, and every reveal is logged.
               </p>
             )}
             {detail.clarifications.map((c) => (
-              <div key={c.asked_at} className="mt-4 border-t border-[var(--border)] pt-3 text-sm">
-                <p className="text-[var(--text-muted)]">Asked the requester · {relativeTime(c.asked_at)}</p>
+              <div key={c.asked_at} className="mt-4 border-t border-border pt-3 text-sm">
+                <p className="text-muted-foreground">Asked the requester · {relativeTime(c.asked_at)}</p>
                 <p className="mt-1">{c.question}</p>
-                {c.options.length > 0 && <p className="mt-1 text-[var(--text-muted)]">Options: {c.options.join(" · ")}</p>}
+                {c.options.length > 0 && <p className="mt-1 text-muted-foreground">Options: {c.options.join(" · ")}</p>}
                 <p className="mt-1">
                   {c.answer_masked ? (
                     <>
-                      <span className="text-[var(--text-muted)]">Answer:</span> {c.answer_masked}
+                      <span className="text-muted-foreground">Answer:</span> {c.answer_masked}
                     </>
                   ) : (
-                    <span className="text-[var(--text-muted)]">No answer.</span>
+                    <span className="text-muted-foreground">No answer.</span>
                   )}
                 </p>
               </div>
@@ -183,7 +187,7 @@ export default function TicketPage() {
 
           <Section title="What the AI concluded">
             {!latest && !detail.ai ? (
-              <p className="text-sm text-[var(--text-muted)]">The triage pipeline hasn&apos;t finished with this ticket yet.</p>
+              <p className="text-sm text-muted-foreground">The triage pipeline hasn&apos;t finished with this ticket yet.</p>
             ) : (
               <div className="flex flex-col gap-4 text-sm">
                 {latest && (
@@ -191,51 +195,51 @@ export default function TicketPage() {
                     <p className="text-[15px] font-medium">
                       {BRANCH_LABEL[latest.branch] ?? humanize(latest.branch)}
                       {latest.shadow_mode && latest.branch !== "hitl" && (
-                        <span className="ml-2 align-middle text-xs font-normal text-[var(--text-muted)]">
+                        <span className="ml-2 align-middle text-xs font-normal text-muted-foreground">
                           (shadow mode: proposed only, a person handles it)
                         </span>
                       )}
                     </p>
-                    <p className="mt-1 text-[var(--text-muted)]">{reasonText(latest.reason_code)}</p>
+                    <p className="mt-1 text-muted-foreground">{reasonText(latest.reason_code)}</p>
                   </div>
                 )}
                 {detail.ai && (
                   <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-2">
-                    <dt className="text-[var(--text-muted)]">Proposed</dt>
+                    <dt className="text-muted-foreground">Proposed</dt>
                     <dd>{detail.ai.proposed_intent ? INTENT_LABEL[detail.ai.proposed_intent] ?? humanize(detail.ai.proposed_intent) : "Nothing"}</dd>
-                    <dt className="text-[var(--text-muted)]">Category</dt>
+                    <dt className="text-muted-foreground">Category</dt>
                     <dd>
                       {detail.ai.category ?? "Not chosen"}
                       {detail.ai.category && detail.ai.category_confidence !== null && (
-                        <span className="text-[var(--text-muted)]"> · {percent(detail.ai.category_confidence, 0)} sure</span>
+                        <span className="text-muted-foreground"> · {percent(detail.ai.category_confidence, 0)} sure</span>
                       )}
                     </dd>
                     {detail.ai.kb_title && (
                       <>
-                        <dt className="text-[var(--text-muted)]">Help page</dt>
+                        <dt className="text-muted-foreground">Help page</dt>
                         <dd>{detail.ai.kb_title}</dd>
                       </>
                     )}
                     {detail.ai.trust_score !== null && (
                       <>
-                        <dt className="text-[var(--text-muted)]">Trust score</dt>
+                        <dt className="text-muted-foreground">Trust score</dt>
                         <dd className="font-mono">{detail.ai.trust_score.toFixed(2)}</dd>
                       </>
                     )}
                     {detail.ai.degraded_reason && (
                       <>
-                        <dt className="text-[var(--text-muted)]">Problem</dt>
+                        <dt className="text-muted-foreground">Problem</dt>
                         <dd>{reasonText(detail.ai.degraded_reason)}</dd>
                       </>
                     )}
                   </dl>
                 )}
                 {detail.ai?.answer_draft && (
-                  <div className="rounded-[5px] bg-[var(--surface-2)] p-3">
-                    <p className="mb-1 text-xs font-medium text-[var(--text-muted)]">Drafted answer</p>
+                  <div className="rounded-md bg-muted p-3">
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">Drafted answer</p>
                     <p className="whitespace-pre-wrap">{detail.ai.answer_draft}</p>
                     {detail.ai.verbatim_quote && (
-                      <blockquote className="mt-2 border-l-2 border-[var(--border-strong)] pl-3 text-[var(--text-muted)]">
+                      <blockquote className="mt-2 border-l-2 border-border-strong pl-3 text-muted-foreground">
                         {detail.ai.verbatim_quote}
                       </blockquote>
                     )}
@@ -243,7 +247,7 @@ export default function TicketPage() {
                 )}
                 {reviewItem && (
                   <details className="group">
-                    <summary className="cursor-pointer text-sm text-[var(--accent)]">Show the scoring details</summary>
+                    <summary className="cursor-pointer text-sm text-primary">Show the scoring details</summary>
                     <div className="mt-3">
                       <TrustSignalsPanel
                         trustSignals={reviewItem.trust_signals}
@@ -263,23 +267,22 @@ export default function TicketPage() {
               title="Review"
               aside={
                 <span className="flex items-center gap-2 text-sm">
-                  <span className={`badge ${priorityClasses(detail.review.priority)}`}>P{detail.review.priority}</span>
+                  <Badge variant={priorityTone(detail.review.priority)}>P{detail.review.priority}</Badge>
                   {QUEUE_LABEL[detail.review.queue] ?? humanize(detail.review.queue)}
                 </span>
               }
             >
               {detail.review.state === "pending" ? (
-                <div className="flex items-center justify-between gap-4 rounded-[5px] bg-[var(--surface-2)] px-3 py-2.5 text-sm">
+                <div className="flex items-center justify-between gap-4 rounded-md bg-muted px-3 py-2.5 text-sm">
                   <span>Nobody is working on this review yet.</span>
-                  <button
-                    className="btn btn-secondary"
+                  <Button variant="outline"
                     disabled={busy}
                     onClick={() =>
                       act(() => api.post(`/api/review/items/${detail.review!.id}/claim`), "You've claimed this review.")
                     }
                   >
                     Claim it
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <ReviewForm
@@ -318,25 +321,25 @@ export default function TicketPage() {
         <aside className="flex flex-col gap-6">
           <Section title="Status">
             <StatusChip name={detail.status.name} color={detail.status.color} />
-            {detail.status.stage && <p className="mt-1 text-xs text-[var(--text-muted)]">Stage: {detail.status.stage}</p>}
+            {detail.status.stage && <p className="mt-1 text-xs text-muted-foreground">Stage: {detail.status.stage}</p>}
             {lifecycle?.waiting_transform && (
-              <p className="tone-warn mt-3 rounded-[5px] px-2.5 py-1.5 text-xs">A move is in progress: its actions are running.</p>
+              <Alert variant="warn" className="mt-3 text-xs"><AlertDescription>A move is in progress: its actions are running.</AlertDescription></Alert>
             )}
             <div className="mt-4">
               {!lifecycle ? (
-                <p className="text-xs text-[var(--text-muted)]">Moves and the ticket&apos;s history aren&apos;t available to your role.</p>
+                <p className="text-xs text-muted-foreground">Moves and the ticket&apos;s history aren&apos;t available to your role.</p>
               ) : TRIAGE.has(detail.status.key) ? (
-                <p className="text-xs text-[var(--text-muted)]">
+                <p className="text-xs text-muted-foreground">
                   Triage or the requester has this ticket. It can be moved once triage has finished.
                 </p>
               ) : moves.length === 0 ? (
-                <p className="text-xs text-[var(--text-muted)]">No moves from here.</p>
+                <p className="text-xs text-muted-foreground">No moves from here.</p>
               ) : (
                 <>
-                  <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">Move to</p>
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">Move to</p>
                   <div className="flex flex-col gap-1.5">
                     {moves.map((m) => (
-                      <button
+                      <Button variant="outline"
                         key={m.status.id}
                         disabled={busy || lifecycle.waiting_transform}
                         onClick={() =>
@@ -349,16 +352,16 @@ export default function TicketPage() {
                             `Moved to ${m.status.name}.`,
                           )
                         }
-                        className="btn btn-secondary justify-between text-left"
+                        className="justify-between text-left"
                         title={m.transition_name ?? undefined}
                       >
                         <StatusChip name={m.status.name} color={m.status.color} />
                         {m.rule_count > 0 && (
-                          <span className="text-xs text-[var(--text-muted)]">
+                          <span className="text-xs text-muted-foreground">
                             {m.rule_count} check{m.rule_count > 1 ? "s" : ""}
                           </span>
                         )}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </>
@@ -390,30 +393,30 @@ export default function TicketPage() {
 
           <Section title="Details">
             <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
-              <dt className="text-[var(--text-muted)]">Category</dt>
+              <dt className="text-muted-foreground">Category</dt>
               <dd>{detail.category ?? "—"}</dd>
-              <dt className="text-[var(--text-muted)]">Requester</dt>
+              <dt className="text-muted-foreground">Requester</dt>
               <dd className="truncate">{detail.reporter_person.email || detail.reporter_person.username}</dd>
-              <dt className="text-[var(--text-muted)]">Personal data</dt>
+              <dt className="text-muted-foreground">Personal data</dt>
               <dd>
-                <span className={`badge ${piiLevelClasses(detail.pii_level)}`}>PII: {humanize(detail.pii_level).toLowerCase()}</span>
+                <Badge variant={piiLevelTone(detail.pii_level)}>PII: {humanize(detail.pii_level).toLowerCase()}</Badge>
               </dd>
-              <dt className="text-[var(--text-muted)]">Priority</dt>
+              <dt className="text-muted-foreground">Priority</dt>
               <dd className="flex items-center gap-2">
                 <PriorityChip priority={detail.priority} />
                 {user.role !== "employee" && (
-                  <button className="text-xs text-[var(--accent)]" onClick={() => setPriorityOpen(true)}>
+                  <Button variant="link" size="inline" className="text-xs" onClick={() => setPriorityOpen(true)}>
                     Change…
-                  </button>
+                  </Button>
                 )}
               </dd>
-              <dt className="text-[var(--text-muted)]">SLA</dt>
+              <dt className="text-muted-foreground">SLA</dt>
               <dd>
                 <SlaBadge badge={detail.sla} />
               </dd>
-              <dt className="text-[var(--text-muted)]">Resolved</dt>
+              <dt className="text-muted-foreground">Resolved</dt>
               <dd>{dateTime(detail.resolved_at)}</dd>
-              <dt className="text-[var(--text-muted)]">Reopened</dt>
+              <dt className="text-muted-foreground">Reopened</dt>
               <dd>{detail.reopened_count}×</dd>
             </dl>
             <PriorityDialog
@@ -439,7 +442,7 @@ export default function TicketPage() {
               <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
                 {lifecycle.field_values.map((f) => (
                   <div key={f.field_id} className="contents">
-                    <dt className="text-[var(--text-muted)]">{f.field_name}</dt>
+                    <dt className="text-muted-foreground">{f.field_name}</dt>
                     <dd className="break-words">{f.value === null ? "—" : String(f.value)}</dd>
                   </div>
                 ))}
@@ -454,13 +457,15 @@ export default function TicketPage() {
 
 function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="card p-5">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold">{title}</h2>
-        {aside}
-      </div>
-      {children}
-    </section>
+    <Card asChild>
+      <section className="p-5">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          {aside}
+        </div>
+        {children}
+      </section>
+    </Card>
   );
 }
 
@@ -483,20 +488,20 @@ function OwnerCard({
     <Section
       title="Owner"
       aside={
-        <button className="text-xs text-[var(--accent)]" onClick={() => setOpen(true)}>
+        <Button variant="link" size="inline" className="text-xs" onClick={() => setOpen(true)}>
           Reassign…
-        </button>
+        </Button>
       }
     >
       <div className="flex items-center justify-between gap-3 text-sm">
         <div>
-          <p>{ticket.assignee ?? <span className="text-[var(--text-muted)]">Unassigned</span>}</p>
-          <p className="text-[var(--text-muted)]">{ticket.team ? `Team ${ticket.team}` : "No team"}</p>
+          <p>{ticket.assignee ?? <span className="text-muted-foreground">Unassigned</span>}</p>
+          <p className="text-muted-foreground">{ticket.team ? `Team ${ticket.team}` : "No team"}</p>
         </div>
         {canTake && (
-          <button className="btn btn-primary" disabled={busy} onClick={onTake}>
+          <Button disabled={busy} onClick={onTake}>
             Take
-          </button>
+          </Button>
         )}
       </div>
       <ReassignDialog
@@ -542,18 +547,18 @@ function Timeline({ detail, transfers }: { detail: Detail; transfers: Transfer[]
   ].sort((a, b) => b.at.localeCompare(a.at));
 
   return (
-    <ol className="relative ml-1.5 border-l border-[var(--border)]">
+    <ol className="relative ml-1.5 border-l border-border">
       {events.map((e, i) => (
         <li key={`${e.at}-${i}`} className="relative pb-4 pl-5 last:pb-0">
-          <span className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface)] bg-[var(--border-strong)]" />
+          <span className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-border-strong" />
           <p className="text-sm">
             <span className="font-medium">{e.title}</span>
-            <span className="ml-2 text-xs text-[var(--text-muted)]" title={dateTime(e.at)}>
+            <span className="ml-2 text-xs text-muted-foreground" title={dateTime(e.at)}>
               {relativeTime(e.at)}
             </span>
           </p>
           {e.detail && (
-            <p className={`text-sm ${e.tone === "danger" ? "text-[var(--danger)]" : "text-[var(--text-muted)]"}`}>{e.detail}</p>
+            <p className={`text-sm ${e.tone === "danger" ? "text-danger" : "text-muted-foreground"}`}>{e.detail}</p>
           )}
         </li>
       ))}

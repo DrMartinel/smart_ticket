@@ -8,6 +8,10 @@ import { ActionsEditor, IconButton, cleanActions, stripEmpty, type ActionContext
 import { api, ApiError } from "@/lib/api";
 import { humanize } from "@/lib/format";
 import type { Catalog, Field, FieldEvent, Rule, WorkflowDetail } from "@/lib/lifecycle";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type FieldRule = Omit<Rule, "field_id">;
 
@@ -78,16 +82,16 @@ export default function FieldDialog({
       width="max-w-2xl"
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button className="btn btn-primary" disabled={busy || !name.trim()} onClick={save}>
+          </Button>
+          <Button disabled={busy || !name.trim()} onClick={save}>
             {field ? "Save" : "Add field"}
-          </button>
+          </Button>
         </>
       }
     >
-      {error && <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
+      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
       <Tabs
         value={tab}
         onChange={setTab}
@@ -100,43 +104,43 @@ export default function FieldDialog({
       {tab === "info" && (
         <div className="grid gap-4">
           <Labeled label="Name">
-            <input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Resolution note" autoFocus />
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Resolution note" autoFocus />
           </Labeled>
           <Labeled label="Type" hint={field ? "The type can't change once tickets may hold values." : undefined}>
-            <select className="field" value={type} onChange={(e) => setType(e.target.value)} disabled={!!field}>
+            <NativeSelect value={type} onChange={(e) => setType(e.target.value)} disabled={!!field}>
               {catalog.field_types.map((t) => (
                 <option key={t} value={t}>
                   {humanize(t)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </Labeled>
           {type === "select" && (
             <Labeled label="Options" hint="Comma-separated.">
-              <input className="field" value={options} onChange={(e) => setOptions(e.target.value)} placeholder="Hardware, Software, Access" />
+              <Input value={options} onChange={(e) => setOptions(e.target.value)} placeholder="Hardware, Software, Access" />
             </Labeled>
           )}
         </div>
       )}
       {tab === "rules" && (
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-[var(--text-muted)]">Checked whenever someone sets the field.</p>
+          <p className="text-sm text-muted-foreground">Checked whenever someone sets the field.</p>
           {rules.map((r, i) => {
             const spec = catalog.rules.find((s) => s.code === r.rule);
             const update = (patch: Partial<FieldRule>) => setRules(rules.map((x, j) => (j === i ? { ...x, ...patch } : x)));
             return (
-              <div key={i} className="flex flex-wrap items-center gap-2 rounded-[6px] border border-[var(--border)] bg-[var(--surface-2)] p-3">
-                <select className="field min-w-0 flex-1" value={r.rule} onChange={(e) => update({ rule: e.target.value, params: {} })}>
+              <div key={i} className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted p-3">
+                <NativeSelect wrapperClassName="min-w-0 flex-1" value={r.rule} onChange={(e) => update({ rule: e.target.value, params: {} })}>
                   {ruleChoices.map((s) => (
                     <option key={s.code} value={s.code}>
                       {s.name}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
                 {spec?.params.map((p) => (
-                  <input
+                  <Input
                     key={p}
-                    className="field w-40"
+                    className="w-40"
                     placeholder={p === "values" ? "a, b, c" : p}
                     value={r.params[p] ?? ""}
                     onChange={(e) => update({ params: { ...r.params, [p]: e.target.value } })}
@@ -149,36 +153,35 @@ export default function FieldDialog({
             );
           })}
           <div>
-            <button
+            <Button variant="outline"
               type="button"
-              className="btn btn-secondary"
               disabled={ruleChoices.length === 0}
               onClick={() => setRules([...rules, { rule: ruleChoices[0].code, params: {}, is_active: true }])}
             >
               Add check
-            </button>
+            </Button>
           </div>
         </div>
       )}
       {tab === "events" && (
         <div className="flex flex-col gap-4">
-          {events.length === 0 && <p className="text-sm text-[var(--text-muted)]">Nothing runs when this field changes.</p>}
+          {events.length === 0 && <p className="text-sm text-muted-foreground">Nothing runs when this field changes.</p>}
           {events.map((ev, i) => {
             const spec = catalog.events.find((s) => s.code === ev.event);
             const update = (patch: Partial<FieldEvent>) => setEvents(events.map((x, j) => (j === i ? { ...x, ...patch } : x)));
             return (
-              <div key={i} className="rounded-[6px] border border-[var(--border)] p-3">
+              <div key={i} className="rounded-lg border border-border p-3">
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   <span className="text-sm">When</span>
-                  <select className="field w-48" value={ev.event} onChange={(e) => update({ event: e.target.value, params: {} })}>
+                  <NativeSelect wrapperClassName="w-48" value={ev.event} onChange={(e) => update({ event: e.target.value, params: {} })}>
                     {catalog.events.map((s) => (
                       <option key={s.code} value={s.code}>
                         {s.name.toLowerCase()}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                   {spec?.params.map((p) => (
-                    <input key={p} className="field w-40" placeholder={p} value={ev.params[p] ?? ""} onChange={(e) => update({ params: { ...ev.params, [p]: e.target.value } })} />
+                    <Input key={p} className="w-40" placeholder={p} value={ev.params[p] ?? ""} onChange={(e) => update({ params: { ...ev.params, [p]: e.target.value } })} />
                   ))}
                   <span className="flex-1" />
                   <IconButton label="Remove event" onClick={() => setEvents(events.filter((_, j) => j !== i))}>
@@ -190,9 +193,9 @@ export default function FieldDialog({
             );
           })}
           <div>
-            <button type="button" className="btn btn-secondary" onClick={() => setEvents([...events, { event: catalog.events[0].code, params: {}, is_active: true, actions: [] }])}>
+            <Button variant="outline" type="button" onClick={() => setEvents([...events, { event: catalog.events[0].code, params: {}, is_active: true, actions: [] }])}>
               Add event
-            </button>
+            </Button>
           </div>
         </div>
       )}

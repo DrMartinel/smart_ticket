@@ -7,6 +7,11 @@ import Switch from "@/components/Switch";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { MatrixCellOut, WebhookIn, WebhookOut } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const EMPTY: WebhookIn = { name: "", url: "", events: [], secret: "" };
 
@@ -93,103 +98,105 @@ export default function WebhooksPage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Webhook subscriptions</h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             Signed JSON (HMAC-SHA256 in X-SmartTicket-Signature) to allow-listed hosts only, the same check as the call_webhook action.
           </p>
         </div>
         {!draft && (
-          <button className="btn btn-primary" onClick={() => setDraft({ ...EMPTY, secret: newSecret() })}>
+          <Button onClick={() => setDraft({ ...EMPTY, secret: newSecret() })}>
             New subscription
-          </button>
+          </Button>
         )}
       </header>
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[860px] text-left text-xs">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Name</th>
-              <th className="px-4 py-2 font-normal">URL</th>
-              <th className="px-4 py-2 font-normal">Events</th>
-              <th className="px-4 py-2 font-normal">Active</th>
-              <th className="px-4 py-2 font-normal">Created by</th>
-              <th className="px-4 py-2 font-normal" />
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[860px] text-left text-xs">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Name</TableHead>
+              <TableHead className="px-4 py-2 font-normal">URL</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Events</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Active</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Created by</TableHead>
+              <TableHead className="px-4 py-2 font-normal" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {hooks?.map((hook) => (
-              <tr key={hook.id} className="border-t border-[var(--border)]">
-                <td className="px-4 py-2.5">{hook.name}</td>
-                <td className="px-4 py-2.5 font-mono break-all">{hook.url}</td>
-                <td className="px-4 py-2.5">{hook.events.join(", ")}</td>
-                <td className="px-4 py-2.5">
+              <TableRow key={hook.id} className="border-t border-border">
+                <TableCell className="px-4 py-2.5">{hook.name}</TableCell>
+                <TableCell className="px-4 py-2.5 font-mono break-all">{hook.url}</TableCell>
+                <TableCell className="px-4 py-2.5">{hook.events.join(", ")}</TableCell>
+                <TableCell className="px-4 py-2.5">
                   <Switch checked={hook.is_active} label={`${hook.name} active`} onChange={(next) => void setActive(hook, next)} />
-                </td>
-                <td className="px-4 py-2.5">{hook.created_by}</td>
-                <td className="px-4 py-2.5 text-right">
-                  <button className="text-xs text-[var(--danger)] hover:underline" onClick={() => void remove(hook)}>
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{hook.created_by}</TableCell>
+                <TableCell className="px-4 py-2.5 text-right">
+                  <Button variant="link" size="inline" className="text-xs text-danger" onClick={() => void remove(hook)}>
                     Delete
-                  </button>
-                </td>
-              </tr>
+                  </Button>
+                </TableCell>
+              </TableRow>
             ))}
             {hooks?.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
                   No subscriptions yet.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
 
       {draft && (
-        <form
-          className="card flex flex-col gap-3 p-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void save();
-          }}
-        >
-          <h2 className="text-sm font-semibold">New subscription</h2>
-          <div className="flex flex-wrap gap-3">
-            <label className="flex w-[240px] flex-col gap-1">
-              <span className="text-[11px] text-[var(--text-muted)]">Name</span>
-              <input required maxLength={100} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="field" />
-            </label>
-            <label className="flex min-w-[280px] flex-1 flex-col gap-1">
-              <span className="text-[11px] text-[var(--text-muted)]">URL</span>
-              <input required type="url" maxLength={500} value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} className="field" placeholder="https://n8n.example/webhook/…" />
-            </label>
-          </div>
-          <fieldset className="flex flex-col gap-1">
-            <legend className="text-[11px] text-[var(--text-muted)]">Events</legend>
-            <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1">
-              {events.map(({ event, active }) => (
-                <label key={event} className={`flex items-center gap-1.5 text-xs ${active ? "" : "text-[var(--text-muted)]"}`}>
-                  <input type="checkbox" checked={draft.events.includes(event)} onChange={() => toggleEvent(event)} />
-                  <span className="font-mono">{event}</span>
-                </label>
-              ))}
+        <Card asChild>
+          <form
+            className="flex flex-col gap-3 p-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
+          >
+            <h2 className="text-sm font-semibold">New subscription</h2>
+            <div className="flex flex-wrap gap-3">
+              <label className="flex w-[240px] flex-col gap-1">
+                <span className="text-[11px] text-muted-foreground">Name</span>
+                <Input required maxLength={100} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+              </label>
+              <label className="flex min-w-[280px] flex-1 flex-col gap-1">
+                <span className="text-[11px] text-muted-foreground">URL</span>
+                <Input required type="url" maxLength={500} value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://n8n.example/webhook/…" />
+              </label>
             </div>
-          </fieldset>
-          <label className="flex max-w-[640px] flex-col gap-1">
-            <span className="text-[11px] text-[var(--text-muted)]">Signing secret: copy it now, it is never shown again</span>
-            <input required minLength={16} maxLength={200} value={draft.secret} onChange={(e) => setDraft({ ...draft, secret: e.target.value })} className="field font-mono" />
-          </label>
-          {formError && <p className="rounded-[5px] bg-[var(--danger-soft)] px-3 py-2 text-sm text-[var(--danger)]">{formError}</p>}
-          <div className="flex gap-2">
-            <button type="button" className="btn btn-secondary" onClick={() => (setDraft(null), setFormError(null))}>
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary" disabled={draft.events.length === 0}>
-              Save
-            </button>
-          </div>
-        </form>
+            <fieldset className="flex flex-col gap-1">
+              <legend className="text-[11px] text-muted-foreground">Events</legend>
+              <div className="flex flex-wrap gap-x-4 gap-y-1.5 pt-1">
+                {events.map(({ event, active }) => (
+                  <label key={event} className={`flex items-center gap-1.5 text-xs ${active ? "" : "text-muted-foreground"}`}>
+                    <Checkbox checked={draft.events.includes(event)} onCheckedChange={() => toggleEvent(event)} />
+                    <span className="font-mono">{event}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <label className="flex max-w-[640px] flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Signing secret: copy it now, it is never shown again</span>
+              <Input required minLength={16} maxLength={200} value={draft.secret} onChange={(e) => setDraft({ ...draft, secret: e.target.value })} className="font-mono" />
+            </label>
+            {formError && <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p>}
+            <div className="flex gap-2">
+              <Button variant="outline" type="button" onClick={() => (setDraft(null), setFormError(null))}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={draft.events.length === 0}>
+                Save
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
     </div>
   );

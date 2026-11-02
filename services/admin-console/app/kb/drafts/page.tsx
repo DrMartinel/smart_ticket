@@ -9,6 +9,12 @@ import { vnTime } from "@/components/security/badges";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { DraftOut } from "@/lib/types/generated";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const STATES = ["", "draft", "in_review", "changes_requested", "conflict", "published", "withdrawn"];
 
@@ -41,70 +47,72 @@ export default function DraftsPage() {
       <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Bản nháp · Drafts</h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             Bản nháp không bao giờ được truy xuất; một người khác duyệt trước khi xuất bản (BR-F6-01, 02).
           </p>
         </div>
         <div className="flex items-end gap-3 text-sm">
           <label className="flex items-center gap-1.5">
-            <input type="checkbox" checked={mine} onChange={(e) => setMine(e.target.checked)} />
+            <Checkbox checked={mine} onCheckedChange={(checked) => setMine(checked === true)} />
             Của tôi
           </label>
-          <select className="field" aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
+          <NativeSelect aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
             {STATES.map((s) => (
               <option key={s} value={s}>
                 {s || "Tất cả"}
               </option>
             ))}
-          </select>
-          <Link href="/kb/drafts/new" className="btn btn-primary">
-            Trang mới
-          </Link>
+          </NativeSelect>
+          <Button asChild>
+            <Link href="/kb/drafts/new">
+              Trang mới
+            </Link>
+          </Button>
         </div>
       </header>
 
-      {error && <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
+      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Page</th>
-              <th className="px-4 py-2.5 font-medium">Kind</th>
-              <th className="px-4 py-2.5 font-medium">State</th>
-              <th className="px-4 py-2.5 font-medium">Author</th>
-              <th className="px-4 py-2.5 font-medium">Reviewer</th>
-              <th className="px-4 py-2.5 font-medium">Updated</th>
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[820px] text-left text-sm">
+          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2.5 font-medium">Page</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Kind</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">State</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Author</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Reviewer</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Updated</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows?.map((d) => (
-              <tr key={d.id} className="border-t border-[var(--border)]">
-                <td className="px-4 py-2.5">
-                  <Link href={`/kb/drafts/${d.id}`} className="font-medium text-[var(--accent)] hover:underline">
+              <TableRow key={d.id} className="border-t border-border">
+                <TableCell className="px-4 py-2.5">
+                  <Link href={`/kb/drafts/${d.id}`} className="font-medium text-primary hover:underline">
                     {d.title}
                   </Link>
-                  <div className="font-mono text-xs text-[var(--text-muted)]">{d.slug}</div>
-                </td>
-                <td className="px-4 py-2.5">{KIND_VI[d.kind] ?? d.kind}</td>
-                <td className="px-4 py-2.5">
+                  <div className="font-mono text-xs text-muted-foreground">{d.slug}</div>
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{KIND_VI[d.kind] ?? d.kind}</TableCell>
+                <TableCell className="px-4 py-2.5">
                   <DraftStateChip state={d.state} />
-                </td>
-                <td className="px-4 py-2.5">{d.author.username}</td>
-                <td className="px-4 py-2.5">{d.reviewer?.username ?? "—"}</td>
-                <td className="px-4 py-2.5">{vnTime(d.updated_at)}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{d.author.username}</TableCell>
+                <TableCell className="px-4 py-2.5">{d.reviewer?.username ?? "—"}</TableCell>
+                <TableCell className="px-4 py-2.5">{vnTime(d.updated_at)}</TableCell>
+              </TableRow>
             ))}
             {rows?.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
                   Không có bản nháp.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

@@ -7,6 +7,15 @@ import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import { dateTime } from "@/lib/format";
 import type { RunbookOut } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Form = {
   code: string;
@@ -72,14 +81,14 @@ function Changes({ runbook }: { runbook: RunbookOut }) {
   const live = runbook as unknown as Record<string, unknown>;
   const changed = FIELDS.filter((f) => JSON.stringify(pending[f]) !== JSON.stringify(live[f]));
   return (
-    <div className="mt-2 rounded-[5px] bg-[var(--surface-2)] p-3 text-xs">
+    <div className="mt-2 rounded-md bg-muted p-3 text-xs">
       <p className="mb-1 font-medium">
         Thay đổi chờ duyệt · {runbook.drafted_by} · {runbook.drafted_at && dateTime(runbook.drafted_at)}
       </p>
-      {changed.length === 0 && <p className="text-[var(--text-muted)]">Không có trường nào khác bản đang chạy.</p>}
+      {changed.length === 0 && <p className="text-muted-foreground">Không có trường nào khác bản đang chạy.</p>}
       {changed.map((f) => (
         <p key={f} className="font-mono">
-          {f}: <span className="text-[var(--danger)] line-through">{JSON.stringify(live[f])}</span> →{" "}
+          {f}: <span className="text-danger line-through">{JSON.stringify(live[f])}</span> →{" "}
           <span className="text-[var(--ok,inherit)]">{JSON.stringify(pending[f])}</span>
         </p>
       ))}
@@ -137,167 +146,170 @@ export default function RunbooksPage() {
       <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Danh mục runbook · Runbook catalog</h1>
-          <p className="mt-1 max-w-[760px] text-xs text-[var(--text-muted)]">
+          <p className="mt-1 max-w-[760px] text-xs text-muted-foreground">
             Runbook luôn cần người duyệt trên từng phiếu (ADR-0006). Mọi thay đổi ở đây chỉ có hiệu lực khi một quản lý khác người soạn
             duyệt; trước đó bản cũ vẫn chạy.
           </p>
         </div>
         {admin && (
-          <button
-            className="btn btn-primary"
+          <Button
             onClick={() => {
               setIsNew(true);
               setForm(EMPTY);
             }}
           >
             Thêm runbook
-          </button>
+          </Button>
         )}
       </header>
 
-      {error && <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
+      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
       {form && (
-        <form
-          className="card mb-5 grid grid-cols-1 gap-3 p-4 text-sm md:grid-cols-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void save();
-          }}
-        >
-          <p className="font-medium md:col-span-2">{isNew ? "Runbook mới" : `Soạn thay đổi cho ${form.code}`}</p>
-          {isNew && (
+        <Card asChild>
+          <form
+            className="mb-5 grid grid-cols-1 gap-3 p-4 text-sm md:grid-cols-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void save();
+            }}
+          >
+            <p className="font-medium md:col-span-2">{isNew ? "Runbook mới" : `Soạn thay đổi cho ${form.code}`}</p>
+            {isNew && (
+              <label className="flex flex-col gap-1">
+                <span className="text-xs text-muted-foreground">Mã (RB-…)</span>
+                <Input className="font-mono" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
+              </label>
+            )}
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--text-muted)]">Mã (RB-…)</span>
-              <input className="field font-mono" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required />
+              <span className="text-xs text-muted-foreground">Tên</span>
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
             </label>
-          )}
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Tên</span>
-            <input className="field" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Executor</span>
-            <select className="field" value={form.executor} onChange={(e) => setForm({ ...form, executor: e.target.value })}>
-              <option value="keycloak">keycloak</option>
-              <option value="n8n">n8n</option>
-              <option value="mock">mock (chỉ để thử)</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Trường bắt buộc (phân cách bằng dấu phẩy)</span>
-            <input
-              className="field font-mono"
-              value={form.required_fields}
-              onChange={(e) => setForm({ ...form, required_fields: e.target.value })}
-            />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Đối tượng</span>
-            <select className="field" value={form.target_rule} onChange={(e) => setForm({ ...form, target_rule: e.target.value })}>
-              <option value="reporter">Chỉ người gửi yêu cầu</option>
-              <option value="any">Bất kỳ ai</option>
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Rủi ro</span>
-            <select className="field" value={form.risk} onChange={(e) => setForm({ ...form, risk: e.target.value })}>
-              <option value="low">Thấp</option>
-              <option value="high">Cao (cần quản lý duyệt lần hai)</option>
-            </select>
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
-            <span>Đang dùng</span>
-          </label>
-          <label className="flex flex-col gap-1 md:col-span-2">
-            <span className="text-xs text-[var(--text-muted)]">Config (JSON: URL n8n, hoặc action Keycloak và nhóm được cấp)</span>
-            <textarea className="field min-h-[120px] font-mono text-xs" value={form.config} onChange={(e) => setForm({ ...form, config: e.target.value })} />
-          </label>
-          <div className="flex gap-2 md:col-span-2">
-            <button type="submit" className="btn btn-primary" disabled={busy}>
-              {isNew ? "Tạo (chờ duyệt)" : "Gửi thay đổi (chờ duyệt)"}
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setForm(null)}>
-              Huỷ
-            </button>
-          </div>
-        </form>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Executor</span>
+              <NativeSelect value={form.executor} onChange={(e) => setForm({ ...form, executor: e.target.value })}>
+                <option value="keycloak">keycloak</option>
+                <option value="n8n">n8n</option>
+                <option value="mock">mock (chỉ để thử)</option>
+              </NativeSelect>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Trường bắt buộc (phân cách bằng dấu phẩy)</span>
+              <Input
+                className="font-mono"
+                value={form.required_fields}
+                onChange={(e) => setForm({ ...form, required_fields: e.target.value })}
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Đối tượng</span>
+              <NativeSelect value={form.target_rule} onChange={(e) => setForm({ ...form, target_rule: e.target.value })}>
+                <option value="reporter">Chỉ người gửi yêu cầu</option>
+                <option value="any">Bất kỳ ai</option>
+              </NativeSelect>
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Rủi ro</span>
+              <NativeSelect value={form.risk} onChange={(e) => setForm({ ...form, risk: e.target.value })}>
+                <option value="low">Thấp</option>
+                <option value="high">Cao (cần quản lý duyệt lần hai)</option>
+              </NativeSelect>
+            </label>
+            <label className="flex items-center gap-2">
+              <Checkbox checked={form.is_active} onCheckedChange={(checked) => setForm({ ...form, is_active: checked === true })} />
+              <span>Đang dùng</span>
+            </label>
+            <label className="flex flex-col gap-1 md:col-span-2">
+              <span className="text-xs text-muted-foreground">Config (JSON: URL n8n, hoặc action Keycloak và nhóm được cấp)</span>
+              <Textarea className="min-h-[120px] font-mono text-xs" value={form.config} onChange={(e) => setForm({ ...form, config: e.target.value })} />
+            </label>
+            <div className="flex gap-2 md:col-span-2">
+              <Button type="submit" disabled={busy}>
+                {isNew ? "Tạo (chờ duyệt)" : "Gửi thay đổi (chờ duyệt)"}
+              </Button>
+              <Button variant="outline" type="button" onClick={() => setForm(null)}>
+                Huỷ
+              </Button>
+            </div>
+          </form>
+        </Card>
       )}
 
-      {rows === null && !error && <p className="text-sm text-[var(--text-muted)]">Loading…</p>}
+      {rows === null && !error && <p className="text-sm text-muted-foreground">Loading…</p>}
       {rows && (
-        <section className="card overflow-x-auto">
-          <table className="w-full min-w-[860px] text-sm">
-            <thead className="bg-[var(--surface-2)] text-left text-xs text-[var(--text-muted)]">
-              <tr>
-                <th className="px-4 py-2.5 font-medium">Runbook</th>
-                <th className="px-4 py-2.5 font-medium">Executor · Config</th>
-                <th className="px-4 py-2.5 font-medium">Quy tắc</th>
-                <th className="px-4 py-2.5 font-medium">Trạng thái</th>
-                <th className="w-40 px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.code} className="border-t border-[var(--border)] align-top">
-                  <td className="px-4 py-3">
-                    <span className="block font-mono text-xs">{r.code}</span>
-                    <span className="font-medium">{r.title}</span>
-                    <Changes runbook={r} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="badge">{r.executor}</span>
-                    <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-xs text-[var(--text-muted)]">
-                      {JSON.stringify(r.config)}
-                    </pre>
-                  </td>
-                  <td className="px-4 py-3 text-xs">
-                    <p>{r.target_rule === "reporter" ? "Chỉ người gửi" : "Bất kỳ ai"}</p>
-                    <p>{r.risk === "high" ? "Rủi ro cao · 2 người duyệt" : "Rủi ro thấp"}</p>
-                    <p className="font-mono text-[var(--text-muted)]">{r.required_fields.join(", ")}</p>
-                  </td>
-                  <td className="px-4 py-3 text-xs">
-                    <div className="flex flex-wrap gap-1">
-                      {r.runnable ? <span className="badge tone-ok">Đã duyệt</span> : <span className="badge tone-warn">Chưa duyệt</span>}
-                      {!r.is_active && <span className="badge">Tắt</span>}
-                      {r.pending_change && <span className="badge tone-info">Có thay đổi chờ duyệt</span>}
-                    </div>
-                    {r.approved_by && (
-                      <p className="mt-1 text-[var(--text-muted)]">
-                        {r.approved_by} · {r.approved_at && dateTime(r.approved_at)}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className="inline-flex flex-wrap justify-end gap-2 text-xs">
-                      {admin && (
-                        <button
-                          className="text-[var(--accent)] hover:underline"
-                          onClick={() => {
-                            setIsNew(false);
-                            setForm(formOf(r));
-                          }}
-                        >
-                          Sửa
-                        </button>
+        <Card asChild>
+          <section className="overflow-x-auto">
+            <Table className="w-full min-w-[860px] text-sm">
+              <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+                <TableRow>
+                  <TableHead className="px-4 py-2.5 font-medium">Runbook</TableHead>
+                  <TableHead className="px-4 py-2.5 font-medium">Executor · Config</TableHead>
+                  <TableHead className="px-4 py-2.5 font-medium">Quy tắc</TableHead>
+                  <TableHead className="px-4 py-2.5 font-medium">Trạng thái</TableHead>
+                  <TableHead className="w-40 px-4 py-2.5" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((r) => (
+                  <TableRow key={r.code} className="border-t border-border align-top">
+                    <TableCell className="px-4 py-3">
+                      <span className="block font-mono text-xs">{r.code}</span>
+                      <span className="font-medium">{r.title}</span>
+                      <Changes runbook={r} />
+                    </TableCell>
+                    <TableCell className="px-4 py-3">
+                      <Badge variant="neutral">{r.executor}</Badge>
+                      <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-xs text-muted-foreground">
+                        {JSON.stringify(r.config)}
+                      </pre>
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-xs">
+                      <p>{r.target_rule === "reporter" ? "Chỉ người gửi" : "Bất kỳ ai"}</p>
+                      <p>{r.risk === "high" ? "Rủi ro cao · 2 người duyệt" : "Rủi ro thấp"}</p>
+                      <p className="font-mono text-muted-foreground">{r.required_fields.join(", ")}</p>
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-xs">
+                      <div className="flex flex-wrap gap-1">
+                        {r.runnable ? <Badge variant="ok">Đã duyệt</Badge> : <Badge variant="warn">Chưa duyệt</Badge>}
+                        {!r.is_active && <Badge variant="neutral">Tắt</Badge>}
+                        {r.pending_change && <Badge variant="info">Có thay đổi chờ duyệt</Badge>}
+                      </div>
+                      {r.approved_by && (
+                        <p className="mt-1 text-muted-foreground">
+                          {r.approved_by} · {r.approved_at && dateTime(r.approved_at)}
+                        </p>
                       )}
-                      {manager && (r.pending_change || !r.approved_at) && r.drafted_by !== user.username && (
-                        <button
-                          className="text-[var(--accent)] hover:underline"
-                          disabled={busy}
-                          onClick={() => void act(() => api.post(`/api/itsm/runbooks/${r.code}/approve`))}
-                        >
-                          Duyệt
-                        </button>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+                    </TableCell>
+                    <TableCell className="px-4 py-3 text-right">
+                      <span className="inline-flex flex-wrap justify-end gap-2 text-xs">
+                        {admin && (
+                          <Button variant="link" size="inline"
+                            
+                            onClick={() => {
+                              setIsNew(false);
+                              setForm(formOf(r));
+                            }}
+                          >
+                            Sửa
+                          </Button>
+                        )}
+                        {manager && (r.pending_change || !r.approved_at) && r.drafted_by !== user.username && (
+                          <Button variant="link" size="inline"
+                            
+                            disabled={busy}
+                            onClick={() => void act(() => api.post(`/api/itsm/runbooks/${r.code}/approve`))}
+                          >
+                            Duyệt
+                          </Button>
+                        )}
+                      </span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </section>
+        </Card>
       )}
     </div>
   );

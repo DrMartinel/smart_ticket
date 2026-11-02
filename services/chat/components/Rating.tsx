@@ -6,6 +6,8 @@
 import { useState } from "react";
 import { ApiError, requesterApi } from "@/lib/api";
 import type { RatingOut } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function Rating({
   publicId,
@@ -51,30 +53,30 @@ export default function Rating({
             aria-checked={score === n}
             aria-label={`${n} / 5`}
             onClick={() => setScore(n)}
-            className={`text-2xl leading-none ${n <= score ? "text-[var(--warn)]" : "text-[var(--border-strong)]"}`}
+            className={`text-2xl leading-none ${n <= score ? "text-warn" : "text-border-strong"}`}
           >
             {n <= score ? "★" : "☆"}
           </button>
         ))}
       </div>
-      <input
+      <Input
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         maxLength={2000}
         placeholder="Góp ý thêm (không bắt buộc) · Comment (optional)"
         aria-label="Comment"
-        className="field text-sm"
+        className="text-sm"
       />
       <div className="flex flex-wrap items-center gap-3">
-        <button onClick={() => void send()} disabled={busy || score === 0} className="btn btn-primary">
+        <Button onClick={() => void send()} disabled={busy || score === 0}>
           {saved ? "Cập nhật · Update" : "Gửi đánh giá · Send"}
-        </button>
-        <span className="text-xs text-[var(--text-muted)]">
+        </Button>
+        <span className="text-xs text-muted-foreground">
           {saved ? "Đã lưu · Saved. " : ""}
           {until ? `You can change it until ${day(until)}.` : ""}
         </span>
       </div>
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

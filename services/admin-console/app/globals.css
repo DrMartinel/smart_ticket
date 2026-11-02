@@ -1,17 +1,31 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 :root {
-  --bg: #f6f5f1;
-  --surface: #ffffff;
-  --surface-2: #efede6;
+  color-scheme: light dark;
+  --radius: 0.375rem;
+  --background: #f6f5f1;
+  --foreground: #1f1d1a;
+  --card: #ffffff;
+  --card-foreground: #1f1d1a;
+  --popover: #ffffff;
+  --popover-foreground: #1f1d1a;
+  --primary: #1f5c4a;
+  --primary-foreground: #ffffff;
+  --primary-hover: #174636;
+  --primary-soft: #e3ece7;
+  --secondary: #efede6;
+  --secondary-foreground: #1f1d1a;
+  --muted: #efede6;
+  --muted-foreground: #6b665c;
+  --accent: #efede6;
+  --accent-foreground: #1f1d1a;
+  --destructive: #a3271c;
+  --destructive-foreground: #ffffff;
   --border: #dcd8cc;
   --border-strong: #c4bfb1;
-  --text: #1f1d1a;
-  --text-muted: #6b665c;
-  --accent: #1f5c4a;
-  --accent-hover: #174636;
-  --accent-soft: #e3ece7;
-  --on-accent: #ffffff;
+  --input: #c4bfb1;
+  --ring: #1f5c4a;
   --ok: #2f6b45;
   --ok-soft: #e4efe7;
   --info: #2d4f78;
@@ -22,22 +36,32 @@
   --danger-soft: #f6e3e0;
   --alert: #9a3412;
   --alert-soft: #fbe8d8;
-  --on-danger: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161513;
-    --surface: #1e1d1a;
-    --surface-2: #262420;
+    --background: #161513;
+    --foreground: #ece9e2;
+    --card: #1e1d1a;
+    --card-foreground: #ece9e2;
+    --popover: #1e1d1a;
+    --popover-foreground: #ece9e2;
+    --primary: #7cc3a5;
+    --primary-foreground: #10201a;
+    --primary-hover: #96d3b9;
+    --primary-soft: #1f2e28;
+    --secondary: #262420;
+    --secondary-foreground: #ece9e2;
+    --muted: #262420;
+    --muted-foreground: #a29d91;
+    --accent: #262420;
+    --accent-foreground: #ece9e2;
+    --destructive: #f08b80;
+    --destructive-foreground: #2a0f0c;
     --border: #34312b;
     --border-strong: #4a463e;
-    --text: #ece9e2;
-    --text-muted: #a29d91;
-    --accent: #7cc3a5;
-    --accent-hover: #96d3b9;
-    --accent-soft: #1f2e28;
-    --on-accent: #10201a;
+    --input: #4a463e;
+    --ring: #7cc3a5;
     --ok: #8cc9a2;
     --ok-soft: #1c2a21;
     --info: #9bb8dc;
@@ -48,124 +72,62 @@
     --danger-soft: #331d1a;
     --alert: #f2a66f;
     --alert-soft: #33231a;
-    --on-danger: #2a0f0c;
   }
 }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
-  -webkit-font-smoothing: antialiased;
+@theme inline {
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-alert: var(--alert);
+  --color-alert-soft: var(--alert-soft);
 }
 
-.font-mono {
-  font-family: var(--font-plex-mono), ui-monospace, monospace;
-}
-
-@layer components {
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 6px;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    border-radius: 3px;
-    padding: 0 0.4rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    line-height: 1.25rem;
-    white-space: nowrap;
-  }
-
-  .tone-ok {
-    background: var(--ok-soft);
-    color: var(--ok);
-  }
-  .tone-info {
-    background: var(--info-soft);
-    color: var(--info);
-  }
-  .tone-warn {
-    background: var(--warn-soft);
-    color: var(--warn);
-  }
-  .tone-danger {
-    background: var(--danger-soft);
-    color: var(--danger);
-  }
-  .tone-alert {
-    background: var(--alert-soft);
-    color: var(--alert);
-  }
-  .tone-neutral {
-    background: var(--surface-2);
-    color: var(--text-muted);
-  }
-
-  .btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-radius: 5px;
-    padding: 0.4rem 0.8rem;
-    font-size: 0.875rem;
-    font-weight: 500;
-    transition: background-color 120ms;
-  }
-  .btn-primary {
-    background: var(--accent);
-    color: var(--on-accent);
-  }
-  .btn-primary:enabled:hover {
-    background: var(--accent-hover);
-  }
-  .btn-danger {
-    background: var(--danger);
-    color: var(--on-danger);
-  }
-  .btn-danger:enabled:hover {
-    filter: brightness(0.92);
-  }
-  .btn-secondary {
-    border: 1px solid var(--border-strong);
-    background: var(--surface);
-  }
-  .btn-secondary:enabled:hover {
-    background: var(--surface-2);
-  }
-  .btn:disabled {
-    opacity: 0.45;
-  }
-
-  .field {
-    width: 100%;
-    border: 1px solid var(--border-strong);
-    border-radius: 5px;
-    background: var(--surface);
-    padding: 0.4rem 0.7rem;
-    outline: none;
-  }
-  .field:hover {
-    border-color: var(--text-muted);
-  }
-  .field:focus,
-  .field:focus-visible {
-    border-color: var(--text);
-    outline: none;
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
   }
 }
 
-/* Keyboard focus on buttons and links; form fields show focus with their border. */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
-}
-input:focus-visible,
-textarea:focus-visible,
-select:focus-visible {
-  outline: none;
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

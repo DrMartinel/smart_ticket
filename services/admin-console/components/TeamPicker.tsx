@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { SessionUser } from "@/lib/session";
 import type { TeamOut } from "@/lib/types/generated";
+import { NativeSelect } from "@/components/ui/native-select";
 
 export function useVisibleTeams(user: SessionUser | null): TeamOut[] {
   const [teams, setTeams] = useState<TeamOut[]>([]);
@@ -33,15 +34,15 @@ export default function TeamPicker({
 }) {
   return (
     <label className="flex w-[200px] flex-col gap-1">
-      <span className="text-[11px] text-[var(--text-muted)]">Team</span>
-      <select className="field" value={value} onChange={(e) => onChange(e.target.value)}>
+      <span className="text-[11px] text-muted-foreground">Team</span>
+      <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
         {!teams.some((t) => t.slug === value) && <option value={value}>{value}</option>}
         {teams.map((t) => (
           <option key={t.slug} value={t.slug}>
             {t.name}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </label>
   );
 }

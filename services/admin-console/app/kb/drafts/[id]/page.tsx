@@ -10,6 +10,12 @@ import { DiffLines, DraftStateChip, KbTabs, KIND_VI } from "@/components/kb/KbTa
 import { api, ApiError } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { DraftDiffOut, DraftOut, GapReportOut } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const CATEGORIES = ["access", "network", "hardware", "software", "security", "other"];
 const TIERS = ["low", "medium", "high"];
@@ -63,7 +69,7 @@ export default function DraftPage() {
     return (
       <div className="mx-auto max-w-[1180px]">
         <KbTabs user={user} />
-        {error ? <p className="tone-danger rounded-[5px] px-3 py-2 text-sm">{error}</p> : <p className="text-sm text-[var(--text-muted)]">Đang tải…</p>}
+        {error ? <Alert variant="danger" className="text-sm"><AlertDescription>{error}</AlertDescription></Alert> : <p className="text-sm text-muted-foreground">Đang tải…</p>}
       </div>
     );
   }
@@ -95,7 +101,7 @@ export default function DraftPage() {
           <h1 className="text-xl font-semibold">
             {reviewing ? "Duyệt" : KIND_VI[draft.kind]} · <span className="font-mono">{draft.slug}</span>
           </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--text-muted)]">
+          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <DraftStateChip state={draft.state} />
             <span>Tác giả {draft.author.username}</span>
             {draft.base_version !== null && <span>· dựa trên phiên bản {draft.base_version}</span>}
@@ -106,184 +112,203 @@ export default function DraftPage() {
         <div className="flex flex-wrap gap-2">
           {editing && (
             <>
-              <button className="btn btn-secondary" onClick={() => void run(save, "Đã lưu.")}>
+              <Button variant="outline" onClick={() => void run(save, "Đã lưu.")}>
                 Lưu
-              </button>
-              <button className="btn btn-secondary" onClick={() => setShowChunks(!showChunks)}>
+              </Button>
+              <Button variant="outline" onClick={() => setShowChunks(!showChunks)}>
                 Xem trước chunk
-              </button>
-              <button className="btn btn-primary" onClick={() => void run(async () => (await save(), act("submit")), "Đã gửi duyệt.")}>
+              </Button>
+              <Button onClick={() => void run(async () => (await save(), act("submit")), "Đã gửi duyệt.")}>
                 Gửi duyệt
-              </button>
+              </Button>
             </>
           )}
           {isAuthor && draft.kind === "retire" && EDITABLE.includes(draft.state) && (
-            <button className="btn btn-primary" onClick={() => void run(() => act("submit"), "Đã gửi duyệt.")}>
+            <Button onClick={() => void run(() => act("submit"), "Đã gửi duyệt.")}>
               Gửi duyệt
-            </button>
+            </Button>
           )}
           {isAuthor && draft.state === "conflict" && (
-            <button className="btn btn-primary" onClick={() => void run(() => act("rebase"), "Đã cập nhật theo trang hiện tại.")}>
+            <Button onClick={() => void run(() => act("rebase"), "Đã cập nhật theo trang hiện tại.")}>
               Cập nhật theo trang hiện tại (rebase)
-            </button>
+            </Button>
           )}
           {(isAuthor || user.role === "manager") && [...EDITABLE, "conflict"].includes(draft.state) && (
-            <button className="btn btn-secondary" onClick={() => void run(() => act("withdraw"), "Đã rút bản nháp.")}>
+            <Button variant="outline" onClick={() => void run(() => act("withdraw"), "Đã rút bản nháp.")}>
               Rút
-            </button>
+            </Button>
           )}
         </div>
       </header>
 
-      {error && <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">{error}</p>}
-      {notice && <p className="tone-ok mb-3 rounded-[5px] px-3 py-2 text-sm">{notice}</p>}
+      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
+      {notice && <Alert variant="ok" className="mb-3 text-sm"><AlertDescription>{notice}</AlertDescription></Alert>}
       {draft.review_comment && draft.state === "changes_requested" && (
-        <p className="tone-warn mb-3 rounded-[5px] px-3 py-2 text-sm">
-          {draft.reviewer?.username}: {draft.review_comment}
-        </p>
+        <Alert variant="warn" className="mb-3 text-sm">
+          <AlertDescription>
+            {draft.reviewer?.username}: {draft.review_comment}
+          </AlertDescription>
+        </Alert>
       )}
       {draft.state === "conflict" && (
-        <p className="tone-danger mb-3 rounded-[5px] px-3 py-2 text-sm">
-          Trang đã thay đổi từ khi bản nháp bắt đầu. Tác giả cập nhật theo trang hiện tại rồi gửi duyệt lại.
-        </p>
+        <Alert variant="danger" className="mb-3 text-sm">
+          <AlertDescription>
+            Trang đã thay đổi từ khi bản nháp bắt đầu. Tác giả cập nhật theo trang hiện tại rồi gửi duyệt lại.
+          </AlertDescription>
+        </Alert>
       )}
 
       <div className="grid gap-4 lg:grid-cols-[1fr_330px]">
         <div className="flex flex-col gap-4">
           {editing ? (
-            <section className="card flex flex-col gap-3 p-5 text-sm">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--text-muted)]">Tiêu đề · Title</span>
-                <input className="field" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
-              </label>
-              <div className="flex flex-wrap gap-3">
+            <Card asChild>
+              <section className="flex flex-col gap-3 p-5 text-sm">
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-[var(--text-muted)]">Category</span>
-                  <select className="field w-44" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                    {CATEGORIES.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
+                  <span className="text-xs text-muted-foreground">Tiêu đề · Title</span>
+                  <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Category</span>
+                    <NativeSelect wrapperClassName="w-44" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+                      {CATEGORIES.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </NativeSelect>
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Mức rủi ro đề xuất · Proposed risk tier</span>
+                    <NativeSelect wrapperClassName="w-44" value={form.proposed_risk_tier} onChange={(e) => setForm({ ...form, proposed_risk_tier: e.target.value })}>
+                      {TIERS.map((t) => (
+                        <option key={t}>{t}</option>
+                      ))}
+                    </NativeSelect>
+                  </label>
+                </div>
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Nội dung (Markdown) · Body</span>
+                  <Textarea className="min-h-[320px] font-mono text-xs" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
                 </label>
                 <label className="flex flex-col gap-1">
-                  <span className="text-xs text-[var(--text-muted)]">Mức rủi ro đề xuất · Proposed risk tier</span>
-                  <select className="field w-44" value={form.proposed_risk_tier} onChange={(e) => setForm({ ...form, proposed_risk_tier: e.target.value })}>
-                    {TIERS.map((t) => (
-                      <option key={t}>{t}</option>
-                    ))}
-                  </select>
+                  <span className="text-xs text-muted-foreground">Ghi chú thay đổi · Change note</span>
+                  <Input value={form.change_note} onChange={(e) => setForm({ ...form, change_note: e.target.value })} />
                 </label>
-              </div>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--text-muted)]">Nội dung (Markdown) · Body</span>
-                <textarea className="field min-h-[320px] font-mono text-xs" value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--text-muted)]">Ghi chú thay đổi · Change note</span>
-                <input className="field" value={form.change_note} onChange={(e) => setForm({ ...form, change_note: e.target.value })} />
-              </label>
-            </section>
+              </section>
+            </Card>
           ) : (
-            <section className="card flex flex-col gap-3 p-5 text-sm">
-              <h2 className="text-xs uppercase tracking-wider text-[var(--text-muted)]">
-                {draft.kind === "retire" ? "Gỡ trang này" : draft.state === "published" ? "Thay đổi đã xuất bản" : "So với trang hiện tại"}
-              </h2>
-              {draft.change_note && <p>Ghi chú: {draft.change_note}</p>}
-              {diff && draft.kind !== "retire" && (
-                <>
-                  <div>
-                    <div className="mb-1 text-xs text-[var(--text-muted)]">Tiêu đề</div>
-                    <DiffLines lines={diff.title_diff} />
-                  </div>
-                  <div>
-                    <div className="mb-1 text-xs text-[var(--text-muted)]">Nội dung</div>
-                    <DiffLines lines={diff.body_diff} />
-                  </div>
-                </>
-              )}
-            </section>
+            <Card asChild>
+              <section className="flex flex-col gap-3 p-5 text-sm">
+                <h2 className="text-xs uppercase tracking-wider text-muted-foreground">
+                  {draft.kind === "retire" ? "Gỡ trang này" : draft.state === "published" ? "Thay đổi đã xuất bản" : "So với trang hiện tại"}
+                </h2>
+                {draft.change_note && <p>Ghi chú: {draft.change_note}</p>}
+                {diff && draft.kind !== "retire" && (
+                  <>
+                    <div>
+                      <div className="mb-1 text-xs text-muted-foreground">Tiêu đề</div>
+                      <DiffLines lines={diff.title_diff} />
+                    </div>
+                    <div>
+                      <div className="mb-1 text-xs text-muted-foreground">Nội dung</div>
+                      <DiffLines lines={diff.body_diff} />
+                    </div>
+                  </>
+                )}
+              </section>
+            </Card>
           )}
 
           {(showChunks || !editing) && diff && draft.kind !== "retire" && (
-            <section className="card p-5 text-sm">
-              <h2 className="mb-2 text-xs uppercase tracking-wider text-[var(--text-muted)]">
-                Chunk khi xuất bản · {diff.chunks_preview.length} chunks{editing ? " (bản đã lưu)" : ""}
-              </h2>
-              <ol className="flex flex-col gap-2">
-                {diff.chunks_preview.map((c, i) => (
-                  <li key={i} className="rounded-[5px] bg-[var(--surface-2)] p-2 text-xs">
-                    {c.section_title && <div className="mb-1 font-medium">{c.section_title}</div>}
-                    <div className="whitespace-pre-wrap">{c.content}</div>
-                  </li>
-                ))}
-              </ol>
-            </section>
+            <Card asChild>
+              <section className="p-5 text-sm">
+                <h2 className="mb-2 text-xs uppercase tracking-wider text-muted-foreground">
+                  Chunk khi xuất bản · {diff.chunks_preview.length} chunks{editing ? " (bản đã lưu)" : ""}
+                </h2>
+                <ol className="flex flex-col gap-2">
+                  {diff.chunks_preview.map((c, i) => (
+                    <li key={i} className="rounded-md bg-muted p-2 text-xs">
+                      {c.section_title && <div className="mb-1 font-medium">{c.section_title}</div>}
+                      <div className="whitespace-pre-wrap">{c.content}</div>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </Card>
           )}
 
           {reviewing && (
-            <section className="card flex flex-col gap-3 p-5 text-sm">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--text-muted)]">Nhận xét · Comment (bắt buộc khi yêu cầu sửa)</span>
-                <input className="field" value={comment} onChange={(e) => setComment(e.target.value)} />
-              </label>
-              {draft.article?.auto_reply_allowed && draft.kind !== "create" && (
-                <p className="tone-warn rounded-[5px] px-3 py-2 text-xs">
-                  Khi xuất bản: phiên bản {draft.article.version} → {draft.article.version + 1}, trang được nạp lại,
-                  quyền trả lời tự động bị thu hồi (ghi kb_authority_log) và trang vào hàng chờ quyền. Đến khi được duyệt
-                  lại, câu trả lời tự động trích trang này sẽ chuyển cho người (kb_not_authorized).
-                </p>
-              )}
-              <div className="flex justify-end gap-2">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => void run(() => act("review", { decision: "request_changes", comment }), "Đã yêu cầu sửa.")}
-                >
-                  Yêu cầu sửa
-                </button>
-                <button className="btn btn-primary" onClick={() => void run(() => act("review", { decision: "approve", comment }), "Đã duyệt.")}>
-                  {draft.kind === "retire" ? "Duyệt và gỡ trang" : "Duyệt và xuất bản"}
-                </button>
-              </div>
-            </section>
+            <Card asChild>
+              <section className="flex flex-col gap-3 p-5 text-sm">
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">Nhận xét · Comment (bắt buộc khi yêu cầu sửa)</span>
+                  <Input value={comment} onChange={(e) => setComment(e.target.value)} />
+                </label>
+                {draft.article?.auto_reply_allowed && draft.kind !== "create" && (
+                  <Alert variant="warn" className="text-xs">
+                    <AlertDescription>
+                      Khi xuất bản: phiên bản {draft.article.version} → {draft.article.version + 1}, trang được nạp lại,
+                      quyền trả lời tự động bị thu hồi (ghi kb_authority_log) và trang vào hàng chờ quyền. Đến khi được duyệt
+                      lại, câu trả lời tự động trích trang này sẽ chuyển cho người (kb_not_authorized).
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline"
+                    onClick={() => void run(() => act("review", { decision: "request_changes", comment }), "Đã yêu cầu sửa.")}
+                  >
+                    Yêu cầu sửa
+                  </Button>
+                  <Button onClick={() => void run(() => act("review", { decision: "approve", comment }), "Đã duyệt.")}>
+                    {draft.kind === "retire" ? "Duyệt và gỡ trang" : "Duyệt và xuất bản"}
+                  </Button>
+                </div>
+              </section>
+            </Card>
           )}
           {isAuthor && draft.state === "in_review" && (
-            <p className="text-xs text-[var(--text-muted)]">Một người khác phải duyệt bản nháp của bạn (BR-F6-02).</p>
+            <p className="text-xs text-muted-foreground">Một người khác phải duyệt bản nháp của bạn (BR-F6-02).</p>
           )}
         </div>
 
         <aside className="flex flex-col gap-4">
           {gap && (
-            <section className="card p-4 text-sm">
-              <h2 className="mb-1 font-medium">Bắt đầu từ cụm thiếu KB</h2>
-              <p className="mb-2 text-xs text-[var(--text-muted)]">
-                {gap.label} · {gap.size} phiếu bị từ chối
-              </p>
-              <div className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">Phiếu mẫu (đã che)</div>
-              <ul className="mt-1 flex flex-col gap-1 text-xs">
-                {gap.tickets.map((t) => (
-                  <li key={t.public_id}>
-                    <Link href={`/tickets/${t.public_id}`} className="text-[var(--accent)]">
-                      {t.public_id}
-                    </Link>{" "}
-                    · {t.subject_masked}
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <Card asChild>
+              <section className="p-4 text-sm">
+                <h2 className="mb-1 font-medium">Bắt đầu từ cụm thiếu KB</h2>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {gap.label} · {gap.size} phiếu bị từ chối
+                </p>
+                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Phiếu mẫu (đã che)</div>
+                <ul className="mt-1 flex flex-col gap-1 text-xs">
+                  {gap.tickets.map((t) => (
+                    <li key={t.public_id}>
+                      <Link href={`/tickets/${t.public_id}`} className="text-primary">
+                        {t.public_id}
+                      </Link>{" "}
+                      · {t.subject_masked}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </Card>
           )}
           {draft.article && (
-            <section className="card p-4 text-xs">
-              <h2 className="mb-2 text-sm font-medium">Trang hiện tại</h2>
-              <p>Phiên bản {draft.article.version}</p>
-              <p>Rủi ro {draft.article.risk_tier}</p>
-              <p>Trả lời tự động: {draft.article.auto_reply_allowed ? "được phép" : "không"}</p>
-              {draft.article.auto_reply_allowed && draft.kind !== "create" && editing && (
-                <p className="tone-warn mt-2 rounded-[5px] px-2 py-1.5">
-                  Xuất bản bản sửa sẽ thu hồi quyền trả lời tự động của trang này đến khi quản lý duyệt lại nội dung mới
-                  (BR-F6-04).
-                </p>
-              )}
-            </section>
+            <Card asChild>
+              <section className="p-4 text-xs">
+                <h2 className="mb-2 text-sm font-medium">Trang hiện tại</h2>
+                <p>Phiên bản {draft.article.version}</p>
+                <p>Rủi ro {draft.article.risk_tier}</p>
+                <p>Trả lời tự động: {draft.article.auto_reply_allowed ? "được phép" : "không"}</p>
+                {draft.article.auto_reply_allowed && draft.kind !== "create" && editing && (
+                  <Alert variant="warn" className="mt-2">
+                    <AlertDescription>
+                      Xuất bản bản sửa sẽ thu hồi quyền trả lời tự động của trang này đến khi quản lý duyệt lại nội dung mới
+                      (BR-F6-04).
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </section>
+            </Card>
           )}
         </aside>
       </div>

@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CurrentUser } from "@/lib/auth";
+import { Badge, type Tone } from "@/components/ui/badge";
 
 export function canEditKb(user: CurrentUser): boolean {
   return user.role === "manager" || (user.capabilities ?? []).includes("kb_editor");
@@ -25,7 +26,7 @@ export function KbTabs({ user }: { user: CurrentUser }) {
     { href: "/kb/gaps", label: "Thiếu KB · Gaps", show: editor },
   ];
   return (
-    <nav className="mb-5 flex flex-wrap gap-5 border-b border-[var(--border)] text-sm">
+    <nav className="mb-5 flex flex-wrap gap-5 border-b border-border text-sm">
       {tabs
         .filter((t) => t.show)
         .map((t) => {
@@ -36,8 +37,8 @@ export function KbTabs({ user }: { user: CurrentUser }) {
               href={t.href}
               className={`-mb-px border-b-2 pb-2 ${
                 active
-                  ? "border-[var(--accent)] font-medium text-[var(--accent)]"
-                  : "border-transparent text-[var(--text-muted)] hover:text-[var(--text)]"
+                  ? "border-primary font-medium text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
               {t.label}
@@ -48,13 +49,13 @@ export function KbTabs({ user }: { user: CurrentUser }) {
   );
 }
 
-const DRAFT_STATE: Record<string, string> = {
-  draft: "tone-neutral",
-  in_review: "tone-info",
-  changes_requested: "tone-warn",
-  published: "tone-ok",
-  withdrawn: "tone-neutral",
-  conflict: "tone-danger",
+const DRAFT_STATE: Record<string, Tone> = {
+  draft: "neutral",
+  in_review: "info",
+  changes_requested: "warn",
+  published: "ok",
+  withdrawn: "neutral",
+  conflict: "danger",
 };
 
 const DRAFT_STATE_VI: Record<string, string> = {
@@ -67,7 +68,7 @@ const DRAFT_STATE_VI: Record<string, string> = {
 };
 
 export function DraftStateChip({ state }: { state: string }) {
-  return <span className={`badge ${DRAFT_STATE[state] ?? ""}`}>{DRAFT_STATE_VI[state] ?? state}</span>;
+  return <Badge variant={DRAFT_STATE[state] ?? "neutral"}>{DRAFT_STATE_VI[state] ?? state}</Badge>;
 }
 
 export const KIND_VI: Record<string, string> = {
@@ -85,17 +86,17 @@ export const AUTHORITY_REASON_VI: Record<string, string> = {
 /** A unified-diff line as a coloured row; the `---`/`+++`/`@@` headers are dropped. */
 export function DiffLines({ lines }: { lines: string[] }) {
   const shown = lines.filter((l) => !l.startsWith("---") && !l.startsWith("+++") && !l.startsWith("@@"));
-  if (shown.length === 0) return <p className="text-xs text-[var(--text-muted)]">Không thay đổi.</p>;
+  if (shown.length === 0) return <p className="text-xs text-muted-foreground">Không thay đổi.</p>;
   return (
-    <pre className="overflow-x-auto whitespace-pre-wrap rounded-[5px] bg-[var(--surface-2)] p-3 text-xs leading-relaxed">
+    <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs leading-relaxed">
       {shown.map((l, i) => (
         <div
           key={i}
           className={
             l.startsWith("+")
-              ? "bg-[var(--ok-soft)] text-[var(--ok)]"
+              ? "bg-ok-soft text-ok"
               : l.startsWith("-")
-                ? "bg-[var(--danger-soft)] text-[var(--danger)] line-through"
+                ? "bg-danger-soft text-danger line-through"
                 : ""
           }
         >

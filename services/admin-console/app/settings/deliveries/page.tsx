@@ -5,8 +5,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
-import { deliveryStateClasses, deliveryStateLabel } from "@/lib/badges";
+import { deliveryStateTone, deliveryStateLabel } from "@/lib/badges";
 import type { DeliveryOut, RetryOut } from "@/lib/types/generated";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 interface Page {
   items: DeliveryOut[];
@@ -67,14 +72,14 @@ export default function DeliveryLogPage() {
 
   const select = (label: string, value: string, options: string[], onChange: (v: string) => void) => (
     <label className="flex w-[140px] flex-col gap-1">
-      <span className="text-[11px] text-[var(--text-muted)]">{label}</span>
-      <select value={value} onChange={(e) => onChange(e.target.value)} className="field">
+      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => (
           <option key={o} value={o}>
             {o || "All"}
           </option>
         ))}
-      </select>
+      </NativeSelect>
     </label>
   );
 
@@ -85,70 +90,70 @@ export default function DeliveryLogPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Delivery log</h1>
-          <p className="text-xs text-[var(--text-muted)]">Email and webhook messages. A failed send never changes the ticket.</p>
+          <p className="text-xs text-muted-foreground">Email and webhook messages. A failed send never changes the ticket.</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           {select("Channel", channel, CHANNELS, setChannel)}
           {select("State", state, STATES, setState)}
           {state === "failed" && failed && (
-            <button className="btn btn-secondary" onClick={() => void retry({ all_failed: true })}>
+            <Button variant="outline" onClick={() => void retry({ all_failed: true })}>
               Retry all failed
-            </button>
+            </Button>
           )}
         </div>
       </header>
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-      {notice && <p className="text-sm text-[var(--ok)]">{notice}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
+      {notice && <p className="text-sm text-ok">{notice}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[900px] text-left text-xs">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Created (+07)</th>
-              <th className="px-4 py-2 font-normal">Event</th>
-              <th className="px-4 py-2 font-normal">Recipient</th>
-              <th className="px-4 py-2 font-normal">Channel</th>
-              <th className="px-4 py-2 font-normal">State</th>
-              <th className="px-4 py-2 font-normal">Attempts</th>
-              <th className="px-4 py-2 font-normal">Error</th>
-              <th className="px-4 py-2 font-normal" />
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[900px] text-left text-xs">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Created (+07)</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Event</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Recipient</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Channel</TableHead>
+              <TableHead className="px-4 py-2 font-normal">State</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Attempts</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Error</TableHead>
+              <TableHead className="px-4 py-2 font-normal" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {page?.items.map((d) => (
-              <tr key={d.id} className={`border-t border-[var(--border)] ${d.state === "failed" ? "bg-[var(--danger-soft)]" : ""}`}>
-                <td className="whitespace-nowrap px-4 py-2.5">{vnTime(d.created_at)}</td>
-                <td className="px-4 py-2.5 font-mono">{d.event}</td>
-                <td className="px-4 py-2.5">{d.recipient}</td>
-                <td className="px-4 py-2.5">{d.channel}</td>
-                <td className="px-4 py-2.5">
-                  <span className={`badge ${deliveryStateClasses(d.state, d.attempts)}`}>{deliveryStateLabel(d.state, d.attempts)}</span>
-                </td>
-                <td className="px-4 py-2.5 tabular-nums">{d.attempts}</td>
-                <td className="max-w-[360px] px-4 py-2.5 break-words">{d.last_error || "—"}</td>
-                <td className="px-4 py-2.5 text-right">
+              <TableRow key={d.id} className={`border-t border-border ${d.state === "failed" ? "bg-danger-soft" : ""}`}>
+                <TableCell className="whitespace-nowrap px-4 py-2.5">{vnTime(d.created_at)}</TableCell>
+                <TableCell className="px-4 py-2.5 font-mono">{d.event}</TableCell>
+                <TableCell className="px-4 py-2.5">{d.recipient}</TableCell>
+                <TableCell className="px-4 py-2.5">{d.channel}</TableCell>
+                <TableCell className="px-4 py-2.5">
+                  <Badge variant={deliveryStateTone(d.state, d.attempts)}>{deliveryStateLabel(d.state, d.attempts)}</Badge>
+                </TableCell>
+                <TableCell className="px-4 py-2.5 tabular-nums">{d.attempts}</TableCell>
+                <TableCell className="max-w-[360px] px-4 py-2.5 break-words">{d.last_error || "—"}</TableCell>
+                <TableCell className="px-4 py-2.5 text-right">
                   {d.state === "failed" && d.channel !== "in_app" ? (
-                    <button className="btn btn-secondary" onClick={() => void retry({ ids: [d.id] })}>
+                    <Button variant="outline" onClick={() => void retry({ ids: [d.id] })}>
                       Retry
-                    </button>
+                    </Button>
                   ) : (
                     "—"
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {page && page.items.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                   No deliveries match these filters.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-[11px] text-[var(--text-muted)]">
+          </TableBody>
+        </Table>
+      </Card>
+      <p className="text-[11px] text-muted-foreground">
         {page ? `${Math.min(page.count, LIMIT)} of ${page.count} shown. ` : ""}A retry starts a fresh set of attempts and is recorded in the audit log.
       </p>
     </div>

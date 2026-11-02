@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 // Mirrors ChatAskIn.message in core-api (apps/chat/request_schema.py):
 // shorter is a 422 there, so it is caught here first.
@@ -37,11 +40,11 @@ export default function Composer({
   };
 
   return (
-    <div className="panel transition-colors hover:border-[var(--text-muted)] focus-within:border-[var(--text)]">
+    <Card className="transition-colors hover:border-muted-foreground focus-within:border-foreground">
       <label htmlFor="composer" className="sr-only">
         Describe your problem
       </label>
-      <textarea
+      <Textarea
         id="composer"
         ref={ref}
         rows={2}
@@ -56,16 +59,16 @@ export default function Composer({
           }
         }}
         placeholder="Describe the problem: what you tried, what happened, any error message."
-        className="block max-h-[200px] min-h-[64px] w-full resize-none bg-transparent focus-visible:outline-none px-3.5 pt-3 text-[15px] leading-6 outline-none placeholder:text-[var(--text-muted)]"
+        className="block max-h-[200px] min-h-[64px] resize-none rounded-none border-0 bg-transparent px-3.5 pt-3 text-[15px] leading-6 shadow-none focus-visible:ring-0 md:text-[15px]"
       />
-      <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] px-3.5 py-2">
-        <p className="text-xs text-[var(--text-muted)]" aria-live="polite">
+      <div className="flex items-center justify-between gap-3 border-t border-border px-3.5 py-2">
+        <p className="text-xs text-muted-foreground" aria-live="polite">
           {tooShort ? `Add a little more detail (${MIN_CHARS}+ characters).` : "Enter to send, Shift+Enter for a new line"}
         </p>
-        <button type="button" onClick={send} disabled={!canSend} className="btn btn-primary py-1.5">
+        <Button type="button" onClick={send} disabled={!canSend} className="py-1.5">
           Send
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   );
 }

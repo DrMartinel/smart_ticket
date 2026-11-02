@@ -6,6 +6,10 @@ import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import { ApiError, api } from "@/lib/api";
 import type { AssignedTicketOut, ReassignIn, ReassignReason, TeamDetailOut, TeamOut, TicketCategory } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const REASONS: { code: ReassignReason; label: string }[] = [
   { code: "wrong_team", label: "Sai đội xử lý · Wrong team" },
@@ -121,79 +125,81 @@ export default function ReassignDialog({
       subtitle={`${ticket.subject} · now: ${ticket.team ?? "no team"} / ${ticket.assignee ?? "unassigned"}`}
       footer={
         <>
-          <button className="btn btn-secondary" onClick={onClose}>
+          <Button variant="outline" onClick={onClose}>
             Cancel
-          </button>
-          <button className="btn btn-primary" disabled={busy || note.trim().length < NOTE_MIN || (categoryChoices.length > 1 && !toCategory)} onClick={() => void submit()}>
+          </Button>
+          <Button disabled={busy || note.trim().length < NOTE_MIN || (categoryChoices.length > 1 && !toCategory)} onClick={() => void submit()}>
             Reassign
-          </button>
+          </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4 text-sm">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">To team</span>
-            <select className="field" value={toTeam} onChange={(e) => setToTeam(e.target.value)}>
+            <span className="text-xs text-muted-foreground">To team</span>
+            <NativeSelect value={toTeam} onChange={(e) => setToTeam(e.target.value)}>
               {!ticket.team && <option value="">Choose a team…</option>}
               {teams.map((t) => (
                 <option key={t.slug} value={t.slug}>
                   {t.name} ({t.categories.join(", ")})
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">To person</span>
-            <select className="field" value={toUser} onChange={(e) => setToUser(e.target.value)}>
+            <span className="text-xs text-muted-foreground">To person</span>
+            <NativeSelect value={toUser} onChange={(e) => setToUser(e.target.value)}>
               <option value="">Team strategy picks</option>
               {members.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         </div>
 
         {categoryChoices.length > 1 && (
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">New category</span>
-            <select className="field" value={toCategory} onChange={(e) => setToCategory(e.target.value)}>
+            <span className="text-xs text-muted-foreground">New category</span>
+            <NativeSelect value={toCategory} onChange={(e) => setToCategory(e.target.value)}>
               <option value="">Choose…</option>
               {categoryChoices.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         )}
 
-        <fieldset className="flex flex-col gap-1.5">
-          <legend className="pb-1 text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Reason code</legend>
-          {REASONS.map((r) => (
-            <label key={r.code} className="flex items-center gap-2">
-              <input type="radio" name="reason_code" checked={reason === r.code} onChange={() => setReason(r.code)} />
-              <span>
-                <span className="font-mono text-xs">{r.code}</span> — {r.label}
-              </span>
-            </label>
-          ))}
+        <fieldset>
+          <legend className="pb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Reason code</legend>
+          <RadioGroup value={reason} onValueChange={(next) => setReason(next as typeof reason)} className="gap-2">
+            {REASONS.map((r) => (
+              <label key={r.code} className="flex items-center gap-2">
+                <RadioGroupItem value={r.code} />
+                <span>
+                  <span className="font-mono text-xs">{r.code}</span> — {r.label}
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
         </fieldset>
 
         <label className="flex flex-col gap-1">
-          <span className="text-xs text-[var(--text-muted)]">Note (at least {NOTE_MIN} characters; personal data is masked before saving)</span>
-          <textarea className="field min-h-[72px]" value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
+          <span className="text-xs text-muted-foreground">Note (at least {NOTE_MIN} characters; personal data is masked before saving)</span>
+          <Textarea className="min-h-[72px]" value={note} maxLength={1000} onChange={(e) => setNote(e.target.value)} />
         </label>
 
         {moving && newCategory && newCategory !== ticket.category && (
-          <p className="rounded-[5px] bg-[var(--warn-soft)] px-3 py-2 text-[var(--warn)]">
+          <p className="rounded-md bg-warn-soft px-3 py-2 text-warn">
             Category changes {ticket.category ?? "none"} → {newCategory}. This is recorded as a reroute and becomes an
             evaluation case. The routing decision itself doesn&apos;t change.
           </p>
         )}
-        {error && <p className="rounded-[5px] bg-[var(--danger-soft)] px-3 py-2 text-[var(--danger)]">{error}</p>}
+        {error && <p className="rounded-md bg-danger-soft px-3 py-2 text-danger">{error}</p>}
       </div>
     </Modal>
   );

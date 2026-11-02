@@ -7,6 +7,13 @@ import Modal from "@/components/Modal";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { TeamDetailOut, TeamOut, TeamStrategy, TicketCategory } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const CATEGORIES: TicketCategory[] = ["hardware", "software", "network", "access", "security", "other"];
 
@@ -140,68 +147,68 @@ export default function TeamsPage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Teams</h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             Each category is owned by exactly one active team. Company sign-in users get their teams from Keycloak groups.
           </p>
         </div>
         {canEdit && (
-          <button className="btn btn-primary" onClick={() => void open(null)}>
+          <Button onClick={() => void open(null)}>
             New team
-          </button>
+          </Button>
         )}
       </header>
 
-      {error && !editing && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && !editing && <p className="text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[860px] text-left text-sm">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Team</th>
-              <th className="px-4 py-2 font-normal">Categories</th>
-              <th className="px-4 py-2 font-normal">Strategy</th>
-              <th className="px-4 py-2 font-normal">Cap</th>
-              <th className="px-4 py-2 font-normal">Members</th>
-              <th className="px-4 py-2 font-normal">Lead</th>
-              <th className="px-4 py-2 font-normal">Keycloak group</th>
-              <th className="px-4 py-2 font-normal" />
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[860px] text-left text-sm">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Team</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Categories</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Strategy</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Cap</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Members</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Lead</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Keycloak group</TableHead>
+              <TableHead className="px-4 py-2 font-normal" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {teams?.map((t) => (
-              <tr key={t.slug} className={`border-t border-[var(--border)] ${t.is_active ? "" : "text-[var(--text-muted)]"}`}>
-                <td className="px-4 py-2.5">
+              <TableRow key={t.slug} className={`border-t border-border ${t.is_active ? "" : "text-muted-foreground"}`}>
+                <TableCell className="px-4 py-2.5">
                   {canEdit ? (
-                    <button className="hover:underline" onClick={() => void open(t)}>
+                    <Button variant="link" size="inline"  onClick={() => void open(t)}>
                       {t.name}
-                    </button>
+                    </Button>
                   ) : (
                     t.name
                   )}
-                </td>
-                <td className="px-4 py-2.5">
+                </TableCell>
+                <TableCell className="px-4 py-2.5">
                   <span className="flex flex-wrap gap-1">
                     {t.categories.map((c) => (
-                      <span key={c} className="badge tone-neutral">
+                      <Badge variant="neutral" key={c}>
                         {c}
-                      </span>
+                      </Badge>
                     ))}
                   </span>
-                </td>
-                <td className="px-4 py-2.5">{t.strategy}</td>
-                <td className="px-4 py-2.5">{t.max_open_per_member ?? "—"}</td>
-                <td className="px-4 py-2.5">{t.members_count}</td>
-                <td className="px-4 py-2.5">{t.leads.join(", ") || "—"}</td>
-                <td className="px-4 py-2.5 font-mono text-xs">{t.keycloak_group ?? "—"}</td>
-                <td className="px-4 py-2.5">
-                  {t.is_fallback && <span className="badge tone-info">fallback</span>}
-                  {!t.is_active && <span className="badge tone-neutral">inactive</span>}
-                </td>
-              </tr>
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{t.strategy}</TableCell>
+                <TableCell className="px-4 py-2.5">{t.max_open_per_member ?? "—"}</TableCell>
+                <TableCell className="px-4 py-2.5">{t.members_count}</TableCell>
+                <TableCell className="px-4 py-2.5">{t.leads.join(", ") || "—"}</TableCell>
+                <TableCell className="px-4 py-2.5 font-mono text-xs">{t.keycloak_group ?? "—"}</TableCell>
+                <TableCell className="px-4 py-2.5">
+                  {t.is_fallback && <Badge variant="info">fallback</Badge>}
+                  {!t.is_active && <Badge variant="neutral">inactive</Badge>}
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
 
       <Modal
         open={!!editing}
@@ -211,12 +218,12 @@ export default function TeamsPage() {
         width="max-w-2xl"
         footer={
           <>
-            <button className="btn btn-secondary" onClick={() => setEditing(null)}>
+            <Button variant="outline" onClick={() => setEditing(null)}>
               Cancel
-            </button>
-            <button className="btn btn-primary" disabled={!d?.reason.trim() || !d?.name || !d?.slug} onClick={() => void save()}>
+            </Button>
+            <Button disabled={!d?.reason.trim() || !d?.name || !d?.slug} onClick={() => void save()}>
               Save
-            </button>
+            </Button>
           </>
         }
       >
@@ -224,29 +231,28 @@ export default function TeamsPage() {
           <div className="flex flex-col gap-3 text-sm">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--text-muted)]">Name</span>
-                <input className="field" value={d.name} onChange={(e) => set({ name: e.target.value })} />
+                <span className="text-xs text-muted-foreground">Name</span>
+                <Input value={d.name} onChange={(e) => set({ name: e.target.value })} />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--text-muted)]">Slug</span>
-                <input
-                  className="field font-mono"
+                <span className="text-xs text-muted-foreground">Slug</span>
+                <Input
+                  className="font-mono"
                   value={d.slug}
                   disabled={!editing?.create}
                   onChange={(e) => set({ slug: e.target.value.toLowerCase() })}
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--text-muted)]">Strategy</span>
-                <select className="field" value={d.strategy} onChange={(e) => set({ strategy: e.target.value as TeamStrategy })}>
+                <span className="text-xs text-muted-foreground">Strategy</span>
+                <NativeSelect value={d.strategy} onChange={(e) => set({ strategy: e.target.value as TeamStrategy })}>
                   <option value="least_loaded">least_loaded: fewest open tickets</option>
                   <option value="round_robin">round_robin: assigned longest ago</option>
-                </select>
+                </NativeSelect>
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-[var(--text-muted)]">Cap (open tickets per member)</span>
-                <input
-                  className="field"
+                <span className="text-xs text-muted-foreground">Cap (open tickets per member)</span>
+                <Input
                   type="number"
                   min={1}
                   value={d.max_open_per_member}
@@ -255,18 +261,17 @@ export default function TeamsPage() {
                 />
               </label>
               <label className="flex flex-col gap-1 sm:col-span-2">
-                <span className="text-xs text-[var(--text-muted)]">Keycloak group</span>
-                <input className="field font-mono" value={d.keycloak_group} onChange={(e) => set({ keycloak_group: e.target.value })} />
+                <span className="text-xs text-muted-foreground">Keycloak group</span>
+                <Input className="font-mono" value={d.keycloak_group} onChange={(e) => set({ keycloak_group: e.target.value })} />
               </label>
             </div>
             <fieldset className="flex flex-wrap gap-x-4 gap-y-1.5">
-              <legend className="pb-1 text-xs text-[var(--text-muted)]">Categories it owns</legend>
+              <legend className="pb-1 text-xs text-muted-foreground">Categories it owns</legend>
               {CATEGORIES.map((c) => (
                 <label key={c} className="flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={d.categories.includes(c)}
-                    onChange={() =>
+                    onCheckedChange={() =>
                       set({ categories: d.categories.includes(c) ? d.categories.filter((x) => x !== c) : [...d.categories, c] })
                     }
                   />
@@ -276,65 +281,64 @@ export default function TeamsPage() {
             </fieldset>
             <div className="flex flex-wrap gap-4">
               <label className="flex items-center gap-1.5">
-                <input type="checkbox" checked={d.is_fallback} onChange={(e) => set({ is_fallback: e.target.checked })} />
+                <Checkbox checked={d.is_fallback} onCheckedChange={(checked) => set({ is_fallback: checked === true })} />
                 Fallback team (gets tickets whose category no team owns)
               </label>
               {!editing?.create && (
                 <label className="flex items-center gap-1.5">
-                  <input type="checkbox" checked={d.is_active} onChange={(e) => set({ is_active: e.target.checked })} />
+                  <Checkbox checked={d.is_active} onCheckedChange={(checked) => set({ is_active: checked === true })} />
                   Active
                 </label>
               )}
             </div>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-[var(--text-muted)]">Reason</span>
-              <input className="field" value={d.reason} maxLength={500} onChange={(e) => set({ reason: e.target.value })} />
+              <span className="text-xs text-muted-foreground">Reason</span>
+              <Input value={d.reason} maxLength={500} onChange={(e) => set({ reason: e.target.value })} />
             </label>
 
             {taken && (
-              <div className="flex flex-wrap items-center gap-3 rounded-[5px] bg-[var(--warn-soft)] px-3 py-2 text-[var(--warn)]">
+              <div className="flex flex-wrap items-center gap-3 rounded-md bg-warn-soft px-3 py-2 text-warn">
                 <span>
                   {taken.category} belongs to team {taken.team}.
                 </span>
-                <button className="btn btn-secondary" onClick={() => void save(true)}>
+                <Button variant="outline" onClick={() => void save(true)}>
                   Move it here
-                </button>
+                </Button>
               </div>
             )}
-            {error && <p className="rounded-[5px] bg-[var(--danger-soft)] px-3 py-2 text-[var(--danger)]">{error}</p>}
+            {error && <p className="rounded-md bg-danger-soft px-3 py-2 text-danger">{error}</p>}
 
             {detail && (
-              <div className="flex flex-col gap-2 border-t border-[var(--border)] pt-3">
-                <p className="text-xs text-[var(--text-muted)]">Members (Keycloak-managed members change through their groups)</p>
+              <div className="flex flex-col gap-2 border-t border-border pt-3">
+                <p className="text-xs text-muted-foreground">Members (Keycloak-managed members change through their groups)</p>
                 <ul className="flex flex-col gap-1">
                   {detail.members.map((m) => (
                     <li key={m.username} className="flex items-center justify-between gap-3">
                       <span>
                         {m.username} · {m.role}
-                        {!m.is_available && " · unavailable"} · <span className="text-[var(--text-muted)]">{m.source}</span>
+                        {!m.is_available && " · unavailable"} · <span className="text-muted-foreground">{m.source}</span>
                       </span>
                       {m.source === "local" && (
-                        <button className="text-xs text-[var(--danger)] hover:underline" onClick={() => void removeMember(m.username)}>
+                        <Button variant="link" size="inline" className="text-xs text-danger" onClick={() => void removeMember(m.username)}>
                           Remove
-                        </button>
+                        </Button>
                       )}
                     </li>
                   ))}
                 </ul>
                 <div className="flex flex-wrap items-end gap-2">
-                  <input
-                    className="field"
+                  <Input
                     placeholder="username (local account)"
                     value={newMember.username}
                     onChange={(e) => setNewMember({ ...newMember, username: e.target.value })}
                   />
-                  <select className="field" value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}>
+                  <NativeSelect value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}>
                     <option value="member">member</option>
                     <option value="lead">lead</option>
-                  </select>
-                  <button className="btn btn-secondary" onClick={() => void addMember()}>
+                  </NativeSelect>
+                  <Button variant="outline" onClick={() => void addMember()}>
                     Add member
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

@@ -10,6 +10,8 @@ import { day } from "@/components/Rating";
 import { requesterApi } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { RequesterTicketRow } from "@/lib/types/generated";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 export default function MyTicketsPage() {
   const { user, loading } = useAuth();
@@ -50,13 +52,13 @@ export default function MyTicketsPage() {
       <AppHeader />
       <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 md:px-6">
         <h1 className="text-xl font-semibold">Đơn của tôi · My tickets</h1>
-        {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <Section title="Đang mở · Open" rows={open} empty="Không có yêu cầu đang mở · Nothing open." />
         <Section title="30 ngày qua · Last 30 days" rows={recent} empty="Chưa có · None yet." />
         {more && (
-          <button onClick={() => void loadMore()} className="btn btn-secondary self-center">
+          <Button variant="outline" onClick={() => void loadMore()} className="self-center">
             Xem thêm · Show older
-          </button>
+          </Button>
         )}
       </main>
     </div>
@@ -66,11 +68,11 @@ export default function MyTicketsPage() {
 function Section({ title, rows, empty }: { title: string; rows: RequesterTicketRow[] | null; empty: string }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-xs font-medium uppercase tracking-wide text-[var(--text-muted)]">{title}</h2>
+      <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{title}</h2>
       {rows === null ? (
-        <p className="text-sm text-[var(--text-muted)]">…</p>
+        <p className="text-sm text-muted-foreground">…</p>
       ) : rows.length === 0 ? (
-        <p className="text-sm text-[var(--text-muted)]">{empty}</p>
+        <p className="text-sm text-muted-foreground">{empty}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map((row) => (
@@ -94,35 +96,37 @@ function TicketRow({ row }: { row: RequesterTicketRow }) {
   const waiting = row.sla_paused;
   const done = row.resolved_at !== null;
   return (
-    <Link
-      href={`/tickets/${row.public_id}`}
-      className="panel flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:border-[var(--text-muted)]"
-    >
-      <span className="min-w-0">
-        <span className="line-clamp-2 text-[15px]">{row.subject_masked}</span>
-        <span className="mt-0.5 block text-xs text-[var(--text-muted)]">{facts.join(" · ")}</span>
-      </span>
-      <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        {row.unread_comments > 0 && (
-          <span className="rounded-full bg-[var(--danger-soft)] px-2 py-0.5 text-xs text-[var(--danger)]">
-            {row.unread_comments} new {row.unread_comments === 1 ? "reply" : "replies"}
-          </span>
-        )}
-        {done && !row.rating && row.can_reopen_until && Date.parse(row.can_reopen_until) > Date.now() && (
-          <span className="text-xs text-[var(--accent)]">Rate ☆</span>
-        )}
-        <span
-          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-            waiting
-              ? "bg-[var(--warn-soft)] text-[var(--warn)]"
-              : done
-                ? "bg-[var(--ok-soft)] text-[var(--ok)]"
-                : "bg-[var(--accent-soft)] text-[var(--accent)]"
-          }`}
-        >
-          {row.status_label}
+    <Card asChild>
+      <Link
+        href={`/tickets/${row.public_id}`}
+        className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:border-muted-foreground"
+      >
+        <span className="min-w-0">
+          <span className="line-clamp-2 text-[15px]">{row.subject_masked}</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">{facts.join(" · ")}</span>
         </span>
-      </span>
-    </Link>
+        <span className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {row.unread_comments > 0 && (
+            <span className="rounded-full bg-danger-soft px-2 py-0.5 text-xs text-danger">
+              {row.unread_comments} new {row.unread_comments === 1 ? "reply" : "replies"}
+            </span>
+          )}
+          {done && !row.rating && row.can_reopen_until && Date.parse(row.can_reopen_until) > Date.now() && (
+            <span className="text-xs text-primary">Rate ☆</span>
+          )}
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+              waiting
+                ? "bg-warn-soft text-warn"
+                : done
+                  ? "bg-ok-soft text-ok"
+                  : "bg-primary-soft text-primary"
+            }`}
+          >
+            {row.status_label}
+          </span>
+        </span>
+      </Link>
+    </Card>
   );
 }

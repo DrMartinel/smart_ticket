@@ -8,6 +8,11 @@ import { SeverityChip, StateChip, vnTime } from "@/components/security/badges";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { AlertRowOut } from "@/lib/types/generated";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 const KINDS = [
   "pii_critical",
@@ -54,101 +59,101 @@ export default function SecurityInboxPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Security alerts</h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             Severity first, then oldest. Ack targets: critical 1 business hour, high 4, medium 1 business day (BR-F8-04).
           </p>
         </div>
         <div className="flex flex-wrap gap-3 text-sm">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">State</span>
-            <select className="field" value={state} onChange={(e) => setState(e.target.value)}>
+            <span className="text-xs text-muted-foreground">State</span>
+            <NativeSelect value={state} onChange={(e) => setState(e.target.value)}>
               <option value="open">open</option>
               <option value="new">new</option>
               <option value="acknowledged">acknowledged</option>
               <option value="investigating">investigating</option>
               <option value="closed">closed</option>
               <option value="">all</option>
-            </select>
+            </NativeSelect>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Kind</span>
-            <select className="field" value={kind} onChange={(e) => setKind(e.target.value)}>
+            <span className="text-xs text-muted-foreground">Kind</span>
+            <NativeSelect value={kind} onChange={(e) => setKind(e.target.value)}>
               <option value="">all</option>
               {KINDS.map((k) => (
                 <option key={k} value={k}>
                   {k}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Assignee</span>
-            <input className="field w-32" value={assignee} placeholder="any" onChange={(e) => setAssignee(e.target.value)} />
+            <span className="text-xs text-muted-foreground">Assignee</span>
+            <Input className="w-32" value={assignee} placeholder="any" onChange={(e) => setAssignee(e.target.value)} />
           </label>
         </div>
       </header>
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[860px] text-left text-sm">
-          <thead className="text-[11px] uppercase tracking-wider text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2.5 font-medium">Severity</th>
-              <th className="px-4 py-2.5 font-medium">Kind</th>
-              <th className="px-4 py-2.5 font-medium">Ticket / user</th>
-              <th className="px-4 py-2.5 font-medium">Count</th>
-              <th className="px-4 py-2.5 font-medium">First seen</th>
-              <th className="px-4 py-2.5 font-medium">Ack due</th>
-              <th className="px-4 py-2.5 font-medium">State</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[860px] text-left text-sm">
+          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2.5 font-medium">Severity</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Kind</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Ticket / user</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Count</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">First seen</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">Ack due</TableHead>
+              <TableHead className="px-4 py-2.5 font-medium">State</TableHead>
+              <TableHead />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows?.map((a) => (
-              <tr
+              <TableRow
                 key={a.id}
-                className={`border-t border-[var(--border)] ${a.overdue || (a.severity === "critical" && a.state === "new") ? "bg-[var(--danger-soft)]" : ""}`}
+                className={`border-t border-border ${a.overdue || (a.severity === "critical" && a.state === "new") ? "bg-danger-soft" : ""}`}
               >
-                <td className="px-4 py-2.5">
+                <TableCell className="px-4 py-2.5">
                   <SeverityChip severity={a.severity} />
-                </td>
-                <td className="px-4 py-2.5 font-mono text-xs">{a.kind}</td>
-                <td className="px-4 py-2.5">
+                </TableCell>
+                <TableCell className="px-4 py-2.5 font-mono text-xs">{a.kind}</TableCell>
+                <TableCell className="px-4 py-2.5">
                   {a.ticket ? `${a.ticket.public_id} · ${a.ticket.reporter}` : a.subject_user ? `user ${a.subject_user}` : "—"}
-                </td>
-                <td className="px-4 py-2.5">{a.count}</td>
-                <td className="px-4 py-2.5">{vnTime(a.first_seen_at)}</td>
-                <td className="px-4 py-2.5">
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{a.count}</TableCell>
+                <TableCell className="px-4 py-2.5">{vnTime(a.first_seen_at)}</TableCell>
+                <TableCell className="px-4 py-2.5">
                   {a.acknowledged_at ? (
-                    <span className="badge bg-[var(--ok-soft)] text-[var(--ok)]">acked {vnTime(a.acknowledged_at)}</span>
+                    <Badge variant="neutral" className="bg-ok-soft text-ok">acked {vnTime(a.acknowledged_at)}</Badge>
                   ) : a.overdue ? (
-                    <span className="badge bg-[var(--danger-soft)] text-[var(--danger)]">overdue {vnTime(a.ack_due_at)}</span>
+                    <Badge variant="neutral" className="bg-danger-soft text-danger">overdue {vnTime(a.ack_due_at)}</Badge>
                   ) : (
-                    <span className="badge bg-[var(--accent-soft)] text-[var(--accent)]">{vnTime(a.ack_due_at)}</span>
+                    <Badge variant="neutral" className="bg-primary-soft text-primary">{vnTime(a.ack_due_at)}</Badge>
                   )}
-                </td>
-                <td className="px-4 py-2.5">
+                </TableCell>
+                <TableCell className="px-4 py-2.5">
                   <StateChip state={a.state} resolution={a.resolution} />
-                </td>
-                <td className="px-4 py-2.5 text-right">
-                  <Link href={`/security/alerts/${a.id}`} className="text-[var(--accent)] hover:underline">
+                </TableCell>
+                <TableCell className="px-4 py-2.5 text-right">
+                  <Link href={`/security/alerts/${a.id}`} className="text-primary hover:underline">
                     Open
                   </Link>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {rows?.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
                   No alerts.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
-      <p className="text-xs text-[var(--text-muted)]">
+          </TableBody>
+        </Table>
+      </Card>
+      <p className="text-xs text-muted-foreground">
         Same kind + same ticket (or user) within 60 min increments one alert (BR-F8-03). Managers see only counts by kind and
         state (BR-F8-01).
       </p>

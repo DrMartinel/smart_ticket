@@ -2,29 +2,31 @@
 
 // The status and stage chips of mass incidents (F7), and the ETA as Hà Nội reads it.
 
-const STATUS: Record<string, string> = {
-  proposed: "bg-[var(--warn-soft)] text-[var(--warn)]",
-  confirmed: "bg-[var(--danger-soft)] text-[var(--danger)]",
-  resolved: "bg-[var(--ok-soft)] text-[var(--ok)]",
-  dismissed: "bg-[var(--surface-2)] text-[var(--text-muted)]",
-  closed: "bg-[var(--surface-2)] text-[var(--text-muted)]",
+import { Badge, type Tone } from "@/components/ui/badge";
+
+const STATUS: Record<string, Tone> = {
+  proposed: "warn",
+  confirmed: "danger",
+  resolved: "ok",
+  dismissed: "neutral",
+  closed: "neutral",
 };
 
-const STAGE: Record<string, string> = {
-  investigating: "bg-[var(--warn-soft)] text-[var(--warn)]",
-  identified: "bg-[var(--accent-soft)] text-[var(--accent)]",
-  monitoring: "bg-[var(--accent-soft)] text-[var(--accent)]",
-  resolved: "bg-[var(--ok-soft)] text-[var(--ok)]",
+const STAGE: Record<string, Tone> = {
+  investigating: "warn",
+  identified: "brand",
+  monitoring: "brand",
+  resolved: "ok",
 };
 
 export const STAGES = ["investigating", "identified", "monitoring", "resolved"] as const;
 
 export function IncidentStatusChip({ status }: { status: string }) {
-  return <span className={`badge ${STATUS[status] ?? ""}`}>{status}</span>;
+  return <Badge variant={STATUS[status] ?? "neutral"}>{status}</Badge>;
 }
 
 export function StageChip({ stage }: { stage: string }) {
-  return <span className={`badge ${STAGE[stage] ?? ""}`}>{stage}</span>;
+  return <Badge variant={STAGE[stage] ?? "neutral"}>{stage}</Badge>;
 }
 
 export function eta(at: string | null | undefined, unknown: boolean): string {

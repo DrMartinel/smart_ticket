@@ -11,6 +11,10 @@ import TeamPicker, { useVisibleTeams } from "@/components/TeamPicker";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { StaffTicketRow } from "@/lib/types/generated";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Page {
   items: StaffTicketRow[];
@@ -67,9 +71,9 @@ export default function TeamQueuePage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">{team?.name ?? slug} team queue</h1>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="text-xs text-muted-foreground">
             Unassigned first, then earliest SLA due. Members take tickets; the lead assigns and reassigns.{" "}
-            <Link href={`/teams/${slug}/workload`} className="text-[var(--accent)] hover:underline">
+            <Link href={`/teams/${slug}/workload`} className="text-primary hover:underline">
               Workload
             </Link>
           </p>
@@ -77,68 +81,68 @@ export default function TeamQueuePage() {
         <div className="flex flex-wrap items-end gap-3">
           <TeamPicker teams={teams} value={slug} onChange={(next) => router.push(`/teams/${next}`)} />
           <label className="flex items-center gap-2 pb-2 text-sm">
-            <input type="checkbox" checked={unassigned} onChange={(e) => setUnassigned(e.target.checked)} />
+            <Checkbox checked={unassigned} onCheckedChange={(checked) => setUnassigned(checked === true)} />
             Unassigned only
           </label>
         </div>
       </header>
 
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-      {notice && <p className="text-sm text-[var(--text-muted)]">{notice}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
+      {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Ticket</th>
-              <th className="px-4 py-2 font-normal">Subject</th>
-              <th className="px-4 py-2 font-normal">Priority</th>
-              <th className="px-4 py-2 font-normal">Assignee</th>
-              <th className="px-4 py-2 font-normal">Status</th>
-              <th className="px-4 py-2 font-normal">SLA</th>
-              <th className="px-4 py-2 font-normal" />
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[820px] text-left text-sm">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Ticket</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Subject</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Priority</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Assignee</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Status</TableHead>
+              <TableHead className="px-4 py-2 font-normal">SLA</TableHead>
+              <TableHead className="px-4 py-2 font-normal" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {page?.items.map((row) => (
-              <tr key={row.public_id} className={`border-t border-[var(--border)] ${row.assignee ? "" : "bg-[var(--surface-2)]"}`}>
-                <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">
+              <TableRow key={row.public_id} className={`border-t border-border ${row.assignee ? "" : "bg-muted"}`}>
+                <TableCell className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">
                   <Link href={`/tickets/${row.public_id}`} className="hover:underline">
                     {row.public_id}
                   </Link>
-                </td>
-                <td className="max-w-[360px] px-4 py-2.5">{row.subject_masked}</td>
-                <td className="px-4 py-2.5">
+                </TableCell>
+                <TableCell className="max-w-[360px] px-4 py-2.5">{row.subject_masked}</TableCell>
+                <TableCell className="px-4 py-2.5">
                   <PriorityChip priority={row.priority} />
-                </td>
-                <td className="px-4 py-2.5">{row.assignee ?? <span className="text-[var(--text-muted)]">Unassigned</span>}</td>
-                <td className="px-4 py-2.5">
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{row.assignee ?? <span className="text-muted-foreground">Unassigned</span>}</TableCell>
+                <TableCell className="px-4 py-2.5">
                   <StatusChip name={row.status.name} color={row.status.color} />
-                </td>
-                <td className="whitespace-nowrap px-4 py-2.5">
+                </TableCell>
+                <TableCell className="whitespace-nowrap px-4 py-2.5">
                   <SlaBadge badge={row.sla} />
-                </td>
-                <td className="px-4 py-2.5 text-right">
+                </TableCell>
+                <TableCell className="px-4 py-2.5 text-right">
                   {!row.assignee ? (
-                    <button className="btn btn-primary" onClick={() => void take(row)}>
+                    <Button onClick={() => void take(row)}>
                       Take
-                    </button>
+                    </Button>
                   ) : (
                     "—"
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {page && page.items.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
                   Nothing in this queue.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
     </div>
   );
 }

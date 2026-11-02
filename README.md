@@ -512,7 +512,7 @@ The two metrics most worth watching are counterintuitive: **`reopen_rate_after_a
 | Shortlister | BGE-Reranker-v2-M3 cross-encoder (via vLLM, default) · lexical (CI) |
 | Reranker · category | Jev `jev-1.13.0` (TypeSafe System One, hosted) |
 | LLM | Qwen3 8B AWQ for inference and PII NER (via vLLM) |
-| Frontend | Next.js 15 · React 19 · Tailwind |
+| Frontend | Next.js 15 · React 19 · Tailwind · shadcn/ui |
 | Tooling | uv workspace · pytest · Ruff |
 
 ---

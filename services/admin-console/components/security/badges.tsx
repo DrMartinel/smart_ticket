@@ -2,29 +2,31 @@
 
 // The severity and state chips of the security inbox (F8).
 
-const SEVERITY: Record<string, string> = {
-  critical: "bg-[var(--danger-soft)] text-[var(--danger)]",
-  high: "bg-[var(--warn-soft)] text-[var(--warn)]",
-  medium: "bg-[var(--surface-2)] text-[var(--text-muted)]",
+import { Badge, type Tone } from "@/components/ui/badge";
+
+const SEVERITY: Record<string, Tone> = {
+  critical: "danger",
+  high: "warn",
+  medium: "neutral",
 };
 
-const STATE: Record<string, string> = {
-  new: "bg-[var(--accent-soft)] text-[var(--accent)]",
-  acknowledged: "bg-[var(--ok-soft)] text-[var(--ok)]",
-  investigating: "bg-[var(--warn-soft)] text-[var(--warn)]",
-  closed: "bg-[var(--surface-2)] text-[var(--text-muted)]",
+const STATE: Record<string, Tone> = {
+  new: "brand",
+  acknowledged: "ok",
+  investigating: "warn",
+  closed: "neutral",
 };
 
 export function SeverityChip({ severity }: { severity: string }) {
-  return <span className={`badge ${SEVERITY[severity] ?? ""}`}>{severity}</span>;
+  return <Badge variant={SEVERITY[severity] ?? "neutral"}>{severity}</Badge>;
 }
 
 export function StateChip({ state, resolution }: { state: string; resolution?: string | null }) {
   return (
-    <span className={`badge ${STATE[state] ?? ""}`}>
+    <Badge variant={STATE[state] ?? "neutral"}>
       {state}
       {resolution ? ` · ${resolution}` : ""}
-    </span>
+    </Badge>
   );
 }
 

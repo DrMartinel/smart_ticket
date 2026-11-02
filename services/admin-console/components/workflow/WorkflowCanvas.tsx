@@ -36,8 +36,8 @@ function StatusNodeView({ data }: NodeProps<StatusNode>) {
   const color = status.color || "#6b665c";
   return (
     <div
-      className="group relative w-[184px] rounded-[6px] border bg-[var(--surface)] text-left shadow-sm"
-      style={{ borderColor: selected ? "var(--text)" : `${color}66`, boxShadow: selected ? `0 0 0 1px var(--text)` : undefined }}
+      className="group relative w-[184px] rounded-lg border bg-card text-left shadow-sm"
+      style={{ borderColor: selected ? "var(--foreground)" : `${color}66`, boxShadow: selected ? `0 0 0 1px var(--foreground)` : undefined }}
     >
       {POINTS.map((p) => {
         const { side, at } = POINT_PLACEMENT[p];
@@ -52,7 +52,7 @@ function StatusNodeView({ data }: NodeProps<StatusNode>) {
             isConnectable={editable}
             style={{
               [horizontal ? "left" : "top"]: `${at}%`,
-              background: visible ? color : "var(--surface)",
+              background: visible ? color : "var(--card)",
               borderColor: color,
             }}
             className={`!h-2.5 !w-2.5 !border ${visible ? "" : "opacity-0 group-hover:opacity-100"}`}
@@ -64,12 +64,12 @@ function StatusNodeView({ data }: NodeProps<StatusNode>) {
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-[13px] font-semibold">{status.name}</span>
           {status.is_pipeline && (
-            <span title="Triage status: only the pipeline moves tickets in" className="text-[10px] uppercase tracking-wide text-[var(--text-muted)]">
+            <span title="Triage status: only the pipeline moves tickets in" className="text-[10px] uppercase tracking-wide text-muted-foreground">
               Triage
             </span>
           )}
         </div>
-        <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-[var(--text-muted)]">
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
           <span className="truncate">{status.base.name}</span>
           {status.actions.length > 0 && <span title="Actions run on enter">⚡ {status.actions.length}</span>}
         </div>
@@ -137,7 +137,7 @@ export default function WorkflowCanvas({
     const colorOf = Object.fromEntries(statuses.map((s) => [s.id, s.color || "#6b665c"]));
     return transitions.map((t) => {
       const isSelected = selected?.kind === "transition" && selected.id === t.id;
-      const stroke = isSelected ? "var(--text)" : colorOf[t.from_status_id];
+      const stroke = isSelected ? "var(--foreground)" : colorOf[t.from_status_id];
       const marker = { type: MarkerType.ArrowClosed, width: 14, height: 14, color: isSelected ? (dark ? "#ece9e2" : "#1f1d1a") : colorOf[t.from_status_id] };
       const extras = t.rules.length + t.actions.length;
       return {
@@ -148,8 +148,8 @@ export default function WorkflowCanvas({
         targetHandle: t.point_end,
         type: "smoothstep",
         label: extras ? `${t.name} · ${extras}` : t.name,
-        labelStyle: { fontSize: 11, fill: "var(--text)", fontWeight: isSelected ? 600 : 400 },
-        labelBgStyle: { fill: "var(--surface)" },
+        labelStyle: { fontSize: 11, fill: "var(--foreground)", fontWeight: isSelected ? 600 : 400 },
+        labelBgStyle: { fill: "var(--card)" },
         labelBgPadding: [4, 2] as [number, number],
         labelBgBorderRadius: 3,
         style: { stroke, strokeWidth: isSelected ? 2.5 : 1.75 },
@@ -223,11 +223,11 @@ export default function WorkflowCanvas({
       minZoom={0.3}
       colorMode={dark ? "dark" : "light"}
       proOptions={{ hideAttribution: true }}
-      className="!bg-[var(--bg)]"
+      className="!bg-background"
     >
       <Background gap={GRID} size={1} color="var(--border)" />
       <Controls showInteractive={false} />
-      <MiniMap pannable zoomable nodeColor={(n) => (n.data as StatusNodeData).status.color || "#6b665c"} className="!bg-[var(--surface)]" />
+      <MiniMap pannable zoomable nodeColor={(n) => (n.data as StatusNodeData).status.color || "#6b665c"} className="!bg-card" />
     </ReactFlow>
   );
 }

@@ -7,6 +7,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { CalendarOut, HolidayOut } from "@/lib/types/generated";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Card } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Run {
   first: HolidayOut;
@@ -101,107 +106,109 @@ export default function HolidaysPage() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Holidays{calendar ? ` — ${calendar.name}` : ""}</h1>
-          <p className="text-xs text-[var(--text-muted)]">Whole days in {calendar?.timezone ?? "the calendar's zone"}. HR confirms the dates each year.</p>
+          <p className="text-xs text-muted-foreground">Whole days in {calendar?.timezone ?? "the calendar's zone"}. HR confirms the dates each year.</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex w-[180px] flex-col gap-1">
-            <span className="text-[11px] text-[var(--text-muted)]">Calendar</span>
-            <select className="field" value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
+            <span className="text-[11px] text-muted-foreground">Calendar</span>
+            <NativeSelect value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
               {calendars.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
           <label className="flex w-[110px] flex-col gap-1">
-            <span className="text-[11px] text-[var(--text-muted)]">Year</span>
-            <select className="field" value={year} onChange={(e) => setYear(e.target.value)}>
+            <span className="text-[11px] text-muted-foreground">Year</span>
+            <NativeSelect value={year} onChange={(e) => setYear(e.target.value)}>
               {years.map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         </div>
       </header>
 
-      <p className="rounded-[5px] bg-[var(--info-soft)] px-3 py-2 text-sm text-[var(--info)]">
+      <p className="rounded-md bg-info-soft px-3 py-2 text-sm text-info">
         {year}: {holidays.filter((h) => h.date.startsWith(year)).length} days entered.
         {!nextHas && ` ${nextYear} has none yet; from 1 Dec ${year} workflow admins get a reminder.`} Edits reach running clocks at their next
         recompute.
       </p>
-      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="bg-[var(--bg)] text-[11px] text-[var(--text-muted)]">
-            <tr>
-              <th className="px-4 py-2 font-normal">Date</th>
-              <th className="px-4 py-2 font-normal">Weekday</th>
-              <th className="px-4 py-2 font-normal">Name</th>
-              <th className="px-4 py-2 font-normal">Days</th>
-              <th className="px-4 py-2 font-normal" />
-            </tr>
-          </thead>
-          <tbody>
+      <Card className="overflow-x-auto">
+        <Table className="w-full min-w-[640px] text-left text-sm">
+          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+            <TableRow>
+              <TableHead className="px-4 py-2 font-normal">Date</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Weekday</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Name</TableHead>
+              <TableHead className="px-4 py-2 font-normal">Days</TableHead>
+              <TableHead className="px-4 py-2 font-normal" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {shown.map((run) => (
-              <tr key={run.first.id} className="border-t border-[var(--border)]">
-                <td className="whitespace-nowrap px-4 py-2.5">
+              <TableRow key={run.first.id} className="border-t border-border">
+                <TableCell className="whitespace-nowrap px-4 py-2.5">
                   {run.first.date}
                   {run.ids.length > 1 && ` → ${run.last.date}`}
-                </td>
-                <td className="px-4 py-2.5">
+                </TableCell>
+                <TableCell className="px-4 py-2.5">
                   {weekday(run.first.date)}
                   {run.ids.length > 1 && ` → ${weekday(run.last.date)}`}
-                </td>
-                <td className="px-4 py-2.5">{run.first.name}</td>
-                <td className="px-4 py-2.5 tabular-nums">{run.ids.length}</td>
-                <td className="px-4 py-2.5 text-right">
+                </TableCell>
+                <TableCell className="px-4 py-2.5">{run.first.name}</TableCell>
+                <TableCell className="px-4 py-2.5 tabular-nums">{run.ids.length}</TableCell>
+                <TableCell className="px-4 py-2.5 text-right">
                   {isAdmin && (
-                    <button className="text-xs text-[var(--accent)] hover:underline" onClick={() => void remove(run)}>
+                    <Button variant="link" size="inline" className="text-xs" onClick={() => void remove(run)}>
                       Remove
-                    </button>
+                    </Button>
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {shown.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-[var(--text-muted)]">
+              <TableRow>
+                <TableCell colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
                   No holidays entered for {year}.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
-      </div>
+          </TableBody>
+        </Table>
+      </Card>
 
       {isAdmin && (
-        <form
-          className="card flex flex-wrap items-end gap-3 p-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void add();
-          }}
-        >
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-[var(--text-muted)]">From</span>
-            <input type="date" required className="field" value={form.from} onChange={(e) => setForm({ ...form, from: e.target.value })} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-[var(--text-muted)]">To (for a range like Tết)</span>
-            <input type="date" className="field" min={form.from} value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} />
-          </label>
-          <label className="flex min-w-[200px] flex-1 flex-col gap-1">
-            <span className="text-[11px] text-[var(--text-muted)]">Name</span>
-            <input required className="field" value={form.name} maxLength={100} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Tết Nguyên đán" />
-          </label>
-          <button type="submit" className="btn btn-primary">
-            Add holiday
-          </button>
-        </form>
+        <Card asChild>
+          <form
+            className="flex flex-wrap items-end gap-3 p-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void add();
+            }}
+          >
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">From</span>
+              <Input type="date" required value={form.from} onChange={(e) => setForm({ ...form, from: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">To (for a range like Tết)</span>
+              <Input type="date" min={form.from} value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} />
+            </label>
+            <label className="flex min-w-[200px] flex-1 flex-col gap-1">
+              <span className="text-[11px] text-muted-foreground">Name</span>
+              <Input required value={form.name} maxLength={100} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Tết Nguyên đán" />
+            </label>
+            <Button type="submit">
+              Add holiday
+            </Button>
+          </form>
+        </Card>
       )}
     </div>
   );
