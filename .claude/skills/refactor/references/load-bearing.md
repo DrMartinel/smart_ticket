@@ -434,6 +434,17 @@ guard and that comment is later trimmed, the entry is the record.
 - **Outcome membership checked by identity (`is`), not `in`** (`BaseNode.produces`). A `StrEnum` from
   another node with the same value compares equal.
   *`test_compiler.py::test_equal_valued_outcome_from_another_enum_raises`.*
+- **`mask_guard` between the injection guard and `draft_answer`.** A
+  `mask_failed` ticket's text was masked by the regex tier only, so it may
+  still hold free-form PII; the guard sends it straight to `emit_signals`,
+  and no hosted model (DeepSeek's draft and proposal, Jev, the cross-encoder)
+  sees it. Before it, the router's `PII_MASK_FAILED` gate ran only after the
+  whole graph, so every such ticket went to DeepSeek and Jev first (found
+  2026-11-02 on TKT-2026-001300 to 001302). It sits after `injection` so a
+  mask-failed ticket with an injection is still blocked with a security
+  alert. *`test_mask_guard.py::test_a_mask_failed_ticket_reaches_no_model`,
+  `::test_a_mask_failed_ticket_with_an_injection_is_still_flagged`,
+  `test_build.py::test_safety_critical_routes`.*
 - **Validation-field defaults read "failed"**, and **every `ValidateNode` exit
   returns all six checks.** `emit_signals` must never report checks that nobody ran
   as passing, and a check an exit leaves out silently reads as failed (on a route

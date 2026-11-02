@@ -234,7 +234,9 @@ comments trimmed here):
 ```python
 _triage = GraphBuilder(entry=injection)
 _triage.route(injection, InjectionOutcome.INJECTION_DETECTED, emit_signals)
-_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, draft_answer)  # HyDE (ADR-0021)
+_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, mask_guard)
+_triage.route(mask_guard, MaskGuardOutcome.MASK_FAILED, emit_signals)  # a mask-failed ticket reaches no model
+_triage.route(mask_guard, MaskGuardOutcome.MASKED, draft_answer)  # HyDE (ADR-0021)
 _triage.route(draft_answer, SingleExit.DONE, hybrid_retrieve)
 _triage.route(hybrid_retrieve, SingleExit.DONE, candidate_pool)
 _triage.route(candidate_pool, SingleExit.DONE, rerank)
@@ -330,7 +332,7 @@ provider modules (`db`, `embedder`, `shortlister`, `reranker`, `classifier`, `cl
 rerank = RerankNode()
 ```
 
-`graph/triage.py` imports those nine instances and routes them (§4.3). Each
+`graph/triage.py` imports those instances and routes them (§4.3). Each
 instance is named after its node's `name`, so the variable, the
 LangGraph node and the trace entry all read the same.
 

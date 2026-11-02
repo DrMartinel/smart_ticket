@@ -141,6 +141,10 @@ The baseline is rolling and per-category, so "unusual" means unusual *for this o
 injection ──► InjectionDetected ──► emit_signals   (zero tokens spent)
        │ InjectionClear
        ▼
+   mask_guard ──► MaskFailed ──► emit_signals   (no model sees text only the
+       │                                         regex tier masked)
+       │ Masked
+       ▼
    draft_answer      the chat model writes the documentation passage it expects
                      would answer the ticket (HyDE, ADR-0021); steers retrieval
                      only, never shown, quoted or scored. Fails → 500 → HITL.

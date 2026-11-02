@@ -46,6 +46,14 @@ Measured against the live API (2026-10-08) and enforced in code:
 A build's working directory is scoped to its provider and model, so a
 DeepSeek build never reuses a Qwen build's cached replies.
 
+> **Amended 2026-11-02:** "masked ticket text" means a ticket whose masking
+> succeeded. A `mask_failed` ticket was masked by the regex tier only and
+> may still hold free-form PII, so it leaves the machine for no model:
+> ai-engine's `mask_guard` sends it from the injection guard straight to
+> `emit_signals`, and a person handles it as `pii_mask_failed` with no
+> draft or cited page. Until then the router's mask gate ran only after the
+> whole graph, and these tickets reached DeepSeek and Jev.
+
 ## Consequences
 
 - **Every eval number before this ADR was Qwen's.** The propose model
