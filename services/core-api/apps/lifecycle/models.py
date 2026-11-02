@@ -373,6 +373,20 @@ class Transfer(BaseModel):
     def is_open(self) -> bool:
         return self.state in OPEN_TRANSFER_STATES
 
+    @staticmethod
+    def in_order_made(moves: list[Transfer]) -> list[Transfer]:
+        """Orders committed transfers by commit time, and same-instant ones along their status chain."""
+        pending = sorted(moves, key=lambda m: m.committed_at or m.created_at)
+        ordered: list[Transfer] = []
+        status_id = None
+        while pending:
+            same = [m for m in pending if m.committed_at == pending[0].committed_at]
+            move = next((m for m in same if m.before_status_id == status_id), same[0])
+            pending.remove(move)
+            ordered.append(move)
+            status_id = move.after_status_id
+        return ordered
+
 
 class ActionRun(BaseModel):
     """One execution of one configured action, with its parameters as they were when planned."""
