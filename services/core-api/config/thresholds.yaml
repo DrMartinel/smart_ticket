@@ -208,3 +208,18 @@ requester:
   # A rating at or below this sends ticket.rated_low to the team lead and, on an
   # auto-reply, becomes an eval candidate (UC-F3-05 3x: "Rating 1–2").
   low_rating_at_most: 2
+
+security:
+  # Repeats of one kind on one ticket (else one user) within this many minutes
+  # join one alert instead of raising another (F8, BR-F8-03).
+  group_window_minutes: 60
+  # This many refused calls by one user within the window raise an
+  # access_denied_burst alert (BR-F8-08). 🔧 assumption, not measured.
+  access_denied_burst: 20
+  access_denied_window_minutes: 10
+  # Business minutes on the default calendar to acknowledge an alert, by
+  # severity (BR-F8-04, K12): 1 hour, 4 hours, one working day (08:00–17:30).
+  ack_business_minutes:
+    critical: 60
+    high: 240
+    medium: 570

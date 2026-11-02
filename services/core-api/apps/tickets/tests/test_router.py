@@ -28,6 +28,7 @@ from config.settings.base import (
     RetrievalThresholds,
     RoutingThresholds,
     RequesterThresholds,
+    SecurityThresholds,
     SlaThresholds,
     Thresholds,
 )
@@ -108,6 +109,12 @@ def make_thresholds(**overrides) -> Thresholds:
             list_resolved_days=30,
             auto_close_after_business_days=5,
             low_rating_at_most=2,
+        ),
+        security=SecurityThresholds(
+            group_window_minutes=60,
+            access_denied_burst=20,
+            access_denied_window_minutes=10,
+            ack_business_minutes={"critical": 60, "high": 240, "medium": 570},
         ),
     )
     base.update(overrides)

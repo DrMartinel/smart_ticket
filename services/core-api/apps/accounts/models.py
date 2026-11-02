@@ -187,3 +187,22 @@ class IdentitySyncRun(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "accounts_identity_sync_runs"
+
+
+class RefusedCallQuerySet(models.QuerySet["RefusedCall"]):
+    def since(self, at: datetime) -> RefusedCallQuerySet:
+        return self.filter(at__gte=at)
+
+
+class RefusedCall(BaseModel):
+    """One call a role gate refused, kept a day for burst detection (F8 BR-F8-08)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="+")
+    route = models.CharField(max_length=200)
+    at = models.DateTimeField(auto_now_add=True)
+
+    objects = RefusedCallQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "accounts_refused_calls"
+        indexes = [models.Index(fields=["at", "user"], name="accounts_refused_at_user")]

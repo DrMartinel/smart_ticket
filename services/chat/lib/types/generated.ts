@@ -850,6 +850,108 @@ export interface ReopenOut {
   new_ticket?: string | null;
 }
 
+export interface AlertTicketOut {
+  public_id: string;
+  subject_masked: string;
+  body_masked: string;
+  status: string;
+  pii_level: string;
+  reporter: string;
+}
+
+export interface AlertRowOut {
+  id: string;
+  kind: string;
+  severity: string;
+  state: string;
+  ticket: AlertTicketOut | null;
+  subject_user: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  count: number;
+  detail: string;
+  ack_due_at: string;
+  overdue: boolean;
+  acknowledged_at: string | null;
+  assignee: string | null;
+  resolution: string | null;
+}
+
+export interface AlertEventOut {
+  kind: string;
+  actor: string | null;
+  note_masked: string;
+  at: string;
+}
+
+export interface SessionOut {
+  client: string;
+  ip_address: string | null;
+  user_agent: string;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface ActivityOut {
+  event: string;
+  occurred_at: string;
+  ticket_id: string | null;
+}
+
+export interface AlertDetailOut {
+  id: string;
+  kind: string;
+  severity: string;
+  state: string;
+  ticket: AlertTicketOut | null;
+  subject_user: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  count: number;
+  detail: string;
+  ack_due_at: string;
+  overdue: boolean;
+  acknowledged_at: string | null;
+  assignee: string | null;
+  resolution: string | null;
+  events: AlertEventOut[];
+  sessions: SessionOut[];
+  recent_activity: ActivityOut[];
+  duplicate_of: string | null;
+  requester_notified_at: string | null;
+  can_release: boolean;
+  can_notify_requester: boolean;
+}
+
+export interface SummaryCellOut {
+  kind: string;
+  state: string;
+  count: number;
+}
+
+export interface SummaryOut {
+  days: number;
+  cells: SummaryCellOut[];
+}
+
+export interface AssignIn {
+  user: string;
+}
+
+export interface NoteIn {
+  note: string;
+}
+
+export interface CloseIn {
+  resolution: "true_positive" | "false_positive" | "duplicate";
+  note: string;
+  duplicate_of?: string | null;
+}
+
+export interface ReasonIn {
+  reason?: string;
+}
+
 export type LLMProposal =
   | AutoReplyProposal
   | RouteProposal

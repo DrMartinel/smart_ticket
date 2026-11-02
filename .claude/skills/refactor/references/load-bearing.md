@@ -296,6 +296,22 @@ guard and that comment is later trimmed, the entry is the record.
   anything, which would inflate K7 (`reopen_rate_after_autoreply`).
   *`test_the_reopen_task_refuses_an_open_ticket`.*
 
+### Security inbox (F8)
+
+- **`SecurityAlerts.raise_` as the only writer of `security_alert` audit rows.**
+  An event written straight to the audit log is seen by nobody.
+  *`test_every_security_alert_audit_raises_an_alert`.*
+- **The advisory lock and `select_for_update` around grouping.** Two raises at
+  once would each create an alert and page security twice. *`test_repeat_alerts_group`.*
+- **`ack_overdue_notified_at` set by a conditional update.** Overlapping sweeps
+  would page again. *`test_overdue_acknowledgement_is_escalated_once`.*
+- **Release moving the ticket with `system_move` and a new review item, never
+  `process_ticket`.** Re-running the AI would block it again.
+  *`test_release_goes_to_a_person_not_the_ai`.*
+- **`SECURITY_QUEUES` excluded from handoff in `ReviewDecisions.decide`.**
+  Otherwise agreeing with a block assigns a blocked ticket to a team.
+  *`test_a_true_positive_keeps_the_ticket_blocked_and_assigns_nobody`.*
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).

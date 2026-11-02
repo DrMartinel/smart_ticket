@@ -9,6 +9,8 @@ import re
 from pathlib import Path
 
 import pytest
+
+from apps.security.models import SecurityAlert
 from django.conf import settings
 from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
@@ -226,8 +228,9 @@ def test_rate_limit_refuses_and_alerts_security(api_as, people, ticket):
 
     assert first.status_code == second.status_code == 429
     assert first.json()["code"] == "reveal_rate_limited"
-    (alert,) = events("security_alert")
-    assert alert.payload["reason"] == "reveal_rate_limited"
+    assert {e.payload["reason"] for e in events("security_alert")} == {"reveal_rate_limited"}
+    (alert,) = SecurityAlert.objects.all()
+    assert (alert.kind, alert.count) == ("reveal_rate_limited", 2)
     assert PiiAccessLog.objects.count() == limit
     (notice,) = Message.objects.filter(user=people["anh"], event="security.alert", channel="in_app")
     assert notice.subject == "Cảnh báo bảo mật: reveal_rate_limited"

@@ -55,6 +55,8 @@ from apps.kb.models import KbArticle
 from apps.lifecycle.utils.engine import lifecycle
 from apps.lifecycle.utils.vocabulary import PipelineStatus
 from apps.review.models import ReviewItem
+from apps.security.utils.alerts import security_alerts
+from apps.security.utils.vocabulary import AlertKind
 from apps.tickets.models import (
     AiRun,
     RoutingDecision,
@@ -223,11 +225,15 @@ def _finalize(
         conversations.after_decision(ticket, decision.branch)
 
         if decision.alert_security:
-            AuditLog.objects.record(
-                "security_alert",
-                actor_type="system",
-                ticket_id=ticket.id,
-                payload={"reason_code": decision.reason_code.value},
+            security_alerts.raise_(
+                AlertKind(decision.reason_code.value),
+                ticket=ticket,
+                subject_user=ticket.reporter,
+                payload={
+                    "reason_code": decision.reason_code.value,
+                    "ticket_public_id": ticket.public_id,
+                },
+                detail=f"{ticket.public_id}: {decision.reason_code.value}",
                 trace_id=trace_id,
             )
 

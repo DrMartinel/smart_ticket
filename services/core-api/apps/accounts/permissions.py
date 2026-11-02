@@ -21,7 +21,7 @@ from ninja_jwt.authentication import JWTAuth
 from ninja_jwt.exceptions import AuthenticationFailed
 from ninja_jwt.tokens import Token
 
-from apps.accounts.models import Capability, RefreshSession, User, UserRole
+from apps.accounts.models import Capability, RefreshSession, RefusedCall, User, UserRole
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 
@@ -111,6 +111,7 @@ def refuse_unless(
 def _refuse(request: HttpRequest, user: User, gate: Gate) -> NoReturn:
     match = getattr(request, "resolver_match", None)
     route = match.route if match is not None else request.path
+    RefusedCall.objects.create(user=user, route=route[:200])
     window = timedelta(seconds=settings.THRESHOLDS.access_denied.audit_window_seconds)
     recently_audited = AuditLog.objects.filter(
         event="access_denied",

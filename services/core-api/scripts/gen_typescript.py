@@ -118,6 +118,18 @@ MODELS = [
     "ThreadCommentOut",
     "RequesterTicketOut",
     "ReopenOut",
+    "AlertTicketOut",
+    "AlertRowOut",
+    "AlertEventOut",
+    "SessionOut",
+    "ActivityOut",
+    "AlertDetailOut",
+    "SummaryCellOut",
+    "SummaryOut",
+    "AssignIn",
+    "NoteIn",
+    "CloseIn",
+    "ReasonIn",
 ]
 
 ENUMS = {
@@ -222,6 +234,10 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as requester_request,
         response_schema as requester_response,
     )
+    from apps.security import (
+        request_schema as security_request,
+        response_schema as security_response,
+    )
     from apps.sla import request_schema as sla_request, response_schema as sla_response
     from apps.teams import request_schema as teams_request, response_schema as teams_response
     from apps.tickets import request_schema, response_schema as tickets_response
@@ -244,6 +260,8 @@ def _models() -> dict[str, type[BaseModel]]:
         sla_response,
         requester_request,
         requester_response,
+        security_request,
+        security_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

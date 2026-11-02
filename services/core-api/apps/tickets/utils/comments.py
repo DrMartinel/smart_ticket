@@ -142,19 +142,20 @@ class Comments:
         locked.save(update_fields=["pii_map", "pii_level"])
 
     def alert(self, ticket: Ticket, author: User | None, reason: str, detail: str) -> None:
-        """Audits a `security_alert` for a credential in requester or staff text and tells security."""
-        AuditLog.objects.record(
-            "security_alert",
+        """Raises a `credential_in_reply` security alert for a credential in requester or staff
+        text (F8)."""
+        from apps.security.utils.alerts import security_alerts
+        from apps.security.utils.vocabulary import AlertKind
+
+        security_alerts.raise_(
+            AlertKind.CREDENTIAL_IN_REPLY,
             actor_type="human" if author else "system",
             actor_id=author.id if author else None,
-            ticket_id=ticket.id,
-            payload={"ticket_public_id": ticket.public_id, "reason_code": reason},
-        )
-        notifier.security_alert(
-            reason,
-            actor=author.username if author else "system",
-            detail=detail,
             ticket=ticket,
+            subject_user=author,
+            reason=reason,
+            payload={"ticket_public_id": ticket.public_id},
+            detail=f"{ticket.public_id}: {reason} ({detail})",
         )
 
     def system(self, ticket: Ticket, text: str) -> TicketComment:

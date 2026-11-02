@@ -8,7 +8,14 @@ from typing import Any
 from django.db import transaction
 
 from apps.accounts.models import User
-from apps.review.models import EvalCandidate, ReviewAction, ReviewDecision, ReviewError, ReviewItem
+from apps.review.models import (
+    SECURITY_QUEUES,
+    EvalCandidate,
+    ReviewAction,
+    ReviewDecision,
+    ReviewError,
+    ReviewItem,
+)
 from apps.review.request_schema import DecisionIn
 from apps.sla.utils.clocks import sla_clocks
 from apps.teams.utils.assignment import assignment
@@ -25,7 +32,8 @@ class ReviewDecisions:
     def decide(self, item: ReviewItem, reviewer: User, choice: DecisionIn) -> ReviewDecision:
         """Records the decision and resolves the item. Any action other than a clean approve
         becomes an `EvalCandidate` with the reviewer's correction and stated reason; one that
-        changes the category is a `reroute` label (BR-F2-06)."""
+        changes the category is a `reroute` label (BR-F2-06). Approving a blocked ticket's item
+        agrees with the block and hands nothing off (F8)."""
         action = choice.action_taken
         if action != ReviewAction.APPROVE.value and not (
             choice.override_reason and choice.override_reason.strip()
@@ -61,7 +69,7 @@ class ReviewDecisions:
                 else ((ai_run.proposed_draft or {}) if ai_run is not None else {}),
                 human_truth=self.human_truth(choice),
             )
-        if action in _HANDOFF:
+        if action in _HANDOFF and item.queue not in SECURITY_QUEUES:
             category = self.category_for(item, choice)
             if rerouted:
                 ticket.category = corrected

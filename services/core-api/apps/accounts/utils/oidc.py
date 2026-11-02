@@ -17,7 +17,8 @@ from django.utils import timezone
 from apps.accounts.models import AuthClient, AuthSource, Capability, User, UserCapability, UserRole
 from apps.accounts.utils import IssuedSession, Requester, SignInError, SignInRefusal, sessions
 from apps.audit.models import AuditLog
-from apps.notifications.utils.notifier import notifier
+from apps.security.utils.alerts import security_alerts
+from apps.security.utils.vocabulary import AlertKind
 from apps.teams.models import MembershipRole, Team, TeamMembership
 
 LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"
@@ -428,15 +429,12 @@ class OidcSignIn:
             raise
         glass = User.objects.filter(external_id=claims["sub"], is_break_glass=True).first()
         if glass is not None:
-            AuditLog.objects.record(
-                "security_alert",
-                actor_type="system",
+            security_alerts.raise_(
+                AlertKind.BREAK_GLASS_IN_KEYCLOAK,
                 actor_id=glass.id,
-                payload={"reason": "break_glass_account_in_keycloak", "sub": claims["sub"]},
-            )
-            notifier.security_alert(
-                "break_glass_account_in_keycloak",
-                actor="system",
+                subject_user=glass,
+                reason="break_glass_account_in_keycloak",
+                payload={"sub": claims["sub"]},
                 detail=f"{glass.username} signed in through Keycloak",
             )
             raise SignInError(
@@ -460,28 +458,25 @@ class OidcSignIn:
         client: AuthClient,
         requester: Requester,
     ) -> None:
-        event = (
-            "security_alert"
-            if refused.code is SignInRefusal.AMBIGUOUS_ROLE
-            else "auth_login_failed"
-        )
-        AuditLog.objects.record(
-            event,
-            actor_type="system",
-            payload={
-                "reason": refused.code.value,
-                "sub": claims.get("sub"),
-                "username": claims.get("preferred_username"),
-                "client": client.value,
-                "ip": requester.ip_address,
-            },
-        )
+        payload = {
+            "sub": claims.get("sub"),
+            "username": claims.get("preferred_username"),
+            "client": client.value,
+            "ip": requester.ip_address,
+        }
         if refused.code is SignInRefusal.AMBIGUOUS_ROLE:
-            notifier.security_alert(
-                refused.code.value,
-                actor="system",
+            security_alerts.raise_(
+                AlertKind.AMBIGUOUS_ROLE,
+                subject_user=User.objects.filter(external_id=claims.get("sub")).first(),
+                payload=payload,
                 detail=f"{claims.get('preferred_username')} holds more than one role in Keycloak",
             )
+            return
+        AuditLog.objects.record(
+            "auth_login_failed",
+            actor_type="system",
+            payload={"reason": refused.code.value, **payload},
+        )
 
     def backchannel_logout(self, logout_token: str) -> int:
         """Ends every sign-in of the user Keycloak logged out; returns tokens revoked."""

@@ -195,9 +195,14 @@ class TicketManager(models.Manager["Ticket"]):
         ).prefetch_related("review_items", "sla_clocks")
         match view:
             case StaffView.REVIEW:
-                from apps.review.models import ReviewItem
+                from apps.review.models import SECURITY_QUEUES, ReviewItem
 
-                tickets = tickets.filter(review_items__state__in=ReviewItem.OPEN_STATES).distinct()
+                waiting = ReviewItem.objects.filter(
+                    ticket=models.OuterRef("pk"), state__in=ReviewItem.OPEN_STATES
+                )
+                if user.role != "security":
+                    waiting = waiting.exclude(queue__in=SECURITY_QUEUES)
+                tickets = tickets.filter(models.Exists(waiting))
             case StaffView.MINE:
                 tickets = tickets.filter(assigned_to=user, resolved_at__isnull=True)
             case StaffView.OPEN:

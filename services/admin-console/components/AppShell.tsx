@@ -60,6 +60,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
               <NavItem href="/dashboard" active={pathname.startsWith("/dashboard")}>
                 Dashboard
               </NavItem>
+              {isManager && (
+                <NavItem href="/security/summary" active={pathname.startsWith("/security/summary")}>
+                  Security alerts
+                </NavItem>
+              )}
             </Group>
           )}
           {user.role !== "employee" && ((user.teams ?? []).length > 0 || isManager) && (
@@ -84,6 +89,9 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </Group>
           {user.role === "security" && (
             <Group label="Security">
+              <NavItem href="/security/alerts" active={pathname.startsWith("/security/alerts")}>
+                Alerts
+              </NavItem>
               <NavItem href="/security/access-log" active={pathname.startsWith("/security/access-log")}>
                 PII access log
               </NavItem>

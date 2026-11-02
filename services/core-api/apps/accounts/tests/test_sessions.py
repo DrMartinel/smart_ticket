@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pytest
+
+from apps.security.models import SecurityAlert
 from django.test import Client
 from django.utils import timezone
 from ninja_jwt.tokens import AccessToken
@@ -102,6 +104,10 @@ def test_a_reused_refresh_token_ends_the_whole_sign_in(glass_user, security_user
     assert Message.objects.filter(
         user=security_user, event="security.alert", subject__contains="refresh_token_reused"
     ).exists()
+    assert (
+        SecurityAlert.objects.filter(kind="refresh_token_reused", subject_user=glass_user).count()
+        == 1
+    )
 
 
 def test_two_tabs_refreshing_at_once_both_get_an_access_token(glass_user):

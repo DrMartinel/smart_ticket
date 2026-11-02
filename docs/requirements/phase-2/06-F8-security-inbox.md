@@ -252,6 +252,44 @@ mandatory), `security.ack_overdue` (security, mandatory).
 - **ADRs:** 0001, 0028 (release uses `system_move` as a review outcome, like a clarification answer moving to `new`), 0029.
 - **Regression tests:** `test_every_security_alert_audit_raises_an_alert`; `test_repeat_alerts_group`; `test_release_goes_to_a_person_not_the_ai`; `test_injection_queue_hidden_from_technicians`; `test_credential_alert_notifies_requester`.
 
+## v0.6.8 — where the code differs (build, 2026-10-26)
+
+Code wins (README §0.4 item 5). Item 1 is the owner's decision of 2026-10-26:
+
+1. **Closing as a true positive decides the security review item `approve`
+   and hands nothing off**: an `approve` on an `injection` or `pii_verify`
+   item agrees with the block, so F2's "approve assigns" (FR-F2-005) doesn't
+   apply to those queues. The ticket stays `blocked`.
+2. **Two more kinds, for writers that already existed:**
+   `break_glass_in_keycloak` (critical; a break-glass account signing in
+   through Keycloak, F13) and `reveal_failed` (high; a reveal whose access-log
+   write failed, F5). `credential_in_reply` covers a credential in a comment or
+   a rating comment; the audit row keeps the source's reason
+   (`credential_in_comment`, `credential_in_rating`).
+3. **Every raise writes its own `security_alert` audit row**, with
+   `alert_kind` beside the source's `reason`; a repeat within the window adds a
+   row and a `regrouped` event to the open alert. A rate-limited reveal
+   therefore writes a row per refusal, still one alert and one notice per hour.
+4. **Refused calls are counted from `accounts_refused_calls`**, one row per
+   refusal, kept a day: the `access_denied` audit row is written once per user,
+   route and method per minute (PRE-1), so it can't count a burst.
+5. **A break-glass sign-in raises its alert without a `security.alert`
+   notice**: `identity.break_glass_used` (mandatory) already tells security.
+6. **`POST /api/security/alerts/{id}/end-sessions`** ends every sign-in of the
+   alert's user (UC-F8-04 step 2), audited `security_sessions_ended`.
+   Assigning acknowledges a `new` alert and moves it to `investigating`.
+7. **Notes, reasons and closing notes are masked by the regex tier** and their
+   values dropped, like reassignment notes (F2); nothing goes to quarantine.
+8. **Security-queue items are refused (403) to everyone but security** on get,
+   claim and decide, and the tickets view "Needs review" leaves out tickets
+   whose only open item is in those queues. The ticket page itself still shows
+   a blocked ticket's masked text to staff.
+9. **The backfill** sets `ack_due_at` by wall-clock minutes and marks every
+   backfilled alert's overdue notice as sent, so history pages nobody.
+10. **Screens:** "Alerts" and the alert page under Security; "Security alerts"
+    (counts) under Insights for managers. Release and close are separate calls;
+    the alert page offers them together, as in Figma.
+
 ## j. Acceptance criteria
 
 ```gherkin

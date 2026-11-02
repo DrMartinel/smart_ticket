@@ -36,12 +36,20 @@ class ReviewError(Exception):
     pass
 
 
+# Queues of blocked tickets: their content is the attack or the secret (F8, BR-F8-07).
+SECURITY_QUEUES = frozenset({"injection", "pii_verify"})
+
+
 class ReviewItemManager(models.Manager["ReviewItem"]):
-    def for_queue(self, *, queue: str | None, state: str) -> QuerySet[ReviewItem]:
+    def for_queue(
+        self, *, queue: str | None, state: str, security: bool = False
+    ) -> QuerySet[ReviewItem]:
         """The HITL queue (spec §3.4): most urgent first (priority 1 = blocked,
         escalated or mask-failed), then longest-waiting first within a
-        priority."""
+        priority. The blocked tickets' queues only for `security` (BR-F8-07)."""
         qs = self.select_related("ticket", "ai_run", "comment").filter(state=state)
+        if not security:
+            qs = qs.exclude(queue__in=SECURITY_QUEUES)
         if queue:
             qs = qs.filter(queue=queue)
         return qs.order_by("priority", "created_at")
