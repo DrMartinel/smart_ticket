@@ -13,7 +13,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.test import override_settings
 from django.utils import timezone
 
-from apps.lifecycle.utils.engine import lifecycle
+from apps.notifications.tests.conftest import assign_to
 from apps.notifications.models import Message
 from apps.notifications.utils.configuration import config
 from apps.notifications.utils.dispatcher import SIGNATURE_HEADER, dispatcher
@@ -25,10 +25,6 @@ REJECTING = "apps.notifications.tests.conftest.RejectingRelay"
 
 def email_to(user) -> Message:
     return Message.objects.get(user=user, channel="email")
-
-
-def assign(ticket, user, actor):
-    lifecycle.assign(ticket.id, username=user.username, team=None, actor=actor)
 
 
 def make_due(message: Message) -> None:
@@ -49,7 +45,7 @@ def subscribe(people, url: str = "http://localhost:5678/hook"):
 
 def test_an_email_is_sent_with_text_html_and_a_link(people, ticket, queue):
     """FR-F4-006."""
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
 
     assert dispatcher.dispatch(email_to(people["duc"]).id) == MessageState.DELIVERED.value
 
@@ -66,7 +62,7 @@ def test_an_email_is_sent_with_text_html_and_a_link(people, ticket, queue):
 @override_settings(EMAIL_BACKEND=DOWN)
 def test_failed_email_leaves_ticket_unchanged(people, ticket, queue):
     """AC-F4-04: after max attempts the email is failed with an error; the ticket is untouched."""
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     ticket.refresh_from_db()
     status, version = ticket.status, ticket.version
     message = email_to(people["duc"])
@@ -85,7 +81,7 @@ def test_failed_email_leaves_ticket_unchanged(people, ticket, queue):
 
 @override_settings(EMAIL_BACKEND=DOWN)
 def test_a_transient_failure_retries_with_backoff(people, ticket, queue):
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = email_to(people["duc"])
 
     assert dispatcher.dispatch(message.id) == MessageState.QUEUED.value
@@ -100,7 +96,7 @@ def test_a_transient_failure_retries_with_backoff(people, ticket, queue):
 
 @override_settings(EMAIL_BACKEND=REJECTING)
 def test_a_refused_recipient_fails_at_once(people, ticket, queue):
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = email_to(people["duc"])
 
     assert dispatcher.dispatch(message.id) == MessageState.FAILED.value
@@ -112,7 +108,7 @@ def test_a_refused_recipient_fails_at_once(people, ticket, queue):
 
 def test_dispatch_twice_sends_once(people, ticket, queue):
     """Only a queued row is sent; a delivered one is never sent again."""
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = email_to(people["duc"])
 
     dispatcher.dispatch(message.id)
@@ -122,7 +118,7 @@ def test_dispatch_twice_sends_once(people, ticket, queue):
 
 
 def test_a_retry_not_yet_due_is_not_sent(people, ticket, queue):
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = email_to(people["duc"])
     Message.objects.filter(pk=message.pk).update(
         next_attempt_at=timezone.now() + timedelta(minutes=5)
@@ -135,7 +131,7 @@ def test_a_retry_not_yet_due_is_not_sent(people, ticket, queue):
 def test_a_webhook_is_signed_with_the_subscriptions_secret(people, ticket, queue, host):
     """BR-F4-06: HMAC-SHA256 of the exact body in X-SmartTicket-Signature."""
     subscribe(people)
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = Message.objects.get(channel="webhook")
 
     assert dispatcher.dispatch(message.id) == MessageState.DELIVERED.value
@@ -148,7 +144,7 @@ def test_a_webhook_is_signed_with_the_subscriptions_secret(people, ticket, queue
 
 def test_a_webhook_5xx_is_retried_and_a_4xx_is_not(people, ticket, queue, host):
     subscribe(people)
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = Message.objects.get(channel="webhook")
 
     host.status = 503
@@ -160,7 +156,7 @@ def test_a_webhook_5xx_is_retried_and_a_4xx_is_not(people, ticket, queue, host):
 
 def test_a_webhook_host_dropped_from_the_allow_list_is_refused(people, ticket, queue, host):
     subscribe(people)
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = Message.objects.get(channel="webhook")
 
     with override_settings(LIFECYCLE_WEBHOOK_ALLOWED_HOSTS=["example.org"]):
@@ -170,7 +166,7 @@ def test_a_webhook_host_dropped_from_the_allow_list_is_refused(people, ticket, q
 
 
 def test_the_sweep_requeues_a_stuck_send_and_dispatches_due_ones(people, ticket, queue):
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = email_to(people["duc"])
     stuck_since = timezone.now() - timedelta(
         seconds=settings.THRESHOLDS.notifications.stuck_after_sec + 1
@@ -188,7 +184,7 @@ def test_the_sweep_requeues_a_stuck_send_and_dispatches_due_ones(people, ticket,
 
 
 def test_the_sweep_leaves_a_recent_send_alone(people, ticket, queue):
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     message = email_to(people["duc"])
     Message.objects.filter(pk=message.pk).update(
         state=MessageState.SENDING.value, last_attempt_at=timezone.now()
@@ -198,7 +194,7 @@ def test_the_sweep_leaves_a_recent_send_alone(people, ticket, queue):
 
 
 def test_the_purge_deletes_old_in_app_notices_only(people, ticket):
-    assign(ticket, people["duc"], people["huy"])
+    assign_to(ticket, people["duc"], people["huy"])
     days = settings.THRESHOLDS.notifications.in_app_retention_days
     Message.objects.update(created_at=timezone.now() - timedelta(days=days + 1))
 

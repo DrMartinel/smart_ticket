@@ -36,6 +36,8 @@ from infrastructure.dtos import (
     TrustSignals,
 )
 from infrastructure.ai_engine import AIEngineUnavailable, ai_engine
+from apps.teams.utils.assignment import assignment
+from apps.teams.utils.vocabulary import AssignmentTrigger
 from apps.tickets.utils.router import (
     Branch,
     KBArticleMeta,
@@ -395,9 +397,9 @@ def _execute_or_enqueue(
         lifecycle.system_move(ticket, PipelineStatus.AUTO_REPLIED)
     elif branch is Branch.AUTO_ROUTE:
         ticket.category = decision.category.value if decision.category else ticket.category
-        ticket.assigned_team = ticket.category
-        ticket.save(update_fields=["category", "assigned_team"])
+        ticket.save(update_fields=["category"])
         lifecycle.system_move(ticket, PipelineStatus.AUTO_ROUTED)
+        assignment.assign_after_handoff(ticket, AssignmentTrigger.AUTO_ROUTE)
 
 
 def ticket_process(ticket_id: str) -> TaskResult:
@@ -441,10 +443,8 @@ def ticket_process(ticket_id: str) -> TaskResult:
         original = Ticket.objects.filter(id=verdict.of).first()
         if original:
             ticket.duplicate_of = original
-            ticket.assigned_team = original.assigned_team
-            ticket.assigned_to = original.assigned_to
             ticket.category = ticket.category or original.category
-            ticket.save(update_fields=["duplicate_of", "assigned_team", "assigned_to", "category"])
+            ticket.save(update_fields=["duplicate_of", "category"])
 
     if verdict.kind == "mass_incident":
         # Skip the AI engine entirely — cost saved, and per spec §9 a mass

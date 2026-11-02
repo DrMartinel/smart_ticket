@@ -13,6 +13,7 @@ import pytest
 from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQueue, Router
 from config.settings.base import (
     AccessDeniedThresholds,
+    AssignmentThresholds,
     AlertThresholds,
     BudgetThresholds,
     ClarificationThresholds,
@@ -93,6 +94,7 @@ def make_thresholds(**overrides) -> Thresholds:
         notifications=NotificationThresholds(
             max_attempts=5, stuck_after_sec=120, in_app_retention_days=90
         ),
+        assignment=AssignmentThresholds(reassign_note_min_chars=10),
     )
     base.update(overrides)
     return Thresholds(**base)

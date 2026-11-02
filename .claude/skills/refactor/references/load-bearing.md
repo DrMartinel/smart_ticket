@@ -236,6 +236,23 @@ guard and that comment is later trimmed, the entry is the record.
   key would give the PII key a second reader, which F5 forbids.
   *`test_decrypt_has_one_caller`.*
 
+### Teams and assignment (F2)
+
+- **`pg_advisory_xact_lock('assign:' || team_id)` before picking a person.**
+  Two handoffs at once would read the same loads and give both tickets to the
+  same member (BR-F2-08). *`test_concurrent_assignments_balance` fails without it.*
+- **`assign_after_handoff` running in its own savepoint and catching every error.**
+  It runs inside the pipeline's transaction right after the status move; an
+  exception there would undo the routing outcome (BR-F2-02, BR-X-07).
+  *`test_an_assignment_error_keeps_the_status_and_is_audited`.*
+- **Take checking `expected_version` and raising `tickets.version`.** Two people
+  clicking Take on the same row both see an unowned ticket; only the version
+  makes the second one a 409 `already_assigned`. *`test_two_takes_one_winner`.*
+- **The approval category never comes from `proposed_*`.** The fallback chain is
+  the reviewer's correction, the router's category, then the category the
+  reviewer confirmed (Jev's signal). Reading the proposal would let the LLM pick
+  the team (ADR-0001).
+
 ### Role enforcement (PRE-1)
 
 - **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).

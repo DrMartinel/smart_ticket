@@ -98,7 +98,7 @@ def test_an_event_runs_its_actions_when_it_fires(ticket, technician_user, celery
         events=[
             FieldEventIn(
                 event=EventCode.ON_SET,
-                actions=actions({"action": "assign_team", "params": {"team": "vendor-desk"}}),
+                actions=actions({"action": "assign_team", "params": {"team": "software"}}),
             )
         ],
     )
@@ -106,7 +106,7 @@ def test_an_event_runs_its_actions_when_it_fires(ticket, technician_user, celery
     field_values.write_by_name(ticket, {"Vendor case": "CASE-1"}, depth=0)
     celery.drain()
 
-    assert Ticket.objects.get(pk=ticket.pk).assigned_team == "vendor-desk"
+    assert Ticket.objects.get(pk=ticket.pk).assigned_team == "software"
     run = ActionRun.objects.get(ticket=ticket)
     assert run.state == RunState.SUCCEEDED.value
 
@@ -118,7 +118,7 @@ def test_an_event_that_does_not_fire_queues_nothing(ticket, celery):
         events=[
             FieldEventIn(
                 event=EventCode.ON_CLEAR,
-                actions=actions({"action": "assign_team", "params": {"team": "x"}}),
+                actions=actions({"action": "assign_team", "params": {"team": "access"}}),
             )
         ],
     )

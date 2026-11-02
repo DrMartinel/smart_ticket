@@ -212,11 +212,6 @@ class AdoptIn(In):
     status_mapping: dict[uuid.UUID, uuid.UUID] = {}
 
 
-class AssignIn(In):
-    assignee: str | None = Field(default=None, max_length=150)
-    team: str | None = Field(default=None, max_length=50)
-
-
 class ChangeWorkflowIn(In):
     status_id: uuid.UUID
 

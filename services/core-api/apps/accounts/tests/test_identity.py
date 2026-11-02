@@ -44,7 +44,7 @@ def realm(monkeypatch) -> FakeKeycloak:
 @pytest.fixture
 def teams() -> None:
     for slug in ("network", "hardware", "access"):
-        Team.objects.create(slug=slug, name=slug.title())
+        Team.objects.get_or_create(slug=slug, defaults={"name": slug.title()})
 
 
 def exchange(code: str, *, client: str = "chat", nonce: str = "nonce-1", **body: Any):

@@ -169,6 +169,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
 | KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |
 | Ticket lifecycle after triage: workflows, transitions, rules, actions (ADR-0028) | [apps/lifecycle/](services/core-api/apps/lifecycle/), the engine in [engine.py](services/core-api/apps/lifecycle/utils/engine.py) |
+| Teams, assignment at handoff, take and reassign (F2, ADR-0031) | [apps/teams/](services/core-api/apps/teams/), the service in [assignment.py](services/core-api/apps/teams/utils/assignment.py) |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
@@ -265,6 +266,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | Sign-in, token lifetimes, who may call what | `apps/accounts/utils.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
 | A ticket's status | `lifecycle.system_move` from pipeline code, `lifecycle.move` for a person: never `ticket.status = …` (ADR-0028) |
 | What a workflow action can do | `apps/lifecycle/utils/actions.py` (a handler and an `ActionCode`); rules and events in `utils/rules.py` |
+| Who gets a ticket | `assignment.assign_after_handoff` after the decision is carried out (pipeline, review decisions), `take` / `reassign` for people; never `ticket.assigned_to = …` in new code. Team ownership of categories is data (`team_categories`) |
 | Who is told about an event | `notifier.emit(event, ticket, Notice(...))` from the service that owns the event, never `router.py` or the routing step; new events go in the catalog (`apps/notifications/utils/vocabulary.py`) and its seed migration |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):

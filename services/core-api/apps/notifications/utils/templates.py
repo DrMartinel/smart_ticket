@@ -31,21 +31,35 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
     E.TICKET_REASSIGNED: {
         VI: (
             "{{ticket.id}} được giao lại cho {{ticket.assignee}}: {{ticket.subject}}",
-            "Trước đó: {{notice.previousAssignee}}. Người giao: {{notice.actor}}.\n\n{{ticket.body}}",
+            "Trước đó: {{notice.previousAssignee}}. Người giao: {{notice.actor}}. "
+            "Lý do: {{notice.reason}} {{notice.detail}}\n\n{{ticket.body}}",
         ),
         EN: (
             "{{ticket.id}} reassigned to {{ticket.assignee}}: {{ticket.subject}}",
-            "Previously: {{notice.previousAssignee}}. By: {{notice.actor}}.\n\n{{ticket.body}}",
+            "Previously: {{notice.previousAssignee}}. By: {{notice.actor}}. "
+            "Reason: {{notice.reason}} {{notice.detail}}\n\n{{ticket.body}}",
         ),
     },
     E.TICKET_UNASSIGNED: {
         VI: (
             "{{ticket.id}} chưa có người xử lý: {{ticket.subject}}",
-            "{{notice.actor}} đã bỏ giao {{notice.previousAssignee}}.",
+            "Đang chờ trong hàng đợi của nhóm {{ticket.assignedTeam}}. "
+            "Người nhận trước: {{notice.previousAssignee}}.",
         ),
         EN: (
             "{{ticket.id}} has no assignee: {{ticket.subject}}",
-            "{{notice.actor}} unassigned {{notice.previousAssignee}}.",
+            "Waiting in team {{ticket.assignedTeam}}'s queue. "
+            "Previous assignee: {{notice.previousAssignee}}.",
+        ),
+    },
+    E.ASSIGNMENT_FAILED: {
+        VI: (
+            "Không giao được {{ticket.id}}: {{notice.reason}}",
+            "{{notice.detail}}. Yêu cầu đang ở nhóm {{ticket.assignedTeam}}.",
+        ),
+        EN: (
+            "Couldn't assign {{ticket.id}}: {{notice.reason}}",
+            "{{notice.detail}}. The ticket is with team {{ticket.assignedTeam}}.",
         ),
     },
     E.APPROVAL_REQUESTED: {

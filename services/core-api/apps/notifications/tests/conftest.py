@@ -12,6 +12,9 @@ from django.core.mail.backends.base import BaseEmailBackend
 
 from apps.accounts.models import Capability, User, UserCapability, UserRole
 from apps.notifications import tasks
+from apps.teams.models import MembershipRole, Team, TeamMembership
+from apps.teams.utils.assignment import ReassignRequest, assignment
+from apps.teams.utils.vocabulary import ReassignReason
 from apps.tickets.models import Ticket
 from apps.tickets.utils.patterns import PIILevel
 from infrastructure.outbound import OutboundHttp, OutboundResponse
@@ -44,13 +47,40 @@ def people(db) -> dict[str, User]:
 
 @pytest.fixture
 def ticket(people) -> Ticket:
-    """TKT-2026-000412, its body masked."""
+    """TKT-2026-000412, its body masked, in team "network", where the technicians are members
+    and huy.pq leads."""
+    network = Team.objects.get(slug="network")
+    for key in ("duc", "ha", "mai", "tu"):
+        TeamMembership.objects.create(team=network, user=people[key], source="local")
+    TeamMembership.objects.create(
+        team=network, user=people["huy"], role=MembershipRole.LEAD.value, source="local"
+    )
     return Ticket.objects.create(
         public_id="TKT-2026-000412",
         reporter=people["lan"],
         subject_masked="Không vào được AWS access portal",
         body_masked="Em là [EMPLOYEE_CODE_1], SĐT [PHONE_VN_1]",
         pii_level=PIILevel.SENSITIVE.value,
+        category="network",
+        team=network,
+        assigned_team="network",
+    )
+
+
+def assign_to(ticket: Ticket, user: User | None, actor: User) -> Ticket:
+    """Reassigns `ticket` to `user`, or to whoever the team's strategy picks, as `actor`."""
+    ticket.refresh_from_db()
+    return assignment.reassign(
+        ticket.public_id,
+        actor,
+        ReassignRequest(
+            to_user=user.username if user else None,
+            to_team=None,
+            to_category=None,
+            reason_code=ReassignReason.WORKLOAD,
+            note="Chia lại việc trong nhóm",
+            expected_version=ticket.version,
+        ),
     )
 
 

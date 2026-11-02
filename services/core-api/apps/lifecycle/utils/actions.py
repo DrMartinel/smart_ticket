@@ -29,6 +29,8 @@ from apps.lifecycle.utils.templates import (
     placeholders,
 )
 from apps.notifications.utils.notifier import Notice, notifier
+from apps.teams.models import Team
+from apps.teams.utils.assignment import assignment
 from apps.notifications.utils.vocabulary import NotificationEvent
 from apps.lifecycle.utils.vocabulary import (
     ActionCode,
@@ -253,19 +255,36 @@ class AssignUser(ActionHandler):
 
 
 class AssignTeamParams(Params):
-    team: str = widget("text", "The team to assign")
+    team: str = widget("team", "The team's slug")
+    pick_member: bool = widget("checkbox", "Also pick a person by the team's strategy", False)
 
 
 class AssignTeam(ActionHandler):
     code = ActionCode.ASSIGN_TEAM
     name = "Assign team"
-    description = "Sets the ticket's assigned team."
+    description = "Moves the ticket to a team; optionally picks a person by the team's strategy."
     params_model = AssignTeamParams
 
     def execute(self, params: AssignTeamParams, ctx: ActionContext) -> ActionResult:
-        ctx.ticket.assigned_team = params.team[:50]
-        ctx.ticket.save(update_fields=["assigned_team"])
-        return ActionResult({"team": ctx.ticket.assigned_team})
+        team = Team.objects.filter(slug=params.team, is_active=True).first()
+        if team is None:
+            raise ActionError(FailureCode.INVALID_PARAM, f"no active team {params.team!r}")
+        assignment.move_to_team(ctx.ticket, team, pick_member=params.pick_member)
+        assignee = ctx.ticket.assigned_to
+        return ActionResult(
+            {"team": team.slug, "assignee": assignee.username if assignee else None}
+        )
+
+    def config_errors(self, params: dict[str, Any], workflow: Workflow) -> list[str]:
+        errors = super().config_errors(params, workflow)
+        slug = params.get("team")
+        if (
+            isinstance(slug, str)
+            and not has_placeholder(slug)
+            and not Team.objects.filter(slug=slug, is_active=True).exists()
+        ):
+            errors.append(f"no active team {slug!r}")
+        return errors
 
 
 class SetSlaParams(Params):

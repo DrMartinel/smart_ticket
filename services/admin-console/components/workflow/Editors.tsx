@@ -153,6 +153,14 @@ function ParamInput({
     </span>
   );
   let input;
+  if (param.type === "checkbox") {
+    return (
+      <label className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+        <input type="checkbox" checked={value === "true"} onChange={(e) => onChange(e.target.checked ? "true" : "false")} />
+        {param.description}
+      </label>
+    );
+  }
   if (param.type === "textarea") {
     input = <textarea className="field min-h-20 font-mono text-[13px]" value={value} onChange={(e) => onChange(e.target.value)} />;
   } else if (param.type === "customfield") {
@@ -191,7 +199,7 @@ function ParamInput({
       </select>
     );
   } else {
-    input = <input className="field" value={value} onChange={(e) => onChange(e.target.value)} placeholder={param.type === "user" ? "username" : undefined} />;
+    input = <input className="field" value={value} onChange={(e) => onChange(e.target.value)} placeholder={param.type === "user" ? "username" : param.type === "team" ? "team slug, e.g. network" : undefined} />;
   }
   return (
     <label className="flex flex-col gap-1">

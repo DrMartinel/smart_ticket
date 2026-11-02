@@ -201,7 +201,7 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
         _cells((K.WORKFLOW_ADMINS,), BOTH),
     ),
     E.ASSIGNMENT_FAILED: EventSpec(
-        "F2", False, "Assignment failed", "Không giao được yêu cầu", _cells((K.TEAM_LEAD,), IN_APP)
+        "F2", True, "Assignment failed", "Không giao được yêu cầu", _cells((K.TEAM_LEAD,), IN_APP)
     ),
     E.APPROVAL_REQUESTED: EventSpec(
         "lifecycle",

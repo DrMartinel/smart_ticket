@@ -1,5 +1,6 @@
 "use client";
 
+import ReassignDialog from "@/components/ReassignDialog";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -344,14 +345,25 @@ export default function TicketPage() {
           </Section>
 
           {lifecycle && (
-          <OwnerCard
-            assignee={detail.assignee}
-            team={detail.assigned_team}
-            busy={busy}
-            onSave={(assignee, team) =>
-              act(() => api.post(`/api/lifecycle/tickets/${id}/assign`, { assignee, team }), "Owner updated.")
-            }
-          />
+            <OwnerCard
+              ticket={{
+                public_id: detail.public_id,
+                subject: detail.subject_masked,
+                team: detail.assigned_team,
+                assignee: detail.assignee,
+                category: detail.category,
+                version: detail.version,
+              }}
+              canTake={!detail.assignee && !!detail.assigned_team && (user.role === "manager" || (user.teams ?? []).some((t) => t.team === detail.assigned_team))}
+              busy={busy}
+              onTake={() =>
+                act(
+                  () => api.post(`/api/tickets/${id}/take`, { expected_version: detail.version }),
+                  "You have the ticket.",
+                )
+              }
+              onReassigned={() => void load()}
+            />
           )}
 
           <Section title="Details">
@@ -404,63 +416,49 @@ function Section({ title, aside, children }: { title: string; aside?: React.Reac
 }
 
 function OwnerCard({
-  assignee,
-  team,
+  ticket,
+  canTake,
   busy,
-  onSave,
+  onTake,
+  onReassigned,
 }: {
-  assignee: string | null;
-  team: string | null;
+  ticket: { public_id: string; subject: string; team: string | null; assignee: string | null; category: string | null; version: number };
+  canTake: boolean;
   busy: boolean;
-  onSave: (assignee: string | null, team: string | null) => void;
+  onTake: () => void;
+  onReassigned: () => void;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [who, setWho] = useState(assignee ?? "");
-  const [group, setGroup] = useState(team ?? "");
+  const [open, setOpen] = useState(false);
 
   return (
     <Section
       title="Owner"
       aside={
-        !editing && (
-          <button className="text-xs text-[var(--accent)]" onClick={() => setEditing(true)}>
-            Change
-          </button>
-        )
+        <button className="text-xs text-[var(--accent)]" onClick={() => setOpen(true)}>
+          Reassign…
+        </button>
       }
     >
-      {!editing ? (
-        <div className="text-sm">
-          <p>{assignee ?? <span className="text-[var(--text-muted)]">Unassigned</span>}</p>
-          <p className="text-[var(--text-muted)]">{team ? `Team ${team}` : "No team"}</p>
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <div>
+          <p>{ticket.assignee ?? <span className="text-[var(--text-muted)]">Unassigned</span>}</p>
+          <p className="text-[var(--text-muted)]">{ticket.team ? `Team ${ticket.team}` : "No team"}</p>
         </div>
-      ) : (
-        <form
-          className="flex flex-col gap-2.5 text-sm"
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSave(who.trim() || null, group.trim() || null);
-            setEditing(false);
-          }}
-        >
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Person (username)</span>
-            <input className="field" value={who} onChange={(e) => setWho(e.target.value)} placeholder="e.g. tech1" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-[var(--text-muted)]">Team</span>
-            <input className="field" value={group} onChange={(e) => setGroup(e.target.value)} placeholder="e.g. network" />
-          </label>
-          <div className="flex gap-2">
-            <button type="submit" className="btn btn-primary" disabled={busy}>
-              Save
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
+        {canTake && (
+          <button className="btn btn-primary" disabled={busy} onClick={onTake}>
+            Take
+          </button>
+        )}
+      </div>
+      <ReassignDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        onDone={() => {
+          setOpen(false);
+          onReassigned();
+        }}
+        ticket={ticket}
+      />
     </Section>
   );
 }

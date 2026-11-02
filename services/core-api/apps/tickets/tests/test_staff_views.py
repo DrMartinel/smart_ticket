@@ -82,22 +82,6 @@ def test_the_detail_explains_a_ticket_with_no_ai_run(api_as, employee_user, tech
     assert body["reporter_person"]["username"] == employee_user.username
 
 
-def test_assigning_records_the_owner_and_refuses_a_requester(
-    api_as, employee_user, technician_user
-):
-    ticket = make_ticket(employee_user)
-    client = api_as(technician_user)
-    url = f"/api/lifecycle/tickets/{ticket.public_id}/assign"
-
-    ok = client.post(url, {"assignee": "tech", "team": "network"}, content_type="application/json")
-    bad = client.post(url, {"assignee": employee_user.username}, content_type="application/json")
-
-    assert ok.status_code == 200
-    ticket.refresh_from_db()
-    assert (ticket.assigned_to, ticket.assigned_team) == (technician_user, "network")
-    assert bad.status_code == 422
-
-
 def test_the_detail_summarises_the_latest_ai_run(api_as, employee_user, technician_user):
     from apps.kb.models import KbArticle
     from apps.tickets.models import AiRun
@@ -142,31 +126,12 @@ def test_a_requester_cannot_read_the_detail_or_assign(api_as, employee_user):
 
     detail = client.get(f"/api/tickets/{ticket.public_id}/detail")
     assign = client.post(
-        f"/api/lifecycle/tickets/{ticket.public_id}/assign",
-        {"assignee": None},
+        f"/api/tickets/{ticket.public_id}/reassign",
+        {"reason_code": "workload", "note": "trying to grab it", "expected_version": 0},
         content_type="application/json",
     )
 
     assert detail.status_code == assign.status_code == 403
-
-
-def test_unassigning_clears_owner_and_team_and_is_audited(api_as, employee_user, technician_user):
-    from apps.audit.models import AuditLog
-
-    ticket = make_ticket(employee_user)
-    client = api_as(technician_user)
-    url = f"/api/lifecycle/tickets/{ticket.public_id}/assign"
-    client.post(url, {"assignee": "tech", "team": "network"}, content_type="application/json")
-
-    response = client.post(url, {"assignee": None, "team": None}, content_type="application/json")
-
-    assert response.status_code == 200
-    ticket.refresh_from_db()
-    assert (ticket.assigned_to, ticket.assigned_team) == (None, None)
-    first, second = AuditLog.objects.filter(event="ticket_assigned").order_by("occurred_at")
-    assert first.payload["new"] == {"assignee": "tech", "team": "network"}
-    assert second.payload["new"] == {"assignee": None, "team": None}
-    assert first.actor_id == second.actor_id == technician_user.id
 
 
 def test_security_can_list_open_and_board_tickets(api_as, employee_user, security_user):

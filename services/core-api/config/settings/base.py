@@ -254,6 +254,9 @@ NOTIFICATION_POLL_SEC = int(env("NOTIFICATION_POLL_SEC"))
 NOTIFICATION_PUBLIC_BASE_URL = env("NOTIFICATION_PUBLIC_BASE_URL")
 NOTIFICATION_SECRET_KEY = env("NOTIFICATION_SECRET_KEY")
 
+# ── Teams and assignment (F2); `.env.example` explains the value ─────────
+ASSIGNMENT_TIMEZONE = env("ASSIGNMENT_TIMEZONE")
+
 # The schema of thresholds.yaml (spec §8, §13). Parsed at boot, so a missing
 # or malformed file stops core-api starting instead of surfacing mid-routing.
 
@@ -368,6 +371,11 @@ class NotificationThresholds(BaseModel):
     in_app_retention_days: int = Field(ge=1)
 
 
+class AssignmentThresholds(BaseModel):
+    # Shortest note a manual reassignment carries (F2, BR-F2-05).
+    reassign_note_min_chars: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -389,6 +397,7 @@ class Thresholds(BaseModel):
     pii_reveal: PiiRevealThresholds
     identity: IdentityThresholds
     notifications: NotificationThresholds
+    assignment: AssignmentThresholds
 
     @property
     def retrieval_floor(self) -> float:

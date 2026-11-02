@@ -296,6 +296,57 @@ No new Celery task (assignment is synchronous). No webhook event beyond F4's.
 - **ADRs:** 0001 (BR-F2-02, 06), 0028 §2 (assignment is not an action on a pipeline status, because pipeline statuses carry no actions), proposed 0031.
 - **Regression tests:** `test_assignment_never_changes_routing_decision`; `test_auto_route_assigns_team_from_router_category`; `test_review_reroute_sets_category_and_eval_candidate`; `test_no_eligible_member_leaves_unassigned_and_notifies_lead`; `test_concurrent_assignments_balance` (two workers, one lock); existing `pipeline` tests updated from `assigned_team == category` to `team.slug == category`.
 
+## v0.6.5 — where the code differs (build, 2026-10-26)
+
+Code wins (README §0.4 item 5). Each change and its reason:
+
+1. **"On leave today" is judged in `ASSIGNMENT_TIMEZONE`** (`.env.example`,
+   `Asia/Ho_Chi_Minh`) until F1's calendars exist; F1 replaces it with the team's
+   calendar (owner's decision, 2026-10-26).
+2. **Open count = every unfinished ticket assigned to the person**, including
+   ones on hold. §g's SQL left out `On hold` by status name; a ticket on hold is
+   still that person's, and a name match breaks when a status is renamed.
+3. **Duplicates inherit at handoff, not before routing** (owner's decision).
+   The pipeline no longer copies the original's assignee; the assignment
+   service gives a duplicate to the original's assignee when they are eligible
+   in the team. In shadow mode a duplicate waits for review like any ticket.
+4. **The old `POST /api/lifecycle/tickets/{id}/assign` is retired** (owner's
+   decision): every manual change goes through Take or Reassign with a reason
+   (BR-F2-05). The `assign_user` action stays.
+5. **One label per review decision:** a decision that changes the category
+   writes one `eval_candidate` with source `reroute`; other overrides keep
+   `human_override` (owner's decision).
+6. **The category an approval assigns by:** the reviewer's correction, else the
+   router's category, else the category the reviewer was shown and marked
+   correct (Jev's choice in the run's signals, never a `proposed_*` field). With
+   none, the fallback team gets the ticket and `assignment_failed` says
+   `no_category`. `ReviewItem.decide` moved to `ReviewDecisions` (CLAUDE.md
+   "Where logic goes").
+7. **More refusals:** `category_required` (the target team owns several
+   categories and none was named, `to_category`), `user_not_in_team`,
+   `ticket_completed`, `team_not_found`, `not_allowed` (security staff on a
+   non-security ticket), `managed_by_keycloak`, `fallback_required`.
+8. **Moving a category between teams:** a save naming a category another team
+   owns is refused with `category_taken` unless it says `move_categories: true`;
+   otherwise a move would need an intermediate save that leaves it unowned.
+9. **API additions:** `GET /api/teams/{slug}` (with members); adding and
+   removing local members (`/api/teams/{slug}/members`, audited
+   `membership_changed`); a lead setting a member's availability
+   (`PUT /api/teams/{slug}/members/{username}/availability`);
+   `GET /api/me/availability`. Workload rows carry `last_assigned_at` and
+   `next_pick`; teams carry `leads`. Take, reassign and assignment at handoff
+   raise `tickets.version`.
+10. **A manager outside the team may take a ticket**, as BR-F2-04's "manager
+    anywhere" reads.
+11. **Screens:** the team queue (`/teams/[slug]`) and workload
+    (`/teams/[slug]/workload`) sit under a Teams group in the sidebar; my
+    availability is `/me/availability`; teams are under Settings. Priority and
+    SLA badges come with F1. The workload has no bulk "reassign selected": each
+    ticket is reassigned from the queue or the ticket page. The review page opens
+    the ticket page, which carries the Reassign dialog.
+12. **`assign_team`'s parameters are `{team, pick_member}`**; saving one that
+    names no active team is refused.
+
 ## j. Acceptance criteria
 
 ```gherkin
