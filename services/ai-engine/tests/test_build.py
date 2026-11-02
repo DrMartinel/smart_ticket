@@ -5,6 +5,8 @@ tested separately, with no DB, LLM or network.
 
 from uuid import UUID
 
+import pytest
+
 from ai_engine.graph.build.node import Terminal
 from ai_engine.graph.nodes.candidate_pool.node import CandidatePoolNode
 from ai_engine.graph.nodes.classify_category.node import (
@@ -17,6 +19,8 @@ from ai_engine.graph.nodes.emit_signals.node import EmitSignalsNode
 from ai_engine.graph.nodes.fewshot import SelectFewshotsNode
 from ai_engine.graph.nodes.infer.node import InferNode
 from ai_engine.graph.nodes.injection import InjectionNode, InjectionOutcome, injection
+from ai_engine.graph.nodes.mask_guard import MaskGuardNode, MaskGuardOutcome, mask_guard
+from ai_engine.graph.ticket import PIILevel
 from ai_engine.graph.state import RankedChunk
 from ai_engine.graph.nodes.rerank.node import RerankNode
 from ai_engine.graph.nodes.retrieve.node import HybridRetrieveNode
@@ -43,6 +47,19 @@ def test_injection_detected_decides_detected(make_state):
 def test_no_injection_decides_clear(make_state):
     state = make_state(injection_detected=False)
     assert injection.decide(state) is InjectionOutcome.INJECTION_CLEAR
+
+
+def test_mask_failed_decides_mask_failed(make_state, make_ticket):
+    ticket = make_ticket().model_copy(update={"pii_level": PIILevel.MASK_FAILED})
+    assert mask_guard.decide(make_state(ticket=ticket)) is MaskGuardOutcome.MASK_FAILED
+
+
+@pytest.mark.parametrize(
+    "level", [level for level in PIILevel if level is not PIILevel.MASK_FAILED]
+)
+def test_every_other_level_decides_masked(level, make_state, make_ticket):
+    ticket = make_ticket().model_copy(update={"pii_level": level})
+    assert mask_guard.decide(make_state(ticket=ticket)) is MaskGuardOutcome.MASKED
 
 
 def test_empty_reranked_is_below_floor(make_state):
@@ -91,8 +108,14 @@ def test_safety_critical_routes():
     assert edges[("injection", "emit_signals")] == InjectionOutcome.INJECTION_DETECTED
     # An injected ticket never reaches the drafting model (ADR-0021): the
     # draft is the first model call after the guard, not before it.
-    assert edges[("injection", "draft_answer")] == InjectionOutcome.INJECTION_CLEAR
+    assert edges[("injection", "mask_guard")] == InjectionOutcome.INJECTION_CLEAR
+    assert ("injection", "draft_answer") not in edges
     assert ("__start__", "draft_answer") not in edges
+    # A mask-failed ticket reaches no model; the guard runs after the
+    # injection check, so an injected one is still flagged.
+    assert edges[("mask_guard", "emit_signals")] == MaskGuardOutcome.MASK_FAILED
+    assert edges[("mask_guard", "draft_answer")] == MaskGuardOutcome.MASKED
+    assert ("__start__", "mask_guard") not in edges
     assert edges[("classify_category", "emit_signals")] == (
         ClassifyCategoryOutcome.EVIDENCE_BELOW_FLOOR
     )
@@ -119,6 +142,7 @@ def test_graph_has_exactly_the_expected_nodes():
 
     assert nodes == {
         InjectionNode.name,
+        MaskGuardNode.name,
         DraftAnswerNode.name,
         HybridRetrieveNode.name,
         CandidatePoolNode.name,
@@ -134,6 +158,7 @@ def test_graph_has_exactly_the_expected_nodes():
     # Pinned literally once: these strings are what shows up in traces.
     assert nodes == {
         "injection",
+        "mask_guard",
         "draft_answer",
         "hybrid_retrieve",
         "candidate_pool",
@@ -157,7 +182,9 @@ def test_compiled_edges_are_exactly_the_triage_topology():
     assert set(_edges()) == {
         ("__start__", "injection"),
         ("injection", "emit_signals"),
-        ("injection", "draft_answer"),
+        ("injection", "mask_guard"),
+        ("mask_guard", "emit_signals"),
+        ("mask_guard", "draft_answer"),
         ("draft_answer", "hybrid_retrieve"),
         ("hybrid_retrieve", "candidate_pool"),
         ("candidate_pool", "rerank"),

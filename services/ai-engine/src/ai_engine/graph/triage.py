@@ -20,6 +20,9 @@ Triage topology, load-bearing properties:
 3. The graph is acyclic: every node runs at most once per ticket. A proposal
    that fails schema validation goes to a human, not back to the model.
    `Graph.validate()` rejects any cycle.
+4. A `mask_failed` ticket goes from the injection guard straight to
+   `EmitSignalsNode`: only the regex tier masked its text, so no model
+   past the guard sees it.
 """
 
 from __future__ import annotations
@@ -34,6 +37,7 @@ from ai_engine.graph.nodes.emit_signals.node import emit_signals
 from ai_engine.graph.nodes.fewshot import select_fewshots
 from ai_engine.graph.nodes.infer.node import infer
 from ai_engine.graph.nodes.injection import InjectionOutcome, injection
+from ai_engine.graph.nodes.mask_guard import MaskGuardOutcome, mask_guard
 from ai_engine.graph.nodes.rerank.node import rerank
 from ai_engine.graph.nodes.retrieve.node import hybrid_retrieve
 from ai_engine.graph.nodes.score_options.node import score_options
@@ -43,7 +47,10 @@ _triage = GraphBuilder(entry=injection)
 
 _triage.route(injection, InjectionOutcome.INJECTION_DETECTED, emit_signals)
 # An injected ticket never reaches the drafting model.
-_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, draft_answer)
+_triage.route(injection, InjectionOutcome.INJECTION_CLEAR, mask_guard)
+# A mask-failed ticket reaches no model at all.
+_triage.route(mask_guard, MaskGuardOutcome.MASK_FAILED, emit_signals)
+_triage.route(mask_guard, MaskGuardOutcome.MASKED, draft_answer)
 _triage.route(draft_answer, SingleExit.DONE, hybrid_retrieve)
 
 _triage.route(hybrid_retrieve, SingleExit.DONE, candidate_pool)
