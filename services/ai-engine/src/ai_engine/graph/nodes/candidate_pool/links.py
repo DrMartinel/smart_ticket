@@ -1,68 +1,98 @@
 """
-Link expansion (ADR-0014 decisions 1-2, ADR-0015, ADR-0018): reads the
-articles associated with a seed from `kb_article_associations`, in the one
-source `ASSOCIATION_SOURCE` names, and their chunks nearest the draft.
+Link expansion (ADR-0014 decisions 1-2, ADR-0015, ADR-0018, ADR-0037): reads
+the articles associated with a seed from `kb_article_associations`, in the
+one source `ASSOCIATION_SOURCE` names, with KB editors' overrides applied,
+and their chunks nearest the draft.
 """
 
 from __future__ import annotations
 
 import uuid
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, literal_column, null, select, union_all
 
 from ai_engine.core.config import settings
 from ai_engine.core.db.client import db
-from ai_engine.core.db.tables import KbArticle, KbArticleAssociation, KbChunk
+from ai_engine.core.db.tables import (
+    KbArticle,
+    KbArticleAssociation,
+    KbAssociationOverride,
+    KbChunk,
+)
 from ai_engine.graph.state import Candidate
 
 
 class Association(NamedTuple):
     seed: uuid.UUID
     target: uuid.UUID
-    score: float
+    # None for a KB editor's added pointer (ADR-0037).
+    score: float | None
 
 
 def associations(seed_ids: list[uuid.UUID], *, max_per_seed: int) -> list[Association]:
-    """Reads each seed's associations to active articles, seed by seed, best
-    score first, at most `max_per_seed` per seed."""
+    """Reads each seed's associations to active articles, seed by seed, at
+    most `max_per_seed` per seed: a KB editor's added pointers first, then
+    the source's edges best score first, without the pairs an editor hid
+    (ADR-0037)."""
 
     if not seed_ids or settings.association_source == "none":
         return []
-    association = KbArticleAssociation
+    association, override = KbArticleAssociation, KbAssociationOverride
+    overridden = (
+        select(override.id)
+        .where(
+            override.source_article_id == association.source_article_id,
+            override.target_article_id == association.target_article_id,
+        )
+        .exists()
+    )
+    built: Select[Any] = select(
+        association.source_article_id.label("seed"),
+        association.target_article_id.label("target"),
+        association.score.label("score"),
+        literal_column("1").label("tier"),
+    ).where(
+        association.source_article_id.in_(seed_ids),
+        association.source == settings.association_source,
+        ~overridden,
+    )
+    added: Select[Any] = select(
+        override.source_article_id.label("seed"),
+        override.target_article_id.label("target"),
+        null().label("score"),
+        literal_column("0").label("tier"),
+    ).where(override.source_article_id.in_(seed_ids), override.action == "add")
+    pointers = union_all(built, added).subquery()
     ranked = (
         select(
-            association.source_article_id,
-            association.target_article_id,
-            association.score,
+            pointers.c.seed,
+            pointers.c.target,
+            pointers.c.score,
             func.row_number()
             .over(
-                partition_by=association.source_article_id,
+                partition_by=pointers.c.seed,
                 # The id breaks score ties, so the same rows give the same order.
-                order_by=(association.score.desc(), association.target_article_id),
+                order_by=(pointers.c.tier, pointers.c.score.desc(), pointers.c.target),
             )
             .label("rank"),
         )
-        .join(KbArticle, KbArticle.id == association.target_article_id)
-        .where(
-            association.source_article_id.in_(seed_ids),
-            association.source == settings.association_source,
-            KbArticle.is_active.is_(True),
-        )
+        .join(KbArticle, KbArticle.id == pointers.c.target)
+        .where(KbArticle.is_active.is_(True))
         .subquery()
     )
     rows = db.all(
-        select(ranked.c.source_article_id, ranked.c.target_article_id, ranked.c.score)
+        select(ranked.c.seed, ranked.c.target, ranked.c.score)
         .where(ranked.c.rank <= max_per_seed)
-        .order_by(ranked.c.source_article_id, ranked.c.rank)
+        .order_by(ranked.c.seed, ranked.c.rank)
     )
 
     by_seed: dict[uuid.UUID, list[Association]] = {seed: [] for seed in seed_ids}
     for seed, target, score in rows:
-        # The table's CHECK forbids self-pairs; skipped here as well, so a
+        # The tables' CHECKs forbid self-pairs; skipped here as well, so a
         # seed never expands to itself whatever wrote the row.
         if target != seed:
-            by_seed[seed].append(Association(seed, target, float(score)))
+            by_seed[seed].append(Association(seed, target, None if score is None else float(score)))
     return [a for seed in seed_ids for a in by_seed[seed]]
 
 

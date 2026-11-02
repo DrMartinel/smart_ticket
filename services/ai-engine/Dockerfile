@@ -19,15 +19,18 @@ COPY pyproject.toml uv.lock* /workspace/
 COPY services/ai-engine/pyproject.toml /workspace/services/ai-engine/
 
 WORKDIR /workspace/services/ai-engine
-RUN uv sync --frozen --no-dev --no-install-workspace --package ai-engine \
-    || uv sync --no-dev --no-install-workspace --package ai-engine
+# Empty for the served image; "--group build" for compose's graph-builder (ADR-0037).
+ARG SYNC_GROUPS=""
+RUN uv sync --frozen --no-dev $SYNC_GROUPS --no-install-workspace --package ai-engine \
+    || uv sync --no-dev $SYNC_GROUPS --no-install-workspace --package ai-engine
 
 ENV PATH="/workspace/services/ai-engine/.venv/bin:/workspace/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 
 # Sources last: this is the layer that actually changes between builds.
 COPY services/ai-engine /workspace/services/ai-engine
-RUN uv sync --frozen --no-dev --package ai-engine || uv sync --no-dev --package ai-engine
+RUN uv sync --frozen --no-dev $SYNC_GROUPS --package ai-engine \
+    || uv sync --no-dev $SYNC_GROUPS --package ai-engine
 
 EXPOSE 8001
 CMD ["uvicorn", "ai_engine.main:app", "--host", "0.0.0.0", "--port", "8001"]

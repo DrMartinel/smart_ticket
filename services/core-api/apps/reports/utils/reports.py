@@ -21,6 +21,7 @@ from apps.core.errors import CodedError
 from apps.incidents.models import IncidentBroadcast, IncidentLink
 from apps.kb.models import DraftState, GapState, KbDraft, KbGapCluster
 from apps.kb.utils.gaps import kb_gaps, unit
+from apps.kb.utils.graph import GraphHealth, kb_graph
 from apps.metrics.utils import percentile
 from apps.notifications.models import Message
 from apps.notifications.utils.vocabulary import Channel, MessageState
@@ -257,6 +258,7 @@ class KbReport:
     open_clusters: int
     open_by_label: dict[str, int]
     closures: list[GapClosure]
+    graph: GraphHealth
 
 
 @dataclass
@@ -761,6 +763,7 @@ class Reports:
             open_clusters=open_clusters.count(),
             open_by_label=dict(Counter(open_clusters.values_list("label", flat=True))),
             closures=self.gap_closures(),
+            graph=kb_graph.health(local(monday - timedelta(weeks=weeks - 1), zone)),
         )
 
     def gap_closures(self) -> list[GapClosure]:

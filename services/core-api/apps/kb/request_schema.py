@@ -12,7 +12,7 @@ from django.db.models import Q
 from ninja import FilterSchema, Schema
 from pydantic import Field, field_validator
 
-from apps.kb.models import DraftKind, DraftState
+from apps.kb.models import DraftKind, DraftState, OverrideAction
 from apps.tickets.utils.router import RiskTier
 from infrastructure.dtos import TicketCategory
 
@@ -100,3 +100,22 @@ class AuthorityLogFilter(Schema):
 
 class GapDismissIn(Schema):
     reason: str
+
+
+# ── page graph (F11) ──
+
+
+class GraphReasonIn(Schema):
+    reason: str = Field(max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("a reason is required")
+        return value.strip()
+
+
+class GraphOverrideIn(GraphReasonIn):
+    target: str = Field(max_length=200)
+    action: OverrideAction

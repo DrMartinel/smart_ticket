@@ -374,6 +374,11 @@ GRANT SELECT ON kb_articles, kb_chunks, fewshot_examples TO ai_engine_ro;
 -- link expansion reads it (ADR-0018); the offline entity-graph build
 -- replaces its own rows (ADR-0025). Triage writes nothing.
 GRANT SELECT, INSERT, DELETE ON kb_article_associations TO ai_engine_ro;
+-- KB editors' overrides apply in link expansion; the `--pending` build
+-- closes the rebuild requests it answers (ADR-0037).
+GRANT SELECT ON kb_association_overrides TO ai_engine_ro;
+GRANT SELECT ON kb_graph_rebuild_requests TO ai_engine_ro;
+GRANT UPDATE (state, done_at, build_id) ON kb_graph_rebuild_requests TO ai_engine_ro;
 ```
 
 ---

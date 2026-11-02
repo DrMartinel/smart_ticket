@@ -10,7 +10,14 @@ from pathlib import Path
 import ai_engine
 from ai_engine.core.db.tables import Base
 
-_GRANTED_TABLES = {"kb_articles", "kb_chunks", "fewshot_examples", "kb_article_associations"}
+_GRANTED_TABLES = {
+    "kb_articles",
+    "kb_chunks",
+    "fewshot_examples",
+    "kb_article_associations",
+    "kb_association_overrides",
+    "kb_graph_rebuild_requests",
+}
 
 _WRITE_CALL = re.compile(
     r"\b(create_all|drop_all)\s*\(|\bsession\.(add|add_all|delete|merge|flush|commit)\s*\("
@@ -52,5 +59,20 @@ def test_only_the_offline_build_writes():
             continue
         for match in _WRITE_STATEMENT.finditer(_code(path)):
             offenders.append(f"{path.relative_to(_SRC)}: {match.group(0)}")
+
+    assert offenders == []
+
+
+def test_triage_writes_nothing():
+    """F11 §i (ADR-0025, ADR-0037): the request path neither imports the offline build nor
+    calls `db.write`, so a ticket's run writes no row, overrides and rebuild requests included."""
+
+    request_path = [_SRC / "main.py", _SRC / "schemas.py", *sorted((_SRC / "graph").rglob("*.py"))]
+    offenders = [
+        f"{path.relative_to(_SRC)}: {line.strip()}"
+        for path in request_path
+        for line in _code(path).splitlines()
+        if "core.associations" in line or re.search(r"\bdb\.write\s*\(", line)
+    ]
 
     assert offenders == []

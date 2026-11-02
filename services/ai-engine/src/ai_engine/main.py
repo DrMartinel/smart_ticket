@@ -92,6 +92,7 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
                 "rerank_score": r.final_score(),
                 "shortlist_score": r.shortlist_score,
                 "option_score": o,
+                "origin": r.origin.value,
             }
             for r, o in zip(reranked, option_scores, strict=True)
         ],

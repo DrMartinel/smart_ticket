@@ -1336,6 +1336,49 @@ export interface GapReportOut {
   clusters: GapClusterOut[];
 }
 
+export interface GraphOverrideOut {
+  action: string;
+  reason: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface GraphEdgeOut {
+  slug: string;
+  title: string;
+  score: number | null;
+  evidence: string[];
+  build_id: string;
+  stale: boolean;
+  reviewed: boolean;
+  override: GraphOverrideOut | null;
+}
+
+export interface RebuildRequestOut {
+  id: string;
+  reason: string;
+  state: string;
+  requested_at: string;
+  done_at: string | null;
+  build_id: string;
+}
+
+export interface PageGraphOut {
+  slug: string;
+  outgoing: GraphEdgeOut[];
+  incoming: GraphEdgeOut[];
+  last_build: RebuildRequestOut | null;
+  pending_request: RebuildRequestOut | null;
+}
+
+export interface AssociationOverrideOut {
+  source: string;
+  target: string;
+  action: string;
+  reason: string;
+  created_at: string;
+}
+
 export interface DraftIn {
   kind?: DraftKind;
   slug: string;
@@ -1490,12 +1533,27 @@ export interface GapClosureOut {
   complete: boolean;
 }
 
+export interface GraphHealthOut {
+  pages: number;
+  pages_with_edges: number;
+  edges: number;
+  stale_edges: number;
+  hidden: number;
+  added: number;
+  pending_requests: number;
+  failed_requests: number;
+  auto_replies: number;
+  auto_replies_from_expansion: number;
+  expansion_share: number | null;
+}
+
 export interface KbReportOut {
   weeks: number;
   refusals: RefusalWeekOut[];
   open_clusters: number;
   open_by_label: Record<string, number>;
   closures: GapClosureOut[];
+  graph: GraphHealthOut;
 }
 
 export interface CsatLineOut {

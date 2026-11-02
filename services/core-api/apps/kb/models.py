@@ -111,7 +111,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
                 risk_tier=risk_tier,
                 source_url=source_url,
             )
-            indexer.ingest(article)
+            indexer.ingest(article, graph_rebuild=None)
             return article, True
         fields_changed = (article.title, article.body, article.category, article.source_url) != (
             title,
@@ -134,7 +134,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
         # see create_and_ingest) or ran under an older chunker. Either way
         # retrieval is searching text the article no longer splits into.
         if text_changed or not article.chunks_are_current():
-            indexer.ingest(article)
+            indexer.ingest(article, graph_rebuild=None)
             return article, True
         return article, fields_changed
 
@@ -318,6 +318,8 @@ class KbArticleAssociation(BaseModel):
     # The link href, or the symptom -> remedy pairs behind the edge.
     evidence = models.JSONField(default=list)
     reviewed = models.BooleanField(default=False)
+    # The page on either end was re-ingested since the build that wrote the row (F11).
+    stale = models.BooleanField(default=False, db_default=False)
     # The build that produced the row (source, policy version, pairs, date).
     build_id = models.CharField(max_length=200)
 
@@ -339,6 +341,80 @@ class KbArticleAssociation(BaseModel):
                 "source",
                 models.F("score").desc(),
                 name="idx_kb_association_seed",
+            ),
+        ]
+
+
+class OverrideAction(StrEnum):
+    HIDE = "hide"
+    ADD = "add"
+
+
+class KbAssociationOverride(BaseModel):
+    """A KB editor's correction to link expansion between two pages, read by ai-engine and kept
+    across rebuilds (F11, ADR-0037)."""
+
+    source_article = models.ForeignKey(
+        KbArticle, on_delete=models.CASCADE, related_name="overrides_out"
+    )
+    target_article = models.ForeignKey(
+        KbArticle, on_delete=models.CASCADE, related_name="overrides_in"
+    )
+    action = models.CharField(max_length=10, choices=[(a.value, a.value) for a in OverrideAction])
+    reason = models.TextField()
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "kb_association_overrides"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source_article", "target_article"], name="uq_kb_override_pair"
+            ),
+            models.CheckConstraint(
+                condition=~models.Q(source_article=models.F("target_article")),
+                name="chk_kb_override_not_self",
+            ),
+        ]
+
+
+class RebuildReason(StrEnum):
+    PUBLISH = "publish"
+    MANUAL = "manual"
+
+
+class RebuildState(StrEnum):
+    PENDING = "pending"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class KbGraphRebuildRequest(BaseModel):
+    """A page whose entity-graph edges the next `--pending` build replaces (F11, ADR-0037)."""
+
+    article = models.ForeignKey(
+        KbArticle, on_delete=models.CASCADE, related_name="graph_rebuild_requests"
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True
+    )
+    reason = models.CharField(max_length=10, choices=[(r.value, r.value) for r in RebuildReason])
+    state = models.CharField(
+        max_length=10,
+        choices=[(s.value, s.value) for s in RebuildState],
+        default=RebuildState.PENDING.value,
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    done_at = models.DateTimeField(null=True, blank=True)
+    build_id = models.CharField(max_length=200, blank=True, default="")
+
+    class Meta(BaseModel.Meta):
+        db_table = "kb_graph_rebuild_requests"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["article"],
+                condition=models.Q(state="pending"),
+                name="uq_kb_rebuild_one_pending",
             ),
         ]
 

@@ -167,6 +167,7 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
         "rerank_score": 0.95,
         "shortlist_score": 0.7,
         "option_score": None,
+        "origin": "fused",
     }
 
 

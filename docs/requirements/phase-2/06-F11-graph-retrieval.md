@@ -98,7 +98,7 @@ Screens: [`F11 · Page graph`](https://www.figma.com/design/KXpnlC78p9pHYRuZZuQx
 | `kb_article_associations` | CHANGED | NEW `stale` bool default false | ai-engine build writes rows; core-api (the table's owner) updates only `stale` and `reviewed` |
 | `kb_association_overrides` | NEW | `source_article` FK, `target_article` FK, `action` (`hide` \| `add`), `reason`, `created_by`, `created_at`. Unique (`source_article`, `target_article`) | core-api |
 | `kb_graph_rebuild_requests` | NEW | `article` FK, `requested_by` null, `reason` (`publish` \| `manual`), `state` (`pending` \| `done` \| `failed`), `requested_at`, `done_at`, `build_id` | core-api inserts; ai-engine build updates state |
-| `ai_engine_ro` grants | CHANGED | SELECT on `kb_association_overrides`; SELECT, UPDATE(`state`, `done_at`, `build_id`) on `kb_graph_rebuild_requests` | `infra/migrations/sql/0008_graph_feature_grants.sql` |
+| `ai_engine_ro` grants | CHANGED | SELECT on `kb_association_overrides`; SELECT, UPDATE(`state`, `done_at`, `build_id`) on `kb_graph_rebuild_requests` | `infra/migrations/sql/0009_graph_feature_grants.sql` (0008 was taken; v0.6.13) |
 
 Sample edges for `client-vpn-user.windows-troubleshooting` (seed):
 
@@ -166,3 +166,41 @@ Feature: F11 Graph retrieval as a KB feature
     Then every DeepSeek request it sends contains only kb_chunks text
     And no ticket text is read
 ```
+
+## v0.6.13 — where the code differs (build, 2026-11-02)
+
+Code wins (README §0.4 item 5). ADR-0037 accepted 2026-11-02, the owner's decision.
+
+1. **The grants file is `0009_graph_feature_grants.sql`.** §g named `0008`,
+   which `0008_audit_log_actor_index.sql` already holds.
+2. **The scheduled job is a compose service, `graph-builder`**, from the
+   ai-engine image with ai-engine's allowlist: it runs the build CLI with
+   `--pending --watch`, which sleeps `GRAPH_BUILD_INTERVAL_MIN` (15) between
+   runs. Its pairs file and reply cache live in the `graph_build` volume,
+   seeded once from `demo_kb/associations/entity_graph_pairs.jsonl`.
+3. **`--pending` re-extracts the requested pages, re-scores every stored
+   pair, and replaces the edges touching those pages, both ways**, in one
+   transaction with closing the requests (`done`, the build id). A failure
+   marks them `failed` and leaves the stale edges. Any build keeps a pair's
+   `reviewed` flag when the pair survives; new rows are not stale.
+4. **A snapshot load (`load_demo_kb`, `upsert_from_source`) marks edges
+   stale but files no rebuild request**: the demo graph comes from its
+   committed pairs (`--rescore-only`), and 3,542 requests would re-extract
+   every page. F6 publishes, `create_and_ingest` and `/reingest` file one
+   (`reason = publish`); a page with a pending request gets no second one.
+5. **Overrides in the link query**: a pair with any override is dropped
+   from the built edges; `add` overrides are read alongside them and rank
+   first for their seed, inside the same per-seed cap.
+6. **`origin` is a key on each `retrieved_chunks` entry**, as §g's wire note
+   says (`retrieved_chunks` is untyped in both services, so no schema
+   change). A chunk is `expansion` when link expansion added it to the pool.
+7. **"The cited page came from expansion" reads the run's top passage by
+   Jev's score**, the page an auto-reply must cite (`cited_is_rerank_choice`).
+   Graph health counts only auto-replies whose run reports origins (runs
+   since F11), so older runs don't count as fused.
+8. **The page graph is its own screen, `/kb/graph/{slug}`**, linked from the
+   pages list ("Đồ thị"), not a tab inside the draft editor (a draft has no
+   graph until published). Figma 20-1874 and 17-1912 not yet checked: the
+   Figma connector needs re-authorising.
+9. **AC-F11-03 (recall@5 ≥ 0.90 with no overrides) has not run**: pending
+   the owner's go, so the PR merges with it open.

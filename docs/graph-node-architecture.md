@@ -143,7 +143,10 @@ nodes, so every node and the builder can import them. A `RankedChunk` carries on
 score per reranking stage: `shortlist_score` (set by CandidatePoolNode)
 and `rerank_score` (set by RerankNode, None until then). Anything compared with
 a threshold reads `final_score()`, Jev's, which raises when Jev hasn't scored
-the chunk. `category_choice` and `category_confidence` (ClassifyCategoryNode)
+the chunk. Its `origin` (CandidatePoolNode) is `fused`, or `expansion` for a
+chunk link expansion added; link expansion applies KB editors' overrides,
+dropping hidden pairs and ranking added ones first (ADR-0037).
+`category_choice` and `category_confidence` (ClassifyCategoryNode)
 are Jev's category answer; `None` means it was never asked.
 
 The validation defaults read as "every check failed": refuse-before-LLM skips

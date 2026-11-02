@@ -11,6 +11,7 @@ import type {
   CsatLineOut,
   CsatReportOut,
   IncidentReportOut,
+  GraphHealthOut,
   KbReportOut,
   NotificationReportOut,
   ReviewerReportOut,
@@ -327,9 +328,42 @@ export function KbReport() {
               ))}
             </Table>
           )}
+          <GraphHealth graph={data.graph} />
         </>
       )}
     </>
+  );
+}
+
+// ── Graph health (F11, 17-1912) ──
+
+function GraphHealth({ graph }: { graph: GraphHealthOut }) {
+  return (
+    <section className="mt-6">
+      <h2 className="mb-1 text-sm font-medium">Đồ thị liên kết · Graph health</h2>
+      <p className="mb-3 text-xs text-[var(--text-muted)]">
+        Các liên kết mở rộng tìm kiếm theo; điểm không bao giờ quyết định trả lời tự động (BR-F11-04).
+      </p>
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <Stat
+          label="Trang có liên kết · Pages with edges"
+          value={`${graph.pages_with_edges} / ${graph.pages}`}
+          note={`${graph.edges} liên kết`}
+        />
+        <Stat
+          label="Liên kết cũ · Stale edges"
+          value={String(graph.stale_edges)}
+          tone={graph.stale_edges > 0 ? "warn" : undefined}
+          note={`${graph.pending_requests} trang chờ dựng lại · ${graph.failed_requests} lỗi`}
+        />
+        <Stat label="Điều chỉnh · Overrides" value={String(graph.hidden + graph.added)} note={`${graph.hidden} ẩn · ${graph.added} thêm`} />
+        <Stat
+          label="Trả lời tự động từ mở rộng · From expansion"
+          value={percent(graph.expansion_share)}
+          note={`${graph.auto_replies_from_expansion}/${graph.auto_replies} trả lời tự động trong kỳ`}
+        />
+      </div>
+    </section>
   );
 }
 

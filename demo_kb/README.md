@@ -89,6 +89,23 @@ finds nothing. A database migrated before 2026-10-13 lacks the write
 grant: reset its volume, or run
 `GRANT INSERT, DELETE ON kb_article_associations TO ai_engine_ro;`.
 
+**Edits rebuild on a schedule (F11, ADR-0037).** Re-ingesting a page (an F6
+publish, `/reingest`) marks the edges touching it `stale` and files a
+rebuild request; a snapshot load files none. Compose's `graph-builder`
+service runs
+
+```bash
+python -m ai_engine.core.associations.build --pending --watch \
+    --out /graph/out --working-dir /graph/cache
+```
+
+every `GRAPH_BUILD_INTERVAL_MIN` minutes: it re-extracts only the requested
+pages, re-scores every stored pair, replaces the edges touching those pages
+and closes the requests, keeping each surviving pair's `reviewed` flag. Its
+`graph_build` volume starts from this directory's `entity_graph_pairs.jsonl`.
+KB editors' hides and adds live in `kb_association_overrides`, which no
+build touches.
+
 **`entity_graph_pairs.jsonl` is the contract between the extractor and
 everything after it.** One JSON object per line, one per pair found on a
 page; `page` is null when the remedy is on the page itself:

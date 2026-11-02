@@ -396,7 +396,7 @@ The ADR is accepted or superseded on a full run and a held-out measurement.
 
 ### Work
 
-- Run `build --rescore-only` against the Dockerized Postgres once (ADR-0025): the write path is unit-tested only, and an existing `db_data` volume needs the new grant first (`demo_kb/README.md`).
+- Run `build --rescore-only` against the Dockerized Postgres once (ADR-0025). The write path ran there on 2026-11-02 (F11's `--pending` replace), after re-applying `0006_association_grant.sql`: a `db_data` volume migrated before ADR-0025 edited that file has SELECT only (`demo_kb/README.md`).
 - Category F1 below 2026-10-04 on `access` and `software`, with expansion on and off: find which tickets moved.
 - Choose the shipped source for the demo KB, then a full run with it on the shipped pipeline (the all-gates run of 2026-10-10 (8) used a one-chunk-per-page limit since removed).
 
@@ -527,4 +527,20 @@ department, so the linked-ticket list shows usernames only.
 - **Notification latency from the event**: messages don't store when their
   event happened, so K8 reads write-to-delivery. Add an event time to
   `notif_messages` if the in-app number has to include queueing.
+
+## 19. Entity graph follow-ups (F11)
+
+**Priority:** Medium · **Spec:** F11 v0.6.13 · **ADR:** 0037
+
+- **Run AC-F11-03** (retrieval suite, recall@5 ≥ 0.90 with no overrides)
+  when the owner says go. BR-F11-06 makes it a merge gate; the PR went up
+  with it open.
+- **Check the page graph and graph health against Figma** 20-1874 and
+  17-1912 once the Figma connector is re-authorised.
+- **One `--pending` run through DeepSeek** on the stack (`graph-builder`):
+  only the write path has run live.
+- **A rename can move another page's pointer**: `--pending` replaces the
+  edges touching the requested pages, so a pair on an unrequested page that
+  used to resolve to a requested page and now resolves elsewhere keeps its
+  old row until a full build.
 

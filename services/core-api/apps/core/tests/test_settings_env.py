@@ -148,12 +148,13 @@ def test_compose_gives_core_api_exactly_what_it_reads(service):
     assert _compose_env(service) - _COMPOSE_ONLY == _read_by_core_api()
 
 
-def test_compose_gives_ai_engine_exactly_what_it_reads():
+@pytest.mark.parametrize("service", ["ai-engine", "graph-builder"])
+def test_compose_gives_ai_engine_exactly_what_it_reads(service):
     """ADR-0004 in the container: ai-engine's environment is its own
     settings only, so core-api's read-write DSN and Django secret are never
     in reach of the service the boundary exists to contain."""
 
-    env = _compose_env("ai-engine")
+    env = _compose_env(service)
 
     assert env == _read_by_ai_engine()
     assert env.isdisjoint(
