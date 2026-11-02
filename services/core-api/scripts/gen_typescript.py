@@ -198,6 +198,13 @@ MODELS = [
     "CsatReportOut",
     "AgreementReportOut",
     "GateValueReportOut",
+    "RunbookOut",
+    "RunbookExecutionOut",
+    "RunbookPanelOut",
+    "ExecuteIn",
+    "ExecutionResolveIn",
+    "RunbookIn",
+    "RunbookChangeIn",
     "BranchReadinessOut",
     "AutomationOut",
     "RolloutReportOut",
@@ -257,6 +264,9 @@ ENUMS = {
         "linked_requesters",
         "previous_assignee",
     ],
+    "ExecutorKind": ["keycloak", "n8n", "mock"],
+    "TargetRule": ["reporter", "any"],
+    "RunbookRisk": ["low", "high"],
 }
 
 REASON_CODES = [
@@ -314,6 +324,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as incidents_request,
         response_schema as incidents_response,
     )
+    from apps.itsm_mock import request_schema as itsm_request, response_schema as itsm_response
     from apps.kb import request_schema as kb_request, response_schema as kb_response
     from apps.notifications import (
         request_schema as notifications_request,
@@ -363,6 +374,8 @@ def _models() -> dict[str, type[BaseModel]]:
         kb_request,
         kb_response,
         reports_response,
+        itsm_request,
+        itsm_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

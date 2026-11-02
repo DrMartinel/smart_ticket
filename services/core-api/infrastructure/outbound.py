@@ -27,6 +27,10 @@ class OutboundUnavailable(Exception):
     """The destination could not be reached or didn't answer in time; callers may retry."""
 
 
+class OutboundNoAnswer(OutboundUnavailable):
+    """The request may have reached the destination, which gave no full answer."""
+
+
 @dataclass(frozen=True)
 class OutboundResponse:
     status: int
@@ -67,14 +71,16 @@ class OutboundHttp:
                     body = b""
                     for chunk in response.iter_bytes():
                         if time.monotonic() > deadline:
-                            raise OutboundUnavailable(f"{url} took longer than the total timeout")
+                            raise OutboundNoAnswer(f"{url} took longer than the total timeout")
                         body += chunk
                         if len(body) >= limit:
                             body = body[:limit]
                             break
                     return OutboundResponse(response.status_code, body.decode("utf-8", "replace"))
-        except httpx.HTTPError as e:
+        except (httpx.ConnectError, httpx.ConnectTimeout) as e:
             raise OutboundUnavailable(str(e)) from e
+        except httpx.HTTPError as e:
+            raise OutboundNoAnswer(str(e)) from e
 
     def check_url(self, url: str) -> tuple[str, int | None]:
         """The host and port of `url`; raises `OutboundRefused` unless it is http(s) to an

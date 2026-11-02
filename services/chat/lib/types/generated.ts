@@ -41,6 +41,12 @@ export type ReassignReason = "wrong_team" | "workload" | "skill" | "leave" | "es
 
 export type RecipientKind = "requester" | "assignee" | "team_lead" | "team_members" | "manager" | "security" | "workflow_admins" | "kb_editors" | "incident_managers" | "approver" | "linked_requesters" | "previous_assignee";
 
+export type ExecutorKind = "keycloak" | "n8n" | "mock";
+
+export type TargetRule = "reporter" | "any";
+
+export type RunbookRisk = "low" | "high";
+
 export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed";
 
 export interface TicketIn {
@@ -1604,6 +1610,85 @@ export interface GateValueReportOut {
   value: number | null;
   met: boolean;
   entered: boolean;
+}
+
+export interface RunbookOut {
+  code: string;
+  title: string;
+  executor: string;
+  config: Record<string, unknown>;
+  required_fields: string[];
+  target_rule: string;
+  risk: string;
+  is_active: boolean;
+  runnable: boolean;
+  approved_by: string | null;
+  approved_at: string | null;
+  pending_change: Record<string, unknown> | null;
+  drafted_by: string | null;
+  drafted_at: string | null;
+}
+
+export interface RunbookExecutionOut {
+  id: string;
+  runbook_id: string;
+  runbook_title: string;
+  executor: string;
+  state: string;
+  attempt: number;
+  payload: Record<string, unknown>;
+  executed_payload: Record<string, unknown>;
+  executed_by: string;
+  approved_by: string | null;
+  second_approver: string | null;
+  external_ref: string;
+  error: string;
+  result: Record<string, unknown>;
+  executed_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  awaiting_until: string | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  resolution_note: string;
+}
+
+export interface RunbookPanelOut {
+  runbook_id: string | null;
+  draft_payload: Record<string, unknown>;
+  runbook: RunbookOut | null;
+  approved: boolean;
+  executions: RunbookExecutionOut[];
+}
+
+export interface ExecuteIn {
+  payload: Record<string, unknown>;
+}
+
+export interface ExecutionResolveIn {
+  state: "succeeded" | "failed";
+  note: string;
+}
+
+export interface RunbookIn {
+  code: string;
+  title: string;
+  executor: ExecutorKind;
+  config: Record<string, unknown>;
+  required_fields: string[];
+  target_rule: TargetRule;
+  risk: RunbookRisk;
+  is_active?: boolean;
+}
+
+export interface RunbookChangeIn {
+  title?: string | null;
+  executor?: ExecutorKind | null;
+  config?: Record<string, unknown> | null;
+  required_fields?: string[] | null;
+  target_rule?: TargetRule | null;
+  risk?: RunbookRisk | null;
+  is_active?: boolean | null;
 }
 
 export interface BranchReadinessOut {

@@ -200,6 +200,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.rollout.tasks.sweep",
         "schedule": float(env("ROLLOUT_SWEEP_INTERVAL_SEC")),
     },
+    "itsm-sweep": {
+        "task": "apps.itsm_mock.tasks.sweep",
+        "schedule": float(env("ITSM_SWEEP_INTERVAL_SEC")),
+    },
     "sla-holiday-check": {
         "task": "apps.sla.tasks.holiday_check",
         # 07:00 Asia/Ho_Chi_Minh (UTC+7); CELERY_TIMEZONE is UTC.
@@ -258,6 +262,15 @@ OIDC_HTTP_CONNECT_TIMEOUT_SEC = float(env("OIDC_HTTP_CONNECT_TIMEOUT_SEC"))
 OIDC_HTTP_READ_TIMEOUT_SEC = float(env("OIDC_HTTP_READ_TIMEOUT_SEC"))
 KEYCLOAK_ADMIN_CLIENT_ID = env("KEYCLOAK_ADMIN_CLIENT_ID")
 KEYCLOAK_ADMIN_CLIENT_SECRET = env("KEYCLOAK_ADMIN_CLIENT_SECRET")
+KEYCLOAK_RUNBOOK_CLIENT_ID = env("KEYCLOAK_RUNBOOK_CLIENT_ID")
+KEYCLOAK_RUNBOOK_CLIENT_SECRET = env("KEYCLOAK_RUNBOOK_CLIENT_SECRET")
+
+# ── Runbook executors (F12, ADR-0038); `.env.example` explains each value ──
+ITSM_EXECUTOR_TIMEOUT_SEC = float(env("ITSM_EXECUTOR_TIMEOUT_SEC"))
+ITSM_RUN_STUCK_SEC = int(env("ITSM_RUN_STUCK_SEC"))
+ITSM_GRANTABLE_GROUP_PREFIXES = [
+    p.strip() for p in env("ITSM_GRANTABLE_GROUP_PREFIXES").split(",") if p.strip()
+]
 
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = env_bool("SHADOW_MODE")

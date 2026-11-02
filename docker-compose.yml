@@ -90,6 +90,12 @@ x-core-api-env: &core-api-env
   OIDC_HTTP_READ_TIMEOUT_SEC: ${OIDC_HTTP_READ_TIMEOUT_SEC:?see .env.example}
   KEYCLOAK_ADMIN_CLIENT_ID: ${KEYCLOAK_ADMIN_CLIENT_ID:?see .env.example}
   KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?see .env.example}
+  KEYCLOAK_RUNBOOK_CLIENT_ID: ${KEYCLOAK_RUNBOOK_CLIENT_ID:?see .env.example}
+  KEYCLOAK_RUNBOOK_CLIENT_SECRET: ${KEYCLOAK_RUNBOOK_CLIENT_SECRET:?see .env.example}
+  ITSM_EXECUTOR_TIMEOUT_SEC: ${ITSM_EXECUTOR_TIMEOUT_SEC:?see .env.example}
+  ITSM_RUN_STUCK_SEC: ${ITSM_RUN_STUCK_SEC:?see .env.example}
+  ITSM_SWEEP_INTERVAL_SEC: ${ITSM_SWEEP_INTERVAL_SEC:?see .env.example}
+  ITSM_GRANTABLE_GROUP_PREFIXES: ${ITSM_GRANTABLE_GROUP_PREFIXES:?see .env.example}
 
 services:
   db:
@@ -402,6 +408,7 @@ services:
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?see .env.example}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?see .env.example}
+      KEYCLOAK_RUNBOOK_CLIENT_SECRET: ${KEYCLOAK_RUNBOOK_CLIENT_SECRET:?see .env.example}
     volumes:
       - ./infra/keycloak/smart-ticket-realm.json:/opt/keycloak/data/import/smart-ticket-realm.json:ro
     ports:

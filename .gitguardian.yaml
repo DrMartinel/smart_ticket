@@ -12,5 +12,7 @@ secret:
       match: 94eea5c6016fa87d9e7937ade9fde3ea40ff8f94f6ed194692aeb51d4ce7fd59
     - name: KEYCLOAK_ADMIN_CLIENT_SECRET dev value
       match: 578e95fac5fc37c35c95cd5b432cb7bd70019b0031e98989499b1c9ce60ebeb6
+    - name: KEYCLOAK_RUNBOOK_CLIENT_SECRET dev value
+      match: e432b905adf9ad97a3dcd287443fc2338a7e385ae1fa371441037108f4987f16
     - name: NOTIFICATION_SECRET_KEY dev value
       match: 8b80bfc66fbb18a65d887d93cd91e16a850e0ccd1c00d96180a5279ca47598ac

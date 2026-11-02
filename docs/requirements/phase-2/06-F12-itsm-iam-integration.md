@@ -125,9 +125,10 @@ Execution record (Lan asked to reset her own access-portal password):
 Refused case: proposal `{"target_username":"huy.pq"}` on Lan's ticket → 422
 `target_not_reporter`, nothing sent.
 
-**`.env.example` — CHANGED:** `ITSM_EXECUTOR_TIMEOUT_SEC=30`. Keycloak admin
-credentials reuse F13's `KEYCLOAK_ADMIN_*` (separate client recommended,
-OQ-25).
+**`.env.example` — CHANGED:** `ITSM_EXECUTOR_TIMEOUT_SEC=30`. Keycloak
+credentials are a separate client, `KEYCLOAK_RUNBOOK_CLIENT_ID/SECRET`
+(`smart-ticket-runbooks`, only `manage-users`), as OQ-25 decided (v0.6.14;
+this line used to say F13's `KEYCLOAK_ADMIN_*` were reused).
 
 ## h. API changes
 
@@ -198,3 +199,56 @@ Feature: F12 Runbook executors
     Then the runbook keeps its old config until a manager approves
     And one audit row "runbook_catalog_changed" exists
 ```
+
+## v0.6.14 — where the code differs (build, 2026-11-02)
+
+Code wins (README §0.4 item 5). ADR-0038 accepted 2026-11-02, the owner's decision.
+
+1. **The seed uses the §g table's real executors, all unapproved** (the
+   owner's decision): FR-F12-002 said the three registry entries become
+   `mock` runbooks, which disagreed with §g. Nothing runs until a manager
+   approves each runbook in the catalog; `mock` is the test double only.
+2. **Keycloak runbooks act as `smart-ticket-runbooks`** (OQ-25), not F13's
+   sync client: `KEYCLOAK_RUNBOOK_CLIENT_ID/SECRET`, a dev-realm client with
+   only realm-management `manage-users`. Run against the dev Keycloak on
+   2026-11-02: user lookup, clearing a brute-force lock, `group-by-path` and
+   group membership all work with that one role.
+3. **`runbook_executions` keeps its `runbook_id` column** (the code, now the
+   model field `runbook_code`); the new FK column is `itsm_runbook_id`.
+   `state` is backfilled from `status`, which is no longer written (TODO 20).
+4. **A fourth state, `awaiting_second_approval`.** The 409
+   `second_approval_required` records the execution and returns its id in
+   `details.execution`; the second approval queues it. The second approver
+   is a manager other than the decision's approver **and** the executor.
+5. **Outcomes:** a connect failure, a refused destination or any 4xx is
+   `failed` (nothing changed; a person may execute again). A timeout after
+   sending, a 5xx on the changing call, an executor crash, or a worker lost
+   mid-call (`ITSM_RUN_STUCK_SEC`) is `unknown`. Only `failed` allows a new
+   attempt; `idempotency_key` is `review_item:attempt`.
+6. **The worker checks again:** the approving decision (ADR-0006), the
+   runbook still approved and active and unchanged since the execute, and a
+   second approver for high risk. Any failure there is `failed`, nothing sent.
+7. **`group_not_allowed`** is a catalog group outside
+   `ITSM_GRANTABLE_GROUP_PREFIXES` (`/apps/`, so a runbook never grants a
+   Smart Ticket team or role) or a payload group off the runbook's
+   `allowed_groups`. A definition no executor could run is 422
+   `invalid_config`.
+8. **Every catalog change waits**, deactivation included, and is approved by
+   a manager other than its author (403 `self_approval`).
+   `runbook_catalog_changed` rows carry `stage`: `created`, `drafted` or
+   `approved`.
+9. **n8n:** the callback header is `X-Itsm-Token`. It is accepted once, and
+   only while an n8n execution is `running`; a callback after the timeout
+   made it `unknown` is refused (409 `not_awaiting`) and a person resolves
+   it. The beat task `apps.itsm_mock.tasks.sweep` runs every
+   `ITSM_SWEEP_INTERVAL_SEC`; the worker task is
+   `apps.itsm_mock.tasks.execute` (§h's `itsm.execute`).
+10. **Ticket comment and notices:** a succeeded run posts a public system
+    comment; failed and unknown post internal notes. Two new catalog events:
+    `runbook.second_approval_requested` (managers) and `runbook.finished`
+    (assignee).
+11. **The panel reads `GET /api/itsm/review-items/{id}/runbook`** (the
+    proposal, its catalog entry, whether a person approved it, and the
+    executions). The catalog is `/settings/runbooks`. The dev realm has no
+    SMTP server, so a password reset there ends `unknown` (Keycloak answers
+    500).

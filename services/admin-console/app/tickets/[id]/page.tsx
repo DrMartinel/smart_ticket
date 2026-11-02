@@ -15,6 +15,7 @@ import { piiLevelClasses, priorityClasses } from "@/lib/badges";
 import PiiText from "@/components/PiiText";
 import StatusChip from "@/components/StatusChip";
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
+import RunbookPanel from "@/components/RunbookPanel";
 import TrustSignalsPanel, { type TrustSignalsPanelProps } from "@/components/TrustSignalsPanel";
 import type { StaffTicketDetail } from "@/lib/types/generated";
 
@@ -118,6 +119,7 @@ export default function TicketPage() {
   };
 
   const latest = detail.routing[0];
+  const runbookItem = detail.reviews.find((r) => r.queue === "runbook_approval") ?? null;
   const mayReveal = user.role === "technician" || user.role === "security";
 
   return (
@@ -289,6 +291,12 @@ export default function TicketPage() {
                   }
                 />
               )}
+            </Section>
+          )}
+
+          {runbookItem && (user.role === "technician" || user.role === "manager") && (
+            <Section title="Runbook">
+              <RunbookPanel key={`${runbookItem.id}:${runbookItem.state}`} itemId={runbookItem.id} role={user.role} username={user.username} onChanged={() => void load()} />
             </Section>
           )}
 
