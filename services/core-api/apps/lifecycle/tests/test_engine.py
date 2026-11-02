@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -685,3 +686,17 @@ def test_a_pipeline_status_is_adopted_into_the_same_pipeline_status(ticket, stri
     lifecycle.adopt_tickets(default, strict.workflow, mapping, actor=manager_user)
 
     assert reload(ticket).workflow_status == strict.review
+
+
+def test_same_instant_transfers_come_back_in_the_order_they_were_made():
+    """Transfers committed at one instant order along their status chain, from any starting order."""
+    at = timezone.now()
+    new, review, progress = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    start = Transfer(before_status_id=None, after_status_id=new, committed_at=at)
+    handoff = Transfer(before_status_id=new, after_status_id=review, committed_at=at)
+    take = Transfer(before_status_id=review, after_status_id=progress, committed_at=at)
+    later = Transfer(
+        before_status_id=progress, after_status_id=review, committed_at=at + timedelta(seconds=1)
+    )
+
+    assert Transfer.in_order_made([later, take, handoff, start]) == [start, handoff, take, later]

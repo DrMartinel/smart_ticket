@@ -578,10 +578,12 @@ class SlaClocks:
 
         with transaction.atomic():
             Clock.objects.filter(ticket=ticket).delete()
-            moves = list(
-                Transfer.objects.filter(ticket=ticket, committed_at__isnull=False)
-                .select_related("before_status__base", "after_status__base", "actor")
-                .order_by("committed_at")
+            moves = Transfer.in_order_made(
+                list(
+                    Transfer.objects.filter(
+                        ticket=ticket, committed_at__isnull=False
+                    ).select_related("before_status__base", "after_status__base", "actor")
+                )
             )
             decisions = list(
                 ReviewDecision.objects.filter(review_item__ticket=ticket).select_related("reviewer")
