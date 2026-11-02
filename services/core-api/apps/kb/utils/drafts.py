@@ -315,7 +315,7 @@ class KbDrafts:
                     reason=article.slug,
                     message=article.title,
                     detail=pending.value,
-                    link="/kb/authority",
+                    link="/admin/kb/authority",
                     data={"slug": article.slug, "reason": pending.value},
                 ),
             )

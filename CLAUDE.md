@@ -275,11 +275,12 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question `core/prompts/category.v*.json`; the confidence bar in `thresholds.yaml` |
 | Any tunable number | `thresholds.yaml`, nowhere else; its `version` becomes the id of the change request that approved the edit (CI checks it changes with the file) |
-| Whether a branch acts live | Settings → Rollout (F9 flags); never a code path around `Rollout.is_live` |
+| Which area a console page sits in | Daily work in the Workspace (`components/AppShell.tsx`); figures, authority, rollout, thresholds and settings in Admin under `/admin/*` (`lib/areas.ts`, ADR-0039). Old paths redirect in `next.config.mjs` |
+| Whether a branch acts live | Admin → Rollout (F9 flags); never a code path around `Rollout.is_live` |
 | Sign-in, token lifetimes, who may call what | `apps/accounts/utils.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
 | A ticket's status | `lifecycle.system_move` from pipeline code, `lifecycle.move` for a person: never `ticket.status = …` (ADR-0028) |
 | What a workflow action can do | `apps/lifecycle/utils/actions.py` (a handler and an `ActionCode`); rules and events in `utils/rules.py` |
-| SLA targets, hours, holidays | Data: `/settings/sla` (policies change by draft and another manager's approval), calendars and holidays; percentages in `thresholds.yaml` `sla`. Clocks change only through `sla_clocks`, called by the engine after a status change |
+| SLA targets, hours, holidays | Data: `/admin/settings/sla` (policies change by draft and another manager's approval), calendars and holidays; percentages in `thresholds.yaml` `sla`. Clocks change only through `sla_clocks`, called by the engine after a status change |
 | Who gets a ticket | `assignment.assign_after_handoff` after the decision is carried out (pipeline, review decisions), `take` / `reassign` for people; never `ticket.assigned_to = …` in new code. Team ownership of categories is data (`team_categories`) |
 | A comment on a ticket | `comments.add` (or `by_staff`), which masks inline and holds a mask-failed one for review; never `TicketComment.objects.create` with raw text |
 | What a chat question tells the model about earlier turns | `Conversations.prior_turns` (which turns count) and `requester:` in `thresholds.yaml`; ai-engine's `TicketMasked.earlier_turns()` (how they read) and `propose.v*` / `hyde_draft.v*`. Never the router or a signal (ADR-0034) |
@@ -287,7 +288,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | A security event | `security_alerts.raise_(AlertKind…)`, which writes the `security_alert` audit row and the alert together; never `AuditLog.objects.record("security_alert", …)` |
 | What a report counts or who may read it | `apps/reports/utils/reports.py` (`Reports`, scope in `team_scope`); a new fact goes on `TicketFacts` and `ReportFacts.facts_of`; shadow agreement only through `rollout_metrics.shadow_agreement` |
 | Who is told about an event | `notifier.emit(event, ticket, Notice(...))` from the service that owns the event, never `router.py` or the routing step; new events go in the catalog (`apps/notifications/utils/vocabulary.py`) and its seed migration |
-| What a runbook does, or who may run it | Data: Settings → Runbooks (a workflow admin drafts, another manager approves); grantable groups in `ITSM_GRANTABLE_GROUP_PREFIXES`; executor code in `apps/itsm_mock/utils/executors.py`. Never a path around `runbooks.execute` and the worker's `runbooks.run`, which both check ADR-0006 |
+| What a runbook does, or who may run it | Data: Admin → Settings → Runbooks (a workflow admin drafts, another manager approves); grantable groups in `ITSM_GRANTABLE_GROUP_PREFIXES`; executor code in `apps/itsm_mock/utils/executors.py`. Never a path around `runbooks.execute` and the worker's `runbooks.run`, which both check ADR-0006 |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
 `/ai-engine-feature` for any ai-engine change · `/ai-engine-review` before a PR ·
@@ -305,7 +306,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
 
 - `SHADOW_MODE=true` is the default: the router decides and records, humans still
   handle every ticket. This is spec §14's P1 phase, by design. Since F9
-  (ADR-0035) going live also needs the branch's rollout flag on (Settings →
+  (ADR-0035) going live also needs the branch's rollout flag on (Admin →
   Rollout: two managers to turn on, one to turn off) and the loaded
   `thresholds.yaml` approved; all flags start off. Tests that need live call
   `apps.rollout.testing.all_live(settings)`.
@@ -468,6 +469,6 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirty-eight
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (thirty-nine
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
 0030–0038 come from the phase 2 pack, all accepted).

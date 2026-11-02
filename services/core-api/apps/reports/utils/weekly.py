@@ -58,7 +58,7 @@ class WeeklyReport:
             notice=Notice(
                 reason=summary.week,
                 message=self.body(summary),
-                link="/dashboard",
+                link="/admin/dashboard",
                 data={"week": summary.week},
             ),
             event_id=event_id,

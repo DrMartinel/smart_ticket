@@ -4,7 +4,7 @@
 // re-tier. A grant pins the text the manager read (BR-F6-05); high-risk pages go one at a time.
 
 import { Fragment, useCallback, useEffect, useState } from "react";
-import { AUTHORITY_REASON_VI, DiffLines, KbTabs } from "@/components/kb/KbTabs";
+import { AUTHORITY_REASON_VI, DiffLines, AuthorityTabs } from "@/components/kb/KbTabs";
 import { vnTime } from "@/components/security/badges";
 import { api, ApiError } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
@@ -101,7 +101,7 @@ export default function AuthorityQueuePage() {
 
   return (
     <div className="mx-auto max-w-[1180px]">
-      <KbTabs user={user} />
+      <AuthorityTabs user={user} />
       <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Hàng chờ quyền · Authority queue</h1>

@@ -49,7 +49,7 @@ export default function ChangeRequestPage() {
 
   return (
     <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
-      <Link href="/settings/thresholds" className="text-sm text-muted-foreground hover:text-foreground">
+      <Link href="/admin/settings/thresholds" className="text-sm text-muted-foreground hover:text-foreground">
         ← Thresholds
       </Link>
       <header className="flex flex-wrap items-start justify-between gap-3">

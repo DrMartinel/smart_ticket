@@ -4,7 +4,7 @@
 // or risk tier, filterable, with an audited CSV export.
 
 import { useCallback, useEffect, useState } from "react";
-import { KbTabs } from "@/components/kb/KbTabs";
+import { AuthorityTabs } from "@/components/kb/KbTabs";
 import { vnTime } from "@/components/security/badges";
 import { api, download } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
@@ -81,7 +81,7 @@ export default function AuthorityLogPage() {
 
   return (
     <div className="mx-auto max-w-[1180px]">
-      <KbTabs user={user} />
+      <AuthorityTabs user={user} />
       <header className="mb-4">
         <h1 className="text-xl font-semibold">Nhật ký quyền · Authority log</h1>
         <p className="text-xs text-muted-foreground">Mọi thay đổi quyền trả lời tự động và mức rủi ro. Việc xuất CSV được ghi audit.</p>

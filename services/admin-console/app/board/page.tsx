@@ -168,7 +168,7 @@ export default function BoardPage() {
           </label>
           {wf && user.role === "manager" && (
             <Button asChild variant="outline">
-              <Link href={`/settings/workflows/${wf.id}`}>
+              <Link href={`/admin/settings/workflows/${wf.id}`}>
                 Edit workflow
               </Link>
             </Button>

@@ -113,7 +113,7 @@ export default function WorkflowsPage() {
               {workflows.map((w) => (
                 <TableRow key={w.id} className="border-t border-border hover:bg-muted">
                   <TableCell className="px-4 py-3">
-                    <Link href={`/settings/workflows/${w.id}`} className="font-medium hover:text-primary">
+                    <Link href={`/admin/settings/workflows/${w.id}`} className="font-medium hover:text-primary">
                       {w.name}
                     </Link>
                     {w.is_default && <Badge variant="info" className="ml-2">Default for new tickets</Badge>}

@@ -1,5 +1,6 @@
 // The step-by-step guides to each feature of the support console, in Vietnamese and English.
 
+import { adminGroups } from "./areas";
 import type { CurrentUser } from "./auth";
 import type { Tour, Words } from "@/components/tour/types";
 
@@ -21,6 +22,7 @@ const can = (u: CurrentUser, capability: string) => u.capabilities?.includes(cap
 const isKbEditor = (u: CurrentUser) => isManager(u) || can(u, "kb_editor");
 const isWorkflowAdmin = (u: CurrentUser) => can(u, "workflow_admin");
 const hasTeam = (u: CurrentUser) => (u.teams ?? []).length > 0;
+const hasAdmin = (u: CurrentUser) => adminGroups(u).length > 0;
 
 /** The guide that opens by itself the first time someone signs in. */
 export const FIRST_TOUR = "start";
@@ -37,9 +39,20 @@ export const TOURS: Tour[] = [
     steps: [
       {
         title: w("Chào mừng đến Smart Ticket", "Welcome to Smart Ticket"),
+        href: "/tickets?view=review",
         body: w(
-          "Đây là nơi nhân viên IT xử lý phiếu hỗ trợ. AI đọc từng phiếu, đề xuất câu trả lời hoặc nhóm phụ trách, rồi một quy tắc cố định quyết định: tự trả lời, chuyển nhóm, hỏi lại người gửi, hay đưa cho người duyệt.\n\nAI chỉ đề xuất, con người và quy tắc mới quyết định. Hướng dẫn này đi qua từng phần của màn hình.",
+          "Đây là nơi cán bộ IT xử lý phiếu hỗ trợ. AI đọc từng phiếu, đề xuất câu trả lời hoặc nhóm phụ trách, rồi một quy tắc cố định quyết định: tự trả lời, chuyển nhóm, hỏi lại người gửi, hay đưa cho người duyệt.\n\nAI chỉ đề xuất, con người và quy tắc mới quyết định. Hướng dẫn này đi qua từng phần của màn hình.",
           "This is where IT staff handle support tickets. The AI reads each ticket and proposes an answer or a team; fixed rules then decide: answer it, route it, ask the requester, or hand it to a reviewer.\n\nThe AI only proposes; people and rules decide. This guide walks through each part of the screen.",
+        ),
+      },
+      {
+        title: w("Hai khu vực", "Two areas"),
+        target: '[data-tour="area-switch"]',
+        side: "right",
+        when: hasAdmin,
+        body: w(
+          "Workspace là nơi làm việc hằng ngày: phiếu, nhóm, trang trợ giúp, cảnh báo. Admin là nơi theo dõi và quản trị hệ thống: số liệu, quyền trả lời tự động, triển khai, ngưỡng và cài đặt. Bấm để chuyển qua lại.",
+          "The Workspace is for daily work: tickets, teams, help pages, alerts. Admin is for watching and running the system: figures, automatic-answer authority, rollout, thresholds and settings. Click to switch between them.",
         ),
       },
       {
@@ -58,16 +71,6 @@ export const TOURS: Tour[] = [
         body: w(
           "Chuông báo khi có việc cho bạn: phiếu được giao, phiếu sắp trễ hạn, bản nháp chờ duyệt, cảnh báo bảo mật. Bấm vào để xem và mở thẳng mục liên quan.",
           "The bell tells you when something needs you: a ticket assigned, a deadline close, a draft to review, a security alert. Click it to read them and jump to the item.",
-        ),
-      },
-      {
-        title: w("Số liệu", "Insights"),
-        target: '[data-tour="nav-insights"]',
-        side: "right",
-        when: (u) => u.role !== "security",
-        body: w(
-          "Dashboard cho biết AI đang làm tốt đến đâu; Báo cáo cho số liệu SLA, nhóm, người duyệt, trang trợ giúp và hơn nữa, tuỳ vai trò của bạn.",
-          "Dashboard shows how well the AI is doing; Reports has SLA, team, reviewer, help-page figures and more, depending on your role.",
         ),
       },
       {
@@ -95,22 +98,44 @@ export const TOURS: Tour[] = [
         side: "right",
         when: (u) => u.role === "security",
         body: w(
-          "Cảnh báo bảo mật, báo cáo bảo mật, nhật ký xem dữ liệu cá nhân và nút tắt tự động hoá (Rollout).",
-          "Security alerts, the security report, the personal-data access log, and the off switch for automation (Rollout).",
+          "Cảnh báo bảo mật và nhật ký xem dữ liệu cá nhân. Báo cáo bảo mật và nút tắt tự động hoá (Rollout) nằm trong Admin.",
+          "Security alerts and the personal-data access log. The security report and the automation off switch (Rollout) are in Admin.",
         ),
       },
       {
-        title: w("Cài đặt", "Settings"),
+        title: w("Admin: số liệu", "Admin: insights"),
+        href: "/admin",
+        target: '[data-tour="nav-insights"]',
+        side: "right",
+        when: hasAdmin,
+        body: w(
+          "Đây là khu vực Admin. Dashboard cho biết AI đang làm tốt đến đâu; Báo cáo cho số liệu SLA, nhóm, người duyệt, trang trợ giúp và hơn nữa, tuỳ vai trò của bạn.",
+          "This is the Admin area. Dashboard shows how well the AI is doing; Reports has SLA, team, reviewer, help-page figures and more, depending on your role.",
+        ),
+      },
+      {
+        title: w("Admin: quản trị", "Admin: governance"),
+        target: '[data-tour="nav-governance"]',
+        side: "right",
+        when: (u) => isManager(u) || isWorkflowAdmin(u) || isKbEditor(u) || u.role === "security",
+        body: w(
+          "Ai được làm gì một mình: quyền trả lời tự động của từng trang trợ giúp và nhật ký của nó, cờ triển khai tự động hoá, và yêu cầu đổi ngưỡng.",
+          "What may act on its own: each help page's automatic-answer authority and its log, the automation rollout flags, and threshold change requests.",
+        ),
+      },
+      {
+        title: w("Admin: cài đặt", "Admin: settings"),
         target: '[data-tour="nav-settings"]',
         side: "right",
         when: (u) => isManager(u) || isWorkflowAdmin(u),
         body: w(
-          "Quy trình, SLA, nhóm, triển khai tự động hoá, ngưỡng, thông báo và runbook. Hầu hết thay đổi ở đây cần một quản lý khác duyệt trước khi có hiệu lực.",
-          "Workflows, SLAs, teams, rollout, thresholds, notifications and runbooks. Most changes here need another manager's approval before they take effect.",
+          "Quy trình, SLA, nhóm, thông báo và runbook. Hầu hết thay đổi ở đây cần một quản lý khác duyệt trước khi có hiệu lực.",
+          "Workflows, SLAs, teams, notifications and runbooks. Most changes here need another manager's approval before they take effect.",
         ),
       },
       {
         title: w("Tài khoản của bạn", "Your account"),
+        href: "/tickets?view=review",
         target: '[data-tour="account"]',
         side: "right",
         body: w(
@@ -414,7 +439,7 @@ export const TOURS: Tour[] = [
     steps: [
       {
         title: w("Chính sách SLA", "SLA policies"),
-        href: "/settings/sla",
+        href: "/admin/settings/sla",
         target: HEADER,
         body: w(
           "Mỗi chính sách đặt thời hạn phản hồi và giải quyết (tính bằng phút làm việc) cho một danh mục và độ ưu tiên, trên một lịch làm việc. Chính sách đầu tiên theo thứ tự khớp với phiếu sẽ được dùng.",
@@ -442,7 +467,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Lịch làm việc", "Business calendars"),
-        href: "/settings/sla/calendars",
+        href: "/admin/settings/sla/calendars",
         target: HEADER,
         body: w(
           "Giờ làm việc từng ngày trong tuần, ví dụ 08:00–17:30; nhiều khoảng cách nhau bằng dấu phẩy; để trống là nghỉ. Quản trị quy trình sửa lịch; thay đổi áp dụng cho đồng hồ đang chạy ở lần tính lại kế tiếp.",
@@ -451,7 +476,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Ngày nghỉ", "Holidays"),
-        href: "/settings/sla/holidays",
+        href: "/admin/settings/sla/holidays",
         target: HEADER,
         body: w(
           "Ngày lễ của từng lịch, do quản trị quy trình thêm. Đồng hồ SLA không chạy trong ngày nghỉ.",
@@ -582,8 +607,8 @@ export const TOURS: Tour[] = [
         target: TABLE,
         side: "top",
         body: w(
-          "Cột \"Automatic answers\" cho biết trang có được dùng để trả lời tự động không, cột Risk là mức rủi ro. Chỉ quản lý cấp quyền, và quyền gắn với đúng nội dung họ đã đọc: trang bị sửa thì mất quyền đến khi được duyệt lại. AI không bao giờ tự cấp quyền.",
-          "\"Automatic answers\" says whether a page may be used for automatic answers; Risk is its risk tier. Only a manager grants it, and the grant is pinned to the exact text they read: an edited page loses it until approved again. The AI can never grant it.",
+          "Cột \"Automatic answers\" cho biết trang có được dùng để trả lời tự động không, cột Risk là mức rủi ro. Chỉ quản lý cấp quyền, trong Admin, và quyền gắn với đúng nội dung họ đã đọc: trang bị sửa thì mất quyền đến khi được duyệt lại. AI không bao giờ tự cấp quyền.",
+          "\"Automatic answers\" says whether a page may be used for automatic answers; Risk is its risk tier. Only a manager grants it, in Admin, and the grant is pinned to the exact text they read: an edited page loses it until approved again. The AI can never grant it.",
         ),
       },
       {
@@ -677,7 +702,7 @@ export const TOURS: Tour[] = [
     steps: [
       {
         title: w("Hàng chờ quyền", "The authority queue"),
-        href: "/kb/authority",
+        href: "/admin/kb/authority",
         target: HEADER,
         body: w(
           "Trang mới hoặc vừa được sửa chờ ở đây. Khi bạn cấp quyền, mã băm SHA-256 của đúng nội dung bạn đã đọc được ghi lại; nội dung đổi thì quyền mất.",
@@ -703,8 +728,18 @@ export const TOURS: Tour[] = [
         ),
       },
       {
+        title: w("Tất cả trang", "All pages"),
+        href: "/admin/kb/pages",
+        target: TABLE,
+        side: "top",
+        body: w(
+          "Mọi trang trợ giúp, kể cả trang không nằm trong hàng chờ. \"Allow\" hoặc \"Revoke\" ở một dòng, kèm lý do, để cấp hoặc thu hồi quyền trả lời tự động của trang đó.",
+          "Every help page, including ones not in the queue. \"Allow\" or \"Revoke\" on a row, with a reason, grants or withdraws that page's automatic answers.",
+        ),
+      },
+      {
         title: w("Nhật ký quyền", "The authority log"),
-        href: "/kb/authority-log",
+        href: "/admin/kb/authority-log",
         target: H1,
         body: w(
           "Mọi lần cấp, thu hồi và đổi mức rủi ro: ai, khi nào, vì sao, cho nội dung nào.",
@@ -769,11 +804,11 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Nút tắt tự động hoá", "The automation off switch"),
-        href: "/settings/rollout",
+        href: "/admin/settings/rollout",
         target: HEADER,
         body: w(
-          "Thấy tự động hoá làm sai? Bạn có thể \"Turn off\" một nhánh ngay lập tức, chỉ một người là đủ. Bật lại cần hai quản lý.",
-          "See automation going wrong? You can \"Turn off\" a branch at once, alone. Turning it back on takes two managers.",
+          "Trang này nằm trong Admin (Governance → Rollout). Thấy tự động hoá làm sai? Bạn có thể \"Turn off\" một nhánh ngay lập tức, chỉ một người là đủ. Bật lại cần hai quản lý.",
+          "This page is in Admin (Governance → Rollout). See automation going wrong? You can \"Turn off\" a branch at once, alone. Turning it back on takes two managers.",
         ),
       },
     ],
@@ -819,7 +854,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Cấu hình nhóm", "Set up teams"),
-        href: "/settings/teams",
+        href: "/admin/settings/teams",
         target: HEADER,
         when: isManager,
         body: w(
@@ -841,7 +876,7 @@ export const TOURS: Tour[] = [
     steps: [
       {
         title: w("Dashboard", "Dashboard"),
-        href: "/dashboard",
+        href: "/admin/dashboard",
         target: H1,
         when: (u) => u.role !== "security",
         body: w(
@@ -861,7 +896,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Báo cáo", "Reports"),
-        href: "/reports",
+        href: "/admin/reports",
         target: "main",
         side: "top",
         body: w(
@@ -880,7 +915,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Cảnh báo bảo mật (tóm tắt)", "Security alerts summary"),
-        href: "/security/summary",
+        href: "/admin/security/summary",
         target: H1,
         when: isManager,
         body: w(
@@ -902,7 +937,7 @@ export const TOURS: Tour[] = [
     steps: [
       {
         title: w("Ba chìa khoá", "Three keys"),
-        href: "/settings/rollout",
+        href: "/admin/settings/rollout",
         target: HEADER,
         body: w(
           "Một nhánh (tự trả lời, chuyển nhóm, hỏi lại) chỉ chạy thật khi cả ba cùng mở: môi trường không ở chế độ shadow, cờ của nhánh đang bật, và tệp ngưỡng đang chạy đã được duyệt. Thiếu một là mọi thứ vẫn ở shadow: ghi lại, người xử lý.",
@@ -920,7 +955,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Ngưỡng", "Thresholds"),
-        href: "/settings/thresholds",
+        href: "/admin/settings/thresholds",
         target: HEADER,
         body: w(
           "Mọi con số điều chỉnh được nằm trong một tệp duy nhất. \"New change request\" dán toàn bộ tệp mới, \"Validate and save draft\" kiểm tra nó.",
@@ -950,7 +985,7 @@ export const TOURS: Tour[] = [
     steps: [
       {
         title: w("Giai đoạn", "Stages"),
-        href: "/settings/stages",
+        href: "/admin/settings/stages",
         target: HEADER,
         body: w(
           "Giai đoạn là các bước hệ thống mà mọi trạng thái quy trình gắn vào (mới, đang làm, chờ, đã giải quyết…). Báo cáo và SLA đọc giai đoạn, nên mỗi quy trình đặt tên trạng thái tuỳ ý.",
@@ -959,7 +994,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Quy trình", "Workflows"),
-        href: "/settings/workflows",
+        href: "/admin/settings/workflows",
         target: HEADER,
         body: w(
           "Các trạng thái một phiếu đi qua sau khi phân loại, bước chuyển nào được phép, và điều gì chạy khi chuyển. \"New workflow\" tạo quy trình mới; mở một quy trình để sửa.",
@@ -969,7 +1004,7 @@ export const TOURS: Tour[] = [
       {
         title: w("Trình sửa", "The editor"),
         target: ".react-flow",
-        path: "^/settings/workflows/[^/]+$",
+        path: "^/admin/settings/workflows/[^/]+$",
         wait: w("Mở một quy trình để đi tiếp.", "Open a workflow to go on."),
         side: "left",
         body: w(
@@ -980,7 +1015,7 @@ export const TOURS: Tour[] = [
       {
         title: w("Điều kiện và hành động", "Checks and actions"),
         target: '[aria-label="Which moves are allowed"]',
-        path: "^/settings/workflows/[^/]+$",
+        path: "^/admin/settings/workflows/[^/]+$",
         body: w(
           "Mỗi bước chuyển có thể có điều kiện (ví dụ phải có ghi chú giải quyết) và hành động khi vào trạng thái (gửi thông báo, gọi webhook…). \"Add field\" thêm trường người xử lý điền. \"Make default\" đặt quy trình mặc định; \"Open board\" xem nó trên bảng.",
           "Each move can have checks (a resolution note, say) and on-enter actions (send a notice, call a webhook…). \"Add field\" adds a field people fill in. \"Make default\" makes it the default workflow; \"Open board\" shows it on the board.",
@@ -1000,7 +1035,7 @@ export const TOURS: Tour[] = [
     steps: [
       {
         title: w("Danh mục", "The catalog"),
-        href: "/settings/runbooks",
+        href: "/admin/settings/runbooks",
         target: HEADER,
         body: w(
           "Runbook là thao tác tự động trên hệ thống thật (mở khoá tài khoản Keycloak, chạy luồng n8n…). Trên từng phiếu, runbook luôn cần người duyệt; không có cấu hình nào bỏ qua được.",
@@ -1065,7 +1100,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Bảng mặc định", "The defaults"),
-        href: "/settings/notifications",
+        href: "/admin/settings/notifications",
         target: HEADER,
         when: (u) => isManager(u) || isWorkflowAdmin(u),
         body: w(
@@ -1075,7 +1110,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Nhật ký gửi", "Delivery log"),
-        href: "/settings/deliveries",
+        href: "/admin/settings/deliveries",
         target: HEADER,
         when: (u) => isManager(u) || isWorkflowAdmin(u),
         body: w(
@@ -1085,7 +1120,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Webhook", "Webhooks"),
-        href: "/settings/webhooks",
+        href: "/admin/settings/webhooks",
         target: HEADER,
         when: isWorkflowAdmin,
         body: w(

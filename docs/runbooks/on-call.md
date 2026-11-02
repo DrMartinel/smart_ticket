@@ -166,7 +166,7 @@ entirely**: no auto-reply is possible during an outage (spec §9).
    when it passes). Dismissing unlinks the tickets; they stay in review.
 2. Broadcast with an ETA ("chưa xác định" is allowed). Each requester gets
    one notice per broadcast however many tickets they have; delivery counts
-   are on the incident page and failures in `/settings/deliveries`.
+   are on the incident page and failures in `/admin/settings/deliveries`.
    `503 mask_failed` means masking is down (ai-engine NER): nothing was sent;
    retry once it's back, never paste the text elsewhere.
 3. Resolve with "Đóng tất cả phiếu liên quan". The result lists tickets a
@@ -181,7 +181,7 @@ entirely**: no auto-reply is possible during an outage (spec §9).
 ## Notifications not arriving (failed rows in the delivery log)
 
 **What this means:** email or webhook messages are `failed` in
-`/settings/deliveries` (`GET /api/notifications/deliveries?state=failed`).
+`/admin/settings/deliveries` (`GET /api/notifications/deliveries?state=failed`).
 Tickets are unaffected: a failed send never changes a ticket (BR-F4-05). In-app
 notices are written with the event and don't depend on SMTP or webhooks.
 
@@ -211,8 +211,8 @@ through (ADR-0030 §2); the ticket is queued in `sla_rebuilds` and the next swee
 2. If one ticket stays wrong, a manager can rebuild it:
    `POST /api/tickets/{id}/sla/rebuild`.
 3. Many failures at once usually mean a calendar can't be read (no working hours,
-   a bad zone) or no active default policy: check `/settings/sla` and
-   `/settings/sla/calendars`.
+   a bad zone) or no active default policy: check `/admin/settings/sla` and
+   `/admin/settings/sla/calendars`.
 4. Never fix a breach by editing a clock row: change the priority or the policy,
    which are audited.
 
@@ -231,7 +231,7 @@ NER is down, as for `mask_failed` tickets.
 3. `requester_reply_move_refused` or `ticket_auto_close_refused` in the audit log:
    the workflow has no transition out of `waiting_on_requester` (strict
    workflows), or the ticket's last move is still running. Add the transition in
-   `/settings/workflows`; the reply and the ticket are unchanged meanwhile.
+   `/admin/settings/workflows`; the reply and the ticket are unchanged meanwhile.
 4. Waits never auto-closing or conversations never ending: check `beat`
    (`requester-sweep`, `REQUESTER_SWEEP_INTERVAL_SEC`).
 
@@ -259,7 +259,7 @@ request, so every branch is in shadow and security got an alert. Tickets still
 reach people; nothing automated acts.
 
 **Actions:**
-1. Compare `/settings/thresholds` (loaded sha256) with the approved requests'.
+1. Compare `/admin/settings/thresholds` (loaded sha256) with the approved requests'.
    A hand edit on the server, or a PR that shipped text other than what was
    approved, are the usual causes.
 2. Ship the approved text exactly (its `version` is the request id), or put

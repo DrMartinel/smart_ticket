@@ -96,7 +96,7 @@ export default function DashboardPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
           Last {WINDOW_DAYS} days · full reports under{" "}
-          <Link href="/reports" className="text-primary hover:underline">
+          <Link href="/admin/reports" className="text-primary hover:underline">
             Báo cáo · Reports
           </Link>
         </p>

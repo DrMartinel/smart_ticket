@@ -61,7 +61,7 @@ export default function ThresholdsPage() {
     setError(null);
     try {
       const made = await api.post<ChangeRequestDetailOut>("/api/thresholds/change-requests", { yaml_text: text, evidence });
-      router.push(`/settings/thresholds/${made.id}`);
+      router.push(`/admin/settings/thresholds/${made.id}`);
     } catch (err) {
       if (err instanceof ApiError) {
         const path = (err.details as { path?: string } | null)?.path;
@@ -140,7 +140,7 @@ export default function ThresholdsPage() {
               {history.map((r) => (
                 <TableRow key={r.id} className="border-t border-border">
                   <TableCell className="px-4 py-2.5">
-                    <Link href={`/settings/thresholds/${r.id}`} className="font-mono text-primary hover:underline">
+                    <Link href={`/admin/settings/thresholds/${r.id}`} className="font-mono text-primary hover:underline">
                       {r.version}
                     </Link>
                   </TableCell>

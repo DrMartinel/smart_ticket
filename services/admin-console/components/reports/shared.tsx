@@ -49,7 +49,7 @@ export function ReportTabs({ user, active }: { user: CurrentUser; active: Report
       {reportTabs(user).map((t) => (
         <Link
           key={t.key}
-          href={`/reports/${t.key}`}
+          href={`/admin/reports/${t.key}`}
           className={`-mb-px border-b-2 pb-2 ${
             active === t.key
               ? "border-primary font-medium text-primary"

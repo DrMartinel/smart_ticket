@@ -61,7 +61,7 @@ needs it, the default is used and stays tagged [ASSUMPTION].
 | A-14 | Availability target 99.5 % in business hours; OWASP ASVS L2 as the security baseline | §7.4 |
 | A-15 | Capacity: 3,000 employees, 300 concurrent chat sessions, 50 staff online, 15,000 notices/day | §7.4 |
 | A-16 | The SLA badge shows the response clock until it is met, then the resolution clock | F1, [mockups](mockups.md) |
-| A-17 | Admin console navigation: top-level Reports, Incidents, Security, Settings, each shown by role; Queue gains tabs Review queue, Team queue, My tickets, SLA at risk | F1, F2, F7–F10, [mockups](mockups.md) |
+| A-17 | Admin console navigation: top-level Reports, Incidents, Security, Settings, each shown by role; Queue gains tabs Review queue, Team queue, My tickets, SLA at risk (navigation superseded by ADR-0039) | F1, F2, F7–F10, [mockups](mockups.md) |
 | A-18 | The fallback team migrated from category `other` is named "Service Desk" | F2 §g |
 | A-19 | Requester-facing labels show Vietnamese first, English second; staff UI stays English with Vietnamese data | F3, F13 |
 | A-20 | Dashboard keeps today's Ops tiles and adds a Service row | F10 |

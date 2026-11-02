@@ -101,7 +101,7 @@ export default function WorkflowEditorPage() {
     <div className="-mx-2 flex h-[calc(100dvh-3.5rem)] flex-col">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link href="/settings/workflows" className="text-sm text-muted-foreground hover:text-foreground">
+          <Link href="/admin/settings/workflows" className="text-sm text-muted-foreground hover:text-foreground">
             ← Workflows
           </Link>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">

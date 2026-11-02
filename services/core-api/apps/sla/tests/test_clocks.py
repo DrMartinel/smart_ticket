@@ -352,6 +352,18 @@ def test_holidays_missing_for_next_year_tells_admins_once(clock, people):
     )
 
 
+def test_the_holidays_notice_opens_the_admin_settings(clock, people):
+    from apps.accounts.models import Capability, UserCapability
+
+    UserCapability.objects.create(user=people["tu"], capability=Capability.WORKFLOW_ADMIN.value)
+    clock.set(2027, 12, 1, 9, 0)
+
+    sla_clocks.holiday_check()
+
+    notice = Message.objects.get(user=people["tu"], event="sla.holidays_missing", channel="in_app")
+    assert notice.link == "/admin/settings/sla/holidays"
+
+
 def test_a_rebuild_keeps_the_time_a_clock_fell_due(clock, people):
     """A clock past its target keeps the due time it passed, not the time of the recompute."""
     clock.set(2026, 10, 23, 15, 30)

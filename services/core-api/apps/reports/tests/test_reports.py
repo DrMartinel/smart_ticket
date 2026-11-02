@@ -678,3 +678,10 @@ def test_the_weekly_email_goes_once_per_week(staff):
     assert sorted(sent.values_list("user__username", flat=True)) == ["huy.pq", "quang.nv"]
     assert "K1" in sent.first().body  # type: ignore[union-attr]
     assert AuditLog.objects.filter(event="report_weekly_sent").count() == 1
+
+
+def test_the_weekly_email_links_to_the_admin_dashboard(staff):
+    weekly_report.send()
+
+    links = set(Message.objects.filter(event="report.weekly").values_list("link", flat=True))
+    assert links == {"/admin/dashboard"}

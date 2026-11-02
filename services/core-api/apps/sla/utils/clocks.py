@@ -802,7 +802,7 @@ class SlaClocks:
                 Notice(
                     reason=str(year),
                     detail=f"{calendar.name} has no holidays for {year}",
-                    link="/settings/sla/holidays",
+                    link="/admin/settings/sla/holidays",
                     data={"calendar": calendar.name, "year": year},
                 ),
                 event_id=uuid.uuid5(_SLA_NAMESPACE, f"holidays:{calendar.id}:{year}"),

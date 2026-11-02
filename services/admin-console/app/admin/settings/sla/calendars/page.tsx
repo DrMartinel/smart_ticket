@@ -134,7 +134,7 @@ export default function CalendarsPage() {
                   </Button>
                 )}
                 <Button asChild variant="outline">
-                  <Link href={`/settings/sla/holidays?calendar=${c.id}`}>Holidays ({c.holidays_count})</Link>
+                  <Link href={`/admin/settings/sla/holidays?calendar=${c.id}`}>Holidays ({c.holidays_count})</Link>
                 </Button>
               </div>
             </section>

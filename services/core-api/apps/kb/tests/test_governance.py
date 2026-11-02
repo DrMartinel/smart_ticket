@@ -235,6 +235,18 @@ class TestReview:
         assert KbChunk.objects.filter(article=page, content__contains="cổng SSO").exists()
         assert Message.objects.filter(user=team["huy"], event="kb.authority_needed").exists()
 
+    def test_the_authority_notice_opens_the_admin_queue(
+        self, clients, team, live, ingest_now, django_capture_on_commit_callbacks
+    ):
+        draft_id = write_and_submit(clients["mai"], kind="edit", slug=SLUG, body=SSO)
+
+        approve(clients["ha"], draft_id, django_capture_on_commit_callbacks)
+
+        notice = Message.objects.get(
+            user=team["huy"], event="kb.authority_needed", channel="in_app"
+        )
+        assert notice.link == "/admin/kb/authority"
+
     def test_publish_never_grants_authority(
         self, clients, ingest_now, django_capture_on_commit_callbacks
     ):

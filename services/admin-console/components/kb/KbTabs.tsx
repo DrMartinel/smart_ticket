@@ -1,30 +1,56 @@
 "use client";
 
-// The KB section's tabs (F6): who sees each one follows the routes' gates.
+// The KB tabs (F6) in each area: who sees each one follows the routes' gates.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { canEditKb } from "@/lib/areas";
 import type { CurrentUser } from "@/lib/auth";
 import { Badge, type Tone } from "@/components/ui/badge";
 
-export function canEditKb(user: CurrentUser): boolean {
-  return user.role === "manager" || (user.capabilities ?? []).includes("kb_editor");
+export { canEditKb };
+
+interface Tab {
+  href: string;
+  label: string;
+  show: boolean;
+  exact?: boolean;
 }
 
+/** The Workspace's KB tabs: the pages and their content. */
 export function KbTabs({ user }: { user: CurrentUser }) {
-  const pathname = usePathname();
   const editor = canEditKb(user);
-  const tabs = [
-    { href: "/kb", label: "Trang · Pages", show: true, exact: true },
-    { href: "/kb/drafts", label: "Bản nháp · Drafts", show: editor },
-    { href: "/kb/authority", label: "Hàng chờ quyền · Authority queue", show: user.role === "manager" },
-    {
-      href: "/kb/authority-log",
-      label: "Nhật ký quyền · Authority log",
-      show: editor || user.role === "security",
-    },
-    { href: "/kb/gaps", label: "Thiếu KB · Gaps", show: editor },
-  ];
+  return (
+    <Tabs
+      tabs={[
+        { href: "/kb", label: "Trang · Pages", show: true, exact: true },
+        { href: "/kb/drafts", label: "Bản nháp · Drafts", show: editor },
+        { href: "/kb/gaps", label: "Thiếu KB · Gaps", show: editor },
+      ]}
+    />
+  );
+}
+
+/** Admin's KB tabs: who may answer automatically from which page. */
+export function AuthorityTabs({ user }: { user: CurrentUser }) {
+  const manager = user.role === "manager";
+  return (
+    <Tabs
+      tabs={[
+        { href: "/admin/kb/authority", label: "Hàng chờ quyền · Authority queue", show: manager, exact: true },
+        { href: "/admin/kb/pages", label: "Tất cả trang · All pages", show: manager },
+        {
+          href: "/admin/kb/authority-log",
+          label: "Nhật ký quyền · Authority log",
+          show: canEditKb(user) || user.role === "security",
+        },
+      ]}
+    />
+  );
+}
+
+function Tabs({ tabs }: { tabs: Tab[] }) {
+  const pathname = usePathname();
   return (
     <nav className="mb-5 flex flex-wrap gap-5 border-b border-border text-sm">
       {tabs
