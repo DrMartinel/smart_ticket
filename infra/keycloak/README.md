@@ -21,4 +21,17 @@ start Keycloak again. Every test user then gets a new ID, and core-api's
 identity sync deactivates the old links (`not_in_keycloak`); a sign-in before
 they are re-linked creates a second account with a suffixed username.
 
+## Sign-in theme
+
+`themes/smart-ticket/` is the realm's login theme (`loginTheme` in the realm
+file): Keycloak's own `keycloak.v2` pages as its parent, restyled by
+`login/resources/css/smart-ticket.css` with the admin console's colours
+(`services/admin-console/app/globals.css`) and IBM Plex Sans, served from
+the theme (`login/resources/fonts/`, OFL). It overrides no page template, so a
+Keycloak upgrade keeps its pages. Compose mounts the folder read-only;
+`start-dev` caches no theme, so a CSS edit shows on reload. A realm imported
+before the theme existed keeps the default until its `loginTheme` is set:
+Realm settings → Themes, or `kcadm.sh update realms/smart-ticket -s
+loginTheme=smart-ticket`.
+
 Dev only. Production realms are configured as `docs/runbooks/keycloak.md` says.

@@ -31,6 +31,10 @@ Both secrets go in the environment (`OIDC_CLIENT_SECRET`,
 - Brute-force detection on (core-api has no lockout for Keycloak users).
 - `KC_HOSTNAME` set to the address browsers use, so tokens' `iss` equals
   `OIDC_ISSUER_URL`; core-api reaches Keycloak at `OIDC_SERVER_URL`.
+- Login theme `smart-ticket`: copy `infra/keycloak/themes/smart-ticket/` into
+  the server's `themes/` directory (or the image), then select it under
+  Realm settings → Themes. A production server caches themes, so restart it
+  after a theme change.
 
 ## When something is wrong
 

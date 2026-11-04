@@ -8,6 +8,7 @@
     "en"
   ],
   "defaultLocale": "vi",
+  "loginTheme": "smart-ticket",
   "bruteForceProtected": true,
   "failureFactor": 5,
   "waitIncrementSeconds": 60,

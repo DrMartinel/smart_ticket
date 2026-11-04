@@ -413,6 +413,7 @@ services:
     volumes:
       - keycloak_data:/opt/keycloak/data
       - ./infra/keycloak/smart-ticket-realm.json:/opt/keycloak/data/import/smart-ticket-realm.json:ro
+      - ./infra/keycloak/themes/smart-ticket:/opt/keycloak/themes/smart-ticket:ro
     ports:
       - "8081:8080"
     extra_hosts:
