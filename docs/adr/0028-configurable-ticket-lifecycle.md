@@ -138,3 +138,8 @@ A live edge-case run found gaps; each now has a regression test in
   a PATCH, NaN or huge numbers, NUL bytes, and uniqueness races.
 - **`change_workflow` refuses the ticket's own workflow**: that would be a move
   without its transition, rules and approvals.
+
+## Amended 2026-11-04: no approval action
+
+ADR-0043 removes `require_approval`. A `before` action is now a webhook or an
+n8n call; the approval table and its endpoints are gone.

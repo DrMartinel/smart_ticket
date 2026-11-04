@@ -199,41 +199,6 @@ def test_a_callback_needs_no_login_but_its_token(client, ticket, strict, celery,
     assert run.state == RunState.SUCCEEDED.value
 
 
-def test_an_approver_sees_and_answers_their_approvals(
-    api_as, ticket, strict, celery, manager_user, technician_user
-):
-    workflow_config.update_transition(
-        strict.working.outgoing.get(to_status=strict.done),
-        TransitionPatch(
-            actions=actions(
-                {
-                    "action": "require_approval",
-                    "params": {"approvers": manager_user.username},
-                    "position": "before",
-                }
-            )
-        ),
-    )
-    put_in(ticket, strict.working)
-    post(
-        api_as(technician_user),
-        f"{BASE}/tickets/{ticket.public_id}/move",
-        {"status_id": str(strict.done.id)},
-    )
-    celery.drain()
-    client = api_as(manager_user)
-
-    [approval] = client.get(f"{BASE}/approvals/mine").json()
-    assert approval["ticket_public_id"] == ticket.public_id
-
-    response = post(client, f"{BASE}/approvals/{approval['id']}/approve", {"comment": "go"})
-    celery.drain()
-
-    assert response.status_code == 200
-    assert response.json()["state"] == "approved"
-    assert client.get(f"{BASE}/tickets/{ticket.public_id}").json()["status"] == strict.done.key
-
-
 def test_a_failed_transfer_lands_in_the_failed_queue(
     api_as, ticket, strict, celery, webhooks, technician_user
 ):

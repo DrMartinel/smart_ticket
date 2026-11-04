@@ -263,7 +263,7 @@ def test_policy_edit_does_not_change_running_clock(clock, people):
             "replaces_id": old.id,
         },
     )
-    sla_config.approve(people["huy"], draft.id, "Cam kết mới với khối kinh doanh")
+    sla_config.activate(people["huy"], draft.id, "Cam kết mới với khối kinh doanh")
 
     assert clocks(running)["resolution"].due_at == vn(2026, 10, 28, 15, 30)
     later = handed_off(people["lan"], category="hardware")

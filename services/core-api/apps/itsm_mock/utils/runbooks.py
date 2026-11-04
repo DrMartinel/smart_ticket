@@ -1,5 +1,5 @@
-"""Runbooks (F12, ADR-0038): executing an approved proposal, a second manager for high risk, the
-executor's outcome on the ticket, and the catalog a manager approves."""
+"""Runbooks (F12, ADR-0038): executing an approved proposal, the executor's outcome on the
+ticket, and the catalog."""
 
 from __future__ import annotations
 
@@ -21,7 +21,6 @@ from apps.itsm_mock.models import (
     ExecutorKind,
     Runbook,
     RunbookExecution,
-    RunbookRisk,
     TargetRule,
 )
 from apps.itsm_mock.utils.executors import (
@@ -163,8 +162,7 @@ class Runbooks:
     # ── execution ──
 
     def execute(self, item_id: uuid.UUID, actor: User, payload: dict[str, Any]) -> RunbookExecution:
-        """Records an approver's payload for a run: queued, or waiting for a second manager when
-        the runbook is high risk (BR-F12-03, 04)."""
+        """Records an approver's payload for a run and queues it (BR-F12-03)."""
         if not actor.may_run_runbooks:
             raise RunbookError(
                 403, R.EXECUTOR_NOT_STAFF, "only a technician or manager may execute a runbook"
@@ -188,7 +186,6 @@ class Runbooks:
                     "this proposal already has an execution that has not failed",
                 )
             attempt = RunbookExecution.objects.filter(review_item=item).count() + 1
-            high = runbook.risk == RunbookRisk.HIGH.value
             draft = (item.ai_run.proposed_draft or {}) if item.ai_run else {}
             execution = RunbookExecution.objects.create(
                 ticket=item.ticket,
@@ -200,48 +197,11 @@ class Runbooks:
                 executed_by=actor,
                 approved_by=decision.reviewer,
                 executor=runbook.executor,
-                state=(
-                    ExecutionState.AWAITING_SECOND_APPROVAL if high else ExecutionState.QUEUED
-                ).value,
+                state=ExecutionState.QUEUED.value,
                 attempt=attempt,
                 idempotency_key=f"{item.id}:{attempt}",
             )
-            self.audit("runbook_approved", execution, actor, {"stage": "first"})
-            if high:
-                notifier.emit(
-                    NotificationEvent.RUNBOOK_SECOND_APPROVAL,
-                    item.ticket,
-                    Notice(
-                        actor=actor.username,
-                        message=f"{runbook.code}: {runbook.title}",
-                        link=f"/tickets/{item.ticket.public_id}",
-                        data={"execution": str(execution.id), "runbook": runbook.code},
-                    ),
-                    event_id=execution.id,
-                )
-            else:
-                self.enqueue(execution)
-        return execution
-
-    def second_approve(self, execution_id: uuid.UUID, actor: User) -> RunbookExecution:
-        """A manager other than the approver and the executor lets a high-risk run go."""
-        with transaction.atomic():
-            execution = self.lock(execution_id)
-            if execution.state != ExecutionState.AWAITING_SECOND_APPROVAL.value:
-                raise RunbookError(
-                    409, R.NOT_AWAITING_APPROVAL, "this execution is not waiting for approval"
-                )
-            if actor.id in (execution.approved_by_id, execution.executed_by_id):
-                raise RunbookError(
-                    403,
-                    R.SELF_APPROVAL,
-                    "the second approval needs a manager other than the first approver",
-                )
-            execution.second_approver = actor
-            execution.second_approved_at = timezone.now()
-            execution.state = ExecutionState.QUEUED.value
-            execution.save(update_fields=["second_approver", "second_approved_at", "state"])
-            self.audit("runbook_approved", execution, actor, {"stage": "second"})
+            self.audit("runbook_approved", execution, actor, {})
             self.enqueue(execution)
         return execution
 
@@ -294,8 +254,6 @@ class Runbooks:
         assert runbook.approved_at is not None
         if runbook.approved_at > execution.executed_at:
             return "the runbook changed after this execution was approved"
-        if runbook.risk == RunbookRisk.HIGH.value and execution.second_approver_id is None:
-            return "a high-risk runbook needs a second approval"
         return None
 
     def finish(self, execution_id: uuid.UUID, outcome: Outcome) -> RunbookExecution:
@@ -500,12 +458,18 @@ class Runbooks:
 
     @transaction.atomic
     def create(self, code: str, fields: dict[str, Any], actor: User) -> Runbook:
-        """A new runbook, which runs only after a manager approves it."""
+        """A new runbook, live at once (ADR-0043)."""
         self.check_definition(fields)
+        now = timezone.now()
         try:
             with transaction.atomic():
                 runbook = Runbook.objects.create(
-                    code=code, drafted_by=actor, drafted_at=timezone.now(), **fields
+                    code=code,
+                    drafted_by=actor,
+                    drafted_at=now,
+                    approved_by=actor,
+                    approved_at=now,
+                    **fields,
                 )
         except IntegrityError as e:
             raise RunbookError(409, R.RUNBOOK_EXISTS, f"runbook {code} exists") from e
@@ -514,41 +478,43 @@ class Runbooks:
 
     @transaction.atomic
     def change(self, code: str, changes: dict[str, Any], actor: User) -> Runbook:
-        """Drafts a change; the live fields stay until a manager approves (AC-F12-06)."""
-        runbook = Runbook.objects.select_for_update().filter(code=code).first()
-        if runbook is None:
-            raise RunbookError(404, R.UNKNOWN_RUNBOOK, f"unknown runbook {code!r}")
-        pending = {**self.definition(runbook), **(runbook.pending_change or {}), **changes}
-        self.check_definition(pending)
-        runbook.pending_change = pending
-        runbook.drafted_by = actor
-        runbook.drafted_at = timezone.now()
-        runbook.save(update_fields=["pending_change", "drafted_by", "drafted_at"])
-        self.audit_catalog(runbook, actor, "drafted", changes)
+        """Applies a change at once; a run queued before it fails rather than run the old
+        definition (ADR-0043)."""
+        runbook = self.locked(code)
+        fields = {**self.definition(runbook), **(runbook.pending_change or {}), **changes}
+        self.check_definition(fields)
+        self.make_live(runbook, fields, actor)
+        self.audit_catalog(runbook, actor, "changed", changes)
         return runbook
 
     @transaction.atomic
-    def approve(self, code: str, actor: User) -> Runbook:
-        """A manager other than the drafter makes the drafted fields live."""
+    def activate(self, code: str, actor: User) -> Runbook:
+        """Makes a runbook that was never live, or a change drafted before ADR-0043, live."""
+        runbook = self.locked(code)
+        if runbook.pending_change is None and runbook.approved_at is not None:
+            raise RunbookError(409, R.ALREADY_LIVE, "the runbook is already live")
+        fields = {**self.definition(runbook), **(runbook.pending_change or {})}
+        self.check_definition(fields)
+        self.make_live(runbook, fields, actor)
+        self.audit_catalog(runbook, actor, "activated", self.definition(runbook))
+        return runbook
+
+    def locked(self, code: str) -> Runbook:
         runbook = Runbook.objects.select_for_update().filter(code=code).first()
         if runbook is None:
             raise RunbookError(404, R.UNKNOWN_RUNBOOK, f"unknown runbook {code!r}")
-        if runbook.pending_change is None and runbook.approved_at is not None:
-            raise RunbookError(409, R.NOTHING_TO_APPROVE, "nothing is waiting for approval")
-        if runbook.drafted_by_id == actor.id:
-            raise RunbookError(
-                403, R.SELF_APPROVAL, "a catalog change needs a manager other than its author"
-            )
-        if runbook.pending_change is not None:
-            self.check_definition(runbook.pending_change)
-            for name in CATALOG_FIELDS:
-                setattr(runbook, name, runbook.pending_change[name])
-        runbook.pending_change = None
-        runbook.approved_by = actor
-        runbook.approved_at = timezone.now()
-        runbook.save()
-        self.audit_catalog(runbook, actor, "approved", self.definition(runbook))
         return runbook
+
+    def make_live(self, runbook: Runbook, fields: dict[str, Any], actor: User) -> None:
+        for name in CATALOG_FIELDS:
+            setattr(runbook, name, fields[name])
+        now = timezone.now()
+        runbook.pending_change = None
+        runbook.drafted_by = actor
+        runbook.drafted_at = now
+        runbook.approved_by = actor
+        runbook.approved_at = now
+        runbook.save()
 
     @staticmethod
     def definition(runbook: Runbook) -> dict[str, Any]:

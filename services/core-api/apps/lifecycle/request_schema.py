@@ -196,7 +196,3 @@ class CallbackIn(In):
     success: bool
     message: str = Field(default="", max_length=2000)
     output: dict[str, Any] | None = None
-
-
-class ApprovalDecisionIn(In):
-    comment: str = Field(default="", max_length=2000)

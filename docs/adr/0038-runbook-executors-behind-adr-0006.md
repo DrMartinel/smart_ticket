@@ -15,6 +15,7 @@ password), and a real call can time out after it took effect.
 
 1. **The runbook catalog becomes data** (`itsm_runbooks`), changed by
    `workflow_admin` and approved by a manager.
+   *Superseded by ADR-0043: a change is live at once.*
 2. **Executors:** `keycloak` (send a password-reset email, unlock, add to an
    allow-listed group — never handle a password), `n8n` (the existing signed,
    allow-listed call with a one-time callback), `mock` (tests).
@@ -23,6 +24,7 @@ password), and a real call can time out after it took effect.
 4. **Target rules don't rely on the reviewer:** a self-service runbook may
    target only the ticket's reporter.
 5. **High-risk runbooks need a second manager.**
+   *Superseded by ADR-0043: the review approval alone (ADR-0006) runs it.*
 6. **A timeout after sending is `unknown`**, resolved by a person, never
    retried automatically.
 

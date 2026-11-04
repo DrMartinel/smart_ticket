@@ -300,7 +300,7 @@ export default function TicketPage() {
 
           {runbookItem && (user.role === "technician" || user.role === "manager") && (
             <Section title="Runbook">
-              <RunbookPanel key={`${runbookItem.id}:${runbookItem.state}`} itemId={runbookItem.id} role={user.role} username={user.username} onChanged={() => void load()} />
+              <RunbookPanel key={`${runbookItem.id}:${runbookItem.state}`} itemId={runbookItem.id} onChanged={() => void load()} />
             </Section>
           )}
 

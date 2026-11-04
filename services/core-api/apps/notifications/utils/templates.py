@@ -174,16 +174,6 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
             "{{notice.detail}}. Enter them before the year ends.",
         ),
     },
-    E.APPROVAL_REQUESTED: {
-        VI: (
-            "Cần bạn phê duyệt {{ticket.id}}: {{ticket.subject}}",
-            "{{notice.actor}} đề nghị chuyển sang “{{transfer.afterStatus}}”.\n{{notice.message}}",
-        ),
-        EN: (
-            "Your approval is needed: {{ticket.id}} — {{ticket.subject}}",
-            "{{notice.actor}} asks to move it to “{{transfer.afterStatus}}”.\n{{notice.message}}",
-        ),
-    },
     E.SECURITY_CREDENTIAL_EXPOSED: {
         VI: (
             "Hãy đổi mật khẩu ngay: {{ticket.id}}",
@@ -206,10 +196,6 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
             "Acknowledgement overdue ({{notice.detail}}). {{ticket.id}}",
         ),
     },
-    E.ROLLOUT_FLAG_REQUESTED: {
-        VI: ("Yêu cầu bật tự động: {{notice.reason}}", "{{notice.actor}}: {{notice.message}}"),
-        EN: ("Request to turn on {{notice.reason}}", "{{notice.actor}}: {{notice.message}}"),
-    },
     E.ROLLOUT_FLAG_CHANGED: {
         VI: ("Triển khai thay đổi: {{notice.reason}}", "{{notice.actor}}: {{notice.message}}"),
         EN: ("Rollout changed: {{notice.reason}}", "{{notice.actor}}: {{notice.message}}"),
@@ -222,16 +208,6 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
         EN: (
             "Rollout gate no longer met: {{notice.reason}}",
             "{{notice.reason}} is on but no longer meets: {{notice.detail}}. Consider turning it off.",
-        ),
-    },
-    E.THRESHOLDS_CR_PENDING: {
-        VI: (
-            "Thay đổi ngưỡng chờ duyệt: {{notice.reason}}",
-            "{{notice.actor}}: {{notice.message}}",
-        ),
-        EN: (
-            "Threshold change to review: {{notice.reason}}",
-            "{{notice.actor}}: {{notice.message}}",
         ),
     },
     E.THRESHOLDS_UNAPPROVED: {

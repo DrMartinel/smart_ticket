@@ -75,12 +75,12 @@ Screens: [`F12 · Runbook approval`](https://www.figma.com/design/KXpnlC78p9pHYR
 |---|---|---|---|
 | BR-F12-01 | A runbook runs only with an approving decision on its `runbook_approval` item, by staff (PRE-1 FR-PRE1-005). No flag or threshold skips this | ADR-0006 | `RunbookExecution.objects.execute` (kept) |
 | BR-F12-02 | Self-service runbooks (`target_rule = reporter`) may target only the ticket's reporter: `target_username` must equal `ticket.reporter.username`, whatever the proposal says | A requester can't get someone else's password reset by asking | Executor pre-check |
-| BR-F12-03 | `risk = high` runbooks (e.g. grant access) need a second approval by a manager who is not the first approver | Two-person rule for privilege changes | Execution service |
+| BR-F12-03 | ~~`risk = high` runbooks (e.g. grant access) need a second approval by a manager who is not the first approver~~ Superseded by ADR-0043: one person applies it | Two-person rule for privilege changes | Execution service |
 | BR-F12-04 | The proposal's `draft_payload` is shown to the approver and can be edited before approval; the executed payload is what the approver saw, stored with the execution | The LLM proposes; a person decides what runs | Review UI + execution row |
 | BR-F12-05 | Identity actions never handle passwords: reset = Keycloak `execute-actions-email` (`UPDATE_PASSWORD`); unlock = clear brute-force lock; access = add to a pre-listed group | No secret passes through Smart Ticket | Keycloak executor |
 | BR-F12-06 | A timeout after sending is `unknown`, never retried automatically | Reset twice is harmless; grant twice or restart twice may not be | Executor |
 | BR-F12-07 | n8n runbooks reuse `TriggerN8n`'s allow-list, signed callback, and one-time token | ADR-0028 §6 and amendment | Executor |
-| BR-F12-08 | The runbook catalog is data; changes need a manager approval and are audited | Runbooks are powerful; config is as sensitive as code | Catalog API |
+| BR-F12-08 | ~~The runbook catalog is data; changes need a manager approval and are audited~~ Superseded by ADR-0043: changes are live at once and audited | Runbooks are powerful; config is as sensitive as code | Catalog API |
 
 ## f. Functional requirements
 
@@ -174,7 +174,7 @@ Feature: F12 Runbook executors
     And the execution is "succeeded" with a ticket comment
 
   @BR-F12-03
-  Scenario: AC-F12-03 grant access needs a second manager
+  Scenario: AC-F12-03 grant access needs a second manager (superseded by ADR-0043)
     Given an approved RB-GRANT-ACCESS for group "/apps/vpn-users"
     When "duc.tm" executes it
     Then the response is 409 with code "second_approval_required"
@@ -194,7 +194,7 @@ Feature: F12 Runbook executors
     Then the execution's executed_payload is {"target_username":"lan.nt"}
 
   @BR-F12-08
-  Scenario: AC-F12-06 a catalog change needs a manager
+  Scenario: AC-F12-06 a catalog change needs a manager (superseded by ADR-0043)
     When "tu.dv" changes RB-RESTART-SERVICE's URL
     Then the runbook keeps its old config until a manager approves
     And one audit row "runbook_catalog_changed" exists

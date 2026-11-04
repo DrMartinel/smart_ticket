@@ -183,9 +183,10 @@ def test_unlock_clears_the_brute_force_lock(people, iam):
 
 
 @pytest.mark.django_db
-class TestSecondApproval:
-    def test_high_risk_needs_second_manager(self, people, iam, api_as):
-        """AC-F12-03, BR-F12-03: duc.tm's execute waits; huy.pq's second approval runs it."""
+class TestHighRisk:
+    def test_a_high_risk_run_needs_no_second_manager(self, people, iam, api_as):
+        """ADR-0043: duc.tm's execute is queued at once; the review approval is the one human
+        approval ADR-0006 asks for."""
         approve_catalog(people["huy.pq"])
         item = approved_item(people, approver="duc.tm", runbook_id="RB-GRANT-ACCESS")
 
@@ -195,70 +196,12 @@ class TestSecondApproval:
             content_type="application/json",
         )
 
-        assert response.status_code == 409
-        assert response.json()["code"] == "second_approval_required"
-        execution_id = response.json()["details"]["execution"]
-        assert iam.calls == []
-
-        second = api_as(people["huy.pq"]).post(
-            f"/api/itsm/executions/{execution_id}/second-approval"
-        )
-        assert second.status_code == 200
-        assert second.json()["state"] == "queued"
-        assert second.json()["second_approver"] == "huy.pq"
-        runbooks.run(execution_id)
+        assert response.status_code == 200
+        assert response.json()["state"] == "queued"
+        runbooks.run(response.json()["id"])
 
         assert iam.members == {"/apps/vpn-users": {LAN_SUB}}
         assert RunbookExecution.objects.get().state == ExecutionState.SUCCEEDED.value
-
-    def test_the_first_approver_cannot_give_the_second_approval(self, people, api_as):
-        approve_catalog(people["quang.nv"])
-        item = approved_item(people, approver="huy.pq", runbook_id="RB-GRANT-ACCESS")
-        execution = runbooks.execute(item.id, people["duc.tm"], GRANT_VPN)
-
-        response = api_as(people["huy.pq"]).post(
-            f"/api/itsm/executions/{execution.id}/second-approval"
-        )
-
-        assert response.status_code == 403
-        assert response.json()["code"] == "self_approval"
-        execution.refresh_from_db()
-        assert execution.state == ExecutionState.AWAITING_SECOND_APPROVAL.value
-
-    def test_the_executor_cannot_give_the_second_approval(self, people):
-        approve_catalog(people["quang.nv"])
-        item = approved_item(people, runbook_id="RB-GRANT-ACCESS")
-        execution = runbooks.execute(item.id, people["huy.pq"], GRANT_VPN)
-
-        with pytest.raises(RunbookError) as raised:
-            runbooks.second_approve(execution.id, people["huy.pq"])
-
-        assert raised.value.code == "self_approval"
-
-    def test_a_technician_cannot_give_the_second_approval(self, people, api_as):
-        approve_catalog(people["huy.pq"])
-        item = approved_item(people, runbook_id="RB-GRANT-ACCESS")
-        execution = runbooks.execute(item.id, people["duc.tm"], GRANT_VPN)
-
-        response = api_as(people["ha.vt"]).post(
-            f"/api/itsm/executions/{execution.id}/second-approval"
-        )
-
-        assert response.status_code == 403
-
-    def test_the_worker_refuses_a_high_risk_run_without_a_second_approval(self, people, iam):
-        """A row queued by any other path is still checked before it runs."""
-        approve_catalog(people["huy.pq"])
-        item = approved_item(people, runbook_id="RB-GRANT-ACCESS")
-        execution = runbooks.execute(item.id, people["duc.tm"], GRANT_VPN)
-        RunbookExecution.objects.filter(pk=execution.id).update(state="queued")
-
-        runbooks.run(execution.id)
-
-        execution.refresh_from_db()
-        assert execution.state == ExecutionState.FAILED.value
-        assert "second approval" in execution.error
-        assert iam.calls == []
 
 
 @pytest.mark.django_db
@@ -269,7 +212,6 @@ class TestUnknownOutcomes:
         approve_catalog(people["huy.pq"])
         item = approved_item(people, runbook_id="RB-RESTART-SERVICE")
         execution = runbooks.execute(item.id, people["ha.vt"], RESTART)
-        runbooks.second_approve(execution.id, people["quang.nv"])
         runbooks.run(execution.id)
 
         execution.refresh_from_db()
@@ -312,7 +254,6 @@ class TestUnknownOutcomes:
         item = approved_item(people, runbook_id="RB-RESTART-SERVICE")
         n8n.answer = OutboundNoAnswer("read timeout")
         execution = runbooks.execute(item.id, people["ha.vt"], RESTART)
-        runbooks.second_approve(execution.id, people["huy.pq"])
 
         runbooks.run(execution.id)
 
@@ -325,7 +266,6 @@ class TestUnknownOutcomes:
         item = approved_item(people, runbook_id="RB-RESTART-SERVICE")
         n8n.answer = OutboundUnavailable("connection refused")
         first = runbooks.execute(item.id, people["ha.vt"], RESTART)
-        runbooks.second_approve(first.id, people["huy.pq"])
         runbooks.run(first.id)
 
         again = runbooks.execute(item.id, people["ha.vt"], RESTART)
@@ -511,7 +451,6 @@ class TestCallback:
         approve_catalog(people["huy.pq"])
         item = approved_item(people, runbook_id="RB-RESTART-SERVICE")
         execution = runbooks.execute(item.id, people["ha.vt"], RESTART)
-        runbooks.second_approve(execution.id, people["huy.pq"])
         runbooks.run(execution.id)
         return RunbookExecution.objects.get(pk=execution.id)
 

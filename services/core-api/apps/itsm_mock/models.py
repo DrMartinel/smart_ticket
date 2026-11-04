@@ -34,7 +34,6 @@ class RunbookRisk(StrEnum):
 
 
 class ExecutionState(StrEnum):
-    AWAITING_SECOND_APPROVAL = "awaiting_second_approval"
     QUEUED = "queued"
     RUNNING = "running"
     SUCCEEDED = "succeeded"

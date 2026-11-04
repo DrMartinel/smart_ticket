@@ -7,26 +7,22 @@ import uuid
 from django.conf import settings
 from ninja import Router
 
-from apps.accounts.models import Capability, UserRole
+from apps.accounts.models import UserRole
 from apps.accounts.permissions import (
     STAFF,
     AuthedRequest,
     SessionAuth,
-    require_access,
     require_role,
 )
 from apps.rollout.models import (
-    FlagRequest,
-    GateChange,
     RolloutFlag,
     RolloutGate,
     ThresholdChangeRequest,
 )
 from apps.rollout.request_schema import (
-    ApproveIn,
     ChangeRequestIn,
     CommentIn,
-    FlagRequestIn,
+    FlagOnIn,
     GateChangeIn,
     ReasonIn,
 )
@@ -35,7 +31,6 @@ from apps.rollout.response_schema import (
     ChangeRequestOut,
     CurrentThresholdsOut,
     FlagOut,
-    FlagRequestOut,
     GateChangeOut,
     GateOut,
     RolloutOut,
@@ -46,7 +41,6 @@ from apps.rollout.utils.rollout import rollout
 from apps.rollout.utils.thresholds import threshold_changes
 from apps.rollout.utils.vocabulary import (
     FlagBranch,
-    RequestState,
     RolloutError,
     RolloutRefusal,
 )
@@ -63,18 +57,11 @@ def _rollout() -> RolloutOut:
     flags = []
     for branch in FlagBranch:
         flag = rollout.flag(branch.value)
-        pending = (
-            FlagRequest.objects.select_related("requested_by")
-            .filter(branch=branch.value, state=RequestState.PENDING.value)
-            .first()
-        )
-        entered = pending.entered_values if pending else rollout.entered_on(flag)
         flags.append(
             FlagOut.of(
                 RolloutFlag.objects.select_related("changed_by").get(pk=flag.pk),
                 rollout.is_live(branch, snapshot),
-                rollout_metrics.snapshot(branch, entered),
-                pending,
+                rollout_metrics.snapshot(branch, rollout.entered_on(flag)),
                 rollout_metrics.shadow_agreement(
                     AGREEMENT_BRANCH[branch], settings.THRESHOLDS.reports.rollout_days
                 ),
@@ -94,12 +81,6 @@ def _rollout() -> RolloutOut:
             GateOut.model_validate(g, from_attributes=True)
             for g in RolloutGate.objects.filter(is_active=True).order_by("branch", "metric")
         ],
-        gate_changes=[
-            GateChangeOut.of(c)
-            for c in GateChange.objects.select_related("requested_by").filter(
-                state=RequestState.PENDING.value
-            )
-        ],
     )
 
 
@@ -109,27 +90,13 @@ def get_rollout(request: AuthedRequest) -> RolloutOut:
     return _rollout()
 
 
-@router.post("/{branch}/requests", auth=SessionAuth(), response=FlagRequestOut)
+@router.post("/{branch}/on", auth=SessionAuth(), response=RolloutOut)
 @require_role(UserRole.MANAGER)
-def request_on(request: AuthedRequest, branch: str, payload: FlagRequestIn) -> FlagRequestOut:
-    made = rollout.request_on(
+def turn_on(request: AuthedRequest, branch: str, payload: FlagOnIn) -> RolloutOut:
+    rollout.turn_on(
         branch, request.auth, payload.reason, payload.gate_override_reason, payload.entered_values
     )
-    return FlagRequestOut.of(made)
-
-
-@router.post("/requests/{request_id}/approve", auth=SessionAuth(), response=FlagRequestOut)
-@require_role(UserRole.MANAGER)
-def approve(request: AuthedRequest, request_id: uuid.UUID, payload: ApproveIn) -> FlagRequestOut:
-    return FlagRequestOut.of(
-        rollout.approve(request_id, request.auth, payload.gate_override_reason)
-    )
-
-
-@router.post("/requests/{request_id}/reject", auth=SessionAuth(), response=FlagRequestOut)
-@require_role(UserRole.MANAGER)
-def reject(request: AuthedRequest, request_id: uuid.UUID, payload: ReasonIn) -> FlagRequestOut:
-    return FlagRequestOut.of(rollout.reject(request_id, request.auth, payload.reason))
+    return _rollout()
 
 
 @router.post("/{branch}/off", auth=SessionAuth(), response=RolloutOut)
@@ -142,22 +109,10 @@ def turn_off(request: AuthedRequest, branch: str, payload: ReasonIn) -> RolloutO
 @router.patch("/gates/{gate_id}", auth=SessionAuth(), response=GateChangeOut)
 @require_role(UserRole.MANAGER)
 def change_gate(request: AuthedRequest, gate_id: uuid.UUID, payload: GateChangeIn) -> GateChangeOut:
-    change = rollout.propose_gate_change(
+    change = rollout.change_gate(
         gate_id, request.auth, payload.threshold, payload.window_days, payload.reason
     )
     return GateChangeOut.of(change)
-
-
-@router.post("/gate-changes/{change_id}/approve", auth=SessionAuth(), response=GateChangeOut)
-@require_role(UserRole.MANAGER)
-def approve_gate_change(request: AuthedRequest, change_id: uuid.UUID) -> GateChangeOut:
-    return GateChangeOut.of(rollout.decide_gate_change(change_id, request.auth, approve=True))
-
-
-@router.post("/gate-changes/{change_id}/reject", auth=SessionAuth(), response=GateChangeOut)
-@require_role(UserRole.MANAGER)
-def reject_gate_change(request: AuthedRequest, change_id: uuid.UUID) -> GateChangeOut:
-    return GateChangeOut.of(rollout.decide_gate_change(change_id, request.auth, approve=False))
 
 
 # ── thresholds ──
@@ -209,9 +164,7 @@ def change_request(request: AuthedRequest, request_id: uuid.UUID) -> ChangeReque
 
 
 @thresholds_router.post("/change-requests", auth=SessionAuth(), response=ChangeRequestDetailOut)
-@require_access(
-    roles=(UserRole.MANAGER, UserRole.TECHNICIAN), capabilities=(Capability.WORKFLOW_ADMIN,)
-)
+@require_role(UserRole.MANAGER)
 def create_change(request: AuthedRequest, payload: ChangeRequestIn) -> ChangeRequestDetailOut:
     made = threshold_changes.create(request.auth, payload.yaml_text, payload.evidence)
     return ChangeRequestDetailOut.detail(_change(made.id))
@@ -220,20 +173,9 @@ def create_change(request: AuthedRequest, payload: ChangeRequestIn) -> ChangeReq
 @thresholds_router.post(
     "/change-requests/{request_id}/submit", auth=SessionAuth(), response=ChangeRequestOut
 )
-@require_role(*STAFF)
+@require_role(UserRole.MANAGER)
 def submit_change(request: AuthedRequest, request_id: uuid.UUID) -> ChangeRequestOut:
     threshold_changes.submit(request_id, request.auth)
-    return ChangeRequestOut.of(_change(request_id))
-
-
-@thresholds_router.post(
-    "/change-requests/{request_id}/approve", auth=SessionAuth(), response=ChangeRequestOut
-)
-@require_role(*STAFF)
-def approve_change(
-    request: AuthedRequest, request_id: uuid.UUID, payload: CommentIn
-) -> ChangeRequestOut:
-    threshold_changes.approve(request_id, request.auth, payload.comment)
     return ChangeRequestOut.of(_change(request_id))
 
 

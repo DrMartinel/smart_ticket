@@ -17,7 +17,6 @@ class FlagBranch(StrEnum):
 
 class FlagState(StrEnum):
     OFF = "off"
-    PENDING_ON = "pending_on"
     ON = "on"
 
 
@@ -50,7 +49,6 @@ ENTERED_METRICS = frozenset({GateMetric.HOLDOUT_PRECISION})
 
 class ChangeState(StrEnum):
     DRAFT = "draft"
-    PENDING = "pending"
     APPROVED = "approved"
     REJECTED = "rejected"
     LOADED = "loaded"

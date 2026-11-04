@@ -271,9 +271,8 @@ GATED_ROUTES: list[tuple[str, str, dict[str, Any] | None, set[UserRole]]] = [
     ("get", "/api/itsm/runbooks", None, _TECH_MGR),
     ("post", f"/api/itsm/review-items/{_ID}/execute", None, _TECH_MGR),
     ("get", f"/api/itsm/review-items/{_ID}/runbook", None, _TECH_MGR),
-    ("post", f"/api/itsm/executions/{_ID}/second-approval", None, {UserRole.MANAGER}),
     ("post", f"/api/itsm/executions/{_ID}/resolve", None, _TECH_MGR),
-    ("post", "/api/itsm/runbooks/RB-X/approve", None, {UserRole.MANAGER}),
+    ("post", "/api/itsm/runbooks/RB-X/activate", None, {UserRole.MANAGER}),
     ("get", "/api/fewshot/category/access", None, _TECH_MGR),
 ]
 

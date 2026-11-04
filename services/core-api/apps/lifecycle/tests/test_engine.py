@@ -9,8 +9,7 @@ import pytest
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
-from apps.notifications.models import Message
-from apps.lifecycle.models import ActionRun, ApprovalRequest, Transfer, Workflow
+from apps.lifecycle.models import ActionRun, Transfer, Workflow
 from apps.lifecycle.request_schema import FieldIn, RuleIn, StatusPatch, TransitionPatch
 from apps.lifecycle.tests.conftest import actions, make_ticket, put_in, status_of
 from apps.lifecycle.utils.actions import callback_token
@@ -483,79 +482,6 @@ def test_an_automation_loop_stops_at_the_chain_depth(ticket, manager_user, celer
     assert last.state == TransferState.FAILED.value
     assert last.failure_code == FailureCode.AUTOMATION_DEPTH_EXCEEDED.value
     assert not reload(ticket).waiting_transform
-
-
-def approval_before(strict, approvers: str):
-    workflow_config.update_transition(
-        strict.working.outgoing.get(to_status=strict.done),
-        TransitionPatch(
-            actions=actions(
-                {
-                    "action": "require_approval",
-                    "params": {"approvers": approvers, "message": "Close it?"},
-                    "position": "before",
-                }
-            )
-        ),
-    )
-
-
-def test_an_approval_holds_the_move_until_an_approver_approves(
-    ticket, strict, celery, manager_user, technician_user
-):
-    approval_before(strict, manager_user.username)
-    put_in(ticket, strict.working)
-    lifecycle.request_move(ticket.id, strict.done.id, actor=technician_user, trigger=Trigger.MANUAL)
-    celery.drain()
-    approval = ApprovalRequest.objects.get(run__transfer=last_transfer(ticket))
-    assert reload(ticket).status == strict.working.key
-    assert Message.objects.filter(
-        user=manager_user, event="approval.requested", channel="in_app"
-    ).exists()
-
-    with pytest.raises(LifecycleError) as e:
-        lifecycle.decide_approval(approval.id, user=technician_user, approve=True, comment="")
-    assert e.value.code is FailureCode.NOT_AN_APPROVER
-
-    lifecycle.decide_approval(approval.id, user=manager_user, approve=True, comment="ok")
-    celery.drain()
-
-    assert reload(ticket).status == strict.done.key
-    assert last_transfer(ticket).state == TransferState.COMPLETED.value
-
-
-def test_the_approver_is_told(ticket, strict, celery, technician_user, django_user_model):
-    """AC-F4-06: an in-app notice for the approver, linking to the approval (closes TODO 14.3)."""
-    huy = django_user_model.objects.create_user(username="huy.pq", password="x", role="manager")
-    approval_before(strict, "huy.pq")
-    put_in(ticket, strict.working)
-
-    lifecycle.request_move(ticket.id, strict.done.id, actor=technician_user, trigger=Trigger.MANUAL)
-    celery.drain()
-
-    approval = ApprovalRequest.objects.get(run__transfer=last_transfer(ticket))
-    (notice,) = Message.objects.filter(user=huy, event="approval.requested", channel="in_app")
-    assert notice.link == f"/tickets/{ticket.public_id}?approval={approval.id}"
-    assert notice.event_id == approval.id
-    assert technician_user.username in notice.body
-    assert "Close it?" in notice.body
-
-
-def test_a_rejection_stops_the_move_with_the_approvers_name(ticket, strict, celery, manager_user):
-    approval_before(strict, manager_user.username)
-    put_in(ticket, strict.working)
-    lifecycle.request_move(ticket.id, strict.done.id, actor=None, trigger=Trigger.MANUAL)
-    celery.drain()
-    approval = ApprovalRequest.objects.get(run__transfer=last_transfer(ticket))
-
-    lifecycle.decide_approval(approval.id, user=manager_user, approve=False, comment="not yet")
-    celery.drain()
-
-    transfer = last_transfer(ticket)
-    assert transfer.state == TransferState.FAILED.value
-    assert transfer.failure_code == FailureCode.APPROVAL_REJECTED.value
-    assert transfer.failure_reason == f"Rejected by {manager_user.username}: not yet"
-    assert reload(ticket).status == strict.working.key
 
 
 def n8n_before(strict):

@@ -55,14 +55,14 @@ def edit_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: PolicyPat
     )
 
 
-@router.post("/policies/{policy_id}/approve", auth=SessionAuth(), response=PolicyOut)
-@require_access(roles=_MANAGER)
-def approve_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
-    return sla_config.approve(request.auth, policy_id, payload.reason)
+@router.post("/policies/{policy_id}/activate", auth=SessionAuth(), response=PolicyOut)
+@require_access(roles=_MANAGER, capabilities=_ADMIN)
+def activate_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
+    return sla_config.activate(request.auth, policy_id, payload.reason)
 
 
 @router.post("/policies/{policy_id}/retire", auth=SessionAuth(), response=PolicyOut)
-@require_access(roles=_MANAGER)
+@require_access(roles=_MANAGER, capabilities=_ADMIN)
 def retire_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
     return sla_config.retire(request.auth, policy_id, payload.reason)
 

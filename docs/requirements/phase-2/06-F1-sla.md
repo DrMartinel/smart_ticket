@@ -176,7 +176,7 @@ rules; changed by staff with a reason.
 | BR-F1-09 | No automatic priority change on breach | A raise would retarget the clock it just breached | — (by design) |
 | BR-F1-10 | Priority change keeps business elapsed and switches target | JSM-style re-evaluation; honest compliance numbers | Clock service |
 | BR-F1-11 | An SLA error never changes the status move or the routing decision; it rolls back a savepoint, is audited, and the sweep rebuilds the clock from `lifecycle_transfers` | BR-X-07 | Hook + `sla.rebuild` |
-| BR-F1-12 | A policy draft is activated by a manager who is not its author | Targets are a commitment to the business | Approve endpoint |
+| BR-F1-12 | ~~A policy draft is activated by a manager who is not its author~~ Superseded by ADR-0043: one person applies it | Targets are a commitment to the business | Approve endpoint |
 | BR-F1-13 | Reopen (F3) resumes the same resolution clock with elapsed kept; the response clock is not restarted | Reopened work isn't new work; K2 stays honest | Hook on `reopened` |
 | BR-F1-14 | Holidays are whole days in the calendar's zone. Missing holidays for next year by 1 Dec → notice to `workflow_admin` | Vietnam sets dates by annual decision; Culture Day 24 Nov 2026 was a one-off approval | Sweep (daily check) |
 | BR-F1-15 | A linked ticket's resolution clock pauses while its incident is `confirmed`, and resumes on unlink, dismiss, or resolve without close-all (added by F7) | The incident carries one P1 clock for the outage (BR-F7-07, BR-F7-10) | Hook on incident link events |
@@ -481,7 +481,7 @@ Feature: F1 SLA and business hours
     And a P3 ticket handed off afterwards uses 1140
 
   @BR-F1-12
-  Scenario: AC-F1-08 a manager can't approve their own draft
+  Scenario: AC-F1-08 a manager can't approve their own draft (superseded by ADR-0043)
     Given "huy.pq" created a policy draft
     When "huy.pq" approves it
     Then the response is 403 with code "self_approval"

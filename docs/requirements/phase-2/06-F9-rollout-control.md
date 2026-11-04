@@ -134,11 +134,11 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 | ID | Rule | Rationale | Enforced where |
 |---|---|---|---|
 | BR-F9-01 | Live needs all three: env not shadow, branch flag on, thresholds approved. Any one missing → shadow | Degrade toward people; three independent keys | `Rollout.is_live(branch)` called in `_finalize` before `_execute_or_enqueue`; router untouched |
-| BR-F9-02 | On needs two different managers (neither the requester); off needs one manager or security | Asymmetric on purpose: turning automation on is the risky direction | Flag service |
+| BR-F9-02 | ~~On needs two different managers (neither the requester); off needs one manager or security~~ Superseded by ADR-0043: one manager turns on; off needs one manager or security | Asymmetric on purpose: turning automation on is the risky direction | Flag service |
 | BR-F9-03 | A request to turn on records the gate values at request and at approval; approving with an unmet gate requires an override reason from each approver | Gates are the README's rollout contract | Flag service |
-| BR-F9-04 | Gates per branch (data, editable by managers with approval): `auto_route` — P3 reroute rate < 15 % over 14 days on shadow `auto_route` decisions; `auto_reply` — P4 auto-reply precision ≥ 0.95 on the calibration holdout **and** ≥ 3 approved `low` pages; `requester_questions` — clarify agreement ≥ 0.80 over 14 days [ASSUMPTION] | README rollout table, spec §14 | `rollout_gates` + F10 queries |
+| BR-F9-04 | Gates per branch (data, editable by ~~managers with approval~~ one manager, ADR-0043): `auto_route` — P3 reroute rate < 15 % over 14 days on shadow `auto_route` decisions; `auto_reply` — P4 auto-reply precision ≥ 0.95 on the calibration holdout **and** ≥ 3 approved `low` pages; `requester_questions` — clarify agreement ≥ 0.80 over 14 days [ASSUMPTION] | README rollout table, spec §14 | `rollout_gates` + F10 queries |
 | BR-F9-05 | `thresholds.yaml` stays the only source of tunables. A change request holds the full proposed file, never a partial patch | Hard rule 2; full-file snapshots match `thresholds_used` | CR model |
-| BR-F9-06 | A change request needs two approvals, neither by its author | Rule 9's outside-reviewer principle, applied to live numbers | CR service |
+| BR-F9-06 | ~~A change request needs two approvals, neither by its author~~ Superseded by ADR-0043: the manager who writes it approves it | Rule 9's outside-reviewer principle, applied to live numbers | CR service |
 | BR-F9-07 | At boot core-api hashes the loaded file. No approved CR with that hash → all branches shadow and a `thresholds_unapproved` alert | Unreviewed numbers never act on tickets | Startup check; `Rollout.is_live` |
 | BR-F9-08 | Local dev and CI may skip the check with `THRESHOLDS_REQUIRE_APPROVAL=false` in `.env`; production settings force it true | Developers change thresholds freely; production doesn't | `production.py` |
 | BR-F9-09 | Each routing decision stores which flags were on (`rollout_snapshot`) next to `shadow_mode` | Replays explain "why was this live?" | `_finalize` |
@@ -309,7 +309,7 @@ Feature: F9 Rollout and threshold control
     And both routing_decisions rows store the same rollout_snapshot
 
   @BR-F9-02
-  Scenario: AC-F9-02 two managers to turn on
+  Scenario: AC-F9-02 two managers to turn on (superseded by ADR-0043)
     Given "huy.pq" requested auto_route on
     When "huy.pq" approves his own request
     Then the response is 403 with code "self_approval"

@@ -1,7 +1,7 @@
 "use client";
 
-// SLA policies (F1 · SLA policies 8-57): targets in business minutes, drafted by a workflow admin,
-// activated by another manager; and a preview of due times.
+// SLA policies (F1 · SLA policies 8-57): targets in business minutes, drafted and activated by a
+// workflow admin or manager (ADR-0043); and a preview of due times.
 
 import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/Modal";
@@ -46,8 +46,6 @@ function stateTone(state: string): Tone {
 function refusal(err: unknown): string {
   if (!(err instanceof ApiError)) return "Not done.";
   switch (err.code) {
-    case "self_approval":
-      return "Another manager approves your draft.";
     case "order_taken":
       return err.message;
     case "default_policy":
@@ -87,7 +85,7 @@ export default function SlaPoliciesPage() {
 
   if (!user) return null;
   const isAdmin = (user.capabilities ?? []).includes("workflow_admin");
-  const isManager = user.role === "manager";
+  const mayActivate = isAdmin || user.role === "manager";
 
   const act = async (fn: () => Promise<unknown>) => {
     setError(null);
@@ -162,17 +160,16 @@ export default function SlaPoliciesPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="whitespace-nowrap px-4 py-2.5 text-right">
-                  {p.state === "draft" && isManager && (
+                  {p.state === "draft" && mayActivate && (
                     <Button variant="outline"
                       onClick={() => {
                         const reason = ask("activate");
-                        if (reason) void act(() => api.post(`/api/sla/policies/${p.id}/approve`, { reason }));
+                        if (reason) void act(() => api.post(`/api/sla/policies/${p.id}/activate`, { reason }));
                       }}
                     >
-                      Approve
+                      Activate
                     </Button>
                   )}
-                  {p.state === "draft" && !isManager && <span className="text-xs text-muted-foreground">Waiting for a manager</span>}
                   {p.state === "active" && isAdmin && (
                     <Button variant="link" size="inline"
                       className="text-xs"
@@ -193,7 +190,7 @@ export default function SlaPoliciesPage() {
                       Draft a change
                     </Button>
                   )}
-                  {p.state === "active" && isManager && (
+                  {p.state === "active" && mayActivate && (
                     <Button variant="link" size="inline"
                       className="ml-3 text-xs text-danger"
                       onClick={() => {
@@ -275,17 +272,33 @@ export default function SlaPoliciesPage() {
         open={!!draft}
         onClose={() => setDraft(null)}
         title={draft?.replaces_id ? "Draft a change" : "New policy draft"}
-        subtitle="A draft takes effect only when another manager approves it; running clocks keep their targets."
+        subtitle="A policy takes effect when it is activated; running clocks keep their targets."
         footer={
           <>
             <Button variant="outline" onClick={() => setDraft(null)}>
               Cancel
             </Button>
             <Button
+              variant="outline"
               disabled={!draft?.name}
               onClick={() => draft && void act(async () => { await api.post("/api/sla/policies", draft); setDraft(null); })}
             >
               Save draft
+            </Button>
+            <Button
+              disabled={!draft?.name}
+              onClick={() => {
+                if (!draft) return;
+                const reason = ask("activate");
+                if (!reason) return;
+                void act(async () => {
+                  const saved = await api.post<PolicyOut>("/api/sla/policies", draft);
+                  setDraft(null);
+                  await api.post(`/api/sla/policies/${saved.id}/activate`, { reason });
+                });
+              }}
+            >
+              Save and activate
             </Button>
           </>
         }

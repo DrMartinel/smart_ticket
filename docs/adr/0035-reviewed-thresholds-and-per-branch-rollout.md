@@ -23,9 +23,11 @@ reviewed before it acted on real tickets.
    None exists for runbooks (ADR-0006).
 3. **On takes two managers, neither the requester; off takes one manager or
    security, at once.** The risky direction is the slow one.
+   *Superseded by ADR-0043: one manager turns a flag on.*
 4. **`thresholds.yaml` stays the source.** A change is a change request
    holding the full file, approved by two people who are not the author,
    then shipped by PR with `version` set to the request id.
+   *Superseded by ADR-0043: the manager who writes it approves it.*
 5. **At boot core-api hashes the file.** If no approved request matches, every
    branch is shadow and security is alerted. Local dev and CI may disable the
    check; production can't.

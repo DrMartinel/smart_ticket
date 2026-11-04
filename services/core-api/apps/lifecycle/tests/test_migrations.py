@@ -1,4 +1,5 @@
-"""Migration 0006: each workflow status takes its kind from the system status it was based on."""
+"""Migration 0006: each workflow status takes its kind from the system status it was based on.
+Migration 0007: no saved action holds a move for an approver."""
 
 from __future__ import annotations
 
@@ -17,6 +18,13 @@ def migrate(targets):
     executor.loader.build_graph()
     executor.migrate(targets)
     return executor.loader.project_state(targets).apps
+
+
+@pytest.fixture(autouse=True)
+def back_to_the_latest():
+    yield
+    executor = MigrationExecutor(connection)
+    migrate(executor.loader.graph.leaf_nodes())
 
 
 def test_every_status_keeps_what_its_system_status_meant():
@@ -56,3 +64,18 @@ def test_a_saved_action_naming_the_system_status_names_the_kind():
 
     saved = new.get_model("lifecycle", "WorkflowAction").objects.get(pk=action.pk)
     assert saved.params["subject"] == "Now {{ticket.statusKind}}"
+
+
+def test_a_saved_approval_action_is_dropped():
+    old = migrate(AFTER)
+    WorkflowStatus = old.get_model("lifecycle", "WorkflowStatus")
+    WorkflowAction = old.get_model("lifecycle", "WorkflowAction")
+    action = WorkflowAction.objects.create(
+        status=WorkflowStatus.objects.get(key="resolved"),
+        action="require_approval",
+        params={"approvers": "manager1"},
+    )
+
+    new = migrate([("lifecycle", "0007_drop_approvals")])
+
+    assert not new.get_model("lifecycle", "WorkflowAction").objects.filter(pk=action.pk).exists()

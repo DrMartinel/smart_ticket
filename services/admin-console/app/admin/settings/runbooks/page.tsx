@@ -1,6 +1,6 @@
 "use client";
 
-// The runbook catalog (F12 UC-F12-03 · 20-2142): a workflow admin drafts, another manager approves.
+// The runbook catalog (F12 UC-F12-03 · 20-2142): a workflow admin's change is live at once (ADR-0043).
 
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api } from "@/lib/api";
@@ -70,7 +70,6 @@ function bodyOf(form: Form): Record<string, unknown> {
 function refusal(err: unknown): string {
   if (err instanceof SyntaxError) return "Config không phải JSON hợp lệ.";
   if (!(err instanceof ApiError)) return "Không lưu được.";
-  if (err.code === "self_approval") return "Người soạn thay đổi không tự duyệt được: cần một quản lý khác.";
   if (err.code === "group_not_allowed") return `Nhóm không được phép cấp: ${err.message}`;
   return `${err.code ?? err.status}: ${err.message}`;
 }
@@ -83,7 +82,7 @@ function Changes({ runbook }: { runbook: RunbookOut }) {
   return (
     <div className="mt-2 rounded-md bg-muted p-3 text-xs">
       <p className="mb-1 font-medium">
-        Thay đổi chờ duyệt · {runbook.drafted_by} · {runbook.drafted_at && dateTime(runbook.drafted_at)}
+        Thay đổi soạn trước ADR-0043 · {runbook.drafted_by} · {runbook.drafted_at && dateTime(runbook.drafted_at)}
       </p>
       {changed.length === 0 && <p className="text-muted-foreground">Không có trường nào khác bản đang chạy.</p>}
       {changed.map((f) => (
@@ -147,8 +146,8 @@ export default function RunbooksPage() {
         <div>
           <h1 className="text-xl font-semibold">Danh mục runbook · Runbook catalog</h1>
           <p className="mt-1 max-w-[760px] text-xs text-muted-foreground">
-            Runbook luôn cần người duyệt trên từng phiếu (ADR-0006). Mọi thay đổi ở đây chỉ có hiệu lực khi một quản lý khác người soạn
-            duyệt; trước đó bản cũ vẫn chạy.
+            Runbook luôn cần người duyệt trên từng phiếu (ADR-0006). Một thay đổi ở đây có hiệu lực ngay khi lưu; lần chạy đã xếp hàng
+            trước đó sẽ không chạy bản cũ.
           </p>
         </div>
         {admin && (
@@ -212,7 +211,7 @@ export default function RunbooksPage() {
               <span className="text-xs text-muted-foreground">Rủi ro</span>
               <NativeSelect value={form.risk} onChange={(e) => setForm({ ...form, risk: e.target.value })}>
                 <option value="low">Thấp</option>
-                <option value="high">Cao (cần quản lý duyệt lần hai)</option>
+                <option value="high">Cao</option>
               </NativeSelect>
             </label>
             <label className="flex items-center gap-2">
@@ -225,7 +224,7 @@ export default function RunbooksPage() {
             </label>
             <div className="flex gap-2 md:col-span-2">
               <Button type="submit" disabled={busy}>
-                {isNew ? "Tạo (chờ duyệt)" : "Gửi thay đổi (chờ duyệt)"}
+                {isNew ? "Tạo" : "Lưu thay đổi"}
               </Button>
               <Button variant="outline" type="button" onClick={() => setForm(null)}>
                 Huỷ
@@ -265,14 +264,14 @@ export default function RunbooksPage() {
                     </TableCell>
                     <TableCell className="px-4 py-3 text-xs">
                       <p>{r.target_rule === "reporter" ? "Chỉ người gửi" : "Bất kỳ ai"}</p>
-                      <p>{r.risk === "high" ? "Rủi ro cao · 2 người duyệt" : "Rủi ro thấp"}</p>
+                      <p>{r.risk === "high" ? "Rủi ro cao" : "Rủi ro thấp"}</p>
                       <p className="font-mono text-muted-foreground">{r.required_fields.join(", ")}</p>
                     </TableCell>
                     <TableCell className="px-4 py-3 text-xs">
                       <div className="flex flex-wrap gap-1">
-                        {r.runnable ? <Badge variant="ok">Đã duyệt</Badge> : <Badge variant="warn">Chưa duyệt</Badge>}
+                        {r.runnable ? <Badge variant="ok">Đang dùng</Badge> : <Badge variant="warn">Chưa bật</Badge>}
                         {!r.is_active && <Badge variant="neutral">Tắt</Badge>}
-                        {r.pending_change && <Badge variant="info">Có thay đổi chờ duyệt</Badge>}
+                        {r.pending_change && <Badge variant="info">Có thay đổi chưa áp dụng</Badge>}
                       </div>
                       {r.approved_by && (
                         <p className="mt-1 text-muted-foreground">
@@ -293,13 +292,12 @@ export default function RunbooksPage() {
                             Sửa
                           </Button>
                         )}
-                        {manager && (r.pending_change || !r.approved_at) && r.drafted_by !== user.username && (
+                        {(admin || manager) && (r.pending_change || !r.approved_at) && (
                           <Button variant="link" size="inline"
-                            
                             disabled={busy}
-                            onClick={() => void act(() => api.post(`/api/itsm/runbooks/${r.code}/approve`))}
+                            onClick={() => void act(() => api.post(`/api/itsm/runbooks/${r.code}/activate`))}
                           >
-                            Duyệt
+                            Bật · Activate
                           </Button>
                         )}
                       </span>

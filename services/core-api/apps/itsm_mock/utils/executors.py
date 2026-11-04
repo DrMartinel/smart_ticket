@@ -35,14 +35,11 @@ class RunbookRefusal(StrEnum):
     INVALID_CONFIG = "invalid_config"
     EXECUTION_EXISTS = "execution_exists"
     EXECUTION_NOT_FOUND = "execution_not_found"
-    SECOND_APPROVAL_REQUIRED = "second_approval_required"
-    NOT_AWAITING_APPROVAL = "not_awaiting_approval"
-    SELF_APPROVAL = "self_approval"
     NOT_UNKNOWN = "not_unknown"
     NOT_AWAITING = "not_awaiting"
     BAD_CALLBACK_TOKEN = "bad_callback_token"
     RUNBOOK_EXISTS = "runbook_exists"
-    NOTHING_TO_APPROVE = "nothing_to_approve"
+    ALREADY_LIVE = "already_live"
 
 
 class RunbookError(CodedError):

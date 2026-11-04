@@ -19,7 +19,7 @@ from pydantic_core import PydanticUndefined
 
 from apps.accounts.models import User, UserRole
 from apps.audit.models import AuditLog
-from apps.lifecycle.models import ActionRun, ApprovalRequest, Transfer, Workflow, WorkflowStatus
+from apps.lifecycle.models import ActionRun, Transfer, Workflow, WorkflowStatus
 from apps.lifecycle.utils.errors import LifecycleError
 from apps.lifecycle.utils.rules import FieldType, accepts, coerce
 from apps.lifecycle.utils.templates import (
@@ -28,14 +28,12 @@ from apps.lifecycle.utils.templates import (
     json_template_errors,
     placeholders,
 )
-from apps.notifications.utils.notifier import Notice, notifier
+from apps.notifications.utils.notifier import notifier
 from apps.sla.utils.clocks import SlaError, sla_clocks
 from apps.teams.models import Team
 from apps.teams.utils.assignment import assignment
-from apps.notifications.utils.vocabulary import NotificationEvent
 from apps.lifecycle.utils.vocabulary import (
     ActionCode,
-    ApprovalState,
     FailureCode,
     Phase,
     Trigger,
@@ -517,80 +515,13 @@ class TriggerN8n(ActionHandler):
         return ActionResult({"status": response.status}, awaiting_until=timezone.now() + wait)
 
 
-class RequireApprovalParams(Params):
-    approvers: str = widget("text", "Comma-separated usernames who may approve")
-    message: str = widget("textarea", "What the approvers are asked", "")
-
-
-class RequireApproval(ActionHandler):
-    code = ActionCode.REQUIRE_APPROVAL
-    name = "Require approval"
-    description = "Holds the move until one of the approvers approves; a rejection stops it."
-    params_model = RequireApprovalParams
-    blocking = True
-    phases = frozenset({Phase.BEFORE})
-
-    def execute(self, params: RequireApprovalParams, ctx: ActionContext) -> ActionResult:
-        names = [n.strip() for n in params.approvers.split(",") if n.strip()]
-        approvers = active_users(names, STAFF)
-        if not approvers:
-            raise ActionError(FailureCode.INVALID_PARAM, f"no active staff approver among {names}")
-        expires = timezone.now() + timedelta(
-            hours=settings.THRESHOLDS.lifecycle.approval_wait_hours
-        )
-        approval, _ = ApprovalRequest.objects.update_or_create(
-            run=ctx.run,
-            defaults={
-                "approver_ids": [str(u.id) for u in approvers],
-                "message": params.message,
-                "state": ApprovalState.PENDING.value,
-                "expires_at": expires,
-                "decided_by": None,
-                "decided_at": None,
-                "comment": "",
-            },
-        )
-        AuditLog.objects.record(
-            "approval_requested",
-            actor_type="system",
-            ticket_id=ctx.ticket.id,
-            payload={"approval": str(approval.id), "approvers": [u.username for u in approvers]},
-        )
-        requester = ctx.transfer.actor if ctx.transfer else None
-        notifier.emit(
-            NotificationEvent.APPROVAL_REQUESTED,
-            ctx.ticket,
-            Notice(
-                actor=requester.username if requester else "system",
-                message=params.message,
-                link=f"/tickets/{ctx.ticket.public_id}?approval={approval.id}",
-                approvers=tuple(approvers),
-                transfer=ctx.transfer,
-                data={"approval": str(approval.id), "approvers": [u.username for u in approvers]},
-            ),
-            event_id=approval.id,
-        )
-        return ActionResult({"approval": str(approval.id)}, awaiting_until=expires)
-
-    def config_errors(self, params: dict[str, Any], workflow: Workflow) -> list[str]:
-        errors = super().config_errors(params, workflow)
-        approvers = params.get("approvers")
-        if isinstance(approvers, str) and not has_placeholder(approvers):
-            names = [n.strip() for n in approvers.split(",") if n.strip()]
-            found = {u.username for u in active_users(names, STAFF)}
-            missing = [n for n in names if n not in found]
-            if missing:
-                errors.append(f"not active staff users: {missing}")
-        return errors
-
-
 def callback_token(run: ActionRun) -> str:
     """The secret an external system returns to finish `run`'s current attempt."""
     started = run.started_at.isoformat() if run.started_at else ""
     return salted_hmac("lifecycle.callback", f"{run.id}:{run.attempt}:{started}").hexdigest()
 
 
-# Who may approve a move, and who may be assigned a ticket.
+# Who may be assigned a ticket.
 STAFF = (UserRole.TECHNICIAN, UserRole.MANAGER, UserRole.SECURITY)
 ASSIGNABLE = (UserRole.TECHNICIAN, UserRole.MANAGER)
 
@@ -657,6 +588,5 @@ HANDLERS: dict[ActionCode, ActionHandler] = {
         SendEmail(),
         CallWebhook(),
         TriggerN8n(),
-        RequireApproval(),
     ]
 }

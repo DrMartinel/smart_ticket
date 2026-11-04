@@ -1,5 +1,5 @@
 """Threshold change requests: a full proposed thresholds.yaml, validated with the boot model,
-approved by two people who aren't its author, then shipped by PR (BR-F9-05, 06)."""
+approved by the manager who submits it, then shipped by PR (BR-F9-05, 06, ADR-0043)."""
 
 from __future__ import annotations
 
@@ -16,14 +16,9 @@ from pydantic import ValidationError
 
 from apps.accounts.models import User, UserRole
 from apps.audit.models import AuditLog
-from apps.notifications.utils.notifier import Notice, notifier
-from apps.notifications.utils.vocabulary import NotificationEvent
 from apps.rollout.models import ThresholdChangeRequest
 from apps.rollout.utils.rollout import file_sha256
 from apps.rollout.utils.vocabulary import ChangeState, RolloutError, RolloutRefusal
-
-# Approvals a change request needs, at least one a manager's.
-_APPROVALS_NEEDED = 2
 
 
 def sha256_of(text: str) -> str:
@@ -124,67 +119,24 @@ class ThresholdChanges:
         return request
 
     def submit(self, request_id: uuid.UUID, actor: User) -> ThresholdChangeRequest:
+        """Its author, a manager, approves the draft (ADR-0043)."""
         with transaction.atomic():
             request = self.locked(request_id)
             if request.author_id != actor.id:
                 raise RolloutError(403, RolloutRefusal.NOT_THE_AUTHOR, "only its author submits it")
+            if actor.role != UserRole.MANAGER.value:
+                raise RolloutError(403, RolloutRefusal.NOT_A_MANAGER, "only a manager approves it")
             if request.state != ChangeState.DRAFT.value:
                 raise RolloutError(409, RolloutRefusal.NOT_PENDING, f"it is {request.state}")
-            request.state = ChangeState.PENDING.value
-            request.submitted_at = timezone.now()
-            request.save(update_fields=["state", "submitted_at"])
-            self.audit("threshold_cr_submitted", request, actor)
-            notifier.emit(
-                NotificationEvent.THRESHOLDS_CR_PENDING,
-                notice=Notice(
-                    actor=actor.username,
-                    reason=request.version,
-                    message=request.evidence,
-                    data={"request": str(request.id), "version": request.version},
-                ),
-            )
-        return request
-
-    def approve(self, request_id: uuid.UUID, actor: User, comment: str) -> ThresholdChangeRequest:
-        """One approval by someone who isn't the author; the second makes it approved, provided at
-        least one approver is a manager."""
-        with transaction.atomic():
-            request = self.locked(request_id)
-            if request.state != ChangeState.PENDING.value:
-                raise RolloutError(409, RolloutRefusal.NOT_PENDING, f"it is {request.state}")
-            if request.author_id == actor.id:
-                raise RolloutError(403, RolloutRefusal.SELF_APPROVAL, "you wrote this change")
-            if any(a["user"] == actor.username for a in request.approvals):
-                raise RolloutError(
-                    409, RolloutRefusal.ALREADY_APPROVED_BY_YOU, "you already approved it"
-                )
-            approvals = [
-                *request.approvals,
-                {
-                    "user": actor.username,
-                    "role": actor.role,
-                    "at": timezone.now().isoformat(),
-                    "comment": comment.strip(),
-                },
+            now = timezone.now()
+            request.state = ChangeState.APPROVED.value
+            request.submitted_at = now
+            request.approved_at = now
+            request.approvals = [
+                {"user": actor.username, "role": actor.role, "at": now.isoformat(), "comment": ""}
             ]
-            if len(approvals) >= _APPROVALS_NEEDED and not any(
-                a["role"] == UserRole.MANAGER.value for a in approvals
-            ):
-                raise RolloutError(
-                    403, RolloutRefusal.NOT_A_MANAGER, "one of the two approvers must be a manager"
-                )
-            request.approvals = approvals
-            if len(approvals) >= _APPROVALS_NEEDED:
-                request.state = ChangeState.APPROVED.value
-                request.approved_at = timezone.now()
-            request.save(update_fields=["approvals", "state", "approved_at"])
-            self.audit(
-                "threshold_cr_approved"
-                if request.state == ChangeState.APPROVED.value
-                else "threshold_cr_approval_added",
-                request,
-                actor,
-            )
+            request.save(update_fields=["state", "submitted_at", "approved_at", "approvals"])
+            self.audit("threshold_cr_approved", request, actor)
         return request
 
     def reject(self, request_id: uuid.UUID, actor: User, comment: str) -> ThresholdChangeRequest:
@@ -192,7 +144,7 @@ class ThresholdChanges:
             raise RolloutError(422, RolloutRefusal.REASON_REQUIRED, "say why")
         with transaction.atomic():
             request = self.locked(request_id)
-            if request.state not in (ChangeState.DRAFT.value, ChangeState.PENDING.value):
+            if request.state != ChangeState.DRAFT.value:
                 raise RolloutError(409, RolloutRefusal.NOT_PENDING, f"it is {request.state}")
             request.state = ChangeState.REJECTED.value
             request.rejected_reason = comment.strip()

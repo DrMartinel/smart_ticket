@@ -30,37 +30,36 @@ def admin(person):
     return person
 
 
-def test_a_manager_cannot_approve_their_own_draft(people, api_as):
-    """AC-F1-08."""
-    huy = admin(people["huy"])
-    draft = send(api_as(huy), "post", "/api/sla/policies", P3_FASTER).json()
+def test_a_workflow_admin_activates_their_own_draft(people, api_as):
+    tu = admin(people["tu"])
+    draft = send(api_as(tu), "post", "/api/sla/policies", P3_FASTER).json()
 
     response = send(
-        api_as(huy), "post", f"/api/sla/policies/{draft['id']}/approve", {"reason": "ok"}
-    )
-
-    assert response.status_code == 403
-    assert response.json()["code"] == "self_approval"
-    assert Policy.objects.get(pk=draft["id"]).state == "draft"
-
-
-def test_another_manager_activates_a_draft_with_a_reason(people, api_as):
-    draft = send(api_as(admin(people["tu"])), "post", "/api/sla/policies", P3_FASTER).json()
-
-    response = send(
-        api_as(people["huy"]), "post", f"/api/sla/policies/{draft['id']}/approve", {"reason": "Q4"}
+        api_as(tu), "post", f"/api/sla/policies/{draft['id']}/activate", {"reason": "Q4"}
     )
 
     assert response.json()["state"] == "active"
     assert AuditLog.objects.get(event="sla_policy_activated").payload["reason"] == "Q4"
 
 
-def test_a_draft_taking_an_active_order_is_refused_on_approval(people, api_as):
+def test_activating_needs_a_reason(people, api_as):
+    huy = admin(people["huy"])
+    draft = send(api_as(huy), "post", "/api/sla/policies", P3_FASTER).json()
+
+    response = send(
+        api_as(huy), "post", f"/api/sla/policies/{draft['id']}/activate", {"reason": " "}
+    )
+
+    assert response.json()["code"] == "reason_required"
+    assert Policy.objects.get(pk=draft["id"]).state == "draft"
+
+
+def test_a_draft_taking_an_active_order_is_refused_on_activation(people, api_as):
     body = {**P3_FASTER, "order": 30}
     draft = send(api_as(admin(people["tu"])), "post", "/api/sla/policies", body).json()
 
     response = send(
-        api_as(people["huy"]), "post", f"/api/sla/policies/{draft['id']}/approve", {"reason": "x"}
+        api_as(people["huy"]), "post", f"/api/sla/policies/{draft['id']}/activate", {"reason": "x"}
     )
 
     assert response.json()["code"] == "order_taken"

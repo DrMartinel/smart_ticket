@@ -11,7 +11,7 @@ import httpx
 import pytest
 from django.utils import timezone
 
-from apps.lifecycle.models import ActionRun, ApprovalRequest, Workflow, WorkflowStatus
+from apps.lifecycle.models import ActionRun, Workflow, WorkflowStatus
 from apps.lifecycle.request_schema import (
     FieldIn,
     FieldPatch,
@@ -199,7 +199,7 @@ def test_retry_is_refused_while_an_action_is_still_waiting(
     assert len(webhooks.calls) == 1
 
 
-def test_an_unknown_run_or_approval_is_a_404_not_a_500(client, api_as, manager_user, ticket):
+def test_an_unknown_run_is_a_404_not_a_500(client, api_as, manager_user, ticket):
     import uuid
 
     missing = uuid.uuid4()
@@ -209,24 +209,21 @@ def test_an_unknown_run_or_approval_is_a_404_not_a_500(client, api_as, manager_u
         content_type="application/json",
         HTTP_X_LIFECYCLE_TOKEN="x",
     )
-    approve = api_as(manager_user).post(
-        f"{BASE}/approvals/{missing}/approve", "{}", content_type="application/json"
-    )
     change = api_as(manager_user).post(
         f"{BASE}/tickets/{ticket.public_id}/change-workflow",
         json.dumps({"status_id": str(missing)}),
         content_type="application/json",
     )
 
-    assert [r.status_code for r in (callback, approve, change)] == [404, 404, 404]
-    assert {r.json()["code"] for r in (callback, approve, change)} == {"not_found"}
+    assert [r.status_code for r in (callback, change)] == [404, 404]
+    assert {r.json()["code"] for r in (callback, change)} == {"not_found"}
 
 
 # ── rules at commit ──
 
 
 def test_a_rule_broken_while_a_move_waited_stops_the_commit(
-    ticket, strict, celery, manager_user, technician_user
+    ticket, strict, celery, webhooks, technician_user
 ):
     field = workflow_config.add_field(
         strict.workflow, FieldIn(name="Tested", field_type=FieldType.CHECKBOX)
@@ -237,8 +234,8 @@ def test_a_rule_broken_while_a_move_waited_stops_the_commit(
             rules=[RuleIn(field_id=field.id, rule=RuleCode.MUST_BE_CHECKED)],
             actions=actions(
                 {
-                    "action": "require_approval",
-                    "params": {"approvers": manager_user.username},
+                    "action": "trigger_n8n",
+                    "params": {"webhook_url": "http://localhost/n8n"},
                     "position": "before",
                 }
             ),
@@ -252,8 +249,9 @@ def test_a_rule_broken_while_a_move_waited_stops_the_commit(
     celery.drain()
     field_values.write_by_name(ticket, {"Tested": False}, depth=0)
 
-    approval = ApprovalRequest.objects.get(run__ticket=ticket)
-    lifecycle.decide_approval(approval.id, user=manager_user, approve=True, comment="")
+    run = ActionRun.objects.get(transfer__ticket=ticket)
+    token = webhooks.calls[0]["body"]["callbackToken"]
+    lifecycle.complete_callback(run.id, token=token, success=True, message="", output=None)
     celery.drain()
 
     assert reload(ticket).status == strict.working.key
@@ -458,18 +456,6 @@ def test_a_set_field_value_of_the_wrong_type_is_refused_when_saved(strict):
         )
 
 
-def test_an_employee_cannot_be_an_approver(strict, employee_user):
-    with refused(FailureCode.INVALID_CONFIG):
-        before_action(
-            strict,
-            {
-                "action": "require_approval",
-                "params": {"approvers": employee_user.username},
-                "position": "before",
-            },
-        )
-
-
 def test_a_field_an_action_names_cannot_be_deleted_or_renamed(strict):
     field = workflow_config.add_field(
         strict.workflow, FieldIn(name="Note", field_type=FieldType.TEXT)
@@ -512,59 +498,6 @@ def test_a_status_another_workflow_moves_into_cannot_be_deleted(strict, manager_
 def test_migrate_to_is_checked_even_when_the_status_is_empty(strict, manager_user):
     with refused(FailureCode.INVALID_CONFIG):
         workflow_config.delete_status(strict.hold, migrate_to=strict.review.id, actor=manager_user)
-
-
-# ── approvals ──
-
-
-def approval_flow(strict, ticket, celery, approver, mover):
-    before_action(
-        strict,
-        {
-            "action": "require_approval",
-            "params": {"approvers": approver.username},
-            "position": "before",
-        },
-    )
-    put_in(ticket, strict.working)
-    lifecycle.move(ticket.id, strict.done.id, actor=mover, force=False, expected_version=None)
-    celery.drain()
-    return ApprovalRequest.objects.get(run__ticket=ticket)
-
-
-def test_nobody_approves_their_own_move(ticket, strict, celery, manager_user):
-    approval = approval_flow(strict, ticket, celery, manager_user, manager_user)
-
-    with refused(FailureCode.SELF_APPROVAL):
-        lifecycle.decide_approval(approval.id, user=manager_user, approve=True, comment="")
-
-
-def test_an_expired_approval_cannot_be_approved(
-    ticket, strict, celery, manager_user, technician_user
-):
-    approval = approval_flow(strict, ticket, celery, manager_user, technician_user)
-    ApprovalRequest.objects.filter(pk=approval.pk).update(
-        expires_at=timezone.now() - timedelta(seconds=1)
-    )
-
-    with refused(FailureCode.APPROVAL_EXPIRED):
-        lifecycle.decide_approval(approval.id, user=manager_user, approve=True, comment="")
-
-
-def test_a_retried_approval_starts_with_no_old_answer(
-    ticket, strict, celery, manager_user, technician_user
-):
-    approval = approval_flow(strict, ticket, celery, manager_user, technician_user)
-    lifecycle.decide_approval(approval.id, user=manager_user, approve=False, comment="not yet")
-    celery.drain()
-
-    lifecycle.retry(ticket.id, technician_user)
-    celery.drain()
-
-    approval.refresh_from_db()
-    assert approval.state == "pending"
-    assert approval.comment == ""
-    assert approval.decided_by is None
 
 
 # ── routes ──

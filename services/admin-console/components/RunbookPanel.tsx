@@ -1,7 +1,7 @@
 "use client";
 
 // A runbook proposal on its review item (F12 UC-F12-01, 02): the payload the approver edits, the
-// execution, a second manager's approval and the verdict on an unknown outcome.
+// execution and the verdict on an unknown outcome.
 
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
@@ -13,7 +13,6 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const STATE_VI: Record<string, { label: string; tone: Tone }> = {
-  awaiting_second_approval: { label: "Chờ quản lý duyệt lần hai", tone: "warn" },
   queued: { label: "Đang chờ chạy", tone: "info" },
   running: { label: "Đang chạy", tone: "info" },
   succeeded: { label: "Thành công", tone: "ok" },
@@ -25,10 +24,9 @@ const REFUSAL_VI: Record<string, string> = {
   target_not_reporter: "Runbook này chỉ được áp dụng cho chính người gửi yêu cầu.",
   missing_fields: "Thiếu trường bắt buộc.",
   group_not_allowed: "Nhóm này không nằm trong danh sách được cấp.",
-  runbook_not_approved: "Runbook chưa được quản lý duyệt trong danh mục.",
+  runbook_not_approved: "Runbook chưa được bật trong danh mục.",
   not_approved: "Đề xuất chưa được duyệt.",
   execution_exists: "Đề xuất này đã có một lần chạy chưa thất bại.",
-  self_approval: "Lần duyệt thứ hai phải do một quản lý khác.",
 };
 
 function message(err: unknown): string {
@@ -38,22 +36,15 @@ function message(err: unknown): string {
 
 function Execution({
   execution,
-  role,
-  username,
   busy,
-  onSecond,
   onResolve,
 }: {
   execution: RunbookExecutionOut;
-  role: string;
-  username: string;
   busy: boolean;
-  onSecond: () => void;
   onResolve: (state: "succeeded" | "failed", note: string) => void;
 }) {
   const [note, setNote] = useState("");
   const state = STATE_VI[execution.state] ?? { label: execution.state, tone: "" };
-  const mine = [execution.approved_by, execution.executed_by].includes(username);
   return (
     <li className="rounded-md border border-border p-3 text-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -91,11 +82,6 @@ function Execution({
           </>
         )}
       </dl>
-      {execution.state === "awaiting_second_approval" && role === "manager" && !mine && (
-        <Button className="mt-3" disabled={busy} onClick={onSecond}>
-          Duyệt lần hai và chạy
-        </Button>
-      )}
       {execution.state === "unknown" && (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Input
@@ -118,13 +104,9 @@ function Execution({
 
 export default function RunbookPanel({
   itemId,
-  role,
-  username,
   onChanged,
 }: {
   itemId: string;
-  role: string;
-  username: string;
   onChanged: () => void;
 }) {
   const [panel, setPanel] = useState<RunbookPanelOut | null>(null);
@@ -171,7 +153,7 @@ export default function RunbookPanel({
           <>
             <span className="text-muted-foreground">{runbook.title}</span>
             <Badge variant={runbook.risk === "high" ? "danger" : "info"}>
-              {runbook.risk === "high" ? "Rủi ro cao · cần 2 người duyệt" : "Rủi ro thấp"}
+              {runbook.risk === "high" ? "Rủi ro cao" : "Rủi ro thấp"}
             </Badge>
             {runbook.target_rule === "reporter" && <Badge variant="neutral">Chỉ cho người gửi</Badge>}
             <Badge variant="neutral">{runbook.executor}</Badge>
@@ -179,21 +161,14 @@ export default function RunbookPanel({
         )}
       </div>
       {runbook && !runbook.runnable && (
-        <Alert variant="warn" className="text-xs"><AlertDescription>Runbook chưa được quản lý duyệt trong danh mục, chưa thể chạy.</AlertDescription></Alert>
+        <Alert variant="warn" className="text-xs"><AlertDescription>Runbook chưa được bật trong danh mục, chưa thể chạy.</AlertDescription></Alert>
       )}
       {!open && (
         <form
           className="flex flex-col gap-2"
           onSubmit={(e) => {
             e.preventDefault();
-            void run(async () => {
-              try {
-                await api.post(`/api/itsm/review-items/${itemId}/execute`, { payload });
-              } catch (err) {
-                if (err instanceof ApiError && err.code === "second_approval_required") return;
-                throw err;
-              }
-            });
+            void run(() => api.post(`/api/itsm/review-items/${itemId}/execute`, { payload }));
           }}
         >
           <p className="text-xs text-muted-foreground">
@@ -224,10 +199,7 @@ export default function RunbookPanel({
             <Execution
               key={e.id}
               execution={e}
-              role={role}
-              username={username}
               busy={busy}
-              onSecond={() => void run(() => api.post(`/api/itsm/executions/${e.id}/second-approval`))}
               onResolve={(state, note) => void run(() => api.post(`/api/itsm/executions/${e.id}/resolve`, { state, note }))}
             />
           ))}

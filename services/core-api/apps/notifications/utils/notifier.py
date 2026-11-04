@@ -55,7 +55,6 @@ class Notice:
     message: str = ""
     link: str = ""
     previous_assignee: User | None = None
-    approvers: tuple[User, ...] = ()
     linked_requesters: tuple[User, ...] = ()
     # A team other than the ticket's, e.g. the fallback team.
     team: str | None = None
@@ -218,8 +217,6 @@ class Notifier:
             return user.team_memberships.filter(role=MembershipRole.LEAD.value).exists()
         if kind is RecipientKind.TEAM_MEMBERS:
             return user.team_memberships.exists()
-        if kind is RecipientKind.APPROVER:
-            return user.is_support_staff
         return True
 
     def recipients(self, kind: RecipientKind, ticket: Ticket | None, notice: Notice) -> list[User]:
@@ -247,8 +244,6 @@ class Notifier:
             users = [ticket.assigned_to] if ticket else []
         elif kind is RecipientKind.PREVIOUS_ASSIGNEE:
             users = [notice.previous_assignee]
-        elif kind is RecipientKind.APPROVER:
-            users = list(notice.approvers)
         else:
             users = list(notice.linked_requesters)
         return [u for u in users if u is not None and u.is_active]

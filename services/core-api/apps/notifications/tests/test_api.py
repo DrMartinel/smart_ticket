@@ -94,7 +94,7 @@ def test_my_settings_list_what_can_reach_me_with_mandatory_cells_locked(api_as, 
     assert alerts[("security.alert", "email")]["enabled"] is True
 
     tech = api_as(people["duc"]).get("/api/notifications/preferences").json()
-    assert {r["event"] for r in tech} >= {"ticket.assigned", "approval.requested"}
+    assert "ticket.assigned" in {r["event"] for r in tech}
     assert "security.alert" not in {r["event"] for r in tech}
 
 
@@ -172,8 +172,8 @@ def test_a_manager_reads_the_matrix_and_cannot_change_it(api_as, people):
     client = api_as(people["huy"])
 
     cells = client.get("/api/notifications/matrix").json()
-    assert {"event": "approval.requested", "channel": "in_app"}.items() <= next(
-        c for c in cells if c["event"] == "approval.requested" and c["channel"] == "in_app"
+    assert {"event": "rollout.flag_changed", "channel": "in_app"}.items() <= next(
+        c for c in cells if c["event"] == "rollout.flag_changed" and c["channel"] == "in_app"
     ).items()
 
     response = put(
@@ -259,8 +259,8 @@ def test_a_mandatory_matrix_cell_cannot_be_turned_off(api_as, people):
         {
             "changes": [
                 {
-                    "event": "approval.requested",
-                    "recipient_kind": "approver",
+                    "event": "rollout.flag_changed",
+                    "recipient_kind": "manager",
                     "channel": "in_app",
                     "default_on": False,
                 }
@@ -271,7 +271,7 @@ def test_a_mandatory_matrix_cell_cannot_be_turned_off(api_as, people):
 
     assert response.status_code == 409
     assert response.json()["code"] == "mandatory_cell"
-    assert matrix_cell("approval.requested", "approver", "in_app").default_on is True
+    assert matrix_cell("rollout.flag_changed", "manager", "in_app").default_on is True
 
 
 def test_an_event_outside_the_catalog_is_refused(api_as, people):

@@ -12,7 +12,6 @@ from ninja import Header, Router, Status
 from apps.accounts.models import UserRole
 from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_unless, require_role
 from apps.lifecycle.models import (
-    ApprovalRequest,
     CustomField,
     Transfer,
     Transition,
@@ -21,7 +20,6 @@ from apps.lifecycle.models import (
 )
 from apps.lifecycle.request_schema import (
     AdoptIn,
-    ApprovalDecisionIn,
     CallbackIn,
     ChangeWorkflowIn,
     FieldIn,
@@ -40,7 +38,6 @@ from apps.lifecycle.request_schema import (
 )
 from apps.lifecycle.response_schema import (
     AdoptOut,
-    ApprovalOut,
     CatalogOut,
     FieldOut,
     MoveOptionOut,
@@ -385,29 +382,3 @@ def run_callback(
         output=payload.output,
     )
     return Status(204, None)
-
-
-@router.get("/approvals/mine", auth=SessionAuth(), response=list[ApprovalOut])
-@require_role(*UserRole)
-def my_approvals(request: AuthedRequest) -> QuerySet[ApprovalRequest]:
-    return ApprovalRequest.objects.pending_for(request.auth)
-
-
-@router.post("/approvals/{approval_id}/approve", auth=SessionAuth(), response=ApprovalOut)
-@require_role(*UserRole)
-def approve(
-    request: AuthedRequest, approval_id: uuid.UUID, payload: ApprovalDecisionIn
-) -> ApprovalRequest:
-    return lifecycle.decide_approval(
-        approval_id, user=request.auth, approve=True, comment=payload.comment
-    )
-
-
-@router.post("/approvals/{approval_id}/reject", auth=SessionAuth(), response=ApprovalOut)
-@require_role(*UserRole)
-def reject(
-    request: AuthedRequest, approval_id: uuid.UUID, payload: ApprovalDecisionIn
-) -> ApprovalRequest:
-    return lifecycle.decide_approval(
-        approval_id, user=request.auth, approve=False, comment=payload.comment
-    )

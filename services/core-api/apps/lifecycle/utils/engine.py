@@ -24,7 +24,6 @@ from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.lifecycle.models import (
     ActionRun,
-    ApprovalRequest,
     Transfer,
     TransitionRule,
     Workflow,
@@ -47,7 +46,6 @@ from apps.lifecycle.utils.vocabulary import (
     KIND_COLORS,
     PIPELINE_STATUS_KINDS,
     TRANSFER_PHASES,
-    ApprovalState,
     FailureCode,
     Phase,
     PipelineStatus,
@@ -152,9 +150,6 @@ class Lifecycle:
         ActionRun.objects.filter(
             transfer_id__in=open_ids, state__in=[RunState.QUEUED.value, RunState.RUNNING.value]
         ).update(state=RunState.SKIPPED.value, finished_at=now, awaiting_until=None)
-        ApprovalRequest.objects.filter(
-            run__transfer_id__in=open_ids, state=ApprovalState.PENDING.value
-        ).update(state=ApprovalState.REJECTED.value, decided_at=now, comment=reason)
         ticket.waiting_transform = False
         ticket.save(update_fields=["waiting_transform"])
 
@@ -803,56 +798,6 @@ class Lifecycle:
             self.resume(run)
         return run
 
-    def decide_approval(
-        self, approval_id: uuid.UUID, *, user: User, approve: bool, comment: str
-    ) -> ApprovalRequest:
-        """Records an approver's answer and continues the move it holds, or stops it."""
-        with transaction.atomic():
-            run_id = (
-                ApprovalRequest.objects.filter(pk=approval_id)
-                .values_list("run_id", flat=True)
-                .first()
-            )
-            if run_id is None:
-                raise LifecycleError(404, FailureCode.NOT_FOUND, "no such approval")
-            run = self.lock_run(run_id)
-            approval = ApprovalRequest.objects.select_for_update().get(pk=approval_id)
-            if not approval.can_be_decided_by(user.id):
-                raise LifecycleError(403, FailureCode.NOT_AN_APPROVER, "you are not an approver")
-            if run.transfer is not None and run.transfer.actor_id == user.id:
-                raise LifecycleError(
-                    403, FailureCode.SELF_APPROVAL, "you cannot approve your own move"
-                )
-            if approval.state != ApprovalState.PENDING.value:
-                raise LifecycleError(409, FailureCode.NOT_AWAITING, f"already {approval.state}")
-            if approval.expires_at <= timezone.now():
-                raise LifecycleError(409, FailureCode.APPROVAL_EXPIRED, "this approval has expired")
-            approval.state = (ApprovalState.APPROVED if approve else ApprovalState.REJECTED).value
-            approval.decided_by = user
-            approval.decided_at = timezone.now()
-            approval.comment = comment
-            approval.save(update_fields=["state", "decided_by", "decided_at", "comment"])
-            if approve:
-                run.state = RunState.SUCCEEDED.value
-                run.finished_at = timezone.now()
-                run.awaiting_until = None
-                run.save(update_fields=["state", "finished_at", "awaiting_until"])
-            else:
-                runner.fail(
-                    run,
-                    FailureCode.APPROVAL_REJECTED,
-                    f"Rejected by {user.username}" + (f": {comment}" if comment else ""),
-                )
-            AuditLog.objects.record(
-                f"approval_{approval.state}",
-                actor_type="human",
-                actor_id=user.id,
-                ticket_id=run.ticket_id,
-                payload={"approval": str(approval.id), "comment": comment},
-            )
-            self.resume(run)
-        return approval
-
     def lock_run(self, run_id: uuid.UUID) -> ActionRun:
         """Locks a run's ticket, then the run; raises `NOT_FOUND` for an unknown run."""
         ticket_id = ActionRun.objects.filter(pk=run_id).values_list("ticket_id", flat=True).first()
@@ -870,25 +815,7 @@ class Lifecycle:
     def sweep(self) -> dict[str, int]:
         """Fails runs past their wait, re-queues lost work and unlocks tickets left locked."""
         now = timezone.now()
-        counts = {"approvals_expired": 0, "runs_timed_out": 0, "resumed": 0, "unlocked": 0}
-
-        expired = ApprovalRequest.objects.filter(
-            state=ApprovalState.PENDING.value, expires_at__lt=now
-        ).values_list("id", "run_id")
-        for approval_id, run_id in list(expired):
-            with transaction.atomic():
-                run = self.lock_run(run_id)
-                approval = ApprovalRequest.objects.select_for_update().get(pk=approval_id)
-                if approval.state != ApprovalState.PENDING.value:
-                    continue
-                approval.state = ApprovalState.REJECTED.value
-                approval.decided_at = now
-                approval.comment = "expired"
-                approval.save(update_fields=["state", "decided_at", "comment"])
-                if run.state == RunState.RUNNING.value:
-                    runner.fail(run, FailureCode.APPROVAL_EXPIRED, "no approver answered in time")
-                    self.resume(run)
-                counts["approvals_expired"] += 1
+        counts = {"runs_timed_out": 0, "resumed": 0, "unlocked": 0}
 
         stuck_before = now - timedelta(seconds=settings.LIFECYCLE_RUN_STUCK_SEC)
         overdue = Q(awaiting_until__lt=now) | Q(

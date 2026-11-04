@@ -119,12 +119,6 @@ class RunState(StrEnum):
 DONE_RUN_STATES = (RunState.SUCCEEDED, RunState.SKIPPED)
 
 
-class ApprovalState(StrEnum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-
 class FailureCode(StrEnum):
     """Why a transfer, action run or request failed: the failed-transfer queue groups by it."""
 
@@ -149,9 +143,7 @@ class FailureCode(StrEnum):
     TRANSFER_IN_PROGRESS = "transfer_in_progress"
     NOT_FOUND = "not_found"
     SAME_WORKFLOW = "same_workflow"
-    SELF_APPROVAL = "self_approval"
     STALE_TRANSFER = "stale_transfer"
-    NOT_AN_APPROVER = "not_an_approver"
     NOT_AWAITING = "not_awaiting"
     BAD_CALLBACK_TOKEN = "bad_callback_token"
     INVALID_PARAM = "invalid_param"
@@ -181,4 +173,3 @@ class ActionCode(StrEnum):
     SEND_EMAIL = "send_email"
     CALL_WEBHOOK = "call_webhook"
     TRIGGER_N8N = "trigger_n8n"
-    REQUIRE_APPROVAL = "require_approval"

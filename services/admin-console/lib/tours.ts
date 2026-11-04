@@ -129,8 +129,8 @@ export const TOURS: Tour[] = [
         side: "right",
         when: (u) => isManager(u) || isWorkflowAdmin(u),
         body: w(
-          "Quy trình, SLA, nhóm, thông báo và runbook. Hầu hết thay đổi ở đây cần một quản lý khác duyệt trước khi có hiệu lực.",
-          "Workflows, SLAs, teams, notifications and runbooks. Most changes here need another manager's approval before they take effect.",
+          "Quy trình, SLA, nhóm, thông báo và runbook. Thay đổi ở đây có hiệu lực ngay khi người có quyền lưu, kèm lý do trong nhật ký.",
+          "Workflows, SLAs, teams, notifications and runbooks. A change here takes effect when someone allowed to make it saves it, with a reason in the audit log.",
         ),
       },
       {
@@ -319,8 +319,8 @@ export const TOURS: Tour[] = [
         path: TICKET_PAGE,
         side: "right",
         body: w(
-          "Một số phiếu (như mở khoá tài khoản) có runbook: một thao tác tự động trên hệ thống thật. Runbook luôn cần người: duyệt đề xuất trước, kiểm tra dữ liệu AI điền, rồi bấm \"Chạy runbook\". Runbook rủi ro cao cần quản lý duyệt lần hai. Nếu kết quả chưa rõ, bạn kiểm tra hệ thống đích và xác nhận kèm ghi chú.\n\nPhiếu không có runbook thì không có mục này.",
-          "Some tickets (an account unlock, say) come with a runbook: an automated action on a real system. A runbook always needs a person: approve the proposal first, check the data the AI filled in, then press \"Chạy runbook\". A high-risk runbook needs a manager's second approval. If the outcome is unclear, check the target system and confirm with a note.\n\nTickets without a runbook have no such section.",
+          "Một số phiếu (như mở khoá tài khoản) có runbook: một thao tác tự động trên hệ thống thật. Runbook luôn cần người: duyệt đề xuất trước, kiểm tra dữ liệu AI điền, rồi bấm \"Chạy runbook\". Nếu kết quả chưa rõ, bạn kiểm tra hệ thống đích và xác nhận kèm ghi chú.\n\nPhiếu không có runbook thì không có mục này.",
+          "Some tickets (an account unlock, say) come with a runbook: an automated action on a real system. A runbook always needs a person: approve the proposal first, check the data the AI filled in, then press \"Chạy runbook\". If the outcome is unclear, check the target system and confirm with a note.\n\nTickets without a runbook have no such section.",
         ),
       },
       {
@@ -432,8 +432,8 @@ export const TOURS: Tour[] = [
     id: "sla-admin",
     title: w("Cấu hình SLA", "Set up SLAs"),
     summary: w(
-      "Chính sách SLA: quản trị quy trình soạn bản nháp, một quản lý duyệt; lịch làm việc và ngày nghỉ.",
-      "SLA policies: a workflow admin drafts, a manager approves; business calendars and holidays.",
+      "Chính sách SLA: soạn và bật chính sách; lịch làm việc và ngày nghỉ.",
+      "SLA policies: drafting and activating them; business calendars and holidays.",
     ),
     audience: (u) => isManager(u) || isWorkflowAdmin(u),
     steps: [
@@ -457,12 +457,12 @@ export const TOURS: Tour[] = [
         ),
       },
       {
-        title: w("Quản lý duyệt", "A manager approves"),
+        title: w("Bật chính sách", "Activate a policy"),
         target: TABLE,
         side: "top",
         body: w(
-          "Quản trị quy trình soạn bản nháp; bản nháp chỉ có hiệu lực khi một quản lý (không phải người soạn) bấm \"Approve\". Đồng hồ đang chạy giữ thời hạn cũ; phiếu mới dùng chính sách mới.",
-          "A workflow admin drafts; a draft takes effect only when a manager (not its author) presses \"Approve\". Running clocks keep their targets; new tickets use the new policy.",
+          "Quản trị quy trình hoặc quản lý soạn bản nháp; bản nháp có hiệu lực khi họ bấm \"Activate\" (hoặc \"Save and activate\"). Đồng hồ đang chạy giữ thời hạn cũ; phiếu mới dùng chính sách mới.",
+          "A workflow admin or manager drafts; the draft takes effect when they press \"Activate\" (or \"Save and activate\"). Running clocks keep their targets; new tickets use the new policy.",
         ),
       },
       {
@@ -807,8 +807,8 @@ export const TOURS: Tour[] = [
         href: "/admin/settings/rollout",
         target: HEADER,
         body: w(
-          "Trang này nằm trong Admin (Governance → Rollout). Thấy tự động hoá làm sai? Bạn có thể \"Turn off\" một nhánh ngay lập tức, chỉ một người là đủ. Bật lại cần hai quản lý.",
-          "This page is in Admin (Governance → Rollout). See automation going wrong? You can \"Turn off\" a branch at once, alone. Turning it back on takes two managers.",
+          "Trang này nằm trong Admin (Governance → Rollout). Thấy tự động hoá làm sai? Bạn có thể \"Turn off\" một nhánh ngay lập tức, chỉ một người là đủ. Một quản lý bật lại.",
+          "This page is in Admin (Governance → Rollout). See automation going wrong? You can \"Turn off\" a branch at once, alone. One manager turns it back on.",
         ),
       },
     ],
@@ -930,8 +930,8 @@ export const TOURS: Tour[] = [
     id: "rollout",
     title: w("Bật tự động hoá và đổi ngưỡng", "Turn on automation and change thresholds"),
     summary: w(
-      "Ba chìa khoá để một nhánh chạy thật, cờ triển khai cần hai quản lý, và yêu cầu đổi ngưỡng.",
-      "The three keys a branch needs to act live, rollout flags that take two managers, and threshold change requests.",
+      "Ba chìa khoá để một nhánh chạy thật, cờ triển khai, và yêu cầu đổi ngưỡng.",
+      "The three keys a branch needs to act live, rollout flags, and threshold change requests.",
     ),
     audience: isManager,
     steps: [
@@ -949,8 +949,8 @@ export const TOURS: Tour[] = [
         target: "main",
         side: "top",
         body: w(
-          "\"Request on…\" gửi yêu cầu kèm lý do; mỗi nhánh có một cổng (ví dụ độ chính xác ≥ 0.95 trên tập kiểm tra). Hai quản lý khác người yêu cầu phải \"Approve\". \"Turn off\" chỉ cần một người và có hiệu lực ngay. Runbook không có cờ: luôn cần người.",
-          "\"Request on…\" asks with a reason; each branch has a gate (precision ≥ 0.95 on the holdout, say). Two managers other than the requester must \"Approve\". \"Turn off\" needs one person and is instant. Runbooks have no flag: always a person.",
+          "\"Turn on…\" bật ngay kèm lý do; mỗi nhánh có một cổng (ví dụ độ chính xác ≥ 0.95 trên tập kiểm tra), cổng chưa đạt thì cần lý do vượt cổng. \"Turn off\" chỉ cần một người và có hiệu lực ngay. Runbook không có cờ: luôn cần người.",
+          "\"Turn on…\" turns it on at once with a reason; each branch has a gate (precision ≥ 0.95 on the holdout, say), and a gate not met needs an override reason. \"Turn off\" needs one person and is instant. Runbooks have no flag: always a person.",
         ),
       },
       {
@@ -967,8 +967,8 @@ export const TOURS: Tour[] = [
         target: TABLE,
         side: "top",
         body: w(
-          "Mở yêu cầu để xem phần khác biệt, \"Submit for review\", rồi hai người không phải tác giả \"Approve\" (hoặc \"Reject…\"). Sau đó kỹ sư mở PR với đúng nội dung này. Tệp đang chạy mà không khớp yêu cầu nào đã duyệt sẽ đưa mọi nhánh về shadow.",
-          "Open a request to see the diff, \"Submit for review\", then two people who aren't the author \"Approve\" (or \"Reject…\"). An engineer then ships that exact text by PR. A loaded file that matches no approved request puts every branch back in shadow.",
+          "Mở yêu cầu để xem phần khác biệt, rồi quản lý viết nó \"Approve\" (hoặc \"Reject…\"). Sau đó kỹ sư mở PR với đúng nội dung này. Tệp đang chạy mà không khớp yêu cầu nào đã duyệt sẽ đưa mọi nhánh về shadow.",
+          "Open a request to see the diff, then the manager who wrote it presses \"Approve\" (or \"Reject…\"). An engineer then ships that exact text by PR. A loaded file that matches no approved request puts every branch back in shadow.",
         ),
       },
     ],
@@ -1019,8 +1019,8 @@ export const TOURS: Tour[] = [
     id: "runbooks",
     title: w("Danh mục runbook", "The runbook catalog"),
     summary: w(
-      "Quản trị quy trình định nghĩa thao tác tự động, một quản lý duyệt, và cách runbook chạy trên phiếu.",
-      "A workflow admin defines automated actions, a manager approves them, and how they run on a ticket.",
+      "Quản trị quy trình định nghĩa thao tác tự động, và cách runbook chạy trên phiếu.",
+      "A workflow admin defines automated actions, and how they run on a ticket.",
     ),
     audience: (u) => isManager(u) || isWorkflowAdmin(u),
     steps: [
@@ -1044,19 +1044,19 @@ export const TOURS: Tour[] = [
         ),
       },
       {
-        title: w("Quản lý duyệt", "A manager approves"),
+        title: w("Có hiệu lực ngay", "Live at once"),
         target: TABLE,
         side: "top",
         body: w(
-          "Thay đổi chỉ có hiệu lực khi một quản lý (không phải người soạn) bấm \"Duyệt\"; trước đó bản cũ vẫn chạy.",
-          "A change takes effect only when a manager (not its author) presses \"Duyệt\" (approve); until then the old version runs.",
+          "Thay đổi có hiệu lực ngay khi lưu; lần chạy đã xếp hàng trước đó không chạy bản cũ. Runbook có sẵn chưa bật thì bấm \"Bật · Activate\".",
+          "A change is live as soon as it's saved; a run queued before it won't run the old version. A seeded runbook that isn't on yet needs \"Bật · Activate\".",
         ),
       },
       {
         title: w("Trên phiếu", "On a ticket"),
         body: w(
-          "Khi AI đề xuất một runbook, phiếu luôn vào hàng chờ duyệt. Người duyệt kiểm tra dữ liệu AI điền, chạy; runbook rủi ro cao cần quản lý duyệt lần hai. Xem hướng dẫn \"Xử lý phiếu được giao\".",
-          "When the AI proposes a runbook, the ticket always goes to review. The reviewer checks the data the AI filled in and runs it; a high-risk one needs a manager's second approval. See the \"Work an assigned ticket\" guide.",
+          "Khi AI đề xuất một runbook, phiếu luôn vào hàng chờ duyệt. Người duyệt kiểm tra dữ liệu AI điền, rồi chạy. Xem hướng dẫn \"Xử lý phiếu được giao\".",
+          "When the AI proposes a runbook, the ticket always goes to review. The reviewer checks the data the AI filled in and runs it. See the \"Work an assigned ticket\" guide.",
         ),
       },
     ],

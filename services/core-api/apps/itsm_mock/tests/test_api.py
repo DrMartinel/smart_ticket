@@ -1,5 +1,5 @@
 """
-Runbook endpoints over HTTP (F12): the catalog a manager approves, and execution as the review
+Runbook endpoints over HTTP (F12): the catalog, and execution as the review
 panel calls it. A refused runbook reaches the caller as a coded 4xx, never a 500.
 """
 
@@ -36,12 +36,10 @@ class TestCatalog:
         assert rows["RB-GRANT-ACCESS"]["risk"] == "high"
         assert rows["RB-RESET-PASSWORD"]["target_rule"] == "reporter"
 
-    def test_a_catalog_change_needs_a_manager(self, people, api_as, settings):
-        """AC-F12-06, BR-F12-08: tu.dv's new URL waits; the old config runs until a manager
-        approves."""
+    def test_a_catalog_change_is_live_at_once(self, people, api_as, settings):
+        """ADR-0043: tu.dv's new URL is the one that runs, with no second person."""
         settings.LIFECYCLE_WEBHOOK_ALLOWED_HOSTS = ["n8n.congty.vn"]
         approve_catalog(people["huy.pq"])
-        old = Runbook.objects.get(code="RB-RESTART-SERVICE").config
 
         changed = api_as(people["tu.dv"]).patch(
             "/api/itsm/runbooks/RB-RESTART-SERVICE",
@@ -51,38 +49,19 @@ class TestCatalog:
 
         assert changed.status_code == 200
         runbook = Runbook.objects.get(code="RB-RESTART-SERVICE")
-        assert runbook.config == old
-        assert runbook.is_runnable()
-        assert (runbook.pending_change or {})["config"] == {"url": NEW_URL}
-        assert catalog_rows() == 1
-
-        approved = api_as(people["quang.nv"]).post("/api/itsm/runbooks/RB-RESTART-SERVICE/approve")
-
-        assert approved.status_code == 200
-        runbook.refresh_from_db()
         assert runbook.config == {"url": NEW_URL}
         assert runbook.pending_change is None
-        assert runbook.approved_by == people["quang.nv"]
+        assert runbook.is_runnable()
+        assert runbook.approved_by == people["tu.dv"]
+        assert catalog_rows() == 1
 
-    def test_the_author_of_a_change_cannot_approve_it(self, people, api_as):
-        from apps.accounts.models import Capability, UserCapability
+    def test_a_workflow_admin_activates_a_seeded_runbook(self, people, api_as):
+        response = api_as(people["tu.dv"]).post("/api/itsm/runbooks/RB-RESET-PASSWORD/activate")
 
-        UserCapability.objects.create(
-            user=people["huy.pq"], capability=Capability.WORKFLOW_ADMIN.value
-        )
-        client = api_as(people["huy.pq"])
-        client.patch(
-            "/api/itsm/runbooks/RB-RESET-PASSWORD",
-            {"title": "Reset a password"},
-            content_type="application/json",
-        )
+        assert response.status_code == 200
+        assert response.json()["runnable"] is True
 
-        response = client.post("/api/itsm/runbooks/RB-RESET-PASSWORD/approve")
-
-        assert response.status_code == 403
-        assert response.json()["code"] == "self_approval"
-
-    def test_a_new_runbook_waits_for_a_manager(self, people, api_as):
+    def test_a_new_runbook_is_live_at_once(self, people, api_as):
         created = api_as(people["tu.dv"]).post(
             "/api/itsm/runbooks",
             {
@@ -98,7 +77,7 @@ class TestCatalog:
         )
 
         assert created.status_code == 201
-        assert created.json()["runnable"] is False
+        assert created.json()["runnable"] is True
         assert catalog_rows() == 1
 
     @pytest.mark.parametrize(
@@ -137,24 +116,24 @@ class TestCatalog:
         assert response.status_code == 422
         assert response.json()["code"] == "invalid_config"
 
-    def test_only_a_workflow_admin_drafts_and_only_a_manager_approves(self, people, api_as):
-        drafted = api_as(people["ha.vt"]).patch(
+    def test_only_a_workflow_admin_or_manager_changes_the_catalog(self, people, api_as):
+        changed = api_as(people["ha.vt"]).patch(
             "/api/itsm/runbooks/RB-RESET-PASSWORD",
             {"title": "x" * 5},
             content_type="application/json",
         )
-        approved = api_as(people["tu.dv"]).post("/api/itsm/runbooks/RB-RESET-PASSWORD/approve")
+        activated = api_as(people["ha.vt"]).post("/api/itsm/runbooks/RB-RESET-PASSWORD/activate")
 
-        assert drafted.status_code == 403
-        assert approved.status_code == 403
+        assert changed.status_code == 403
+        assert activated.status_code == 403
 
-    def test_nothing_waiting_is_nothing_to_approve(self, people, api_as):
+    def test_a_live_runbook_is_already_live(self, people, api_as):
         approve_catalog(people["huy.pq"])
 
-        response = api_as(people["quang.nv"]).post("/api/itsm/runbooks/RB-RESET-PASSWORD/approve")
+        response = api_as(people["quang.nv"]).post("/api/itsm/runbooks/RB-RESET-PASSWORD/activate")
 
         assert response.status_code == 409
-        assert response.json()["code"] == "nothing_to_approve"
+        assert response.json()["code"] == "already_live"
 
 
 @pytest.mark.django_db

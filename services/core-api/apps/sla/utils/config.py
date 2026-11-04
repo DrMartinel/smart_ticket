@@ -1,4 +1,4 @@
-"""SLA policies (drafted, then approved by another manager), calendars and holidays (UC-F1-06)."""
+"""SLA policies (drafted, then activated), calendars and holidays (UC-F1-06)."""
 
 from __future__ import annotations
 
@@ -31,7 +31,6 @@ _POLICY_FIELDS = (
 class SlaConfigRefusal(StrEnum):
     INVALID_TARGET = "invalid_target"
     ORDER_TAKEN = "order_taken"
-    SELF_APPROVAL = "self_approval"
     DEFAULT_POLICY = "default_policy"
     NOT_A_DRAFT = "not_a_draft"
     BAD_INTERVAL = "bad_interval"
@@ -55,7 +54,7 @@ class SlaConfig:
     # ── policies ──
 
     def draft(self, actor: User, data: dict[str, Any]) -> Policy:
-        """A new draft; with `replaces_id`, the active policy it takes over from on approval."""
+        """A new draft; with `replaces_id`, the active policy it takes over from on activation."""
         self.check_targets(data["response_minutes"], data["resolution_minutes"])
         with transaction.atomic():
             policy = Policy(created_by=actor, state=PolicyState.DRAFT.value)
@@ -90,17 +89,13 @@ class SlaConfig:
             _audit("sla_policy_drafted", actor, self.snapshot(policy))
         return policy
 
-    def approve(self, actor: User, policy_id: uuid.UUID, reason: str) -> Policy:
-        """Activates a draft; its author can't (BR-F1-12). The policy it replaces retires."""
+    def activate(self, actor: User, policy_id: uuid.UUID, reason: str) -> Policy:
+        """Activates a draft, its author's included (ADR-0043). The policy it replaces retires."""
         self.check_reason(reason)
         with transaction.atomic():
             policy = self.policy(policy_id, lock=True)
             if policy.state != PolicyState.DRAFT.value:
                 raise SlaConfigError(409, SlaConfigRefusal.NOT_A_DRAFT, "the policy is not a draft")
-            if policy.created_by_id == actor.id:
-                raise SlaConfigError(
-                    403, SlaConfigRefusal.SELF_APPROVAL, "another manager approves your draft"
-                )
             replaced = policy.replaces
             clash = Policy.objects.filter(state=PolicyState.ACTIVE.value, order=policy.order)
             if replaced is not None:

@@ -564,11 +564,11 @@ guard and that comment is later trimmed, the entry is the record.
   lock.** Celery may deliver a task twice; without it a grant or a restart
   runs twice. *`test_a_row_past_queued_is_never_sent_again`,
   `test_timeout_after_send_is_unknown_not_retried`.*
-- **`Runbooks.why_not_runnable`, the worker's second look at ADR-0006, the
-  catalog and the second approver.** A row queued by any other path, or a
-  decision deleted after the execute, would otherwise reach Keycloak.
+- **`Runbooks.why_not_runnable`, the worker's second look at ADR-0006 and the
+  catalog.** A row queued by any other path, a decision deleted after the
+  execute, or a catalog change after it (live at once since ADR-0043) would
+  otherwise reach Keycloak.
   *`test_the_worker_refuses_a_run_whose_approval_disappeared`,
-  `test_the_worker_refuses_a_high_risk_run_without_a_second_approval`,
   `test_a_catalog_change_after_approval_stops_the_run`.*
 - **`KeycloakAdmin.change` and `N8nExecutor.run` telling "never sent"
   (`failed`) from "sent, no answer" (`unknown`).** `OutboundNoAnswer` is the

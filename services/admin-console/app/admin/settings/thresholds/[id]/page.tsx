@@ -1,7 +1,7 @@
 "use client";
 
 // One threshold change request (F9 · Threshold change request 16-1336): the diff against the loaded
-// file, the evidence, and the approvals; two, neither by the author, one a manager's.
+// file, the evidence, and the approval by the manager who wrote it (ADR-0043).
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -45,7 +45,6 @@ export default function ChangeRequestPage() {
   };
 
   const mine = request.author === user.username;
-  const approvedByMe = request.approvals.some((a) => a.user === user.username);
 
   return (
     <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
@@ -60,21 +59,16 @@ export default function ChangeRequestPage() {
           <p className="text-xs text-muted-foreground">
             Author {request.author ?? "migration"} · {request.state}
             {request.submitted_at && ` · submitted ${new Date(request.submitted_at).toLocaleString()}`} · validated with the boot model ✓ ·
-            approvals {request.approvals.length} of 2 · sha256 {request.sha256.slice(0, 12)}…
+            sha256 {request.sha256.slice(0, 12)}…
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {request.state === "draft" && mine && (
             <Button onClick={() => void act("submit")}>
-              Submit for review
-            </Button>
-          )}
-          {request.state === "pending" && !mine && !approvedByMe && (
-            <Button onClick={() => void act("approve", { comment })}>
               Approve
             </Button>
           )}
-          {(request.state === "pending" || request.state === "draft") && (
+          {request.state === "draft" && (
             <Button variant="outline" disabled={!comment.trim()} onClick={() => void act("reject", { comment })}>
               Reject…
             </Button>
@@ -137,13 +131,13 @@ export default function ChangeRequestPage() {
             </TableBody>
           </Table>
           {request.rejected_reason && <p className="text-danger">Rejected: {request.rejected_reason}</p>}
-          {(request.state === "pending" || request.state === "draft") && (
+          {request.state === "draft" && (
             <Input value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Comment (required to reject)" />
           )}
         </section>
       </Card>
       <p className="text-xs text-muted-foreground">
-        After two approvals the SHA-256 is stored; an engineer opens a PR with this exact text. On boot, a file that matches no approved
+        Once approved the SHA-256 is stored; an engineer opens a PR with this exact text. On boot, a file that matches no approved
         request puts every branch in shadow and raises thresholds_unapproved (BR-F9-07).
       </p>
     </div>

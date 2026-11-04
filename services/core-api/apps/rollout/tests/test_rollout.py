@@ -5,12 +5,10 @@ from __future__ import annotations
 
 import ast
 import uuid
-from datetime import timedelta
 from pathlib import Path
 
 import pytest
 from django.conf import settings as django_settings
-from django.utils import timezone
 
 from apps.accounts.models import Capability, User, UserCapability, UserRole
 from apps.audit.models import AuditLog
@@ -205,7 +203,7 @@ class TestLiveOrShadow:
         """AC-F9-07 (BR-F9-10, ADR-0006)."""
         assert "runbook" not in {b.value for b in FlagBranch}
         assert not RolloutFlag.objects.filter(branch__icontains="runbook").exists()
-        response = post(api_as(people["huy"]), "/api/rollout/runbook/requests", {"reason": "thử"})
+        response = post(api_as(people["huy"]), "/api/rollout/runbook/on", {"reason": "thử"})
         assert (response.status_code, response.json()["code"]) == (404, "no_such_branch")
 
     def test_production_cant_skip_the_threshold_check(self):
@@ -222,28 +220,26 @@ class TestLiveOrShadow:
 
 
 class TestFlags:
-    def test_one_person_cannot_turn_on(self, people, api_as, env_live):
-        """AC-F9-02 (BR-F9-02)."""
-        made = post(
+    def test_one_manager_turns_on_at_once(self, people, api_as, env_live):
+        """ADR-0043: no second manager."""
+        response = post(
             api_as(people["huy"]),
-            "/api/rollout/auto_route/requests",
-            {"reason": "P3: reroute 12.5 % trên 14 ngày", "gate_override_reason": ""},
-        ).json()
-        base = f"/api/rollout/requests/{made['id']}"
-        body = {"gate_override_reason": "thử nghiệm"}
+            "/api/rollout/auto_route/on",
+            {"reason": "P3: reroute 12.5 % trên 14 ngày", "gate_override_reason": "thử nghiệm"},
+        )
 
-        own = post(api_as(people["huy"]), f"{base}/approve", body)
-        assert (own.status_code, own.json()["code"]) == (403, "self_approval")
-        tech = post(api_as(people["tu"]), f"{base}/approve", body)
-        assert tech.status_code == 403
-        assert post(api_as(people["quang"]), f"{base}/approve", body).json()["state"] == "pending"
-        twice = post(api_as(people["quang"]), f"{base}/approve", body)
-        assert twice.json()["code"] == "already_approved_by_you"
-        assert RolloutFlag.objects.get(branch="auto_route").state == "pending_on"
-        assert post(api_as(people["dung"]), f"{base}/approve", body).json()["state"] == "approved"
-
+        assert response.status_code == 200
         assert RolloutFlag.objects.get(branch="auto_route").state == "on"
-        assert AuditLog.objects.filter(event="rollout_flag_on").count() == 1
+        (on,) = AuditLog.objects.filter(event="rollout_flag_on")
+        assert on.actor_id == people["huy"].id
+        again = post(api_as(people["quang"]), "/api/rollout/auto_route/on", {"reason": "x"})
+        assert again.json()["code"] == "already_on"
+
+    def test_a_technician_cannot_turn_on(self, people, api_as, env_live):
+        response = post(api_as(people["tu"]), "/api/rollout/auto_route/on", {"reason": "P3"})
+
+        assert response.status_code == 403
+        assert RolloutFlag.objects.get(branch="auto_route").state == "off"
 
     def test_one_person_can_turn_off(self, people, api_as, env_live):
         """AC-F9-03 (BR-F9-02)."""
@@ -268,66 +264,52 @@ class TestFlags:
     def test_an_unmet_gate_needs_an_override_reason(self, people, api_as, env_live):
         """AC-F9-06 (BR-F9-03): 9 of 50 rerouted is 0.18 against < 0.15."""
         shadow_reviews(people["lan"], people["mai"], decided=50, rerouted=9)
-        made = post(
-            api_as(people["huy"]), "/api/rollout/auto_route/requests", {"reason": "P3"}
-        ).json()
-        gate = next(g for g in made["gate_snapshot_at_request"] if g["metric"] == "reroute_rate")
-        assert (gate["value"], gate["met"]) == (0.18, False)
 
-        response = post(api_as(people["quang"]), f"/api/rollout/requests/{made['id']}/approve")
+        response = post(api_as(people["huy"]), "/api/rollout/auto_route/on", {"reason": "P3"})
 
         assert (response.status_code, response.json()["code"]) == (422, "override_reason_required")
+        assert response.json()["details"]["unmet"] == ["reroute_rate"]
+        assert RolloutFlag.objects.get(branch="auto_route").state == "off"
 
     def test_a_met_gate_needs_no_override(self, people, api_as, env_live):
         shadow_reviews(people["lan"], people["mai"], decided=40, rerouted=4)
-        made = post(
-            api_as(people["huy"]), "/api/rollout/auto_route/requests", {"reason": "P3"}
-        ).json()
 
-        response = post(api_as(people["quang"]), f"/api/rollout/requests/{made['id']}/approve")
+        response = post(api_as(people["huy"]), "/api/rollout/auto_route/on", {"reason": "P3"})
 
         assert response.status_code == 200
-        (approval,) = response.json()["approvals"]
-        assert approval["gate_snapshot"][0]["met"] is True
+        (request,) = FlagRequest.objects.all()
+        assert request.gate_snapshot_at_request[0]["met"] is True
 
     def test_the_holdout_precision_is_entered_with_evidence(self, people, api_as, env_live):
         client = api_as(people["huy"])
-        missing = post(client, "/api/rollout/auto_reply/requests", {"reason": "P4"})
+        missing = post(client, "/api/rollout/auto_reply/on", {"reason": "P4"})
         assert missing.json()["code"] == "entered_value_required"
 
-        made = post(
+        post(
             client,
-            "/api/rollout/auto_reply/requests",
+            "/api/rollout/auto_reply/on",
             {
                 "reason": "P4",
+                "gate_override_reason": "thử nghiệm",
                 "entered_values": {
                     "holdout_precision": {"value": 0.97, "evidence": "evals/HISTORY.md 2026-11-20"}
                 },
             },
-        ).json()
+        )
+
+        (request,) = FlagRequest.objects.all()
         holdout = next(
-            g for g in made["gate_snapshot_at_request"] if g["metric"] == "holdout_precision"
+            g for g in request.gate_snapshot_at_request if g["metric"] == "holdout_precision"
         )
         assert (holdout["value"], holdout["met"], holdout["entered"]) == (0.97, True, True)
 
-    def test_a_request_needs_approved_thresholds(self, people, api_as, settings):
+    def test_turning_on_needs_approved_thresholds(self, people, api_as, settings):
         settings.THRESHOLDS_REQUIRE_APPROVAL = True
         ThresholdChangeRequest.objects.all().delete()
 
-        response = post(api_as(people["huy"]), "/api/rollout/auto_route/requests", {"reason": "P3"})
+        response = post(api_as(people["huy"]), "/api/rollout/auto_route/on", {"reason": "P3"})
 
         assert response.json()["code"] == "thresholds_unapproved"
-
-    def test_an_unapproved_request_expires(self, people, env_live):
-        request = rollout.request_on("auto_route", people["huy"], "P3")
-        FlagRequest.objects.filter(pk=request.pk).update(
-            expires_at=timezone.now() - timedelta(minutes=1)
-        )
-
-        assert rollout.sweep()["expired"] == 1
-        assert RolloutFlag.objects.get(branch="auto_route").state == "off"
-        request.refresh_from_db()
-        assert request.state == "expired"
 
     def test_a_live_branch_whose_gate_slipped_is_reported_once_a_day(self, people, env_live):
         set_flags(auto_route="on")
@@ -344,29 +326,35 @@ class TestFlags:
 
 
 class TestGates:
-    def test_a_gate_change_needs_approval(self, people, api_as):
-        """AC-F9-08 (BR-F9-04)."""
+    def test_one_manager_changes_a_gate_at_once(self, people, api_as):
+        """AC-F9-08 (BR-F9-04, ADR-0043)."""
         gate = RolloutGate.objects.get(branch="auto_route", metric="reroute_rate")
-        change = (
-            api_as(people["huy"])
-            .patch(
-                f"/api/rollout/gates/{gate.id}",
-                {"threshold": 0.20, "window_days": 14, "reason": "Thử nới ngưỡng"},
-                content_type="application/json",
-            )
-            .json()
+
+        response = api_as(people["huy"]).patch(
+            f"/api/rollout/gates/{gate.id}",
+            {"threshold": 0.20, "window_days": 14, "reason": "Thử nới ngưỡng"},
+            content_type="application/json",
         )
 
-        shown = api_as(people["huy"]).get("/api/rollout").json()
-        assert next(g for g in shown["gates"] if g["id"] == str(gate.id))["threshold"] == 0.15
-        assert shown["gate_changes"][0]["state"] == "pending"
-        own = post(api_as(people["huy"]), f"/api/rollout/gate-changes/{change['id']}/approve")
-        assert own.json()["code"] == "self_approval"
-
-        post(api_as(people["quang"]), f"/api/rollout/gate-changes/{change['id']}/approve")
-
+        assert response.json()["state"] == "approved"
         gate.refresh_from_db()
         assert gate.threshold == 0.20
+        assert (
+            AuditLog.objects.get(event="rollout_gate_changed").payload["from"]["threshold"] == 0.15
+        )
+
+    def test_a_technician_cannot_change_a_gate(self, people, api_as):
+        gate = RolloutGate.objects.get(branch="auto_route", metric="reroute_rate")
+
+        response = api_as(people["tu"]).patch(
+            f"/api/rollout/gates/{gate.id}",
+            {"threshold": 0.5, "reason": "x"},
+            content_type="application/json",
+        )
+
+        assert response.status_code == 403
+        gate.refresh_from_db()
+        assert gate.threshold == 0.15
 
 
 class TestThresholdChanges:
@@ -380,7 +368,7 @@ class TestThresholdChanges:
 
     def test_a_change_request_holds_the_whole_file(self, people, api_as):
         """AC-F9-09 (BR-F9-05, BR-F9-06)."""
-        client = api_as(people["tu"])
+        client = api_as(people["huy"])
         partial = post(
             client, "/api/thresholds/change-requests", {"yaml_text": "trust:\n  t_auto: 0.86\n"}
         )
@@ -392,38 +380,42 @@ class TestThresholdChanges:
             "/api/thresholds/change-requests",
             {"yaml_text": self.current_with("CR-2026-001"), "evidence": "calibration 2026-11-20"},
         ).json()
-        post(client, f"/api/thresholds/change-requests/{made['id']}/submit")
-        own = post(
-            client, f"/api/thresholds/change-requests/{made['id']}/approve", {"comment": "ok"}
-        )
-        assert (own.status_code, own.json()["code"]) == (403, "self_approval")
+        submitted = post(client, f"/api/thresholds/change-requests/{made['id']}/submit")
+        assert submitted.json()["state"] == "approved"
 
     def test_threshold_cr_rejects_invalid_yaml(self, people, api_as):
         response = post(
-            api_as(people["tu"]), "/api/thresholds/change-requests", {"yaml_text": "a: [unclosed"}
+            api_as(people["huy"]), "/api/thresholds/change-requests", {"yaml_text": "a: [unclosed"}
         )
         assert (response.status_code, response.json()["code"]) == (422, "invalid_thresholds")
 
     def test_the_file_must_carry_its_request_id(self, people, api_as):
         response = post(
-            api_as(people["tu"]),
+            api_as(people["huy"]),
             "/api/thresholds/change-requests",
             {"yaml_text": self.current_with("CR-2026-099")},
         )
         assert response.json()["code"] == "version_mismatch"
         assert response.json()["details"]["version"] == "CR-2026-001"
 
-    def test_two_approvers_one_a_manager_neither_the_author(self, people, api_as):
+    def test_the_manager_who_submits_approves(self, people):
+        """ADR-0043: one manager, no second approver."""
         made = threshold_changes.create(
-            people["tu"], self.current_with("CR-2026-001", **{"t_auto: 0.88": "t_auto: 0.86"}), "e"
+            people["huy"], self.current_with("CR-2026-001", **{"t_auto: 0.88": "t_auto: 0.86"}), "e"
         )
-        threshold_changes.submit(made.id, people["tu"])
-        threshold_changes.approve(made.id, people["mai"], "ok")
-        with pytest.raises(Exception, match="manager"):
-            threshold_changes.approve(made.id, people["anh"], "ok")
 
-        done = threshold_changes.approve(made.id, people["huy"], "ok")
+        done = threshold_changes.submit(made.id, people["huy"])
 
         assert done.state == "approved"
+        assert [a["user"] for a in done.approvals] == ["huy.pq"]
         assert "t_auto: 0.86" in done.diff
         assert AuditLog.objects.filter(event="threshold_cr_approved").count() == 1
+
+    def test_only_a_manager_writes_a_change_request(self, people, api_as):
+        response = post(
+            api_as(people["tu"]),
+            "/api/thresholds/change-requests",
+            {"yaml_text": self.current_with("CR-2026-001")},
+        )
+
+        assert response.status_code == 403

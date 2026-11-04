@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
 
 from apps.lifecycle.models import Workflow, WorkflowStatus
 from apps.lifecycle.request_schema import (
-    FieldEventIn,
     FieldIn,
     FieldRuleIn,
     RuleIn,
@@ -20,7 +20,7 @@ from apps.lifecycle.request_schema import (
 from apps.lifecycle.tests.conftest import actions, put_in, status_of
 from apps.lifecycle.utils.config import workflow_config
 from apps.lifecycle.utils.errors import LifecycleError
-from apps.lifecycle.utils.rules import EventCode, FieldType, RuleCode
+from apps.lifecycle.utils.rules import FieldType, RuleCode
 from apps.lifecycle.utils.vocabulary import FailureCode, PipelineStatus
 
 pytestmark = pytest.mark.django_db
@@ -183,14 +183,10 @@ def test_only_a_blocking_action_runs_before_a_move(strict):
         )
 
 
-def test_an_approval_only_runs_before_a_move(strict):
-    with refused(FailureCode.INVALID_CONFIG):
-        workflow_config.update_status(
-            strict.done,
-            StatusPatch(
-                actions=actions({"action": "require_approval", "params": {"approvers": "mgr"}})
-            ),
-        )
+def test_no_action_holds_a_move_for_an_approver():
+    """ADR-0043."""
+    with pytest.raises(ValidationError):
+        actions({"action": "require_approval", "params": {"approvers": "mgr"}})
 
 
 def test_an_action_missing_a_required_parameter_is_refused(strict):
@@ -259,25 +255,6 @@ def test_a_select_field_needs_options_and_rules_must_fit_its_type(strict):
                 name="Cost",
                 field_type=FieldType.NUMBER,
                 rules=[FieldRuleIn(rule=RuleCode.VALID_URL)],
-            ),
-        )
-
-
-def test_an_event_action_must_be_able_to_run_on_an_event(strict):
-    with refused(FailureCode.INVALID_CONFIG):
-        workflow_config.add_field(
-            strict.workflow,
-            FieldIn(
-                name="Escalate",
-                field_type=FieldType.CHECKBOX,
-                events=[
-                    FieldEventIn(
-                        event=EventCode.ON_SET,
-                        actions=actions(
-                            {"action": "require_approval", "params": {"approvers": "m"}}
-                        ),
-                    )
-                ],
             ),
         )
 

@@ -18,7 +18,6 @@ from apps.lifecycle.utils.vocabulary import (
     OPEN_TRANSFER_STATES,
     ActionCode,
     TRIAGE_STATUSES,
-    ApprovalState,
     Direction,
     FailureCode,
     Phase,
@@ -416,39 +415,3 @@ class ActionRun(BaseModel):
             models.Index(fields=["transfer", "seq"], name="idx_action_run_transfer"),
             models.Index(fields=["state", "started_at"], name="idx_action_run_state"),
         ]
-
-
-class ApprovalRequestQuerySet(QuerySet["ApprovalRequest"]):
-    def pending_for(self, user: Any) -> ApprovalRequestQuerySet:
-        """The approvals `user` can still answer, oldest first."""
-        return (
-            self.filter(state=ApprovalState.PENDING.value, approver_ids__contains=[str(user.id)])
-            .select_related("run__ticket")
-            .order_by("created_at")
-        )
-
-
-class ApprovalRequest(BaseModel):
-    """A `require_approval` run waiting for one of its approvers."""
-
-    run = models.OneToOneField(ActionRun, on_delete=models.CASCADE, related_name="approval")
-    approver_ids = models.JSONField(default=list)
-    message = models.TextField(blank=True, default="")
-    state = models.CharField(
-        max_length=10, choices=_choices(ApprovalState), default=ApprovalState.PENDING.value
-    )
-    decided_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
-    )
-    comment = models.TextField(blank=True, default="")
-    created_at = models.DateTimeField(auto_now_add=True)
-    expires_at = models.DateTimeField()
-    decided_at = models.DateTimeField(null=True, blank=True)
-
-    objects = ApprovalRequestQuerySet.as_manager()
-
-    class Meta(BaseModel.Meta):
-        db_table = "lifecycle_approval_requests"
-
-    def can_be_decided_by(self, user_id: Any) -> bool:
-        return str(user_id) in self.approver_ids

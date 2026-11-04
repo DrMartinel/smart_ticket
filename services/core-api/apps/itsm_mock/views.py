@@ -20,7 +20,6 @@ from apps.itsm_mock.request_schema import (
     RunbookIn,
 )
 from apps.itsm_mock.response_schema import RunbookExecutionOut, RunbookOut, RunbookPanelOut
-from apps.itsm_mock.utils.executors import RunbookError, RunbookRefusal
 from apps.itsm_mock.utils.runbooks import RunbookPanel, runbooks
 
 router = Router(tags=["itsm"])
@@ -46,10 +45,10 @@ def change_runbook(request: AuthedRequest, code: str, payload: RunbookChangeIn) 
     return runbooks.change(code, payload.changes(), request.auth)
 
 
-@router.post("/runbooks/{code}/approve", auth=SessionAuth(), response=RunbookOut)
-@require_role(UserRole.MANAGER)
-def approve_runbook(request: AuthedRequest, code: str) -> Runbook:
-    return runbooks.approve(code, request.auth)
+@router.post("/runbooks/{code}/activate", auth=SessionAuth(), response=RunbookOut)
+@require_access(roles=(UserRole.MANAGER,), capabilities=(Capability.WORKFLOW_ADMIN,))
+def activate_runbook(request: AuthedRequest, code: str) -> Runbook:
+    return runbooks.activate(code, request.auth)
 
 
 # ── executions ──
@@ -64,25 +63,7 @@ def runbook_panel(request: AuthedRequest, item_id: uuid.UUID) -> RunbookPanel:
 @router.post("/review-items/{item_id}/execute", auth=SessionAuth(), response=RunbookExecutionOut)
 @require_role(*TECHNICIAN_OR_MANAGER)
 def execute(request: AuthedRequest, item_id: uuid.UUID, payload: ExecuteIn) -> RunbookExecution:
-    execution = runbooks.execute(item_id, request.auth, payload.payload)
-    if execution.state == ExecutionState.AWAITING_SECOND_APPROVAL.value:
-        raise RunbookError(
-            409,
-            RunbookRefusal.SECOND_APPROVAL_REQUIRED,
-            "a high-risk runbook runs after a second manager approves it",
-            details={"execution": str(execution.id)},
-        )
-    return execution
-
-
-@router.post(
-    "/executions/{execution_id}/second-approval",
-    auth=SessionAuth(),
-    response=RunbookExecutionOut,
-)
-@require_role(UserRole.MANAGER)
-def second_approval(request: AuthedRequest, execution_id: uuid.UUID) -> RunbookExecution:
-    return runbooks.second_approve(execution_id, request.auth)
+    return runbooks.execute(item_id, request.auth, payload.payload)
 
 
 @router.post("/executions/{execution_id}/resolve", auth=SessionAuth(), response=RunbookExecutionOut)

@@ -8,7 +8,7 @@ from typing import Any
 
 from ninja import Schema
 
-from apps.rollout.models import FlagRequest, GateChange, RolloutFlag, ThresholdChangeRequest
+from apps.rollout.models import GateChange, RolloutFlag, ThresholdChangeRequest
 from apps.rollout.utils.gates import Agreement, GateValue
 
 
@@ -58,36 +58,6 @@ class GateChangeOut(Schema):
         )
 
 
-class FlagRequestOut(Schema):
-    id: uuid.UUID
-    branch: str
-    requested_by: str
-    reason: str
-    gate_override_reason: str
-    entered_values: dict[str, Any]
-    gate_snapshot_at_request: list[dict[str, Any]]
-    approvals: list[dict[str, Any]]
-    state: str
-    expires_at: datetime
-    created_at: datetime
-
-    @classmethod
-    def of(cls, request: FlagRequest) -> FlagRequestOut:
-        return cls(
-            id=request.id,
-            branch=request.branch,
-            requested_by=request.requested_by.username,
-            reason=request.reason,
-            gate_override_reason=request.gate_override_reason,
-            entered_values=request.entered_values,
-            gate_snapshot_at_request=request.gate_snapshot_at_request,
-            approvals=request.approvals,
-            state=request.state,
-            expires_at=request.expires_at,
-            created_at=request.created_at,
-        )
-
-
 class FlagOut(Schema):
     branch: str
     state: str
@@ -96,7 +66,6 @@ class FlagOut(Schema):
     changed_at: datetime | None
     reason: str
     gates: list[GateValueOut]
-    pending: FlagRequestOut | None
     # Shadow decisions of the branch a reviewer agreed with ÷ those decided (BR-F10-10).
     agreement: float | None
     agreement_decided: int
@@ -107,7 +76,6 @@ class FlagOut(Schema):
         flag: RolloutFlag,
         live: bool,
         gates: list[GateValue],
-        pending: FlagRequest | None,
         agreement: Agreement,
     ) -> FlagOut:
         return cls(
@@ -118,7 +86,6 @@ class FlagOut(Schema):
             changed_at=flag.changed_at,
             reason=flag.reason,
             gates=[GateValueOut(**g.as_json()) for g in gates],
-            pending=FlagRequestOut.of(pending) if pending else None,
             agreement=agreement.rate,
             agreement_decided=agreement.decided,
         )
@@ -137,7 +104,6 @@ class RolloutOut(Schema):
     thresholds: ThresholdsStatusOut
     flags: list[FlagOut]
     gates: list[GateOut]
-    gate_changes: list[GateChangeOut]
 
 
 class ChangeRequestOut(Schema):

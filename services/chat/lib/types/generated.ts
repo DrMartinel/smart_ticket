@@ -1031,20 +1031,6 @@ export interface GateChangeOut {
   created_at: string;
 }
 
-export interface FlagRequestOut {
-  id: string;
-  branch: string;
-  requested_by: string;
-  reason: string;
-  gate_override_reason: string;
-  entered_values: Record<string, unknown>;
-  gate_snapshot_at_request: Record<string, unknown>[];
-  approvals: Record<string, unknown>[];
-  state: string;
-  expires_at: string;
-  created_at: string;
-}
-
 export interface FlagOut {
   branch: string;
   state: string;
@@ -1053,7 +1039,6 @@ export interface FlagOut {
   changed_at: string | null;
   reason: string;
   gates: GateValueOut[];
-  pending: FlagRequestOut | null;
   agreement: number | null;
   agreement_decided: number;
 }
@@ -1071,7 +1056,6 @@ export interface RolloutOut {
   thresholds: ThresholdsStatusOut;
   flags: FlagOut[];
   gates: GateOut[];
-  gate_changes: GateChangeOut[];
 }
 
 export interface ChangeRequestOut {
@@ -1120,14 +1104,10 @@ export interface CurrentThresholdsOut {
   yaml: string;
 }
 
-export interface FlagRequestIn {
+export interface FlagOnIn {
   reason: string;
   gate_override_reason?: string;
   entered_values?: Record<string, Record<string, unknown>>;
-}
-
-export interface ApproveIn {
-  gate_override_reason?: string;
 }
 
 export interface GateChangeIn {

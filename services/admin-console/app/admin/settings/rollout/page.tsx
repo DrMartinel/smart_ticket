@@ -1,7 +1,7 @@
 "use client";
 
-// Rollout (F9 · Rollout 16-1179, Flag request 16-1328): each automated branch is live only when the
-// env isn't shadow, its flag is on and the thresholds are approved (BR-F9-01).
+// Rollout (F9 · Rollout 16-1179): each automated branch is live only when the env isn't shadow, its
+// flag is on and the thresholds are approved (BR-F9-01); one manager turns a flag on (ADR-0043).
 
 import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/Modal";
@@ -33,12 +33,7 @@ function gateValue(g: GateValueOut): string {
   return `${g.metric.replace("_", " ")} ${pct(g.value)}`;
 }
 
-type Dialog =
-  | { kind: "request"; flag: FlagOut }
-  | { kind: "approve"; flag: FlagOut }
-  | { kind: "reject"; flag: FlagOut }
-  | { kind: "off"; flag: FlagOut }
-  | null;
+type Dialog = { kind: "on"; flag: FlagOut } | { kind: "off"; flag: FlagOut } | null;
 
 export default function RolloutPage() {
   const user = useRequireAuth();
@@ -96,24 +91,19 @@ export default function RolloutPage() {
   const submit = () => {
     if (!dialog) return;
     const branch = dialog.flag.branch;
-    const pending = dialog.flag.pending;
-    if (dialog.kind === "request")
+    if (dialog.kind === "on")
       return run(() =>
-        api.post(`/api/rollout/${branch}/requests`, {
+        api.post(`/api/rollout/${branch}/on`, {
           reason,
           gate_override_reason: override,
           entered_values:
             branch === "auto_reply" && precision ? { holdout_precision: { value: Number(precision), evidence } } : {},
         }),
       );
-    if (dialog.kind === "approve" && pending)
-      return run(() => api.post(`/api/rollout/requests/${pending.id}/approve`, { gate_override_reason: override }));
-    if (dialog.kind === "reject" && pending) return run(() => api.post(`/api/rollout/requests/${pending.id}/reject`, { reason }));
     if (dialog.kind === "off") return run(() => api.post(`/api/rollout/${branch}/off`, { reason }));
   };
 
   const unmet = dialog ? dialog.flag.gates.some((g) => !g.met) : false;
-  const needsReason = dialog?.kind === "request" || dialog?.kind === "reject" || dialog?.kind === "off";
 
   return (
     <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
@@ -156,19 +146,9 @@ export default function RolloutPage() {
                   </Button>
                 )}
                 {flag.state === "off" && isManager && (
-                  <Button onClick={() => open({ kind: "request", flag })}>
-                    Request on…
+                  <Button onClick={() => open({ kind: "on", flag })}>
+                    Turn on{flag.gates.some((g) => !g.met) ? " (override)" : ""}…
                   </Button>
-                )}
-                {flag.pending && isManager && flag.pending.requested_by !== user.username && (
-                  <>
-                    <Button variant="outline" onClick={() => open({ kind: "reject", flag })}>
-                      Reject
-                    </Button>
-                    <Button onClick={() => open({ kind: "approve", flag })}>
-                      Approve{flag.gates.some((g) => !g.met) ? " (override)" : ""}…
-                    </Button>
-                  </>
                 )}
               </div>
             </div>
@@ -191,11 +171,11 @@ export default function RolloutPage() {
                 </p>
               </div>
             </div>
-            {flag.pending && (
-              <p className="rounded-md bg-muted px-3 py-2 text-xs">
-                Requested by {flag.pending.requested_by}: “{flag.pending.reason}” · approvals{" "}
-                {flag.pending.approvals.map((a) => String(a.user)).join(", ") || "none yet"} ({flag.pending.approvals.length} of 2) ·
-                expires {new Date(flag.pending.expires_at).toLocaleString()}
+            {flag.changed_by && (
+              <p className="text-xs text-muted-foreground">
+                Turned {flag.state} by {flag.changed_by}
+                {flag.changed_at ? ` on ${new Date(flag.changed_at).toLocaleString()}` : ""}
+                {flag.reason ? `: “${flag.reason}”` : ""}
               </p>
             )}
           </section>
@@ -205,7 +185,7 @@ export default function RolloutPage() {
       <Card asChild>
         <section className="p-5">
           <h2 className="mb-2 text-sm font-semibold">Gates</h2>
-          <p className="mb-3 text-xs text-muted-foreground">A change waits for a second manager (AC-F9-08).</p>
+          <p className="mb-3 text-xs text-muted-foreground">A manager's change applies at once, with a reason (AC-F9-08).</p>
           <Table className="w-full text-left text-sm">
             <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
               <TableRow>
@@ -218,28 +198,16 @@ export default function RolloutPage() {
             </TableHeader>
             <TableBody>
               {data.gates.map((g) => {
-                const pending = data.gate_changes.find((c) => c.gate === g.id);
                 return (
                   <TableRow key={g.id} className="border-t border-border">
                     <TableCell className="py-2 font-mono text-xs">{g.branch}</TableCell>
                     <TableCell className="py-2">{g.metric}</TableCell>
                     <TableCell className="py-2">
                       {g.comparator === "lt" ? "<" : "≥"} {g.threshold}
-                      {pending && <span className="ml-2 text-xs text-warn">→ {pending.threshold} pending ({pending.requested_by})</span>}
                     </TableCell>
                     <TableCell className="py-2">{g.window_days ? `${g.window_days} d` : "—"}</TableCell>
                     <TableCell className="py-2 text-right">
-                      {isManager && pending && pending.requested_by !== user.username && (
-                        <>
-                          <Button variant="link" size="inline" className="mr-2 text-xs" onClick={() => run(() => api.post(`/api/rollout/gate-changes/${pending.id}/approve`))}>
-                            Approve
-                          </Button>
-                          <Button variant="link" size="inline" className="text-xs text-danger" onClick={() => run(() => api.post(`/api/rollout/gate-changes/${pending.id}/reject`))}>
-                            Reject
-                          </Button>
-                        </>
-                      )}
-                      {isManager && !pending && (
+                      {isManager && (
                         <span className="flex justify-end gap-1">
                           <Input
                             className="w-20 py-0.5 text-xs"
@@ -262,7 +230,7 @@ export default function RolloutPage() {
                               ).then(() => setGateEdits({ ...gateEdits, [g.id]: "" }));
                             }}
                           >
-                            Propose
+                            Save
                           </Button>
                         </span>
                       )}
@@ -276,22 +244,14 @@ export default function RolloutPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        No flag exists for runbooks: they always go to a person (ADR-0006, BR-F9-10). Turning off needs one manager or security and is
-        instant.
+        No flag exists for runbooks: they always go to a person (ADR-0006, BR-F9-10). One manager turns a branch on; one manager or
+        security turns it off. Both are instant.
       </p>
 
       <Modal
         open={dialog !== null}
         onClose={() => setDialog(null)}
-        title={
-          dialog?.kind === "request"
-            ? `Request ${dialog.flag.branch} on`
-            : dialog?.kind === "approve"
-              ? `Approve ${dialog.flag.branch}`
-              : dialog?.kind === "reject"
-                ? `Reject the ${dialog.flag.branch} request`
-                : `Turn ${dialog?.flag.branch} off now`
-        }
+        title={dialog?.kind === "on" ? `Turn ${dialog.flag.branch} on now` : `Turn ${dialog?.flag.branch} off now`}
         footer={
           <>
             <Button variant="outline" onClick={() => setDialog(null)}>
@@ -299,10 +259,10 @@ export default function RolloutPage() {
             </Button>
             <Button
               variant={dialog?.kind === "off" ? "destructive" : "default"}
-              disabled={busy || (needsReason && !reason.trim()) || (dialog?.kind === "approve" && unmet && !override.trim())}
+              disabled={busy || !reason.trim() || (dialog?.kind === "on" && unmet && !override.trim())}
               onClick={() => void submit()}
             >
-              {dialog?.kind === "off" ? "Tắt ngay · Turn off" : dialog?.kind === "reject" ? "Reject" : dialog?.kind === "approve" ? "Approve" : "Request"}
+              {dialog?.kind === "off" ? "Tắt ngay · Turn off" : "Bật ngay · Turn on"}
             </Button>
           </>
         }
@@ -316,30 +276,24 @@ export default function RolloutPage() {
                 </li>
               ))}
             </ul>
-            {dialog.kind === "request" && dialog.flag.branch === "auto_reply" && (
+            {dialog.kind === "on" && dialog.flag.branch === "auto_reply" && (
               <div className="grid grid-cols-[120px_minmax(0,1fr)] gap-2">
                 <Input placeholder="0.95" value={precision} onChange={(e) => setPrecision(e.target.value)} aria-label="Holdout precision" />
                 <Input placeholder="Evidence: eval run / HISTORY.md entry" value={evidence} onChange={(e) => setEvidence(e.target.value)} />
               </div>
             )}
-            {needsReason && (
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Reason (required)</span>
+              <Textarea className="min-h-[64px]" value={reason} onChange={(e) => setReason(e.target.value)} />
+            </label>
+            {dialog.kind === "on" && unmet && (
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">Reason (required)</span>
-                <Textarea className="min-h-[64px]" value={reason} onChange={(e) => setReason(e.target.value)} />
-              </label>
-            )}
-            {(dialog.kind === "approve" || dialog.kind === "request") && (
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">
-                  Gate override reason {dialog.kind === "approve" && unmet ? "(required: a gate isn't met)" : "(only if a gate isn't met)"}
-                </span>
+                <span className="text-xs text-muted-foreground">Gate override reason (required: a gate isn't met)</span>
                 <Input value={override} onChange={(e) => setOverride(e.target.value)} />
               </label>
             )}
-            {dialog.kind === "approve" && (
-              <p className="text-xs text-muted-foreground">
-                Turning automation on takes two managers, neither the requester (BR-F9-02).
-              </p>
+            {dialog.kind === "on" && (
+              <p className="text-xs text-muted-foreground">The branch acts live as soon as you turn it on, if the env isn't shadow.</p>
             )}
             {error && <p className="text-danger">{error}</p>}
           </div>
@@ -361,7 +315,5 @@ function StatCard({ label, value, note, warn = false }: { label: string; value: 
 
 function FlagChip({ flag }: { flag: FlagOut }) {
   if (flag.state === "on") return <Badge variant="ok">on</Badge>;
-  if (flag.state === "pending_on")
-    return <Badge variant="warn">pending_on · {flag.pending?.approvals.length ?? 0} of 2 approvals</Badge>;
   return <Badge variant="neutral">off</Badge>;
 }

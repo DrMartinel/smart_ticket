@@ -19,7 +19,6 @@ import { SectionTabs } from "@/components/TabNav";
 
 const STATE_TONE: Record<string, Tone> = {
   draft: "neutral",
-  pending: "warn",
   approved: "ok",
   loaded: "ok",
   rejected: "danger",
@@ -50,7 +49,7 @@ export default function ThresholdsPage() {
 
   if (!user) return null;
 
-  const mayPropose = user.role === "manager" || user.role === "technician" || (user.capabilities ?? []).includes("workflow_admin");
+  const mayPropose = user.role === "manager";
 
   const startDraft = () => {
     if (!current) return;
@@ -78,8 +77,8 @@ export default function ThresholdsPage() {
         <div>
           <h1 className="text-xl font-semibold">Thresholds</h1>
           <p className="text-xs text-muted-foreground">
-            thresholds.yaml is the only home of tunables. A change is the whole file, approved by two people who aren&apos;t its author,
-            then shipped by PR under its request id (ADR-0035).
+            thresholds.yaml is the only home of tunables. A change is the whole file, approved by the manager who writes it, then
+            shipped by PR under its request id (ADR-0035, ADR-0043).
           </p>
         </div>
         {mayPropose && !composing && (

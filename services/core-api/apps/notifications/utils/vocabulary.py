@@ -26,7 +26,6 @@ class RecipientKind(StrEnum):
     WORKFLOW_ADMINS = "workflow_admins"
     KB_EDITORS = "kb_editors"
     INCIDENT_MANAGERS = "incident_managers"
-    APPROVER = "approver"
     LINKED_REQUESTERS = "linked_requesters"
     PREVIOUS_ASSIGNEE = "previous_assignee"
 
@@ -58,7 +57,6 @@ class NotificationEvent(StrEnum):
     SLA_BREACHED_ESCALATED = "sla.breached_escalated"
     SLA_HOLIDAYS_MISSING = "sla.holidays_missing"
     ASSIGNMENT_FAILED = "assignment.failed"
-    APPROVAL_REQUESTED = "approval.requested"
     SECURITY_ALERT = "security.alert"
     IDENTITY_BREAK_GLASS_USED = "identity.break_glass_used"
     INCIDENT_BROADCAST = "incident.broadcast"
@@ -70,13 +68,10 @@ class NotificationEvent(StrEnum):
     KB_REVIEW_REQUESTED = "kb.review_requested"
     KB_AUTHORITY_NEEDED = "kb.authority_needed"
     KB_GAPS_READY = "kb.gaps_ready"
-    ROLLOUT_FLAG_REQUESTED = "rollout.flag_requested"
     ROLLOUT_FLAG_CHANGED = "rollout.flag_changed"
     ROLLOUT_GATE_UNMET = "rollout.gate_unmet"
-    THRESHOLDS_CR_PENDING = "thresholds.cr_pending"
     THRESHOLDS_UNAPPROVED = "thresholds.unapproved"
     REPORT_WEEKLY = "report.weekly"
-    RUNBOOK_SECOND_APPROVAL = "runbook.second_approval_requested"
     RUNBOOK_FINISHED = "runbook.finished"
 
 
@@ -206,13 +201,6 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     E.ASSIGNMENT_FAILED: EventSpec(
         "F2", True, "Assignment failed", "Không giao được yêu cầu", _cells((K.TEAM_LEAD,), IN_APP)
     ),
-    E.APPROVAL_REQUESTED: EventSpec(
-        "lifecycle",
-        True,
-        "Approval requested",
-        "Cần phê duyệt",
-        _cells((K.APPROVER,), BOTH, mandatory=IN_APP),
-    ),
     E.SECURITY_ALERT: EventSpec(
         "F5, F13, F8",
         True,
@@ -282,13 +270,6 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     E.KB_GAPS_READY: EventSpec(
         "F6", True, "KB gaps ready", "Danh sách thiếu KB", _cells((K.KB_EDITORS,), BOTH)
     ),
-    E.ROLLOUT_FLAG_REQUESTED: EventSpec(
-        "F9",
-        True,
-        "Rollout change requested",
-        "Yêu cầu thay đổi triển khai",
-        _cells((K.MANAGER,), BOTH),
-    ),
     E.ROLLOUT_FLAG_CHANGED: EventSpec(
         "F9",
         True,
@@ -303,13 +284,6 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
         "Chưa đạt điều kiện triển khai",
         _cells((K.MANAGER,), BOTH),
     ),
-    E.THRESHOLDS_CR_PENDING: EventSpec(
-        "F9",
-        True,
-        "Threshold change pending",
-        "Thay đổi ngưỡng chờ duyệt",
-        _cells((K.MANAGER,), IN_APP),
-    ),
     E.THRESHOLDS_UNAPPROVED: EventSpec(
         "F9",
         True,
@@ -319,13 +293,6 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.REPORT_WEEKLY: EventSpec(
         "F10", True, "Weekly report", "Báo cáo tuần", _cells((K.MANAGER,), (Channel.EMAIL,))
-    ),
-    E.RUNBOOK_SECOND_APPROVAL: EventSpec(
-        "F12",
-        True,
-        "Runbook needs a second approval",
-        "Runbook cần quản lý duyệt lần hai",
-        _cells((K.MANAGER,), BOTH),
     ),
     E.RUNBOOK_FINISHED: EventSpec(
         "F12", True, "Runbook finished", "Runbook đã chạy xong", _cells((K.ASSIGNEE,), IN_APP)

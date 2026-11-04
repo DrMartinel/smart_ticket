@@ -1,5 +1,5 @@
 """Which automated branches act live (BR-F9-01): the env switch, the branch's flag and approved
-thresholds, all three. Turning a flag on takes two managers; off takes one (ADR-0035)."""
+thresholds, all three. One manager turns a flag on or off (ADR-0035, ADR-0043)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import hashlib
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from django.conf import settings
@@ -38,9 +38,6 @@ from apps.rollout.utils.vocabulary import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Approvals that turn a flag on (BR-F9-02).
-_APPROVALS_NEEDED = 2
 
 
 @dataclass(frozen=True)
@@ -168,7 +165,7 @@ class Rollout:
         if actor.role != UserRole.MANAGER.value:
             raise RolloutError(403, RolloutRefusal.NOT_A_MANAGER, "only a manager may do this")
 
-    def request_on(
+    def turn_on(
         self,
         branch: str,
         actor: User,
@@ -176,7 +173,8 @@ class Rollout:
         gate_override_reason: str = "",
         entered: dict[str, Any] | None = None,
     ) -> FlagRequest:
-        """A manager asks to turn a branch live, with a reason and the gate values now."""
+        """A manager turns a branch live at once, with a reason, the gate values now and an
+        override reason for any gate not met (ADR-0043)."""
         self.check_manager(actor)
         reason = reason.strip()
         if not reason:
@@ -186,10 +184,6 @@ class Rollout:
             flag = RolloutFlag.objects.select_for_update().get(pk=self.flag(branch).pk)
             if flag.state == FlagState.ON.value:
                 raise RolloutError(409, RolloutRefusal.ALREADY_ON, f"{branch} is already on")
-            if flag.state == FlagState.PENDING_ON.value:
-                raise RolloutError(
-                    409, RolloutRefusal.ALREADY_REQUESTED, f"{branch} already has a request"
-                )
             if not self.thresholds_status().approved:
                 raise RolloutError(
                     409,
@@ -198,36 +192,50 @@ class Rollout:
                 )
             gates = rollout_metrics.snapshot(FlagBranch(branch), entered)
             self.check_entered(gates)
+            unmet = [g.metric for g in gates if not g.met]
+            override = gate_override_reason.strip()
+            if unmet and not override:
+                raise RolloutError(
+                    422,
+                    RolloutRefusal.OVERRIDE_REASON_REQUIRED,
+                    f"gates not met: {', '.join(unmet)}; give an override reason",
+                    details={"unmet": unmet},
+                )
+            now = timezone.now()
+            snapshot = [g.as_json() for g in gates]
             request = FlagRequest.objects.create(
                 branch=branch,
                 requested_by=actor,
                 reason=reason,
-                gate_override_reason=gate_override_reason.strip(),
+                gate_override_reason=override,
                 entered_values=entered,
-                gate_snapshot_at_request=[g.as_json() for g in gates],
-                expires_at=timezone.now()
-                + timedelta(hours=settings.THRESHOLDS.rollout.flag_request_expiry_hours),
+                gate_snapshot_at_request=snapshot,
+                approvals=[
+                    {
+                        "user": actor.username,
+                        "at": now.isoformat(),
+                        "gate_snapshot": snapshot,
+                        "override_reason": override,
+                    }
+                ],
+                state=RequestState.APPROVED.value,
+                decided_at=now,
+                expires_at=now,
             )
-            self.set_flag(flag, FlagState.PENDING_ON, actor, reason)
+            self.set_flag(flag, FlagState.ON, actor, reason)
             AuditLog.objects.record(
-                "rollout_flag_requested",
+                "rollout_flag_on",
                 actor_type="human",
                 actor_id=actor.id,
                 payload={
                     "branch": branch,
                     "request": str(request.id),
-                    "gates": request.gate_snapshot_at_request,
+                    "gates": snapshot,
+                    "unmet": unmet,
+                    "override_reason": override,
                 },
             )
-            notifier.emit(
-                NotificationEvent.ROLLOUT_FLAG_REQUESTED,
-                notice=Notice(
-                    actor=actor.username,
-                    reason=branch,
-                    message=reason,
-                    data={"branch": branch, "request": str(request.id)},
-                ),
-            )
+            self.announce(branch, FlagState.ON, actor, reason)
         return request
 
     def check_entered(self, gates: list[GateValue]) -> None:
@@ -239,105 +247,6 @@ class Rollout:
                     RolloutRefusal.ENTERED_VALUE_REQUIRED,
                     f"enter {gate.metric} with the evidence it comes from",
                 )
-
-    def approve(
-        self, request_id: uuid.UUID, actor: User, gate_override_reason: str = ""
-    ) -> FlagRequest:
-        """One approval; the second, by another manager, turns the flag on (BR-F9-02, 03)."""
-        self.check_manager(actor)
-        with transaction.atomic():
-            request = self.pending(request_id)
-            if request.requested_by_id == actor.id:
-                raise RolloutError(403, RolloutRefusal.SELF_APPROVAL, "you made this request")
-            if any(a["user"] == actor.username for a in request.approvals):
-                raise RolloutError(
-                    409, RolloutRefusal.ALREADY_APPROVED_BY_YOU, "you already approved it"
-                )
-            if not self.thresholds_status().approved:
-                raise RolloutError(
-                    409,
-                    RolloutRefusal.THRESHOLDS_UNAPPROVED,
-                    "the loaded thresholds aren't approved",
-                )
-            gates = rollout_metrics.snapshot(FlagBranch(request.branch), request.entered_values)
-            unmet = [g.metric for g in gates if not g.met]
-            override = gate_override_reason.strip()
-            if unmet and not override:
-                raise RolloutError(
-                    422,
-                    RolloutRefusal.OVERRIDE_REASON_REQUIRED,
-                    f"gates not met: {', '.join(unmet)}; give an override reason",
-                    details={"unmet": unmet},
-                )
-            now = timezone.now()
-            request.approvals = [
-                *request.approvals,
-                {
-                    "user": actor.username,
-                    "at": now.isoformat(),
-                    "gate_snapshot": [g.as_json() for g in gates],
-                    "override_reason": override,
-                },
-            ]
-            AuditLog.objects.record(
-                "rollout_flag_approved",
-                actor_type="human",
-                actor_id=actor.id,
-                payload={"branch": request.branch, "request": str(request.id), "unmet": unmet},
-            )
-            if len(request.approvals) >= _APPROVALS_NEEDED:
-                request.state = RequestState.APPROVED.value
-                request.decided_at = now
-                flag = RolloutFlag.objects.select_for_update().get(branch=request.branch)
-                self.set_flag(flag, FlagState.ON, actor, request.reason)
-                AuditLog.objects.record(
-                    "rollout_flag_on",
-                    actor_type="human",
-                    actor_id=actor.id,
-                    payload={
-                        "branch": request.branch,
-                        "request": str(request.id),
-                        "approvals": [a["user"] for a in request.approvals],
-                    },
-                )
-                self.announce(request.branch, FlagState.ON, actor, request.reason)
-            request.save(update_fields=["approvals", "state", "decided_at"])
-        return request
-
-    def reject(self, request_id: uuid.UUID, actor: User, reason: str) -> FlagRequest:
-        self.check_manager(actor)
-        if not reason.strip():
-            raise RolloutError(422, RolloutRefusal.REASON_REQUIRED, "say why")
-        with transaction.atomic():
-            request = self.pending(request_id)
-            self.close_request(request, RequestState.REJECTED, reason.strip(), actor)
-        return request
-
-    def pending(self, request_id: uuid.UUID) -> FlagRequest:
-        request = FlagRequest.objects.select_for_update().filter(pk=request_id).first()
-        if request is None:
-            raise RolloutError(404, RolloutRefusal.NOT_FOUND, "no such request")
-        if request.state != RequestState.PENDING.value:
-            raise RolloutError(409, RolloutRefusal.NOT_PENDING, f"the request is {request.state}")
-        return request
-
-    def close_request(
-        self, request: FlagRequest, state: RequestState, reason: str, actor: User | None
-    ) -> None:
-        """Ends a pending request and puts its flag back off."""
-        request.state = state.value
-        request.decided_at = timezone.now()
-        request.decided_reason = reason
-        request.save(update_fields=["state", "decided_at", "decided_reason"])
-        flag = RolloutFlag.objects.select_for_update().get(branch=request.branch)
-        if flag.state == FlagState.PENDING_ON.value:
-            self.set_flag(flag, FlagState.OFF, actor, reason)
-        AuditLog.objects.record(
-            f"rollout_flag_request_{state.value}",
-            actor_type="human" if actor else "system",
-            actor_id=actor.id if actor else None,
-            payload={"branch": request.branch, "request": str(request.id), "reason": reason},
-        )
 
     # ── turning a branch off (UC-F9-02) ──
 
@@ -352,11 +261,6 @@ class Rollout:
             flag = RolloutFlag.objects.select_for_update().get(pk=self.flag(branch).pk)
             if flag.state == FlagState.OFF.value:
                 raise RolloutError(409, RolloutRefusal.ALREADY_OFF, f"{branch} is already off")
-            for request in FlagRequest.objects.select_for_update().filter(
-                branch=branch, state=RequestState.PENDING.value
-            ):
-                self.close_request(request, RequestState.REJECTED, reason, actor)
-                flag.refresh_from_db()
             self.set_flag(flag, FlagState.OFF, actor, reason)
             AuditLog.objects.record(
                 "rollout_flag_off",
@@ -389,7 +293,7 @@ class Rollout:
 
     # ── gates (BR-F9-04, AC-F9-08) ──
 
-    def propose_gate_change(
+    def change_gate(
         self,
         gate_id: uuid.UUID,
         actor: User,
@@ -397,74 +301,48 @@ class Rollout:
         window_days: int | None,
         reason: str,
     ) -> GateChange:
+        """A manager changes a gate at once (ADR-0043); the change row records it."""
         self.check_manager(actor)
         if not reason.strip():
             raise RolloutError(422, RolloutRefusal.REASON_REQUIRED, "say why")
-        gate = RolloutGate.objects.filter(pk=gate_id).first()
-        if gate is None:
-            raise RolloutError(404, RolloutRefusal.NOT_FOUND, "no such gate")
-        change = GateChange.objects.create(
-            gate=gate,
-            threshold=threshold,
-            window_days=window_days,
-            reason=reason.strip(),
-            requested_by=actor,
-        )
-        AuditLog.objects.record(
-            "rollout_gate_change_requested",
-            actor_type="human",
-            actor_id=actor.id,
-            payload={
-                "gate": str(gate.id),
-                "from": {"threshold": gate.threshold, "window_days": gate.window_days},
-                "to": {"threshold": threshold, "window_days": window_days},
-            },
-        )
-        return change
-
-    def decide_gate_change(self, change_id: uuid.UUID, actor: User, approve: bool) -> GateChange:
-        """A second manager applies or rejects a pending gate change."""
-        self.check_manager(actor)
         with transaction.atomic():
-            change = GateChange.objects.select_for_update().filter(pk=change_id).first()
-            if change is None:
-                raise RolloutError(404, RolloutRefusal.NOT_FOUND, "no such change")
-            if change.state != RequestState.PENDING.value:
-                raise RolloutError(409, RolloutRefusal.NOT_PENDING, f"the change is {change.state}")
-            if change.requested_by_id == actor.id:
-                raise RolloutError(403, RolloutRefusal.SELF_APPROVAL, "you proposed this change")
-            change.state = (RequestState.APPROVED if approve else RequestState.REJECTED).value
-            change.decided_by = actor
-            change.decided_at = timezone.now()
-            change.save(update_fields=["state", "decided_by", "decided_at"])
-            if approve:
-                gate = change.gate
-                gate.threshold = change.threshold
-                gate.window_days = change.window_days
-                gate.save(update_fields=["threshold", "window_days"])
+            gate = RolloutGate.objects.select_for_update().filter(pk=gate_id).first()
+            if gate is None:
+                raise RolloutError(404, RolloutRefusal.NOT_FOUND, "no such gate")
+            before = {"threshold": gate.threshold, "window_days": gate.window_days}
+            now = timezone.now()
+            change = GateChange.objects.create(
+                gate=gate,
+                threshold=threshold,
+                window_days=window_days,
+                reason=reason.strip(),
+                requested_by=actor,
+                state=RequestState.APPROVED.value,
+                decided_by=actor,
+                decided_at=now,
+            )
+            gate.threshold = threshold
+            gate.window_days = window_days
+            gate.save(update_fields=["threshold", "window_days"])
             AuditLog.objects.record(
-                "rollout_gate_changed" if approve else "rollout_gate_change_rejected",
+                "rollout_gate_changed",
                 actor_type="human",
                 actor_id=actor.id,
-                payload={"gate": str(change.gate_id), "change": str(change.id)},
+                payload={
+                    "gate": str(gate.id),
+                    "change": str(change.id),
+                    "from": before,
+                    "to": {"threshold": threshold, "window_days": window_days},
+                },
             )
         return change
 
     # ── the sweep ──
 
     def sweep(self, now: datetime | None = None) -> dict[str, int]:
-        """Expires stale requests, re-checks the thresholds, and once a day tells managers about a
-        live branch whose gate is no longer met."""
+        """Re-checks the thresholds, and once a day tells managers about a live branch whose gate
+        is no longer met."""
         now = now or timezone.now()
-        expired = 0
-        for request in FlagRequest.objects.filter(
-            state=RequestState.PENDING.value, expires_at__lte=now
-        ):
-            with transaction.atomic():
-                locked = FlagRequest.objects.select_for_update().get(pk=request.pk)
-                if locked.state == RequestState.PENDING.value:
-                    self.close_request(locked, RequestState.EXPIRED, "expired unapproved", None)
-                    expired += 1
         self._status = None
         self.thresholds_status()
         unmet = 0
@@ -487,7 +365,7 @@ class Rollout:
                     ),
                 )
                 unmet += 1
-        return {"expired": expired, "gate_unmet": unmet}
+        return {"gate_unmet": unmet}
 
     def entered_on(self, flag: RolloutFlag) -> dict[str, Any]:
         """The entered values of the request that turned the flag on."""

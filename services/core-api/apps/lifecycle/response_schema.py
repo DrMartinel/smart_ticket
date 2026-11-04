@@ -8,7 +8,7 @@ from typing import Any
 
 from ninja import Schema
 
-from apps.lifecycle.models import ApprovalRequest, Transfer, TicketFieldValue
+from apps.lifecycle.models import Transfer, TicketFieldValue
 from apps.lifecycle.utils.resolver import MoveOption
 
 
@@ -243,23 +243,6 @@ class TransferOut(Schema):
     @staticmethod
     def resolve_actor_username(obj: Transfer) -> str | None:
         return obj.actor.username if obj.actor else None
-
-
-class ApprovalOut(Schema):
-    id: uuid.UUID
-    run_id: uuid.UUID
-    ticket_public_id: str
-    message: str
-    state: str
-    approver_ids: list[str]
-    comment: str
-    created_at: datetime
-    expires_at: datetime
-    decided_at: datetime | None
-
-    @staticmethod
-    def resolve_ticket_public_id(obj: ApprovalRequest) -> str:
-        return obj.run.ticket.public_id
 
 
 class AdoptOut(Schema):
