@@ -37,7 +37,7 @@ export default function PiiText({
         const level = levels.get(part);
         if (!level) return <Fragment key={i}>{part}</Fragment>;
         const securityOnly = level === "critical" && !isSecurity;
-        const label = securityOnly ? `${part} 🔒 security only` : part;
+        const label = securityOnly ? `${part} · security only` : part;
         if (!canReveal || securityOnly) {
           return (
             <Badge variant={piiLevelTone(level)} key={i} title={securityOnly ? "Only security can reveal a credential" : undefined}>
@@ -46,9 +46,8 @@ export default function PiiText({
           );
         }
         return (
-          <Badge asChild variant={piiLevelTone(level)}>
+          <Badge asChild variant={piiLevelTone(level)} key={i}>
             <Button variant="link" size="inline"
-              key={i}
               type="button"
               onClick={() => setTarget({ placeholder: part, level })}
               className="cursor-pointer underline-offset-2"

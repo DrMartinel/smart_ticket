@@ -7,13 +7,13 @@ import { slaLevelTone, ticketPriorityTone } from "@/lib/badges";
 import type { SlaBadgeOut } from "@/lib/types/generated";
 import { Badge } from "@/components/ui/badge";
 
-/** "35p", "3g 20p", "28g": business minutes in Vietnamese short units. */
+/** "35m", "3h 20m", "28h": business minutes in short units. */
 export function businessDuration(minutes: number): string {
   const m = Math.abs(Math.round(minutes));
-  if (m < 60) return `${m}p`;
+  if (m < 60) return `${m}m`;
   const h = Math.floor(m / 60);
   const rest = m % 60;
-  return h >= 24 || rest === 0 ? `${h}g` : `${h}g ${rest}p`;
+  return h >= 24 || rest === 0 ? `${h}h` : `${h}h ${rest}m`;
 }
 
 function vnTime(iso: string | null): string {
@@ -31,15 +31,15 @@ function vnTime(iso: string | null): string {
 export function slaLabel(badge: SlaBadgeOut): string {
   switch (badge.level) {
     case "breached":
-      return `Quá hạn ${businessDuration(-badge.remaining_minutes)} · Breached`;
+      return `Breached ${businessDuration(-badge.remaining_minutes)} ago`;
     case "at_risk":
-      return `Còn ${businessDuration(badge.remaining_minutes)} · At risk`;
+      return `At risk · ${businessDuration(badge.remaining_minutes)} left`;
     case "paused":
-      return "Tạm dừng · Paused";
+      return "Paused";
     case "met":
-      return "Đạt · Met";
+      return "Met";
     default:
-      return `Còn ${businessDuration(badge.remaining_minutes)} · On track`;
+      return `${businessDuration(badge.remaining_minutes)} left`;
   }
 }
 
@@ -56,7 +56,7 @@ export default function SlaBadge({ badge }: { badge: SlaBadgeOut | null | undefi
   if (!badge) return <span className="text-muted-foreground">—</span>;
   const text = tooltip(badge);
   return (
-    <Badge variant={slaLevelTone(badge.level)} title={text} aria-label={`${slaLabel(badge)}. ${text}`} tabIndex={0}>
+    <Badge variant={slaLevelTone(badge.level)} className="tabular-nums" title={text} aria-label={`${slaLabel(badge)}. ${text}`} tabIndex={0}>
       {slaLabel(badge)}
     </Badge>
   );
@@ -64,5 +64,9 @@ export default function SlaBadge({ badge }: { badge: SlaBadgeOut | null | undefi
 
 export function PriorityChip({ priority }: { priority: string | null | undefined }) {
   if (!priority) return <span className="text-muted-foreground">—</span>;
-  return <Badge variant={ticketPriorityTone(priority)}>{priority}</Badge>;
+  return (
+    <Badge variant={ticketPriorityTone(priority)} className="num">
+      {priority}
+    </Badge>
+  );
 }

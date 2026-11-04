@@ -4,7 +4,6 @@ import CommentsPanel from "@/components/CommentsPanel";
 import PriorityDialog from "@/components/PriorityDialog";
 import SlaBadge, { PriorityChip } from "@/components/SlaBadge";
 import ReassignDialog from "@/components/ReassignDialog";
-import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { useRequireAuth } from "@/lib/auth";
@@ -22,6 +21,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { Decision, Panel, Proposal } from "@/components/ui/panel";
+import { ErrorState, LoadingState, Skeleton } from "@/components/ui/states";
+import { useToast } from "@/components/ui/toast";
 import { KIND_LABEL, type StatusKind } from "@/lib/lifecycle";
 
 type Detail = StaffTicketDetail;
@@ -72,7 +75,7 @@ export default function TicketPage() {
   const [lifecycleRefused, setLifecycleRefused] = useState(false);
   const [reviewItem, setReviewItem] = useState<ReviewItemDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [priorityOpen, setPriorityOpen] = useState(false);
 
@@ -106,18 +109,38 @@ export default function TicketPage() {
   }, [user, load]);
 
   if (!user) return null;
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!detail || (!lifecycle && !lifecycleRefused)) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (error)
+    return (
+      <Page width="record">
+        <PageHeader eyebrow="Workspace / Ticket" title="Ticket" back={{ href: "/tickets?view=all", label: "All tickets" }} />
+        <ErrorState title={error} onRetry={() => { setError(null); void load(); }}>
+          It may have been removed, or the ticket service didn&apos;t respond.
+        </ErrorState>
+      </Page>
+    );
+  if (!detail || (!lifecycle && !lifecycleRefused))
+    return (
+      <Page width="record">
+        <div className="mb-6 border-b border-border pb-5">
+          <Skeleton className="mb-3 h-4 w-24" />
+          <Skeleton className="h-7 w-2/3" />
+          <Skeleton className="mt-3 h-4 w-1/3" />
+        </div>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <Card className="p-5"><LoadingState rows={5} label="Loading ticket" /></Card>
+          <Card className="p-5"><LoadingState rows={3} /></Card>
+        </div>
+      </Page>
+    );
 
   const act = async (fn: () => Promise<unknown>, done: string) => {
     setBusy(true);
-    setNotice(null);
     try {
       await fn();
-      setNotice(done);
+      toast.success(done);
       await load();
     } catch (err) {
-      setNotice(err instanceof ApiError ? `Not done: ${err.message}` : "Not done: something went wrong.");
+      toast.error(err instanceof ApiError ? `Not done: ${err.message}` : "Not done: something went wrong. Try again.");
     } finally {
       setBusy(false);
     }
@@ -128,27 +151,24 @@ export default function TicketPage() {
   const mayReveal = user.role === "technician" || user.role === "security";
 
   return (
-    <div className="mx-auto max-w-[1280px]">
-      <Link href="/tickets?view=all" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Tickets
-      </Link>
-      <header className="mb-6 mt-2">
-        <h1 className="text-2xl font-semibold tracking-tight">{detail.subject_masked}</h1>
-        <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-          <span className="font-mono text-foreground">{detail.public_id}</span>
-          <StatusChip name={detail.status.name} color={detail.status.color} />
-          <span>
-            from {detail.reporter_person.username} via {humanize(detail.source).toLowerCase()}
-          </span>
-          <span title={dateTime(detail.created_at)}>{relativeTime(detail.created_at)}</span>
-        </p>
-      </header>
-
-      {notice && (
-        <Alert variant={notice.startsWith("Not done") ? "danger" : "ok"} className="mb-4">
-          <AlertDescription>{notice}</AlertDescription>
-        </Alert>
-      )}
+    <Page width="record">
+      <PageHeader
+        eyebrow="Workspace / Ticket"
+        back={{ href: "/tickets?view=all", label: "All tickets" }}
+        title={detail.subject_masked}
+        meta={
+          <>
+            <span className="num rounded-sm bg-muted px-1.5 py-0.5 text-xs text-foreground">{detail.public_id}</span>
+            <StatusChip name={detail.status.name} color={detail.status.color} />
+            <span>
+              from {detail.reporter_person.username} via {humanize(detail.source).toLowerCase()}
+            </span>
+            <span className="num text-xs" title={dateTime(detail.created_at)}>
+              {relativeTime(detail.created_at)}
+            </span>
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
@@ -192,20 +212,17 @@ export default function TicketPage() {
             ) : (
               <div className="flex flex-col gap-4 text-sm">
                 {latest && (
-                  <div>
-                    <p className="text-[15px] font-medium">
-                      {BRANCH_LABEL[latest.branch] ?? humanize(latest.branch)}
-                      {latest.shadow_mode && latest.branch !== "hitl" && (
-                        <span className="ml-2 align-middle text-xs font-normal text-muted-foreground">
-                          (shadow mode: proposed only, a person handles it)
-                        </span>
-                      )}
-                    </p>
-                    <p className="mt-1 text-muted-foreground">{reasonText(latest.reason_code)}</p>
-                  </div>
+                  <Decision label={latest.shadow_mode && latest.branch !== "hitl" ? "Routing decision · shadow mode" : "Routing decision"}>
+                    <p className="text-[15px] font-medium">{BRANCH_LABEL[latest.branch] ?? humanize(latest.branch)}</p>
+                    <p className="mt-0.5 text-muted-foreground">{reasonText(latest.reason_code)}</p>
+                    {latest.shadow_mode && latest.branch !== "hitl" && (
+                      <p className="mt-1 text-xs text-muted-foreground">Shadow mode: this was recorded only; a person handles the ticket.</p>
+                    )}
+                  </Decision>
                 )}
                 {detail.ai && (
-                  <dl className="grid grid-cols-[140px_minmax(0,1fr)] gap-x-4 gap-y-2">
+                  <Proposal>
+                  <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-4 gap-y-2 sm:grid-cols-[140px_minmax(0,1fr)]">
                     <dt className="text-muted-foreground">Proposed</dt>
                     <dd>{detail.ai.proposed_intent ? INTENT_LABEL[detail.ai.proposed_intent] ?? humanize(detail.ai.proposed_intent) : "Nothing"}</dd>
                     <dt className="text-muted-foreground">Category</dt>
@@ -224,7 +241,7 @@ export default function TicketPage() {
                     {detail.ai.trust_score !== null && (
                       <>
                         <dt className="text-muted-foreground">Trust score</dt>
-                        <dd className="font-mono">{detail.ai.trust_score.toFixed(2)}</dd>
+                        <dd className="num">{detail.ai.trust_score.toFixed(2)}</dd>
                       </>
                     )}
                     {detail.ai.degraded_reason && (
@@ -234,21 +251,23 @@ export default function TicketPage() {
                       </>
                     )}
                   </dl>
-                )}
-                {detail.ai?.answer_draft && (
-                  <div className="rounded-md bg-muted p-3">
-                    <p className="mb-1 text-xs font-medium text-muted-foreground">Drafted answer</p>
-                    <p className="whitespace-pre-wrap">{detail.ai.answer_draft}</p>
-                    {detail.ai.verbatim_quote && (
-                      <blockquote className="mt-2 border-l-2 border-border-strong pl-3 text-muted-foreground">
-                        {detail.ai.verbatim_quote}
-                      </blockquote>
-                    )}
-                  </div>
+                  {detail.ai.answer_draft && (
+                    <div className="mt-3 border-t border-proposal/25 pt-3">
+                      <p className="mb-1 text-xs font-medium text-muted-foreground">Drafted answer</p>
+                      <p className="whitespace-pre-wrap leading-6">{detail.ai.answer_draft}</p>
+                      {detail.ai.verbatim_quote && (
+                        <blockquote className="mt-2 border-l-2 border-border-strong pl-3 text-muted-foreground">
+                          <span className="sr-only">Quoted from the help page: </span>
+                          {detail.ai.verbatim_quote}
+                        </blockquote>
+                      )}
+                    </div>
+                  )}
+                  </Proposal>
                 )}
                 {reviewItem && (
                   <details className="group">
-                    <summary className="cursor-pointer text-sm text-primary">Show the scoring details</summary>
+                    <summary className="inline-flex min-h-8 cursor-pointer items-center text-sm font-medium text-primary hover:underline">Show the scoring details</summary>
                     <div className="mt-3">
                       <TrustSignalsPanel
                         trustSignals={reviewItem.trust_signals}
@@ -274,8 +293,8 @@ export default function TicketPage() {
               }
             >
               {detail.review.state === "pending" ? (
-                <div className="flex items-center justify-between gap-4 rounded-md bg-muted px-3 py-2.5 text-sm">
-                  <span>Nobody is working on this review yet.</span>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-border-strong px-3 py-2.5 text-sm">
+                  <span>Nobody is working on this review yet. Claim it to decide what happens.</span>
                   <Button variant="outline"
                     disabled={busy}
                     onClick={() =>
@@ -418,7 +437,7 @@ export default function TicketPage() {
               <dt className="text-muted-foreground">Resolved</dt>
               <dd>{dateTime(detail.resolved_at)}</dd>
               <dt className="text-muted-foreground">Reopened</dt>
-              <dd>{detail.reopened_count}×</dd>
+              <dd className="num">{detail.reopened_count}×</dd>
             </dl>
             <PriorityDialog
               open={priorityOpen}
@@ -452,21 +471,15 @@ export default function TicketPage() {
           )}
         </aside>
       </div>
-    </div>
+    </Page>
   );
 }
 
 function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Card asChild>
-      <section className="p-5" data-tour={`ticket-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-sm font-semibold">{title}</h2>
-          {aside}
-        </div>
-        {children}
-      </section>
-    </Card>
+    <Panel title={title} aside={aside} data-tour={`ticket-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
+      {children}
+    </Panel>
   );
 }
 
@@ -554,7 +567,7 @@ function Timeline({ detail, transfers }: { detail: Detail; transfers: Transfer[]
           <span className="absolute -left-[5px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-card bg-border-strong" />
           <p className="text-sm">
             <span className="font-medium">{e.title}</span>
-            <span className="ml-2 text-xs text-muted-foreground" title={dateTime(e.at)}>
+            <span className="num ml-2 text-xs text-muted-foreground" title={dateTime(e.at)}>
               {relativeTime(e.at)}
             </span>
           </p>
