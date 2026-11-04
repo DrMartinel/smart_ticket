@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 import { useAuth } from "@/lib/auth";
 import { useTours } from "@/components/tour/TourProvider";
 import { Badge } from "@/components/ui/badge";
@@ -12,15 +15,16 @@ export default function GuidesPage() {
   const language = user?.language ?? "vi";
 
   return (
-    <div className="mx-auto flex max-w-[860px] flex-col gap-4">
-      <header>
-        <h1 className="text-xl font-semibold">Hướng dẫn · Guides</h1>
-        <p className="text-xs text-muted-foreground">
-          {language === "vi"
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Help / Guides"
+        vi="Hướng dẫn"
+        title="Guides"
+        description={<>{language === "vi"
             ? "Mỗi hướng dẫn đi từng bước qua một tính năng, ngay trên màn hình thật. Bạn chỉ thấy hướng dẫn cho những gì vai trò của bạn dùng được."
-            : "Each guide walks through one feature, step by step, on the real screens. You only see guides for what your role can use."}
-        </p>
-      </header>
+            : "Each guide walks through one feature, step by step, on the real screens. You only see guides for what your role can use."}</>}
+      />
 
       <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
         {tours.map((tour) => (
@@ -45,6 +49,6 @@ export default function GuidesPage() {
           </Card>
         ))}
       </ul>
-    </div>
+    </Page>
   );
 }

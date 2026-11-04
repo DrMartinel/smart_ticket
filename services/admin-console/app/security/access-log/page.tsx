@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // The PII access log for security: who revealed which value, when and why (F5).
 
 import { useCallback, useEffect, useState } from "react";
@@ -97,7 +100,7 @@ export default function AccessLogPage() {
 
   const field = (key: keyof Filters, label: string, width: string, type = "text") => (
     <label className={`flex flex-col gap-1 ${width}`}>
-      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-xs font-medium text-foreground/80">{label}</span>
       <Input
         type={type}
         value={filters[key]}
@@ -109,16 +112,20 @@ export default function AccessLogPage() {
   );
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
-      <header className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">PII access log</h1>
-          <p className="text-xs text-muted-foreground">Append-only. Values are never stored here or exported.</p>
-        </div>
-        <Button variant="outline" onClick={() => void exportCsv()}>
-          Export CSV
-        </Button>
-      </header>
+    <Page width="record" className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Security / PII access log"
+        title="PII access log"
+        description={<>Append-only. Values are never stored here or exported.</>}
+        actions={
+      <>
+      <Button variant="outline" onClick={() => void exportCsv()}>
+        Export CSV
+      </Button>
+      </>
+      }
+      />
 
       <form
         className="flex flex-wrap items-end gap-3"
@@ -130,7 +137,7 @@ export default function AccessLogPage() {
         {field("ticket", "Ticket", "w-[200px]")}
         {field("actor", "Actor", "w-[160px]")}
         <label className="flex w-[200px] flex-col gap-1">
-          <span className="text-[11px] text-muted-foreground">Reason code</span>
+          <span className="text-xs font-medium text-foreground/80">Reason code</span>
           <NativeSelect value={filters.reason_code} onChange={(e) => setFilters({ ...filters, reason_code: e.target.value })}>
             <option value="">any</option>
             {REASON_CODES.map((code) => (
@@ -147,7 +154,7 @@ export default function AccessLogPage() {
         </Button>
       </form>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[720px] text-xs">
@@ -166,7 +173,7 @@ export default function AccessLogPage() {
               <TableRow key={row.id}>
                 <TableCell className="whitespace-nowrap">{vnTime(row.accessed_at)}</TableCell>
                 <TableCell>{row.actor}</TableCell>
-                <TableCell className="font-mono">{row.ticket}</TableCell>
+                <TableCell className="num">{row.ticket}</TableCell>
                 <TableCell>
                   <Badge variant={piiLevelTone(row.level)}>{row.placeholder}</Badge>
                 </TableCell>
@@ -184,9 +191,9 @@ export default function AccessLogPage() {
           </TableBody>
         </Table>
       </Card>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {page ? `${Math.min(page.count, LIMIT)} of ${page.count} shown. ` : ""}Export writes pii_access_log_exported to the audit log.
       </p>
-    </div>
+    </Page>
   );
 }

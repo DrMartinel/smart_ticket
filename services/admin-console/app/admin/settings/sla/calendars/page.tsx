@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // Business calendars (F1 · Business calendars 8-283): working hours per weekday in one zone.
 
 import Link from "next/link";
@@ -84,21 +87,23 @@ export default function CalendarsPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <Page width="record" className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Business calendars</h1>
-          <p className="text-xs text-muted-foreground">
-            Working time for SLA clocks. A clock uses its policy&apos;s calendar (24×7 overrides), else its team&apos;s, else the default.
-          </p>
-        </div>
-        {isAdmin && (
-          <Button onClick={() => open(null)}>
-            New calendar
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / SLA"
+        title="Business calendars"
+        description={<>Working time for SLA clocks. A clock uses its policy&apos;s calendar (24×7 overrides), else its team&apos;s, else the default.</>}
+        actions={
+      <>
+      {isAdmin && (
+        <Button onClick={() => open(null)}>
+          New calendar
+        </Button>
+      )}
+      </>
+      }
+      />
 
       {error && !editing && <p className="text-sm text-danger">{error}</p>}
 
@@ -186,6 +191,6 @@ export default function CalendarsPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }

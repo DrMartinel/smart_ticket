@@ -101,7 +101,7 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
         {isEditor && (
           <Button asChild>
             <Link href="/kb/drafts/new">
-              Trang mới · New page
+              New page
             </Link>
           </Button>
         )}
@@ -183,13 +183,13 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
                       {isEditor && (
                         <span className="mr-2 inline-flex gap-2 text-xs">
                           <Link href={`/kb/graph/${encodeURIComponent(a.slug)}`} className="text-primary hover:underline">
-                            Đồ thị
+                            Graph
                           </Link>
                           <Link href={`/kb/drafts/new?kind=edit&slug=${encodeURIComponent(a.slug)}`} className="text-primary hover:underline">
-                            Sửa
+                            Edit
                           </Link>
                           <Link href={`/kb/drafts/new?kind=retire&slug=${encodeURIComponent(a.slug)}`} className="text-danger hover:underline">
-                            Gỡ
+                            Retire
                           </Link>
                         </span>
                       )}

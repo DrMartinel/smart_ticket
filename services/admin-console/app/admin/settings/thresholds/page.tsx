@@ -1,5 +1,9 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
+
 // Thresholds (F9): the thresholds.yaml core-api loaded, read-only; it changes by pull request
 // (ADR-0044).
 
@@ -26,16 +30,16 @@ export default function ThresholdsPage() {
   if (!user) return null;
 
   return (
-    <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
+    <Page className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header>
-        <h1 className="text-xl font-semibold">Thresholds</h1>
-        <p className="text-xs text-muted-foreground">
-          thresholds.yaml is the only home of tunables. It changes by pull request, under a new version; every decision records the
-          numbers it ran under (ADR-0044).
-        </p>
-      </header>
-      {error && <p className="text-sm text-danger">{error}</p>}
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Rollout"
+        title="Thresholds"
+        description={<>thresholds.yaml is the only home of tunables. It changes by pull request, under a new version; every decision records the
+          numbers it ran under (ADR-0044).</>}
+      />
+      {error && <ErrorState title={error} />}
 
       {current && (
         <Card asChild>
@@ -49,6 +53,6 @@ export default function ThresholdsPage() {
           </section>
         </Card>
       )}
-    </div>
+    </Page>
   );
 }

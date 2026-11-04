@@ -9,18 +9,23 @@ import type { TeamOut } from "@/lib/types/generated";
 import { NativeSelect } from "@/components/ui/native-select";
 
 export function useVisibleTeams(user: SessionUser | null): TeamOut[] {
-  const [teams, setTeams] = useState<TeamOut[]>([]);
+  return useVisibleTeamsState(user).teams;
+}
+
+/** The visible teams and whether they have loaded. */
+export function useVisibleTeamsState(user: SessionUser | null): { teams: TeamOut[]; loaded: boolean } {
+  const [state, setState] = useState<{ teams: TeamOut[]; loaded: boolean }>({ teams: [], loaded: false });
   useEffect(() => {
     if (!user) return;
     api
       .get<TeamOut[]>("/api/teams")
       .then((all) => {
         const mine = new Set((user.teams ?? []).map((t) => t.team));
-        setTeams(user.role === "manager" ? all : all.filter((t) => mine.has(t.slug)));
+        setState({ teams: user.role === "manager" ? all : all.filter((t) => mine.has(t.slug)), loaded: true });
       })
-      .catch(() => setTeams([]));
+      .catch(() => setState({ teams: [], loaded: true }));
   }, [user]);
-  return teams;
+  return state;
 }
 
 export default function TeamPicker({
@@ -33,8 +38,8 @@ export default function TeamPicker({
   onChange: (slug: string) => void;
 }) {
   return (
-    <label className="flex w-[200px] flex-col gap-1">
-      <span className="text-[11px] text-muted-foreground">Team</span>
+    <label className="flex w-full flex-col gap-1.5 sm:w-[200px]">
+      <span className="text-xs font-medium text-foreground/80">Team</span>
       <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
         {!teams.some((t) => t.slug === value) && <option value={value}>{value}</option>}
         {teams.map((t) => (

@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // The security inbox (F8 · Security inbox 15-1087): most severe first, then oldest.
 
 import Link from "next/link";
@@ -54,45 +57,47 @@ export default function SecurityInboxPage() {
   if (!user) return null;
 
   return (
-    <div className="mx-auto flex max-w-[1180px] flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Security alerts</h1>
-          <p className="text-xs text-muted-foreground">
-            Severity first, then oldest. Ack targets: critical 1 business hour, high 4, medium 1 business day (BR-F8-04).
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-3 text-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">State</span>
-            <NativeSelect value={state} onChange={(e) => setState(e.target.value)}>
-              <option value="open">open</option>
-              <option value="new">new</option>
-              <option value="acknowledged">acknowledged</option>
-              <option value="investigating">investigating</option>
-              <option value="closed">closed</option>
-              <option value="">all</option>
-            </NativeSelect>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Kind</span>
-            <NativeSelect value={kind} onChange={(e) => setKind(e.target.value)}>
-              <option value="">all</option>
-              {KINDS.map((k) => (
-                <option key={k} value={k}>
-                  {k}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Assignee</span>
-            <Input className="w-32" value={assignee} placeholder="any" onChange={(e) => setAssignee(e.target.value)} />
-          </label>
-        </div>
-      </header>
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Security / Alerts"
+        title="Security alerts"
+        description={<>Severity first, then oldest. Ack targets: critical 1 business hour, high 4, medium 1 business day (BR-F8-04).</>}
+        actions={
+      <>
+      <div className="flex flex-wrap gap-3 text-sm">
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">State</span>
+          <NativeSelect value={state} onChange={(e) => setState(e.target.value)}>
+            <option value="open">open</option>
+            <option value="new">new</option>
+            <option value="acknowledged">acknowledged</option>
+            <option value="investigating">investigating</option>
+            <option value="closed">closed</option>
+            <option value="">all</option>
+          </NativeSelect>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Kind</span>
+          <NativeSelect value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="">all</option>
+            {KINDS.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Assignee</span>
+          <Input className="w-32" value={assignee} placeholder="any" onChange={(e) => setAssignee(e.target.value)} />
+        </label>
+      </div>
+      </>
+      }
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[860px]">
@@ -117,7 +122,7 @@ export default function SecurityInboxPage() {
                 <TableCell>
                   <SeverityChip severity={a.severity} />
                 </TableCell>
-                <TableCell className="font-mono text-xs">{a.kind}</TableCell>
+                <TableCell className="num text-xs">{a.kind}</TableCell>
                 <TableCell>
                   {a.ticket ? `${a.ticket.public_id} · ${a.ticket.reporter}` : a.subject_user ? `user ${a.subject_user}` : "—"}
                 </TableCell>
@@ -142,13 +147,7 @@ export default function SecurityInboxPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {rows?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
-                  No alerts.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus colSpan={8} rows={rows} error={!!error} empty={<EmptyState compact title="No alerts" />} />
           </TableBody>
         </Table>
       </Card>
@@ -156,6 +155,6 @@ export default function SecurityInboxPage() {
         Same kind + same ticket (or user) within 60 min increments one alert (BR-F8-03). Managers see only counts by kind and
         state (BR-F8-01).
       </p>
-    </div>
+    </Page>
   );
 }

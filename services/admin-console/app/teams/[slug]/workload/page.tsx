@@ -1,5 +1,11 @@
 "use client";
 
+import { Users } from "lucide-react";
+import { TabNav } from "@/components/TabNav";
+import { STRATEGY_LABEL } from "@/components/teams/TeamForm";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
+
 // Team workload (F2 · Team workload 9-450): each member's load, availability and leave.
 
 import Link from "next/link";
@@ -55,22 +61,29 @@ export default function WorkloadPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">{team?.name ?? slug} workload</h1>
-          <p className="text-xs text-muted-foreground">
-            Strategy {team?.strategy ?? "—"} · cap {team?.max_open_per_member ?? "none"} open per member. Going unavailable or on
-            leave moves nothing.{" "}
-            <Link href={`/teams/${slug}`} className="text-primary hover:underline">
-              Team queue
-            </Link>
-          </p>
-        </div>
-        <TeamPicker teams={teams} value={slug} onChange={(next) => router.push(`/teams/${next}/workload`)} />
-      </header>
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-0"
+        eyebrow="Workspace / Teams"
+        title={`${team?.name ?? slug} workload`}
+        description={
+          <>
+            Assignment: {team ? (STRATEGY_LABEL[team.strategy] ?? team.strategy).toLowerCase() : "—"} · cap{" "}
+            <span className="num">{team?.max_open_per_member ?? "none"}</span> open per member. Going unavailable or on leave doesn&apos;t move
+            anyone&apos;s tickets.
+          </>
+        }
+        actions={<TeamPicker teams={teams} value={slug} onChange={(next) => router.push(`/teams/${next}/workload`)} />}
+      />
+      <TabNav
+        className="mb-1"
+        tabs={[
+          { href: `/teams/${slug}`, label: "Queue", active: false },
+          { href: `/teams/${slug}/workload`, label: "Workload", active: true },
+        ]}
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} onRetry={error.startsWith("Couldn't load") ? () => void load() : undefined} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[860px]">
@@ -88,7 +101,7 @@ export default function WorkloadPage() {
           </TableHeader>
           <TableBody>
             {rows?.map((r) => (
-              <TableRow key={r.user} className={`${r.flagged ? "bg-warn-soft" : ""}`}>
+              <TableRow key={r.user} className={r.flagged ? "bg-warn-soft/60" : ""}>
                 <TableCell>{r.user}</TableCell>
                 <TableCell>{r.role}</TableCell>
                 <TableCell>
@@ -100,11 +113,11 @@ export default function WorkloadPage() {
                   />
                 </TableCell>
                 <TableCell>{r.on_leave ? <Badge variant="warn">On leave today</Badge> : "—"}</TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell className="num">
                   {r.open} / {r.cap ?? "—"}
                 </TableCell>
-                <TableCell className="whitespace-nowrap">{dateTime(r.oldest_due)}</TableCell>
-                <TableCell className="whitespace-nowrap">{dateTime(r.last_assigned_at)}</TableCell>
+                <TableCell className="num whitespace-nowrap text-xs">{dateTime(r.oldest_due)}</TableCell>
+                <TableCell className="num whitespace-nowrap text-xs">{dateTime(r.last_assigned_at)}</TableCell>
                 <TableCell>
                   {r.flagged ? (
                     <span className="text-warn">
@@ -122,12 +135,18 @@ export default function WorkloadPage() {
                 </TableCell>
               </TableRow>
             ))}
+            <TableStatus
+              colSpan={8}
+              rows={rows}
+              error={!!error}
+              empty={<EmptyState compact icon={Users} title="No members yet">Members are added on the team&apos;s settings page.</EmptyState>}
+            />
           </TableBody>
         </Table>
       </Card>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Reassign a flagged person&apos;s tickets one by one from the team queue or the ticket page.
       </p>
-    </div>
+    </Page>
   );
 }

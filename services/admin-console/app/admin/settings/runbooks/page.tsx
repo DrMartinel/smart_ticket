@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // The runbook catalog (F12 UC-F12-03 · 20-2142): a workflow admin's change is live at once (ADR-0043).
 
 import { useCallback, useEffect, useState } from "react";
@@ -68,9 +71,9 @@ function bodyOf(form: Form): Record<string, unknown> {
 }
 
 function refusal(err: unknown): string {
-  if (err instanceof SyntaxError) return "Config không phải JSON hợp lệ.";
-  if (!(err instanceof ApiError)) return "Không lưu được.";
-  if (err.code === "group_not_allowed") return `Nhóm không được phép cấp: ${err.message}`;
+  if (err instanceof SyntaxError) return "Config isn't valid JSON.";
+  if (!(err instanceof ApiError)) return "Couldn't save. Try again.";
+  if (err.code === "group_not_allowed") return `That group can't be granted: ${err.message}`;
   return `${err.code ?? err.status}: ${err.message}`;
 }
 
@@ -82,9 +85,9 @@ function Changes({ runbook }: { runbook: RunbookOut }) {
   return (
     <div className="mt-2 rounded-md bg-muted p-3 text-xs">
       <p className="mb-1 font-medium">
-        Thay đổi soạn trước ADR-0043 · {runbook.drafted_by} · {runbook.drafted_at && dateTime(runbook.drafted_at)}
+        Change drafted before ADR-0043 · {runbook.drafted_by} · {runbook.drafted_at && dateTime(runbook.drafted_at)}
       </p>
-      {changed.length === 0 && <p className="text-muted-foreground">Không có trường nào khác bản đang chạy.</p>}
+      {changed.length === 0 && <p className="text-muted-foreground">No field differs from the live version.</p>}
       {changed.map((f) => (
         <p key={f} className="font-mono">
           {f}: <span className="text-danger line-through">{JSON.stringify(live[f])}</span> →{" "}
@@ -141,26 +144,28 @@ export default function RunbooksPage() {
     });
 
   return (
-    <div className="mx-auto max-w-[1280px]">
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Danh mục runbook · Runbook catalog</h1>
-          <p className="mt-1 max-w-[760px] text-xs text-muted-foreground">
-            Runbook luôn cần người duyệt trên từng phiếu (ADR-0006). Một thay đổi ở đây có hiệu lực ngay khi lưu; lần chạy đã xếp hàng
-            trước đó sẽ không chạy bản cũ.
-          </p>
-        </div>
-        {admin && (
-          <Button
-            onClick={() => {
-              setIsNew(true);
-              setForm(EMPTY);
-            }}
-          >
-            Thêm runbook
-          </Button>
-        )}
-      </header>
+    <Page width="record" className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Settings"
+        vi="Danh mục runbook"
+        title="Runbook catalog"
+        description={<>A runbook always needs a person's approval on each ticket. A change here is live as soon as you save it; runs already queued won't use the old version.</>}
+        actions={
+      <>
+      {admin && (
+        <Button
+          onClick={() => {
+            setIsNew(true);
+            setForm(EMPTY);
+          }}
+        >
+          Add runbook
+        </Button>
+      )}
+      </>
+      }
+      />
 
       {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
@@ -173,7 +178,7 @@ export default function RunbooksPage() {
               void save();
             }}
           >
-            <p className="font-medium md:col-span-2">{isNew ? "Runbook mới" : `Soạn thay đổi cho ${form.code}`}</p>
+            <p className="font-medium md:col-span-2">{isNew ? "New runbook" : `Edit ${form.code}`}</p>
             {isNew && (
               <label className="flex flex-col gap-1">
                 <span className="text-xs text-muted-foreground">Mã (RB-…)</span>
@@ -181,7 +186,7 @@ export default function RunbooksPage() {
               </label>
             )}
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Tên</span>
+              <span className="text-xs text-muted-foreground">Name</span>
               <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
             </label>
             <label className="flex flex-col gap-1">
@@ -189,11 +194,11 @@ export default function RunbooksPage() {
               <NativeSelect value={form.executor} onChange={(e) => setForm({ ...form, executor: e.target.value })}>
                 <option value="keycloak">keycloak</option>
                 <option value="n8n">n8n</option>
-                <option value="mock">mock (chỉ để thử)</option>
+                <option value="mock">mock (testing only)</option>
               </NativeSelect>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Trường bắt buộc (phân cách bằng dấu phẩy)</span>
+              <span className="text-xs text-muted-foreground">Required fields (comma-separated)</span>
               <Input
                 className="font-mono"
                 value={form.required_fields}
@@ -201,33 +206,33 @@ export default function RunbooksPage() {
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Đối tượng</span>
+              <span className="text-xs text-muted-foreground">Who it can target</span>
               <NativeSelect value={form.target_rule} onChange={(e) => setForm({ ...form, target_rule: e.target.value })}>
-                <option value="reporter">Chỉ người gửi yêu cầu</option>
-                <option value="any">Bất kỳ ai</option>
+                <option value="reporter">Only the requester</option>
+                <option value="any">Anyone</option>
               </NativeSelect>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Rủi ro</span>
+              <span className="text-xs text-muted-foreground">Risk</span>
               <NativeSelect value={form.risk} onChange={(e) => setForm({ ...form, risk: e.target.value })}>
-                <option value="low">Thấp</option>
+                <option value="low">Low</option>
                 <option value="high">Cao</option>
               </NativeSelect>
             </label>
             <label className="flex items-center gap-2">
               <Checkbox checked={form.is_active} onCheckedChange={(checked) => setForm({ ...form, is_active: checked === true })} />
-              <span>Đang dùng</span>
+              <span>Active</span>
             </label>
             <label className="flex flex-col gap-1 md:col-span-2">
-              <span className="text-xs text-muted-foreground">Config (JSON: URL n8n, hoặc action Keycloak và nhóm được cấp)</span>
+              <span className="text-xs text-muted-foreground">Config (JSON: an n8n URL, or a Keycloak action and the groups it grants)</span>
               <Textarea className="min-h-[120px] font-mono text-xs" value={form.config} onChange={(e) => setForm({ ...form, config: e.target.value })} />
             </label>
             <div className="flex gap-2 md:col-span-2">
               <Button type="submit" disabled={busy}>
-                {isNew ? "Tạo" : "Lưu thay đổi"}
+                {isNew ? "Create runbook" : "Save changes"}
               </Button>
               <Button variant="outline" type="button" onClick={() => setForm(null)}>
-                Huỷ
+                Cancel
               </Button>
             </div>
           </form>
@@ -243,8 +248,8 @@ export default function RunbooksPage() {
                 <TableRow>
                   <TableHead>Runbook</TableHead>
                   <TableHead>Executor · Config</TableHead>
-                  <TableHead>Quy tắc</TableHead>
-                  <TableHead>Trạng thái</TableHead>
+                  <TableHead>Rules</TableHead>
+                  <TableHead>State</TableHead>
                   <TableHead className="w-40" />
                 </TableRow>
               </TableHeader>
@@ -263,15 +268,15 @@ export default function RunbooksPage() {
                       </pre>
                     </TableCell>
                     <TableCell className="py-3 text-xs">
-                      <p>{r.target_rule === "reporter" ? "Chỉ người gửi" : "Bất kỳ ai"}</p>
-                      <p>{r.risk === "high" ? "Rủi ro cao" : "Rủi ro thấp"}</p>
+                      <p>{r.target_rule === "reporter" ? "Only the requester" : "Anyone"}</p>
+                      <p>{r.risk === "high" ? "High risk" : "Low risk"}</p>
                       <p className="font-mono text-muted-foreground">{r.required_fields.join(", ")}</p>
                     </TableCell>
                     <TableCell className="py-3 text-xs">
                       <div className="flex flex-wrap gap-1">
-                        {r.runnable ? <Badge variant="ok">Đang dùng</Badge> : <Badge variant="warn">Chưa bật</Badge>}
-                        {!r.is_active && <Badge variant="neutral">Tắt</Badge>}
-                        {r.pending_change && <Badge variant="info">Có thay đổi chưa áp dụng</Badge>}
+                        {r.runnable ? <Badge variant="ok">Active</Badge> : <Badge variant="warn">Not enabled</Badge>}
+                        {!r.is_active && <Badge variant="neutral">Off</Badge>}
+                        {r.pending_change && <Badge variant="info">Unapplied change</Badge>}
                       </div>
                       {r.approved_by && (
                         <p className="mt-1 text-muted-foreground">
@@ -289,7 +294,7 @@ export default function RunbooksPage() {
                               setForm(formOf(r));
                             }}
                           >
-                            Sửa
+                            Edit
                           </Button>
                         )}
                         {(admin || manager) && (r.pending_change || !r.approved_at) && (
@@ -297,7 +302,7 @@ export default function RunbooksPage() {
                             disabled={busy}
                             onClick={() => void act(() => api.post(`/api/itsm/runbooks/${r.code}/activate`))}
                           >
-                            Bật · Activate
+                            Activate
                           </Button>
                         )}
                       </span>
@@ -309,6 +314,6 @@ export default function RunbooksPage() {
           </section>
         </Card>
       )}
-    </div>
+    </Page>
   );
 }

@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // Rollout (F9 · Rollout 16-1179): each automated branch is live only when the env isn't shadow, its
 // flag is on and the thresholds are approved (BR-F9-01); one manager turns a flag on (ADR-0043).
 
@@ -106,14 +109,14 @@ export default function RolloutPage() {
   const unmet = dialog ? dialog.flag.gates.some((g) => !g.met) : false;
 
   return (
-    <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
+    <Page className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header>
-        <h1 className="text-xl font-semibold">Rollout</h1>
-        <p className="text-xs text-muted-foreground">
-          A branch is live only when both keys turn: env not shadow and the branch flag on (BR-F9-01).
-        </p>
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Rollout"
+        title="Rollout"
+        description={<>A branch is live only when both keys turn: env not shadow and the branch flag on (BR-F9-01).</>}
+      />
       {error && !dialog && <p className="text-sm text-danger">{error}</p>}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -195,7 +198,7 @@ export default function RolloutPage() {
               {data.gates.map((g) => {
                 return (
                   <TableRow key={g.id}>
-                    <TableCell className="py-2 font-mono text-xs">{g.branch}</TableCell>
+                    <TableCell className="py-2 num text-xs">{g.branch}</TableCell>
                     <TableCell className="py-2">{g.metric}</TableCell>
                     <TableCell className="py-2">
                       {g.comparator === "lt" ? "<" : "≥"} {g.threshold}
@@ -257,7 +260,7 @@ export default function RolloutPage() {
               disabled={busy || !reason.trim() || (dialog?.kind === "on" && unmet && !override.trim())}
               onClick={() => void submit()}
             >
-              {dialog?.kind === "off" ? "Tắt ngay · Turn off" : "Bật ngay · Turn on"}
+              {dialog?.kind === "off" ? "Turn off" : "Turn on"}
             </Button>
           </>
         }
@@ -294,7 +297,7 @@ export default function RolloutPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }
 

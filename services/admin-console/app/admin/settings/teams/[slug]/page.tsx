@@ -1,5 +1,7 @@
 "use client";
 
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // One team (F2): its settings, and its members and leads.
 
 import Link from "next/link";
@@ -124,13 +126,7 @@ export default function TeamPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {team?.members.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="px-5 py-6 text-center text-muted-foreground">
-                  Nobody is in this team yet.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus colSpan={5} rows={team?.members} error={!!error} empty={<EmptyState compact title="Nobody is in this team yet" />} />
             {team?.members.map((m) => {
               const p = byName.get(m.username);
               return (

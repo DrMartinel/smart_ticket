@@ -31,14 +31,14 @@ export function reportTabs(user: CurrentUser): { key: ReportTab; label: string }
   const tech = user.role === "technician";
   const tabs: { key: ReportTab; label: string; show: boolean }[] = [
     { key: "sla", label: "SLA", show: manager || leads(user).length > 0 },
-    { key: "teams", label: "Nhóm · Teams", show: manager || (tech && (user.teams ?? []).length > 0) },
-    { key: "reviewers", label: "Người duyệt · Reviewers", show: manager || tech },
+    { key: "teams", label: "Teams", show: manager || (tech && (user.teams ?? []).length > 0) },
+    { key: "reviewers", label: "Reviewers", show: manager || tech },
     { key: "kb", label: "KB", show: manager || has(user, "kb_editor") },
     { key: "csat", label: "CSAT", show: manager || leads(user).length > 0 },
-    { key: "rollout", label: "Sẵn sàng triển khai · Rollout", show: manager || user.role === "security" },
-    { key: "security", label: "Bảo mật · Security", show: manager || user.role === "security" },
-    { key: "incidents", label: "Sự cố · Incidents", show: manager || has(user, "incident_manager") },
-    { key: "notifications", label: "Thông báo · Notifications", show: manager || has(user, "workflow_admin") },
+    { key: "rollout", label: "Rollout", show: manager || user.role === "security" },
+    { key: "security", label: "Security", show: manager || user.role === "security" },
+    { key: "incidents", label: "Incidents", show: manager || has(user, "incident_manager") },
+    { key: "notifications", label: "Notifications", show: manager || has(user, "workflow_admin") },
   ];
   return tabs.filter((t) => t.show);
 }
@@ -97,7 +97,7 @@ export function thisMonth(): string {
 
 export function MonthPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
-    <Field label="Tháng · Month">
+    <Field label="Month">
       <Input type="month" className="w-40" value={value} onChange={(e) => onChange(e.target.value)} />
     </Field>
   );
@@ -128,9 +128,9 @@ export function ExportButton({ path, filename }: { path: string; filename: strin
   return (
     <div className="flex flex-col items-end">
       <Button variant="outline" onClick={() => void run()}>
-        Xuất CSV · Export CSV
+        Export CSV
       </Button>
-      {error && <span className="text-xs text-danger">Không xuất được CSV.</span>}
+      {error && <span className="text-xs text-danger">Couldn't export the CSV.</span>}
     </div>
   );
 }
@@ -149,7 +149,7 @@ export function useReport<T>(path: string | null): { data: T | null; error: stri
       .catch((err) => {
         if (!live) return;
         setData(null);
-        setError(err instanceof ApiError ? `${err.code ?? err.status}: ${err.message}` : "Không tải được báo cáo.");
+        setError(err instanceof ApiError ? `${err.message}${err.code ? ` (${err.code})` : ""}` : "Couldn't load this report.");
       });
     return () => {
       live = false;

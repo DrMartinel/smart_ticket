@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // Holidays (F1 · Holidays 8-435): whole days off per calendar, entered each year.
 
 import { useSearchParams } from "next/navigation";
@@ -103,43 +106,47 @@ export default function HolidaysPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <Page width="record" className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Holidays{calendar ? ` — ${calendar.name}` : ""}</h1>
-          <p className="text-xs text-muted-foreground">Whole days in {calendar?.timezone ?? "the calendar's zone"}. HR confirms the dates each year.</p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex w-[180px] flex-col gap-1">
-            <span className="text-[11px] text-muted-foreground">Calendar</span>
-            <NativeSelect value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
-              {calendars.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-          <label className="flex w-[110px] flex-col gap-1">
-            <span className="text-[11px] text-muted-foreground">Year</span>
-            <NativeSelect value={year} onChange={(e) => setYear(e.target.value)}>
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </NativeSelect>
-          </label>
-        </div>
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / SLA"
+        title={<>Holidays{calendar ? ` — ${calendar.name}` : ""}</>}
+        description={<>Whole days in {calendar?.timezone ?? "the calendar's zone"}. HR confirms the dates each year.</>}
+        actions={
+      <>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex w-[180px] flex-col gap-1">
+          <span className="text-xs font-medium text-foreground/80">Calendar</span>
+          <NativeSelect value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
+            {calendars.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
+        <label className="flex w-[110px] flex-col gap-1">
+          <span className="text-xs font-medium text-foreground/80">Year</span>
+          <NativeSelect value={year} onChange={(e) => setYear(e.target.value)}>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
+      </div>
+      </>
+      }
+      />
 
       <p className="rounded-md bg-info-soft px-3 py-2 text-sm text-info">
         {year}: {holidays.filter((h) => h.date.startsWith(year)).length} days entered.
         {!nextHas && ` ${nextYear} has none yet; from 1 Dec ${year} workflow admins get a reminder.`} Edits reach running clocks at their next
         recompute.
       </p>
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[640px]">
@@ -195,15 +202,15 @@ export default function HolidaysPage() {
             }}
           >
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">From</span>
+              <span className="text-xs font-medium text-foreground/80">From</span>
               <Input type="date" required value={form.from} onChange={(e) => setForm({ ...form, from: e.target.value })} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">To (for a range like Tết)</span>
+              <span className="text-xs font-medium text-foreground/80">To (for a range like Tết)</span>
               <Input type="date" min={form.from} value={form.to} onChange={(e) => setForm({ ...form, to: e.target.value })} />
             </label>
             <label className="flex min-w-[200px] flex-1 flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Name</span>
+              <span className="text-xs font-medium text-foreground/80">Name</span>
               <Input required value={form.name} maxLength={100} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Tết Nguyên đán" />
             </label>
             <Button type="submit">
@@ -212,6 +219,6 @@ export default function HolidaysPage() {
           </form>
         </Card>
       )}
-    </div>
+    </Page>
   );
 }

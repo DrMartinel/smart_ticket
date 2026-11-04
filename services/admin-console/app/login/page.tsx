@@ -52,7 +52,7 @@ function Login() {
         </Alert>
       )}
       <Button size="lg" onClick={() => void signIn()} className="h-auto min-h-10 w-full whitespace-normal py-2.5">
-        Đăng nhập bằng tài khoản công ty · Sign in with company account
+        Sign in with company account
       </Button>
       <p className="text-[11px] text-muted-foreground">
         You&apos;ll go to the company sign-in page, which checks your password and MFA, then come back here.
@@ -125,7 +125,7 @@ function SignInError({ code, onRetry }: { code: string; onRetry: () => void }) {
       <h1 className="text-base font-semibold">{text.vi}</h1>
       <p className="text-xs text-muted-foreground">{text.en}</p>
       <Button variant="outline" onClick={onRetry} className="h-auto min-h-9 w-full whitespace-normal">
-        Thử lại · Try again
+        Try again
       </Button>
     </LoginCard>
   );

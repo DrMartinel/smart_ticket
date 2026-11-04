@@ -1,10 +1,13 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // KB drafts (F6 · KB drafts 13-828): what is being written, what waits for review.
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { DraftStateChip, KbTabs, KIND_VI, canEditKb } from "@/components/kb/KbTabs";
+import { DRAFT_STATE_VI, DraftStateChip, KbTabs, KIND_VI, canEditKb } from "@/components/kb/KbTabs";
 import { vnTime } from "@/components/security/badges";
 import { api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
@@ -36,40 +39,43 @@ export default function DraftsPage() {
         setRows(page.items);
         setError(null);
       })
-      .catch(() => setError("Không tải được bản nháp."));
+      .catch(() => setError("Couldn't load drafts."));
   }, [user, state, mine]);
 
   if (!user) return null;
 
   return (
-    <div className="mx-auto max-w-[1180px]">
+    <Page className="flex flex-col gap-4">
       <KbTabs user={user} />
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Bản nháp · Drafts</h1>
-          <p className="text-xs text-muted-foreground">
-            Bản nháp không bao giờ được truy xuất; một người khác duyệt trước khi xuất bản (BR-F6-01, 02).
-          </p>
-        </div>
-        <div className="flex items-end gap-3 text-sm">
-          <label className="flex items-center gap-1.5">
-            <Checkbox checked={mine} onCheckedChange={(checked) => setMine(checked === true)} />
-            Của tôi
-          </label>
-          <NativeSelect aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
-            {STATES.map((s) => (
-              <option key={s} value={s}>
-                {s || "Tất cả"}
-              </option>
-            ))}
-          </NativeSelect>
-          <Button asChild>
-            <Link href="/kb/drafts/new">
-              Trang mới
-            </Link>
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Knowledge / Drafts"
+        vi="Bản nháp"
+        title="Drafts"
+        description={<>Drafts are never used for answers. Someone other than the author reviews each one before it's published.</>}
+        actions={
+      <>
+      <div className="flex items-end gap-3 text-sm">
+        <label className="flex items-center gap-1.5">
+          <Checkbox checked={mine} onCheckedChange={(checked) => setMine(checked === true)} />
+          Mine
+        </label>
+        <NativeSelect aria-label="State" value={state} onChange={(e) => setState(e.target.value)}>
+          {STATES.map((s) => (
+            <option key={s} value={s}>
+              {s ? (DRAFT_STATE_VI[s] ?? s) : "All"}
+            </option>
+          ))}
+        </NativeSelect>
+        <Button asChild>
+          <Link href="/kb/drafts/new">
+            New page
+          </Link>
+        </Button>
+      </div>
+      </>
+      }
+      />
 
       {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
@@ -103,16 +109,10 @@ export default function DraftsPage() {
                 <TableCell>{vnTime(d.updated_at)}</TableCell>
               </TableRow>
             ))}
-            {rows?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  Không có bản nháp.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus colSpan={6} rows={rows} error={!!error} empty={<EmptyState compact title="No drafts here" />} />
           </TableBody>
         </Table>
       </Card>
-    </div>
+    </Page>
   );
 }

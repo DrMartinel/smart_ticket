@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // My notification settings (F4 · 11-564): each event that can reach me, per channel, and my language.
 
 import { useEffect, useState } from "react";
@@ -104,24 +107,26 @@ export default function MyNotificationsPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-[1100px] flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">My notification settings</h1>
-          <p className="text-xs text-muted-foreground">
-            Turn email or in-app off per event. Required notices can&apos;t be turned off.
-          </p>
-        </div>
-        <label className="flex w-[200px] flex-col gap-1">
-          <span className="text-[11px] text-muted-foreground">Language of my notices</span>
-          <NativeSelect value={language} onChange={(e) => void changeLanguage(e.target.value)}>
-            <option value="vi">Tiếng Việt</option>
-            <option value="en">English</option>
-          </NativeSelect>
-        </label>
-      </header>
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Account / Notifications"
+        title="My notification settings"
+        description={<>Turn email or in-app off per event. Required notices can&apos;t be turned off.</>}
+        actions={
+      <>
+      <label className="flex w-[200px] flex-col gap-1">
+        <span className="text-xs font-medium text-foreground/80">Language of my notices</span>
+        <NativeSelect value={language} onChange={(e) => void changeLanguage(e.target.value)}>
+          <option value="vi">Tiếng Việt</option>
+          <option value="en">English</option>
+        </NativeSelect>
+      </label>
+      </>
+      }
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[680px] text-xs">
@@ -150,17 +155,11 @@ export default function MyNotificationsPage() {
                   </TableCell>
                 </TableRow>
               ))}
-            {prefs?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                  No notices reach you yet.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus colSpan={5} rows={prefs} error={!!error} empty={<EmptyState compact title="No notices reach you yet" />} />
           </TableBody>
         </Table>
       </Card>
-      <p className="text-[11px] text-muted-foreground">Changes apply to the next notice and are recorded in the audit log.</p>
-    </div>
+      <p className="text-xs text-muted-foreground">Changes apply to the next notice and are recorded in the audit log.</p>
+    </Page>
   );
 }

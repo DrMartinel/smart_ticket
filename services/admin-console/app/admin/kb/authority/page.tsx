@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // The authority queue (F6 · Authority queue 13-1049): pages a manager must grant, re-grant or
 // re-tier. A grant pins the text the manager read (BR-F6-05); high-risk pages go one at a time.
 
@@ -38,7 +41,7 @@ export default function AuthorityQueuePage() {
         setItems(r);
         setSelected(new Set());
       })
-      .catch(() => setError("Không tải được hàng chờ."));
+      .catch(() => setError("Couldn't load the authority queue."));
   }, []);
 
   useEffect(() => {
@@ -51,7 +54,7 @@ export default function AuthorityQueuePage() {
     setError(null);
     setNotice(null);
     if (!read || !reason.trim()) {
-      setError("Xác nhận đã đọc nội dung và ghi lý do.");
+      setError("Confirm you've read the text, and give a reason.");
       return;
     }
     try {
@@ -62,14 +65,14 @@ export default function AuthorityQueuePage() {
       setOpen(null);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? `${err.code ?? err.status}: ${err.message}` : "Thao tác thất bại.");
+      setError(err instanceof ApiError ? `${err.message}${err.code ? ` (${err.code})` : ""}` : "That didn't go through. Try again.");
     }
   };
 
   const grant = (slug: string, allowed: boolean) =>
-    run(() => api.post(`/api/kb/${slug}/auto-reply-allowed`, { allowed, reason: reason.trim() }), allowed ? "Đã cấp quyền." : "Đã giữ không cấp quyền.");
+    run(() => api.post(`/api/kb/${slug}/auto-reply-allowed`, { allowed, reason: reason.trim() }), allowed ? "Auto-reply allowed." : "Kept without auto-reply.");
   const retier = (slug: string) =>
-    run(() => api.post(`/api/kb/${slug}/risk-tier`, { risk_tier: tier, reason: reason.trim() }), "Đã đổi mức rủi ro.");
+    run(() => api.post(`/api/kb/${slug}/risk-tier`, { risk_tier: tier, reason: reason.trim() }), "Risk tier changed.");
   const bulk = () =>
     run(async () => {
       const r = await api.post<BulkAllowedOut>("/api/kb/auto-reply-allowed/bulk", {
@@ -78,7 +81,7 @@ export default function AuthorityQueuePage() {
         reason: reason.trim(),
       });
       return r;
-    }, `Đã cấp quyền ${selected.size} trang.`);
+    }, `Auto-reply allowed on ${selected.size} pages.`);
 
   const toggle = (slug: string) => {
     const next = new Set(selected);
@@ -91,26 +94,25 @@ export default function AuthorityQueuePage() {
     <>
       <label className="flex items-center gap-2 text-sm">
         <Checkbox checked={read} onCheckedChange={(checked) => setRead(checked === true)} />
-        Tôi đã đọc nội dung này · I have read this text
+        I have read this text
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-xs text-muted-foreground">Lý do (mỗi trang một dòng nhật ký) · Reason</span>
+        <span className="text-xs text-muted-foreground">Reason</span>
         <Input value={reason} onChange={(e) => setReason(e.target.value)} />
       </label>
     </>
   );
 
   return (
-    <div className="mx-auto max-w-[1180px]">
+    <Page className="flex flex-col gap-4">
       <SectionTabs />
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Hàng chờ quyền · Authority queue</h1>
-          <p className="text-xs text-muted-foreground">
-            Trang chờ quyền trả lời tự động. Khi cấp, SHA-256 của nội dung bạn đã đọc được ghi lại (BR-F6-05).
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Help pages"
+        vi="Hàng chờ quyền"
+        title="Authority queue"
+        description={<>Pages waiting for a decision on automatic answers. When you allow one, the SHA-256 of the text you read is recorded, so any later edit revokes it.</>}
+      />
 
       {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
       {notice && <Alert variant="ok" className="mb-3 text-sm"><AlertDescription>{notice}</AlertDescription></Alert>}
@@ -164,7 +166,7 @@ export default function AuthorityQueuePage() {
                           setTier(i.proposed_risk_tier ?? i.article.risk_tier);
                         }}
                       >
-                        {high ? "Duyệt riêng" : "Xem nội dung"}
+                        {high ? "Review alone" : "Read the text"}
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -173,8 +175,8 @@ export default function AuthorityQueuePage() {
                       <TableCell colSpan={6} className="px-4 py-4">
                         <div className="flex flex-col gap-3">
                           {i.change_note && <p className="text-sm">Ghi chú: {i.change_note}</p>}
-                          {i.published_by && <p className="text-xs text-muted-foreground">Xuất bản bởi {i.published_by}</p>}
-                          <div className="text-xs text-muted-foreground">Thay đổi so với nội dung trước</div>
+                          {i.published_by && <p className="text-xs text-muted-foreground">Published by {i.published_by}</p>}
+                          <div className="text-xs text-muted-foreground">Changes from the previous text</div>
                           <DiffLines lines={[...i.title_diff, ...i.body_diff]} />
                           {confirmBox}
                           <div className="flex flex-wrap items-end justify-end gap-2">
@@ -184,13 +186,13 @@ export default function AuthorityQueuePage() {
                               ))}
                             </NativeSelect>
                             <Button variant="outline" disabled={tier === i.article.risk_tier} onClick={() => void retier(slug)}>
-                              Đổi mức rủi ro
+                              Change risk tier
                             </Button>
                             <Button variant="outline" onClick={() => void grant(slug, false)}>
-                              Không cấp
+                              Don't allow
                             </Button>
                             <Button disabled={i.article.risk_tier !== tier} onClick={() => void grant(slug, true)}>
-                              Cấp quyền trả lời tự động
+                              Allow automatic answers
                             </Button>
                           </div>
                         </div>
@@ -200,13 +202,7 @@ export default function AuthorityQueuePage() {
                 </Fragment>
               );
             })}
-            {items?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  Không có trang nào chờ quyết định.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus colSpan={6} rows={items} error={!!error} empty={<EmptyState compact title="No pages are waiting for a decision" />} />
           </TableBody>
         </Table>
       </Card>
@@ -214,20 +210,20 @@ export default function AuthorityQueuePage() {
       {selected.size > 0 && open === null && (
         <Card asChild>
           <section className="mt-4 flex flex-col gap-3 p-5">
-            <h2 className="text-sm font-medium">Duyệt {selected.size} trang</h2>
+            <h2 className="text-sm font-medium">Approve {selected.size} pages</h2>
             {confirmBox}
             <p className="text-xs text-danger">
-              Trang rủi ro cao luôn được duyệt riêng; một yêu cầu hàng loạt có trang rủi ro cao bị từ chối và không trang nào
-              được duyệt (BR-F6-06, ADR-0027).
+              High-risk pages are always reviewed one at a time; a bulk request that includes one is refused and no page
+              is approved.
             </p>
             <div className="flex justify-end">
               <Button onClick={() => void bulk()}>
-                Duyệt các trang đã chọn ({selected.size})
+                Approve selected pages ({selected.size})
               </Button>
             </div>
           </section>
         </Card>
       )}
-    </div>
+    </Page>
   );
 }

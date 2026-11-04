@@ -1,5 +1,11 @@
 "use client";
 
+import { Inbox } from "lucide-react";
+import { TabNav } from "@/components/TabNav";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
+import { useToast } from "@/components/ui/toast";
+
 // The team queue (F2 · Team queue 9-237): unowned tickets first, then the earliest due.
 
 import Link from "next/link";
@@ -31,7 +37,7 @@ export default function TeamQueuePage() {
   const [unassigned, setUnassigned] = useState(false);
   const [page, setPage] = useState<Page | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     setError(null);
@@ -50,15 +56,14 @@ export default function TeamQueuePage() {
   if (!user) return null;
 
   const take = async (row: StaffTicketRow) => {
-    setNotice(null);
     try {
       await api.post(`/api/tickets/${encodeURIComponent(row.public_id)}/take`, { expected_version: row.version });
-      setNotice(`You have ${row.public_id}.`);
+      toast.success(`${row.public_id} is yours.`, { label: "Open", onClick: () => router.push(`/tickets/${row.public_id}`) });
     } catch (err) {
-      setNotice(
+      toast.error(
         err instanceof ApiError && err.code === "already_assigned"
-          ? `Đã có người nhận · Someone took ${row.public_id} a moment ago.`
-          : `Couldn't take ${row.public_id}.`,
+          ? `Someone took ${row.public_id} a moment ago.`
+          : `Couldn't take ${row.public_id}. Try again.`,
       );
     }
     await load();
@@ -67,28 +72,31 @@ export default function TeamQueuePage() {
   const team = teams.find((t) => t.slug === slug);
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">{team?.name ?? slug} team queue</h1>
-          <p className="text-xs text-muted-foreground">
-            Unassigned first, then earliest SLA due. Members take tickets; the lead assigns and reassigns.{" "}
-            <Link href={`/teams/${slug}/workload`} className="text-primary hover:underline">
-              Workload
-            </Link>
-          </p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <TeamPicker teams={teams} value={slug} onChange={(next) => router.push(`/teams/${next}`)} />
-          <label className="flex items-center gap-2 pb-2 text-sm">
-            <Checkbox checked={unassigned} onCheckedChange={(checked) => setUnassigned(checked === true)} />
-            Unassigned only
-          </label>
-        </div>
-      </header>
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-0"
+        eyebrow="Workspace / Teams"
+        title={`${team?.name ?? slug} queue`}
+        description="Unassigned first, then earliest SLA due. Members take tickets; the lead assigns and reassigns."
+        actions={
+          <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto">
+            <TeamPicker teams={teams} value={slug} onChange={(next) => router.push(`/teams/${next}`)} />
+            <label className="flex min-h-9 items-center gap-2 text-sm">
+              <Checkbox checked={unassigned} onCheckedChange={(checked) => setUnassigned(checked === true)} />
+              Unassigned only
+            </label>
+          </div>
+        }
+      />
+      <TabNav
+        className="mb-1"
+        tabs={[
+          { href: `/teams/${slug}`, label: "Queue", active: true },
+          { href: `/teams/${slug}/workload`, label: "Workload", active: false },
+        ]}
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
-      {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
+      {error && <ErrorState title={error} onRetry={error.startsWith("Couldn't") ? () => void load() : undefined} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[820px]">
@@ -105,8 +113,8 @@ export default function TeamQueuePage() {
           </TableHeader>
           <TableBody>
             {page?.items.map((row) => (
-              <TableRow key={row.public_id} className={`${row.assignee ? "" : "bg-muted"}`}>
-                <TableCell className="whitespace-nowrap font-mono text-xs">
+              <TableRow key={row.public_id}>
+                <TableCell className="num whitespace-nowrap text-xs">
                   <Link href={`/tickets/${row.public_id}`} className="hover:underline">
                     {row.public_id}
                   </Link>
@@ -124,25 +132,28 @@ export default function TeamQueuePage() {
                 </TableCell>
                 <TableCell className="text-right">
                   {!row.assignee ? (
-                    <Button onClick={() => void take(row)}>
+                    <Button size="sm" onClick={() => void take(row)} aria-label={`Take ${row.public_id}`}>
                       Take
                     </Button>
                   ) : (
-                    "—"
+                    <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
               </TableRow>
             ))}
-            {page && page.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
-                  Nothing in this queue.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus
+              colSpan={7}
+              rows={page?.items}
+              error={!!error}
+              empty={
+                <EmptyState compact icon={Inbox} title={unassigned ? "No unassigned tickets" : "This queue is empty"}>
+                  {unassigned ? "Every open ticket in this team has an owner." : "New tickets in this team's categories land here."}
+                </EmptyState>
+              }
+            />
           </TableBody>
         </Table>
       </Card>
-    </div>
+    </Page>
   );
 }

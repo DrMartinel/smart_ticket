@@ -12,8 +12,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 
 const REASONS: { code: string; label: string }[] = [
-  { code: "verify_identity", label: "verify_identity — Đối chiếu danh tính" },
-  { code: "contact_requester", label: "contact_requester — Liên hệ người yêu cầu" },
+  { code: "verify_identity", label: "Verify the requester's identity" },
+  { code: "contact_requester", label: "Contact the requester" },
   { code: "security_investigation", label: "security_investigation" },
   { code: "legal_request", label: "legal_request" },
 ];

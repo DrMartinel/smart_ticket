@@ -70,9 +70,9 @@ function useTeams(user: CurrentUser): string[] {
 function TeamPicker({ user, value, onChange, allowAll }: { user: CurrentUser; value: string; onChange: (v: string) => void; allowAll: boolean }) {
   const teams = useTeams(user);
   return (
-    <Field label="Nhóm · Team">
+    <Field label="Team">
       <NativeSelect wrapperClassName="w-40" value={value} onChange={(e) => onChange(e.target.value)}>
-        {allowAll && <option value="">tất cả · all</option>}
+        {allowAll && <option value="">all</option>}
         {teams.map((t) => (
           <option key={t}>{t}</option>
         ))}
@@ -89,7 +89,7 @@ function Cells({ title, cells, onPick }: { title: string; cells: SlaCellOut[]; o
       <section className="mb-4 p-4">
         <h2 className="mb-3 text-sm font-medium">{title}</h2>
         {cells.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Không có đồng hồ nào dừng trong tháng.</p>
+          <p className="text-xs text-muted-foreground">No clock stopped this month.</p>
         ) : (
           <div className="flex flex-col gap-2">
             {cells.map((c) => (
@@ -121,7 +121,7 @@ export function SlaReport({ user }: { user: CurrentUser }) {
   const tickets = useReport<SlaTicketPageOut>(drill ? `/api/reports/sla/tickets${query({ month, team, ...drill })}` : null);
   return (
     <>
-      <Header title="Tuân thủ SLA · SLA compliance" note="Đồng hồ dừng trong kỳ: đạt ÷ (đạt + trễ), theo giờ làm việc (BR-F10-01).">
+      <Header title="SLA compliance" note="Clocks that stopped in the period: met ÷ (met + late), in business hours.">
         <MonthPicker value={month} onChange={setMonth} />
         <TeamPicker user={user} value={team} onChange={setTeam} allowAll={user.role === "manager" || (user.teams ?? []).filter((t) => t.role === "lead").length > 1} />
         <ExportButton path={`/api/reports/sla.csv${q}`} filename={`sla-${month}.csv`} />
@@ -130,32 +130,32 @@ export function SlaReport({ user }: { user: CurrentUser }) {
       {data && (
         <>
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <Stat label="SLA giải quyết · Resolution" value={percent(data.resolution.compliance)} note={`đạt ${ratio(data.resolution)} · mục tiêu 90 %`} />
-            <Stat label="SLA phản hồi · Response" value={percent(data.response.compliance)} note={`đạt ${ratio(data.response)}`} />
-            <Stat label="Đang trễ · Breached now" value={String(data.open_overdue_now)} note="đang chạy quá hạn" tone={data.open_overdue_now ? "danger" : undefined} />
+            <Stat label="Resolution" value={percent(data.resolution.compliance)} note={`met ${ratio(data.resolution)} · target 90%`} />
+            <Stat label="Response" value={percent(data.response.compliance)} note={`met ${ratio(data.response)}`} />
+            <Stat label="Breached now" value={String(data.open_overdue_now)} note="running past due" tone={data.open_overdue_now ? "danger" : undefined} />
             <Stat
-              label="Loại trừ · Excluded"
+              label="Excluded"
               value={String(data.excluded.linked_incident + data.excluded.no_sla_data)}
-              note={`${data.excluded.no_sla_data} không có dữ liệu SLA (BR-F10-03) · ${data.excluded.linked_incident} gắn sự cố`}
+              note={`${data.excluded.no_sla_data} without SLA data · ${data.excluded.linked_incident} linked to an incident`}
             />
           </div>
           <p className="mb-4 text-xs text-muted-foreground">
-            Trễ được cảnh báo kịp (K3): {percent(data.breaches_warned_in_time.rate)} ({data.breaches_warned_in_time.warned}/
+            Breaches warned in time: {percent(data.breaches_warned_in_time.rate)} ({data.breaches_warned_in_time.warned}/
             {data.breaches_warned_in_time.breached})
           </p>
-          <Cells title="SLA giải quyết theo ưu tiên · by priority" cells={data.by_priority} onPick={(k) => setDrill({ priority: k })} />
-          <Cells title="Theo nhóm · by team" cells={data.by_team} onPick={(k) => setDrill({ team: k })} />
-          <Cells title="Theo loại · by category" cells={data.by_category} onPick={(k) => setDrill({ category: k })} />
+          <Cells title="by priority" cells={data.by_priority} onPick={(k) => setDrill({ priority: k })} />
+          <Cells title="by team" cells={data.by_team} onPick={(k) => setDrill({ team: k })} />
+          <Cells title="by category" cells={data.by_category} onPick={(k) => setDrill({ category: k })} />
           <div className="mb-2 flex gap-3 text-xs">
             <Button variant="link" size="inline"  onClick={() => setDrill({ state: "breached" })}>
-              Xem phiếu trễ · breached tickets
+              breached tickets
             </Button>
             <Button variant="link" size="inline"  onClick={() => setDrill({ state: "excluded" })}>
-              Xem phiếu bị loại · excluded tickets
+              excluded tickets
             </Button>
           </div>
           {drill && tickets.data && (
-            <ReportTable head={["Phiếu · Ticket", "Nhóm", "Ưu tiên", "Trạng thái", "Dừng lúc"]}>
+            <ReportTable head={["Ticket", "Team", "Priority", "State", "Stopped at"]}>
               {tickets.data.items.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell>
@@ -166,14 +166,14 @@ export function SlaReport({ user }: { user: CurrentUser }) {
                   </TableCell>
                   <TableCell>{t.team ?? "—"}</TableCell>
                   <TableCell>{t.priority ?? "—"}</TableCell>
-                  <TableCell>{t.linked_incident ? "sự cố" : t.state}</TableCell>
+                  <TableCell>{t.linked_incident ? "incident" : t.state}</TableCell>
                   <TableCell>{t.met_at ? new Date(t.met_at).toLocaleString("vi-VN") : "—"}</TableCell>
                 </TableRow>
               ))}
             </ReportTable>
           )}
           <p className="mt-4 text-xs text-muted-foreground">
-            Phiếu gắn sự cố ({data.excluded.linked_incident}) được báo cáo ở tab Sự cố, không tính ở đây (BR-F10-04).
+            Tickets linked to an incident ({data.excluded.linked_incident}) are reported on the Incidents tab, not counted here.
           </p>
         </>
       )}
@@ -192,8 +192,8 @@ export function TeamsReport({ user }: { user: CurrentUser }) {
   const { data, error } = useReport<TeamReportOut>(slug ? `/api/reports/teams/${slug}` : null);
   return (
     <>
-      <Header title="Khối lượng nhóm · Team workload" note="Phiếu đang mở theo tuổi (ngày làm việc), thời gian giao việc (K4), chuyển nhóm (K5).">
-        <Field label="Nhóm · Team">
+      <Header title="Team workload" note="Open tickets by age (business days), time to assign, and moves between teams.">
+        <Field label="Team">
           <NativeSelect wrapperClassName="w-40" value={slug} onChange={(e) => setTeam(e.target.value)}>
             {choices.map((t) => (
               <option key={t}>{t}</option>
@@ -206,17 +206,17 @@ export function TeamsReport({ user }: { user: CurrentUser }) {
       {data && (
         <>
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <Stat label="Chưa giao · Unassigned now" value={String(data.unassigned_now)} />
-            <Stat label="Giao việc (trung vị) · Time to assign" value={`${num(data.time_to_assign_median_min, 0)} phút`} note={`p90 ${num(data.time_to_assign_p90_min, 0)} phút`} />
-            <Stat label="Tỷ lệ chuyển nhóm · Reassignment" value={percent(data.reassignment_rate)} note={`${data.tickets_reassigned_cross_team}/${data.tickets_assigned} phiếu`} />
-            <Stat label="Kỳ · Period" value={`${data.start.slice(5)} → ${data.end.slice(5)}`} />
+            <Stat label="Unassigned now" value={String(data.unassigned_now)} />
+            <Stat label="Time to assign" value={`${num(data.time_to_assign_median_min, 0)} phút`} note={`p90 ${num(data.time_to_assign_p90_min, 0)} phút`} />
+            <Stat label="Reassignment" value={percent(data.reassignment_rate)} note={`${data.tickets_reassigned_cross_team}/${data.tickets_assigned} tickets`} />
+            <Stat label="Period" value={`${data.start.slice(5)} → ${data.end.slice(5)}`} />
           </div>
           {data.members.length === 0 && (
             <Card className="mb-3">
-              <Empty>Nhóm chưa có thành viên.</Empty>
+              <Empty>This team has no members yet.</Empty>
             </Card>
           )}
-          <ReportTable head={["Thành viên", "Đang mở", "0–1 ngày", "1–3", "3–5", "> 5", "Đã giải quyết", "Giao (trung vị)", "Nhận / chuyển đi"]}>
+          <ReportTable head={["Member", "Open", "0–1 days", "1–3", "3–5", "> 5", "Resolved", "Time to assign (median)", "In / out"]}>
             {data.members.map((m) => (
               <TableRow key={m.username}>
                 <TableCell>
@@ -250,8 +250,8 @@ export function ReviewersReport() {
   const { data, error } = useReport<ReviewerReportOut>(`/api/reports/reviewers?days=${days}`);
   return (
     <>
-      <Header title="Người duyệt · Reviewers" note="Đánh dấu khi tỷ lệ duyệt cao và thời gian đọc ngắn, chỉ khi đủ số quyết định (BR-F10-06).">
-        <Field label="Số ngày · Days">
+      <Header title="Reviewers" note="Flagged when the approval rate is high and reading time short, once there are enough decisions to tell.">
+        <Field label="Days">
           <NativeSelect wrapperClassName="w-28" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[7, 30, 90].map((d) => (
               <option key={d}>{d}</option>
@@ -264,10 +264,10 @@ export function ReviewersReport() {
       {data && (
         <>
           <p className="mb-3 text-xs text-muted-foreground">
-            Đánh dấu: ≥ {data.min_decisions_for_flag} quyết định, tỷ lệ duyệt &gt; {percent(data.approve_rate_max)} và trung vị &lt;{" "}
+            Flagged at ≥ {data.min_decisions_for_flag} decisions, approval rate &gt; {percent(data.approve_rate_max)} and median &lt;{" "}
             {data.median_time_min_sec} s.
           </p>
-          <ReportTable head={["Người duyệt", "Quyết định", "Tỷ lệ duyệt", "Kỳ trước", "Trung vị", ""]}>
+          <ReportTable head={["Reviewer", "Decisions", "Approval rate", "Previous period", "Median", ""]}>
             {data.rows.map((r) => (
               <TableRow key={r.username}>
                 <TableCell>{r.username}</TableCell>
@@ -276,7 +276,7 @@ export function ReviewersReport() {
                 <TableCell>{percent(r.previous_approve_rate)}</TableCell>
                 <TableCell>{duration(r.median_seconds)}</TableCell>
                 <TableCell className="text-xs text-warn">
-                  {r.flagged ? "⚠ có thể duyệt theo phản xạ" : r.decisions < data.min_decisions_for_flag ? "chưa đủ mẫu" : ""}
+                  {r.flagged ? "May be approving by reflex" : r.decisions < data.min_decisions_for_flag ? "Not enough decisions yet" : ""}
                 </TableCell>
               </TableRow>
             ))}
@@ -293,20 +293,20 @@ export function KbReport() {
   const { data, error } = useReport<KbReportOut>("/api/reports/kb");
   return (
     <>
-      <Header title="Sức khoẻ KB · KB health" note="Tỷ lệ từ chối theo tuần, chủ đề thiếu đang mở, và mức đóng khoảng trống sau khi xuất bản trang (BR-F10-07).">
+      <Header title="KB health" note="Weekly refusal rate, open gap topics, and how much a gap closed after its page was published.">
         <ExportButton path="/api/reports/kb.csv" filename="kb.csv" />
       </Header>
       <Failed error={error} />
       {data && (
         <>
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <Stat label="Chủ đề thiếu đang mở · Open gaps" value={String(data.open_clusters)} note={Object.entries(data.open_by_label).map(([k, v]) => `${k} ${v}`).join(" · ") || "—"} />
-            <Stat label="Từ chối tuần này · Refused this week" value={percent(data.refusals.at(-1)?.refusal_rate ?? null)} />
-            <Stat label="Trang đã đóng khoảng trống · Closures" value={String(data.closures.length)} />
+            <Stat label="Open gaps" value={String(data.open_clusters)} note={Object.entries(data.open_by_label).map(([k, v]) => `${k} ${v}`).join(" · ") || "—"} />
+            <Stat label="Refused this week" value={percent(data.refusals.at(-1)?.refusal_rate ?? null)} />
+            <Stat label="Closures" value={String(data.closures.length)} />
           </div>
           <Card asChild>
             <section className="mb-4 p-4">
-              <h2 className="mb-3 text-sm font-medium">Tỷ lệ từ chối theo tuần · Weekly refusal rate</h2>
+              <h2 className="mb-3 text-sm font-medium">Weekly refusal rate</h2>
               <div className="flex flex-col gap-2">
                 {data.refusals.map((w) => (
                   <div key={w.week_start} className="grid grid-cols-[100px_minmax(0,1fr)_140px] items-center gap-3 text-sm">
@@ -322,17 +322,17 @@ export function KbReport() {
           </Card>
           {data.closures.length === 0 ? (
             <Card>
-              <Empty>Chưa có trang nào được viết từ một chủ đề thiếu.</Empty>
+              <Empty>No page has been written from a gap topic yet.</Empty>
             </Card>
           ) : (
-            <ReportTable head={["Trang · Page", "Trước", "Sau", "Đóng", ""]}>
+            <ReportTable head={["Page", "Before", "After", "Closed", ""]}>
               {data.closures.map((c) => (
                 <TableRow key={c.cluster_id}>
                   <TableCell className="font-mono">{c.article_slug ?? c.cluster_id}</TableCell>
                   <TableCell>{c.before}</TableCell>
                   <TableCell>{c.after}</TableCell>
                   <TableCell>{percent(c.closure, 0)}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{c.complete ? "" : "chưa đủ 4 tuần"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground">{c.complete ? "" : "less than 4 weeks"}</TableCell>
                 </TableRow>
               ))}
             </ReportTable>
@@ -349,27 +349,27 @@ export function KbReport() {
 function GraphHealth({ graph }: { graph: GraphHealthOut }) {
   return (
     <section className="mt-6">
-      <h2 className="mb-1 text-sm font-medium">Đồ thị liên kết · Graph health</h2>
+      <h2 className="mb-1 text-sm font-medium">Graph health</h2>
       <p className="mb-3 text-xs text-muted-foreground">
-        Các liên kết mở rộng tìm kiếm theo; điểm không bao giờ quyết định trả lời tự động (BR-F11-04).
+        The links search follows; scores never decide an automatic answer.
       </p>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <Stat
-          label="Trang có liên kết · Pages with edges"
+          label="Pages with edges"
           value={`${graph.pages_with_edges} / ${graph.pages}`}
-          note={`${graph.edges} liên kết`}
+          note={`${graph.edges} links`}
         />
         <Stat
-          label="Liên kết cũ · Stale edges"
+          label="Stale edges"
           value={String(graph.stale_edges)}
           tone={graph.stale_edges > 0 ? "warn" : undefined}
-          note={`${graph.pending_requests} trang chờ dựng lại · ${graph.failed_requests} lỗi`}
+          note={`${graph.pending_requests} pages waiting to rebuild · ${graph.failed_requests} failed`}
         />
-        <Stat label="Điều chỉnh · Overrides" value={String(graph.hidden + graph.added)} note={`${graph.hidden} ẩn · ${graph.added} thêm`} />
+        <Stat label="Overrides" value={String(graph.hidden + graph.added)} note={`${graph.hidden} hidden · ${graph.added} added`} />
         <Stat
-          label="Trả lời tự động từ mở rộng · From expansion"
+          label="From expansion"
           value={percent(graph.expansion_share)}
-          note={`${graph.auto_replies_from_expansion}/${graph.auto_replies} trả lời tự động trong kỳ`}
+          note={`${graph.auto_replies_from_expansion}/${graph.auto_replies} automatic answers in the period`}
         />
       </div>
     </section>
@@ -386,7 +386,7 @@ function CsatCard({ title, line }: { title: string; line: CsatLineOut }) {
         <h2 className="text-sm font-medium">{title}</h2>
         <p className="mt-1 text-2xl font-semibold tabular-nums">{num(line.mean, 2)}</p>
         <p className="text-xs text-muted-foreground">
-          {line.ratings} đánh giá · tỷ lệ phản hồi {percent(line.response_rate)} ({line.ratings}/{line.resolved})
+          {line.ratings} ratings · response rate {percent(line.response_rate)} ({line.ratings}/{line.resolved})
         </p>
         <div className="mt-3 flex flex-col gap-1">
           {["5", "4", "3", "2", "1"].map((s) => (
@@ -409,7 +409,7 @@ export function CsatReport({ user }: { user: CurrentUser }) {
   const { data, error } = useReport<CsatReportOut>(`/api/reports/csat${q}`);
   return (
     <>
-      <Header title="Mức hài lòng · CSAT" note="Trả lời tự động và nhân viên xử lý là hai dịch vụ khác nhau: luôn báo cáo riêng (BR-F10-08).">
+      <Header title="CSAT" note="Automatic answers and staff-handled tickets are different services, so they are always reported separately.">
         <MonthPicker value={month} onChange={setMonth} />
         <TeamPicker user={user} value={team} onChange={setTeam} allowAll />
         <ExportButton path={`/api/reports/csat.csv${q}`} filename={`csat-${month}.csv`} />
@@ -418,12 +418,12 @@ export function CsatReport({ user }: { user: CurrentUser }) {
       {data && (
         <>
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <CsatCard title="Nhân viên xử lý · Handled by a person" line={data.person} />
-            <CsatCard title="Trả lời tự động · Auto-replied" line={data.auto} />
+            <CsatCard title="Handled by a person" line={data.person} />
+            <CsatCard title="Auto-replied" line={data.auto} />
           </div>
           {data.by_team.length > 0 && (
             <div className="mb-4">
-              <ReportTable head={["Nhóm", "Nhân viên", "Tự động", "Đánh giá"]}>
+              <ReportTable head={["Team", "Staff", "Automatic", "Ratings"]}>
                 {data.by_team.map((t) => (
                   <TableRow key={t.team}>
                     <TableCell>{t.team}</TableCell>
@@ -437,9 +437,9 @@ export function CsatReport({ user }: { user: CurrentUser }) {
           )}
           <Card asChild>
             <section className="p-4">
-              <h2 className="mb-2 text-sm font-medium">Đánh giá thấp · Low ratings (đã che PII)</h2>
+              <h2 className="mb-2 text-sm font-medium">Low ratings (personal data masked)</h2>
               {data.low_rated.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Không có.</p>
+                <p className="text-xs text-muted-foreground">None.</p>
               ) : (
                 <ul className="flex flex-col gap-2 text-sm">
                   {data.low_rated.map((r) => (
@@ -464,17 +464,17 @@ export function RolloutReport() {
   const { data, error } = useReport<RolloutReportOut>("/api/reports/rollout");
   return (
     <>
-      <Header title="Sẵn sàng triển khai · Rollout readiness" note="Cùng số liệu mà cổng F9 đọc (BR-F10-10).">
+      <Header title="Rollout readiness" note="The same figures the rollout gates read.">
         <ExportButton path="/api/reports/rollout.csv" filename="rollout.csv" />
       </Header>
       <Failed error={error} />
       {data && (
         <>
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Stat label="Tự động hoá (thực tế) · Automation live" value={percent(data.automation.live_rate)} note="đã thực hiện · không phải mục tiêu (BR-F10-09)" />
-            <Stat label="Tự động hoá (nếu bật) · would-have" value={percent(data.automation.would_have_rate)} note="gồm quyết định shadow · không phải mục tiêu" />
+            <Stat label="Automation live" value={percent(data.automation.live_rate)} note="not a target" />
+            <Stat label="would-have" value={percent(data.automation.would_have_rate)} note="not a target" />
           </div>
-          <ReportTable head={["Nhánh · Branch", "Đang bật", "Đồng thuận", "Đã duyệt", "Phủ", "Cổng đạt"]}>
+          <ReportTable head={["Branch", "Live", "Agreement", "Reviewed", "Coverage", "Gates met"]}>
             {data.branches.map((b) => (
               <TableRow key={b.branch}>
                 <TableCell className="font-mono">{b.branch}</TableCell>
@@ -490,7 +490,7 @@ export function RolloutReport() {
               </TableRow>
             ))}
           </ReportTable>
-          <p className="mt-3 text-xs text-muted-foreground">{data.days} ngày gần nhất.</p>
+          <p className="mt-3 text-xs text-muted-foreground">Last {data.days} days.</p>
         </>
       )}
     </>
@@ -504,7 +504,7 @@ export function SecurityReport() {
   const { data, error } = useReport<SecurityReportOut>(`/api/reports/security?month=${month}`);
   return (
     <>
-      <Header title="Bảo mật · Security" note="Quản lý chỉ thấy số đếm theo loại; chi tiết chỉ dành cho security (BR-F8-01).">
+      <Header title="Security" note="Managers see counts by kind only; the alerts themselves are for security.">
         <MonthPicker value={month} onChange={setMonth} />
         <ExportButton path={`/api/reports/security.csv?month=${month}`} filename={`security-${month}.csv`} />
       </Header>
@@ -512,16 +512,16 @@ export function SecurityReport() {
       {data && (
         <>
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <Stat label="Cảnh báo · Alerts" value={String(data.total)} />
+            <Stat label="Alerts" value={String(data.total)} />
             {data.detail && (
               <>
-                <Stat label="Xác nhận p50 · Ack p50" value={duration(data.ack_p50_sec)} note={`p90 ${duration(data.ack_p90_sec)}`} />
-                <Stat label="Xác nhận đúng hạn · Ack in target (K12)" value={`${data.ack_in_target ?? 0}/${data.acknowledged ?? 0}`} />
-                <Stat label="Báo nhầm · False positive" value={percent(data.false_positive_rate)} note={`${data.false_positive ?? 0}/${data.closed ?? 0} đã đóng`} />
+                <Stat label="Ack p50" value={duration(data.ack_p50_sec)} note={`p90 ${duration(data.ack_p90_sec)}`} />
+                <Stat label="Ack in target (K12)" value={`${data.ack_in_target ?? 0}/${data.acknowledged ?? 0}`} />
+                <Stat label="False positive" value={percent(data.false_positive_rate)} note={`${data.false_positive ?? 0}/${data.closed ?? 0} closed`} />
               </>
             )}
           </div>
-          <ReportTable head={["Loại · Kind", "Số lượng", "Đang mở"]}>
+          <ReportTable head={["Kind", "Count", "Open"]}>
             {data.by_kind.map((k) => (
               <TableRow key={k.kind}>
                 <TableCell className="font-mono">{k.kind}</TableCell>
@@ -543,18 +543,18 @@ export function IncidentsReport() {
   const { data, error } = useReport<IncidentReportOut>(`/api/reports/incidents?month=${month}`);
   return (
     <>
-      <Header title="Sự cố diện rộng · Incidents" note="Thời gian xác nhận, đến thông báo đầu tiên (K13), và tỷ lệ gỡ liên kết (độ chính xác của bộ phát hiện).">
+      <Header title="Incidents" note="Time to confirm, time to the first broadcast, and the unlink rate (how precise the detector is).">
         <MonthPicker value={month} onChange={setMonth} />
         <ExportButton path={`/api/reports/incidents.csv?month=${month}`} filename={`incidents-${month}.csv`} />
       </Header>
       <Failed error={error} />
       {data && (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          <Stat label="Phát hiện · Detected" value={String(data.detected)} note={`${data.confirmed} xác nhận · ${data.dismissed} bỏ qua`} />
-          <Stat label="Phiếu gắn sự cố · Linked tickets" value={String(data.linked_tickets)} />
-          <Stat label="Xác nhận (trung vị) · Time to confirm" value={duration(data.confirm_p50_sec)} />
-          <Stat label="Đến thông báo đầu · First broadcast" value={duration(data.first_broadcast_p50_sec)} note={`p90 ${duration(data.first_broadcast_p90_sec)} · mục tiêu ≤ 15 phút`} />
-          <Stat label="Tỷ lệ gỡ liên kết · Unlink rate" value={percent(data.unlink_rate)} note={`${data.links_unlinked}/${data.links_created} liên kết`} />
+          <Stat label="Detected" value={String(data.detected)} note={`${data.confirmed} confirmed · ${data.dismissed} dismissed`} />
+          <Stat label="Linked tickets" value={String(data.linked_tickets)} />
+          <Stat label="Time to confirm" value={duration(data.confirm_p50_sec)} />
+          <Stat label="First broadcast" value={duration(data.first_broadcast_p50_sec)} note={`p90 ${duration(data.first_broadcast_p90_sec)} · target ≤ 15 min`} />
+          <Stat label="Unlink rate" value={percent(data.unlink_rate)} note={`${data.links_unlinked}/${data.links_created} links`} />
         </div>
       )}
     </>
@@ -568,8 +568,8 @@ export function NotificationsReport() {
   const { data, error } = useReport<NotificationReportOut>(`/api/reports/notifications?days=${days}`);
   return (
     <>
-      <Header title="Thông báo · Notifications" note="Độ trễ p95 từ khi tạo đến khi gửi, và số lần thất bại theo kênh (K8).">
-        <Field label="Số ngày · Days">
+      <Header title="Notifications" note="p95 delay from creation to sending, and failures by channel.">
+        <Field label="Days">
           <NativeSelect wrapperClassName="w-28" value={days} onChange={(e) => setDays(Number(e.target.value))}>
             {[1, 7, 30].map((d) => (
               <option key={d}>{d}</option>
@@ -580,7 +580,7 @@ export function NotificationsReport() {
       </Header>
       <Failed error={error} />
       {data && (
-        <ReportTable head={["Kênh · Channel", "Tin", "Đã gửi", "Thất bại", "Độ trễ p95"]}>
+        <ReportTable head={["Channel", "Messages", "Sent", "Failed", "p95 delay"]}>
           {data.channels.map((c) => (
             <TableRow key={c.channel}>
               <TableCell className="font-mono">{c.channel}</TableCell>

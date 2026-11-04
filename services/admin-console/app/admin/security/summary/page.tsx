@@ -1,5 +1,9 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
+
 // Security alert counts for managers (F8 BR-F8-01, FR-F8-009): kinds and states, no tickets or people.
 
 import { useEffect, useState } from "react";
@@ -25,12 +29,14 @@ export default function SecuritySummaryPage() {
   const count = (kind: string, state: string) => summary?.cells.find((c) => c.kind === kind && c.state === state)?.count ?? 0;
 
   return (
-    <div className="mx-auto flex max-w-[900px] flex-col gap-4">
-      <header>
-        <h1 className="text-xl font-semibold">Security alerts · last {summary?.days ?? 30} days</h1>
-        <p className="text-xs text-muted-foreground">Counts only: the alerts themselves are for security (BR-F8-01).</p>
-      </header>
-      {error && <p className="text-sm text-danger">{error}</p>}
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Insights"
+        title={<>Security alerts · last {summary?.days ?? 30} days</>}
+        description={<>Counts only: the alerts themselves are for security (BR-F8-01).</>}
+      />
+      {error && <ErrorState title={error} />}
       <Card className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -46,7 +52,7 @@ export default function SecuritySummaryPage() {
           <TableBody>
             {kinds.map((k) => (
               <TableRow key={k}>
-                <TableCell className="font-mono text-xs">{k}</TableCell>
+                <TableCell className="num text-xs">{k}</TableCell>
                 {STATES.map((s) => (
                   <TableCell key={s} className="px-4 py-2.5 text-right">
                     {count(k, s)}
@@ -64,6 +70,6 @@ export default function SecuritySummaryPage() {
           </TableBody>
         </Table>
       </Card>
-    </div>
+    </Page>
   );
 }

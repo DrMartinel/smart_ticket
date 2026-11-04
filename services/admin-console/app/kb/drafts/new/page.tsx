@@ -44,7 +44,7 @@ export default function NewDraftPage() {
       });
       router.push(`/kb/drafts/${draft.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Không tạo được bản nháp.");
+      setError(err instanceof ApiError ? err.message : "Couldn't create the draft. Try again.");
       setBusy(false);
     }
   };
@@ -68,7 +68,7 @@ export default function NewDraftPage() {
           {kind === "create" && (
             <>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">Tiêu đề · Title</span>
+                <span className="text-xs text-muted-foreground">Title</span>
                 <Input value={title} onChange={(e) => setTitle(e.target.value)} required />
               </label>
               <label className="flex flex-col gap-1">
@@ -82,14 +82,14 @@ export default function NewDraftPage() {
             </>
           )}
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Ghi chú thay đổi · Change note{kind === "retire" ? " (lý do gỡ)" : ""}</span>
+            <span className="text-xs text-muted-foreground">Change note{kind === "retire" ? " (why it's retired)" : ""}</span>
             <Input value={note} onChange={(e) => setNote(e.target.value)} required={kind === "retire"} />
           </label>
-          {search.get("gap") && <p className="text-xs text-muted-foreground">Bắt đầu từ một cụm thiếu KB; cụm sẽ được đánh dấu “drafted”.</p>}
+          {search.get("gap") && <p className="text-xs text-muted-foreground">Started from a KB gap; the gap will be marked as drafted.</p>}
           {error && <Alert variant="danger"><AlertDescription>{error}</AlertDescription></Alert>}
           <div className="flex justify-end">
             <Button type="submit" disabled={busy}>
-              Tạo bản nháp
+              Create draft
             </Button>
           </div>
         </form>

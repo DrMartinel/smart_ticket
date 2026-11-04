@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // Webhook subscriptions (F4 · 11-1047): signed JSON to allow-listed hosts only.
 
 import { useCallback, useEffect, useState } from "react";
@@ -95,23 +98,25 @@ export default function WebhooksPage() {
     draft && setDraft({ ...draft, events: draft.events.includes(event) ? draft.events.filter((e) => e !== event) : [...draft.events, event] });
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <Page width="record" className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Webhook subscriptions</h1>
-          <p className="text-xs text-muted-foreground">
-            Signed JSON (HMAC-SHA256 in X-SmartTicket-Signature) to allow-listed hosts only, the same check as the call_webhook action.
-          </p>
-        </div>
-        {!draft && (
-          <Button onClick={() => setDraft({ ...EMPTY, secret: newSecret() })}>
-            New subscription
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Notifications"
+        title="Webhook subscriptions"
+        description={<>Signed JSON (HMAC-SHA256 in X-SmartTicket-Signature) to allow-listed hosts only, the same check as the call_webhook action.</>}
+        actions={
+      <>
+      {!draft && (
+        <Button onClick={() => setDraft({ ...EMPTY, secret: newSecret() })}>
+          New subscription
+        </Button>
+      )}
+      </>
+      }
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[860px] text-xs">
@@ -129,7 +134,7 @@ export default function WebhooksPage() {
             {hooks?.map((hook) => (
               <TableRow key={hook.id}>
                 <TableCell>{hook.name}</TableCell>
-                <TableCell className="font-mono break-all">{hook.url}</TableCell>
+                <TableCell className="num break-all">{hook.url}</TableCell>
                 <TableCell>{hook.events.join(", ")}</TableCell>
                 <TableCell>
                   <Switch checked={hook.is_active} label={`${hook.name} active`} onChange={(next) => void setActive(hook, next)} />
@@ -142,13 +147,7 @@ export default function WebhooksPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {hooks?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  No subscriptions yet.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus colSpan={6} rows={hooks} error={!!error} empty={<EmptyState compact title="No subscriptions yet" />} />
           </TableBody>
         </Table>
       </Card>
@@ -165,11 +164,11 @@ export default function WebhooksPage() {
             <h2 className="text-sm font-semibold">New subscription</h2>
             <div className="flex flex-wrap gap-3">
               <label className="flex w-[240px] flex-col gap-1">
-                <span className="text-[11px] text-muted-foreground">Name</span>
+                <span className="text-xs font-medium text-foreground/80">Name</span>
                 <Input required maxLength={100} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
               </label>
               <label className="flex min-w-[280px] flex-1 flex-col gap-1">
-                <span className="text-[11px] text-muted-foreground">URL</span>
+                <span className="text-xs font-medium text-foreground/80">URL</span>
                 <Input required type="url" maxLength={500} value={draft.url} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://n8n.example/webhook/…" />
               </label>
             </div>
@@ -185,7 +184,7 @@ export default function WebhooksPage() {
               </div>
             </fieldset>
             <label className="flex max-w-[640px] flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Signing secret: copy it now, it is never shown again</span>
+              <span className="text-xs font-medium text-foreground/80">Signing secret: copy it now, it is never shown again</span>
               <Input required minLength={16} maxLength={200} value={draft.secret} onChange={(e) => setDraft({ ...draft, secret: e.target.value })} className="font-mono" />
             </label>
             {formError && <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{formError}</p>}
@@ -200,6 +199,6 @@ export default function WebhooksPage() {
           </form>
         </Card>
       )}
-    </div>
+    </Page>
   );
 }

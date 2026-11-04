@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // The delivery log (F4 · 11-890): email and webhook messages, failures to retry.
 
 import { useCallback, useEffect, useState } from "react";
@@ -73,7 +76,7 @@ export default function DeliveryLogPage() {
 
   const select = (label: string, value: string, options: string[], onChange: (v: string) => void) => (
     <label className="flex w-[140px] flex-col gap-1">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
+      <span className="text-xs font-medium text-foreground/80">{label}</span>
       <NativeSelect value={value} onChange={(e) => onChange(e.target.value)}>
         {options.map((o) => (
           <option key={o} value={o}>
@@ -87,25 +90,29 @@ export default function DeliveryLogPage() {
   const failed = page?.items.some((d) => d.state === "failed") ?? false;
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <Page width="record" className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Delivery log</h1>
-          <p className="text-xs text-muted-foreground">Email and webhook messages. A failed send never changes the ticket.</p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          {select("Channel", channel, CHANNELS, setChannel)}
-          {select("State", state, STATES, setState)}
-          {state === "failed" && failed && (
-            <Button variant="outline" onClick={() => void retry({ all_failed: true })}>
-              Retry all failed
-            </Button>
-          )}
-        </div>
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Notifications"
+        title="Delivery log"
+        description={<>Email and webhook messages. A failed send never changes the ticket.</>}
+        actions={
+      <>
+      <div className="flex flex-wrap items-end gap-3">
+        {select("Channel", channel, CHANNELS, setChannel)}
+        {select("State", state, STATES, setState)}
+        {state === "failed" && failed && (
+          <Button variant="outline" onClick={() => void retry({ all_failed: true })}>
+            Retry all failed
+          </Button>
+        )}
+      </div>
+      </>
+      }
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
       {notice && <p className="text-sm text-ok">{notice}</p>}
 
       <Card className="overflow-x-auto">
@@ -126,7 +133,7 @@ export default function DeliveryLogPage() {
             {page?.items.map((d) => (
               <TableRow key={d.id} className={`${d.state === "failed" ? "bg-danger-soft" : ""}`}>
                 <TableCell className="whitespace-nowrap">{vnTime(d.created_at)}</TableCell>
-                <TableCell className="font-mono">{d.event}</TableCell>
+                <TableCell className="num">{d.event}</TableCell>
                 <TableCell>{d.recipient}</TableCell>
                 <TableCell>{d.channel}</TableCell>
                 <TableCell>
@@ -155,9 +162,9 @@ export default function DeliveryLogPage() {
           </TableBody>
         </Table>
       </Card>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {page ? `${Math.min(page.count, LIMIT)} of ${page.count} shown. ` : ""}A retry starts a fresh set of attempts and is recorded in the audit log.
       </p>
-    </div>
+    </Page>
   );
 }

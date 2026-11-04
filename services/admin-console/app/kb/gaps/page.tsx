@@ -30,7 +30,7 @@ export default function GapsPage() {
     api
       .get<GapReportOut>("/api/kb/gaps")
       .then(setReport)
-      .catch(() => setError("Không tải được báo cáo."));
+      .catch(() => setError("Couldn't load the gap report."));
   }, []);
 
   useEffect(() => {
@@ -47,7 +47,7 @@ export default function GapsPage() {
       setReason("");
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? `${err.code ?? err.status}: ${err.message}` : "Không ẩn được cụm.");
+      setError(err instanceof ApiError ? `${err.message}${err.code ? ` (${err.code})` : ""}` : "Couldn't hide the topic. Try again.");
     }
   };
 
@@ -56,7 +56,7 @@ export default function GapsPage() {
       <KbTabs user={user} />
       <header className="mb-4">
         <h1 className="text-xl font-semibold">
-          Thiếu KB · KB gaps
+          KB gaps
           {report?.window_start && report.window_end && (
             <span className="ml-2 text-sm font-normal text-muted-foreground">
               {vnTime(report.window_start)} – {vnTime(report.window_end)}
@@ -64,8 +64,8 @@ export default function GapsPage() {
           )}
         </h1>
         <p className="text-xs text-muted-foreground">
-          Cụm phiếu bị từ chối (retrieval_below_floor) và phiếu người duyệt đánh dấu trang KB sai (BR-F6-07). Chỉ hiển thị tiêu
-          đề đã che. {report ? `${report.tickets_considered} phiếu được xét.` : ""}
+          Groups of tickets no help page answered, and tickets a reviewer marked as citing the wrong page. Only masked subjects
+          are shown. {report ? `${report.tickets_considered} tickets considered.` : ""}
         </p>
       </header>
 
@@ -96,9 +96,9 @@ export default function GapsPage() {
                       · {t.subject_masked}
                     </div>
                   ))}
-                  {c.tickets.length > SAMPLES && <div className="text-xs text-muted-foreground">+{c.tickets.length - SAMPLES} phiếu nữa</div>}
+                  {c.tickets.length > SAMPLES && <div className="text-xs text-muted-foreground">+{c.tickets.length - SAMPLES} more tickets</div>}
                 </TableCell>
-                <TableCell className="font-mono text-xs">{c.nearest_slug ?? "—"}</TableCell>
+                <TableCell className="num text-xs">{c.nearest_slug ?? "—"}</TableCell>
                 <TableCell>{c.nearest_similarity?.toFixed(2) ?? "—"}</TableCell>
                 <TableCell>
                   <Badge variant={c.label === "update" ? "info" : "warn"}>{c.label}</Badge>
@@ -106,7 +106,7 @@ export default function GapsPage() {
                 <TableCell className="text-right">
                   {c.draft_id ? (
                     <Link href={`/kb/drafts/${c.draft_id}`} className="text-primary hover:underline">
-                      Xem bản nháp
+                      View draft
                     </Link>
                   ) : dismissing === c.id ? (
                     <form
@@ -116,7 +116,7 @@ export default function GapsPage() {
                         void dismiss(c.id);
                       }}
                     >
-                      <Input className="w-48" placeholder="ngoài phạm vi IT" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+                      <Input className="w-48" placeholder="e.g. not an IT question" aria-label="Reason to hide" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
                       <Button variant="outline" size="xs" type="submit">
                         Ẩn
                       </Button>
@@ -132,11 +132,11 @@ export default function GapsPage() {
                               : `/kb/drafts/new?kind=create&gap=${c.id}`
                           }
                         >
-                          {c.label === "update" ? "Sửa trang" : "Viết trang mới"}
+                          {c.label === "update" ? "Edit the page" : "Write a new page"}
                         </Link>
                       </Button>
                       <Button variant="link" size="inline" className="text-xs" onClick={() => setDismissing(c.id)}>
-                        Ẩn chủ đề…
+                        Hide topic…
                       </Button>
                     </div>
                   )}
@@ -146,7 +146,7 @@ export default function GapsPage() {
             {report && report.clusters.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  {report.id ? "Không có chủ đề nào đủ lớn." : "Chưa có báo cáo; báo cáo chạy 06:00 thứ Hai."}
+                  {report.id ? "No topic is big enough to report yet." : "No report yet. It runs every Monday at 06:00."}
                 </TableCell>
               </TableRow>
             )}
@@ -154,7 +154,7 @@ export default function GapsPage() {
         </Table>
       </Card>
       <p className="mt-2 text-xs text-muted-foreground">
-        update = chunk gần nhất có độ tương đồng ≥ kb_gaps.update_similarity (BR-F6-08). Chủ đề bị ẩn không xuất hiện trong
+        “Update” means the nearest existing chunk is similar enough to edit that page. Hidden topics don't appear in
         kb_gaps.dismiss_days ngày.
       </p>
     </div>

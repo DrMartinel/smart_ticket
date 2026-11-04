@@ -18,9 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const REBUILD_STATE_VI: Record<string, string> = {
-  pending: "Đang chờ",
+  pending: "Waiting",
   done: "Xong",
-  failed: "Lỗi",
+  failed: "Failed",
 };
 
 type Correction = { target: string; action: "hide" | "add" | "remove" } | null;
@@ -32,7 +32,7 @@ function Build({ label, request }: { label: string; request: RebuildRequestOut |
       {request ? (
         <>
           <p className="mt-1 font-medium">
-            {REBUILD_STATE_VI[request.state] ?? request.state} · {request.reason === "manual" ? "yêu cầu tay" : "sau xuất bản"}
+            {REBUILD_STATE_VI[request.state] ?? request.state} · {request.reason === "manual" ? "requested by hand" : "after publish"}
           </p>
           <p className="text-xs text-muted-foreground">
             {dateTime(request.done_at ?? request.requested_at)}
@@ -68,15 +68,15 @@ function EdgeTable({
           {title} <span className="font-normal text-muted-foreground">({edges.length})</span>
         </h2>
         {edges.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">Chưa có liên kết.</p>
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">No links yet.</p>
         ) : (
           <Table className="min-w-[640px] table-fixed">
             <TableHeader>
               <TableRow>
                 <TableHead>Trang · Page</TableHead>
-                <TableHead className="w-16 text-right">Điểm</TableHead>
-                <TableHead>Bằng chứng · Evidence</TableHead>
-                <TableHead className="w-36">Trạng thái</TableHead>
+                <TableHead className="w-16 text-right">Score</TableHead>
+                <TableHead>Evidence</TableHead>
+                <TableHead className="w-36">State</TableHead>
                 {editor && outgoing && <TableHead className="w-28" />}
               </TableRow>
             </TableHeader>
@@ -94,18 +94,18 @@ function EdgeTable({
                     {e.evidence.length > 0 ? (
                       <>
                         <span className="line-clamp-2">{e.evidence[0]}</span>
-                        {e.evidence.length > 1 && <span className="text-muted-foreground">+{e.evidence.length - 1} cặp khác</span>}
+                        {e.evidence.length > 1 && <span className="text-muted-foreground">+{e.evidence.length - 1} more pairs</span>}
                       </>
                     ) : (
-                      <span className="text-muted-foreground">Do biên tập viên thêm</span>
+                      <span className="text-muted-foreground">Added by an editor</span>
                     )}
                   </TableCell>
                   <TableCell className="py-3">
                     <div className="flex flex-wrap gap-1">
                       {e.stale && <Badge variant="warn">Cũ · stale</Badge>}
-                      {e.reviewed && <Badge variant="ok">Đã xác nhận</Badge>}
+                      {e.reviewed && <Badge variant="ok">Confirmed</Badge>}
                       {e.override?.action === "hide" && <Badge variant="danger">Ẩn</Badge>}
-                      {e.override?.action === "add" && <Badge variant="info">Thêm tay</Badge>}
+                      {e.override?.action === "add" && <Badge variant="info">Added by hand</Badge>}
                     </div>
                     {e.override && (
                       <p className="mt-1 text-xs text-muted-foreground">
@@ -118,7 +118,7 @@ function EdgeTable({
                       <span className="inline-flex flex-wrap justify-end gap-2 text-xs">
                         {e.score !== null && !e.reviewed && !e.override && (
                           <Button variant="link" size="inline"  onClick={() => onConfirm(e.slug)}>
-                            Xác nhận
+                            Confirm
                           </Button>
                         )}
                         {!e.override && (
@@ -128,7 +128,7 @@ function EdgeTable({
                         )}
                         {e.override && (
                           <Button variant="link" size="inline"  onClick={() => onCorrect({ target: e.slug, action: "remove" })}>
-                            Bỏ điều chỉnh
+                            Undo correction
                           </Button>
                         )}
                       </span>
@@ -159,7 +159,7 @@ export default function PageGraphPage() {
     api
       .get<PageGraphOut>(`/api/kb/${encodeURIComponent(page)}/graph`)
       .then(setGraph)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Không tải được đồ thị."));
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Couldn't load the page graph."));
   }, [page]);
 
   useEffect(() => {
@@ -179,7 +179,7 @@ export default function PageGraphPage() {
       setReason("");
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? `${err.code ?? err.status}: ${err.message}` : "Không lưu được.");
+      setError(err instanceof ApiError ? `${err.message}${err.code ? ` (${err.code})` : ""}` : "Couldn't save. Try again.");
     } finally {
       setBusy(false);
     }
@@ -199,16 +199,16 @@ export default function PageGraphPage() {
       <KbTabs user={user} />
       <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold">Đồ thị trang · Page graph</h1>
+          <h1 className="text-xl font-semibold">Page graph</h1>
           <p className="font-mono text-xs text-muted-foreground">{page}</p>
           <p className="mt-1 max-w-[720px] text-xs text-muted-foreground">
-            Liên kết mở rộng tìm kiếm theo đến trang chứa cách khắc phục. Điểm chỉ dùng để xếp thứ tự, không bao giờ quyết định trả lời tự động.
+            Links search follows to reach the page with the fix. Scores only order the links; they never decide an automatic answer.
           </p>
         </div>
         <div className="flex gap-2">
           {editor && (
             <Button variant="outline" onClick={() => setCorrection({ target: "", action: "add" })}>
-              Thêm liên kết
+              Add link
             </Button>
           )}
           {canEditKb(user) && (
@@ -216,7 +216,7 @@ export default function PageGraphPage() {
               disabled={busy || Boolean(graph?.pending_request)}
               onClick={() => void run(() => api.post(`${base}/rebuild`))}
             >
-              Dựng lại · Rebuild
+              Rebuild
             </Button>
           )}
         </div>
@@ -234,26 +234,26 @@ export default function PageGraphPage() {
             }}
           >
             <p className="w-full font-medium">
-              {correction.action === "hide" && `Ẩn liên kết đến ${correction.target}`}
-              {correction.action === "remove" && `Bỏ điều chỉnh với ${correction.target}`}
-              {correction.action === "add" && "Thêm liên kết đến một trang (xếp đầu khi mở rộng)"}
+              {correction.action === "hide" && `Hide the link to ${correction.target}`}
+              {correction.action === "remove" && `Undo the correction for ${correction.target}`}
+              {correction.action === "add" && "Add a link to a page (followed first)"}
             </p>
             {correction.action === "add" && (
-              <Input className="w-80 font-mono" placeholder="slug trang đích" value={target} onChange={(e) => setTarget(e.target.value)} required autoFocus />
+              <Input className="w-80 font-mono" placeholder="target page slug" aria-label="Target page slug" value={target} onChange={(e) => setTarget(e.target.value)} required autoFocus />
             )}
             <Input
               className="min-w-[280px] flex-1"
-              placeholder="Lý do (bắt buộc, được ghi nhật ký)"
+              placeholder="Reason (required, logged)" aria-label="Reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               required
               autoFocus={correction.action !== "add"}
             />
             <Button type="submit" disabled={busy}>
-              Lưu
+              Save
             </Button>
             <Button variant="outline" type="button" onClick={() => setCorrection(null)}>
-              Huỷ
+              Cancel
             </Button>
           </form>
         </Card>
@@ -263,11 +263,11 @@ export default function PageGraphPage() {
       {graph && (
         <>
           <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Build label="Lần dựng gần nhất · Last build" request={graph.last_build} />
-            <Build label="Yêu cầu đang chờ · Pending" request={graph.pending_request} />
+            <Build label="Last build" request={graph.last_build} />
+            <Build label="Pending" request={graph.pending_request} />
           </div>
           <EdgeTable
-            title="Trỏ đến · Outgoing"
+            title="Outgoing"
             edges={graph.outgoing}
             editor={editor}
             outgoing
@@ -275,7 +275,7 @@ export default function PageGraphPage() {
             onConfirm={(t) => void run(() => api.post(`${base}/edges/${encodeURIComponent(t)}/confirm`))}
           />
           <EdgeTable
-            title="Được trỏ từ · Incoming"
+            title="Incoming"
             edges={graph.incoming}
             editor={editor}
             outgoing={false}

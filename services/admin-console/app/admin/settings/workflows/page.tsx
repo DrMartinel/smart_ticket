@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
@@ -57,21 +60,23 @@ export default function WorkflowsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1080px]">
-      <header className="mb-5 flex items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Workflows</h1>
-          <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">
-            The stages a ticket moves through after triage, which moves are allowed, and what runs when they happen.
-            Every workflow keeps the triage statuses; only the triage pipeline moves tickets into them.
-          </p>
-        </div>
-        {canEdit && !creating && (
-          <Button onClick={() => setCreating(true)}>
-            New workflow
-          </Button>
-        )}
-      </header>
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Settings"
+        title="Workflows"
+        description={<>The stages a ticket moves through after triage, which moves are allowed, and what runs when they happen.
+            Every workflow keeps the triage statuses; only the triage pipeline moves tickets into them.</>}
+        actions={
+      <>
+      {canEdit && !creating && (
+        <Button onClick={() => setCreating(true)}>
+          New workflow
+        </Button>
+      )}
+      </>
+      }
+      />
 
       {error && <Alert variant="danger" className="mb-4 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
@@ -129,6 +134,6 @@ export default function WorkflowsPage() {
           </Table>
         </Card>
       )}
-    </div>
+    </Page>
   );
 }

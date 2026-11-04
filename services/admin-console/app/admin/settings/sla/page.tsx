@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // SLA policies (F1 · SLA policies 8-57): targets in business minutes, drafted and activated by a
 // workflow admin or manager (ADR-0043); and a preview of due times.
 
@@ -110,23 +113,25 @@ export default function SlaPoliciesPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <Page width="record" className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">SLA policies</h1>
-          <p className="text-xs text-muted-foreground">
-            Targets in business minutes on the policy&apos;s calendar. The first active policy by order that matches wins.
-          </p>
-        </div>
-        {isAdmin && (
-          <Button onClick={() => setDraft({ ...BLANK })}>
-            New policy draft
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / SLA"
+        title="SLA policies"
+        description={<>Targets in business minutes on the policy&apos;s calendar. The first active policy by order that matches wins.</>}
+        actions={
+      <>
+      {isAdmin && (
+        <Button onClick={() => setDraft({ ...BLANK })}>
+          New policy draft
+        </Button>
+      )}
+      </>
+      }
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[980px]">
@@ -213,7 +218,7 @@ export default function SlaPoliciesPage() {
           <h2 className="text-sm font-semibold">Preview due times</h2>
           <div className="flex flex-wrap items-end gap-3 text-sm">
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Category</span>
+              <span className="text-xs font-medium text-foreground/80">Category</span>
               <NativeSelect
                 value={preview.input.category ?? ""}
                 onChange={(e) => setPreview({ ...preview, input: { ...preview.input, category: (e.target.value || null) as TicketCategory | null } })}
@@ -226,7 +231,7 @@ export default function SlaPoliciesPage() {
               </NativeSelect>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Priority</span>
+              <span className="text-xs font-medium text-foreground/80">Priority</span>
               <NativeSelect
                 value={preview.input.priority}
                 onChange={(e) => setPreview({ ...preview, input: { ...preview.input, priority: e.target.value as Priority } })}
@@ -239,7 +244,7 @@ export default function SlaPoliciesPage() {
               </NativeSelect>
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Handoff at (+07)</span>
+              <span className="text-xs font-medium text-foreground/80">Handoff at (+07)</span>
               <Input
                 type="datetime-local"
                 value={preview.input.local}
@@ -260,7 +265,7 @@ export default function SlaPoliciesPage() {
                   Resolution due {vnTime(preview.out.resolution.due_at)} · warn {vnTime(preview.out.resolution.warn_at)}
                 </Badge>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Policy {preview.out.policy} · {preview.out.calendar}. Weekends and holidays are skipped.
               </p>
             </div>
@@ -361,6 +366,6 @@ export default function SlaPoliciesPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }

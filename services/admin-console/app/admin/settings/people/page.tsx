@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // People (ADR-0042): every account, its role, capabilities and teams; a manager changes them here.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -135,27 +138,29 @@ export default function PeoplePage() {
   const teamName = new Map(teams.map((t) => [t.slug, t.name]));
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <Page width="record" className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">People</h1>
-          <p className="text-xs text-muted-foreground">
-            Company sign-in proves who someone is; their role, capabilities and teams are set here.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Input className="w-64" placeholder="Search name, username or email" value={query} onChange={(e) => setQuery(e.target.value)} />
-          <NativeSelect wrapperClassName="w-44" aria-label="Filter by role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
-            <option value="">All roles ({people?.length ?? 0})</option>
-            {ROLES.map((r) => (
-              <option key={r.value} value={r.value}>
-                {r.label} ({counts[r.value] ?? 0})
-              </option>
-            ))}
-          </NativeSelect>
-        </div>
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / People & teams"
+        title="People"
+        description={<>Company sign-in proves who someone is; their role, capabilities and teams are set here.</>}
+        actions={
+      <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Input className="w-64" placeholder="Search name, username or email" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <NativeSelect wrapperClassName="w-44" aria-label="Filter by role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+          <option value="">All roles ({people?.length ?? 0})</option>
+          {ROLES.map((r) => (
+            <option key={r.value} value={r.value}>
+              {r.label} ({counts[r.value] ?? 0})
+            </option>
+          ))}
+        </NativeSelect>
+      </div>
+      </>
+      }
+      />
 
       {error && !open && <p className="text-sm text-danger">{error}</p>}
 
@@ -379,6 +384,6 @@ export default function PeoplePage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }

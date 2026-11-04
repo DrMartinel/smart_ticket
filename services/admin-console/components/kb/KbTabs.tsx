@@ -24,8 +24,8 @@ export function KbTabs({ user }: { user: CurrentUser }) {
     <Tabs
       tabs={[
         { href: "/kb", label: "Trang · Pages", show: true, exact: true },
-        { href: "/kb/drafts", label: "Bản nháp · Drafts", show: editor },
-        { href: "/kb/gaps", label: "Thiếu KB · Gaps", show: editor },
+        { href: "/kb/drafts", label: "Drafts", show: editor },
+        { href: "/kb/gaps", label: "Gaps", show: editor },
       ]}
     />
   );
@@ -51,13 +51,13 @@ const DRAFT_STATE: Record<string, Tone> = {
   conflict: "danger",
 };
 
-const DRAFT_STATE_VI: Record<string, string> = {
-  draft: "Nháp",
-  in_review: "Chờ duyệt",
-  changes_requested: "Cần sửa",
-  published: "Đã xuất bản",
-  withdrawn: "Đã rút",
-  conflict: "Xung đột",
+export const DRAFT_STATE_VI: Record<string, string> = {
+  draft: "Draft",
+  in_review: "In review",
+  changes_requested: "Changes requested",
+  published: "Published",
+  withdrawn: "Withdrawn",
+  conflict: "Conflict",
 };
 
 export function DraftStateChip({ state }: { state: string }) {
@@ -65,21 +65,21 @@ export function DraftStateChip({ state }: { state: string }) {
 }
 
 export const KIND_VI: Record<string, string> = {
-  create: "Trang mới",
-  edit: "Sửa",
-  retire: "Gỡ trang",
+  create: "New page",
+  edit: "Edit",
+  retire: "Retire page",
 };
 
 export const AUTHORITY_REASON_VI: Record<string, string> = {
-  new: "Trang mới: chưa có quyền trả lời tự động",
-  regrant: "Bị thu hồi: nội dung đã thay đổi",
-  tier: "Đề xuất đổi mức rủi ro",
+  new: "New page: no auto-reply yet",
+  regrant: "Revoked: the text changed",
+  tier: "Risk tier change proposed",
 };
 
 /** A unified-diff line as a coloured row; the `---`/`+++`/`@@` headers are dropped. */
 export function DiffLines({ lines }: { lines: string[] }) {
   const shown = lines.filter((l) => !l.startsWith("---") && !l.startsWith("+++") && !l.startsWith("@@"));
-  if (shown.length === 0) return <p className="text-xs text-muted-foreground">Không thay đổi.</p>;
+  if (shown.length === 0) return <p className="text-xs text-muted-foreground">No changes.</p>;
   return (
     <pre className="overflow-x-auto whitespace-pre-wrap rounded-md bg-muted p-3 text-xs leading-relaxed">
       {shown.map((l, i) => (

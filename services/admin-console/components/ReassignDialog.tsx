@@ -12,13 +12,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const REASONS: { code: ReassignReason; label: string }[] = [
-  { code: "wrong_team", label: "Sai đội xử lý · Wrong team" },
-  { code: "workload", label: "Cân bằng tải · Workload" },
-  { code: "skill", label: "Cần chuyên môn khác · Skill" },
-  { code: "leave", label: "Nghỉ phép · Leave" },
-  { code: "escalation", label: "Chuyển cấp · Escalation" },
-  { code: "requester_request", label: "Người yêu cầu đề nghị · Requester request" },
-  { code: "other", label: "Khác · Other" },
+  { code: "wrong_team", label: "Wrong team" },
+  { code: "workload", label: "Workload" },
+  { code: "skill", label: "Skill" },
+  { code: "leave", label: "Leave" },
+  { code: "escalation", label: "Escalation" },
+  { code: "requester_request", label: "Requester request" },
+  { code: "other", label: "Other" },
 ];
 
 const NOTE_MIN = 10;

@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRequireAuth } from "@/lib/auth";
@@ -91,16 +94,16 @@ export default function DashboardPage() {
   const reopen = data.quality.reopen_rate_after_autoreply;
 
   return (
-    <div className="mx-auto max-w-[1280px]">
-      <header className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Last {WINDOW_DAYS} days · full reports under{" "}
+    <Page width="record" className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Insights"
+        title="Dashboard"
+        description={<>Last {WINDOW_DAYS} days · full reports under{" "}
           <Link href="/admin/reports" className="text-primary hover:underline">
-            Báo cáo · Reports
-          </Link>
-        </p>
-      </header>
+            Reports
+          </Link></>}
+      />
 
       <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Headline
@@ -110,12 +113,12 @@ export default function DashboardPage() {
           warn={reopen !== null && reopen > 0.05}
         />
         <Headline
-          label="Tự động hoá (thực tế) · Automation, live"
+          label="Automation, live"
           value={percent(data.business.automation_rate_live)}
           note={`Carried out without a person. Would have, counting shadow decisions: ${percent(data.business.automation_rate_would_have)}. Not a target (BR-F10-09).`}
         />
         <Headline
-          label="SLA giải quyết · Resolution SLA"
+          label="Resolution SLA"
           value={percent(data.business.sla_compliance)}
           note="Resolution clocks stopped in the period that met their target, in business time; incident-linked tickets excluded (BR-F10-02)."
         />
@@ -169,9 +172,9 @@ export default function DashboardPage() {
                   return (
                     <TableRow key={r.reviewer__username}>
                       <TableCell className="px-5">{r.reviewer__username}</TableCell>
-                      <TableCell className="px-5 text-right font-mono tabular-nums">{r.total}</TableCell>
-                      <TableCell className="px-5 text-right font-mono tabular-nums">{percent(r.approve_rate)}</TableCell>
-                      <TableCell className="px-5 text-right font-mono tabular-nums">{duration(r.median_time_spent_sec)}</TableCell>
+                      <TableCell className="px-5 text-right num tabular-nums">{r.total}</TableCell>
+                      <TableCell className="px-5 text-right num tabular-nums">{percent(r.approve_rate)}</TableCell>
+                      <TableCell className="px-5 text-right num tabular-nums">{duration(r.median_time_spent_sec)}</TableCell>
                       <TableCell className="px-5 text-xs text-warn">{rushed ? "Under 10 s: may not be reading" : ""}</TableCell>
                     </TableRow>
                   );
@@ -181,6 +184,6 @@ export default function DashboardPage() {
           )}
         </section>
       </Card>
-    </div>
+    </Page>
   );
 }

@@ -13,24 +13,24 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const STATE_VI: Record<string, { label: string; tone: Tone }> = {
-  queued: { label: "Đang chờ chạy", tone: "info" },
-  running: { label: "Đang chạy", tone: "info" },
-  succeeded: { label: "Thành công", tone: "ok" },
-  failed: { label: "Thất bại", tone: "danger" },
-  unknown: { label: "Chưa rõ kết quả", tone: "warn" },
+  queued: { label: "Queued", tone: "info" },
+  running: { label: "Running", tone: "info" },
+  succeeded: { label: "Succeeded", tone: "ok" },
+  failed: { label: "Failed", tone: "danger" },
+  unknown: { label: "Outcome unknown", tone: "warn" },
 };
 
 const REFUSAL_VI: Record<string, string> = {
-  target_not_reporter: "Runbook này chỉ được áp dụng cho chính người gửi yêu cầu.",
-  missing_fields: "Thiếu trường bắt buộc.",
-  group_not_allowed: "Nhóm này không nằm trong danh sách được cấp.",
-  runbook_not_approved: "Runbook chưa được bật trong danh mục.",
-  not_approved: "Đề xuất chưa được duyệt.",
-  execution_exists: "Đề xuất này đã có một lần chạy chưa thất bại.",
+  target_not_reporter: "This runbook can only target the requester themselves.",
+  missing_fields: "A required field is missing.",
+  group_not_allowed: "That group isn't on the list of groups that can be granted.",
+  runbook_not_approved: "This runbook isn't enabled in the catalog.",
+  not_approved: "The proposal hasn't been approved yet.",
+  execution_exists: "This proposal already has a run that hasn't failed.",
 };
 
 function message(err: unknown): string {
-  if (!(err instanceof ApiError)) return "Không thực hiện được.";
+  if (!(err instanceof ApiError)) return "That didn't go through. Try again.";
   return (err.code && REFUSAL_VI[err.code]) || `${err.code ?? err.status}: ${err.message}`;
 }
 
@@ -50,32 +50,32 @@ function Execution({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Badge variant={state.tone}>{state.label}</Badge>
         <span className="text-xs text-muted-foreground">
-          Lần {execution.attempt} · {dateTime(execution.executed_at)}
+          Attempt {execution.attempt} · {dateTime(execution.executed_at)}
         </span>
       </div>
       <dl className="mt-2 grid grid-cols-[140px_1fr] gap-x-3 gap-y-1 text-xs">
-        <dt className="text-muted-foreground">Dữ liệu đã chạy</dt>
+        <dt className="text-muted-foreground">Data it ran with</dt>
         <dd className="font-mono">{JSON.stringify(execution.executed_payload)}</dd>
-        <dt className="text-muted-foreground">Người duyệt</dt>
+        <dt className="text-muted-foreground">Approved by</dt>
         <dd>
-          {execution.approved_by ?? "—"} · chạy bởi {execution.executed_by}
-          {execution.second_approver && ` · duyệt lần hai: ${execution.second_approver}`}
+          {execution.approved_by ?? "—"} · run by {execution.executed_by}
+          {execution.second_approver && ` · second approver: ${execution.second_approver}`}
         </dd>
         {execution.external_ref && (
           <>
-            <dt className="text-muted-foreground">Tham chiếu</dt>
+            <dt className="text-muted-foreground">Reference</dt>
             <dd className="font-mono">{execution.external_ref}</dd>
           </>
         )}
         {execution.error && (
           <>
-            <dt className="text-muted-foreground">Lỗi</dt>
+            <dt className="text-muted-foreground">Error</dt>
             <dd className="text-danger">{execution.error}</dd>
           </>
         )}
         {execution.resolved_by && (
           <>
-            <dt className="text-muted-foreground">Xác nhận</dt>
+            <dt className="text-muted-foreground">Confirmation</dt>
             <dd>
               {execution.resolved_by}: “{execution.resolution_note}”
             </dd>
@@ -86,15 +86,15 @@ function Execution({
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Input
             className="min-w-[240px] flex-1"
-            placeholder="Đã kiểm tra hệ thống đích: ghi chú (bắt buộc)"
+            placeholder="What you checked on the target system (required)" aria-label="Confirmation note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
           <Button variant="outline" disabled={busy || !note.trim()} onClick={() => onResolve("succeeded", note)}>
-            Đã thành công
+            It succeeded
           </Button>
           <Button variant="outline" disabled={busy || !note.trim()} onClick={() => onResolve("failed", note)}>
-            Đã thất bại
+            It failed
           </Button>
         </div>
       )}
@@ -153,15 +153,15 @@ export default function RunbookPanel({
           <>
             <span className="text-muted-foreground">{runbook.title}</span>
             <Badge variant={runbook.risk === "high" ? "danger" : "info"}>
-              {runbook.risk === "high" ? "Rủi ro cao" : "Rủi ro thấp"}
+              {runbook.risk === "high" ? "High risk" : "Low risk"}
             </Badge>
-            {runbook.target_rule === "reporter" && <Badge variant="neutral">Chỉ cho người gửi</Badge>}
+            {runbook.target_rule === "reporter" && <Badge variant="neutral">Requester only</Badge>}
             <Badge variant="neutral">{runbook.executor}</Badge>
           </>
         )}
       </div>
       {runbook && !runbook.runnable && (
-        <Alert variant="warn" className="text-xs"><AlertDescription>Runbook chưa được bật trong danh mục, chưa thể chạy.</AlertDescription></Alert>
+        <Alert variant="warn" className="text-xs"><AlertDescription>This runbook isn't enabled in the catalog yet, so it can't run.</AlertDescription></Alert>
       )}
       {!open && (
         <form
@@ -172,7 +172,7 @@ export default function RunbookPanel({
           }}
         >
           <p className="text-xs text-muted-foreground">
-            Dữ liệu do AI đề xuất. Kiểm tra và sửa trước khi chạy: thứ được chạy là thứ bạn thấy ở đây.
+            The AI proposed this data. Check and correct it before running: what runs is exactly what you see here.
           </p>
           {Object.keys(payload).map((field) => (
             <label key={field} className="grid grid-cols-[160px_1fr] items-center gap-2 text-sm">
@@ -186,9 +186,9 @@ export default function RunbookPanel({
           ))}
           <div>
             <Button type="submit" disabled={busy || !panel.approved || !runbook?.runnable}>
-              Chạy runbook
+              Run runbook
             </Button>
-            {!panel.approved && <span className="ml-3 text-xs text-muted-foreground">Duyệt đề xuất trước (ADR-0006).</span>}
+            {!panel.approved && <span className="ml-3 text-xs text-muted-foreground">Approve the proposal first.</span>}
           </div>
         </form>
       )}

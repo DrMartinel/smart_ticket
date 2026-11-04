@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // Teams (F2 · Teams 9-646): every team, the categories it owns and its members; a new team opens on its own page.
 
 import Link from "next/link";
@@ -58,27 +61,29 @@ export default function TeamsPage() {
   const members = teams?.reduce((n, t) => n + t.members_count, 0) ?? 0;
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <Page width="record" className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Teams</h1>
-          <p className="text-xs text-muted-foreground">
-            {teams ? `${active} active teams · ${members} memberships. ` : ""}Each category belongs to exactly one active team.
-          </p>
-        </div>
-        {canEdit && (
-          <Button
-            onClick={() => {
-              setDraft({ ...BLANK_TEAM });
-              setTaken(null);
-              setError(null);
-            }}
-          >
-            New team
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / People & teams"
+        title="Teams"
+        description={<>{teams ? `${active} active teams · ${members} memberships. ` : ""}Each category belongs to exactly one active team.</>}
+        actions={
+      <>
+      {canEdit && (
+        <Button
+          onClick={() => {
+            setDraft({ ...BLANK_TEAM });
+            setTaken(null);
+            setError(null);
+          }}
+        >
+          New team
+        </Button>
+      )}
+      </>
+      }
+      />
 
       {error && !draft && <p className="text-sm text-danger">{error}</p>}
 
@@ -95,13 +100,7 @@ export default function TeamsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {teams?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  No teams yet.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus colSpan={6} rows={teams} error={!!error} empty={<EmptyState compact title="No teams yet" />} />
             {teams?.map((t) => (
               <TableRow key={t.slug} className={`${t.is_active ? "" : "text-muted-foreground"}`}>
                 <TableCell>
@@ -172,6 +171,6 @@ export default function TeamsPage() {
           </div>
         )}
       </Modal>
-    </div>
+    </Page>
   );
 }

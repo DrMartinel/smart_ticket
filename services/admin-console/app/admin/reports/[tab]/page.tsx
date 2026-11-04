@@ -24,7 +24,7 @@ export default function ReportPage() {
   if (!user) return null;
   const allowed = reportTabs(user).map((t) => t.key);
   const active = (allowed.includes(tab as ReportTab) ? tab : allowed[0]) as ReportTab | undefined;
-  if (!active) return <p className="text-sm text-muted-foreground">Bạn không có báo cáo nào để xem.</p>;
+  if (!active) return <p className="text-sm text-muted-foreground">There are no reports for your role.</p>;
   const views: Record<ReportTab, ReactNode> = {
     sla: <SlaReport user={user} />,
     teams: <TeamsReport user={user} />,

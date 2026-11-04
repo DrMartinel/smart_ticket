@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // The notification matrix (F4 · 11-710): who gets each event on which channel by default.
 
 import { useEffect, useMemo, useState } from "react";
@@ -132,24 +135,26 @@ export default function NotificationMatrixPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+    <Page width="record" className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Notification matrix</h1>
-          <p className="text-xs text-muted-foreground">
-            Defaults for who gets each event on which channel. Events and recipient kinds are code; defaults are data.
-          </p>
-        </div>
-        {canEdit && (
-          <Button disabled={changes === 0} onClick={() => void save()}>
-            Save {changes > 0 ? `${changes} change${changes > 1 ? "s" : ""}` : "changes"}…
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / Notifications"
+        title="Notification matrix"
+        description={<>Defaults for who gets each event on which channel. Events and recipient kinds are code; defaults are data.</>}
+        actions={
+      <>
+      {canEdit && (
+        <Button disabled={changes === 0} onClick={() => void save()}>
+          Save {changes > 0 ? `${changes} change${changes > 1 ? "s" : ""}` : "changes"}…
+        </Button>
+      )}
+      </>
+      }
+      />
 
       {!canEdit && cells && <p className="text-xs text-muted-foreground">Read-only: only a workflow admin changes defaults.</p>}
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
       {saved && <p className="text-sm text-ok">Saved. The change is in the audit log.</p>}
 
       <Card className="overflow-x-auto">
@@ -196,12 +201,12 @@ export default function NotificationMatrixPage() {
       {canEdit && (
         <Card className="flex flex-col gap-2 p-4">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-muted-foreground">Reason (required when saving)</span>
+            <span className="text-xs font-medium text-foreground/80">Reason (required when saving)</span>
             <Input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} className="max-w-[640px]" placeholder="Why the defaults change" />
           </label>
-          <p className="text-[11px] text-muted-foreground">Saving writes notif_matrix_changed to the audit log. Mandatory cells are read-only.</p>
+          <p className="text-xs text-muted-foreground">Saving writes notif_matrix_changed to the audit log. Mandatory cells are read-only.</p>
         </Card>
       )}
-    </div>
+    </Page>
   );
 }

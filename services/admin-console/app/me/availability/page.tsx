@@ -1,5 +1,9 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
+
 // My availability (F2 · My availability 9-603): whether the strategy gives me new tickets, and my leave.
 
 import { useCallback, useEffect, useState } from "react";
@@ -70,15 +74,15 @@ export default function MyAvailabilityPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-[640px] flex-col gap-4">
-      <header>
-        <h1 className="text-xl font-semibold">My availability</h1>
-        <p className="text-xs text-muted-foreground">
-          Teams: {mine?.memberships.map((m) => `${m.team_name} (${m.role})`).join(", ") || "none"}
-        </p>
-      </header>
+    <Page width="form" className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Account / Availability"
+        title="My availability"
+        description={<>Teams: {mine?.memberships.map((m) => `${m.team_name} (${m.role})`).join(", ") || "none"}</>}
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
 
       <Card asChild>
         <section className="flex items-center justify-between gap-4 p-4">
@@ -120,13 +124,7 @@ export default function MyAvailabilityPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {mine?.leaves.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={4} className="py-3 text-muted-foreground">
-                    No leave booked.
-                  </TableCell>
-                </TableRow>
-              )}
+              <TableStatus colSpan={4} rows={mine?.leaves} error={!!error} empty={<EmptyState compact title="No leave booked" />} />
             </TableBody>
           </Table>
           <form
@@ -137,16 +135,16 @@ export default function MyAvailabilityPage() {
             }}
           >
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">From</span>
+              <span className="text-xs font-medium text-foreground/80">From</span>
               <Input type="date" required value={from} onChange={(e) => setFrom(e.target.value)} />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">To</span>
+              <span className="text-xs font-medium text-foreground/80">To</span>
               <Input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)} />
             </label>
             <label className="flex min-w-[160px] flex-1 flex-col gap-1">
-              <span className="text-[11px] text-muted-foreground">Note</span>
-              <Input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="Nghỉ phép" />
+              <span className="text-xs font-medium text-foreground/80">Note</span>
+              <Input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Annual leave" />
             </label>
             <Button variant="outline" type="submit">
               Add leave
@@ -154,6 +152,6 @@ export default function MyAvailabilityPage() {
           </form>
         </section>
       </Card>
-    </div>
+    </Page>
   );
 }
