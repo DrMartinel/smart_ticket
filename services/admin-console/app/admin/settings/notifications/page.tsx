@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
 
 // The notification matrix (F4 · 11-710): who gets each event on which channel by default.
 
@@ -169,6 +169,7 @@ export default function NotificationMatrixPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            <TableStatus colSpan={5} rows={cells ? shown : null} error={!!error} empty={<EmptyState compact title="No events in the catalog" />} />
             {shown.map((row) => (
               <TableRow key={row.key} className={`${row.active ? "" : "text-muted-foreground"}`}>
                 <TableCell>

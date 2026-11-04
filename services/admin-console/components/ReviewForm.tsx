@@ -1,5 +1,7 @@
 "use client";
 
+import { ErrorState } from "@/components/ui/states";
+
 import { useEffect, useRef, useState } from "react";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
@@ -153,7 +155,7 @@ export default function ReviewForm({
         </label>
       )}
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState compact title={error} />}
 
       <Button type="submit" disabled={submitting} className="self-start">
         {submitting ? "Saving…" : "Submit review"}

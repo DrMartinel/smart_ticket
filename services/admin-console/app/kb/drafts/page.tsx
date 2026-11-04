@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, TableStatus } from "@/components/ui/states";
 
 // KB drafts (F6 · KB drafts 13-828): what is being written, what waits for review.
 

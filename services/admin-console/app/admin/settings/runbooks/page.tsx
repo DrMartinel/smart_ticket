@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { LoadingState } from "@/components/ui/states";
 
 // The runbook catalog (F12 UC-F12-03 · 20-2142): a workflow admin's change is live at once (ADR-0043).
 
@@ -239,7 +239,7 @@ export default function RunbooksPage() {
         </Card>
       )}
 
-      {rows === null && !error && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {rows === null && !error && <LoadingState rows={4} label="Loading runbooks" />}
       {rows && (
         <Card asChild>
           <section className="overflow-x-auto">

@@ -1,7 +1,9 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { ConfirmDialog } from "@/components/ui/confirm";
+import { useToast } from "@/components/ui/toast";
+import { ErrorState, LoadingState } from "@/components/ui/states";
 
 // One KB draft: the author edits it (F6 · KB editor 13-737); another editor or a manager reviews
 // it against the live page (F6 · Draft review 13-981).
@@ -36,7 +38,8 @@ export default function DraftPage() {
   const [gap, setGap] = useState<GapReportOut["clusters"][number] | null>(null);
   const [comment, setComment] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const toast = useToast();
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
 
   const load = useCallback(() => {
     api
@@ -70,10 +73,11 @@ export default function DraftPage() {
   if (!user) return null;
   if (!draft || !form) {
     return (
-      <div className="mx-auto max-w-[1180px]">
+      <Page>
         <KbTabs user={user} />
-        {error ? <Alert variant="danger" className="text-sm"><AlertDescription>{error}</AlertDescription></Alert> : <p className="text-sm text-muted-foreground">Loading…</p>}
-      </div>
+        <PageHeader className="mb-4" eyebrow="Knowledge / Draft" back={{ href: "/kb/drafts", label: "Drafts" }} title={error ? "Draft" : "Loading draft…"} />
+        {error ? <ErrorState title={error} onRetry={load} /> : <LoadingState rows={6} label="Loading draft" />}
+      </Page>
     );
   }
 
@@ -83,10 +87,9 @@ export default function DraftPage() {
 
   const run = async (call: () => Promise<unknown>, done?: string) => {
     setError(null);
-    setNotice(null);
     try {
       await call();
-      if (done) setNotice(done);
+      if (done) toast.success(done);
       load();
     } catch (err) {
       setError(err instanceof ApiError ? `${err.message}${err.code ? ` (${err.code})` : ""}` : "That didn't go through. Try again.");
@@ -102,12 +105,17 @@ export default function DraftPage() {
       <PageHeader
         className="mb-2"
         eyebrow="Knowledge / Draft"
-        title={<>{reviewing ? "Review" : KIND_VI[draft.kind]} · <span className="font-mono">{draft.slug}</span></>}
-        description={<><DraftStateChip state={draft.state} />
+        back={{ href: "/kb/drafts", label: "Drafts" }}
+        title={<>{reviewing ? "Review" : KIND_VI[draft.kind]}: <span className="num text-[0.85em] font-medium">{draft.slug}</span></>}
+        meta={
+          <>
+            <DraftStateChip state={draft.state} />
             <span>by {draft.author.username}</span>
-            {draft.base_version !== null && <span>· based on version {draft.base_version}</span>}
-            <span>· proposed risk {draft.proposed_risk_tier}</span>
-            {draft.state !== "published" && <span>· not used for answers until published</span>}</>}
+            {draft.base_version !== null && <span>based on version <span className="num">{draft.base_version}</span></span>}
+            <span>proposed risk: {draft.proposed_risk_tier}</span>
+          </>
+        }
+        description={draft.state !== "published" ? "Not used for answers until it is published." : undefined}
         actions={
       <>
       <div className="flex flex-wrap gap-2">
@@ -135,8 +143,8 @@ export default function DraftPage() {
           </Button>
         )}
         {(isAuthor || user.role === "manager") && [...EDITABLE, "conflict"].includes(draft.state) && (
-          <Button variant="outline" onClick={() => void run(() => act("withdraw"), "Draft withdrawn.")}>
-            Rút
+          <Button variant="outline" onClick={() => setConfirmWithdraw(true)}>
+            Withdraw…
           </Button>
         )}
       </div>
@@ -144,8 +152,17 @@ export default function DraftPage() {
       }
       />
 
-      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
-      {notice && <Alert variant="ok" className="mb-3 text-sm"><AlertDescription>{notice}</AlertDescription></Alert>}
+      {error && <ErrorState title="That didn't go through">{error}</ErrorState>}
+      <ConfirmDialog
+        open={confirmWithdraw}
+        title="Withdraw this draft?"
+        confirmLabel="Withdraw draft"
+        destructive
+        onClose={() => setConfirmWithdraw(false)}
+        onConfirm={() => run(() => act("withdraw"), "Draft withdrawn.")}
+      >
+        The draft stops being reviewable and can&apos;t be sent again. The live page doesn&apos;t change.
+      </ConfirmDialog>
       {draft.review_comment && draft.state === "changes_requested" && (
         <Alert variant="warn" className="mb-3 text-sm">
           <AlertDescription>
@@ -281,7 +298,7 @@ export default function DraftPage() {
                 <p className="mb-2 text-xs text-muted-foreground">
                   {gap.label} · {gap.size} unanswered tickets
                 </p>
-                <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Sample tickets (masked)</div>
+                <div className="eyebrow">Sample tickets (masked)</div>
                 <ul className="mt-1 flex flex-col gap-1 text-xs">
                   {gap.tickets.map((t) => (
                     <li key={t.public_id}>
@@ -298,7 +315,7 @@ export default function DraftPage() {
           {draft.article && (
             <Card asChild>
               <section className="p-4 text-xs">
-                <h2 className="mb-2 text-sm font-medium">Current page</h2>
+                <h2 className="eyebrow mb-2 !text-foreground/80">Current page</h2>
                 <p>Version <span className="num">{draft.article.version}</span></p>
                 <p>Risk: {draft.article.risk_tier}</p>
                 <p>Auto-reply: {draft.article.auto_reply_allowed ? "allowed" : "not allowed"}</p>

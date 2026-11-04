@@ -1,5 +1,9 @@
 "use client";
 
+import { Waypoints } from "lucide-react";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
+
 // A KB page's entity graph (F11 UC-F11-01..03): its pointers, editors' corrections and rebuilds.
 
 import Link from "next/link";
@@ -15,7 +19,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const REBUILD_STATE_VI: Record<string, string> = {
   pending: "Waiting",
@@ -28,7 +31,7 @@ type Correction = { target: string; action: "hide" | "add" | "remove" } | null;
 function Build({ label, request }: { label: string; request: RebuildRequestOut | null }) {
   return (
     <Card className="p-4 text-sm">
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="eyebrow">{label}</p>
       {request ? (
         <>
           <p className="mt-1 font-medium">
@@ -64,16 +67,16 @@ function EdgeTable({
   return (
     <Card asChild>
       <section className="mb-5 overflow-x-auto">
-        <h2 className="border-b border-border px-4 py-3 text-sm font-semibold">
-          {title} <span className="font-normal text-muted-foreground">({edges.length})</span>
+        <h2 className="eyebrow border-b border-border px-4 py-3 !text-foreground/80">
+          {title} · <span className="num">{edges.length}</span>
         </h2>
         {edges.length === 0 ? (
-          <p className="px-4 py-6 text-center text-sm text-muted-foreground">No links yet.</p>
+          <EmptyState compact icon={Waypoints} title="No links yet">The next rebuild looks for related pages.</EmptyState>
         ) : (
           <Table className="min-w-[640px] table-fixed">
             <TableHeader>
               <TableRow>
-                <TableHead>Trang · Page</TableHead>
+                <TableHead>Page</TableHead>
                 <TableHead className="w-16 text-right">Score</TableHead>
                 <TableHead>Evidence</TableHead>
                 <TableHead className="w-36">State</TableHead>
@@ -195,17 +198,18 @@ export default function PageGraphPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1280px]">
+    <Page width="record">
       <KbTabs user={user} />
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Page graph</h1>
-          <p className="font-mono text-xs text-muted-foreground">{page}</p>
-          <p className="mt-1 max-w-[720px] text-xs text-muted-foreground">
-            Links search follows to reach the page with the fix. Scores only order the links; they never decide an automatic answer.
-          </p>
-        </div>
-        <div className="flex gap-2">
+      <PageHeader
+        className="mb-4"
+        eyebrow="Knowledge / Page graph"
+        vi="Đồ thị trang"
+        back={{ href: "/kb", label: "Help pages" }}
+        title="Page graph"
+        meta={<span className="num rounded-sm bg-muted px-1.5 py-0.5 text-xs text-foreground">{page}</span>}
+        description="Links search follows to reach the page with the fix. Scores only order the links; they never decide an automatic answer."
+        actions={
+        <div className="flex flex-wrap gap-2">
           {editor && (
             <Button variant="outline" onClick={() => setCorrection({ target: "", action: "add" })}>
               Add link
@@ -216,13 +220,14 @@ export default function PageGraphPage() {
               disabled={busy || Boolean(graph?.pending_request)}
               onClick={() => void run(() => api.post(`${base}/rebuild`))}
             >
-              Rebuild
+              {graph?.pending_request ? "Rebuild queued" : "Rebuild"}
             </Button>
           )}
         </div>
-      </header>
+        }
+      />
 
-      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
+      {error && <ErrorState className="mb-3" title={error} onRetry={graph ? undefined : () => { setError(null); load(); }} />}
 
       {correction && (
         <Card asChild>
@@ -239,10 +244,10 @@ export default function PageGraphPage() {
               {correction.action === "add" && "Add a link to a page (followed first)"}
             </p>
             {correction.action === "add" && (
-              <Input className="w-80 font-mono" placeholder="target page slug" aria-label="Target page slug" value={target} onChange={(e) => setTarget(e.target.value)} required autoFocus />
+              <Input className="num w-full sm:w-80" placeholder="target page slug" aria-label="Target page slug" value={target} onChange={(e) => setTarget(e.target.value)} required autoFocus />
             )}
             <Input
-              className="min-w-[280px] flex-1"
+              className="min-w-0 flex-1 basis-full sm:basis-auto"
               placeholder="Reason (required, logged)" aria-label="Reason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
@@ -259,7 +264,11 @@ export default function PageGraphPage() {
         </Card>
       )}
 
-      {graph === null && !error && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {graph === null && !error && (
+        <Card className="px-4 py-3">
+          <LoadingState rows={5} label="Loading the page graph" />
+        </Card>
+      )}
       {graph && (
         <>
           <div className="mb-5 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -284,6 +293,6 @@ export default function PageGraphPage() {
           />
         </>
       )}
-    </div>
+    </Page>
   );
 }

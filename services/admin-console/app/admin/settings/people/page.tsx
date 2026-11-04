@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState } from "@/components/ui/states";
 
 // People (ADR-0042): every account, its role, capabilities and teams; a manager changes them here.
 
@@ -162,7 +162,7 @@ export default function PeoplePage() {
       }
       />
 
-      {error && !open && <p className="text-sm text-danger">{error}</p>}
+      {error && !open && <ErrorState title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[900px]">
@@ -179,8 +179,8 @@ export default function PeoplePage() {
           <TableBody>
             {people && shown.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  Nobody matches.
+                <TableCell colSpan={6} className="p-0">
+                  <EmptyState compact title="Nobody matches" />
                 </TableCell>
               </TableRow>
             )}

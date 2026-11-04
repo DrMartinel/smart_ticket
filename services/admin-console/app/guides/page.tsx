@@ -1,7 +1,6 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
 
 import { useAuth } from "@/lib/auth";
 import { useTours } from "@/components/tour/TourProvider";

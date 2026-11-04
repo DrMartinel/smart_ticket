@@ -1,5 +1,9 @@
 "use client";
 
+import { Plus, SearchX } from "lucide-react";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+
 // The help pages list: the Workspace shows it with editors' links, Admin with the manager's allow/revoke toggle.
 
 import Link from "next/link";
@@ -14,7 +18,6 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface KbArticle {
   id: string;
@@ -89,27 +92,30 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
 
   return (
     <>
-      <header className="mb-5 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{manage ? "All help pages" : "Help pages"}</h1>
-          <p className="mt-0.5 max-w-2xl text-sm text-muted-foreground">
-            {manage
-              ? "Only pages allowed here can be used for automatic answers. Changing that needs a reason, and every change is logged. The AI can never grant it."
-              : "Only pages marked Allowed can be used for automatic answers. Managers change which ones, in Admin."}
-          </p>
-        </div>
-        {isEditor && (
-          <Button asChild>
-            <Link href="/kb/drafts/new">
-              New page
-            </Link>
-          </Button>
-        )}
-      </header>
+      <PageHeader
+        className="mb-4"
+        eyebrow={manage ? "Admin / Help pages" : "Knowledge / Help pages"}
+        title={manage ? "All help pages" : "Help pages"}
+        description={
+          manage
+            ? "Only pages allowed here can be used for automatic answers. Changing that needs a reason, and every change is logged. The AI can never grant it."
+            : "Only pages marked Allowed can be used for automatic answers. Managers change which ones, in Admin."
+        }
+        actions={
+          isEditor && (
+            <Button asChild>
+              <Link href="/kb/drafts/new">
+                <Plus aria-hidden /> New page
+              </Link>
+            </Button>
+          )
+        }
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <Input
-          className="min-w-0 max-w-md flex-1"
+          type="search"
+          className="min-w-0 basis-full sm:max-w-md sm:basis-auto sm:flex-1"
           placeholder="Search by title or slug"
           aria-label="Search help pages"
           value={query}
@@ -118,7 +124,7 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
             setOffset(0);
           }}
         />
-        <NativeSelect wrapperClassName="w-48"
+        <NativeSelect wrapperClassName="w-full sm:w-48"
           aria-label="Category"
           value={category}
           onChange={(e) => {
@@ -132,7 +138,7 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
             </option>
           ))}
         </NativeSelect>
-        <span className="ml-auto text-sm text-muted-foreground">
+        <span className="num ml-auto text-xs text-muted-foreground">
           {count === 0 ? "0" : `${offset + 1}–${Math.min(offset + PAGE_SIZE, count)}`} of {count}
         </span>
         <Button variant="outline" size="sm" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
@@ -143,8 +149,12 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
         </Button>
       </div>
 
-      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
-      {articles === null && !error && <p className="text-sm text-muted-foreground">Loading…</p>}
+      {error && <ErrorState className="mb-3" title={error} onRetry={() => load()} />}
+      {articles === null && !error && (
+        <Card className="px-4 py-3">
+          <LoadingState rows={6} label="Loading help pages" />
+        </Card>
+      )}
 
       {articles && (
         <Card className="overflow-x-auto">
@@ -170,7 +180,7 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
                       ) : (
                         <span className="block truncate font-medium">{a.title}</span>
                       )}
-                      <span className="block truncate font-mono text-xs text-muted-foreground">{a.slug}</span>
+                      <span className="num block truncate text-xs text-muted-foreground">{a.slug}</span>
                     </TableCell>
                     <TableCell className="py-3">{a.category}</TableCell>
                     <TableCell className="py-3">
@@ -204,21 +214,22 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
                     <TableRow className="bg-muted">
                       <TableCell colSpan={5} className="px-4 py-3">
                         <form
-                          className="flex items-center gap-2"
+                          className="flex flex-wrap items-center gap-2"
                           onSubmit={(e) => {
                             e.preventDefault();
                             void toggle(a);
                           }}
                         >
                           <Input
-                            className="flex-1"
+                            aria-label="Reason (required, logged)"
+                            className="min-w-0 flex-1 basis-full sm:basis-auto"
                             placeholder={`Why ${a.auto_reply_allowed ? "revoke" : "allow"} automatic answers from this page? (required, logged)`}
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             autoFocus
                           />
-                          <Button type="submit">
-                            Confirm
+                          <Button type="submit" disabled={!reason.trim()} variant={a.auto_reply_allowed ? "destructive" : "default"}>
+                            {a.auto_reply_allowed ? "Revoke automatic answers" : "Allow automatic answers"}
                           </Button>
                           <Button variant="outline" type="button" onClick={() => setPendingSlug(null)}>
                             Cancel
@@ -229,6 +240,15 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
                   )}
                 </Fragment>
               ))}
+              <TableStatus
+                colSpan={5}
+                rows={articles}
+                empty={
+                  <EmptyState compact icon={SearchX} title={query || category ? "No help pages match" : "No help pages yet"}>
+                    {query || category ? "Try another word from the title, or clear the category." : "Load the knowledge base, or write a page with New page."}
+                  </EmptyState>
+                }
+              />
             </TableBody>
           </Table>
         </Card>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
 
 // Webhook subscriptions (F4 · 11-1047): signed JSON to allow-listed hosts only.
 
@@ -161,7 +161,7 @@ export default function WebhooksPage() {
               void save();
             }}
           >
-            <h2 className="text-sm font-semibold">New subscription</h2>
+            <h2 className="eyebrow !text-foreground/80">New subscription</h2>
             <div className="flex flex-wrap gap-3">
               <label className="flex w-[240px] flex-col gap-1">
                 <span className="text-xs font-medium text-foreground/80">Name</span>

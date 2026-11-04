@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState } from "@/components/ui/states";
 
 // The delivery log (F4 · 11-890): email and webhook messages, failures to retry.
 
@@ -154,8 +154,8 @@ export default function DeliveryLogPage() {
             ))}
             {page && page.items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="px-4 py-6 text-center text-muted-foreground">
-                  No deliveries match these filters.
+                <TableCell colSpan={8} className="p-0">
+                  <EmptyState compact title="No deliveries match these filters" />
                 </TableCell>
               </TableRow>
             )}

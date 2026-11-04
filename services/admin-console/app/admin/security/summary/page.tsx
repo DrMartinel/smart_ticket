@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState } from "@/components/ui/states";
 
 
 // Security alert counts for managers (F8 BR-F8-01, FR-F8-009): kinds and states, no tickets or people.
@@ -62,8 +62,8 @@ export default function SecuritySummaryPage() {
             ))}
             {summary && kinds.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                  No alerts in the window.
+                <TableCell colSpan={5} className="p-0">
+                  <EmptyState compact title="No alerts in the window" />
                 </TableCell>
               </TableRow>
             )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
 
 // The security inbox (F8 · Security inbox 15-1087): most severe first, then oldest.
 

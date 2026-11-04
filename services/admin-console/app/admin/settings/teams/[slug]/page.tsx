@@ -1,10 +1,10 @@
 "use client";
 
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
+import { Page, PageHeader } from "@/components/ui/page-header";
 
 // One team (F2): its settings, and its members and leads.
 
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { SectionTabs } from "@/components/TabNav";
@@ -95,22 +95,27 @@ export default function TeamPage() {
   );
 
   return (
-    <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
+    <Page className="flex flex-col gap-4">
       <SectionTabs className="mb-1" />
-      <Link href="/admin/settings/teams" className="text-sm text-muted-foreground hover:text-foreground">
-        ← All teams
-      </Link>
-      <header className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">{team?.name ?? slug}</h1>
-        {team?.is_fallback && <Badge variant="info">fallback</Badge>}
-        {team && !team.is_active && <Badge variant="neutral">inactive</Badge>}
-      </header>
+      <PageHeader
+        className="mb-2"
+        eyebrow="Admin / People & teams"
+        back={{ href: "/admin/settings/teams", label: "All teams" }}
+        title={team?.name ?? slug}
+        meta={
+          <>
+            <span className="num rounded-sm bg-muted px-1.5 py-0.5 text-xs text-foreground">{slug}</span>
+            {team?.is_fallback && <Badge variant="info">fallback</Badge>}
+            {team && !team.is_active && <Badge variant="neutral">inactive</Badge>}
+          </>
+        }
+      />
 
-      {error && <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} />}
 
       <Card className="p-0">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
-          <h2 className="text-sm font-semibold">Members</h2>
+          <h2 className="eyebrow !text-foreground/80">Members</h2>
           <span className="text-xs text-muted-foreground">
             {team ? `${team.members.length} ${team.members.length === 1 ? "person" : "people"}` : ""}
           </span>
@@ -201,7 +206,7 @@ export default function TeamPage() {
 
       <Card className="p-0">
         <div className="border-b border-border px-5 py-3">
-          <h2 className="text-sm font-semibold">Settings</h2>
+          <h2 className="eyebrow !text-foreground/80">Settings</h2>
         </div>
         <div className="flex flex-col gap-3 px-5 py-4">
           {draft && <TeamForm draft={draft} create={false} disabled={!canEdit} onChange={(patch) => setDraft({ ...draft, ...patch })} />}
@@ -225,6 +230,6 @@ export default function TeamPage() {
           )}
         </div>
       </Card>
-    </div>
+    </Page>
   );
 }

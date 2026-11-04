@@ -1,5 +1,9 @@
 "use client";
 
+import { BookCheck } from "lucide-react";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
+
 // The weekly KB-gap report (F6 · KB gaps 13-1299): refused tickets by topic, each a gap (no page)
 // or an update (a page that doesn't answer them).
 
@@ -15,7 +19,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const SAMPLES = 3;
 
@@ -52,24 +55,30 @@ export default function GapsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1180px]">
+    <Page>
       <KbTabs user={user} />
-      <header className="mb-4">
-        <h1 className="text-xl font-semibold">
-          KB gaps
-          {report?.window_start && report.window_end && (
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
+      <PageHeader
+        className="mb-4"
+        eyebrow="Knowledge / Gaps"
+        vi="Thiếu KB"
+        title="KB gaps"
+        meta={
+          report?.window_start &&
+          report.window_end && (
+            <span className="num text-xs">
               {vnTime(report.window_start)} – {vnTime(report.window_end)}
             </span>
-          )}
-        </h1>
-        <p className="text-xs text-muted-foreground">
-          Groups of tickets no help page answered, and tickets a reviewer marked as citing the wrong page. Only masked subjects
-          are shown. {report ? `${report.tickets_considered} tickets considered.` : ""}
-        </p>
-      </header>
+          )
+        }
+        description={
+          <>
+            Groups of tickets no help page answered, and tickets a reviewer marked as citing the wrong page. Only masked subjects are shown.
+            {report ? ` ${report.tickets_considered} tickets considered.` : ""}
+          </>
+        }
+      />
 
-      {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
+      {error && <ErrorState className="mb-3" title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[900px]">
@@ -86,7 +95,7 @@ export default function GapsPage() {
           <TableBody>
             {report?.clusters.map((c) => (
               <TableRow key={c.id} className="align-top">
-                <TableCell>{c.size}</TableCell>
+                <TableCell className="num">{c.size}</TableCell>
                 <TableCell>
                   {c.tickets.slice(0, SAMPLES).map((t) => (
                     <div key={t.public_id} className="text-xs">
@@ -99,7 +108,7 @@ export default function GapsPage() {
                   {c.tickets.length > SAMPLES && <div className="text-xs text-muted-foreground">+{c.tickets.length - SAMPLES} more tickets</div>}
                 </TableCell>
                 <TableCell className="num text-xs">{c.nearest_slug ?? "—"}</TableCell>
-                <TableCell>{c.nearest_similarity?.toFixed(2) ?? "—"}</TableCell>
+                <TableCell className="num">{c.nearest_similarity?.toFixed(2) ?? "—"}</TableCell>
                 <TableCell>
                   <Badge variant={c.label === "update" ? "info" : "warn"}>{c.label}</Badge>
                 </TableCell>
@@ -110,15 +119,18 @@ export default function GapsPage() {
                     </Link>
                   ) : dismissing === c.id ? (
                     <form
-                      className="flex items-center gap-2"
+                      className="flex flex-wrap items-center justify-end gap-2"
                       onSubmit={(e) => {
                         e.preventDefault();
                         void dismiss(c.id);
                       }}
                     >
                       <Input className="w-48" placeholder="e.g. not an IT question" aria-label="Reason to hide" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
-                      <Button variant="outline" size="xs" type="submit">
-                        Ẩn
+                      <Button variant="outline" size="sm" type="submit" disabled={!reason.trim()}>
+                        Hide
+                      </Button>
+                      <Button variant="ghost" size="sm" type="button" onClick={() => setDismissing(null)}>
+                        Cancel
                       </Button>
                     </form>
                   ) : (
@@ -143,20 +155,23 @@ export default function GapsPage() {
                 </TableCell>
               </TableRow>
             ))}
-            {report && report.clusters.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  {report.id ? "No topic is big enough to report yet." : "No report yet. It runs every Monday at 06:00."}
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus
+              colSpan={6}
+              rows={report?.clusters}
+              error={!!error}
+              empty={
+                <EmptyState compact icon={BookCheck} title={report?.id ? "No gaps worth a page yet" : "No report yet"}>
+                  {report?.id ? "No topic is big enough to report." : "The report runs every Monday at 06:00."}
+                </EmptyState>
+              }
+            />
           </TableBody>
         </Table>
       </Card>
       <p className="mt-2 text-xs text-muted-foreground">
-        “Update” means the nearest existing chunk is similar enough to edit that page. Hidden topics don't appear in
-        kb_gaps.dismiss_days ngày.
+        “Update” means the nearest existing chunk is similar enough to edit that page instead. A hidden topic stays out of the report
+        for the number of days set in thresholds.yaml (kb_gaps.dismiss_days).
       </p>
-    </div>
+    </Page>
   );
 }

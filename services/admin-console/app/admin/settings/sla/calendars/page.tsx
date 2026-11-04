@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 
 // Business calendars (F1 · Business calendars 8-283): working hours per weekday in one zone.
 
@@ -105,8 +105,10 @@ export default function CalendarsPage() {
       }
       />
 
-      {error && !editing && <p className="text-sm text-danger">{error}</p>}
+      {error && !editing && <ErrorState title={error} />}
 
+      {calendars === null && !error && <LoadingState rows={4} label="Loading calendars" />}
+      {calendars?.length === 0 && <EmptyState title="No calendars yet">Add one with New calendar.</EmptyState>}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {calendars?.map((c) => (
           <Card asChild key={c.id}>

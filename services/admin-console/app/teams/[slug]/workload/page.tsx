@@ -8,7 +8,6 @@ import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
 
 // Team workload (F2 · Team workload 9-450): each member's load, availability and leave.
 
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import Switch from "@/components/Switch";

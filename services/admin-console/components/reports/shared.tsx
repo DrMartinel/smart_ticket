@@ -1,5 +1,7 @@
 "use client";
 
+import { PageHeader } from "@/components/ui/page-header";
+
 // The Reports section's tabs and building blocks (F10): who sees each tab follows the routes' gates.
 
 import { useEffect, useState, type ReactNode } from "react";
@@ -60,8 +62,8 @@ export function Stat({ label, value, note, tone }: { label: string; value: strin
   const color = tone === "danger" ? "text-danger" : tone === "warn" ? "text-warn" : "";
   return (
     <Card className="p-4">
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold tabular-nums ${color}`}>{value}</p>
+      <p className="eyebrow">{label}</p>
+      <p className={`num mt-1.5 text-2xl font-medium ${color}`}>{value}</p>
       {note && <p className="mt-1 text-xs text-muted-foreground">{note}</p>}
     </Card>
   );
@@ -69,20 +71,20 @@ export function Stat({ label, value, note, tone }: { label: string; value: strin
 
 export function Header({ title, note, children }: { title: string; note: string; children?: ReactNode }) {
   return (
-    <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <p className="text-xs text-muted-foreground">{note}</p>
-      </div>
-      <div className="flex flex-wrap items-end gap-2">{children}</div>
-    </header>
+    <PageHeader
+      className="mb-4"
+      eyebrow="Admin / Reports"
+      title={title}
+      description={note}
+      actions={children ? <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto">{children}</div> : undefined}
+    />
   );
 }
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
-      <span className="text-xs text-muted-foreground">{label}</span>
+    <label className="flex flex-col gap-1.5 text-sm">
+      <span className="text-xs font-medium text-foreground/80">{label}</span>
       {children}
     </label>
   );
@@ -130,7 +132,7 @@ export function ExportButton({ path, filename }: { path: string; filename: strin
       <Button variant="outline" onClick={() => void run()}>
         Export CSV
       </Button>
-      {error && <span className="text-xs text-danger">Couldn't export the CSV.</span>}
+      {error && <span role="alert" className="mt-1 text-xs text-danger">Couldn&apos;t export the CSV. Try again.</span>}
     </div>
   );
 }

@@ -23,7 +23,7 @@ export function KbTabs({ user }: { user: CurrentUser }) {
   return (
     <Tabs
       tabs={[
-        { href: "/kb", label: "Trang · Pages", show: true, exact: true },
+        { href: "/kb", label: "Pages", show: true, exact: true },
         { href: "/kb/drafts", label: "Drafts", show: editor },
         { href: "/kb/gaps", label: "Gaps", show: editor },
       ]}

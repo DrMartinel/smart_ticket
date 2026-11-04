@@ -1,5 +1,7 @@
 "use client";
 
+import { ErrorState } from "@/components/ui/states";
+
 // A ticket's comments and the box to add one (F3 · Comment box 10-665): a public reply the
 // requester sees, or an internal note; masked before saving. A comment whose masking failed is
 // held until a reviewer shows or discards it (UC-F3-03 3y).
@@ -127,7 +129,7 @@ export default function CommentsPanel({
               {visibility === "public" ? "Send reply" : "Add note"}
             </Button>
           </div>
-          {error && <p className="mt-2 text-sm text-danger">{error}</p>}
+          {error && <ErrorState compact className="mt-2" title={error} />}
         </Card>
       )}
     </div>

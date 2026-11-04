@@ -1,5 +1,8 @@
 "use client";
 
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { ErrorState, LoadingState } from "@/components/ui/states";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
@@ -17,7 +20,6 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Selection = { kind: "status" | "transition"; id: string } | null;
 type Open =
@@ -64,7 +66,13 @@ export default function WorkflowEditorPage() {
   );
 
   if (!user) return null;
-  if (!wf || !catalog) return <p className="text-sm text-muted-foreground">{error ?? "Loading…"}</p>;
+  if (!wf || !catalog)
+    return (
+      <Page width="record">
+        <PageHeader eyebrow="Admin / Settings / Workflow" back={{ href: "/admin/settings/workflows", label: "Workflows" }} title={error ? "Workflow" : "Loading workflow…"} />
+        {error ? <ErrorState title={error} onRetry={() => void load()} /> : <LoadingState rows={6} label="Loading workflow" />}
+      </Page>
+    );
 
   const canEdit = user.role === "manager";
   const byId = Object.fromEntries(wf.statuses.map((s) => [s.id, s]));
@@ -95,20 +103,21 @@ export default function WorkflowEditorPage() {
   const selectedTransition = selected?.kind === "transition" ? wf.transitions.find((t) => t.id === selected.id) : undefined;
 
   return (
-    <div className="-mx-2 flex h-[calc(100dvh-3.5rem)] flex-col">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link href="/admin/settings/workflows" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Workflows
-          </Link>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight">
-            {wf.name}
-            {wf.is_default && <Badge variant="info" className="ml-3 align-middle">Default for new tickets</Badge>}
-          </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {wf.statuses.length} statuses · {wf.transitions.length} transitions · {wf.fields.length} fields
-          </p>
-        </div>
+    <div className="flex min-h-[80dvh] flex-col lg:h-[calc(100dvh-3.5rem)]">
+      <PageHeader
+        className="mb-0"
+        eyebrow="Admin / Settings / Workflow"
+        back={{ href: "/admin/settings/workflows", label: "Workflows" }}
+        title={wf.name}
+        meta={
+          <>
+            {wf.is_default && <Badge variant="info">Default for new tickets</Badge>}
+            <span className="num text-xs">
+              {wf.statuses.length} statuses · {wf.transitions.length} transitions · {wf.fields.length} fields
+            </span>
+          </>
+        }
+        actions={
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <Button asChild variant="outline">
             <Link href={`/board?workflow=${wf.id}`}>
@@ -117,7 +126,7 @@ export default function WorkflowEditorPage() {
           </Button>
           {canEdit && (
             <>
-              <NativeSelect wrapperClassName="w-60"
+              <NativeSelect wrapperClassName="w-full sm:w-60"
                 value={wf.transition_policy}
                 onChange={(e) => void patchWorkflow({ transition_policy: e.target.value })}
                 aria-label="Which moves are allowed"
@@ -133,11 +142,12 @@ export default function WorkflowEditorPage() {
             </>
           )}
         </div>
-      </div>
+        }
+      />
 
-      {error && <Alert variant="danger" className="mt-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
+      {error && <ErrorState className="mt-3" title={error} />}
 
-      <div className="mt-4 flex items-end justify-between gap-4">
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-x-4">
         <Tabs
           value={tab}
           onChange={setTab}
@@ -147,7 +157,7 @@ export default function WorkflowEditorPage() {
           ]}
         />
         {canEdit && tab === "diagram" && (
-          <div className="mb-3 flex gap-2">
+          <div className="mb-3 flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => setOpen({ kind: "status", status: null })}>
               Add status
             </Button>
@@ -285,7 +295,7 @@ export default function WorkflowEditorPage() {
 function PanelHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <div className="flex items-center justify-between border-b border-border px-4 py-3">
-      <h2 className="text-sm font-semibold">{title}</h2>
+      <h2 className="eyebrow !text-foreground/80">{title}</h2>
       <Button variant="ghost" size="xs" onClick={onBack} className="text-muted-foreground">
         All statuses
       </Button>
@@ -330,7 +340,7 @@ function StatusList({ wf, onPick }: { wf: WorkflowDetail; onPick: (s: Status) =>
   return (
     <>
       <div className="border-b border-border px-4 py-3">
-        <h2 className="text-sm font-semibold">Statuses</h2>
+        <h2 className="eyebrow !text-foreground/80">Statuses</h2>
         <p className="text-xs text-muted-foreground">Select a status or transition to see what it does.</p>
       </div>
       <ul>

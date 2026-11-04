@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState, Skeleton } from "@/components/ui/states";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -54,7 +54,7 @@ function Rows({ title, rows }: { title: string; rows: { label: string; value: st
   return (
     <Card asChild>
       <section>
-        <h2 className="border-b border-border px-5 py-3 text-sm font-semibold">{title}</h2>
+        <h2 className="eyebrow border-b border-border px-5 py-3">{title}</h2>
         <dl>
           {rows.map((r) => (
             <div key={r.label} className="grid grid-cols-[minmax(0,1fr)_110px] gap-4 border-b border-border px-5 py-3 last:border-0">
@@ -87,8 +87,25 @@ export default function DashboardPage() {
   }, [user]);
 
   if (!user) return null;
-  if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!data) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  if (error || !data)
+    return (
+      <Page width="record">
+        <PageHeader eyebrow="Admin / Insights" title="Dashboard" description={`Last ${WINDOW_DAYS} days`} />
+        {error ? (
+          <ErrorState title={error} onRetry={() => window.location.reload()} />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" role="status" aria-label="Loading the dashboard">
+            {[0, 1, 2, 3].map((i) => (
+              <Card key={i} className="flex flex-col gap-3 p-4">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-7 w-16" />
+                <Skeleton className="h-3 w-full" />
+              </Card>
+            ))}
+          </div>
+        )}
+      </Page>
+    );
 
   const waiting = data.hitl_health.queue_depth_by_queue.reduce((sum, q) => sum + q.n, 0);
   const reopen = data.quality.reopen_rate_after_autoreply;
@@ -152,9 +169,9 @@ export default function DashboardPage() {
 
       <Card asChild>
         <section className="mt-6">
-          <h2 className="border-b border-border px-5 py-3 text-sm font-semibold">Reviewers</h2>
+          <h2 className="eyebrow border-b border-border px-5 py-3">Reviewers</h2>
           {data.hitl_health.approve_rate_per_reviewer.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-muted-foreground">No reviews in this period.</p>
+            <EmptyState compact title="No reviews in this period" />
           ) : (
             <Table>
               <TableHeader>

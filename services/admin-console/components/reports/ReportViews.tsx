@@ -383,7 +383,7 @@ function CsatCard({ title, line }: { title: string; line: CsatLineOut }) {
   return (
     <Card asChild>
       <section className="p-4">
-        <h2 className="text-sm font-medium">{title}</h2>
+        <h2 className="eyebrow !text-foreground/80">{title}</h2>
         <p className="mt-1 text-2xl font-semibold tabular-nums">{num(line.mean, 2)}</p>
         <p className="text-xs text-muted-foreground">
           {line.ratings} ratings · response rate {percent(line.response_rate)} ({line.ratings}/{line.resolved})
@@ -437,7 +437,7 @@ export function CsatReport({ user }: { user: CurrentUser }) {
           )}
           <Card asChild>
             <section className="p-4">
-              <h2 className="mb-2 text-sm font-medium">Low ratings (personal data masked)</h2>
+              <h2 className="eyebrow mb-2 !text-foreground/80">Low ratings (personal data masked)</h2>
               {data.low_rated.length === 0 ? (
                 <p className="text-xs text-muted-foreground">None.</p>
               ) : (

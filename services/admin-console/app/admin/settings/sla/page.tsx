@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
 
 // SLA policies (F1 · SLA policies 8-57): targets in business minutes, drafted and activated by a
 // workflow admin or manager (ADR-0043); and a preview of due times.
@@ -149,6 +149,7 @@ export default function SlaPoliciesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
+            <TableStatus colSpan={9} rows={policies} error={!!error} empty={<EmptyState compact title="No SLA policies yet">Draft one with New policy draft, then activate it.</EmptyState>} />
             {policies?.map((p) => (
               <TableRow key={p.id} className={`${p.state === "draft" ? "bg-warn-soft" : ""} ${p.state === "retired" ? "text-muted-foreground" : ""}`}>
                 <TableCell className="tabular-nums">{p.order}</TableCell>
@@ -215,7 +216,7 @@ export default function SlaPoliciesPage() {
 
       <Card asChild>
         <section className="flex flex-col gap-3 p-4">
-          <h2 className="text-sm font-semibold">Preview due times</h2>
+          <h2 className="eyebrow !text-foreground/80">Preview due times</h2>
           <div className="flex flex-wrap items-end gap-3 text-sm">
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-foreground/80">Category</span>

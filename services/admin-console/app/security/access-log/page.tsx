@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState } from "@/components/ui/states";
 
 // The PII access log for security: who revealed which value, when and why (F5).
 
@@ -183,8 +183,8 @@ export default function AccessLogPage() {
             ))}
             {page && page.items.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="px-4 py-6 text-center text-muted-foreground">
-                  No reveals match these filters.
+                <TableCell colSpan={6} className="p-0">
+                  <EmptyState compact title="No reveals match these filters" />
                 </TableCell>
               </TableRow>
             )}

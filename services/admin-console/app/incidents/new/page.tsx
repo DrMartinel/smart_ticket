@@ -9,7 +9,6 @@ import { STAGES, fromLocal } from "@/components/incidents/chips";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { IncidentDetailOut } from "@/lib/types/generated";
-import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

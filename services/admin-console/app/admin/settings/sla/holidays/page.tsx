@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState } from "@/components/ui/states";
 
 // Holidays (F1 · Holidays 8-435): whole days off per calendar, entered each year.
 
@@ -183,8 +183,8 @@ export default function HolidaysPage() {
             ))}
             {shown.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                  No holidays entered for {year}.
+                <TableCell colSpan={5} className="p-0">
+                  <EmptyState compact title={`No holidays entered for ${year}`} />
                 </TableCell>
               </TableRow>
             )}

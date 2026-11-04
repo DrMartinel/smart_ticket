@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { ErrorState, LoadingState } from "@/components/ui/states";
 
 // Rollout (F9 · Rollout 16-1179): each automated branch is live only when the env isn't shadow, its
 // flag is on and the thresholds are approved (BR-F9-01); one manager turns a flag on (ADR-0043).
@@ -63,7 +63,14 @@ export default function RolloutPage() {
   }, [user, load]);
 
   if (!user) return null;
-  if (!data) return <p className="text-sm text-muted-foreground">{error ?? "Loading…"}</p>;
+  if (!data)
+    return (
+      <Page>
+        <SectionTabs className="mb-1" />
+        <PageHeader eyebrow="Admin / Rollout" title="Rollout" />
+        {error ? <ErrorState title={error} onRetry={() => window.location.reload()} /> : <LoadingState rows={5} label="Loading rollout" />}
+      </Page>
+    );
 
   const isManager = user.role === "manager";
   const mayTurnOff = isManager || user.role === "security";
@@ -117,7 +124,7 @@ export default function RolloutPage() {
         title="Rollout"
         description={<>A branch is live only when both keys turn: env not shadow and the branch flag on (BR-F9-01).</>}
       />
-      {error && !dialog && <p className="text-sm text-danger">{error}</p>}
+      {error && !dialog && <ErrorState title={error} />}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <StatCard label="Env SHADOW_MODE" value={String(data.env_shadow)} note="set in .env at deploy" />
@@ -152,7 +159,7 @@ export default function RolloutPage() {
             </div>
             <div className="flex flex-wrap gap-8 text-sm">
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Gate value</p>
+                <p className="eyebrow">Gate value</p>
                 <p className="mt-1 flex flex-wrap items-center gap-2">
                   {flag.gates.map((g) => (
                     <span key={g.metric} className="flex items-center gap-1.5">
@@ -163,7 +170,7 @@ export default function RolloutPage() {
                 </p>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Shadow agreement (14 days)</p>
+                <p className="eyebrow">Shadow agreement (14 days)</p>
                 <p className="mt-1">
                   {pct(flag.agreement)} {flag.agreement_decided > 0 && <span className="text-xs text-muted-foreground">of {flag.agreement_decided} decided</span>}
                 </p>
@@ -304,7 +311,7 @@ export default function RolloutPage() {
 function StatCard({ label, value, note, warn = false }: { label: string; value: string; note: string; warn?: boolean }) {
   return (
     <Card className={`p-4 ${warn ? "border-danger" : ""}`}>
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="eyebrow">{label}</p>
       <p className={`mt-1 text-xl font-semibold ${warn ? "text-danger" : ""}`}>{value}</p>
       <p className="text-xs text-muted-foreground">{note}</p>
     </Card>

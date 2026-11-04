@@ -1,5 +1,7 @@
 "use client";
 
+import { ErrorState, LoadingState } from "@/components/ui/states";
+
 // A runbook proposal on its review item (F12 UC-F12-01, 02): the payload the approver edits, the
 // execution and the verdict on an unknown outcome.
 
@@ -141,7 +143,7 @@ export default function RunbookPanel({
     }
   };
 
-  if (!panel) return error ? <p className="text-sm text-danger">{error}</p> : null;
+  if (!panel) return error ? <ErrorState compact title={error} /> : <LoadingState rows={2} label="Loading runbook" />;
   const runbook = panel.runbook;
   const open = panel.executions.some((e) => e.state !== "failed");
 

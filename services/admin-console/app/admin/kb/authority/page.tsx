@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, TableStatus } from "@/components/ui/states";
 
 // The authority queue (F6 · Authority queue 13-1049): pages a manager must grant, re-grant or
 // re-tier. A grant pins the text the manager read (BR-F6-05); high-risk pages go one at a time.
@@ -210,7 +210,7 @@ export default function AuthorityQueuePage() {
       {selected.size > 0 && open === null && (
         <Card asChild>
           <section className="mt-4 flex flex-col gap-3 p-5">
-            <h2 className="text-sm font-medium">Approve {selected.size} pages</h2>
+            <h2 className="eyebrow !text-foreground/80">Approve {selected.size} pages</h2>
             {confirmBox}
             <p className="text-xs text-danger">
               High-risk pages are always reviewed one at a time; a bulk request that includes one is refused and no page

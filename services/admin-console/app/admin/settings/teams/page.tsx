@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
 
 // Teams (F2 · Teams 9-646): every team, the categories it owns and its members; a new team opens on its own page.
 
@@ -85,7 +85,7 @@ export default function TeamsPage() {
       }
       />
 
-      {error && !draft && <p className="text-sm text-danger">{error}</p>}
+      {error && !draft && <ErrorState title={error} onRetry={() => { setError(null); void load(); }} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[820px]">
@@ -167,7 +167,7 @@ export default function TeamsPage() {
                 </Button>
               </div>
             )}
-            {error && <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
+            {error && <ErrorState compact title="The team wasn't created">{error}</ErrorState>}
           </div>
         )}
       </Modal>

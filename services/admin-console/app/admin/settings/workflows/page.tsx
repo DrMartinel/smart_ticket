@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { EmptyState, LoadingState, TableStatus } from "@/components/ui/states";
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -104,8 +104,9 @@ export default function WorkflowsPage() {
         </Card>
       )}
 
+      {workflows === null && !error && <LoadingState rows={3} label="Loading workflows" />}
       {workflows && (
-        <Card className="overflow-hidden">
+        <Card className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
@@ -130,6 +131,7 @@ export default function WorkflowsPage() {
                   <TableCell className="py-3 text-right text-muted-foreground">{relativeTime(w.updated_at)}</TableCell>
                 </TableRow>
               ))}
+              <TableStatus colSpan={3} rows={workflows} empty={<EmptyState compact title="No workflows yet" />} />
             </TableBody>
           </Table>
         </Card>

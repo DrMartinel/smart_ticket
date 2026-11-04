@@ -1,5 +1,11 @@
 "use client";
 
+import { humanize } from "@/lib/format";
+import { ConfirmDialog } from "@/components/ui/confirm";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { ErrorState, LoadingState } from "@/components/ui/states";
+import { useToast } from "@/components/ui/toast";
+
 // One alert (F8 · Alert detail 15-1265): the ticket or user behind it, its timeline, and what
 // security can do: acknowledge, assign, note, tell the requester, release, end sessions, close.
 
@@ -27,6 +33,8 @@ export default function AlertPage() {
   const [alert, setAlert] = useState<AlertDetailOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmEnd, setConfirmEnd] = useState(false);
+  const toast = useToast();
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
   const [resolution, setResolution] = useState<Resolution>("false_positive");
@@ -46,7 +54,13 @@ export default function AlertPage() {
   }, [user, load]);
 
   if (!user) return null;
-  if (!alert) return <p className="text-sm text-muted-foreground">{error ?? "Loading…"}</p>;
+  if (!alert)
+    return (
+      <Page>
+        <PageHeader eyebrow="Security / Alert" back={{ href: "/security/alerts", label: "Security alerts" }} title={error ? "Alert" : "Loading alert…"} />
+        {error ? <ErrorState title={error} onRetry={() => void load()} /> : <LoadingState rows={5} label="Loading alert" />}
+      </Page>
+    );
 
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -54,9 +68,10 @@ export default function AlertPage() {
     try {
       await fn();
       setReason("");
+      toast.success("Done.");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? `${err.code ?? "refused"}: ${err.message}` : "Something went wrong.");
+      setError(err instanceof ApiError ? `${err.message}${err.code ? ` (${err.code})` : ""}` : "That didn't go through. Try again.");
     } finally {
       setBusy(false);
     }
@@ -70,24 +85,29 @@ export default function AlertPage() {
   });
 
   return (
-    <div className="mx-auto flex max-w-[1180px] flex-col gap-4">
-      <Link href="/security/alerts" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Alerts
-      </Link>
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <span className="font-mono">{alert.kind}</span>
-            {alert.ticket && <span>· {alert.ticket.public_id}</span>}
-          </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Security / Alert"
+        back={{ href: "/security/alerts", label: "Security alerts" }}
+        title={
+          <>
+            {humanize(alert.kind)}
+            {alert.ticket && <span className="num ml-2 text-[0.75em] font-medium text-muted-foreground">{alert.ticket.public_id}</span>}
+          </>
+        }
+        meta={
+          <>
             <SeverityChip severity={alert.severity} />
             <StateChip state={alert.state} resolution={alert.resolution} />
-            Raised {vnTime(alert.first_seen_at)} (+07) · count {alert.count}
-            {alert.subject_user && ` · subject user ${alert.subject_user}`} · ack due {vnTime(alert.ack_due_at)}
-            {alert.assignee && ` · assigned to ${alert.assignee}`}
-          </p>
-        </div>
+            <span className="text-xs">
+              Raised <span className="num">{vnTime(alert.first_seen_at)}</span> (ICT) · seen <span className="num">{alert.count}</span>×
+              {alert.subject_user && ` · about ${alert.subject_user}`} · acknowledge by <span className="num">{vnTime(alert.ack_due_at)}</span>
+              {alert.assignee && ` · assigned to ${alert.assignee}`}
+            </span>
+          </>
+        }
+        actions={
         <div className="flex flex-wrap gap-2">
           {alert.state === "new" && (
             <Button variant="outline" disabled={busy} onClick={() => act(() => api.post(`${base}/ack`))}>
@@ -103,21 +123,32 @@ export default function AlertPage() {
             </Button>
           )}
           {alert.sessions.length > 0 && (
-            <Button variant="outline" disabled={busy} onClick={() => act(() => api.post(`${base}/end-sessions`))}>
-              End {alert.sessions.length} sign-in{alert.sessions.length > 1 ? "s" : ""}
+            <Button variant="outline" disabled={busy} onClick={() => setConfirmEnd(true)} className="text-danger">
+              End {alert.sessions.length} sign-in{alert.sessions.length > 1 ? "s" : ""}…
             </Button>
           )}
         </div>
-      </header>
+        }
+      />
+      <ConfirmDialog
+        open={confirmEnd}
+        title={`End ${alert.sessions.length} sign-in session${alert.sessions.length > 1 ? "s" : ""}?`}
+        confirmLabel="End sessions"
+        destructive
+        onClose={() => setConfirmEnd(false)}
+        onConfirm={() => act(() => api.post(`${base}/end-sessions`))}
+      >
+        {alert.subject_user ?? "The user"} is signed out everywhere these sessions are open and has to sign in again. This is recorded on the alert.
+      </ConfirmDialog>
 
-      {error && <p className="rounded-md bg-danger-soft px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && <ErrorState title="That didn't go through">{error}</ErrorState>}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card asChild>
           <section className="flex flex-col gap-4 p-5">
             {alert.ticket ? (
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Ticket (masked)</p>
+                <p className="eyebrow">Ticket (masked)</p>
                 <Link href={`/tickets/${alert.ticket.public_id}`} className="mt-1 block font-medium hover:underline">
                   {alert.ticket.subject_masked}
                 </Link>
@@ -135,7 +166,7 @@ export default function AlertPage() {
             {(alert.sessions.length > 0 || alert.recent_activity.length > 0) && (
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Live sign-ins</p>
+                  <p className="mb-1 eyebrow">Live sign-ins</p>
                   {alert.sessions.length === 0 ? (
                     <p className="text-xs text-muted-foreground">None.</p>
                   ) : (
@@ -154,7 +185,7 @@ export default function AlertPage() {
                   )}
                 </div>
                 <div>
-                  <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Recent activity</p>
+                  <p className="mb-1 eyebrow">Recent activity</p>
                   <ul className="text-xs">
                     {alert.recent_activity.map((a) => (
                       <li key={`${a.event}-${a.occurred_at}`} className="border-t border-border py-1.5">
@@ -167,7 +198,7 @@ export default function AlertPage() {
             )}
 
             <div>
-              <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Timeline</p>
+              <p className="mb-1 eyebrow">Timeline</p>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -223,7 +254,7 @@ export default function AlertPage() {
                   <Textarea className="min-h-[64px]" value={reason} maxLength={2000} onChange={(e) => setReason(e.target.value)} />
                 </label>
                 <fieldset className="flex flex-col gap-1">
-                  <legend className="pb-1.5 text-[11px] uppercase tracking-wider text-muted-foreground">Close alert as</legend>
+                  <legend className="pb-1.5 eyebrow">Close alert as</legend>
                   <RadioGroup value={resolution} onValueChange={(next) => setResolution(next as typeof resolution)} className="gap-1.5">
                     {(["false_positive", "true_positive", "duplicate"] as const).map((r) => (
                       <label key={r} className="flex items-center gap-2">
@@ -286,6 +317,6 @@ export default function AlertPage() {
           )}
         </aside>
       </div>
-    </div>
+    </Page>
   );
 }

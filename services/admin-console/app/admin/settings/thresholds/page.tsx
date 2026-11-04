@@ -1,7 +1,7 @@
 "use client";
 
 import { Page, PageHeader } from "@/components/ui/page-header";
-import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { ErrorState } from "@/components/ui/states";
 
 
 // Thresholds (F9): the thresholds.yaml core-api loaded, read-only; it changes by pull request
@@ -45,7 +45,7 @@ export default function ThresholdsPage() {
         <Card asChild>
           <section className="flex flex-col gap-3 p-4 text-sm">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">Loaded file</p>
+              <p className="eyebrow">Loaded file</p>
               <p className="mt-1 font-mono text-lg font-semibold">{current.version}</p>
               <p className="text-xs text-muted-foreground">sha256 {current.sha256.slice(0, 12)}…</p>
             </div>

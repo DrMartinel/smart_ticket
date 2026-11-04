@@ -10,7 +10,7 @@ import { VIEWS } from "@/lib/views";
 import StatusChip from "@/components/StatusChip";
 import SlaBadge, { PriorityChip } from "@/components/SlaBadge";
 import { priorityTone } from "@/lib/badges";
-import type { StaffTicketPage, StaffTicketRow } from "@/lib/types/generated";
+import type { StaffTicketPage } from "@/lib/types/generated";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,7 +21,6 @@ import { CheckCheck, Inbox, Layers, ListChecks, Search, SearchX, UserRound, type
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 
-type TicketRow = StaffTicketRow;
 type TicketPage = StaffTicketPage;
 
 const PAGE_SIZE = 50;
