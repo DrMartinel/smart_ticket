@@ -74,33 +74,33 @@ export default function DraftsPage() {
       {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[820px] text-left text-sm">
-          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        <Table className="min-w-[820px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2.5 font-medium">Page</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Kind</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">State</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Author</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Reviewer</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Updated</TableHead>
+              <TableHead>Page</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Author</TableHead>
+              <TableHead>Reviewer</TableHead>
+              <TableHead>Updated</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows?.map((d) => (
-              <TableRow key={d.id} className="border-t border-border">
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={d.id}>
+                <TableCell>
                   <Link href={`/kb/drafts/${d.id}`} className="font-medium text-primary hover:underline">
                     {d.title}
                   </Link>
                   <div className="font-mono text-xs text-muted-foreground">{d.slug}</div>
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{KIND_VI[d.kind] ?? d.kind}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>{KIND_VI[d.kind] ?? d.kind}</TableCell>
+                <TableCell>
                   <DraftStateChip state={d.state} />
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{d.author.username}</TableCell>
-                <TableCell className="px-4 py-2.5">{d.reviewer?.username ?? "—"}</TableCell>
-                <TableCell className="px-4 py-2.5">{vnTime(d.updated_at)}</TableCell>
+                <TableCell>{d.author.username}</TableCell>
+                <TableCell>{d.reviewer?.username ?? "—"}</TableCell>
+                <TableCell>{vnTime(d.updated_at)}</TableCell>
               </TableRow>
             ))}
             {rows?.length === 0 && (

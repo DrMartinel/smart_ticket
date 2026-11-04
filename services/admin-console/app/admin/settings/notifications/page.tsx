@@ -153,27 +153,27 @@ export default function NotificationMatrixPage() {
       {saved && <p className="text-sm text-ok">Saved. The change is in the audit log.</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[720px] text-left text-xs">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[720px] text-xs">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Event</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Recipient</TableHead>
-              <TableHead className="px-4 py-2 font-normal">In-app</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Email</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Mandatory</TableHead>
+              <TableHead>Event</TableHead>
+              <TableHead>Recipient</TableHead>
+              <TableHead>In-app</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Mandatory</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((row) => (
-              <TableRow key={row.key} className={`border-t border-border ${row.active ? "" : "text-muted-foreground"}`}>
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={row.key} className={`${row.active ? "" : "text-muted-foreground"}`}>
+                <TableCell>
                   <span className="font-mono">{row.event}</span>
                   {!row.active && <Badge variant="neutral" className="ml-2">ships with {row.owner}</Badge>}
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{row.kind.replaceAll("_", " ")}</TableCell>
-                <TableCell className="px-4 py-2.5">{cell(row, "in_app")}</TableCell>
-                <TableCell className="px-4 py-2.5">{cell(row, "email")}</TableCell>
-                <TableCell className="px-4 py-2.5 text-muted-foreground">
+                <TableCell>{row.kind.replaceAll("_", " ")}</TableCell>
+                <TableCell>{cell(row, "in_app")}</TableCell>
+                <TableCell>{cell(row, "email")}</TableCell>
+                <TableCell className="text-muted-foreground">
                   {(["in_app", "email"] as const).filter((c) => row.cells[c]?.mandatory).length === 2
                     ? "🔒 mandatory"
                     : row.cells.in_app?.mandatory

@@ -70,22 +70,22 @@ export default function IncidentsPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[860px] text-left text-sm">
-          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        <Table className="min-w-[860px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2.5 font-medium">Incident</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Status</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Stage</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Tickets</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">ETA</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Target</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Opened</TableHead>
+              <TableHead>Incident</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Stage</TableHead>
+              <TableHead>Tickets</TableHead>
+              <TableHead>ETA</TableHead>
+              <TableHead>Target</TableHead>
+              <TableHead>Opened</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows?.map((i) => (
-              <TableRow key={i.public_id} className={`border-t border-border ${i.status === "proposed" ? "bg-warn-soft" : ""}`}>
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={i.public_id} className={`${i.status === "proposed" ? "bg-warn-soft" : ""}`}>
+                <TableCell>
                   <Link href={`/incidents/${i.public_id}`} className="font-medium text-primary hover:underline">
                     {i.public_id}
                   </Link>
@@ -94,13 +94,13 @@ export default function IncidentsPage() {
                     {i.service ? ` · ${i.service}` : ""}
                   </div>
                 </TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   <IncidentStatusChip status={i.status} />
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{i.status === "proposed" ? "—" : <StageChip stage={i.stage} />}</TableCell>
-                <TableCell className="px-4 py-2.5">{i.ticket_count}</TableCell>
-                <TableCell className="px-4 py-2.5">{eta(i.eta, i.eta_unknown)}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>{i.status === "proposed" ? "—" : <StageChip stage={i.stage} />}</TableCell>
+                <TableCell>{i.ticket_count}</TableCell>
+                <TableCell>{eta(i.eta, i.eta_unknown)}</TableCell>
+                <TableCell>
                   {i.target_resolve_at ? (
                     <span className={i.target_breached ? "text-danger" : ""}>
                       {vnTime(i.target_resolve_at)}
@@ -110,7 +110,7 @@ export default function IncidentsPage() {
                     "—"
                   )}
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{vnTime(i.created_at)}</TableCell>
+                <TableCell>{vnTime(i.created_at)}</TableCell>
               </TableRow>
             ))}
             {rows?.length === 0 && (

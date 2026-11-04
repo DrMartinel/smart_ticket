@@ -70,27 +70,27 @@ function EdgeTable({
         {edges.length === 0 ? (
           <p className="px-4 py-6 text-center text-sm text-muted-foreground">Chưa có liên kết.</p>
         ) : (
-          <Table className="w-full min-w-[640px] table-fixed text-sm">
-            <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+          <Table className="min-w-[640px] table-fixed">
+            <TableHeader>
               <TableRow>
-                <TableHead className="px-4 py-2.5 font-medium">Trang · Page</TableHead>
-                <TableHead className="w-16 px-4 py-2.5 text-right font-medium">Điểm</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Bằng chứng · Evidence</TableHead>
-                <TableHead className="w-36 px-4 py-2.5 font-medium">Trạng thái</TableHead>
-                {editor && outgoing && <TableHead className="w-28 px-4 py-2.5" />}
+                <TableHead>Trang · Page</TableHead>
+                <TableHead className="w-16 text-right">Điểm</TableHead>
+                <TableHead>Bằng chứng · Evidence</TableHead>
+                <TableHead className="w-36">Trạng thái</TableHead>
+                {editor && outgoing && <TableHead className="w-28" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {edges.map((e) => (
-                <TableRow key={e.slug} className="border-t border-border align-top">
-                  <TableCell className="px-4 py-3">
+                <TableRow key={e.slug} className="align-top">
+                  <TableCell className="py-3">
                     <Link href={`/kb/graph/${encodeURIComponent(e.slug)}`} className="block truncate font-medium hover:text-primary">
                       {e.title}
                     </Link>
                     <span className="block truncate font-mono text-xs text-muted-foreground">{e.slug}</span>
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-right font-mono tabular-nums">{e.score ?? "—"}</TableCell>
-                  <TableCell className="px-4 py-3 text-xs">
+                  <TableCell className="py-3 text-right font-mono tabular-nums">{e.score ?? "—"}</TableCell>
+                  <TableCell className="py-3 text-xs">
                     {e.evidence.length > 0 ? (
                       <>
                         <span className="line-clamp-2">{e.evidence[0]}</span>
@@ -100,7 +100,7 @@ function EdgeTable({
                       <span className="text-muted-foreground">Do biên tập viên thêm</span>
                     )}
                   </TableCell>
-                  <TableCell className="px-4 py-3">
+                  <TableCell className="py-3">
                     <div className="flex flex-wrap gap-1">
                       {e.stale && <Badge variant="warn">Cũ · stale</Badge>}
                       {e.reviewed && <Badge variant="ok">Đã xác nhận</Badge>}
@@ -114,7 +114,7 @@ function EdgeTable({
                     )}
                   </TableCell>
                   {editor && outgoing && (
-                    <TableCell className="px-4 py-3 text-right">
+                    <TableCell className="py-3 text-right">
                       <span className="inline-flex flex-wrap justify-end gap-2 text-xs">
                         {e.score !== null && !e.reviewed && !e.override && (
                           <Button variant="link" size="inline"  onClick={() => onConfirm(e.slug)}>

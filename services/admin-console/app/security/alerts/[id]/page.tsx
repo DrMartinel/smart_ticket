@@ -168,17 +168,17 @@ export default function AlertPage() {
 
             <div>
               <p className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Timeline</p>
-              <Table className="w-full text-left text-sm">
-                <TableHeader className="text-xs text-muted-foreground">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableHead className="py-1.5 font-normal">Time</TableHead>
-                    <TableHead className="py-1.5 font-normal">Event</TableHead>
-                    <TableHead className="py-1.5 font-normal">Actor</TableHead>
+                    <TableHead className="py-1.5">Time</TableHead>
+                    <TableHead className="py-1.5">Event</TableHead>
+                    <TableHead className="py-1.5">Actor</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {alert.events.map((e, i) => (
-                    <TableRow key={i} className="border-t border-border align-top">
+                    <TableRow key={i} className="align-top">
                       <TableCell className="py-2 pr-3 text-xs">{vnTime(e.at)}</TableCell>
                       <TableCell className="py-2 pr-3">
                         {e.kind}

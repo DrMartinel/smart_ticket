@@ -150,28 +150,28 @@ export default function AccessLogPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[720px] text-left text-xs">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[720px] text-xs">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Time (+07)</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Actor</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Ticket</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Placeholder</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Reason code</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Reason (masked)</TableHead>
+              <TableHead>Time (+07)</TableHead>
+              <TableHead>Actor</TableHead>
+              <TableHead>Ticket</TableHead>
+              <TableHead>Placeholder</TableHead>
+              <TableHead>Reason code</TableHead>
+              <TableHead>Reason (masked)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {page?.items.map((row) => (
-              <TableRow key={row.id} className="border-t border-border">
-                <TableCell className="whitespace-nowrap px-4 py-2.5">{vnTime(row.accessed_at)}</TableCell>
-                <TableCell className="px-4 py-2.5">{row.actor}</TableCell>
-                <TableCell className="px-4 py-2.5 font-mono">{row.ticket}</TableCell>
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={row.id}>
+                <TableCell className="whitespace-nowrap">{vnTime(row.accessed_at)}</TableCell>
+                <TableCell>{row.actor}</TableCell>
+                <TableCell className="font-mono">{row.ticket}</TableCell>
+                <TableCell>
                   <Badge variant={piiLevelTone(row.level)}>{row.placeholder}</Badge>
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{row.reason_code}</TableCell>
-                <TableCell className="px-4 py-2.5">{row.reason}</TableCell>
+                <TableCell>{row.reason_code}</TableCell>
+                <TableCell>{row.reason}</TableCell>
               </TableRow>
             ))}
             {page && page.items.length === 0 && (

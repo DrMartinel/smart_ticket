@@ -116,15 +116,15 @@ export default function AuthorityQueuePage() {
       {notice && <Alert variant="ok" className="mb-3 text-sm"><AlertDescription>{notice}</AlertDescription></Alert>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[860px] text-left text-sm">
-          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        <Table className="min-w-[860px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="w-10 px-4 py-2.5" />
-              <TableHead className="px-4 py-2.5 font-medium">Page</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Risk</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Why here</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Since</TableHead>
-              <TableHead className="px-4 py-2.5" />
+              <TableHead className="w-10" />
+              <TableHead>Page</TableHead>
+              <TableHead>Risk</TableHead>
+              <TableHead>Why here</TableHead>
+              <TableHead>Since</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -133,8 +133,8 @@ export default function AuthorityQueuePage() {
               const slug = i.article.slug;
               return (
                 <Fragment key={slug}>
-                  <TableRow className={`border-t border-border ${high ? "bg-danger-soft" : ""}`}>
-                    <TableCell className="px-4 py-2.5">
+                  <TableRow className={`${high ? "bg-danger-soft" : ""}`}>
+                    <TableCell>
                       <Checkbox
                         aria-label={`Select ${slug}`}
                         disabled={high}
@@ -142,19 +142,19 @@ export default function AuthorityQueuePage() {
                         onCheckedChange={() => toggle(slug)}
                       />
                     </TableCell>
-                    <TableCell className="px-4 py-2.5">
+                    <TableCell>
                       <div className="font-mono">{slug}</div>
                       <div className="text-xs text-muted-foreground">{i.article.title}</div>
                     </TableCell>
-                    <TableCell className="px-4 py-2.5">
+                    <TableCell>
                       <Badge variant={riskTierTone(i.article.risk_tier)}>{i.article.risk_tier}</Badge>
                       {i.proposed_risk_tier && i.proposed_risk_tier !== i.article.risk_tier && (
                         <span className="ml-1 text-xs text-muted-foreground">→ {i.proposed_risk_tier}</span>
                       )}
                     </TableCell>
-                    <TableCell className="px-4 py-2.5">{AUTHORITY_REASON_VI[i.reason] ?? i.reason}</TableCell>
-                    <TableCell className="px-4 py-2.5">{i.published_at ? vnTime(i.published_at) : "—"}</TableCell>
-                    <TableCell className="px-4 py-2.5 text-right">
+                    <TableCell>{AUTHORITY_REASON_VI[i.reason] ?? i.reason}</TableCell>
+                    <TableCell>{i.published_at ? vnTime(i.published_at) : "—"}</TableCell>
+                    <TableCell className="text-right">
                       <Button
                         variant="link"
                         size="inline"

@@ -153,26 +153,26 @@ export default function DashboardPage() {
           {data.hitl_health.approve_rate_per_reviewer.length === 0 ? (
             <p className="px-5 py-4 text-sm text-muted-foreground">No reviews in this period.</p>
           ) : (
-            <Table className="w-full text-sm">
-              <TableHeader className="text-left text-xs text-muted-foreground">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableHead className="px-5 py-2 font-medium">Reviewer</TableHead>
-                  <TableHead className="px-5 py-2 text-right font-medium">Reviews</TableHead>
-                  <TableHead className="px-5 py-2 text-right font-medium">Approved as proposed</TableHead>
-                  <TableHead className="px-5 py-2 text-right font-medium">Median time per review</TableHead>
-                  <TableHead className="px-5 py-2 font-medium" />
+                  <TableHead className="px-5">Reviewer</TableHead>
+                  <TableHead className="px-5 text-right">Reviews</TableHead>
+                  <TableHead className="px-5 text-right">Approved as proposed</TableHead>
+                  <TableHead className="px-5 text-right">Median time per review</TableHead>
+                  <TableHead className="px-5" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {data.hitl_health.approve_rate_per_reviewer.map((r) => {
                   const rushed = r.median_time_spent_sec !== null && r.median_time_spent_sec < 10;
                   return (
-                    <TableRow key={r.reviewer__username} className="border-t border-border">
-                      <TableCell className="px-5 py-2.5">{r.reviewer__username}</TableCell>
-                      <TableCell className="px-5 py-2.5 text-right font-mono tabular-nums">{r.total}</TableCell>
-                      <TableCell className="px-5 py-2.5 text-right font-mono tabular-nums">{percent(r.approve_rate)}</TableCell>
-                      <TableCell className="px-5 py-2.5 text-right font-mono tabular-nums">{duration(r.median_time_spent_sec)}</TableCell>
-                      <TableCell className="px-5 py-2.5 text-xs text-warn">{rushed ? "Under 10 s: may not be reading" : ""}</TableCell>
+                    <TableRow key={r.reviewer__username}>
+                      <TableCell className="px-5">{r.reviewer__username}</TableCell>
+                      <TableCell className="px-5 text-right font-mono tabular-nums">{r.total}</TableCell>
+                      <TableCell className="px-5 text-right font-mono tabular-nums">{percent(r.approve_rate)}</TableCell>
+                      <TableCell className="px-5 text-right font-mono tabular-nums">{duration(r.median_time_spent_sec)}</TableCell>
+                      <TableCell className="px-5 text-xs text-warn">{rushed ? "Under 10 s: may not be reading" : ""}</TableCell>
                     </TableRow>
                   );
                 })}

@@ -177,8 +177,8 @@ export function Empty({ children }: { children: ReactNode }) {
 export function ReportTable({ head, children }: { head: string[]; children: ReactNode }) {
   return (
     <Card className="overflow-x-auto">
-      <Table className="w-full min-w-[640px] text-left text-sm">
-        <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+      <Table className="min-w-[640px]">
+        <TableHeader>
           <TableRow>
             {head.map((h, i) => (
               <TableHead key={i} className={`px-4 py-2.5 font-medium ${i > 0 ? "text-right" : ""}`}>

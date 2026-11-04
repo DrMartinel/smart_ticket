@@ -101,28 +101,28 @@ export default function WorkflowsPage() {
 
       {workflows && (
         <Card className="overflow-hidden">
-          <Table className="w-full text-sm">
-            <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableHead className="px-4 py-2.5 font-medium">Workflow</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Moves</TableHead>
-                <TableHead className="px-4 py-2.5 text-right font-medium">Updated</TableHead>
+                <TableHead>Workflow</TableHead>
+                <TableHead>Moves</TableHead>
+                <TableHead className="text-right">Updated</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {workflows.map((w) => (
-                <TableRow key={w.id} className="border-t border-border hover:bg-muted">
-                  <TableCell className="px-4 py-3">
+                <TableRow key={w.id} className="hover:bg-muted">
+                  <TableCell className="py-3">
                     <Link href={`/admin/settings/workflows/${w.id}`} className="font-medium hover:text-primary">
                       {w.name}
                     </Link>
                     {w.is_default && <Badge variant="info" className="ml-2">Default for new tickets</Badge>}
                     {w.description && <p className="text-xs text-muted-foreground">{w.description}</p>}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-muted-foreground">
+                  <TableCell className="py-3 text-muted-foreground">
                     {w.transition_policy === "strict" ? "Defined transitions only" : "Any to any"}
                   </TableCell>
-                  <TableCell className="px-4 py-3 text-right text-muted-foreground">{relativeTime(w.updated_at)}</TableCell>
+                  <TableCell className="py-3 text-right text-muted-foreground">{relativeTime(w.updated_at)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

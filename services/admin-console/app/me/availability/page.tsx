@@ -98,18 +98,18 @@ export default function MyAvailabilityPage() {
       <Card asChild>
         <section className="flex flex-col gap-3 p-4">
           <h2 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Leave</h2>
-          <Table className="w-full text-left text-sm">
-            <TableHeader className="text-[11px] text-muted-foreground">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableHead className="py-1.5 font-normal">From</TableHead>
-                <TableHead className="py-1.5 font-normal">To</TableHead>
-                <TableHead className="py-1.5 font-normal">Note</TableHead>
+                <TableHead className="py-1.5">From</TableHead>
+                <TableHead className="py-1.5">To</TableHead>
+                <TableHead className="py-1.5">Note</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {mine?.leaves.map((leave) => (
-                <TableRow key={leave.id} className="border-t border-border">
+                <TableRow key={leave.id}>
                   <TableCell className="py-2">{leave.starts_on}</TableCell>
                   <TableCell className="py-2">{leave.ends_on}</TableCell>
                   <TableCell className="py-2">{leave.note || "—"}</TableCell>

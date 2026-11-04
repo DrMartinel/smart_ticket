@@ -266,29 +266,29 @@ export default function IncidentPage() {
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">Lịch sử cập nhật · Broadcast history</h2>
         <Card className="overflow-x-auto">
-          <Table className="w-full min-w-[760px] text-left text-sm">
-            <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+          <Table className="min-w-[760px]">
+            <TableHeader>
               <TableRow>
-                <TableHead className="px-4 py-2.5 font-medium">Time</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Stage</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Message</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">ETA</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Delivered</TableHead>
+                <TableHead>Time</TableHead>
+                <TableHead>Stage</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead>ETA</TableHead>
+                <TableHead>Delivered</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {incident.broadcasts.map((b) => (
-                <TableRow key={b.id} className="border-t border-border">
-                  <TableCell className="px-4 py-2.5">{vnTime(b.sent_at)}</TableCell>
-                  <TableCell className="px-4 py-2.5">
+                <TableRow key={b.id}>
+                  <TableCell>{vnTime(b.sent_at)}</TableCell>
+                  <TableCell>
                     <StageChip stage={b.stage} />
                   </TableCell>
-                  <TableCell className="px-4 py-2.5">
+                  <TableCell>
                     {b.body_vi_masked}
                     {b.body_en_masked && <div className="text-xs text-muted-foreground">{b.body_en_masked}</div>}
                   </TableCell>
-                  <TableCell className="px-4 py-2.5">{eta(b.eta, b.eta_unknown)}</TableCell>
-                  <TableCell className="px-4 py-2.5">
+                  <TableCell>{eta(b.eta, b.eta_unknown)}</TableCell>
+                  <TableCell>
                     {b.delivery.in_app_delivered} / {b.delivery.email_delivered} email
                     {b.delivery.email_failed > 0 && <span className="text-danger"> · {b.delivery.email_failed} failed</span>}
                   </TableCell>
@@ -309,28 +309,28 @@ export default function IncidentPage() {
       <section className="flex flex-col gap-2">
         <h2 className="text-sm font-semibold">Phiếu liên quan · Linked tickets ({incident.links.length})</h2>
         <Card className="overflow-x-auto">
-          <Table className="w-full min-w-[760px] text-left text-sm">
-            <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+          <Table className="min-w-[760px]">
+            <TableHeader>
               <TableRow>
-                <TableHead className="px-4 py-2.5 font-medium">Ticket</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Subject (masked)</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Requester</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Linked</TableHead>
-                <TableHead className="px-4 py-2.5 font-medium">Clock</TableHead>
+                <TableHead>Ticket</TableHead>
+                <TableHead>Subject (masked)</TableHead>
+                <TableHead>Requester</TableHead>
+                <TableHead>Linked</TableHead>
+                <TableHead>Clock</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {incident.links.map((l) => (
-                <TableRow key={l.ticket} className="border-t border-border">
-                  <TableCell className="px-4 py-2.5">
+                <TableRow key={l.ticket}>
+                  <TableCell>
                     <Link href={`/tickets/${l.ticket}`} className="text-primary hover:underline">
                       {l.ticket}
                     </Link>
                   </TableCell>
-                  <TableCell className="px-4 py-2.5">{l.subject_masked}</TableCell>
-                  <TableCell className="px-4 py-2.5">{l.requester}</TableCell>
-                  <TableCell className="px-4 py-2.5">
+                  <TableCell>{l.subject_masked}</TableCell>
+                  <TableCell>{l.requester}</TableCell>
+                  <TableCell>
                     {vnTime(l.linked_at)}
                     <span className="text-xs text-muted-foreground">
                       {" "}
@@ -338,14 +338,14 @@ export default function IncidentPage() {
                       {l.similarity !== null && ` ${l.similarity.toFixed(2)}`}
                     </span>
                   </TableCell>
-                  <TableCell className="px-4 py-2.5">
+                  <TableCell>
                     {l.clock_state === "paused" ? (
                       <Badge variant="neutral" className="bg-muted">Tạm dừng · Paused</Badge>
                     ) : (
                       <Badge variant="neutral">{l.clock_state ?? "—"}</Badge>
                     )}
                   </TableCell>
-                  <TableCell className="px-4 py-2.5 text-right">
+                  <TableCell className="text-right">
                     {(isManager || l.assigned_to === user.username) && incident.status !== "closed" && (
                       <Button variant="link" size="inline"  onClick={() => setUnlinking(l.ticket)}>
                         Gỡ liên kết

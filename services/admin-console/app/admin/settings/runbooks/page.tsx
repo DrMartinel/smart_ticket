@@ -238,36 +238,36 @@ export default function RunbooksPage() {
       {rows && (
         <Card asChild>
           <section className="overflow-x-auto">
-            <Table className="w-full min-w-[860px] text-sm">
-              <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+            <Table className="min-w-[860px]">
+              <TableHeader>
                 <TableRow>
-                  <TableHead className="px-4 py-2.5 font-medium">Runbook</TableHead>
-                  <TableHead className="px-4 py-2.5 font-medium">Executor · Config</TableHead>
-                  <TableHead className="px-4 py-2.5 font-medium">Quy tắc</TableHead>
-                  <TableHead className="px-4 py-2.5 font-medium">Trạng thái</TableHead>
-                  <TableHead className="w-40 px-4 py-2.5" />
+                  <TableHead>Runbook</TableHead>
+                  <TableHead>Executor · Config</TableHead>
+                  <TableHead>Quy tắc</TableHead>
+                  <TableHead>Trạng thái</TableHead>
+                  <TableHead className="w-40" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {rows.map((r) => (
-                  <TableRow key={r.code} className="border-t border-border align-top">
-                    <TableCell className="px-4 py-3">
+                  <TableRow key={r.code} className="align-top">
+                    <TableCell className="py-3">
                       <span className="block font-mono text-xs">{r.code}</span>
                       <span className="font-medium">{r.title}</span>
                       <Changes runbook={r} />
                     </TableCell>
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="py-3">
                       <Badge variant="neutral">{r.executor}</Badge>
                       <pre className="mt-1 whitespace-pre-wrap break-all font-mono text-xs text-muted-foreground">
                         {JSON.stringify(r.config)}
                       </pre>
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-xs">
+                    <TableCell className="py-3 text-xs">
                       <p>{r.target_rule === "reporter" ? "Chỉ người gửi" : "Bất kỳ ai"}</p>
                       <p>{r.risk === "high" ? "Rủi ro cao" : "Rủi ro thấp"}</p>
                       <p className="font-mono text-muted-foreground">{r.required_fields.join(", ")}</p>
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-xs">
+                    <TableCell className="py-3 text-xs">
                       <div className="flex flex-wrap gap-1">
                         {r.runnable ? <Badge variant="ok">Đang dùng</Badge> : <Badge variant="warn">Chưa bật</Badge>}
                         {!r.is_active && <Badge variant="neutral">Tắt</Badge>}
@@ -279,7 +279,7 @@ export default function RunbooksPage() {
                         </p>
                       )}
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-right">
+                    <TableCell className="py-3 text-right">
                       <span className="inline-flex flex-wrap justify-end gap-2 text-xs">
                         {admin && (
                           <Button variant="link" size="inline"

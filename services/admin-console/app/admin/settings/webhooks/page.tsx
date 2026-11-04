@@ -114,28 +114,28 @@ export default function WebhooksPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[860px] text-left text-xs">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[860px] text-xs">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Name</TableHead>
-              <TableHead className="px-4 py-2 font-normal">URL</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Events</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Active</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Created by</TableHead>
-              <TableHead className="px-4 py-2 font-normal" />
+              <TableHead>Name</TableHead>
+              <TableHead>URL</TableHead>
+              <TableHead>Events</TableHead>
+              <TableHead>Active</TableHead>
+              <TableHead>Created by</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {hooks?.map((hook) => (
-              <TableRow key={hook.id} className="border-t border-border">
-                <TableCell className="px-4 py-2.5">{hook.name}</TableCell>
-                <TableCell className="px-4 py-2.5 font-mono break-all">{hook.url}</TableCell>
-                <TableCell className="px-4 py-2.5">{hook.events.join(", ")}</TableCell>
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={hook.id}>
+                <TableCell>{hook.name}</TableCell>
+                <TableCell className="font-mono break-all">{hook.url}</TableCell>
+                <TableCell>{hook.events.join(", ")}</TableCell>
+                <TableCell>
                   <Switch checked={hook.is_active} label={`${hook.name} active`} onChange={(next) => void setActive(hook, next)} />
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{hook.created_by}</TableCell>
-                <TableCell className="px-4 py-2.5 text-right">
+                <TableCell>{hook.created_by}</TableCell>
+                <TableCell className="text-right">
                   <Button variant="link" size="inline" className="text-xs text-danger" onClick={() => void remove(hook)}>
                     Delete
                   </Button>

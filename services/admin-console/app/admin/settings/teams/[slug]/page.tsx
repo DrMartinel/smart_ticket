@@ -113,14 +113,14 @@ export default function TeamPage() {
             {team ? `${team.members.length} ${team.members.length === 1 ? "person" : "people"}` : ""}
           </span>
         </div>
-        <Table className="w-full text-left text-sm">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-5 py-2 font-normal">Person</TableHead>
-              <TableHead className="px-5 py-2 font-normal">Account role</TableHead>
-              <TableHead className="px-5 py-2 font-normal">In this team</TableHead>
-              <TableHead className="px-5 py-2 font-normal">Taking tickets</TableHead>
-              <TableHead className="px-5 py-2 font-normal" />
+              <TableHead className="px-5">Person</TableHead>
+              <TableHead className="px-5">Account role</TableHead>
+              <TableHead className="px-5">In this team</TableHead>
+              <TableHead className="px-5">Taking tickets</TableHead>
+              <TableHead className="px-5" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -134,13 +134,13 @@ export default function TeamPage() {
             {team?.members.map((m) => {
               const p = byName.get(m.username);
               return (
-                <TableRow key={m.username} className="border-t border-border">
-                  <TableCell className="px-5 py-2.5">
+                <TableRow key={m.username}>
+                  <TableCell className="px-5">
                     <span className="font-medium">{m.username}</span>
                     {p?.name && <span className="block text-xs text-muted-foreground">{p.name}</span>}
                   </TableCell>
-                  <TableCell className="px-5 py-2.5 capitalize">{p?.role ?? "—"}</TableCell>
-                  <TableCell className="px-5 py-2.5">
+                  <TableCell className="px-5 capitalize">{p?.role ?? "—"}</TableCell>
+                  <TableCell className="px-5">
                     {canEdit ? (
                       <NativeSelect
                         size="sm"
@@ -156,10 +156,10 @@ export default function TeamPage() {
                       <span className="capitalize">{m.role}</span>
                     )}
                   </TableCell>
-                  <TableCell className="px-5 py-2.5">
+                  <TableCell className="px-5">
                     {m.is_available ? <Badge variant="ok">available</Badge> : <Badge variant="neutral">unavailable</Badge>}
                   </TableCell>
-                  <TableCell className="px-5 py-2.5 text-right">
+                  <TableCell className="px-5 text-right">
                     {canEdit && (
                       <Button variant="link" size="inline" className="text-xs text-danger" onClick={() => void removeMember(m.username)}>
                         Remove

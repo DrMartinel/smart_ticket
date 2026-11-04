@@ -129,37 +129,37 @@ export default function SlaPoliciesPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[980px] text-left text-sm">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[980px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Order</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Name</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Category</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Priority</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Response</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Resolution</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Calendar</TableHead>
-              <TableHead className="px-4 py-2 font-normal">State</TableHead>
-              <TableHead className="px-4 py-2 font-normal" />
+              <TableHead>Order</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead>Response</TableHead>
+              <TableHead>Resolution</TableHead>
+              <TableHead>Calendar</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {policies?.map((p) => (
-              <TableRow key={p.id} className={`border-t border-border ${p.state === "draft" ? "bg-warn-soft" : ""} ${p.state === "retired" ? "text-muted-foreground" : ""}`}>
-                <TableCell className="px-4 py-2.5 tabular-nums">{p.order}</TableCell>
-                <TableCell className="px-4 py-2.5">{p.name}</TableCell>
-                <TableCell className="px-4 py-2.5">{p.category ?? "any"}</TableCell>
-                <TableCell className="px-4 py-2.5">{p.priority ? <PriorityChip priority={p.priority} /> : "any"}</TableCell>
-                <TableCell className="px-4 py-2.5">{minutesText(p.response_minutes, p.is_24x7)}</TableCell>
-                <TableCell className="px-4 py-2.5">{minutesText(p.resolution_minutes, p.is_24x7)}</TableCell>
-                <TableCell className="px-4 py-2.5">{p.is_24x7 ? "24×7" : (p.calendar ?? "team's / default")}</TableCell>
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={p.id} className={`${p.state === "draft" ? "bg-warn-soft" : ""} ${p.state === "retired" ? "text-muted-foreground" : ""}`}>
+                <TableCell className="tabular-nums">{p.order}</TableCell>
+                <TableCell>{p.name}</TableCell>
+                <TableCell>{p.category ?? "any"}</TableCell>
+                <TableCell>{p.priority ? <PriorityChip priority={p.priority} /> : "any"}</TableCell>
+                <TableCell>{minutesText(p.response_minutes, p.is_24x7)}</TableCell>
+                <TableCell>{minutesText(p.resolution_minutes, p.is_24x7)}</TableCell>
+                <TableCell>{p.is_24x7 ? "24×7" : (p.calendar ?? "team's / default")}</TableCell>
+                <TableCell>
                   <Badge variant={stateTone(p.state)}>
                     {p.state}
                     {p.state === "draft" && p.created_by ? ` · ${p.created_by}` : ""}
                   </Badge>
                 </TableCell>
-                <TableCell className="whitespace-nowrap px-4 py-2.5 text-right">
+                <TableCell className="whitespace-nowrap text-right">
                   {p.state === "draft" && mayActivate && (
                     <Button variant="outline"
                       onClick={() => {

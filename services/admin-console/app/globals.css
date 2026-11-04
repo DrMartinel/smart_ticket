@@ -17,7 +17,7 @@
   --secondary: #efede6;
   --secondary-foreground: #1f1d1a;
   --muted: #efede6;
-  --muted-foreground: #6b665c;
+  --muted-foreground: #625d53;
   --accent: #efede6;
   --accent-foreground: #1f1d1a;
   --destructive: #a3271c;
@@ -36,6 +36,10 @@
   --danger-soft: #f6e3e0;
   --alert: #9a3412;
   --alert-soft: #fbe8d8;
+  --proposal: #8a5d12;
+  --proposal-soft: #f7efdf;
+  --elev-float: 0 1px 2px rgb(31 29 26 / 0.06), 0 8px 24px -6px rgb(31 29 26 / 0.16);
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -53,7 +57,7 @@
     --secondary: #262420;
     --secondary-foreground: #ece9e2;
     --muted: #262420;
-    --muted-foreground: #a29d91;
+    --muted-foreground: #a8a397;
     --accent: #262420;
     --accent-foreground: #ece9e2;
     --destructive: #f08b80;
@@ -72,12 +76,26 @@
     --danger-soft: #331d1a;
     --alert: #f2a66f;
     --alert-soft: #33231a;
+    --proposal: #e2b866;
+    --proposal-soft: #2b2416;
+    --elev-float: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 28px -6px rgb(0 0 0 / 0.55);
   }
 }
 
 @theme inline {
   --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-display: var(--font-plex-serif), ui-serif, Georgia, serif;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-title: 1.625rem;
+  --text-title--line-height: 2rem;
+  --text-display: 2rem;
+  --text-display--line-height: 2.375rem;
+  --shadow-float: var(--elev-float);
+  --ease-out: var(--motion-ease);
+  --color-proposal: var(--proposal);
+  --color-proposal-soft: var(--proposal-soft);
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
@@ -123,6 +141,64 @@
   body {
     @apply bg-background font-sans text-foreground antialiased;
   }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  /* Touch screens: every control is at least 44px tall. */
+  @media (pointer: coarse) {
+    button[data-slot="button"]:not([data-size="inline"]),
+    a[data-slot="button"]:not([data-size="inline"]),
+    input[data-slot="input"],
+    select[data-slot="native-select"],
+    [data-slot="nav-item"] {
+      min-height: 44px;
+    }
+    button[data-slot="button"][data-size^="icon"] {
+      min-width: 44px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@utility eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  line-height: var(--text-2xs--line-height);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+@utility num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@utility skeleton {
+  border-radius: var(--radius);
+  background: linear-gradient(90deg, var(--muted) 25%, color-mix(in oklab, var(--muted), var(--card) 60%) 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
 }
 
 @utility scrollbar-none {

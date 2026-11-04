@@ -148,21 +148,21 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
 
       {articles && (
         <Card className="overflow-x-auto">
-          <Table className="w-full min-w-[720px] table-fixed text-sm">
-            <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+          <Table className="min-w-[720px] table-fixed">
+            <TableHeader>
               <TableRow>
-                <TableHead className="px-4 py-2.5 font-medium">Page</TableHead>
-                <TableHead className="w-32 px-4 py-2.5 font-medium">Category</TableHead>
-                <TableHead className="w-28 px-4 py-2.5 font-medium">Risk</TableHead>
-                <TableHead className="w-44 px-4 py-2.5 font-medium">Automatic answers</TableHead>
-                <TableHead className="w-44 px-4 py-2.5" />
+                <TableHead>Page</TableHead>
+                <TableHead className="w-32">Category</TableHead>
+                <TableHead className="w-28">Risk</TableHead>
+                <TableHead className="w-44">Automatic answers</TableHead>
+                <TableHead className="w-44" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {articles.map((a) => (
                 <Fragment key={a.slug}>
-                  <TableRow className="border-t border-border align-top">
-                    <TableCell className="px-4 py-3">
+                  <TableRow className="align-top">
+                    <TableCell className="py-3">
                       {a.source_url ? (
                         <a href={a.source_url} target="_blank" rel="noopener noreferrer" className="block truncate font-medium hover:text-primary">
                           {a.title}
@@ -172,14 +172,14 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
                       )}
                       <span className="block truncate font-mono text-xs text-muted-foreground">{a.slug}</span>
                     </TableCell>
-                    <TableCell className="px-4 py-3">{a.category}</TableCell>
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="py-3">{a.category}</TableCell>
+                    <TableCell className="py-3">
                       <Badge variant={riskTierTone(a.risk_tier)}>{a.risk_tier}</Badge>
                     </TableCell>
-                    <TableCell className="px-4 py-3">
+                    <TableCell className="py-3">
                       {a.auto_reply_allowed ? <Badge variant="ok">Allowed</Badge> : <span className="text-muted-foreground">Not allowed</span>}
                     </TableCell>
-                    <TableCell className="px-4 py-3 text-right">
+                    <TableCell className="py-3 text-right">
                       {isEditor && (
                         <span className="mr-2 inline-flex gap-2 text-xs">
                           <Link href={`/kb/graph/${encodeURIComponent(a.slug)}`} className="text-primary hover:underline">

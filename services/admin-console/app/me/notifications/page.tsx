@@ -124,28 +124,28 @@ export default function MyNotificationsPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[680px] text-left text-xs">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[680px] text-xs">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Event</TableHead>
-              <TableHead className="px-4 py-2 font-normal">When you get it</TableHead>
-              <TableHead className="px-4 py-2 font-normal">In-app</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Email</TableHead>
-              <TableHead className="px-4 py-2 font-normal" />
+              <TableHead>Event</TableHead>
+              <TableHead>When you get it</TableHead>
+              <TableHead>In-app</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {prefs &&
               rows(prefs).map((row) => (
-                <TableRow key={row.event} className="border-t border-border">
-                  <TableCell className="px-4 py-2.5">
+                <TableRow key={row.event}>
+                  <TableCell>
                     <span className="font-mono">{row.event}</span>
                     <span className="block text-[11px] text-muted-foreground">{row.label}</span>
                   </TableCell>
-                  <TableCell className="px-4 py-2.5">As {row.via.map((v) => VIA[v] ?? v).join(", ")}</TableCell>
-                  <TableCell className="px-4 py-2.5">{cell(row, "in_app")}</TableCell>
-                  <TableCell className="px-4 py-2.5">{cell(row, "email")}</TableCell>
-                  <TableCell className="px-4 py-2.5 text-muted-foreground">
+                  <TableCell>As {row.via.map((v) => VIA[v] ?? v).join(", ")}</TableCell>
+                  <TableCell>{cell(row, "in_app")}</TableCell>
+                  <TableCell>{cell(row, "email")}</TableCell>
+                  <TableCell className="text-muted-foreground">
                     {required(row)}
                   </TableCell>
                 </TableRow>

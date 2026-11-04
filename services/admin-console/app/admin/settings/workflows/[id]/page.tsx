@@ -515,31 +515,31 @@ function FieldsTable({
   }
   return (
     <Card className="overflow-hidden">
-      <Table className="w-full text-sm">
-        <TableHeader className="bg-muted text-left text-xs text-muted-foreground">
+      <Table>
+        <TableHeader>
           <TableRow>
-            <TableHead className="px-4 py-2.5 font-medium">Field</TableHead>
-            <TableHead className="px-4 py-2.5 font-medium">Type</TableHead>
-            <TableHead className="px-4 py-2.5 font-medium">Checks</TableHead>
-            <TableHead className="px-4 py-2.5 font-medium">When it changes</TableHead>
-            <TableHead className="px-4 py-2.5" />
+            <TableHead>Field</TableHead>
+            <TableHead>Type</TableHead>
+            <TableHead>Checks</TableHead>
+            <TableHead>When it changes</TableHead>
+            <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
           {[...wf.fields]
             .sort((a, b) => a.order - b.order)
             .map((f) => (
-              <TableRow key={f.id} className="border-t border-border">
-                <TableCell className="px-4 py-3 font-medium">{f.name}</TableCell>
-                <TableCell className="px-4 py-3 text-muted-foreground">
+              <TableRow key={f.id}>
+                <TableCell className="py-3 font-medium">{f.name}</TableCell>
+                <TableCell className="py-3 text-muted-foreground">
                   {humanize(f.field_type)}
                   {f.options.length > 0 && <span className="block text-xs">{f.options.join(", ")}</span>}
                 </TableCell>
-                <TableCell className="px-4 py-3 text-muted-foreground">{f.rules.length || "—"}</TableCell>
-                <TableCell className="px-4 py-3 text-muted-foreground">
+                <TableCell className="py-3 text-muted-foreground">{f.rules.length || "—"}</TableCell>
+                <TableCell className="py-3 text-muted-foreground">
                   {f.events.length ? f.events.map((e) => `${humanize(e.event)} (${e.actions.length})`).join(", ") : "—"}
                 </TableCell>
-                <TableCell className="px-4 py-3 text-right">
+                <TableCell className="py-3 text-right">
                   {canEdit && (
                     <span className="flex justify-end gap-3 text-xs">
                       <Button variant="link" size="inline"  onClick={() => onEdit(f)}>

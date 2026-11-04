@@ -10,6 +10,7 @@ import { notificationEventTone } from "@/lib/badges";
 import { badgeCount, notificationsApi, useUnreadCount, type Notice } from "@/lib/notifications";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 function noticeTime(iso: string): string {
@@ -27,6 +28,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Notice[] | null>(null);
   const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const count = badgeCount(unread);
 
   useEffect(() => {
@@ -40,7 +42,7 @@ export default function NotificationBell() {
     return () => {
       alive = false;
     };
-  }, [open]);
+  }, [open, attempt]);
 
   const openNotice = async (notice: Notice) => {
     if (!notice.read_at) await notificationsApi.read(notice.id).catch(() => undefined);
@@ -62,7 +64,7 @@ export default function NotificationBell() {
           variant="ghost"
           size="sm"
           aria-label={count ? `Notifications, ${unread} unread` : "Notifications"}
-          className="gap-1 px-1.5 text-muted-foreground hover:text-foreground"
+          className="h-9 gap-1 px-2 text-muted-foreground hover:text-foreground"
         >
           <BellIcon className="size-[18px]" aria-hidden />
           {count && (
@@ -77,22 +79,37 @@ export default function NotificationBell() {
         align="start"
         collisionPadding={12}
         aria-label="Notifications"
-        className="flex max-h-[min(560px,calc(100dvh-24px))] w-[min(440px,calc(100vw-248px))] flex-col overflow-hidden p-0"
+        className="flex max-h-[min(560px,calc(100dvh-24px))] w-[min(440px,calc(100vw-24px))] flex-col overflow-hidden p-0"
       >
         <header className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-sm font-semibold">Thông báo · Notifications</h2>
+          <h2 className="text-sm font-semibold">Notifications</h2>
           <Button variant="link" size="inline" className="text-xs disabled:opacity-50" disabled={!unread} onClick={() => void readAll()}>
             Mark all read
           </Button>
         </header>
         <ul className="flex-1 overflow-y-auto">
-          {error && <li className="px-4 py-6 text-sm text-danger">Couldn&apos;t load notifications.</li>}
-          {items?.length === 0 && <li className="px-4 py-6 text-center text-sm text-muted-foreground">Nothing yet.</li>}
+          {error && (
+            <li className="p-3">
+              <ErrorState compact title="Couldn't load notifications" onRetry={() => setAttempt((n) => n + 1)} />
+            </li>
+          )}
+          {!error && !items && (
+            <li className="px-4 py-3">
+              <LoadingState rows={3} label="Loading notifications" />
+            </li>
+          )}
+          {items?.length === 0 && (
+            <li>
+              <EmptyState compact icon={BellIcon} title="You're all caught up">
+                Assignments, approvals and SLA warnings for you show up here.
+              </EmptyState>
+            </li>
+          )}
           {items?.map((notice) => (
             <li key={notice.id} className="border-b border-border last:border-b-0">
               <button
                 onClick={() => void openNotice(notice)}
-                className={`flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-muted ${notice.read_at ? "" : "bg-info-soft"}`}
+                className={`flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-muted ${notice.read_at ? "" : "bg-primary-soft/50"}`}
               >
                 <span className="flex items-center gap-2">
                   <Badge variant={notificationEventTone(notice.event)}>{notice.event}</Badge>

@@ -83,15 +83,15 @@ export default function TeamsPage() {
       {error && !draft && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[820px] text-left text-sm">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[820px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Team</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Categories</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Who gets the next ticket</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Members</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Leads</TableHead>
-              <TableHead className="px-4 py-2 font-normal" />
+              <TableHead>Team</TableHead>
+              <TableHead>Categories</TableHead>
+              <TableHead>Who gets the next ticket</TableHead>
+              <TableHead>Members</TableHead>
+              <TableHead>Leads</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -103,14 +103,14 @@ export default function TeamsPage() {
               </TableRow>
             )}
             {teams?.map((t) => (
-              <TableRow key={t.slug} className={`border-t border-border ${t.is_active ? "" : "text-muted-foreground"}`}>
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={t.slug} className={`${t.is_active ? "" : "text-muted-foreground"}`}>
+                <TableCell>
                   <Link href={`/admin/settings/teams/${t.slug}`} className="font-medium text-primary hover:underline">
                     {t.name}
                   </Link>
                   <span className="block font-mono text-[11px] text-muted-foreground">{t.slug}</span>
                 </TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   <span className="flex flex-wrap gap-1">
                     {t.categories.length === 0 && <span className="text-muted-foreground">—</span>}
                     {t.categories.map((c) => (
@@ -120,13 +120,13 @@ export default function TeamsPage() {
                     ))}
                   </span>
                 </TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   {STRATEGY_LABEL[t.strategy] ?? t.strategy}
                   {t.max_open_per_member ? <span className="text-muted-foreground"> · cap {t.max_open_per_member}</span> : null}
                 </TableCell>
-                <TableCell className="px-4 py-2.5 tabular-nums">{t.members_count}</TableCell>
-                <TableCell className="px-4 py-2.5">{t.leads.join(", ") || <span className="text-muted-foreground">—</span>}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell className="tabular-nums">{t.members_count}</TableCell>
+                <TableCell>{t.leads.join(", ") || <span className="text-muted-foreground">—</span>}</TableCell>
+                <TableCell>
                   <span className="flex flex-wrap justify-end gap-1">
                     {t.is_fallback && <Badge variant="info">fallback</Badge>}
                     {!t.is_active && <Badge variant="neutral">inactive</Badge>}

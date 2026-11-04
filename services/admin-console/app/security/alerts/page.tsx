@@ -95,16 +95,16 @@ export default function SecurityInboxPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[860px] text-left text-sm">
-          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        <Table className="min-w-[860px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2.5 font-medium">Severity</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Kind</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Ticket / user</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Count</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">First seen</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Ack due</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">State</TableHead>
+              <TableHead>Severity</TableHead>
+              <TableHead>Kind</TableHead>
+              <TableHead>Ticket / user</TableHead>
+              <TableHead>Count</TableHead>
+              <TableHead>First seen</TableHead>
+              <TableHead>Ack due</TableHead>
+              <TableHead>State</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
@@ -114,16 +114,16 @@ export default function SecurityInboxPage() {
                 key={a.id}
                 className={`border-t border-border ${a.overdue || (a.severity === "critical" && a.state === "new") ? "bg-danger-soft" : ""}`}
               >
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   <SeverityChip severity={a.severity} />
                 </TableCell>
-                <TableCell className="px-4 py-2.5 font-mono text-xs">{a.kind}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell className="font-mono text-xs">{a.kind}</TableCell>
+                <TableCell>
                   {a.ticket ? `${a.ticket.public_id} · ${a.ticket.reporter}` : a.subject_user ? `user ${a.subject_user}` : "—"}
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{a.count}</TableCell>
-                <TableCell className="px-4 py-2.5">{vnTime(a.first_seen_at)}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>{a.count}</TableCell>
+                <TableCell>{vnTime(a.first_seen_at)}</TableCell>
+                <TableCell>
                   {a.acknowledged_at ? (
                     <Badge variant="neutral" className="bg-ok-soft text-ok">acked {vnTime(a.acknowledged_at)}</Badge>
                   ) : a.overdue ? (
@@ -132,10 +132,10 @@ export default function SecurityInboxPage() {
                     <Badge variant="neutral" className="bg-primary-soft text-primary">{vnTime(a.ack_due_at)}</Badge>
                   )}
                 </TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   <StateChip state={a.state} resolution={a.resolution} />
                 </TableCell>
-                <TableCell className="px-4 py-2.5 text-right">
+                <TableCell className="text-right">
                   <Link href={`/security/alerts/${a.id}`} className="text-primary hover:underline">
                     Open
                   </Link>

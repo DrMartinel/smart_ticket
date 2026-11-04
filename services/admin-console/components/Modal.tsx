@@ -27,8 +27,8 @@ export default function Modal({
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className={cn("flex max-h-[85dvh] flex-col gap-0 p-0 sm:max-w-xl", width.replace(/(^|\s)max-w-/g, "$1sm:max-w-"))}>
-        <DialogHeader className="border-b px-5 py-4 pr-12">
-          <DialogTitle className="text-base">{title}</DialogTitle>
+        <DialogHeader className="border-b px-5 py-4 pr-14 text-left">
+          <DialogTitle className="font-display text-lg leading-6 font-semibold">{title}</DialogTitle>
           {subtitle ? <DialogDescription>{subtitle}</DialogDescription> : <DialogDescription className="sr-only">{title}</DialogDescription>}
         </DialogHeader>
         <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
@@ -61,12 +61,41 @@ export function Tabs<T extends string>({
   );
 }
 
-export function Labeled({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+/** A form field: its label (marked when required), the control, a hint and an inline error. */
+export function Labeled({
+  label,
+  hint,
+  error,
+  required = false,
+  className,
+  children,
+}: {
+  label: string;
+  hint?: ReactNode;
+  error?: string | null;
+  required?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <label className="flex flex-col gap-1.5 text-sm">
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+    <label className={cn("flex min-w-0 flex-col gap-1.5 text-sm", className)}>
+      <span className="text-xs font-medium text-foreground/80">
+        {label}
+        {required && (
+          <span className="ml-0.5 text-danger" aria-hidden>
+            *
+          </span>
+        )}
+        {required && <span className="sr-only"> (required)</span>}
+      </span>
       {children}
-      {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      {error ? (
+        <span role="alert" className="text-xs text-danger">
+          {error}
+        </span>
+      ) : (
+        hint && <span className="text-xs text-muted-foreground">{hint}</span>
+      )}
     </label>
   );
 }

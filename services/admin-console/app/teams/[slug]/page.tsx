@@ -91,38 +91,38 @@ export default function TeamQueuePage() {
       {notice && <p className="text-sm text-muted-foreground">{notice}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[820px] text-left text-sm">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[820px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Ticket</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Subject</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Priority</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Assignee</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Status</TableHead>
-              <TableHead className="px-4 py-2 font-normal">SLA</TableHead>
-              <TableHead className="px-4 py-2 font-normal" />
+              <TableHead>Ticket</TableHead>
+              <TableHead>Subject</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead>Assignee</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>SLA</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {page?.items.map((row) => (
-              <TableRow key={row.public_id} className={`border-t border-border ${row.assignee ? "" : "bg-muted"}`}>
-                <TableCell className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">
+              <TableRow key={row.public_id} className={`${row.assignee ? "" : "bg-muted"}`}>
+                <TableCell className="whitespace-nowrap font-mono text-xs">
                   <Link href={`/tickets/${row.public_id}`} className="hover:underline">
                     {row.public_id}
                   </Link>
                 </TableCell>
-                <TableCell className="max-w-[360px] px-4 py-2.5">{row.subject_masked}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell className="max-w-[360px]">{row.subject_masked}</TableCell>
+                <TableCell>
                   <PriorityChip priority={row.priority} />
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{row.assignee ?? <span className="text-muted-foreground">Unassigned</span>}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>{row.assignee ?? <span className="text-muted-foreground">Unassigned</span>}</TableCell>
+                <TableCell>
                   <StatusChip name={row.status.name} color={row.status.color} />
                 </TableCell>
-                <TableCell className="whitespace-nowrap px-4 py-2.5">
+                <TableCell className="whitespace-nowrap">
                   <SlaBadge badge={row.sla} />
                 </TableCell>
-                <TableCell className="px-4 py-2.5 text-right">
+                <TableCell className="text-right">
                   {!row.assignee ? (
                     <Button onClick={() => void take(row)}>
                       Take

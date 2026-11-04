@@ -160,15 +160,15 @@ export default function PeoplePage() {
       {error && !open && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[900px] text-left text-sm">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[900px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Person</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Role</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Capabilities</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Teams</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Sign-in</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Last signed in</TableHead>
+              <TableHead>Person</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Capabilities</TableHead>
+              <TableHead>Teams</TableHead>
+              <TableHead>Sign-in</TableHead>
+              <TableHead>Last signed in</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -185,13 +185,13 @@ export default function PeoplePage() {
                 className={`cursor-pointer border-t border-border hover:bg-muted/50 ${p.is_active ? "" : "text-muted-foreground"}`}
                 onClick={() => openPerson(p)}
               >
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   <span className="font-medium text-primary">{p.username}</span>
                   {p.username === user.username && <span className="text-xs text-muted-foreground"> · you</span>}
                   <span className="block text-xs text-muted-foreground">{[p.name, p.email].filter(Boolean).join(" · ") || "—"}</span>
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{ROLE_LABEL[p.role] ?? p.role}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>{ROLE_LABEL[p.role] ?? p.role}</TableCell>
+                <TableCell>
                   <span className="flex flex-wrap gap-1">
                     {p.capabilities.length === 0 && <span className="text-muted-foreground">—</span>}
                     {p.capabilities.map((c) => (
@@ -201,7 +201,7 @@ export default function PeoplePage() {
                     ))}
                   </span>
                 </TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   <span className="flex flex-wrap gap-1">
                     {p.teams.length === 0 && <span className="text-muted-foreground">—</span>}
                     {p.teams.map((t) => (
@@ -212,7 +212,7 @@ export default function PeoplePage() {
                     ))}
                   </span>
                 </TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   {p.is_break_glass ? "Break-glass" : p.auth_source === "oidc" ? "Company" : "Local"}
                   {!p.is_active && (
                     <Badge variant="neutral" className="ml-1.5">
@@ -220,7 +220,7 @@ export default function PeoplePage() {
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell className="px-4 py-2.5 text-muted-foreground">{p.last_login ? relativeTime(p.last_login) : "never"}</TableCell>
+                <TableCell className="text-muted-foreground">{p.last_login ? relativeTime(p.last_login) : "never"}</TableCell>
               </TableRow>
             ))}
           </TableBody>

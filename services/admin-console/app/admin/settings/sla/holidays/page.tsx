@@ -142,30 +142,30 @@ export default function HolidaysPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[640px] text-left text-sm">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[640px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Date</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Weekday</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Name</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Days</TableHead>
-              <TableHead className="px-4 py-2 font-normal" />
+              <TableHead>Date</TableHead>
+              <TableHead>Weekday</TableHead>
+              <TableHead>Name</TableHead>
+              <TableHead>Days</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {shown.map((run) => (
-              <TableRow key={run.first.id} className="border-t border-border">
-                <TableCell className="whitespace-nowrap px-4 py-2.5">
+              <TableRow key={run.first.id}>
+                <TableCell className="whitespace-nowrap">
                   {run.first.date}
                   {run.ids.length > 1 && ` → ${run.last.date}`}
                 </TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell>
                   {weekday(run.first.date)}
                   {run.ids.length > 1 && ` → ${weekday(run.last.date)}`}
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{run.first.name}</TableCell>
-                <TableCell className="px-4 py-2.5 tabular-nums">{run.ids.length}</TableCell>
-                <TableCell className="px-4 py-2.5 text-right">
+                <TableCell>{run.first.name}</TableCell>
+                <TableCell className="tabular-nums">{run.ids.length}</TableCell>
+                <TableCell className="text-right">
                   {isAdmin && (
                     <Button variant="link" size="inline" className="text-xs" onClick={() => void remove(run)}>
                       Remove

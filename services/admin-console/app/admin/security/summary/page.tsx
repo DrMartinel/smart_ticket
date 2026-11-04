@@ -32,10 +32,10 @@ export default function SecuritySummaryPage() {
       </header>
       {error && <p className="text-sm text-danger">{error}</p>}
       <Card className="overflow-x-auto">
-        <Table className="w-full text-left text-sm">
-          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2.5 font-medium">Kind</TableHead>
+              <TableHead>Kind</TableHead>
               {STATES.map((s) => (
                 <TableHead key={s} className="px-4 py-2.5 text-right font-medium">
                   {s}
@@ -45,8 +45,8 @@ export default function SecuritySummaryPage() {
           </TableHeader>
           <TableBody>
             {kinds.map((k) => (
-              <TableRow key={k} className="border-t border-border">
-                <TableCell className="px-4 py-2.5 font-mono text-xs">{k}</TableCell>
+              <TableRow key={k}>
+                <TableCell className="font-mono text-xs">{k}</TableCell>
                 {STATES.map((s) => (
                   <TableCell key={s} className="px-4 py-2.5 text-right">
                     {count(k, s)}

@@ -109,32 +109,32 @@ export default function DeliveryLogPage() {
       {notice && <p className="text-sm text-ok">{notice}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[900px] text-left text-xs">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[900px] text-xs">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Created (+07)</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Event</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Recipient</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Channel</TableHead>
-              <TableHead className="px-4 py-2 font-normal">State</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Attempts</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Error</TableHead>
-              <TableHead className="px-4 py-2 font-normal" />
+              <TableHead>Created (+07)</TableHead>
+              <TableHead>Event</TableHead>
+              <TableHead>Recipient</TableHead>
+              <TableHead>Channel</TableHead>
+              <TableHead>State</TableHead>
+              <TableHead>Attempts</TableHead>
+              <TableHead>Error</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {page?.items.map((d) => (
-              <TableRow key={d.id} className={`border-t border-border ${d.state === "failed" ? "bg-danger-soft" : ""}`}>
-                <TableCell className="whitespace-nowrap px-4 py-2.5">{vnTime(d.created_at)}</TableCell>
-                <TableCell className="px-4 py-2.5 font-mono">{d.event}</TableCell>
-                <TableCell className="px-4 py-2.5">{d.recipient}</TableCell>
-                <TableCell className="px-4 py-2.5">{d.channel}</TableCell>
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={d.id} className={`${d.state === "failed" ? "bg-danger-soft" : ""}`}>
+                <TableCell className="whitespace-nowrap">{vnTime(d.created_at)}</TableCell>
+                <TableCell className="font-mono">{d.event}</TableCell>
+                <TableCell>{d.recipient}</TableCell>
+                <TableCell>{d.channel}</TableCell>
+                <TableCell>
                   <Badge variant={deliveryStateTone(d.state, d.attempts)}>{deliveryStateLabel(d.state, d.attempts)}</Badge>
                 </TableCell>
-                <TableCell className="px-4 py-2.5 tabular-nums">{d.attempts}</TableCell>
-                <TableCell className="max-w-[360px] px-4 py-2.5 break-words">{d.last_error || "—"}</TableCell>
-                <TableCell className="px-4 py-2.5 text-right">
+                <TableCell className="tabular-nums">{d.attempts}</TableCell>
+                <TableCell className="max-w-[360px] break-words">{d.last_error || "—"}</TableCell>
+                <TableCell className="text-right">
                   {d.state === "failed" && d.channel !== "in_app" ? (
                     <Button variant="outline" onClick={() => void retry({ ids: [d.id] })}>
                       Retry

@@ -96,34 +96,34 @@ export default function SlaAtRiskPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[900px] text-left text-sm">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[900px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Ticket</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Subject</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Priority</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Assignee</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Clock</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Due (+07)</TableHead>
-              <TableHead className="px-4 py-2 font-normal">SLA</TableHead>
+              <TableHead>Ticket</TableHead>
+              <TableHead>Subject</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead>Assignee</TableHead>
+              <TableHead>Clock</TableHead>
+              <TableHead>Due (+07)</TableHead>
+              <TableHead>SLA</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {page?.items.map((r) => (
-              <TableRow key={`${r.ticket}-${r.kind}`} className="border-t border-border">
-                <TableCell className="whitespace-nowrap px-4 py-2.5 font-mono text-xs">
+              <TableRow key={`${r.ticket}-${r.kind}`}>
+                <TableCell className="whitespace-nowrap font-mono text-xs">
                   <Link href={`/tickets/${r.ticket}`} className="hover:underline">
                     {r.ticket}
                   </Link>
                 </TableCell>
-                <TableCell className="max-w-[340px] px-4 py-2.5">{r.subject}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell className="max-w-[340px]">{r.subject}</TableCell>
+                <TableCell>
                   <PriorityChip priority={r.priority} />
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{r.assignee ?? "—"}</TableCell>
-                <TableCell className="px-4 py-2.5">{r.kind}</TableCell>
-                <TableCell className="whitespace-nowrap px-4 py-2.5">{vnTime(r.due_at)}</TableCell>
-                <TableCell className="whitespace-nowrap px-4 py-2.5">
+                <TableCell>{r.assignee ?? "—"}</TableCell>
+                <TableCell>{r.kind}</TableCell>
+                <TableCell className="whitespace-nowrap">{vnTime(r.due_at)}</TableCell>
+                <TableCell className="whitespace-nowrap">
                   <SlaBadge badge={r.sla} />
                 </TableCell>
               </TableRow>

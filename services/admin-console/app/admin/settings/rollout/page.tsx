@@ -181,20 +181,20 @@ export default function RolloutPage() {
         <section className="p-5">
           <h2 className="mb-2 text-sm font-semibold">Gates</h2>
           <p className="mb-3 text-xs text-muted-foreground">A manager's change applies at once, with a reason (AC-F9-08).</p>
-          <Table className="w-full text-left text-sm">
-            <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableHead className="py-1.5 font-medium">Branch</TableHead>
-                <TableHead className="py-1.5 font-medium">Metric</TableHead>
-                <TableHead className="py-1.5 font-medium">Threshold</TableHead>
-                <TableHead className="py-1.5 font-medium">Window</TableHead>
+                <TableHead className="py-1.5">Branch</TableHead>
+                <TableHead className="py-1.5">Metric</TableHead>
+                <TableHead className="py-1.5">Threshold</TableHead>
+                <TableHead className="py-1.5">Window</TableHead>
                 <TableHead />
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.gates.map((g) => {
                 return (
-                  <TableRow key={g.id} className="border-t border-border">
+                  <TableRow key={g.id}>
                     <TableCell className="py-2 font-mono text-xs">{g.branch}</TableCell>
                     <TableCell className="py-2">{g.metric}</TableCell>
                     <TableCell className="py-2">

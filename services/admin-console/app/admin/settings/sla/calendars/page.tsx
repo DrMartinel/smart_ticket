@@ -111,17 +111,17 @@ export default function CalendarsPage() {
                 {c.is_default && <Badge variant="info">default</Badge>}
                 <Badge variant="neutral">{c.timezone}</Badge>
               </div>
-              <Table className="w-full text-left text-sm">
-                <TableHeader className="text-[11px] text-muted-foreground">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableHead className="py-1.5 font-normal">Day</TableHead>
-                    <TableHead className="py-1.5 font-normal">Working hours</TableHead>
-                    <TableHead className="py-1.5 text-right font-normal">Minutes</TableHead>
+                    <TableHead className="py-1.5">Day</TableHead>
+                    <TableHead className="py-1.5">Working hours</TableHead>
+                    <TableHead className="py-1.5 text-right">Minutes</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {DAYS.map((d) => (
-                    <TableRow key={d} className="border-t border-border">
+                    <TableRow key={d}>
                       <TableCell className="py-1.5">{LABEL[d]}</TableCell>
                       <TableCell className="py-1.5">{spans(c.working_hours, d) || <span className="text-muted-foreground">Closed</span>}</TableCell>
                       <TableCell className="py-1.5 text-right tabular-nums">{dayMinutes(c.working_hours, d)}</TableCell>

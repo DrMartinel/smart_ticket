@@ -73,25 +73,25 @@ export default function WorkloadPage() {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[860px] text-left text-sm">
-          <TableHeader className="bg-background text-[11px] text-muted-foreground">
+        <Table className="min-w-[860px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2 font-normal">Member</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Role</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Available</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Leave</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Open / cap</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Oldest SLA due</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Last assigned</TableHead>
-              <TableHead className="px-4 py-2 font-normal" />
+              <TableHead>Member</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Available</TableHead>
+              <TableHead>Leave</TableHead>
+              <TableHead>Open / cap</TableHead>
+              <TableHead>Oldest SLA due</TableHead>
+              <TableHead>Last assigned</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows?.map((r) => (
-              <TableRow key={r.user} className={`border-t border-border ${r.flagged ? "bg-warn-soft" : ""}`}>
-                <TableCell className="px-4 py-2.5">{r.user}</TableCell>
-                <TableCell className="px-4 py-2.5">{r.role}</TableCell>
-                <TableCell className="px-4 py-2.5">
+              <TableRow key={r.user} className={`${r.flagged ? "bg-warn-soft" : ""}`}>
+                <TableCell>{r.user}</TableCell>
+                <TableCell>{r.role}</TableCell>
+                <TableCell>
                   <Switch
                     checked={r.available}
                     disabled={!canEdit}
@@ -99,13 +99,13 @@ export default function WorkloadPage() {
                     onChange={(next) => void setAvailable(r.user, next)}
                   />
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{r.on_leave ? <Badge variant="warn">On leave today</Badge> : "—"}</TableCell>
-                <TableCell className="px-4 py-2.5 tabular-nums">
+                <TableCell>{r.on_leave ? <Badge variant="warn">On leave today</Badge> : "—"}</TableCell>
+                <TableCell className="tabular-nums">
                   {r.open} / {r.cap ?? "—"}
                 </TableCell>
-                <TableCell className="whitespace-nowrap px-4 py-2.5">{dateTime(r.oldest_due)}</TableCell>
-                <TableCell className="whitespace-nowrap px-4 py-2.5">{dateTime(r.last_assigned_at)}</TableCell>
-                <TableCell className="px-4 py-2.5">
+                <TableCell className="whitespace-nowrap">{dateTime(r.oldest_due)}</TableCell>
+                <TableCell className="whitespace-nowrap">{dateTime(r.last_assigned_at)}</TableCell>
+                <TableCell>
                   {r.flagged ? (
                     <span className="text-warn">
                       {r.open} ticket{r.open === 1 ? "" : "s"} still assigned

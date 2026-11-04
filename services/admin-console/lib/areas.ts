@@ -41,7 +41,7 @@ export function adminGroups(user: CurrentUser): AdminGroup[] {
       label: "Insights",
       links: [
         ...show(!security, { href: "/admin/dashboard", label: "Dashboard" }),
-        ...show(true, { href: security ? "/admin/reports/security" : "/admin/reports", label: "Báo cáo · Reports", prefix: "/admin/reports" }),
+        ...show(true, { href: security ? "/admin/reports/security" : "/admin/reports", label: "Reports", prefix: "/admin/reports" }),
         ...show(manager, { href: "/admin/security/summary", label: "Security alerts" }),
       ],
     },

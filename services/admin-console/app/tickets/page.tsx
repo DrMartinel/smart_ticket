@@ -103,15 +103,15 @@ export default function TicketsPage() {
 
       {data && data.items.length > 0 && (
         <Card className="overflow-x-auto">
-          <Table className="w-full min-w-[640px] table-fixed text-sm">
-            <TableHeader className="bg-muted text-left text-xs font-medium text-muted-foreground">
+          <Table className="min-w-[640px] table-fixed">
+            <TableHeader>
               <TableRow>
-                <TableHead className="px-4 py-2.5 font-medium">Ticket</TableHead>
-                <TableHead className="w-44 px-4 py-2.5 font-medium">Status</TableHead>
-                <TableHead className="w-52 px-4 py-2.5 font-medium">Needs</TableHead>
-                <TableHead className="hidden w-40 px-4 py-2.5 font-medium xl:table-cell">Owner</TableHead>
-                <TableHead className="hidden w-56 px-4 py-2.5 font-medium xl:table-cell">SLA</TableHead>
-                <TableHead className="hidden w-28 px-4 py-2.5 text-right font-medium lg:table-cell">Created</TableHead>
+                <TableHead>Ticket</TableHead>
+                <TableHead className="w-44">Status</TableHead>
+                <TableHead className="w-52">Needs</TableHead>
+                <TableHead className="hidden w-40 xl:table-cell">Owner</TableHead>
+                <TableHead className="hidden w-56 xl:table-cell">SLA</TableHead>
+                <TableHead className="hidden w-28 text-right lg:table-cell">Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -121,7 +121,7 @@ export default function TicketsPage() {
                   onClick={() => router.push(`/tickets/${t.public_id}`)}
                   className="cursor-pointer border-t border-border align-top hover:bg-muted"
                 >
-                  <TableCell className="px-4 py-3">
+                  <TableCell className="py-3">
                     <a
                       href={`/tickets/${t.public_id}`}
                       onClick={(e) => e.stopPropagation()}
@@ -134,10 +134,10 @@ export default function TicketsPage() {
                       {t.category && ` · ${t.category}`}
                     </p>
                   </TableCell>
-                  <TableCell className="px-4 py-3">
+                  <TableCell className="py-3">
                     <StatusChip name={t.status.name} color={t.status.color} />
                   </TableCell>
-                  <TableCell className="px-4 py-3">
+                  <TableCell className="py-3">
                     {t.review ? (
                       <span className="inline-flex items-center gap-2">
                         <Badge variant={priorityTone(t.review.priority)}>P{t.review.priority}</Badge>
@@ -147,17 +147,17 @@ export default function TicketsPage() {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="hidden whitespace-nowrap px-4 py-3 xl:table-cell">
+                  <TableCell className="hidden whitespace-nowrap py-3 xl:table-cell">
                     {t.assignee ?? <span className="text-muted-foreground">Unassigned</span>}
                     {t.assigned_team && <p className="text-xs text-muted-foreground">{t.assigned_team}</p>}
                   </TableCell>
-                  <TableCell className="hidden whitespace-nowrap px-4 py-3 xl:table-cell">
+                  <TableCell className="hidden whitespace-nowrap py-3 xl:table-cell">
                     <span className="inline-flex items-center gap-1.5">
                       {t.priority && <PriorityChip priority={t.priority} />}
                       <SlaBadge badge={t.sla} />
                     </span>
                   </TableCell>
-                  <TableCell className="hidden whitespace-nowrap px-4 py-3 text-right text-muted-foreground lg:table-cell" title={dateTime(t.created_at)}>
+                  <TableCell className="hidden whitespace-nowrap py-3 text-right text-muted-foreground lg:table-cell" title={dateTime(t.created_at)}>
                     {relativeTime(t.created_at)}
                   </TableCell>
                 </TableRow>

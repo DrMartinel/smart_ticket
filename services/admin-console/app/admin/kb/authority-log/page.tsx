@@ -117,28 +117,28 @@ export default function AuthorityLogPage() {
       {error && <Alert variant="danger" className="mb-3 text-sm"><AlertDescription>{error}</AlertDescription></Alert>}
 
       <Card className="overflow-x-auto">
-        <Table className="w-full min-w-[900px] text-left text-sm">
-          <TableHeader className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        <Table className="min-w-[900px]">
+          <TableHeader>
             <TableRow>
-              <TableHead className="px-4 py-2.5 font-medium">When</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Page</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Field</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Change</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Actor</TableHead>
-              <TableHead className="px-4 py-2.5 font-medium">Reason</TableHead>
+              <TableHead>When</TableHead>
+              <TableHead>Page</TableHead>
+              <TableHead>Field</TableHead>
+              <TableHead>Change</TableHead>
+              <TableHead>Actor</TableHead>
+              <TableHead>Reason</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows?.map((r) => (
-              <TableRow key={r.id} className="border-t border-border align-top">
-                <TableCell className="whitespace-nowrap px-4 py-2.5">{vnTime(r.changed_at)}</TableCell>
-                <TableCell className="px-4 py-2.5 font-mono text-xs">{r.slug}</TableCell>
-                <TableCell className="px-4 py-2.5">{r.field}</TableCell>
-                <TableCell className="whitespace-nowrap px-4 py-2.5">
+              <TableRow key={r.id} className="align-top">
+                <TableCell className="whitespace-nowrap">{vnTime(r.changed_at)}</TableCell>
+                <TableCell className="font-mono text-xs">{r.slug}</TableCell>
+                <TableCell>{r.field}</TableCell>
+                <TableCell className="whitespace-nowrap">
                   {r.old_value ?? "—"} → {r.new_value ?? "—"}
                 </TableCell>
-                <TableCell className="px-4 py-2.5">{r.actor}</TableCell>
-                <TableCell className="px-4 py-2.5">{r.reason}</TableCell>
+                <TableCell>{r.actor}</TableCell>
+                <TableCell>{r.reason}</TableCell>
               </TableRow>
             ))}
             {rows?.length === 0 && (
