@@ -1,9 +1,9 @@
-"""Rollout and threshold control (F9, ADR-0035). What goes wrong quietly here: a branch going live
-on one person's say, a flag changing the decision itself, or unreviewed numbers acting on tickets."""
+"""Rollout control and the loaded thresholds (F9, ADR-0035, ADR-0044)."""
 
 from __future__ import annotations
 
 import ast
+import hashlib
 import uuid
 from pathlib import Path
 
@@ -16,11 +16,9 @@ from apps.lifecycle.tests.conftest import make_ticket
 from apps.lifecycle.utils.vocabulary import PipelineStatus
 from apps.notifications.models import Message
 from apps.review.models import ReviewDecision, ReviewItem
-from apps.rollout.models import FlagRequest, RolloutFlag, RolloutGate, ThresholdChangeRequest
+from apps.rollout.models import FlagRequest, RolloutFlag, RolloutGate
 from apps.rollout.utils.rollout import rollout
-from apps.rollout.utils.thresholds import threshold_changes
 from apps.rollout.utils.vocabulary import FlagBranch
-from apps.security.models import SecurityAlert
 from apps.tickets.models import AiRun, RoutingDecision
 from apps.tickets.utils.pipeline import _finalize
 from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, RiskTier
@@ -36,13 +34,6 @@ def person(username: str, role: UserRole) -> User:
     return User.objects.create_user(
         username=username, password="x", role=role.value, email=f"{username}@example.test"
     )
-
-
-@pytest.fixture(autouse=True)
-def fresh_status():
-    rollout._status = None
-    yield
-    rollout._status = None
 
 
 @pytest.fixture
@@ -63,7 +54,6 @@ def people(db) -> dict[str, User]:
 @pytest.fixture
 def env_live(settings):
     settings.SHADOW_MODE = False
-    settings.THRESHOLDS_REQUIRE_APPROVAL = False
 
 
 def set_flags(**states: str) -> None:
@@ -168,36 +158,18 @@ class TestLiveOrShadow:
     def test_env_shadow_overrides_flags(self, people, settings):
         """AC-F9-04."""
         settings.SHADOW_MODE = True
-        settings.THRESHOLDS_REQUIRE_APPROVAL = False
         set_flags(auto_route="on")
 
         assert decide(people["lan"], Branch.AUTO_ROUTE).shadow_mode is True
 
-    def test_unapproved_thresholds_force_shadow(self, people, settings):
-        """AC-F9-05 (BR-F9-07)."""
-        settings.SHADOW_MODE = False
-        settings.THRESHOLDS_REQUIRE_APPROVAL = True
-        ThresholdChangeRequest.objects.all().delete()
-        set_flags(auto_route="on", auto_reply="on")
+    def test_a_decision_records_the_thresholds_version(self, people, env_live):
+        """BR-F9-09: live needs only the env switch and the flag (ADR-0044)."""
+        set_flags(auto_route="on")
 
-        a = decide(people["lan"], Branch.AUTO_ROUTE)
-        b = decide(people["lan"], Branch.AUTO_REPLY)
+        decision = decide(people["lan"], Branch.AUTO_ROUTE)
 
-        assert a.shadow_mode is True and b.shadow_mode is True
-        assert a.rollout_snapshot["thresholds_approved"] is False
-        (alert,) = SecurityAlert.objects.filter(kind="thresholds_unapproved")
-        assert alert.severity == "high"
-        assert Message.objects.filter(user=people["huy"], event="thresholds.unapproved").exists()
-
-    def test_the_approved_baseline_loads(self, people, settings):
-        """FR-F9-008: the file matching an approved request is marked loaded and audited."""
-        settings.THRESHOLDS_REQUIRE_APPROVAL = True
-
-        status = rollout.thresholds_status()
-
-        assert (status.approved, status.change_request) == (True, "CR-2026-000")
-        assert ThresholdChangeRequest.objects.get(version="CR-2026-000").state == "loaded"
-        assert AuditLog.objects.filter(event="thresholds_loaded").count() == 1
+        assert decision.shadow_mode is False
+        assert decision.rollout_snapshot["thresholds"] == django_settings.THRESHOLDS.version
 
     def test_no_runbook_flag_exists(self, people, api_as):
         """AC-F9-07 (BR-F9-10, ADR-0006)."""
@@ -205,18 +177,6 @@ class TestLiveOrShadow:
         assert not RolloutFlag.objects.filter(branch__icontains="runbook").exists()
         response = post(api_as(people["huy"]), "/api/rollout/runbook/on", {"reason": "thử"})
         assert (response.status_code, response.json()["code"]) == (404, "no_such_branch")
-
-    def test_production_cant_skip_the_threshold_check(self):
-        """AC-F9-10 (BR-F9-08): production.py forces the check on after reading the env."""
-        tree = ast.parse((CORE_API / "config/settings/production.py").read_text())
-        forced = [
-            n
-            for n in tree.body
-            if isinstance(n, ast.Assign)
-            and any(getattr(t, "id", None) == "THRESHOLDS_REQUIRE_APPROVAL" for t in n.targets)
-        ]
-        assert forced and isinstance(forced[-1].value, ast.Constant)
-        assert forced[-1].value.value is True
 
 
 class TestFlags:
@@ -303,14 +263,6 @@ class TestFlags:
         )
         assert (holdout["value"], holdout["met"], holdout["entered"]) == (0.97, True, True)
 
-    def test_turning_on_needs_approved_thresholds(self, people, api_as, settings):
-        settings.THRESHOLDS_REQUIRE_APPROVAL = True
-        ThresholdChangeRequest.objects.all().delete()
-
-        response = post(api_as(people["huy"]), "/api/rollout/auto_route/on", {"reason": "P3"})
-
-        assert response.json()["code"] == "thresholds_unapproved"
-
     def test_a_live_branch_whose_gate_slipped_is_reported_once_a_day(self, people, env_live):
         set_flags(auto_route="on")
         shadow_reviews(people["lan"], people["mai"], decided=10, rerouted=3)
@@ -357,65 +309,12 @@ class TestGates:
         assert gate.threshold == 0.15
 
 
-class TestThresholdChanges:
-    def current_with(self, version: str, **changes: str) -> str:
-        text = threshold_changes.current_text().replace(
-            f'version: "{django_settings.THRESHOLDS.version}"', f'version: "{version}"'
-        )
-        for old, new in changes.items():
-            text = text.replace(old, new)
-        return text
+class TestThresholds:
+    def test_the_current_thresholds_show_the_loaded_file(self, people, api_as):
+        response = api_as(people["tu"]).get("/api/thresholds/current")
 
-    def test_a_change_request_holds_the_whole_file(self, people, api_as):
-        """AC-F9-09 (BR-F9-05, BR-F9-06)."""
-        client = api_as(people["huy"])
-        partial = post(
-            client, "/api/thresholds/change-requests", {"yaml_text": "trust:\n  t_auto: 0.86\n"}
-        )
-        assert (partial.status_code, partial.json()["code"]) == (422, "invalid_thresholds")
-        assert partial.json()["details"]["path"] == "version"
-
-        made = post(
-            client,
-            "/api/thresholds/change-requests",
-            {"yaml_text": self.current_with("CR-2026-001"), "evidence": "calibration 2026-11-20"},
-        ).json()
-        submitted = post(client, f"/api/thresholds/change-requests/{made['id']}/submit")
-        assert submitted.json()["state"] == "approved"
-
-    def test_threshold_cr_rejects_invalid_yaml(self, people, api_as):
-        response = post(
-            api_as(people["huy"]), "/api/thresholds/change-requests", {"yaml_text": "a: [unclosed"}
-        )
-        assert (response.status_code, response.json()["code"]) == (422, "invalid_thresholds")
-
-    def test_the_file_must_carry_its_request_id(self, people, api_as):
-        response = post(
-            api_as(people["huy"]),
-            "/api/thresholds/change-requests",
-            {"yaml_text": self.current_with("CR-2026-099")},
-        )
-        assert response.json()["code"] == "version_mismatch"
-        assert response.json()["details"]["version"] == "CR-2026-001"
-
-    def test_the_manager_who_submits_approves(self, people):
-        """ADR-0043: one manager, no second approver."""
-        made = threshold_changes.create(
-            people["huy"], self.current_with("CR-2026-001", **{"t_auto: 0.88": "t_auto: 0.86"}), "e"
-        )
-
-        done = threshold_changes.submit(made.id, people["huy"])
-
-        assert done.state == "approved"
-        assert [a["user"] for a in done.approvals] == ["huy.pq"]
-        assert "t_auto: 0.86" in done.diff
-        assert AuditLog.objects.filter(event="threshold_cr_approved").count() == 1
-
-    def test_only_a_manager_writes_a_change_request(self, people, api_as):
-        response = post(
-            api_as(people["tu"]),
-            "/api/thresholds/change-requests",
-            {"yaml_text": self.current_with("CR-2026-001")},
-        )
-
-        assert response.status_code == 403
+        text = Path(django_settings.THRESHOLDS_PATH).read_text(encoding="utf-8")
+        assert response.status_code == 200
+        assert response.json()["version"] == django_settings.THRESHOLDS.version
+        assert response.json()["sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+        assert response.json()["yaml"] == text

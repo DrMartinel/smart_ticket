@@ -210,18 +210,6 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
             "{{notice.reason}} is on but no longer meets: {{notice.detail}}. Consider turning it off.",
         ),
     },
-    E.THRESHOLDS_UNAPPROVED: {
-        VI: (
-            "Ngưỡng chưa được duyệt: {{notice.reason}}",
-            "thresholds.yaml đang chạy ({{notice.detail}}) không khớp yêu cầu nào đã duyệt. "
-            "Mọi nhánh đang ở chế độ shadow.",
-        ),
-        EN: (
-            "Unapproved thresholds: {{notice.reason}}",
-            "The thresholds.yaml in use ({{notice.detail}}) matches no approved change request. "
-            "Every branch is in shadow.",
-        ),
-    },
     E.SECURITY_ALERT: {
         VI: ("Cảnh báo bảo mật: {{notice.reason}}", "{{notice.detail}}"),
         EN: ("Security alert: {{notice.reason}}", "{{notice.detail}}"),

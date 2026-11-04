@@ -1,4 +1,4 @@
-"""Request bodies for rollout and threshold control (F9)."""
+"""Request bodies for rollout control (F9)."""
 
 from __future__ import annotations
 
@@ -29,16 +29,3 @@ class GateChangeIn(Schema):
     threshold: float
     window_days: int | None = Field(default=None, ge=1, le=365)
     reason: str = Field(max_length=2_000)
-
-
-class ChangeRequestIn(Schema):
-    model_config = ConfigDict(extra="forbid")
-
-    yaml_text: str = Field(max_length=200_000)
-    evidence: str = Field(default="", max_length=5_000)
-
-
-class CommentIn(Schema):
-    model_config = ConfigDict(extra="forbid")
-
-    comment: str = Field(default="", max_length=2_000)

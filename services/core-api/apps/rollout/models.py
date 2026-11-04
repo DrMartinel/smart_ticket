@@ -1,5 +1,4 @@
-"""Per-branch rollout flags, their requests and gates, and reviewed threshold change requests
-(F9, ADR-0035)."""
+"""Per-branch rollout flags, their requests and gates (F9, ADR-0035)."""
 
 from __future__ import annotations
 
@@ -10,7 +9,6 @@ from django.db import models
 
 from apps.core.models import BaseModel
 from apps.rollout.utils.vocabulary import (
-    ChangeState,
     Comparator,
     FlagBranch,
     FlagState,
@@ -118,32 +116,3 @@ class GateChange(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "rollout_gate_changes"
-
-
-class ThresholdChangeRequest(BaseModel):
-    """A full proposed `thresholds.yaml`, approved by two people who aren't its author
-    (BR-F9-05, 06)."""
-
-    version = models.CharField(max_length=20, unique=True)
-    yaml_text = models.TextField()
-    sha256 = models.CharField(max_length=64, db_index=True)
-    base_sha256 = models.CharField(max_length=64, blank=True, default="")
-    diff = models.TextField(blank=True, default="")
-    evidence = models.TextField(blank=True, default="")
-    author = models.ForeignKey(
-        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
-    )
-    # [{user, at, comment}]
-    approvals = models.JSONField(default=list)
-    state = models.CharField(
-        max_length=10, choices=_choices(ChangeState), default=ChangeState.DRAFT.value
-    )
-    rejected_reason = models.TextField(blank=True, default="")
-    created_at = models.DateTimeField(auto_now_add=True)
-    submitted_at = models.DateTimeField(null=True, blank=True)
-    approved_at = models.DateTimeField(null=True, blank=True)
-    loaded_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta(BaseModel.Meta):
-        db_table = "threshold_change_requests"
-        ordering = ["-created_at"]

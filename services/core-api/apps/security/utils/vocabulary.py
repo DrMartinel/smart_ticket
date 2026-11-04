@@ -19,7 +19,6 @@ class AlertKind(StrEnum):
     DECRYPT_FAILED = "decrypt_failed"
     REVEAL_FAILED = "reveal_failed"
     ACCESS_DENIED_BURST = "access_denied_burst"
-    THRESHOLDS_UNAPPROVED = "thresholds_unapproved"
 
 
 class Severity(StrEnum):
@@ -41,7 +40,6 @@ SEVERITY = {
     AlertKind.DECRYPT_FAILED: Severity.HIGH,
     AlertKind.REVEAL_FAILED: Severity.HIGH,
     AlertKind.ACCESS_DENIED_BURST: Severity.MEDIUM,
-    AlertKind.THRESHOLDS_UNAPPROVED: Severity.HIGH,
 }
 
 # Kinds whose alert can tell the requester to change a credential (UC-F8-02).

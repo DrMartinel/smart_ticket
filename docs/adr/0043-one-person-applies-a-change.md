@@ -29,6 +29,8 @@ allowed to make the change is trusted to apply it.
 4. **Thresholds:** only a manager writes a change request; submitting it
    approves it. It still ships by PR under its id, and a loaded file that
    matches no approved request still keeps every branch in shadow.
+   *Superseded by ADR-0044: no change requests; the file changes by pull
+   request.*
 5. **Rollout flags:** one manager turns a branch on at once
    (`POST /api/rollout/{branch}/on`), with a reason and an override reason
    for any gate not met. Off is unchanged.

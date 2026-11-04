@@ -12,11 +12,10 @@
 # so a decision made months ago can always be explained with the numbers
 # that were actually in effect at the time.
 #
-# `version` is the id of the approved threshold change request this file is
-# (F9, ADR-0035): change a number by proposing the whole file at
-# /settings/thresholds, and ship it under the id it was approved as. CI fails a
-# change to this file that keeps the old version. CR-2026-000 is the baseline
-# the F9 migration approves.
+# `version` names this file in every decision's `thresholds_used`: give a
+# changed file a new one. The file changes by pull request like code
+# (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
+# had, which ADR-0044 removed.
 
 version: "CR-2026-004"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration

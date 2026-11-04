@@ -119,8 +119,8 @@ export const TOURS: Tour[] = [
         side: "right",
         when: (u) => isManager(u) || isWorkflowAdmin(u) || isKbEditor(u) || u.role === "security",
         body: w(
-          "Ai được làm gì một mình: quyền trả lời tự động của từng trang trợ giúp và nhật ký của nó, cờ triển khai tự động hoá, và yêu cầu đổi ngưỡng.",
-          "What may act on its own: each help page's automatic-answer authority and its log, the automation rollout flags, and threshold change requests.",
+          "Ai được làm gì một mình: quyền trả lời tự động của từng trang trợ giúp và nhật ký của nó, cờ triển khai tự động hoá, và tệp ngưỡng đang chạy.",
+          "What may act on its own: each help page's automatic-answer authority and its log, the automation rollout flags, and the loaded thresholds.",
         ),
       },
       {
@@ -928,20 +928,20 @@ export const TOURS: Tour[] = [
 
   {
     id: "rollout",
-    title: w("Bật tự động hoá và đổi ngưỡng", "Turn on automation and change thresholds"),
+    title: w("Bật tự động hoá", "Turn on automation"),
     summary: w(
-      "Ba chìa khoá để một nhánh chạy thật, cờ triển khai, và yêu cầu đổi ngưỡng.",
-      "The three keys a branch needs to act live, rollout flags, and threshold change requests.",
+      "Hai chìa khoá để một nhánh chạy thật, cờ triển khai, và tệp ngưỡng đang chạy.",
+      "The two keys a branch needs to act live, rollout flags, and the loaded thresholds.",
     ),
     audience: isManager,
     steps: [
       {
-        title: w("Ba chìa khoá", "Three keys"),
+        title: w("Hai chìa khoá", "Two keys"),
         href: "/admin/settings/rollout",
         target: HEADER,
         body: w(
-          "Một nhánh (tự trả lời, chuyển nhóm, hỏi lại) chỉ chạy thật khi cả ba cùng mở: môi trường không ở chế độ shadow, cờ của nhánh đang bật, và tệp ngưỡng đang chạy đã được duyệt. Thiếu một là mọi thứ vẫn ở shadow: ghi lại, người xử lý.",
-          "A branch (answer, route, ask) acts live only when all three turn: the environment isn't in shadow, the branch's flag is on, and the loaded thresholds are approved. Any one missing and everything stays in shadow: recorded, handled by people.",
+          "Một nhánh (tự trả lời, chuyển nhóm, hỏi lại) chỉ chạy thật khi cả hai cùng mở: môi trường không ở chế độ shadow, và cờ của nhánh đang bật. Thiếu một là mọi thứ vẫn ở shadow: ghi lại, người xử lý.",
+          "A branch (answer, route, ask) acts live only when both turn: the environment isn't in shadow, and the branch's flag is on. Either missing and everything stays in shadow: recorded, handled by people.",
         ),
       },
       {
@@ -958,17 +958,8 @@ export const TOURS: Tour[] = [
         href: "/admin/settings/thresholds",
         target: HEADER,
         body: w(
-          "Mọi con số điều chỉnh được nằm trong một tệp duy nhất. \"New change request\" dán toàn bộ tệp mới, \"Validate and save draft\" kiểm tra nó.",
-          "Every tunable number lives in one file. \"New change request\" takes the whole new file, and \"Validate and save draft\" checks it.",
-        ),
-      },
-      {
-        title: w("Duyệt thay đổi", "Approve the change"),
-        target: TABLE,
-        side: "top",
-        body: w(
-          "Mở yêu cầu để xem phần khác biệt, rồi quản lý viết nó \"Approve\" (hoặc \"Reject…\"). Sau đó kỹ sư mở PR với đúng nội dung này. Tệp đang chạy mà không khớp yêu cầu nào đã duyệt sẽ đưa mọi nhánh về shadow.",
-          "Open a request to see the diff, then the manager who wrote it presses \"Approve\" (or \"Reject…\"). An engineer then ships that exact text by PR. A loaded file that matches no approved request puts every branch back in shadow.",
+          "Mọi con số điều chỉnh được nằm trong một tệp duy nhất, hiện ở đây đúng như core-api đã nạp. Tệp đổi qua pull request với phiên bản mới; mỗi quyết định ghi lại các con số nó dùng.",
+          "Every tunable number lives in one file, shown here as core-api loaded it. It changes by pull request under a new version; every decision records the numbers it ran under.",
         ),
       },
     ],

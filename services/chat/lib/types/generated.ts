@@ -1043,64 +1043,16 @@ export interface FlagOut {
   agreement_decided: number;
 }
 
-export interface ThresholdsStatusOut {
-  version: string;
-  sha256: string;
-  approved: boolean;
-  checked: boolean;
-  change_request: string | null;
-}
-
 export interface RolloutOut {
   env_shadow: boolean;
-  thresholds: ThresholdsStatusOut;
+  thresholds: string;
   flags: FlagOut[];
   gates: GateOut[];
-}
-
-export interface ChangeRequestOut {
-  id: string;
-  version: string;
-  sha256: string;
-  base_sha256: string;
-  diff: string;
-  evidence: string;
-  author: string | null;
-  approvals: Record<string, unknown>[];
-  state: string;
-  rejected_reason: string;
-  created_at: string;
-  submitted_at: string | null;
-  approved_at: string | null;
-  loaded_at: string | null;
-}
-
-export interface ChangeRequestDetailOut {
-  id: string;
-  version: string;
-  sha256: string;
-  base_sha256: string;
-  diff: string;
-  evidence: string;
-  author: string | null;
-  approvals: Record<string, unknown>[];
-  state: string;
-  rejected_reason: string;
-  created_at: string;
-  submitted_at: string | null;
-  approved_at: string | null;
-  loaded_at: string | null;
-  yaml_text: string;
 }
 
 export interface CurrentThresholdsOut {
   version: string;
   sha256: string;
-  approved: boolean;
-  checked: boolean;
-  change_request: string | null;
-  loaded_at: string | null;
-  next_version: string;
   yaml: string;
 }
 
@@ -1114,11 +1066,6 @@ export interface GateChangeIn {
   threshold: number;
   window_days?: number | null;
   reason: string;
-}
-
-export interface ChangeRequestIn {
-  yaml_text: string;
-  evidence?: string;
 }
 
 export interface IncidentRowOut {

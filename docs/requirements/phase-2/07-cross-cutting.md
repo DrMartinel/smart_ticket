@@ -49,8 +49,8 @@ Columns: **Emp** employee · **Tech** technician · **Lead** team lead
 | F8 | Security summary counts | — | — | — | R | ✔ | — | — | — |
 | F9 | Request a flag on; approve (≠ requester) | — | — | — | ✔ | — | — | — | — |
 | F9 | Turn a flag off | — | — | — | ✔ | ✔ | — | — | — |
-| F9 | Submit a threshold change request | — | ✔ | — | ✔ | — | ✔ | — | — |
-| F9 | Approve a threshold change request (≠ author) | — | ✔ (2nd reviewer) | — | ✔ | — | — | — | — |
+| F9 | ~~Submit a threshold change request~~ (removed by ADR-0044) | — | ✔ | — | ✔ | — | ✔ | — | — |
+| F9 | ~~Approve a threshold change request (≠ author)~~ (removed by ADR-0044) | — | ✔ (2nd reviewer) | — | ✔ | — | — | — | — |
 | F10 | SLA, team, CSAT reports | — | own row | team | ✔ | — | — | — | — |
 | F10 | Reviewer report | — | own row | own row | ✔ | — | — | — | — |
 | F10 | KB report | — | — | — | ✔ | — | — | ✔ | — |
@@ -102,7 +102,7 @@ or admins (BR-F4-03).
 | `rollout.flag_changed` | F9 | managers, security → in_app, email | in_app |
 | `rollout.gate_unmet` | F9 | managers → in_app, email | — |
 | `thresholds.cr_pending` | F9 | managers → in_app | — |
-| `thresholds.unapproved` | F9 | managers, security → in_app, email | both |
+| ~~`thresholds.unapproved`~~ (removed by ADR-0044) | F9 | managers, security → in_app, email | both |
 | `report.weekly` | F10 | managers → email | — |
 
 Defaults a `workflow_admin` may change: every non-mandatory cell. Language:
@@ -218,4 +218,4 @@ Never a revealed value, a password, a token, or a raw reply.
 | NFR-O-01 | Every new Celery task logs `trace_id` and is idempotent (stated per task in each feature's §h) |
 | NFR-O-02 | Migrations are additive first; backfills run in batches of ≤ 1,000 rows, resumable |
 | NFR-O-03 | Every new setting appears in the settings code (type only), `.env.example` (value and why) and the service's `environment:` in `docker-compose.yml` (CLAUDE.md "Commands") |
-| NFR-O-04 | Every new tunable lives in `thresholds.yaml`; F9's change-request flow applies to them |
+| NFR-O-04 | Every new tunable lives in `thresholds.yaml`, changed by pull request (ADR-0044) |

@@ -1,12 +1,9 @@
-"""Which automated branches act live (BR-F9-01): the env switch, the branch's flag and approved
-thresholds, all three. One manager turns a flag on or off (ADR-0035, ADR-0043)."""
+"""Which automated branches act live (BR-F9-01): the env switch and the branch's flag, both. One
+manager turns a flag on or off (ADR-0035, ADR-0043, ADR-0044)."""
 
 from __future__ import annotations
 
-import hashlib
-import logging
 import uuid
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -18,18 +15,10 @@ from apps.accounts.models import User, UserRole
 from apps.audit.models import AuditLog
 from apps.notifications.utils.notifier import Notice, notifier
 from apps.notifications.utils.vocabulary import NotificationEvent
-from apps.rollout.models import (
-    FlagRequest,
-    GateChange,
-    RolloutFlag,
-    RolloutGate,
-    ThresholdChangeRequest,
-)
+from apps.rollout.models import FlagRequest, GateChange, RolloutFlag, RolloutGate
 from apps.rollout.utils.gates import GateValue, rollout_metrics
 from apps.rollout.utils.vocabulary import (
-    APPROVED_CHANGE_STATES,
     ENTERED_METRICS,
-    ChangeState,
     FlagBranch,
     FlagState,
     RequestState,
@@ -37,120 +26,25 @@ from apps.rollout.utils.vocabulary import (
     RolloutRefusal,
 )
 
-logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class ThresholdsStatus:
-    """The loaded thresholds file and whether it may act live."""
-
-    sha256: str
-    version: str
-    approved: bool
-    checked: bool
-    change_request: str | None
-
-
-def file_sha256() -> str:
-    """SHA-256 of the thresholds.yaml core-api loaded."""
-    with open(settings.THRESHOLDS_PATH, "rb") as f:
-        return hashlib.sha256(f.read()).hexdigest()
-
 
 class Rollout:
     """Live or shadow per decision, and every change to a flag or gate."""
 
-    def __init__(self) -> None:
-        # The thresholds check, once per process per file (BR-F9-07).
-        self._status: ThresholdsStatus | None = None
-
     # ── live or shadow (BR-F9-01) ──
-
-    def thresholds_status(self) -> ThresholdsStatus:
-        """Matches the loaded file's hash to an approved change request, once per process: marks
-        it loaded, or raises `thresholds_unapproved`."""
-        sha = file_sha256()
-        require = settings.THRESHOLDS_REQUIRE_APPROVAL
-        if self._status is not None and (self._status.sha256, self._status.checked) == (
-            sha,
-            require,
-        ):
-            return self._status
-        version = settings.THRESHOLDS.version
-        if not require:
-            self._status = ThresholdsStatus(sha, version, True, False, None)
-            return self._status
-        request = (
-            ThresholdChangeRequest.objects.filter(
-                sha256=sha, state__in=[s.value for s in APPROVED_CHANGE_STATES]
-            )
-            .order_by("-approved_at")
-            .first()
-        )
-        if request is None:
-            self.unapproved(sha, version)
-            self._status = ThresholdsStatus(sha, version, False, True, None)
-            return self._status
-        if request.state != ChangeState.LOADED.value:
-            with transaction.atomic():
-                updated = ThresholdChangeRequest.objects.filter(
-                    pk=request.pk, state=ChangeState.APPROVED.value
-                ).update(state=ChangeState.LOADED.value, loaded_at=timezone.now())
-                if updated:
-                    AuditLog.objects.record(
-                        "thresholds_loaded",
-                        actor_type="system",
-                        payload={"version": request.version, "sha256": sha},
-                    )
-        self._status = ThresholdsStatus(sha, version, True, True, request.version)
-        return self._status
-
-    def unapproved(self, sha: str, version: str) -> None:
-        """Every branch shadow: security alerted and managers told, once per file."""
-        from apps.security.utils.alerts import security_alerts
-        from apps.security.utils.vocabulary import AlertKind
-
-        logger.error("thresholds.yaml %s (%s) matches no approved change request", version, sha)
-        with transaction.atomic():
-            security_alerts.raise_(
-                AlertKind.THRESHOLDS_UNAPPROVED,
-                payload={"sha256": sha, "version": version},
-                detail=f"thresholds.yaml {version} ({sha[:12]}) is not approved",
-            )
-            AuditLog.objects.record(
-                "thresholds_unapproved",
-                actor_type="system",
-                payload={"sha256": sha, "version": version},
-            )
-            notifier.emit(
-                NotificationEvent.THRESHOLDS_UNAPPROVED,
-                notice=Notice(
-                    reason=version,
-                    detail=f"sha256 {sha[:12]}…",
-                    data={"sha256": sha, "version": version},
-                ),
-                event_id=uuid.uuid5(uuid.NAMESPACE_URL, f"thresholds_unapproved:{sha}"),
-            )
 
     def snapshot(self) -> dict[str, Any]:
         """What a decision runs under: each flag, the env switch, the thresholds (BR-F9-09)."""
         states = dict(RolloutFlag.objects.values_list("branch", "state"))
-        status = self.thresholds_status()
         return {
             **{b.value: states.get(b.value, FlagState.OFF.value) for b in FlagBranch},
             "env_shadow": settings.SHADOW_MODE,
-            "thresholds": status.change_request or status.version,
-            "thresholds_approved": status.approved,
+            "thresholds": settings.THRESHOLDS.version,
         }
 
     def is_live(self, branch: FlagBranch, snapshot: dict[str, Any] | None = None) -> bool:
-        """Env not shadow, the branch's flag on, thresholds approved; any one missing is shadow."""
+        """Env not shadow and the branch's flag on; either missing is shadow."""
         snapshot = snapshot if snapshot is not None else self.snapshot()
-        return (
-            not snapshot["env_shadow"]
-            and snapshot.get(branch.value) == FlagState.ON.value
-            and bool(snapshot["thresholds_approved"])
-        )
+        return not snapshot["env_shadow"] and snapshot.get(branch.value) == FlagState.ON.value
 
     # ── turning a branch on (UC-F9-01) ──
 
@@ -184,12 +78,6 @@ class Rollout:
             flag = RolloutFlag.objects.select_for_update().get(pk=self.flag(branch).pk)
             if flag.state == FlagState.ON.value:
                 raise RolloutError(409, RolloutRefusal.ALREADY_ON, f"{branch} is already on")
-            if not self.thresholds_status().approved:
-                raise RolloutError(
-                    409,
-                    RolloutRefusal.THRESHOLDS_UNAPPROVED,
-                    "the loaded thresholds aren't approved",
-                )
             gates = rollout_metrics.snapshot(FlagBranch(branch), entered)
             self.check_entered(gates)
             unmet = [g.metric for g in gates if not g.met]
@@ -340,11 +228,8 @@ class Rollout:
     # ── the sweep ──
 
     def sweep(self, now: datetime | None = None) -> dict[str, int]:
-        """Re-checks the thresholds, and once a day tells managers about a live branch whose gate
-        is no longer met."""
+        """Once a day, tells managers about a live branch whose gate is no longer met."""
         now = now or timezone.now()
-        self._status = None
-        self.thresholds_status()
         unmet = 0
         for flag in RolloutFlag.objects.filter(state=FlagState.ON.value):
             missed = [

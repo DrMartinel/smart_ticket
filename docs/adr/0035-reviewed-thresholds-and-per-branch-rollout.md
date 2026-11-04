@@ -19,6 +19,7 @@ reviewed before it acted on real tickets.
    `env SHADOW_MODE is false AND branch flag is on AND loaded thresholds are
    approved`. `router.py` and `route()` don't change; the same decision runs
    in both modes (spec §8.2).
+   *Superseded in part by ADR-0044: thresholds are no longer a key.*
 2. **Flags exist for `auto_route`, `auto_reply`, `requester_questions`.**
    None exists for runbooks (ADR-0006).
 3. **On takes two managers, neither the requester; off takes one manager or
@@ -27,10 +28,11 @@ reviewed before it acted on real tickets.
 4. **`thresholds.yaml` stays the source.** A change is a change request
    holding the full file, approved by two people who are not the author,
    then shipped by PR with `version` set to the request id.
-   *Superseded by ADR-0043: the manager who writes it approves it.*
+   *Superseded by ADR-0043, then ADR-0044: the file changes by pull request.*
 5. **At boot core-api hashes the file.** If no approved request matches, every
    branch is shadow and security is alerted. Local dev and CI may disable the
    check; production can't.
+   *Superseded by ADR-0044: no hash check.*
 6. **Each decision records the flags it ran under** (`rollout_snapshot`).
 
 ## Consequences

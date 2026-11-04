@@ -145,7 +145,7 @@ the pipeline's routing step.
 |---|---|---|---|
 | BR-F4-01 | Messages are written in the same transaction as the event; sending happens after commit | No event without its notice, no notice for a rolled-back event (ADR-0033) | `Notifier.emit` |
 | BR-F4-02 | The event catalog and its recipient kinds are code (`NotificationEvent` enum). The matrix defaults are data | Like ADR-0028's action catalog: no user-defined logic | Code; matrix API |
-| BR-F4-03 | Mandatory cells are fixed in the catalog; neither users nor admins turn them off. Mandatory cells are marked in the catalog below: security alerts and their overdue reminders, break-glass sign-ins, credential exposure (to the requester), incident proposals and broadcasts, approval requests (in-app), rollout flag changes (in-app) and unapproved thresholds | Some notices must not be opt-out | Catalog + API refusal |
+| BR-F4-03 | Mandatory cells are fixed in the catalog; neither users nor admins turn them off. Mandatory cells are marked in the catalog below: security alerts and their overdue reminders, break-glass sign-ins, credential exposure (to the requester), incident proposals and broadcasts, approval requests (in-app), rollout flag changes (in-app) and ~~unapproved thresholds~~ (removed by ADR-0044) | Some notices must not be opt-out | Catalog + API refusal |
 | BR-F4-04 | Templates read masked fields only, never the quarantine; the existing variable set of `apps/lifecycle/utils/templates.py` is reused | ADR-0028 §6 | Renderer |
 | BR-F4-05 | A failed send never changes a ticket, a decision or a status. Failures are listed for a person | BR-X-07 | Dispatcher |
 | BR-F4-06 | Webhook bodies are fixed JSON per event (no free template), signed with HMAC-SHA256 in `X-SmartTicket-Signature`, to allow-listed hosts only, no redirects | ADR-0028 §6, amended 2026-10-15 | Dispatcher |
@@ -204,7 +204,7 @@ the pipeline's routing step.
 | `rollout.flag_changed` [F9] | managers, security → in_app, email | in_app |
 | `rollout.gate_unmet` [F9] | managers → in_app, email | — |
 | `thresholds.cr_pending` [F9] | managers → in_app | — |
-| `thresholds.unapproved` [F9] | managers, security → in_app, email | both |
+| ~~`thresholds.unapproved`~~ [F9], removed by ADR-0044 | managers, security → in_app, email | both |
 | `report.weekly` [F10] | managers → email | — |
 
 ## g. Data changes

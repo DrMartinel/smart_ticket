@@ -152,7 +152,7 @@ Ticket moves F8 causes:
 | `reveal_rate_limited` | high | F5 |
 | `decrypt_failed` | high | F5 |
 | `access_denied_burst` | medium | PRE-1 audit, sweep |
-| `thresholds_unapproved` | high | F9 boot check |
+| ~~`thresholds_unapproved`~~ | high | F9 boot check, removed by ADR-0044 |
 
 ## f. Functional requirements
 

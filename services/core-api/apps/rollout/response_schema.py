@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import datetime
-from typing import Any
 
+from django.conf import settings
 from ninja import Schema
 
-from apps.rollout.models import GateChange, RolloutFlag, ThresholdChangeRequest
+from apps.rollout.models import GateChange, RolloutFlag
 from apps.rollout.utils.gates import Agreement, GateValue
 
 
@@ -91,75 +92,25 @@ class FlagOut(Schema):
         )
 
 
-class ThresholdsStatusOut(Schema):
-    version: str
-    sha256: str
-    approved: bool
-    checked: bool
-    change_request: str | None
-
-
 class RolloutOut(Schema):
     env_shadow: bool
-    thresholds: ThresholdsStatusOut
+    thresholds: str
     flags: list[FlagOut]
     gates: list[GateOut]
-
-
-class ChangeRequestOut(Schema):
-    id: uuid.UUID
-    version: str
-    sha256: str
-    base_sha256: str
-    diff: str
-    evidence: str
-    author: str | None
-    approvals: list[dict[str, Any]]
-    state: str
-    rejected_reason: str
-    created_at: datetime
-    submitted_at: datetime | None
-    approved_at: datetime | None
-    loaded_at: datetime | None
-
-    @classmethod
-    def of(cls, request: ThresholdChangeRequest) -> ChangeRequestOut:
-        return cls(**cls.fields_of(request))
-
-    @staticmethod
-    def fields_of(request: ThresholdChangeRequest) -> dict[str, Any]:
-        return {
-            "id": request.id,
-            "version": request.version,
-            "sha256": request.sha256,
-            "base_sha256": request.base_sha256,
-            "diff": request.diff,
-            "evidence": request.evidence,
-            "author": request.author.username if request.author else None,
-            "approvals": request.approvals,
-            "state": request.state,
-            "rejected_reason": request.rejected_reason,
-            "created_at": request.created_at,
-            "submitted_at": request.submitted_at,
-            "approved_at": request.approved_at,
-            "loaded_at": request.loaded_at,
-        }
-
-
-class ChangeRequestDetailOut(ChangeRequestOut):
-    yaml_text: str
-
-    @classmethod
-    def detail(cls, request: ThresholdChangeRequest) -> ChangeRequestDetailOut:
-        return cls(**ChangeRequestOut.fields_of(request), yaml_text=request.yaml_text)
 
 
 class CurrentThresholdsOut(Schema):
     version: str
     sha256: str
-    approved: bool
-    checked: bool
-    change_request: str | None
-    loaded_at: datetime | None
-    next_version: str
     yaml: str
+
+    @classmethod
+    def loaded(cls) -> CurrentThresholdsOut:
+        """The thresholds.yaml core-api loaded."""
+        with open(settings.THRESHOLDS_PATH, encoding="utf-8") as f:
+            text = f.read()
+        return cls(
+            version=settings.THRESHOLDS.version,
+            sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            yaml=text,
+        )

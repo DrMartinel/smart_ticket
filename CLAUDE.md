@@ -274,7 +274,7 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | The entity-graph edges link expansion follows | ai-engine `core/associations/build.py`, which writes them; after `load-demo-kb`, its `--rescore-only` (`demo_kb/README.md`). An edit marks them stale and `graph-builder`'s `--pending` rebuilds them; an editor's correction is a `kb_association_overrides` row (`KbGraph`), never an edit of an edge |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question `core/prompts/category.v*.json`; the confidence bar in `thresholds.yaml` |
-| Any tunable number | `thresholds.yaml`, nowhere else; its `version` becomes the id of the change request that approved the edit (CI checks it changes with the file) |
+| Any tunable number | `thresholds.yaml`, nowhere else, by pull request; give a changed file a new `version` (ADR-0044) |
 | Which area a console page sits in | Daily work in the Workspace (`components/AppShell.tsx`); figures, authority, rollout, thresholds and settings in Admin under `/admin/*` (`lib/areas.ts`, ADR-0039). Old paths redirect in `next.config.mjs` |
 | Whether a branch acts live | Admin → Rollout (F9 flags); never a code path around `Rollout.is_live` |
 | Sign-in, token lifetimes, who may call what | `apps/accounts/utils.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
@@ -307,8 +307,8 @@ copies that directory — a new SQL file that isn't copied fails at container st
 - `SHADOW_MODE=true` is the default: the router decides and records, humans still
   handle every ticket. This is spec §14's P1 phase, by design. Since F9
   (ADR-0035) going live also needs the branch's rollout flag on (Admin →
-  Rollout: one manager to turn on or off, ADR-0043) and the loaded
-  `thresholds.yaml` approved; all flags start off. Tests that need live call
+  Rollout: one manager to turn on or off, ADR-0043); all flags start off.
+  `thresholds.yaml` changes by pull request, with no approval check (ADR-0044). Tests that need live call
   `apps.rollout.testing.all_live(settings)`.
 - **Demo KB is English AWS documentation** (`demo_kb/`: every page of 12 AWS
   guides, 3,542 pages), loaded by `manage.py load_demo_kb`.
@@ -469,6 +469,6 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (forty-three
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (forty-four
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
 0030–0038 come from the phase 2 pack, all accepted).

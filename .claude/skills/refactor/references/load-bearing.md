@@ -317,14 +317,8 @@ guard and that comment is later trimmed, the entry is the record.
 - **`Rollout.is_live` read in `_finalize`, never in `router.py`.** The flag
   decides whether a decision is carried out, never which it is; replays depend
   on the router staying pure. *`test_route_is_identical_whatever_the_flags`.*
-- **Three keys, any one missing is shadow.** *`test_env_shadow_overrides_flags`,
-  `test_unapproved_thresholds_force_shadow`.*
-- **`production.py` assigning `THRESHOLDS_REQUIRE_APPROVAL = True` after the
-  env.** An env value can't turn the check off where it matters.
-  *`test_production_cant_skip_the_threshold_check`.*
-- **A change request's file carrying its own id as `version`.** Otherwise the
-  approved hash and the shipped file can differ by one line and production
-  goes to shadow. CI's `thresholds-version` job.
+- **Two keys, either missing is shadow** (ADR-0044 dropped the thresholds
+  key). *`test_env_shadow_overrides_flags`.*
 - **No `runbook` member in `FlagBranch`** (ADR-0006). *`test_no_runbook_flag_exists`.*
 
 ### Mass incidents (F7)

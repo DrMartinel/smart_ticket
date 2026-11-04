@@ -9,5 +9,5 @@ from apps.rollout.utils.rollout import rollout
 
 @shared_task
 def sweep() -> dict[str, int]:
-    """Beat task: expires stale flag requests, re-checks thresholds, reports unmet gates."""
+    """Beat task: reports unmet gates of live branches."""
     return rollout.sweep()

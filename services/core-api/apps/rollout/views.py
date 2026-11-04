@@ -1,4 +1,4 @@
-"""Rollout flags and gates, and threshold change requests (F9, ADR-0035)."""
+"""Rollout flags and gates, and the loaded thresholds (F9, ADR-0035, ADR-0044)."""
 
 from __future__ import annotations
 
@@ -14,46 +14,26 @@ from apps.accounts.permissions import (
     SessionAuth,
     require_role,
 )
-from apps.rollout.models import (
-    RolloutFlag,
-    RolloutGate,
-    ThresholdChangeRequest,
-)
-from apps.rollout.request_schema import (
-    ChangeRequestIn,
-    CommentIn,
-    FlagOnIn,
-    GateChangeIn,
-    ReasonIn,
-)
+from apps.rollout.models import RolloutFlag, RolloutGate
+from apps.rollout.request_schema import FlagOnIn, GateChangeIn, ReasonIn
 from apps.rollout.response_schema import (
-    ChangeRequestDetailOut,
-    ChangeRequestOut,
     CurrentThresholdsOut,
     FlagOut,
     GateChangeOut,
     GateOut,
     RolloutOut,
-    ThresholdsStatusOut,
 )
 from apps.rollout.utils.gates import AGREEMENT_BRANCH, rollout_metrics
 from apps.rollout.utils.rollout import rollout
-from apps.rollout.utils.thresholds import threshold_changes
-from apps.rollout.utils.vocabulary import (
-    FlagBranch,
-    RolloutError,
-    RolloutRefusal,
-)
+from apps.rollout.utils.vocabulary import FlagBranch
 
 router = Router(tags=["rollout"])
 
-# The router branch whose shadow decisions each flag would carry out, and the window shown.
 thresholds_router = Router(tags=["thresholds"])
 
 
 def _rollout() -> RolloutOut:
     snapshot = rollout.snapshot()
-    status = rollout.thresholds_status()
     flags = []
     for branch in FlagBranch:
         flag = rollout.flag(branch.value)
@@ -69,13 +49,7 @@ def _rollout() -> RolloutOut:
         )
     return RolloutOut(
         env_shadow=snapshot["env_shadow"],
-        thresholds=ThresholdsStatusOut(
-            version=status.version,
-            sha256=status.sha256,
-            approved=status.approved,
-            checked=status.checked,
-            change_request=status.change_request,
-        ),
+        thresholds=snapshot["thresholds"],
         flags=flags,
         gates=[
             GateOut.model_validate(g, from_attributes=True)
@@ -118,73 +92,7 @@ def change_gate(request: AuthedRequest, gate_id: uuid.UUID, payload: GateChangeI
 # ── thresholds ──
 
 
-def _change(request_id: uuid.UUID) -> ThresholdChangeRequest:
-    found = ThresholdChangeRequest.objects.select_related("author").filter(pk=request_id).first()
-    if found is None:
-        raise RolloutError(404, RolloutRefusal.NOT_FOUND, "no such change request")
-    return found
-
-
 @thresholds_router.get("/current", auth=SessionAuth(), response=CurrentThresholdsOut)
 @require_role(*STAFF)
 def current(request: AuthedRequest) -> CurrentThresholdsOut:
-    status = rollout.thresholds_status()
-    loaded = (
-        ThresholdChangeRequest.objects.filter(version=status.change_request).first()
-        if status.change_request
-        else None
-    )
-    return CurrentThresholdsOut(
-        version=status.version,
-        sha256=status.sha256,
-        approved=status.approved,
-        checked=status.checked,
-        change_request=status.change_request,
-        loaded_at=loaded.loaded_at if loaded else None,
-        next_version=threshold_changes.next_id(),
-        yaml=threshold_changes.current_text(),
-    )
-
-
-@thresholds_router.get("/history", auth=SessionAuth(), response=list[ChangeRequestOut])
-@require_role(*STAFF)
-def history(request: AuthedRequest) -> list[ChangeRequestOut]:
-    return [
-        ChangeRequestOut.of(r)
-        for r in ThresholdChangeRequest.objects.select_related("author").order_by("-created_at")
-    ]
-
-
-@thresholds_router.get(
-    "/change-requests/{request_id}", auth=SessionAuth(), response=ChangeRequestDetailOut
-)
-@require_role(*STAFF)
-def change_request(request: AuthedRequest, request_id: uuid.UUID) -> ChangeRequestDetailOut:
-    return ChangeRequestDetailOut.detail(_change(request_id))
-
-
-@thresholds_router.post("/change-requests", auth=SessionAuth(), response=ChangeRequestDetailOut)
-@require_role(UserRole.MANAGER)
-def create_change(request: AuthedRequest, payload: ChangeRequestIn) -> ChangeRequestDetailOut:
-    made = threshold_changes.create(request.auth, payload.yaml_text, payload.evidence)
-    return ChangeRequestDetailOut.detail(_change(made.id))
-
-
-@thresholds_router.post(
-    "/change-requests/{request_id}/submit", auth=SessionAuth(), response=ChangeRequestOut
-)
-@require_role(UserRole.MANAGER)
-def submit_change(request: AuthedRequest, request_id: uuid.UUID) -> ChangeRequestOut:
-    threshold_changes.submit(request_id, request.auth)
-    return ChangeRequestOut.of(_change(request_id))
-
-
-@thresholds_router.post(
-    "/change-requests/{request_id}/reject", auth=SessionAuth(), response=ChangeRequestOut
-)
-@require_role(*STAFF)
-def reject_change(
-    request: AuthedRequest, request_id: uuid.UUID, payload: CommentIn
-) -> ChangeRequestOut:
-    threshold_changes.reject(request_id, request.auth, payload.comment)
-    return ChangeRequestOut.of(_change(request_id))
+    return CurrentThresholdsOut.loaded()

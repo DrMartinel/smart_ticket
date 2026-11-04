@@ -274,9 +274,6 @@ ITSM_GRANTABLE_GROUP_PREFIXES = [
 
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = env_bool("SHADOW_MODE")
-# A loaded thresholds.yaml must match an approved change request to act live (F9, BR-F9-07);
-# production.py forces it on.
-THRESHOLDS_REQUIRE_APPROVAL = env_bool("THRESHOLDS_REQUIRE_APPROVAL")
 # ai-engine is the only vLLM client (ADR-0012): core-api's embeddings and PII
 # NER go through AI_ENGINE_URL, so core-api has no model URL, model name or
 # embedding provider.

@@ -111,19 +111,14 @@ export default function RolloutPage() {
       <header>
         <h1 className="text-xl font-semibold">Rollout</h1>
         <p className="text-xs text-muted-foreground">
-          A branch is live only when all three keys turn: env not shadow, branch flag on, thresholds approved (BR-F9-01).
+          A branch is live only when both keys turn: env not shadow and the branch flag on (BR-F9-01).
         </p>
       </header>
       {error && !dialog && <p className="text-sm text-danger">{error}</p>}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <StatCard label="Env SHADOW_MODE" value={String(data.env_shadow)} note="set in .env at deploy" />
-        <StatCard
-          label="Thresholds"
-          value={data.thresholds.change_request ?? data.thresholds.version}
-          note={`${data.thresholds.approved ? "approved" : "NOT approved"}${data.thresholds.checked ? "" : " (check off)"} · sha256 ${data.thresholds.sha256.slice(0, 8)}…`}
-          warn={!data.thresholds.approved}
-        />
+        <StatCard label="Thresholds" value={data.thresholds} note="the loaded thresholds.yaml version" />
         <StatCard label="Router" value="unchanged" note="flags never change the branch chosen" />
       </div>
 
@@ -135,7 +130,7 @@ export default function RolloutPage() {
                 <h2 className="flex items-center gap-2 font-semibold">
                   <span className="font-mono">{flag.branch}</span>
                   <FlagChip flag={flag} />
-                  {flag.state === "on" && !flag.live && <Badge variant="warn">not live: {data.env_shadow ? "env shadow" : "thresholds"}</Badge>}
+                  {flag.state === "on" && !flag.live && <Badge variant="warn">not live: env shadow</Badge>}
                 </h2>
                 <p className="text-xs text-muted-foreground">{GATE_TEXT[flag.branch]}</p>
               </div>

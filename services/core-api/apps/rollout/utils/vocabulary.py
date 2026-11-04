@@ -1,4 +1,4 @@
-"""Rollout flags, gates, threshold change requests: their states and refusals (F9, ADR-0035)."""
+"""Rollout flags and gates: their states and refusals (F9, ADR-0035)."""
 
 from __future__ import annotations
 
@@ -47,23 +47,11 @@ class GateMetric(StrEnum):
 ENTERED_METRICS = frozenset({GateMetric.HOLDOUT_PRECISION})
 
 
-class ChangeState(StrEnum):
-    DRAFT = "draft"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-    LOADED = "loaded"
-
-
-# Change requests whose file may act on tickets.
-APPROVED_CHANGE_STATES = (ChangeState.APPROVED, ChangeState.LOADED)
-
-
 class RolloutRefusal(StrEnum):
     NO_SUCH_BRANCH = "no_such_branch"
     ALREADY_ON = "already_on"
     ALREADY_OFF = "already_off"
     ALREADY_REQUESTED = "already_requested"
-    THRESHOLDS_UNAPPROVED = "thresholds_unapproved"
     SELF_APPROVAL = "self_approval"
     ALREADY_APPROVED_BY_YOU = "already_approved_by_you"
     OVERRIDE_REASON_REQUIRED = "override_reason_required"
@@ -71,11 +59,8 @@ class RolloutRefusal(StrEnum):
     NOT_PENDING = "not_pending"
     NOT_A_MANAGER = "not_a_manager"
     ENTERED_VALUE_REQUIRED = "entered_value_required"
-    INVALID_THRESHOLDS = "invalid_thresholds"
-    VERSION_MISMATCH = "version_mismatch"
-    NOT_THE_AUTHOR = "not_the_author"
     NOT_FOUND = "not_found"
 
 
 class RolloutError(CodedError):
-    """A rollout or threshold request core-api refuses."""
+    """A rollout request core-api refuses."""

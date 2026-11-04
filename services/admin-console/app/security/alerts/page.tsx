@@ -26,7 +26,6 @@ const KINDS = [
   "decrypt_failed",
   "reveal_failed",
   "access_denied_burst",
-  "thresholds_unapproved",
 ];
 
 export default function SecurityInboxPage() {

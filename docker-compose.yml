@@ -36,7 +36,6 @@ x-core-api-env: &core-api-env
   LOG_LEVEL: ${LOG_LEVEL:?see .env.example}
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?see .env.example}
   SHADOW_MODE: ${SHADOW_MODE:?see .env.example}
-  THRESHOLDS_REQUIRE_APPROVAL: ${THRESHOLDS_REQUIRE_APPROVAL:?see .env.example}
   MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:?see .env.example}
   MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:?see .env.example}
   AI_ENGINE_ANALYZE_GRACE_SEC: ${AI_ENGINE_ANALYZE_GRACE_SEC:?see .env.example}

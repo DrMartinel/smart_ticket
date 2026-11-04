@@ -252,21 +252,9 @@ past their ack target; `security.ack_overdue` went out once for each.
 5. No alerts at all while audit rows say `security_alert`: `beat` isn't the cause
    (raising is inline); check that core-api is on a build with F8.
 
-## Everything went to shadow (`thresholds_unapproved`, F9)
+## Stopping automation (F9)
 
-**What this means:** the deployed `thresholds.yaml` matches no approved change
-request, so every branch is in shadow and security got an alert. Tickets still
-reach people; nothing automated acts.
-
-**Actions:**
-1. Compare `/admin/settings/thresholds` (loaded sha256) with the approved requests'.
-   A hand edit on the server, or a PR that shipped text other than what was
-   approved, are the usual causes.
-2. Ship the approved text exactly (its `version` is the request id), or put
-   through a change request for what is deployed. Never turn the check off in
-   production: `production.py` forces it on.
-
-To stop automation for any other reason: Settings → Rollout → "Turn off" on the
+To stop automation: Settings → Rollout → "Turn off" on the
 branch. One manager or security, instant, no deploy.
 
 ## Auto-replies citing a page went to people (`kb_not_authorized`, F6)

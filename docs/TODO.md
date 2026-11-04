@@ -508,7 +508,7 @@ department, so the linked-ticket list shows usernames only.
   0.80, `update_similarity` 0.65, both 🔧). On the dev database's 203 refused
   tickets they give nine topics of three to six, most labelled `update` at
   0.65–0.73. Calibrate them on the shadow pilot's refusals before editors
-  rely on the labels; a change is a `thresholds.yaml` change request (F9).
+  rely on the labels; a change is a `thresholds.yaml` pull request (ADR-0044).
 - **The running dev Keycloak keeps its old realm**: `kb_editor` for `mai.bn`
   and `ha.vt` is in `infra/keycloak/smart-ticket-realm.json`, but Keycloak's
   `--import-realm` skips a realm that already exists. Recreate the keycloak

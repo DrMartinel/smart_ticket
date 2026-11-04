@@ -70,7 +70,6 @@ class NotificationEvent(StrEnum):
     KB_GAPS_READY = "kb.gaps_ready"
     ROLLOUT_FLAG_CHANGED = "rollout.flag_changed"
     ROLLOUT_GATE_UNMET = "rollout.gate_unmet"
-    THRESHOLDS_UNAPPROVED = "thresholds.unapproved"
     REPORT_WEEKLY = "report.weekly"
     RUNBOOK_FINISHED = "runbook.finished"
 
@@ -283,13 +282,6 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
         "Rollout gate unmet",
         "Chưa đạt điều kiện triển khai",
         _cells((K.MANAGER,), BOTH),
-    ),
-    E.THRESHOLDS_UNAPPROVED: EventSpec(
-        "F9",
-        True,
-        "Unapproved thresholds",
-        "Ngưỡng chưa được duyệt",
-        _cells((K.MANAGER, K.SECURITY), BOTH, mandatory=BOTH),
     ),
     E.REPORT_WEEKLY: EventSpec(
         "F10", True, "Weekly report", "Báo cáo tuần", _cells((K.MANAGER,), (Channel.EMAIL,))

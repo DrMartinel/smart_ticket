@@ -133,14 +133,14 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 
 | ID | Rule | Rationale | Enforced where |
 |---|---|---|---|
-| BR-F9-01 | Live needs all three: env not shadow, branch flag on, thresholds approved. Any one missing → shadow | Degrade toward people; three independent keys | `Rollout.is_live(branch)` called in `_finalize` before `_execute_or_enqueue`; router untouched |
+| BR-F9-01 | Live needs ~~all three: env not shadow, branch flag on, thresholds approved~~ both: env not shadow and branch flag on (ADR-0044). Either missing → shadow | Degrade toward people; independent keys | `Rollout.is_live(branch)` called in `_finalize` before `_execute_or_enqueue`; router untouched |
 | BR-F9-02 | ~~On needs two different managers (neither the requester); off needs one manager or security~~ Superseded by ADR-0043: one manager turns on; off needs one manager or security | Asymmetric on purpose: turning automation on is the risky direction | Flag service |
 | BR-F9-03 | A request to turn on records the gate values at request and at approval; approving with an unmet gate requires an override reason from each approver | Gates are the README's rollout contract | Flag service |
 | BR-F9-04 | Gates per branch (data, editable by ~~managers with approval~~ one manager, ADR-0043): `auto_route` — P3 reroute rate < 15 % over 14 days on shadow `auto_route` decisions; `auto_reply` — P4 auto-reply precision ≥ 0.95 on the calibration holdout **and** ≥ 3 approved `low` pages; `requester_questions` — clarify agreement ≥ 0.80 over 14 days [ASSUMPTION] | README rollout table, spec §14 | `rollout_gates` + F10 queries |
-| BR-F9-05 | `thresholds.yaml` stays the only source of tunables. A change request holds the full proposed file, never a partial patch | Hard rule 2; full-file snapshots match `thresholds_used` | CR model |
-| BR-F9-06 | ~~A change request needs two approvals, neither by its author~~ Superseded by ADR-0043: the manager who writes it approves it | Rule 9's outside-reviewer principle, applied to live numbers | CR service |
-| BR-F9-07 | At boot core-api hashes the loaded file. No approved CR with that hash → all branches shadow and a `thresholds_unapproved` alert | Unreviewed numbers never act on tickets | Startup check; `Rollout.is_live` |
-| BR-F9-08 | Local dev and CI may skip the check with `THRESHOLDS_REQUIRE_APPROVAL=false` in `.env`; production settings force it true | Developers change thresholds freely; production doesn't | `production.py` |
+| BR-F9-05 | `thresholds.yaml` stays the only source of tunables. ~~A change request holds the full proposed file, never a partial patch~~ Superseded by ADR-0044: it changes by pull request | Hard rule 2; full-file snapshots match `thresholds_used` | CR model |
+| BR-F9-06 | ~~A change request needs two approvals, neither by its author~~ Superseded by ADR-0043, then ADR-0044: no change requests | Rule 9's outside-reviewer principle, applied to live numbers | CR service |
+| BR-F9-07 | ~~At boot core-api hashes the loaded file. No approved CR with that hash → all branches shadow and a `thresholds_unapproved` alert~~ Superseded by ADR-0044 | Unreviewed numbers never act on tickets | Startup check; `Rollout.is_live` |
+| BR-F9-08 | ~~Local dev and CI may skip the check with `THRESHOLDS_REQUIRE_APPROVAL=false` in `.env`; production settings force it true~~ Superseded by ADR-0044: no check | Developers change thresholds freely; production doesn't | `production.py` |
 | BR-F9-09 | Each routing decision stores which flags were on (`rollout_snapshot`) next to `shadow_mode` | Replays explain "why was this live?" | `_finalize` |
 | BR-F9-10 | No flag exists for runbooks | ADR-0006: runbooks always go through a person | — (by absence) |
 
@@ -153,11 +153,11 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 | FR-F9-003 | The system shall record `rollout_snapshot` on every routing decision (BR-F9-09) |
 | FR-F9-004 | The system shall run the request → two approvals flow for turning a flag on, and one-step off |
 | FR-F9-005 | The system shall show, per branch: gate metric, threshold, window, current value, met/unmet, and shadow agreement (from F10) |
-| FR-F9-006 | The system shall store threshold change requests with full YAML, diff, evidence, author, approvals, state, SHA-256 and version |
-| FR-F9-007 | The system shall validate a proposed file with the boot-time `Thresholds` model |
-| FR-F9-008 | At boot, the system shall match the loaded file's SHA-256 to an approved request, mark it `loaded`, and audit `thresholds_loaded` |
-| FR-F9-009 | When no approved request matches, the system shall treat every branch as shadow and raise `thresholds_unapproved` |
-| FR-F9-010 | A CI check shall fail a PR that changes `thresholds.yaml` without changing its `version` |
+| FR-F9-006 | (Superseded by ADR-0044) The system shall store threshold change requests with full YAML, diff, evidence, author, approvals, state, SHA-256 and version |
+| FR-F9-007 | (Superseded by ADR-0044; boot still parses the file) The system shall validate a proposed file with the boot-time `Thresholds` model |
+| FR-F9-008 | (Superseded by ADR-0044) At boot, the system shall match the loaded file's SHA-256 to an approved request, mark it `loaded`, and audit `thresholds_loaded` |
+| FR-F9-009 | (Superseded by ADR-0044) When no approved request matches, the system shall treat every branch as shadow and raise `thresholds_unapproved` |
+| FR-F9-010 | (Superseded by ADR-0044) A CI check shall fail a PR that changes `thresholds.yaml` without changing its `version` |
 | FR-F9-011 | The system shall audit `rollout_flag_requested`, `rollout_flag_approved`, `rollout_flag_on`, `rollout_flag_off`, `threshold_cr_submitted`, `threshold_cr_approved`, `threshold_cr_rejected`, `thresholds_loaded`, `thresholds_unapproved` |
 
 ## g. Data changes
@@ -167,7 +167,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 | `rollout_flags` | NEW | `branch` unique, `state` (`off` \| `pending_on` \| `on`), `changed_by`, `changed_at`, `reason` |
 | `rollout_flag_requests` | NEW | `branch`, `requested_by`, `reason`, `gate_snapshot_at_request` JSON, `approvals` (array of `{user, at, gate_snapshot, override_reason}`), `state`, `expires_at` |
 | `rollout_gates` | NEW | `branch`, `phase` (`P3`, `P4`, …), `metric`, `comparator`, `threshold`, `window_days`, `is_active` |
-| `threshold_change_requests` | NEW | `version` (`CR-2026-004`), `yaml_text`, `sha256`, `base_sha256`, `diff`, `evidence`, `author`, `approvals` JSON, `state`, `loaded_at` null |
+| `threshold_change_requests` | NEW, dropped by ADR-0044 | `version` (`CR-2026-004`), `yaml_text`, `sha256`, `base_sha256`, `diff`, `evidence`, `author`, `approvals` JSON, `state`, `loaded_at` null |
 | `routing_decisions` | CHANGED | NEW `rollout_snapshot` JSON default `{}` (old rows deserialize) |
 
 **Migration:** seed three flags `off`; seed gates from README; create
@@ -175,8 +175,8 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 and both approvals set to the migration (documented as the baseline), so the
 first boot after migration is not shadow-forced. Writer: core-api.
 
-**`.env.example` — CHANGED:** `THRESHOLDS_REQUIRE_APPROVAL=false`
-(`production.py` forces `true`). `SHADOW_MODE` unchanged.
+**`.env.example` — CHANGED:** ~~`THRESHOLDS_REQUIRE_APPROVAL=false`
+(`production.py` forces `true`)~~, removed by ADR-0044. `SHADOW_MODE` unchanged.
 
 **`thresholds.yaml` — CHANGED** (`rollout:`)
 
@@ -332,7 +332,7 @@ Feature: F9 Rollout and threshold control
     Then the decision has shadow_mode true
 
   @BR-F9-01 @BR-F9-07
-  Scenario: AC-F9-05 unapproved thresholds force shadow
+  Scenario: AC-F9-05 unapproved thresholds force shadow (superseded by ADR-0044)
     Given core-api booted with a thresholds.yaml whose sha256 matches no approved change request
     Then every decision has shadow_mode true
     And one security alert "thresholds_unapproved" exists
@@ -355,14 +355,14 @@ Feature: F9 Rollout and threshold control
     And the Rollout page still shows 15 %
 
   @BR-F9-05 @BR-F9-06
-  Scenario: AC-F9-09 a change request holds the whole file
+  Scenario: AC-F9-09 a change request holds the whole file (superseded by ADR-0044)
     When "tu.dv" submits a change request with only "trust.t_auto: 0.86"
     Then the response is 422 with code "invalid_thresholds" naming the first missing field path
     When "tu.dv" submits the full file and approves it himself
     Then the response is 403 with code "self_approval"
 
   @BR-F9-08
-  Scenario: AC-F9-10 production can't skip the threshold check
+  Scenario: AC-F9-10 production can't skip the threshold check (superseded by ADR-0044)
     Given THRESHOLDS_REQUIRE_APPROVAL=false in the environment
     When core-api boots with config.settings.production
     Then the check still runs and an unapproved file puts every branch in shadow
