@@ -97,3 +97,25 @@ export function ErrorState({
     </div>
   );
 }
+
+/** A table body's status row: placeholders while loading, the empty state when there are no rows. */
+export function TableStatus({
+  colSpan,
+  rows,
+  error = false,
+  empty,
+}: {
+  colSpan: number;
+  rows: readonly unknown[] | null | undefined;
+  error?: boolean;
+  empty: ReactNode;
+}) {
+  if (error || (rows && rows.length > 0)) return null;
+  return (
+    <tr className="hover:bg-transparent">
+      <td colSpan={colSpan} className="px-4 py-2">
+        {rows ? empty : <LoadingState rows={3} />}
+      </td>
+    </tr>
+  );
+}

@@ -20,23 +20,30 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Labeled } from "@/components/Modal";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { Decision, Panel, Proposal } from "@/components/ui/panel";
+import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
+import { useToast } from "@/components/ui/toast";
+import { Link2, Megaphone } from "lucide-react";
 
 const CATEGORIES = ["network", "access", "hardware", "software", "security", "other"];
 
 function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
   return (
     <Card className="px-4 py-3">
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</p>
-      <p className="mt-1 text-xl font-semibold">{value}</p>
-      {note && <p className={`text-xs ${tone ?? "text-muted-foreground"}`}>{note}</p>}
+      <p className="eyebrow">{label}</p>
+      <p className="num mt-1.5 text-lg font-medium">{value}</p>
+      {note && <p className={`mt-0.5 text-xs ${tone ?? "text-muted-foreground"}`}>{note}</p>}
     </Card>
   );
 }
 
 function remaining(target: string): string {
   const minutes = Math.round((new Date(target).getTime() - Date.now()) / 60000);
-  if (minutes < 0) return "Quá hạn";
-  return `Còn ${Math.floor(minutes / 60)}g ${String(minutes % 60).padStart(2, "0")}p`;
+  if (minutes < 0) return "Overdue";
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m left`;
 }
 
 export default function IncidentPage() {
@@ -63,6 +70,7 @@ export default function IncidentPage() {
   const [etaAt, setEtaAt] = useState("");
   const [etaUnknown, setEtaUnknown] = useState(false);
 
+  const toast = useToast();
   const isManager = user?.capabilities?.includes("incident_manager") ?? false;
 
   const load = useCallback(() => {
@@ -74,7 +82,7 @@ export default function IncidentPage() {
         setStage((s) => (i.stage && i.stage !== "resolved" ? i.stage : s));
         setError(null);
       })
-      .catch((e) => setError(e instanceof ApiError && e.status === 404 ? "Không có sự cố này." : "Không tải được sự cố."));
+      .catch((e) => setError(e instanceof ApiError && e.status === 404 ? "This incident doesn't exist." : "Couldn't load this incident."));
   }, [id]);
 
   useEffect(() => {
@@ -88,37 +96,41 @@ export default function IncidentPage() {
       setDialog(null);
       setUnlinking(null);
       setReason("");
+      toast.success("Saved.");
       load();
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.code ?? e.status}: ${e.message}` : "Không thực hiện được.");
+      setError(e instanceof ApiError ? `${e.message}${e.code ? ` (${e.code})` : ""}` : "That didn't go through. Try again.");
     } finally {
       setBusy(false);
     }
   }
 
   if (!user) return null;
-  if (!incident) return <p className="text-sm text-muted-foreground">{error ?? "Đang tải…"}</p>;
+  if (!incident)
+    return (
+      <Page width="record">
+        <PageHeader eyebrow="Workspace / Incident" title={error ? "Incident" : "Loading incident…"} back={{ href: "/incidents", label: "Incidents" }} />
+        {error ? <ErrorState title={error} onRetry={load} /> : <LoadingState rows={5} label="Loading incident" />}
+      </Page>
+    );
 
   const latest: BroadcastOut | undefined = incident.broadcasts[0];
   const det = incident.detector as Record<string, number>;
   const canBroadcast = isManager && (incident.status === "confirmed" || incident.status === "resolved");
 
   return (
-    <div className="mx-auto flex max-w-[1180px] flex-col gap-5">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs text-muted-foreground">
-            <Link href="/incidents" className="hover:underline">
-              Sự cố
-            </Link>{" "}
-            / {incident.public_id}
-          </p>
-          <h1 className="text-xl font-semibold">
-            {incident.public_id} · {incident.title}
-          </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+    <Page width="record" className="flex flex-col gap-5">
+      <PageHeader
+        className="mb-1"
+        eyebrow="Workspace / Incident"
+        vi="Sự cố diện rộng"
+        back={{ href: "/incidents", label: "Incidents" }}
+        title={incident.title}
+        meta={
+          <>
+            <span className="num rounded-sm bg-muted px-1.5 py-0.5 text-xs text-foreground">{incident.public_id}</span>
             <IncidentStatusChip status={incident.status} />
-            {incident.category ?? "category chưa chọn"}
+            {incident.category ?? "no category yet"}
             {incident.service && ` · service ${incident.service}`}
             {incident.confirmed_at && ` · confirmed ${vnTime(incident.confirmed_at)} by ${incident.confirmed_by}`}
             {incident.status !== "proposed" && (
@@ -127,58 +139,66 @@ export default function IncidentPage() {
                 <StageChip stage={incident.stage} />
               </>
             )}
-          </p>
-        </div>
-        {isManager && (
-          <div className="flex gap-2">
+          </>
+        }
+        actions={
+          isManager && (
+          <div className="flex flex-wrap gap-2">
             {incident.status === "proposed" && (
               <>
                 <Button variant="outline" onClick={() => setDialog("dismiss")}>
-                  Không phải sự cố
+                  Not an incident…
                 </Button>
                 <Button onClick={() => setDialog("confirm")}>
-                  Xác nhận…
+                  Confirm incident…
                 </Button>
               </>
             )}
             {incident.status === "confirmed" && (
               <Button onClick={() => setDialog("resolve")}>
-                Đã khắc phục…
+                Mark resolved…
               </Button>
             )}
             {incident.status === "resolved" && (
               <Button variant="outline" onClick={() => setDialog("reopen")}>
-                Mở lại
+                Reopen…
               </Button>
             )}
           </div>
-        )}
-      </header>
+          )
+        }
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title="That didn't go through">{error}</ErrorState>}
+      {incident.status === "proposed" && (
+        <Proposal label="Detector proposal">
+          The detector saw an unusual number of similar tickets. Nothing has changed for them yet: an incident manager confirms this as an
+          incident or dismisses it.
+        </Proposal>
+      )}
       {result && (
-        <Card className="px-4 py-3 text-sm">
-          Đã đóng {result.closed.length} phiếu
+        <Alert variant={result.failed.length > 0 ? "warn" : "ok"}>
+          <AlertDescription>
+          Closed {result.closed.length} ticket{result.closed.length === 1 ? "" : "s"}.
           {result.failed.length > 0 && (
             <>
-              {" · "}
-              <span className="text-danger">{result.failed.length} không đóng được:</span>{" "}
-              {result.failed.map((f) => `${f.ticket} (${f.code})`).join(", ")} — người được giao (nếu có) đã được báo.
+              {" "}
+              <span className="font-medium">{result.failed.length} couldn&apos;t be closed:</span>{" "}
+              {result.failed.map((f) => `${f.ticket} (${f.code})`).join(", ")}. Their assignees have been told.
             </>
           )}
-        </Card>
+          </AlertDescription>
+        </Alert>
       )}
       {incident.dismiss_reason && (
-        <p className="text-sm text-muted-foreground">Bỏ qua: {incident.dismiss_reason}</p>
+        <Decision label="Dismissed">{incident.dismiss_reason}</Decision>
       )}
       {incident.resolution_note_masked && (
-        <p className="text-sm">
-          <span className="text-muted-foreground">Ghi chú khắc phục:</span> {incident.resolution_note_masked}
-        </p>
+        <Decision label="Resolution note">{incident.resolution_note_masked}</Decision>
       )}
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Linked tickets" value={String(incident.ticket_count)} note={`from ${incident.requesters} requesters`} />
+        <Stat label="Linked tickets" value={String(incident.ticket_count)} note={`from ${incident.requesters} requester${incident.requesters === 1 ? "" : "s"}`} />
         <Stat
           label="Detection"
           value={det.count !== undefined ? `${det.count} in ${det.window_minutes ?? "?"} min` : incident.detected_by}
@@ -187,7 +207,7 @@ export default function IncidentPage() {
         <Stat
           label="Incident SLA"
           value={incident.target_resolve_at ? remaining(incident.target_resolve_at) : "—"}
-          note={incident.target_resolve_at ? `due ${vnTime(incident.target_resolve_at)} (+07), 24×7` : "starts at confirm"}
+          note={incident.target_resolve_at ? `due ${vnTime(incident.target_resolve_at)} (ICT), 24×7` : "starts when confirmed"}
           tone={incident.target_breached ? "text-danger" : "text-warn"}
         />
         <Stat
@@ -202,43 +222,38 @@ export default function IncidentPage() {
       </section>
 
       {canBroadcast && (
-        <Card asChild>
-          <section className="flex flex-col gap-3 px-4 py-4">
-            <h2 className="text-sm font-semibold">Gửi cập nhật · Broadcast an update</h2>
-            <div className="flex flex-wrap gap-3 text-sm">
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">Stage</span>
+        <Panel title="Broadcast an update">
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <Labeled label="Stage">
                 <NativeSelect value={stage} onChange={(e) => setStage(e.target.value)}>
                   {STAGES.filter((s) => s !== "resolved").map((s) => (
                     <option key={s}>{s}</option>
                   ))}
                 </NativeSelect>
-              </label>
-              <label className="flex flex-col gap-1">
-                <span className="text-xs text-muted-foreground">ETA (+07)</span>
+              </Labeled>
+              <Labeled label="Expected fix (ICT, +07)">
                 <Input
                   type="datetime-local"
                   value={etaAt}
                   disabled={etaUnknown}
                   onChange={(e) => setEtaAt(e.target.value)}
                 />
-              </label>
-              <label className="flex items-center gap-2 self-end pb-2 text-sm">
+              </Labeled>
+              <label className="flex min-h-9 items-center gap-2 text-sm">
                 <Checkbox checked={etaUnknown} onCheckedChange={(checked) => setEtaUnknown(checked === true)} />
-                chưa xác định
+                Not known yet
               </label>
             </div>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs text-muted-foreground">Nội dung (vi)</span>
-              <Textarea className="min-h-16" value={bodyVi} onChange={(e) => setBodyVi(e.target.value)} />
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-xs text-muted-foreground">Message (en, optional)</span>
+            <Labeled label="Message (Vietnamese)" required>
+              <Textarea lang="vi" className="min-h-16" value={bodyVi} onChange={(e) => setBodyVi(e.target.value)} />
+            </Labeled>
+            <Labeled label="Message (English, optional)">
               <Textarea className="min-h-12" value={bodyEn} onChange={(e) => setBodyEn(e.target.value)} />
-            </label>
-            <div className="flex items-center justify-between gap-4">
+            </Labeled>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-muted-foreground">
-                Gửi một lần tới mỗi người trong {incident.requesters} người yêu cầu, in-app + email, bắt buộc (BR-F7-05); thêm bình luận công khai trên mỗi phiếu liên quan.
+                Sent once to each of the {incident.requesters} requesters, in the app and by email, and added as a public comment on every linked ticket.
               </p>
               <Button
                 disabled={busy || !bodyVi.trim()}
@@ -256,16 +271,14 @@ export default function IncidentPage() {
                   })
                 }
               >
-                Gửi cập nhật
+                {busy ? "Sending…" : "Send update"}
               </Button>
             </div>
-          </section>
-        </Card>
+          </div>
+        </Panel>
       )}
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold">Lịch sử cập nhật · Broadcast history</h2>
-        <Card className="overflow-x-auto">
+      <Panel title="Broadcast history" flush>
           <Table className="min-w-[760px]">
             <TableHeader>
               <TableRow>
@@ -279,7 +292,7 @@ export default function IncidentPage() {
             <TableBody>
               {incident.broadcasts.map((b) => (
                 <TableRow key={b.id}>
-                  <TableCell>{vnTime(b.sent_at)}</TableCell>
+                  <TableCell className="num text-xs whitespace-nowrap">{vnTime(b.sent_at)}</TableCell>
                   <TableCell>
                     <StageChip stage={b.stage} />
                   </TableCell>
@@ -294,21 +307,20 @@ export default function IncidentPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {incident.broadcasts.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
-                    Chưa có cập nhật nào.
-                  </TableCell>
-                </TableRow>
-              )}
+              <TableStatus
+                colSpan={5}
+                rows={incident.broadcasts}
+                empty={
+                  <EmptyState compact icon={Megaphone} title="No updates sent yet">
+                    {canBroadcast ? "Send the first update above so affected people know you're on it." : "Updates appear here once an incident manager sends one."}
+                  </EmptyState>
+                }
+              />
             </TableBody>
           </Table>
-        </Card>
-      </section>
+      </Panel>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold">Phiếu liên quan · Linked tickets ({incident.links.length})</h2>
-        <Card className="overflow-x-auto">
+      <Panel title={`Linked tickets · ${incident.links.length}`} flush>
           <Table className="min-w-[760px]">
             <TableHeader>
               <TableRow>
@@ -324,7 +336,7 @@ export default function IncidentPage() {
               {incident.links.map((l) => (
                 <TableRow key={l.ticket}>
                   <TableCell>
-                    <Link href={`/tickets/${l.ticket}`} className="text-primary hover:underline">
+                    <Link href={`/tickets/${l.ticket}`} className="num text-primary hover:underline">
                       {l.ticket}
                     </Link>
                   </TableCell>
@@ -340,7 +352,7 @@ export default function IncidentPage() {
                   </TableCell>
                   <TableCell>
                     {l.clock_state === "paused" ? (
-                      <Badge variant="neutral" className="bg-muted">Tạm dừng · Paused</Badge>
+                      <Badge variant="neutral">Paused</Badge>
                     ) : (
                       <Badge variant="neutral">{l.clock_state ?? "—"}</Badge>
                     )}
@@ -348,67 +360,74 @@ export default function IncidentPage() {
                   <TableCell className="text-right">
                     {(isManager || l.assigned_to === user.username) && incident.status !== "closed" && (
                       <Button variant="link" size="inline"  onClick={() => setUnlinking(l.ticket)}>
-                        Gỡ liên kết
+                        Unlink…
                       </Button>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
+              <TableStatus
+                colSpan={6}
+                rows={incident.links}
+                empty={<EmptyState compact icon={Link2} title="No tickets linked">Similar new tickets attach here automatically.</EmptyState>}
+              />
             </TableBody>
           </Table>
-        </Card>
-      </section>
+      </Panel>
 
       <Modal
         open={dialog === "confirm"}
-        title="Xác nhận sự cố"
-        subtitle="Mỗi phiếu liên quan đang chờ duyệt được duyệt 'approve' dưới tên bạn; đồng hồ xử lý tạm dừng (BR-F7-03, 07)."
+        title="Confirm the incident"
+        subtitle="Every linked ticket waiting for review is approved under your name, and their resolution clocks pause."
         onClose={() => setDialog(null)}
         footer={
+          <>
+          <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
           <Button
             disabled={busy || title.trim().length < 3}
             onClick={() => act(() => api.post(`/api/incidents/${incident.public_id}/confirm`, { title, category, service }))}
           >
-            Xác nhận
+            Confirm incident
           </Button>
+          </>
         }
       >
-        <div className="flex flex-col gap-3 text-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Tên sự cố</span>
+        <div className="flex flex-col gap-4 text-sm">
+          <Labeled label="Incident name" required hint="At least 3 characters.">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Category</span>
+          </Labeled>
+          <Labeled label="Category">
             <NativeSelect value={category} onChange={(e) => setCategory(e.target.value)}>
               {CATEGORIES.map((c) => (
                 <option key={c}>{c}</option>
               ))}
             </NativeSelect>
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Dịch vụ bị ảnh hưởng</span>
+          </Labeled>
+          <Labeled label="Affected service">
             <Input value={service} onChange={(e) => setService(e.target.value)} />
-          </label>
+          </Labeled>
         </div>
       </Modal>
 
       <Modal
         open={dialog === "dismiss" || dialog === "reopen" || unlinking !== null}
-        title={dialog === "dismiss" ? "Không phải sự cố" : dialog === "reopen" ? "Mở lại sự cố" : `Gỡ ${unlinking} khỏi sự cố`}
+        title={dialog === "dismiss" ? "Dismiss: not an incident" : dialog === "reopen" ? "Reopen the incident" : `Unlink ${unlinking}`}
         subtitle={
           dialog === "dismiss"
-            ? "Các phiếu được gỡ liên kết và vẫn chờ duyệt như bình thường."
+            ? "The tickets are unlinked and stay in review as usual."
             : dialog === "reopen"
-              ? "Đồng hồ của các phiếu còn mở lại tạm dừng."
-              : "Phiếu về hàng chờ duyệt low_confidence; đồng hồ chạy lại."
+              ? "The clocks of the tickets still open pause again."
+              : "The ticket goes back to the low-confidence review queue and its clock runs again."
         }
         onClose={() => {
           setDialog(null);
           setUnlinking(null);
         }}
         footer={
+          <>
+          <Button variant="outline" onClick={() => { setDialog(null); setUnlinking(null); }}>Cancel</Button>
           <Button
+            variant={dialog === "reopen" ? "default" : "destructive"}
             disabled={busy || !reason.trim()}
             onClick={() =>
               act(() =>
@@ -418,22 +437,24 @@ export default function IncidentPage() {
               )
             }
           >
-            Lưu
+            {dialog === "dismiss" ? "Dismiss" : dialog === "reopen" ? "Reopen" : "Unlink ticket"}
           </Button>
+          </>
         }
       >
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="text-xs text-muted-foreground">Lý do</span>
+        <Labeled label="Reason" required hint="Recorded in the incident's history.">
           <Textarea className="min-h-16" value={reason} onChange={(e) => setReason(e.target.value)} />
-        </label>
+        </Labeled>
       </Modal>
 
       <Modal
         open={dialog === "resolve"}
-        title="Đã khắc phục sự cố"
-        subtitle="Gửi cập nhật cuối (stage resolved) tới mọi người yêu cầu."
+        title="Mark the incident resolved"
+        subtitle="Sends a final update (stage: resolved) to every requester."
         onClose={() => setDialog(null)}
         footer={
+          <>
+          <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
           <Button
             disabled={busy || !reason.trim()}
             onClick={() =>
@@ -447,26 +468,26 @@ export default function IncidentPage() {
               })
             }
           >
-            Xác nhận đã khắc phục
+            Mark resolved
           </Button>
+          </>
         }
       >
-        <div className="flex flex-col gap-3 text-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Ghi chú khắc phục (công khai)</span>
+        <div className="flex flex-col gap-4 text-sm">
+          <Labeled label="Resolution note (public)" required hint="Requesters see this.">
             <Textarea className="min-h-20" value={reason} onChange={(e) => setReason(e.target.value)} />
-          </label>
-          <label className="flex items-center gap-2">
+          </Labeled>
+          <label className="flex min-h-9 items-center gap-2">
             <Checkbox checked={closeAll} onCheckedChange={(checked) => setCloseAll(checked === true)} />
-            Đóng tất cả phiếu liên quan ({incident.links.length})
+            Close all {incident.links.length} linked tickets
           </label>
           <p className="text-xs text-muted-foreground">
             {closeAll
-              ? "Mỗi phiếu được chuyển sang resolved theo quy trình của nó; phiếu bị từ chối được liệt kê và người được giao được báo (BR-F7-06)."
-              : "Các phiếu vẫn mở; đồng hồ xử lý chạy lại."}
+              ? "Each ticket moves to resolved through its own workflow; any that refuse are listed and their assignees are told."
+              : "The tickets stay open and their resolution clocks run again."}
           </p>
         </div>
       </Modal>
-    </div>
+    </Page>
   );
 }

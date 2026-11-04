@@ -1,5 +1,10 @@
 "use client";
 
+import { AlarmClockCheck } from "lucide-react";
+import { Labeled } from "@/components/Modal";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
+
 // SLA at risk and breached (F1 · Breach list 8-685): warned and breached clocks, earliest due first.
 
 import Link from "next/link";
@@ -64,15 +69,15 @@ export default function SlaAtRiskPage() {
   const breached = page?.items.filter((r) => r.breached_at).length ?? 0;
 
   return (
-    <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">SLA at risk and breached</h1>
-          <p className="text-xs text-muted-foreground">Clocks at 75 % of their target or more, earliest due first. Updated every minute.</p>
-        </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex w-[180px] flex-col gap-1">
-            <span className="text-[11px] text-muted-foreground">Team</span>
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Workspace / SLA"
+        title="SLA at risk and breached"
+        description="Clocks at 75% of their target or more, earliest due first. Refreshes every minute."
+        actions={
+        <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto">
+          <Labeled label="Team" className="w-full sm:w-[180px]">
             <NativeSelect value={team} onChange={(e) => setTeam(e.target.value)}>
               <option value="">All</option>
               {teams.map((t) => (
@@ -81,19 +86,19 @@ export default function SlaAtRiskPage() {
                 </option>
               ))}
             </NativeSelect>
-          </label>
-          <label className="flex w-[140px] flex-col gap-1">
-            <span className="text-[11px] text-muted-foreground">Level</span>
+          </Labeled>
+          <Labeled label="Level" className="w-full sm:w-[140px]">
             <NativeSelect value={level} onChange={(e) => setLevel(e.target.value)}>
               <option value="">All</option>
               <option value="warned">At risk</option>
               <option value="breached">Breached</option>
             </NativeSelect>
-          </label>
+          </Labeled>
         </div>
-      </header>
+        }
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} onRetry={() => void load()} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[900px]">
@@ -111,7 +116,7 @@ export default function SlaAtRiskPage() {
           <TableBody>
             {page?.items.map((r) => (
               <TableRow key={`${r.ticket}-${r.kind}`}>
-                <TableCell className="whitespace-nowrap font-mono text-xs">
+                <TableCell className="num whitespace-nowrap text-xs">
                   <Link href={`/tickets/${r.ticket}`} className="hover:underline">
                     {r.ticket}
                   </Link>
@@ -122,25 +127,28 @@ export default function SlaAtRiskPage() {
                 </TableCell>
                 <TableCell>{r.assignee ?? "—"}</TableCell>
                 <TableCell>{r.kind}</TableCell>
-                <TableCell className="whitespace-nowrap">{vnTime(r.due_at)}</TableCell>
+                <TableCell className="num whitespace-nowrap text-xs">{vnTime(r.due_at)}</TableCell>
                 <TableCell className="whitespace-nowrap">
                   <SlaBadge badge={r.sla} />
                 </TableCell>
               </TableRow>
             ))}
-            {page && page.items.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
-                  Nothing at risk.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus
+              colSpan={7}
+              rows={page?.items}
+              error={!!error}
+              empty={
+                <EmptyState compact icon={AlarmClockCheck} title="Nothing at risk">
+                  {team || level ? "No clocks match these filters." : "Every running clock is under 75% of its target."}
+                </EmptyState>
+              }
+            />
           </TableBody>
         </Table>
       </Card>
-      <p className="text-[11px] text-muted-foreground">
-        {page ? `${breached} breached · ${page.items.length - breached} at risk. ` : ""}Priority never rises by itself on a breach.
+      <p className="text-xs text-muted-foreground">
+        {page ? `${breached} breached · ${page.items.length - breached} at risk. ` : ""}A breach never raises a ticket&apos;s priority by itself.
       </p>
-    </div>
+    </Page>
   );
 }

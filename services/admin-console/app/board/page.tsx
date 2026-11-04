@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { XIcon } from "lucide-react";
+import { Columns3, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRequireAuth } from "@/lib/auth";
@@ -17,6 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Card } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, Skeleton } from "@/components/ui/states";
 
 type Card = StaffTicketRow;
 
@@ -134,16 +137,15 @@ export default function BoardPage() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] flex-col">
-      <header className="mb-4 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Board</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Drag a ticket to another column to move it. Columns it can't move to fade while you drag.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <NativeSelect wrapperClassName="w-56"
+    <div className="flex min-h-[70dvh] flex-col lg:h-[calc(100dvh-3.5rem)]">
+      <PageHeader
+        className="mb-4"
+        eyebrow="Workspace / Board"
+        title="Board"
+        description="Drag a ticket to another column to move it; columns it can't move to fade while you drag. On a phone, open the ticket and use Move to."
+        actions={
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <NativeSelect wrapperClassName="w-full sm:w-56"
             value={workflowId ?? ""}
             onChange={(e) => router.replace(`/board?workflow=${e.target.value}`)}
             aria-label="Workflow"
@@ -160,9 +162,9 @@ export default function BoardPage() {
               setSubmitted(query.trim());
             }}
           >
-            <Input className="w-56" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by ID or subject" aria-label="Filter tickets" />
+            <Input type="search" className="w-full sm:w-56" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by ID or subject" aria-label="Filter tickets" />
           </form>
-          <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <label className="flex min-h-9 items-center gap-1.5 text-sm text-muted-foreground">
             <Checkbox checked={hideTriage} onCheckedChange={(checked) => setHideTriage(checked === true)} />
             Hide empty triage columns
           </label>
@@ -174,7 +176,8 @@ export default function BoardPage() {
             </Button>
           )}
         </div>
-      </header>
+        }
+      />
 
       {notice && (
         <Alert variant={notice.tone} className="mb-3 flex items-center justify-between gap-3">
@@ -193,9 +196,23 @@ export default function BoardPage() {
       )}
 
       {unavailable ? (
-        <p className="text-sm text-muted-foreground">{unavailable}</p>
+        unavailable.startsWith("Couldn't") ? (
+          <ErrorState title={unavailable} onRetry={() => window.location.reload()} />
+        ) : (
+          <Card>
+            <EmptyState icon={Columns3} title={unavailable} />
+          </Card>
+        )
       ) : !cards || !wf ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <div className="flex gap-3 overflow-hidden" role="status" aria-label="Loading the board">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="flex w-[272px] shrink-0 flex-col gap-2 rounded-md border border-border bg-muted/60 p-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
+          ))}
+        </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-2">
           {columns.map((status) => {
@@ -220,15 +237,15 @@ export default function BoardPage() {
                   e.preventDefault();
                   void drop(status);
                 }}
-                className={`flex w-[272px] shrink-0 flex-col rounded-lg border transition-opacity ${
+                className={`flex w-[272px] shrink-0 flex-col rounded-md border transition-opacity duration-150 ${
                   over === status.id ? "border-foreground bg-muted" : "border-border bg-muted/60"
                 } ${faded ? "opacity-40" : ""}`}
               >
                 <div className="flex items-center gap-2 px-3 pb-2 pt-3">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: status.color || "var(--border-strong)" }} />
                   <h2 className="truncate text-sm font-semibold">{status.name}</h2>
-                  <span className="text-xs text-muted-foreground">{total}</span>
-                  <span className="ml-auto truncate text-[11px] text-muted-foreground">{status.is_pipeline ? "Triage" : KIND_LABEL[status.kind]}</span>
+                  <span className="num text-xs text-muted-foreground">{total}</span>
+                  <span className="eyebrow ml-auto truncate">{status.is_pipeline ? "Triage" : KIND_LABEL[status.kind]}</span>
                 </div>
                 {drag && allowed && option && (
                   <p className="mx-3 mb-2 truncate text-[11px] text-muted-foreground">
@@ -250,7 +267,7 @@ export default function BoardPage() {
                         setDrag(null);
                         setOver(null);
                       }}
-                      className={`cursor-grab rounded-md border border-border bg-card p-2.5 text-sm shadow-[0_1px_0_var(--border)] active:cursor-grabbing ${
+                      className={`cursor-grab rounded-md border border-border bg-card p-2.5 text-sm transition-colors duration-150 hover:border-border-strong active:cursor-grabbing ${
                         drag?.card.public_id === c.public_id ? "opacity-50" : ""
                       }`}
                     >
@@ -258,7 +275,7 @@ export default function BoardPage() {
                         {c.subject_masked}
                       </Link>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                        <span className="font-mono">{c.public_id}</span>
+                        <span className="num">{c.public_id}</span>
                         {c.review && (
                           <Badge variant={priorityTone(c.review.priority)} title={QUEUE_LABEL[c.review.queue] ?? humanize(c.review.queue)}>
                             P{c.review.priority}

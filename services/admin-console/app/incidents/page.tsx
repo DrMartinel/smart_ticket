@@ -3,6 +3,10 @@
 // Mass incidents (F7 · Incident list 14-952): proposed first for the incident manager to decide.
 
 import Link from "next/link";
+import { Plus, Siren } from "lucide-react";
+import { Labeled } from "@/components/Modal";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
 import { useEffect, useState } from "react";
 import { IncidentStatusChip, StageChip, eta } from "@/components/incidents/chips";
 import { vnTime } from "@/components/security/badges";
@@ -23,51 +27,53 @@ export default function IncidentsPage() {
   const [error, setError] = useState<string | null>(null);
   const isManager = user?.capabilities?.includes("incident_manager") ?? false;
 
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!user) return;
+    setRows(null);
     api
       .get<IncidentRowOut[]>(`/api/incidents${status ? `?status=${status}` : ""}`)
       .then((r) => {
         setRows([...r].sort((a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9)));
         setError(null);
       })
-      .catch(() => setError("Không tải được danh sách sự cố."));
-  }, [user, status]);
+      .catch(() => setError("Couldn't load incidents."));
+  }, [user, status, attempt]);
 
   if (!user) return null;
 
   return (
-    <div className="mx-auto flex max-w-[1180px] flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold">Sự cố diện rộng · Incidents</h1>
-          <p className="text-xs text-muted-foreground">
-            The detector only proposes; an incident manager confirms or dismisses (BR-F7-01).
-          </p>
-        </div>
-        <div className="flex items-end gap-3 text-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Status</span>
+    <Page className="flex flex-col gap-4">
+      <PageHeader
+        className="mb-2"
+        eyebrow="Workspace / Incidents"
+        vi="Sự cố diện rộng"
+        title="Incidents"
+        description="Outages affecting many people. The detector only proposes an incident; an incident manager confirms or dismisses it."
+        actions={
+        <div className="flex w-full flex-wrap items-end gap-3 sm:w-auto">
+          <Labeled label="Status" className="w-full sm:w-44">
             <NativeSelect value={status} onChange={(e) => setStatus(e.target.value)}>
-              <option value="">open + resolved</option>
+              <option value="">Open and resolved</option>
               <option value="proposed">proposed</option>
               <option value="confirmed">confirmed</option>
               <option value="resolved">resolved</option>
               <option value="dismissed">dismissed</option>
               <option value="closed">closed</option>
             </NativeSelect>
-          </label>
+          </Labeled>
           {isManager && (
             <Button asChild>
               <Link href="/incidents/new">
-                Khai báo sự cố
+                <Plus aria-hidden /> Declare incident
               </Link>
             </Button>
           )}
         </div>
-      </header>
+        }
+      />
 
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <ErrorState title={error} onRetry={() => { setError(null); setAttempt((n) => n + 1); }} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[860px]">
@@ -84,9 +90,9 @@ export default function IncidentsPage() {
           </TableHeader>
           <TableBody>
             {rows?.map((i) => (
-              <TableRow key={i.public_id} className={`${i.status === "proposed" ? "bg-warn-soft" : ""}`}>
+              <TableRow key={i.public_id} className={i.status === "proposed" ? "bg-proposal-soft/60" : ""}>
                 <TableCell>
-                  <Link href={`/incidents/${i.public_id}`} className="font-medium text-primary hover:underline">
+                  <Link href={`/incidents/${i.public_id}`} className="num font-medium text-primary hover:underline">
                     {i.public_id}
                   </Link>
                   <div className="text-xs text-muted-foreground">
@@ -113,16 +119,19 @@ export default function IncidentsPage() {
                 <TableCell>{vnTime(i.created_at)}</TableCell>
               </TableRow>
             ))}
-            {rows?.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={7} className="px-4 py-6 text-center text-muted-foreground">
-                  Không có sự cố.
-                </TableCell>
-              </TableRow>
-            )}
+            <TableStatus
+              colSpan={7}
+              rows={rows}
+              error={!!error}
+              empty={
+                <EmptyState compact icon={Siren} title={status ? `No ${status} incidents` : "No incidents"}>
+                  When many similar tickets arrive at once, the detector proposes an incident here for a manager to confirm.
+                </EmptyState>
+              }
+            />
           </TableBody>
         </Table>
       </Card>
-    </div>
+    </Page>
   );
 }

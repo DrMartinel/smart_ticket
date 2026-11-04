@@ -5,7 +5,7 @@
 import { Badge, type Tone } from "@/components/ui/badge";
 
 const STATUS: Record<string, Tone> = {
-  proposed: "warn",
+  proposed: "neutral",
   confirmed: "danger",
   resolved: "ok",
   dismissed: "neutral",
@@ -30,9 +30,9 @@ export function StageChip({ stage }: { stage: string }) {
 }
 
 export function eta(at: string | null | undefined, unknown: boolean): string {
-  if (unknown) return "chưa xác định";
+  if (unknown) return "Not known yet";
   if (!at) return "—";
-  return new Date(at).toLocaleString("vi-VN", {
+  return new Date(at).toLocaleString("en-GB", {
     timeZone: "Asia/Ho_Chi_Minh",
     hour: "2-digit",
     minute: "2-digit",

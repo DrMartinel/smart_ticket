@@ -15,6 +15,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Labeled } from "@/components/Modal";
+import { Page, PageHeader } from "@/components/ui/page-header";
+import { Panel } from "@/components/ui/panel";
+import { EmptyState, ErrorState } from "@/components/ui/states";
+import { ShieldOff } from "lucide-react";
 
 const CATEGORIES = ["network", "access", "hardware", "software", "security", "other"];
 
@@ -32,14 +37,27 @@ export default function DeclareIncidentPage() {
   const [etaUnknown, setEtaUnknown] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tried, setTried] = useState(false);
 
   if (!user) return null;
   if (!user.capabilities?.includes("incident_manager")) {
-    return <p className="text-sm text-muted-foreground">Chỉ người quản lý sự cố được khai báo sự cố.</p>;
+    return (
+      <Page width="form">
+        <PageHeader eyebrow="Workspace / Incidents" vi="Khai báo sự cố" title="Declare an incident" back={{ href: "/incidents", label: "Incidents" }} />
+        <EmptyState icon={ShieldOff} title="Only incident managers can declare an incident">
+          Ask a manager to give you the incident manager capability, or report what you see on an existing ticket.
+        </EmptyState>
+      </Page>
+    );
   }
 
+  const titleError = tried && title.trim().length < 3 ? "Give the incident a name of at least 3 characters." : null;
+
   async function declare() {
+    setTried(true);
+    if (title.trim().length < 3) return;
     setBusy(true);
+    setError(null);
     try {
       const made = await api.post<IncidentDetailOut>("/api/incidents", {
         title,
@@ -52,82 +70,86 @@ export default function DeclareIncidentPage() {
       });
       router.push(`/incidents/${made.public_id}`);
     } catch (e) {
-      setError(e instanceof ApiError ? `${e.code ?? e.status}: ${e.message}` : "Không khai báo được.");
+      setError(e instanceof ApiError ? `${e.message}${e.code ? ` (${e.code})` : ""}` : "The incident wasn't declared. Try again.");
       setBusy(false);
     }
   }
 
   return (
-    <div className="mx-auto flex max-w-[760px] flex-col gap-4">
-      <header>
-        <h1 className="text-xl font-semibold">Khai báo sự cố · Declare an incident</h1>
-        <p className="text-xs text-muted-foreground">
-          Khi giám sát hoặc một cuộc gọi cho thấy sự cố trước khi phiếu dồn về. Sự cố được xác nhận ngay; phiếu mới tương tự sẽ tự gắn vào.
-        </p>
-      </header>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <Card asChild>
-        <section className="flex flex-col gap-3 px-4 py-4 text-sm">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Tên sự cố</span>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} />
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Category</span>
-              <NativeSelect value={category} onChange={(e) => setCategory(e.target.value)}>
-                {CATEGORIES.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </NativeSelect>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Dịch vụ bị ảnh hưởng</span>
-              <Input value={service} onChange={(e) => setService(e.target.value)} />
-            </label>
+    <Page width="form">
+      <PageHeader
+        eyebrow="Workspace / Incidents"
+        vi="Khai báo sự cố"
+        back={{ href: "/incidents", label: "Incidents" }}
+        title="Declare an incident"
+        description="Use this when monitoring or a call shows an outage before tickets pile up. It is confirmed at once, and similar new tickets attach to it automatically."
+      />
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          void declare();
+        }}
+        className="flex flex-col gap-4"
+      >
+        {error && <ErrorState title="The incident wasn't declared">{error}</ErrorState>}
+        <Panel title="What's happening">
+          <div className="flex flex-col gap-4">
+            <Labeled label="Incident name" required error={titleError}>
+              <Input value={title} aria-invalid={!!titleError} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. VPN down for the Hanoi office" />
+            </Labeled>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Labeled label="Category">
+                <NativeSelect value={category} onChange={(e) => setCategory(e.target.value)}>
+                  {CATEGORIES.map((c) => (
+                    <option key={c}>{c}</option>
+                  ))}
+                </NativeSelect>
+              </Labeled>
+              <Labeled label="Affected service">
+                <Input value={service} onChange={(e) => setService(e.target.value)} placeholder="e.g. GlobalProtect VPN" />
+              </Labeled>
+            </div>
+            <Labeled label="Related tickets" hint="Ticket IDs, separated by commas or spaces.">
+              <Input className="num" value={tickets} placeholder="TKT-2026-000440, TKT-2026-000441" onChange={(e) => setTickets(e.target.value)} />
+            </Labeled>
           </div>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Phiếu liên quan (mã phiếu, cách nhau bởi dấu phẩy)</span>
-            <Input className="font-mono" value={tickets} placeholder="TKT-2026-000440, TKT-2026-000441" onChange={(e) => setTickets(e.target.value)} />
-          </label>
-        </section>
-      </Card>
-      <Card asChild>
-        <section className="flex flex-col gap-3 px-4 py-4 text-sm">
-          <h2 className="font-semibold">Cập nhật đầu tiên</h2>
-          <div className="flex flex-wrap gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">Stage</span>
-              <NativeSelect value={stage} onChange={(e) => setStage(e.target.value)}>
-                {STAGES.filter((s) => s !== "resolved").map((s) => (
-                  <option key={s}>{s}</option>
-                ))}
-              </NativeSelect>
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">ETA (+07)</span>
-              <Input type="datetime-local" value={etaAt} disabled={etaUnknown} onChange={(e) => setEtaAt(e.target.value)} />
-            </label>
-            <label className="flex items-center gap-2 self-end pb-2">
-              <Checkbox checked={etaUnknown} onCheckedChange={(checked) => setEtaUnknown(checked === true)} />
-              chưa xác định
-            </label>
+        </Panel>
+        <Panel title="First update to affected people" aside={<span className="text-xs text-muted-foreground">Optional; sent when the Vietnamese message is filled in</span>}>
+          <div className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+              <Labeled label="Stage">
+                <NativeSelect value={stage} onChange={(e) => setStage(e.target.value)}>
+                  {STAGES.filter((s) => s !== "resolved").map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </NativeSelect>
+              </Labeled>
+              <Labeled label="Expected fix (ICT, +07)">
+                <Input type="datetime-local" value={etaAt} disabled={etaUnknown} onChange={(e) => setEtaAt(e.target.value)} />
+              </Labeled>
+              <label className="flex min-h-9 items-center gap-2 text-sm">
+                <Checkbox checked={etaUnknown} onCheckedChange={(checked) => setEtaUnknown(checked === true)} />
+                Not known yet
+              </label>
+            </div>
+            <Labeled label="Message (Vietnamese)">
+              <Textarea lang="vi" className="min-h-20" value={bodyVi} onChange={(e) => setBodyVi(e.target.value)} />
+            </Labeled>
+            <Labeled label="Message (English, optional)">
+              <Textarea className="min-h-16" value={bodyEn} onChange={(e) => setBodyEn(e.target.value)} />
+            </Labeled>
           </div>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Nội dung (vi)</span>
-            <Textarea className="min-h-16" value={bodyVi} onChange={(e) => setBodyVi(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-muted-foreground">Message (en, optional)</span>
-            <Textarea className="min-h-12" value={bodyEn} onChange={(e) => setBodyEn(e.target.value)} />
-          </label>
-        </section>
-      </Card>
-      <div className="flex justify-end">
-        <Button disabled={busy || title.trim().length < 3} onClick={declare}>
-          Khai báo
-        </Button>
-      </div>
-    </div>
+        </Panel>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" onClick={() => router.push("/incidents")}>
+            Cancel
+          </Button>
+          <Button type="submit" disabled={busy}>
+            {busy ? "Declaring…" : "Declare incident"}
+          </Button>
+        </div>
+      </form>
+    </Page>
   );
 }
