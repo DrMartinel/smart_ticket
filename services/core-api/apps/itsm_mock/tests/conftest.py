@@ -27,7 +27,7 @@ from infrastructure.outbound import OutboundResponse
 def person(username: str, role: UserRole, *capabilities: Capability) -> User:
     user = User.objects.create_user(username=username, password="x", role=role.value)
     for capability in capabilities:
-        UserCapability.objects.create(user=user, capability=capability.value, source="local")
+        UserCapability.objects.create(user=user, capability=capability.value)
     return user
 
 

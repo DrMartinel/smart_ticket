@@ -1,4 +1,4 @@
-"""The Keycloak sync (F13): deactivates leavers and applies changed rights every few minutes."""
+"""The Keycloak sync (F13): deactivates leavers every few minutes."""
 
 from __future__ import annotations
 
@@ -11,27 +11,18 @@ from django.conf import settings
 from django.db import connection, transaction
 
 from apps.accounts.models import AuthSource, IdentitySyncRun, User
-from apps.accounts.utils import SignInError, SignInRefusal, sessions
-from apps.accounts.utils.oidc import (
-    AdminSession,
-    Identities,
-    Keycloak,
-    Rights,
-    rights_from_claims,
-)
+from apps.accounts.utils import SignInError
+from apps.accounts.utils.oidc import AdminSession, Identities, Keycloak
 from apps.audit.models import AuditLog
-from apps.security.utils.alerts import security_alerts
-from apps.security.utils.vocabulary import AlertKind
 
 LOCK_KEY = "identity_sync"
 
 
 @dataclass(frozen=True)
 class Desired:
-    """What Keycloak says about one user: gone or disabled, refused rights, or rights."""
+    """What Keycloak says about one user: why they leave, or None when they stay."""
 
     user: User
-    rights: Rights | None
     reason: str | None
 
 
@@ -93,63 +84,31 @@ class IdentitySync:
         except SignInError as e:
             raise SyncFailed(e.message) from e
         try:
-            client_uuid = self.client_uuid(admin)
-            return [self.read_one(user, admin, client_uuid) for user in users]
+            return [self.read_one(user, admin) for user in users]
         except SignInError as e:
             raise SyncFailed(e.message) from e
         finally:
             admin.close()
 
-    def client_uuid(self, admin: AdminSession) -> str:
-        response = admin.get(f"/clients?clientId={settings.OIDC_CLIENT_ID}")
-        found = admin.json(response) if response.status_code == 200 else []
-        if not found:
-            raise SyncFailed(f"client lookup answered {response.status_code}")
-        return str(found[0]["id"])
-
-    def read_one(self, user: User, admin: AdminSession, client_uuid: str) -> Desired:
+    def read_one(self, user: User, admin: AdminSession) -> Desired:
         found = admin.get(f"/users/{user.external_id}")
         if found.status_code == 404:
-            return Desired(user, None, "not_in_keycloak")
+            return Desired(user, "not_in_keycloak")
         self.expect_ok(found)
         if not admin.json(found).get("enabled", False):
-            return Desired(user, None, "disabled_in_keycloak")
-        roles = admin.get(
-            f"/users/{user.external_id}/role-mappings/clients/{client_uuid}/composite"
-        )
-        self.expect_ok(roles)
-        claims: dict[str, Any] = {
-            "resource_access": {
-                settings.OIDC_CLIENT_ID: {"roles": [r["name"] for r in admin.json(roles)]}
-            },
-        }
-        try:
-            return Desired(user, rights_from_claims(claims, settings.OIDC_CLIENT_ID), None)
-        except SignInError as refused:
-            return Desired(user, None, refused.code.value)
+            return Desired(user, "disabled_in_keycloak")
+        return Desired(user, None)
 
     def expect_ok(self, response: Any) -> None:
         if response.status_code != 200:
             raise SyncFailed(f"Keycloak admin API answered {response.status_code}")
 
     def apply(self, desired: Desired) -> bool:
-        """Deprovisions, or applies changed rights and ends sessions; True if anything changed."""
-        user = desired.user
-        if desired.rights is None:
-            self.identities.deprovision(user, desired.reason or "no_access")
-            if desired.reason == SignInRefusal.AMBIGUOUS_ROLE.value:
-                security_alerts.raise_(
-                    AlertKind.AMBIGUOUS_ROLE,
-                    actor_id=user.id,
-                    subject_user=user,
-                    payload={"source": "identity_sync"},
-                    detail=f"{user.username}, identity sync",
-                )
-            return True
-        if self.identities.apply(user, desired.rights):
-            sessions.revoke_user(user, "rights_changed")
-            return True
-        return False
+        """Deprovisions a leaver; True if anything changed."""
+        if desired.reason is None:
+            return False
+        self.identities.deprovision(desired.user, desired.reason)
+        return True
 
     def record_failure(self, checked: int, error: str) -> IdentitySyncRun:
         run = IdentitySyncRun.objects.create(ok=False, checked=checked, error=error[:200])

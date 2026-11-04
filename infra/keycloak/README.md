@@ -5,10 +5,10 @@
 then http://localhost:8081 (admin console at `/admin`, credentials from `.env`).
 
 It holds the two clients core-api uses (`smart-ticket`, `smart-ticket-sync`),
-the client roles F13 maps (four primary roles, three capabilities), the
-`/apps/*` groups runbooks grant, and test users from the phase 2 pack's mock data
-(`docs/requirements/phase-2/06-00-conventions.md` §6.0.5) plus `no.role` and
-`two.roles` for the refusal paths. Every test user's password is `change-me`.
+the `/apps/*` groups runbooks grant, and test users from the phase 2 pack's
+mock data (`docs/requirements/phase-2/06-00-conventions.md` §6.0.5). It holds
+no roles: a person's role and capabilities are set in Admin → Settings →
+People (ADR-0042). Every test user's password is `change-me`.
 Client secrets are `${…}` placeholders Keycloak fills from the container's
 environment, i.e. from `.env`.
 

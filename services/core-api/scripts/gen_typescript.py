@@ -76,6 +76,9 @@ MODELS = [
     "TeamOut",
     "MemberOut",
     "StaffOut",
+    "UserTeamOut",
+    "AccountOut",
+    "RightsIn",
     "TeamDetailOut",
     "WorkloadRowOut",
     "ReassignmentOut",
@@ -231,6 +234,7 @@ ENUMS = {
     "ReviewAction": ["approve", "edit_and_send", "reject", "reroute", "escalate"],
     "Verdict": ["correct", "wrong", "partial", "not_applicable"],
     "UserRole": ["employee", "technician", "manager", "security"],
+    "Capability": ["workflow_admin", "kb_editor", "incident_manager"],
     "RiskTier": ["low", "medium", "high"],
     "ChatState": ["thinking", "answered", "clarify", "suggest_ticket", "with_support"],
     "CommentState": ["shown", "checking", "discarded"],
@@ -320,7 +324,10 @@ type JsonSchema = dict[str, Any]
 
 def _models() -> dict[str, type[BaseModel]]:
     """Each schema lives in the module that uses it, so gather them by name."""
-    from apps.accounts import response_schema as accounts_response
+    from apps.accounts import (
+        request_schema as accounts_request,
+        response_schema as accounts_response,
+    )
     from apps.chat import request_schema as chat_request, response_schema as chat_response
     from apps.incidents import (
         request_schema as incidents_request,
@@ -378,6 +385,7 @@ def _models() -> dict[str, type[BaseModel]]:
         reports_response,
         itsm_request,
         itsm_response,
+        accounts_request,
         accounts_response,
     )
     found: dict[str, type[BaseModel]] = {}

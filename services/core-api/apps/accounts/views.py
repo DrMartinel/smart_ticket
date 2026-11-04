@@ -20,9 +20,10 @@ from apps.accounts.permissions import (
     require_access,
     require_role,
 )
-from apps.accounts.request_schema import LoginIn, OidcExchangeIn
+from apps.accounts.request_schema import LoginIn, OidcExchangeIn, RightsIn
 from apps.accounts.response_schema import (
     OidcConfigOut,
+    AccountOut,
     RefusedOut,
     SessionOut,
     SignInOut,
@@ -30,6 +31,7 @@ from apps.accounts.response_schema import (
     UserOut,
 )
 from apps.accounts.utils import IssuedSession, Requester, SessionRefused, sessions
+from apps.accounts.utils.rights import account_rights
 from apps.accounts.utils.oidc import oidc_sign_in
 
 router = Router(tags=["accounts"])
@@ -49,6 +51,25 @@ def me(request: AuthedRequest) -> User:
 @require_access(roles=(UserRole.MANAGER,), capabilities=(Capability.WORKFLOW_ADMIN,))
 def staff(request: AuthedRequest) -> QuerySet[User]:
     return User.objects.support_staff().order_by("username")
+
+
+@router.get("/people", auth=SessionAuth(), response=list[AccountOut])
+@require_access(roles=(UserRole.MANAGER,), capabilities=(Capability.WORKFLOW_ADMIN,))
+def people(request: AuthedRequest) -> QuerySet[User]:
+    return User.objects.prefetch_related("capabilities", "team_memberships__team").order_by(
+        "username"
+    )
+
+
+@router.put("/people/{username}/rights", auth=SessionAuth(), response=AccountOut)
+@require_access(roles=(UserRole.MANAGER,))
+def set_rights(request: AuthedRequest, username: str, payload: RightsIn) -> User:
+    account_rights.assign(
+        request.auth, username, payload.role, set(payload.capabilities), payload.reason
+    )
+    return User.objects.prefetch_related("capabilities", "team_memberships__team").get(
+        username=username
+    )
 
 
 @auth_router.post("/login", auth=None, response={200: SessionOut, 401: RefusedOut})

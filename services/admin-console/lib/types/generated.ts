@@ -15,6 +15,8 @@ export type Verdict = "correct" | "wrong" | "partial" | "not_applicable";
 
 export type UserRole = "employee" | "technician" | "manager" | "security";
 
+export type Capability = "workflow_admin" | "kb_editor" | "incident_manager";
+
 export type RiskTier = "low" | "medium" | "high";
 
 export type ChatState = "thinking" | "answered" | "clarify" | "suggest_ticket" | "with_support";
@@ -495,6 +497,30 @@ export interface MemberOut {
 export interface StaffOut {
   username: string;
   role: string;
+}
+
+export interface UserTeamOut {
+  team: string;
+  role: string;
+}
+
+export interface AccountOut {
+  username: string;
+  name: string;
+  email: string;
+  role: string;
+  capabilities: string[];
+  teams: UserTeamOut[];
+  auth_source: string;
+  is_active: boolean;
+  is_break_glass: boolean;
+  last_login: string | null;
+}
+
+export interface RightsIn {
+  role: UserRole;
+  capabilities?: Capability[];
+  reason?: string;
 }
 
 export interface TeamDetailOut {

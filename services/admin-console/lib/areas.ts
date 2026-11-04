@@ -69,7 +69,10 @@ export function adminGroups(user: CurrentUser): AdminGroup[] {
               { href: "/admin/settings/sla/calendars", label: "Calendars" },
               { href: "/admin/settings/sla/holidays", label: "Holidays" },
             ]),
-            { href: "/admin/settings/teams", label: "Teams" },
+            ...section("People & teams", [
+              { href: "/admin/settings/people", label: "People" },
+              { href: "/admin/settings/teams", label: "Teams" },
+            ]),
             ...section("Notifications", [
               { href: "/admin/settings/notifications", label: "Matrix" },
               { href: "/admin/settings/deliveries", label: "Delivery log" },

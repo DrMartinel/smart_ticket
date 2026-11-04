@@ -7,12 +7,8 @@ export interface SignInErrorText {
 
 export const SIGN_IN_ERRORS: Record<string, SignInErrorText> = {
   no_access: {
-    vi: "Bạn chưa có quyền dùng Smart Ticket",
-    en: "Your company account signed in, but it has no Smart Ticket role. Ask your manager to request access in the IT portal.",
-  },
-  ambiguous_role: {
-    vi: "Tài khoản của bạn có hai vai trò Smart Ticket",
-    en: "Your company account has two Smart Ticket roles, so it can't be used. IT security has been told.",
+    vi: "Tài khoản này không đăng nhập bằng tài khoản công ty",
+    en: "This account can't use company sign-in. Use its own sign-in page.",
   },
   oidc_token_invalid: {
     vi: "Phiên đăng nhập đã hết hạn",

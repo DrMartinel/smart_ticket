@@ -91,9 +91,7 @@ def desk(db) -> dict[str, User]:
         "binh": person("binh.tt"),
         "chi": person("chi.lt"),
     }
-    UserCapability.objects.create(
-        user=people["duc"], capability=Capability.INCIDENT_MANAGER.value, source="local"
-    )
+    UserCapability.objects.create(user=people["duc"], capability=Capability.INCIDENT_MANAGER.value)
     return people
 
 

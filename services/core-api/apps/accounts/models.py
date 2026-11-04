@@ -72,7 +72,6 @@ class User(AbstractUser, BaseModel):
         default=AuthSource.LOCAL.value,
     )
     is_break_glass = models.BooleanField(default=False)
-    rights_synced_at = models.DateTimeField(null=True, blank=True)
     failed_logins = models.PositiveIntegerField(default=0)
     last_failed_login_at = models.DateTimeField(null=True, blank=True)
     locked_until = models.DateTimeField(null=True, blank=True)
@@ -169,7 +168,6 @@ class UserCapability(BaseModel):
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="capabilities")
     capability = models.CharField(max_length=30, choices=[(c.value, c.value) for c in Capability])
-    source = models.CharField(max_length=10, choices=[("keycloak", "keycloak"), ("local", "local")])
     granted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta(BaseModel.Meta):

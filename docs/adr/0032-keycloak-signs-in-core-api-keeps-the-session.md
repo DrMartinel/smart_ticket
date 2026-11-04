@@ -24,6 +24,7 @@ core-api's own table.
 3. **Rights come from claims** at each sign-in: one primary role (zero or
    several → refused), capabilities, team groups (ADR-0031). *Team groups:
    superseded by ADR-0041; Keycloak groups are no longer read.*
+   *Superseded by ADR-0042: rights are set in the console; claims carry none.*
 4. **Deprovisioning:** Keycloak back-channel logout revokes all families at
    once; a sync task every 5 minutes deactivates disabled users and revokes
    sessions whose rights shrank. A failed Keycloak read deactivates nobody.

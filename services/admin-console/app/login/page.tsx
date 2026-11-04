@@ -43,7 +43,7 @@ function Login() {
   return (
     <LoginCard>
       <h1 className="text-base font-semibold">Smart Ticket · Admin Console</h1>
-      <p className="text-xs text-muted-foreground">For support staff. Your company account decides your role and teams.</p>
+      <p className="text-xs text-muted-foreground">For support staff. Sign in with your company account; a manager sets your role and teams.</p>
       {notStaff && (
         <Alert variant="warn" className="text-sm">
           <AlertDescription>

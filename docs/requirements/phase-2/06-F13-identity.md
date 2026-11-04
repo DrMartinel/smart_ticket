@@ -130,12 +130,12 @@ User account states (NEW, on `accounts_user`):
 | ID | Rule | Rationale | Enforced where |
 |---|---|---|---|
 | BR-F13-01 | Keycloak authenticates; core-api issues the session. No Keycloak token reaches the browser except the one-time code; core-api keeps no Keycloak token after the exchange | Keeps ADR-0029's immediate revocation and httpOnly cookie; nothing extra to steal | `OidcSignIn.exchange()` |
-| BR-F13-02 | Primary role = the one `smart-ticket` client role among `employee`, `technician`, `manager`, `security`. Zero → refused. More than one → refused and alerted | One role per user is today's model (`User.role`); guessing a precedence would quietly grant power | Claims mapper |
-| BR-F13-03 | Capabilities = client roles among `workflow_admin`, `kb_editor`, `incident_manager`. ~~Teams = groups under `/it/<team>`; `/it/<team>/lead` = lead.~~ Teams live in core-api (ADR-0041); groups are not read. Unknown roles are ignored and logged | ADR-0031 | Claims mapper |
+| BR-F13-02 | ~~Primary role = the one `smart-ticket` client role among `employee`, `technician`, `manager`, `security`. Zero → refused. More than one → refused and alerted~~ Superseded by ADR-0042: rights are set in the console | One role per user is today's model (`User.role`); guessing a precedence would quietly grant power | Claims mapper |
+| BR-F13-03 | ~~Capabilities = client roles among `workflow_admin`, `kb_editor`, `incident_manager`.~~ Capabilities are set in the console (ADR-0042). ~~Teams = groups under `/it/<team>`; `/it/<team>/lead` = lead.~~ Teams live in core-api (ADR-0041); groups are not read. ~~Unknown roles are ignored and logged~~ | ADR-0031 | Claims mapper |
 | BR-F13-04 | Users are identified by `sub` (`external_id`), never by username or email after linking | Usernames change; `sub` doesn't | Model unique constraint |
-| BR-F13-05 | Role or capability lost in Keycloak → all sessions revoked at the next sync, so the next sign-in carries the new rights | Rights must not outlive their grant by more than one sync interval | `identity_sync` |
+| BR-F13-05 | ~~Role or capability lost in Keycloak → all sessions revoked at the next sync, so the next sign-in carries the new rights~~ Superseded by ADR-0042: rights are set in the console | Rights must not outlive their grant by more than one sync interval | `identity_sync` |
 | BR-F13-06 | Local password sign-in only for ≤ `identity.max_break_glass_accounts` (2) accounts flagged `is_break_glass`, role `manager`. Every use alerts security | OQ-11 default | `Sessions.login`, DB check |
-| BR-F13-07 | Roles, capabilities and teams of `oidc` users can't be edited in core-api; Keycloak is the source | One source of truth | Admin endpoints refuse with `managed_by_idp` |
+| BR-F13-07 | ~~Roles, capabilities and teams of `oidc` users can't be edited in core-api; Keycloak is the source~~ Superseded by ADR-0041 and ADR-0042: core-api is the source | One source of truth | Admin endpoints refuse with `managed_by_idp` |
 | BR-F13-08 | A failed read of Keycloak never deactivates anyone | Degrade toward people keeping access briefly, not toward mass lockout; revocation still comes from back-channel | `identity_sync` |
 
 ## f. Functional requirements
@@ -148,7 +148,7 @@ User account states (NEW, on `accounts_user`):
 | FR-F13-004 | core-api shall set role, capabilities and team memberships from the claims at every sign-in |
 | FR-F13-005 | core-api shall start the session through the same `Sessions` service as password sign-in (one family, httpOnly cookie per `X-Auth-Client`) |
 | FR-F13-006 | core-api shall accept Keycloak back-channel logout tokens and revoke every live family of that user |
-| FR-F13-007 | A Celery beat task shall compare active `oidc` users with Keycloak every `identity.sync_interval_minutes` and deactivate, change rights, or revoke sessions as BR-F13-05 says |
+| FR-F13-007 | A Celery beat task shall compare active `oidc` users with Keycloak every `identity.sync_interval_minutes` and deactivate ~~, change rights, or revoke sessions as BR-F13-05 says~~ the people Keycloak no longer has or has disabled (ADR-0042) |
 | FR-F13-008 | `POST /api/auth/login` shall refuse users who are not break-glass with the same 401 as a wrong password (v0.6.3; was 403 `local_login_disabled`) |
 | FR-F13-009 | core-api shall lock a break-glass account for `identity.local_lockout_minutes` after `identity.local_max_failures` failures within `identity.local_failure_window_minutes`, answering the same 401 while locked (v0.6.3; was 423 `account_locked`) |
 | FR-F13-010 | The system shall audit `auth_login` (with `method`), `identity_provisioned`, `identity_linked`, `identity_rights_changed`, `identity_deactivated`, `auth_backchannel_logout`, `identity_sync_failed` |
@@ -309,21 +309,21 @@ Feature: F13 Keycloak identity
     And audit rows "identity_provisioned" and "auth_login" exist
 
   @BR-F13-02 @BR-F13-03 @BR-F13-07
-  Scenario: AC-F13-02 rights come from Keycloak
+  Scenario: AC-F13-02 rights come from Keycloak (superseded by ADR-0042)
     Given Đức has client roles "technician" and "incident_manager" and groups "/it/network/lead", "/it/hardware"
     When Đức signs in to the admin console
     Then GET /api/accounts/me returns role "technician", capabilities ["incident_manager"]
     And teams [{"team":"network","role":"lead"},{"team":"hardware","role":"member"}]
 
   @BR-F13-02
-  Scenario: AC-F13-03 no client role, no access
+  Scenario: AC-F13-03 no client role, no access (superseded by ADR-0042)
     Given a Keycloak user with no "smart-ticket" client role
     When they complete Keycloak sign-in
     Then the exchange returns 403 with code "no_access"
     And no core-api user is created
 
   @BR-F13-02
-  Scenario: AC-F13-04 two primary roles are refused and alerted
+  Scenario: AC-F13-04 two primary roles are refused and alerted (superseded by ADR-0042)
     Given a Keycloak user with client roles "technician" and "manager"
     When they complete Keycloak sign-in
     Then the exchange returns 403 with code "ambiguous_role"

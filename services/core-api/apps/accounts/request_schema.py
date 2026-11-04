@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from ninja import Field, Schema
 
+from apps.accounts.models import Capability, UserRole
+
 
 class OidcExchangeIn(Schema):
     """What the callback page sends after Keycloak redirects back (F13)."""
@@ -17,3 +19,9 @@ class OidcExchangeIn(Schema):
 class LoginIn(Schema):
     username: str = Field(min_length=1, max_length=150)
     password: str = Field(min_length=1, max_length=4096)
+
+
+class RightsIn(Schema):
+    role: UserRole
+    capabilities: list[Capability] = Field(default_factory=list)
+    reason: str = Field("", max_length=500)

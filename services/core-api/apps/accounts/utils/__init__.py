@@ -41,7 +41,6 @@ class SignInRefusal(StrEnum):
     REDIRECT_URI_NOT_ALLOWED = "redirect_uri_not_allowed"
     OIDC_TOKEN_INVALID = "oidc_token_invalid"
     NO_ACCESS = "no_access"
-    AMBIGUOUS_ROLE = "ambiguous_role"
     IDP_UNAVAILABLE = "idp_unavailable"
     LOGOUT_TOKEN_INVALID = "logout_token_invalid"
 

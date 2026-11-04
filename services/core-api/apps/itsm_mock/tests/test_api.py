@@ -68,7 +68,7 @@ class TestCatalog:
         from apps.accounts.models import Capability, UserCapability
 
         UserCapability.objects.create(
-            user=people["huy.pq"], capability=Capability.WORKFLOW_ADMIN.value, source="local"
+            user=people["huy.pq"], capability=Capability.WORKFLOW_ADMIN.value
         )
         client = api_as(people["huy.pq"])
         client.patch(

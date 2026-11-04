@@ -23,7 +23,8 @@ people are both, and would multiply every `require_role` list.
    apply only inside that team; checked in the service, not the decorator.
 4. **Source of truth is Keycloak** for `oidc` users (ADR-0032); core-api
    refuses local edits (`managed_by_idp`). *Team memberships: superseded by
-   ADR-0041; they live only in core-api.*
+   ADR-0041; they live only in core-api. Roles and capabilities: superseded by
+   ADR-0042; a manager sets them in the console.*
 5. **No capability grants KB auto-reply authority.** That stays `manager`
    only (ADR-0002).
 

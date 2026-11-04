@@ -1,10 +1,9 @@
-"""Sign-in through Keycloak (F13, ADR-0032): code exchange, token checks, rights from claims."""
+"""Sign-in through Keycloak (F13, ADR-0032): code exchange, token checks, the user it names."""
 
 from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
@@ -12,42 +11,14 @@ import httpx
 import jwt
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.utils import timezone
 
-from apps.accounts.models import AuthClient, AuthSource, Capability, User, UserCapability, UserRole
+from apps.accounts.models import AuthClient, AuthSource, User
 from apps.accounts.utils import IssuedSession, Requester, SignInError, SignInRefusal, sessions
 from apps.audit.models import AuditLog
 from apps.security.utils.alerts import security_alerts
 from apps.security.utils.vocabulary import AlertKind
 
 LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"
-
-
-@dataclass(frozen=True)
-class Rights:
-    """What a user may do, read from Keycloak's roles (BR-F13-02)."""
-
-    role: UserRole
-    capabilities: frozenset[Capability] = frozenset()
-    ignored: tuple[str, ...] = ()
-
-
-def rights_from_claims(claims: dict[str, Any], client_id: str) -> Rights:
-    """One primary role and any capabilities; refuses none or two roles."""
-    roles = set(claims.get("resource_access", {}).get(client_id, {}).get("roles", []))
-    primary = sorted(roles & {r.value for r in UserRole})
-    if not primary:
-        raise SignInError(403, SignInRefusal.NO_ACCESS, "no Smart Ticket role in Keycloak")
-    if len(primary) > 1:
-        raise SignInError(
-            403,
-            SignInRefusal.AMBIGUOUS_ROLE,
-            "more than one Smart Ticket role in Keycloak",
-            {"roles": primary},
-        )
-    capabilities = frozenset(Capability(r) for r in roles & {c.value for c in Capability})
-    ignored = sorted(roles - set(primary) - {c.value for c in capabilities})
-    return Rights(UserRole(primary[0]), capabilities, tuple(ignored))
 
 
 class Keycloak:
@@ -255,18 +226,16 @@ class AdminSession:
 
 
 class Identities:
-    """Users created, linked, granted and deprovisioned from Keycloak (F13)."""
+    """Users created, linked and deprovisioned from Keycloak (F13)."""
 
-    def find_or_provision(self, claims: dict[str, Any], rights: Rights) -> User:
+    def find_or_provision(self, claims: dict[str, Any]) -> User:
         """The user for `sub`; else links a local user by verified email; else creates one."""
         user = User.objects.filter(external_id=claims["sub"]).first() or self.link(claims)
-        created = user is None
         if user is None:
             user = self.create(claims)
         if not user.is_active:
             user.is_active = True
             user.save(update_fields=["is_active"])
-        self.apply(user, rights, audit=not created)
         return user
 
     def link(self, claims: dict[str, Any]) -> User | None:
@@ -326,31 +295,6 @@ class Identities:
         self.audit("identity_provisioned", user, {"sub": sub, "username": username})
         return user
 
-    def apply(self, user: User, rights: Rights, *, audit: bool = True) -> bool:
-        """Sets role and capabilities from `rights`; True if either changed (BR-F13-05)."""
-        before_caps = user.capability_set()
-        changed = user.role != rights.role.value or before_caps != {
-            c.value for c in rights.capabilities
-        }
-        before = {"role": user.role, "capabilities": sorted(before_caps)}
-        user.role = rights.role.value
-        user.rights_synced_at = timezone.now()
-        user.save(update_fields=["role", "rights_synced_at"])
-        UserCapability.objects.filter(user=user, source="keycloak").exclude(
-            capability__in=[c.value for c in rights.capabilities]
-        ).delete()
-        for capability in rights.capabilities:
-            UserCapability.objects.get_or_create(
-                user=user, capability=capability.value, defaults={"source": "keycloak"}
-            )
-        if changed and audit:
-            after = {
-                "role": user.role,
-                "capabilities": sorted(c.value for c in rights.capabilities),
-            }
-            self.audit("identity_rights_changed", user, {"before": before, "after": after})
-        return changed
-
     def deprovision(self, user: User, reason: str) -> None:
         """Deactivates the user and ends every sign-in (BR-F13-05)."""
         with transaction.atomic():
@@ -390,7 +334,7 @@ class OidcSignIn:
         client: AuthClient,
         requester: Requester,
     ) -> IssuedSession:
-        """Verifies the ID token, maps its rights, and starts an ADR-0029 session."""
+        """Verifies the ID token, finds or creates its user, and starts an ADR-0029 session."""
         if redirect_uri not in settings.OIDC_REDIRECT_URIS:
             raise SignInError(400, SignInRefusal.REDIRECT_URI_NOT_ALLOWED, "unknown redirect_uri")
         claims = self.keycloak.verify(
@@ -399,11 +343,6 @@ class OidcSignIn:
         )
         if not nonce or claims.get("nonce") != nonce:
             raise SignInError(401, SignInRefusal.OIDC_TOKEN_INVALID, "nonce mismatch")
-        try:
-            rights = rights_from_claims(claims, settings.OIDC_CLIENT_ID)
-        except SignInError as refused:
-            self.record_refusal(claims, refused, client, requester)
-            raise
         glass = User.objects.filter(external_id=claims["sub"], is_break_glass=True).first()
         if glass is not None:
             security_alerts.raise_(
@@ -418,42 +357,8 @@ class OidcSignIn:
                 403, SignInRefusal.NO_ACCESS, "a break-glass account can't sign in through Keycloak"
             )
         with transaction.atomic():
-            user = self.identities.find_or_provision(claims, rights)
-        if rights.ignored:
-            AuditLog.objects.record(
-                "identity_claims_ignored",
-                actor_type="system",
-                actor_id=user.id,
-                payload={"ignored": list(rights.ignored)},
-            )
+            user = self.identities.find_or_provision(claims)
         return sessions.start(user, client, requester, method="oidc")
-
-    def record_refusal(
-        self,
-        claims: dict[str, Any],
-        refused: SignInError,
-        client: AuthClient,
-        requester: Requester,
-    ) -> None:
-        payload = {
-            "sub": claims.get("sub"),
-            "username": claims.get("preferred_username"),
-            "client": client.value,
-            "ip": requester.ip_address,
-        }
-        if refused.code is SignInRefusal.AMBIGUOUS_ROLE:
-            security_alerts.raise_(
-                AlertKind.AMBIGUOUS_ROLE,
-                subject_user=User.objects.filter(external_id=claims.get("sub")).first(),
-                payload=payload,
-                detail=f"{claims.get('preferred_username')} holds more than one role in Keycloak",
-            )
-            return
-        AuditLog.objects.record(
-            "auth_login_failed",
-            actor_type="system",
-            payload={"reason": refused.code.value, **payload},
-        )
 
     def backchannel_logout(self, logout_token: str) -> int:
         """Ends every sign-in of the user Keycloak logged out; returns tokens revoked."""

@@ -58,9 +58,7 @@ def people(db) -> dict[str, User]:
         "tu": person("tu.dv", UserRole.TECHNICIAN),
         "mai": person("mai.bn", UserRole.TECHNICIAN),
     }
-    UserCapability.objects.create(
-        user=found["tu"], capability=Capability.WORKFLOW_ADMIN.value, source="local"
-    )
+    UserCapability.objects.create(user=found["tu"], capability=Capability.WORKFLOW_ADMIN.value)
     return found
 
 

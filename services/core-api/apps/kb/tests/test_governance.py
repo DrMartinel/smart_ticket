@@ -35,9 +35,7 @@ SSO = BODY + "\n\nNhân viên công ty: dùng cổng SSO nội bộ thay vì li�
 def person(username: str, role: UserRole, *, editor: bool = False) -> User:
     user = User.objects.create_user(username=username, password="x", role=role.value)
     if editor:
-        UserCapability.objects.create(
-            user=user, capability=Capability.KB_EDITOR.value, source="local"
-        )
+        UserCapability.objects.create(user=user, capability=Capability.KB_EDITOR.value)
     return user
 
 

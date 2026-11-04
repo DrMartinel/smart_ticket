@@ -858,8 +858,8 @@ export const TOURS: Tour[] = [
         target: HEADER,
         when: isManager,
         body: w(
-          "\"New team\" tạo nhóm: tên, danh mục sở hữu, cách giao (ít việc nhất…), giới hạn mỗi người và nhóm dự phòng (nhận danh mục chưa ai sở hữu). Thêm và bớt thành viên, trưởng nhóm ở đây, cho mọi tài khoản. Mỗi lần lưu cần lý do và được ghi nhật ký.",
-          "\"New team\" creates one: name, owned categories, assignment strategy (least loaded…), per-member limit and fallback (gets categories no team owns). Add and remove members and leads here, for every account. Every save needs a reason and is logged.",
+          "\"New team\" tạo nhóm: tên, danh mục sở hữu, cách giao (ít việc nhất…), giới hạn mỗi người và nhóm dự phòng (nhận danh mục chưa ai sở hữu). Bấm tên nhóm để mở trang của nhóm: thêm, bớt thành viên và trưởng nhóm. Thẻ People bên cạnh đặt vai trò và quyền của từng người. Mỗi lần lưu cần lý do và được ghi nhật ký.",
+          "\"New team\" creates one: name, owned categories, assignment strategy (fewest open tickets…), per-member cap and fallback (gets categories no team owns). Click a team to open its page and add or remove members and leads. The People tab next to it sets each person's role and capabilities. Every save needs a reason and is logged.",
         ),
       },
     ],

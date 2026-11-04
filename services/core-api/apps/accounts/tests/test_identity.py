@@ -110,37 +110,24 @@ class TestSignIn:
         assert login.payload["method"] == "oidc"
         assert me(response.json()["access"]).status_code == 200
 
-    def test_rights_come_from_keycloak(self, realm):
-        """AC-F13-02."""
-        duc = realm.add(Person(username="duc.tm", roles=["technician", "incident_manager"]))
+    def test_keycloak_roles_never_grant_rights(self, realm):
+        """ADR-0042: a first sign-in is an employee, whatever Keycloak holds."""
+        duc = realm.add(Person(username="duc.tm", roles=["manager", "workflow_admin"]))
+
+        body = me(sign_in(realm, duc).json()["access"]).json()
+
+        assert (body["role"], body["capabilities"]) == ("employee", [])
+
+    def test_a_returning_user_keeps_the_rights_set_here(self, realm):
+        """ADR-0042."""
+        duc = realm.add(Person(username="duc.tm", roles=["employee"]))
+        sign_in(realm, duc)
+        User.objects.filter(external_id=duc.sub).update(role="technician")
+        duc.roles = []
 
         body = me(sign_in(realm, duc).json()["access"]).json()
 
         assert body["role"] == "technician"
-        assert body["capabilities"] == ["incident_manager"]
-        assert body["auth_source"] == "oidc"
-
-    def test_no_client_role_no_access(self, realm):
-        """AC-F13-03."""
-        nobody = realm.add(Person(username="no.role", roles=[]))
-
-        response = sign_in(realm, nobody)
-
-        assert response.status_code == 403
-        assert response.json()["code"] == "no_access"
-        assert not User.objects.filter(username="no.role").exists()
-
-    def test_two_primary_roles_refused(self, realm, security_user):
-        """AC-F13-04."""
-        both = realm.add(Person(username="two.roles", roles=["technician", "manager"]))
-
-        response = sign_in(realm, both)
-
-        assert response.status_code == 403
-        assert response.json()["code"] == "ambiguous_role"
-        assert len(events("security_alert")) == 1
-        assert Message.objects.filter(user=security_user, event="security.alert").count() == 2
-        assert not User.objects.filter(username="two.roles").exists()
 
     def test_a_forged_id_token_is_refused(self, realm, monkeypatch):
         """AC-F13-09: signed by a key Keycloak never published."""
@@ -240,16 +227,6 @@ class TestSignIn:
         sign_in(realm, lan)
 
         assert User.objects.get(external_id=lan.sub).username == "lan.nt-3f9b2c41"
-
-    def test_unknown_roles_are_ignored_and_logged(self, realm):
-        """BR-F13-03."""
-        lan = realm.add(Person(username="lan.nt", roles=["employee", "astronaut"]))
-
-        response = sign_in(realm, lan)
-
-        assert response.status_code == 200
-        (ignored,) = events("identity_claims_ignored")
-        assert ignored.payload["ignored"] == ["astronaut"]
 
     def test_the_sign_in_config_names_the_authorize_url(self, realm):
         body = Client().get("/api/auth/oidc/config").json()
@@ -412,17 +389,16 @@ class TestLeavers:
         assert response.status_code == 200
         assert User.objects.get(external_id=duc.sub).is_active is True
 
-    def test_lost_rights_end_sessions(self, realm):
-        """BR-F13-05."""
-        tu = realm.add(Person(username="tu.dv", roles=["technician", "workflow_admin"]))
+    def test_sync_never_changes_rights(self, realm):
+        """ADR-0042."""
+        tu = realm.add(Person(username="tu.dv", roles=["manager"]))
         access = sign_in(realm, tu).json()["access"]
-        tu.roles = ["technician"]
+        User.objects.filter(external_id=tu.sub).update(role="technician")
+        tu.roles = []
 
         sync(realm)
 
-        assert me(access).status_code == 401
-        assert User.objects.get(external_id=tu.sub).capability_set() == frozenset()
-        assert len(events("identity_rights_changed")) == 1
+        assert me(access).json()["role"] == "technician"
 
     def test_keycloak_groups_never_change_teams(self, realm, teams):
         """ADR-0041."""
@@ -463,19 +439,6 @@ class TestLeavers:
 
         assert run is not None and not run.ok
         assert User.objects.get(external_id=duc.sub).is_active is True
-
-    def test_two_roles_found_by_sync_deactivate_and_alert(self, realm, security_user):
-        duc = realm.add(Person(username="duc.tm", roles=["technician"]))
-        sign_in(realm, duc)
-        duc.roles = ["technician", "manager"]
-
-        sync(realm)
-
-        assert User.objects.get(external_id=duc.sub).is_active is False
-        assert events("security_alert")[-1].payload["reason"] == "ambiguous_role"
-        assert Message.objects.filter(
-            user=security_user, event="security.alert", body__contains="identity sync"
-        ).exists()
 
     def test_a_second_sync_changes_nothing(self, realm):
         """Idempotent: the second run finds nothing to do."""
@@ -688,7 +651,7 @@ class TestOutageAndBreakGlass:
     def test_a_break_glass_account_met_at_sign_in_is_refused(self, realm, security_user):
         huy = realm.add(Person(username="huy.pq", roles=["manager"]))
         sign_in(realm, huy)
-        User.objects.filter(external_id=huy.sub).update(is_break_glass=True)
+        User.objects.filter(external_id=huy.sub).update(role="manager", is_break_glass=True)
 
         response = sign_in(realm, huy)
 
