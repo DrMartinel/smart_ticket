@@ -53,6 +53,5 @@ allowed to make the change is trusted to apply it.
   baselines) is unchanged.
 - KB drafts still need a second person (ADR-0036), and KB auto-reply
   authority stays a manager's (ADR-0002): neither was in scope.
-- `thresholds.yaml` still has `lifecycle.approval_wait_hours` and
-  `rollout.flag_request_expiry_hours`, now unread; removing them needs a
-  threshold change request of its own.
+- `lifecycle.approval_wait_hours` and `rollout.flag_request_expiry_hours`
+  left `thresholds.yaml` in CR-2026-004.

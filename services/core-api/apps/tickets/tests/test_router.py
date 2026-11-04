@@ -30,7 +30,6 @@ from config.settings.base import (
     RequesterThresholds,
     KbGapsThresholds,
     ReportsThresholds,
-    RolloutThresholds,
     SecurityThresholds,
     SlaThresholds,
     Thresholds,
@@ -89,9 +88,7 @@ def make_thresholds(**overrides) -> Thresholds:
             max_rounds=1, wait_minutes=60, option_margin=0.1, max_options=5
         ),
         masking=MaskingThresholds(ner_max_share=0.5),
-        lifecycle=LifecycleThresholds(
-            max_chain_depth=5, action_max_attempts=3, approval_wait_hours=72
-        ),
+        lifecycle=LifecycleThresholds(max_chain_depth=5, action_max_attempts=3),
         access_denied=AccessDeniedThresholds(audit_window_seconds=60),
         pii_reveal=PiiRevealThresholds(max_per_user_per_hour=20, display_seconds=60),
         identity=IdentityThresholds(
@@ -124,7 +121,6 @@ def make_thresholds(**overrides) -> Thresholds:
             access_denied_window_minutes=10,
             ack_business_minutes={"critical": 60, "high": 240, "medium": 570},
         ),
-        rollout=RolloutThresholds(flag_request_expiry_hours=72),
         kb_gaps=KbGapsThresholds(
             window_days=28,
             cluster_similarity=0.8,

@@ -180,6 +180,8 @@ first boot after migration is not shadow-forced. Writer: core-api.
 
 **`thresholds.yaml` — CHANGED** (`rollout:`)
 
+*Removed in CR-2026-004 (ADR-0043): requests no longer wait.*
+
 ```yaml
 rollout:
   flag_request_expiry_hours: 72

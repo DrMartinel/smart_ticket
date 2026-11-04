@@ -18,7 +18,7 @@
 # change to this file that keeps the old version. CR-2026-000 is the baseline
 # the F9 migration approves.
 
-version: "CR-2026-003"
+version: "CR-2026-004"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -143,9 +143,6 @@ lifecycle:
   # an SMTP error) before its run fails and its transfer lands in the
   # failed-transfer queue.
   action_max_attempts: 3
-  # How long a require_approval run waits for an approver before it counts
-  # as rejected and the move is refused.
-  approval_wait_hours: 72
 
 access_denied:
   # A refused call writes one access_denied audit row per user, route and
@@ -235,11 +232,6 @@ security:
     critical: 60
     high: 240
     medium: 570
-
-rollout:
-  # A request to turn a branch live expires after this many hours without its
-  # second approval (F9, §c).
-  flag_request_expiry_hours: 72
 
 kb_gaps:
   # Refused tickets of the last 28 days, grouped weekly into topics KB editors

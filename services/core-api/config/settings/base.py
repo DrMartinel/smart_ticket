@@ -398,8 +398,6 @@ class LifecycleThresholds(BaseModel):
     max_chain_depth: int = Field(ge=1)
     # Attempts at an action that fails transiently, then the run fails.
     action_max_attempts: int = Field(ge=1)
-    # How long a `require_approval` run waits before it counts as rejected.
-    approval_wait_hours: int = Field(ge=1)
 
 
 class AccessDeniedThresholds(BaseModel):
@@ -480,11 +478,6 @@ class SecurityThresholds(BaseModel):
         return value
 
 
-class RolloutThresholds(BaseModel):
-    # A request to turn a branch live expires after this many hours unapproved (F9).
-    flag_request_expiry_hours: int = Field(ge=1)
-
-
 class ReportsThresholds(BaseModel):
     # Decisions a reviewer needs in the window before the rubber-stamp flag applies (F10).
     min_decisions_for_flag: int = Field(ge=1)
@@ -539,7 +532,6 @@ class Thresholds(BaseModel):
     sla: SlaThresholds
     requester: RequesterThresholds
     security: SecurityThresholds
-    rollout: RolloutThresholds
     kb_gaps: KbGapsThresholds
     reports: ReportsThresholds
 
