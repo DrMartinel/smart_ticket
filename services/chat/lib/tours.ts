@@ -54,7 +54,7 @@ export const TOURS: Tour[] = [
       },
       {
         title: w("Thông báo", "Notifications"),
-        target: 'header button[aria-label^="Thông báo"]',
+        target: 'header button[aria-label^="Notifications"]',
         body: w(
           "Chuông báo khi IT trả lời, khi yêu cầu được giải quyết, hoặc khi có cập nhật về một sự cố ảnh hưởng đến bạn. Bấm để đọc và mở yêu cầu liên quan.",
           "The bell tells you when IT replies, when a request is resolved, or when there's news about an outage affecting you. Click it to read and open the request.",

@@ -11,6 +11,7 @@ import AppHeader from "@/components/AppHeader";
 import Composer from "@/components/Composer";
 import TurnView from "@/components/TurnView";
 import Welcome from "@/components/Welcome";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export default function ChatPage() {
@@ -37,18 +38,19 @@ export default function ChatPage() {
   return (
     <div className="flex h-dvh flex-col">
       <AppHeader />
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <main id="main" className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6 md:px-6">
           {turns.length > 0 && (
-            <p className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-primary-soft px-3 py-2 text-xs text-primary">
-              <span>
-                {startedAt ? `Cuộc trò chuyện từ ${clock(startedAt)} · ` : ""}the assistant remembers the last 6 turns of
-                this conversation · ends after 30 min idle
-              </span>
-              <Button variant="link" size="inline" onClick={() => void startNew()} disabled={busy} className="font-medium">
-                + Cuộc trò chuyện mới · New conversation
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border pb-3">
+              <p className="text-xs text-muted-foreground">
+                <span className="eyebrow mr-2">Conversation</span>
+                {startedAt ? <>Started <span className="num">{clock(startedAt)}</span> · </> : ""}the assistant remembers the
+                last 6 turns · ends after 30 min idle
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => void startNew()} disabled={busy} className="-mr-2 text-primary">
+                <Plus aria-hidden /> New conversation
               </Button>
-            </p>
+            </div>
           )}
           {turns.length === 0 ? (
             <Welcome name={user.username} onPick={ask} />
@@ -67,8 +69,8 @@ export default function ChatPage() {
           )}
           <div ref={endRef} />
         </div>
-      </div>
-      <footer className="border-t border-border bg-background">
+      </main>
+      <footer className="border-t border-border bg-card/60">
         <div className="mx-auto max-w-3xl px-4 py-3 md:px-6">
           <Composer onSend={ask} disabled={busy} autoFocus />
           <p className="mt-2 text-xs text-muted-foreground">

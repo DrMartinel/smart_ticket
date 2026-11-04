@@ -1,6 +1,6 @@
 "use client";
 
-// "Chưa giải quyết được": reopen within 7 days, else a new ticket linked to this one (UC-F3-04).
+// "Still not fixed": reopen within 7 days, else a new ticket linked to this one (UC-F3-04).
 
 import Link from "next/link";
 import { useState } from "react";
@@ -35,8 +35,8 @@ export default function ReopenBox({
     } catch (err) {
       setError(
         err instanceof ApiError && err.code === "reason_required"
-          ? "Hãy cho biết lý do · Say what still doesn't work."
-          : "Không mở lại được · Couldn't reopen it.",
+          ? "Say what still doesn't work."
+          : "Couldn't reopen it. Try again in a moment.",
       );
     } finally {
       setBusy(false);
@@ -45,11 +45,11 @@ export default function ReopenBox({
 
   if (result) {
     return result.reopened ? (
-      <p className="text-sm">Đã mở lại · Reopened. A person on the support team will take it from here.</p>
+      <p role="status" className="text-sm">Reopened. A person on the support team will take it from here.</p>
     ) : (
-      <p className="text-sm">
-        Đã tạo yêu cầu mới · A new ticket{" "}
-        <Link href={`/tickets/${result.new_ticket}`} className="font-mono text-primary underline">
+      <p role="status" className="text-sm">
+        A new ticket{" "}
+        <Link href={`/tickets/${result.new_ticket}`} className="num text-primary underline">
           {result.new_ticket}
         </Link>{" "}
         is linked to this one.
@@ -61,21 +61,21 @@ export default function ReopenBox({
     <div className="flex flex-col gap-2">
       <p className="text-xs text-muted-foreground">
         {until && !late
-          ? `Mở lại trước ${day(until)}. After that we open a new ticket linked to this one.`
-          : "Quá 7 ngày: we open a new ticket linked to this one."}
+          ? `You can reopen it until ${day(until)}. After that we open a new ticket linked to this one.`
+          : "It's been more than 7 days, so we'll open a new ticket linked to this one."}
       </p>
       <Textarea
         value={reason}
         onChange={(e) => setReason(e.target.value)}
         maxLength={2000}
-        placeholder="Còn lỗi gì? · What still doesn't work?"
+        placeholder="What still doesn't work?"
         aria-label="Why it isn't solved"
         className="min-h-[64px] text-sm"
       />
       <Button variant="outline" onClick={() => void send()} disabled={busy || !reason.trim()} className="self-start">
-        {late ? "Tạo yêu cầu mới · New linked ticket" : "Mở lại · Reopen"}
+        {late ? "Open a new linked ticket" : "Reopen ticket"}
       </Button>
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

@@ -12,6 +12,8 @@ import ReopenBox from "./ReopenBox";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ErrorState } from "@/components/ui/states";
+import { ArrowRight } from "lucide-react";
 
 // The masking placeholders core-api writes in place of PII, e.g. [EMAIL_1].
 const PLACEHOLDER = /\[[A-Z]+(?:_[A-Z]+)*_\d+\]/;
@@ -46,10 +48,7 @@ export default function TurnView({
       <>
         <Question text={turn.text} />
         <Reply>
-          <p className="text-danger">{turn.error}</p>
-          <Button variant="outline" onClick={() => onRetry(turn.key)} className="mt-3">
-            Try again
-          </Button>
+          <ErrorState compact title={turn.error} onRetry={() => onRetry(turn.key)} />
         </Reply>
       </>
     );
@@ -122,12 +121,10 @@ function ClarifyCard({
               <button
                 onClick={() => onAnswer(title)}
                 disabled={busy}
-                className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-muted disabled:opacity-50"
+                className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-muted disabled:opacity-50"
               >
                 {title}
-                <span aria-hidden className="text-muted-foreground">
-                  →
-                </span>
+                <ArrowRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               </button>
             </li>
           ))}
@@ -136,7 +133,7 @@ function ClarifyCard({
               <button
                 onClick={() => setTyping(true)}
                 disabled={busy}
-                className="w-full px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                className="min-h-11 w-full px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-muted disabled:opacity-50"
               >
                 None of these
               </button>
@@ -186,9 +183,9 @@ function Question({
   ticket?: string;
 }) {
   return (
-    <article className="flex flex-col gap-1.5">
+    <article className="flex flex-col items-end gap-1.5">
       <Byline who="You" at={at} ticket={ticket} />
-      <div className="whitespace-pre-wrap break-words rounded-lg bg-muted px-4 py-3 text-[15px] leading-6">
+      <div className="ml-auto max-w-[92%] whitespace-pre-wrap break-words rounded-md bg-muted px-4 py-3 text-[15px] leading-6 sm:max-w-[85%]">
         {text}
       </div>
       {masked && (
@@ -204,7 +201,7 @@ function Reply({ children }: { children: React.ReactNode }) {
   return (
     <article className="flex flex-col gap-1.5">
       <Byline who="IT Help" />
-      <Card className="border-l-2 border-l-primary px-4 py-3 text-[15px] leading-6">{children}</Card>
+      <Card className="border-l-2 border-l-primary px-4 py-3.5 text-[15px] leading-6">{children}</Card>
     </article>
   );
 }
@@ -214,7 +211,7 @@ function Byline({ who, at, ticket }: { who: string; at?: string; ticket?: string
     <p className="flex items-baseline gap-2 text-xs text-muted-foreground">
       <span className="font-medium text-foreground">{who}</span>
       {at && <time dateTime={at}>{formatTime(at)}</time>}
-      {ticket && <span className="font-mono">{ticket}</span>}
+      {ticket && <span className="num">{ticket}</span>}
     </p>
   );
 }
@@ -262,7 +259,7 @@ function Outcome({
         <div className="flex flex-col gap-4">
           <AnswerText text={turn.answer.text} />
           <figure className="border-t border-border pt-3 text-sm">
-            <figcaption className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Source</figcaption>
+            <figcaption className="eyebrow mb-1">Source · approved help page</figcaption>
             {turn.answer.kb_url ? (
               <a
                 href={turn.answer.kb_url}
@@ -310,7 +307,8 @@ function Outcome({
           <div className="flex flex-col gap-3">
             <IncidentBanner incident={turn.incident} publicId={turn.public_id} />
             <p>
-              Đây là sự cố đội IT đang khắc phục; câu hỏi của bạn đã được gắn vào đó, bạn sẽ nhận cập nhật tiếp theo tại đây và qua email.
+              This is a known issue IT is already fixing. Your question is linked to it, and you&apos;ll get the next
+              update here and by email.
             </p>
           </div>
         );
@@ -320,11 +318,11 @@ function Outcome({
           <CheckIcon className="mt-1 h-4 w-4 shrink-0 text-ok" />
           <div>
             <p>
-              Ticket <span className="font-mono font-medium">{turn.public_id}</span> is with the support team.
+              Ticket <span className="num font-medium">{turn.public_id}</span> is with the support team.
             </p>
             <p className="text-sm text-muted-foreground">A technician will follow up with you.</p>
             <Link href={`/tickets/${turn.public_id}`} className="text-sm text-primary underline-offset-2 hover:underline">
-              Xem trong Đơn của tôi · Open in My tickets →
+              Open in My tickets →
             </Link>
           </div>
         </div>
@@ -332,7 +330,7 @@ function Outcome({
   }
 }
 
-// "Đã giải quyết?" under an auto-reply (F3 · Answer card 10-500): fixed opens the rating, not
+// "Did that fix it?" under an auto-reply (F3 · Answer card 10-500): fixed opens the rating, not
 // fixed reopens the ticket for a person.
 function AnswerFeedback({ publicId }: { publicId: string }) {
   const [choice, setChoice] = useState<"fixed" | "not_fixed" | null>(null);
@@ -340,18 +338,19 @@ function AnswerFeedback({ publicId }: { publicId: string }) {
     <div className="flex flex-col gap-3 border-t border-border pt-3">
       {choice === null && (
         <div className="flex flex-wrap gap-2">
+          <span className="w-full text-sm font-medium">Did that fix it?</span>
           <Button variant="outline" onClick={() => setChoice("fixed")}>
-            ✓ Đã giải quyết · Fixed
+            <CheckIcon className="size-4" /> Yes, it&apos;s fixed
           </Button>
           <Button variant="outline" onClick={() => setChoice("not_fixed")}>
-            Chưa giải quyết được · Still not fixed
+            No, still not fixed
           </Button>
         </div>
       )}
       {choice === "fixed" && <Rating publicId={publicId} current={null} until={null} compact />}
       {choice === "not_fixed" && <ReopenBox publicId={publicId} until={null} />}
       <p className="text-xs text-muted-foreground">
-        {publicId} · From an approved knowledge-base page. &ldquo;Still not fixed&rdquo; reopens this ticket for a person
+        <span className="num">{publicId}</span> · From an approved knowledge-base page. &ldquo;Still not fixed&rdquo; reopens this ticket for a person
         within 7 days.
       </p>
     </div>

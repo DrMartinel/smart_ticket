@@ -1,40 +1,81 @@
 "use client";
 
-// The bar above every chat page: the app, My tickets, the bell and the account.
+// The bar above every chat page: the app, Ask and My tickets, the bell and the account.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { BookOpen, LogOut, MessageSquare, Ticket } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import NotificationBell from "./NotificationBell";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function AppHeader() {
   const { user, logout } = useAuth();
   const path = usePathname();
   const onTickets = path.startsWith("/tickets");
+  const onGuides = path.startsWith("/guides");
+  const tabs = [
+    { href: "/", label: "Ask", icon: MessageSquare, active: !onTickets && !onGuides },
+    { href: "/tickets", label: "My tickets", icon: Ticket, active: onTickets },
+  ];
   return (
     <header className="border-b border-border bg-card">
-      <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-6">
-        <Link href="/" className="flex items-baseline gap-3">
-          <span className="font-semibold">IT Help</span>
-          <span className="hidden text-sm text-muted-foreground sm:inline">Answers from approved help pages</span>
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:text-sm focus:shadow-float"
+      >
+        Skip to content
+      </a>
+      <div className="mx-auto flex h-14 max-w-5xl items-center gap-2 px-3 sm:gap-4 sm:px-6">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5 rounded-md">
+          <span aria-hidden className="flex size-7 items-center justify-center rounded-md bg-primary font-display text-sm font-semibold text-primary-foreground">
+            S
+          </span>
+          <span className="hidden flex-col leading-tight min-[420px]:flex">
+            <span className="text-sm font-semibold">IT Help</span>
+            <span className="hidden text-2xs text-muted-foreground sm:block">Answers from approved help pages</span>
+          </span>
         </Link>
-        <nav className="flex items-center gap-4 text-sm">
+        <nav aria-label="Main" className="ml-auto flex items-center gap-1 sm:ml-6 sm:mr-auto">
+          {tabs.map(({ href, label, icon: Icon, active }) => (
+            <Link
+              key={href}
+              href={href}
+              data-slot="nav-item"
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium transition-colors",
+                active ? "bg-primary-soft text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <Icon className="size-4" aria-hidden />
+              {label}
+            </Link>
+          ))}
+        </nav>
+        <div className="flex items-center gap-1">
           <Link
-            href={onTickets ? "/" : "/tickets"}
-            className="text-primary underline-offset-2 hover:underline"
+            href="/guides"
+            data-tour="guides-link"
+            data-slot="nav-item"
+            aria-current={onGuides ? "page" : undefined}
+            aria-label="Guides"
+            className={cn(
+              "inline-flex h-9 items-center gap-1.5 rounded-md px-2 text-sm transition-colors",
+              onGuides ? "text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
           >
-            {onTickets ? "Hỏi đáp · Chat" : "Đơn của tôi · My tickets"}
-          </Link>
-          <Link href="/guides" className="text-muted-foreground hover:text-foreground" data-tour="guides-link">
-            Hướng dẫn<span className="hidden sm:inline"> · Guides</span>
+            <BookOpen className="size-4" aria-hidden />
+            <span className="hidden md:inline">Guides</span>
           </Link>
           <NotificationBell />
-          {user && <span className="hidden text-muted-foreground sm:inline">{user.username}</span>}
-          <Button variant="ghost" size="sm" onClick={() => void logout()} className="text-muted-foreground">
-            Sign out
+          {user && <span className="hidden max-w-32 truncate px-1 text-sm text-muted-foreground lg:inline">{user.username}</span>}
+          <Button variant="ghost" size="sm" onClick={() => void logout()} className="text-muted-foreground" aria-label="Sign out">
+            <LogOut aria-hidden />
+            <span className="hidden md:inline">Sign out</span>
           </Button>
-        </nav>
+        </div>
       </div>
     </header>
   );

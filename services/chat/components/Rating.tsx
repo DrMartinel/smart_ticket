@@ -34,8 +34,8 @@ export default function Rating({
     } catch (err) {
       setError(
         err instanceof ApiError && err.code === "rating_window_closed"
-          ? "Đã hết hạn đánh giá · The rating window has closed."
-          : "Không gửi được · Couldn't save the rating.",
+          ? "The rating window has closed."
+          : "Couldn't save the rating. Try again.",
       );
     } finally {
       setBusy(false);
@@ -44,16 +44,16 @@ export default function Rating({
 
   return (
     <div className="flex flex-col gap-3">
-      {!compact && <h2 className="font-medium">Bạn thấy hỗ trợ thế nào? · How was the help?</h2>}
-      <div role="radiogroup" aria-label="Rating" className="flex gap-1">
+      {!compact && <h2 className="font-medium">How was the help?</h2>}
+      <div role="radiogroup" aria-label="Rating" className="-ml-2 flex gap-0.5">
         {[1, 2, 3, 4, 5].map((n) => (
           <button
             key={n}
             role="radio"
             aria-checked={score === n}
-            aria-label={`${n} / 5`}
+            aria-label={`${n} out of 5`}
             onClick={() => setScore(n)}
-            className={`text-2xl leading-none ${n <= score ? "text-warn" : "text-border-strong"}`}
+            className={`flex size-11 items-center justify-center rounded-md text-2xl leading-none transition-colors hover:bg-muted ${n <= score ? "text-proposal" : "text-border-strong"}`}
           >
             {n <= score ? "★" : "☆"}
           </button>
@@ -63,20 +63,20 @@ export default function Rating({
         value={comment}
         onChange={(e) => setComment(e.target.value)}
         maxLength={2000}
-        placeholder="Góp ý thêm (không bắt buộc) · Comment (optional)"
+        placeholder="Anything to add? (optional)"
         aria-label="Comment"
         className="text-sm"
       />
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={() => void send()} disabled={busy || score === 0}>
-          {saved ? "Cập nhật · Update" : "Gửi đánh giá · Send"}
+          {busy ? "Saving…" : saved ? "Update rating" : "Send rating"}
         </Button>
         <span className="text-xs text-muted-foreground">
-          {saved ? "Đã lưu · Saved. " : ""}
+          {saved ? "Saved. " : ""}
           {until ? `You can change it until ${day(until)}.` : ""}
         </span>
       </div>
-      {error && <p className="text-sm text-danger">{error}</p>}
+      {error && <p role="alert" className="text-sm text-danger">{error}</p>}
     </div>
   );
 }

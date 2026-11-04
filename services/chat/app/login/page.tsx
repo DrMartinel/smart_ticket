@@ -10,8 +10,6 @@ import { startSignIn } from "@/lib/oidc";
 import { AuthError } from "@/lib/session";
 import { signInError } from "@/lib/signInErrors";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -40,14 +38,17 @@ function Login() {
 
   return (
     <LoginCard>
-      <h1 className="text-base font-semibold">IT Help</h1>
-      <p className="text-xs text-muted-foreground">Hỏi đáp và tạo phiếu hỗ trợ IT · Ask IT and track your tickets</p>
-      <Button size="lg" onClick={() => void signIn()} className="h-auto min-h-10 w-full whitespace-normal py-2.5">
-        Đăng nhập bằng tài khoản công ty · Sign in with company account
-      </Button>
-      <p className="text-[11px] text-muted-foreground">
-        Cùng tài khoản đăng nhập với email và VPN · Same company sign-in as email and VPN.
+      <p className="eyebrow">
+        Sign in <span lang="vi" className="ml-1 normal-case italic tracking-normal">Đăng nhập</span>
       </p>
+      <h1 className="font-display text-title font-semibold">Ask IT, and track what you asked</h1>
+      <p className="text-sm text-muted-foreground">
+        Answers come from IT&apos;s approved help pages. Anything they don&apos;t cover goes to a person.
+      </p>
+      <Button size="lg" onClick={() => void signIn()} className="mt-2 h-auto min-h-11 w-full whitespace-normal py-2.5">
+        Sign in with your company account
+      </Button>
+      <p className="text-xs text-muted-foreground">The same sign-in you use for email and VPN.</p>
     </LoginCard>
   );
 }
@@ -74,21 +75,23 @@ function BreakGlass() {
 
   return (
     <LoginCard>
-      <h1 className="text-base font-semibold">Break-glass sign-in</h1>
+      <p className="eyebrow">Emergency access</p>
+      <h1 className="font-display text-title font-semibold">Break-glass sign-in</h1>
       <Alert variant="danger" className="text-xs">
         <AlertDescription>
-          Chỉ dành cho tài khoản khẩn cấp · Only for the break-glass accounts when company sign-in is down. Every use alerts IT security at once.
+          Only for the break-glass accounts when company sign-in is down. Every use alerts IT security at once.
         </AlertDescription>
       </Alert>
       <form onSubmit={onSubmit} className="flex flex-col gap-3">
-        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-foreground/80">
           Username
-          <Input className="text-sm text-foreground" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
+          <Input className="text-sm text-foreground" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
         </label>
-        <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-foreground/80">
           Password
           <Input
             type="password"
+            autoComplete="current-password"
             className="text-sm text-foreground"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -100,7 +103,7 @@ function BreakGlass() {
             {error}
           </p>
         )}
-        <Button variant="destructive" type="submit" disabled={submitting} className="h-auto min-h-9 w-full whitespace-normal py-2">
+        <Button variant="destructive" type="submit" disabled={submitting} className="h-auto min-h-10 w-full whitespace-normal py-2">
           {submitting ? "Signing in…" : "Sign in with local account"}
         </Button>
       </form>
@@ -112,11 +115,12 @@ function SignInError({ code, onRetry }: { code: string; onRetry: () => void }) {
   const text = signInError(code);
   return (
     <LoginCard>
-      <Badge variant="danger" className="w-full">{text.code}</Badge>
-      <h1 className="text-base font-semibold">{text.vi}</h1>
-      <p className="text-xs text-muted-foreground">{text.en}</p>
-      <Button variant="outline" onClick={onRetry} className="h-auto min-h-9 w-full whitespace-normal">
-        Thử lại · Try again
+      <p className="eyebrow text-danger">Sign-in didn&apos;t work</p>
+      <h1 className="font-display text-title font-semibold">{text.en}</h1>
+      <p lang="vi" className="text-sm italic text-muted-foreground">{text.vi}</p>
+      <p className="num text-2xs text-muted-foreground">Code: {text.code}</p>
+      <Button variant="outline" onClick={onRetry} className="mt-2 h-auto min-h-10 w-full whitespace-normal">
+        Try again
       </Button>
     </LoginCard>
   );
@@ -124,9 +128,17 @@ function SignInError({ code, onRetry }: { code: string; onRetry: () => void }) {
 
 function LoginCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid min-h-dvh place-items-center px-4">
-      <Card className="flex w-full max-w-[400px] flex-col gap-3 p-8">{children}</Card>
-    </div>
+    <main id="main" className="grid min-h-dvh place-items-center px-4 py-10">
+      <div className="flex w-full max-w-[420px] flex-col gap-5">
+        <div className="flex items-center gap-2.5">
+          <span aria-hidden className="flex size-8 items-center justify-center rounded-md bg-primary font-display font-semibold text-primary-foreground">
+            S
+          </span>
+          <span className="font-semibold">IT Help</span>
+        </div>
+        <section className="flex flex-col gap-3 rounded-md border border-border bg-card p-6 sm:p-8">{children}</section>
+      </div>
+    </main>
   );
 }
 

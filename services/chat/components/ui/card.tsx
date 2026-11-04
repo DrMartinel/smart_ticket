@@ -13,7 +13,7 @@ function Card({
     <Comp
       data-slot="card"
       className={cn(
-        "rounded-lg border bg-card text-card-foreground shadow-xs",
+        "rounded-md border bg-card text-card-foreground",
         className
       )}
       {...props}

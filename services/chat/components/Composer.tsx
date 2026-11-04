@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { SendHorizontal } from "lucide-react";
 
 // Mirrors ChatAskIn.message in core-api (apps/chat/request_schema.py):
 // shorter is a 422 there, so it is caught here first.
@@ -40,7 +41,7 @@ export default function Composer({
   };
 
   return (
-    <Card className="transition-colors hover:border-muted-foreground focus-within:border-foreground">
+    <Card className="transition-colors hover:border-border-strong focus-within:border-ring">
       <label htmlFor="composer" className="sr-only">
         Describe your problem
       </label>
@@ -63,10 +64,15 @@ export default function Composer({
       />
       <div className="flex items-center justify-between gap-3 border-t border-border px-3.5 py-2">
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          {tooShort ? `Add a little more detail (${MIN_CHARS}+ characters).` : "Enter to send, Shift+Enter for a new line"}
+          {tooShort ? `Add a little more detail (${MIN_CHARS}+ characters).` : (
+            <>
+              <span className="hidden sm:inline">Enter to send, Shift+Enter for a new line</span>
+              <span className="sm:hidden">Describe it in a sentence or two</span>
+            </>
+          )}
         </p>
-        <Button type="button" onClick={send} disabled={!canSend} className="py-1.5">
-          Send
+        <Button type="button" onClick={send} disabled={!canSend}>
+          <SendHorizontal aria-hidden /> Send
         </Button>
       </div>
     </Card>

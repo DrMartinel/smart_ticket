@@ -9,14 +9,15 @@ import type { NotificationOut } from "@/lib/types/generated";
 import { BellIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 
 const FIRST_POLL_SEC = 15;
 
 function noticeTime(iso: string): string {
   const at = new Date(iso);
   const zone = "Asia/Ho_Chi_Minh";
-  const day = (d: Date) => d.toLocaleDateString("vi-VN", { timeZone: zone });
-  const time = at.toLocaleTimeString("vi-VN", { timeZone: zone, hour: "2-digit", minute: "2-digit" });
+  const day = (d: Date) => d.toLocaleDateString("en-GB", { timeZone: zone, day: "numeric", month: "short" });
+  const time = at.toLocaleTimeString("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit" });
   return day(at) === day(new Date()) ? time : `${day(at)} ${time}`;
 }
 
@@ -97,8 +98,8 @@ export default function NotificationBell() {
         <Button
           variant="ghost"
           size="sm"
-          aria-label={count ? `Thông báo, ${unread} chưa đọc` : "Thông báo"}
-          className="gap-1 px-1.5 text-muted-foreground hover:text-foreground"
+          aria-label={count ? `Notifications, ${unread} unread` : "Notifications"}
+          className="relative gap-1 px-2 text-muted-foreground hover:text-foreground"
         >
           <BellIcon className="size-[18px]" aria-hidden />
           {count && (
@@ -111,27 +112,40 @@ export default function NotificationBell() {
       <PopoverContent
         align="end"
         collisionPadding={12}
-        aria-label="Thông báo"
+        aria-label="Notifications"
         className="flex max-h-[70dvh] w-[min(400px,calc(100vw-24px))] flex-col overflow-hidden p-0"
       >
         <header className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h2 className="text-sm font-semibold">Thông báo</h2>
+          <h2 className="eyebrow">Notifications</h2>
           <Button variant="link" size="inline" className="text-xs disabled:opacity-50" disabled={!unread} onClick={() => void readAll()}>
-            Đánh dấu đã đọc tất cả
+            Mark all read
           </Button>
         </header>
         <ul className="flex-1 overflow-y-auto">
-          {error && <li className="px-4 py-6 text-sm text-danger">Không tải được thông báo.</li>}
-          {items?.length === 0 && <li className="px-4 py-6 text-center text-sm text-muted-foreground">Chưa có thông báo nào.</li>}
+          {error && (
+            <li className="p-3">
+              <ErrorState compact title="Couldn't load notifications" />
+            </li>
+          )}
+          {!error && items === null && (
+            <li className="px-4 py-3">
+              <LoadingState rows={3} label="Loading notifications" />
+            </li>
+          )}
+          {items?.length === 0 && (
+            <li>
+              <EmptyState compact title="You're all caught up">Updates on your tickets appear here.</EmptyState>
+            </li>
+          )}
           {items?.map((notice) => (
             <li key={notice.id} className="border-b border-border last:border-b-0">
               <button
                 onClick={() => void openNotice(notice)}
-                className={`flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-muted ${notice.read_at ? "" : "bg-primary-soft"}`}
+                className={`flex w-full flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-muted ${notice.read_at ? "" : "bg-primary-soft/50"}`}
               >
-                <span className="text-xs text-muted-foreground">
+                <span className="num text-2xs text-muted-foreground">
                   {noticeTime(notice.created_at)}
-                  {!notice.read_at && <span className="sr-only"> · chưa đọc</span>}
+                  {!notice.read_at && <span className="sr-only"> · unread</span>}
                 </span>
                 <span className="text-sm">{notice.subject}</span>
               </button>

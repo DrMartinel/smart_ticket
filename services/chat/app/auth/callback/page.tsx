@@ -26,7 +26,14 @@ function Callback() {
       .catch((err) => router.replace(`/login?error=${err instanceof AuthError && err.code ? err.code : "oidc_token_invalid"}`));
   }, [params, router, finishSignIn]);
 
-  return <p className="mt-24 text-center text-sm text-muted-foreground">Đang đăng nhập… · Signing in…</p>;
+  return (
+    <main id="main" role="status" className="grid min-h-dvh place-items-center px-4">
+      <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+        <span className="progress" aria-hidden />
+        Signing you in…
+      </div>
+    </main>
+  );
 }
 
 export default function CallbackPage() {
