@@ -4,7 +4,6 @@
 // or risk tier, filterable, with an audited CSV export.
 
 import { useCallback, useEffect, useState } from "react";
-import { AuthorityTabs } from "@/components/kb/KbTabs";
 import { vnTime } from "@/components/security/badges";
 import { api, download } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
@@ -15,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { SectionTabs } from "@/components/TabNav";
 
 interface Filters {
   slug: string;
@@ -81,7 +81,7 @@ export default function AuthorityLogPage() {
 
   return (
     <div className="mx-auto max-w-[1180px]">
-      <AuthorityTabs user={user} />
+      <SectionTabs />
       <header className="mb-4">
         <h1 className="text-xl font-semibold">Nhật ký quyền · Authority log</h1>
         <p className="text-xs text-muted-foreground">Mọi thay đổi quyền trả lời tự động và mức rủi ro. Việc xuất CSV được ghi audit.</p>

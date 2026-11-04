@@ -1,12 +1,12 @@
 "use client";
 
-// The KB tabs (F6) in each area: who sees each one follows the routes' gates.
+// The Workspace's KB tabs (F6), who sees each one following the routes' gates, and KB display helpers.
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { canEditKb } from "@/lib/areas";
 import type { CurrentUser } from "@/lib/auth";
 import { Badge, type Tone } from "@/components/ui/badge";
+import { TabNav } from "@/components/TabNav";
 
 export { canEditKb };
 
@@ -31,47 +31,14 @@ export function KbTabs({ user }: { user: CurrentUser }) {
   );
 }
 
-/** Admin's KB tabs: who may answer automatically from which page. */
-export function AuthorityTabs({ user }: { user: CurrentUser }) {
-  const manager = user.role === "manager";
-  return (
-    <Tabs
-      tabs={[
-        { href: "/admin/kb/authority", label: "Hàng chờ quyền · Authority queue", show: manager, exact: true },
-        { href: "/admin/kb/pages", label: "Tất cả trang · All pages", show: manager },
-        {
-          href: "/admin/kb/authority-log",
-          label: "Nhật ký quyền · Authority log",
-          show: canEditKb(user) || user.role === "security",
-        },
-      ]}
-    />
-  );
-}
-
 function Tabs({ tabs }: { tabs: Tab[] }) {
   const pathname = usePathname();
   return (
-    <nav className="mb-5 flex flex-wrap gap-5 border-b border-border text-sm">
-      {tabs
+    <TabNav
+      tabs={tabs
         .filter((t) => t.show)
-        .map((t) => {
-          const active = t.exact ? pathname === t.href : pathname.startsWith(t.href);
-          return (
-            <Link
-              key={t.href}
-              href={t.href}
-              className={`-mb-px border-b-2 pb-2 ${
-                active
-                  ? "border-primary font-medium text-primary"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t.label}
-            </Link>
-          );
-        })}
-    </nav>
+        .map((t) => ({ ...t, active: t.exact ? pathname === t.href : pathname.startsWith(t.href) }))}
+    />
   );
 }
 

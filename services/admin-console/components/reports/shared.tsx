@@ -2,7 +2,6 @@
 
 // The Reports section's tabs and building blocks (F10): who sees each tab follows the routes' gates.
 
-import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, download } from "@/lib/api";
 import type { CurrentUser } from "@/lib/auth";
@@ -10,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { TabNav } from "@/components/TabNav";
 
 export type ReportTab =
   | "sla"
@@ -45,21 +45,9 @@ export function reportTabs(user: CurrentUser): { key: ReportTab; label: string }
 
 export function ReportTabs({ user, active }: { user: CurrentUser; active: ReportTab }) {
   return (
-    <nav className="mb-5 flex flex-wrap gap-5 border-b border-border text-sm">
-      {reportTabs(user).map((t) => (
-        <Link
-          key={t.key}
-          href={`/admin/reports/${t.key}`}
-          className={`-mb-px border-b-2 pb-2 ${
-            active === t.key
-              ? "border-primary font-medium text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {t.label}
-        </Link>
-      ))}
-    </nav>
+    <TabNav
+      tabs={reportTabs(user).map((t) => ({ href: `/admin/reports/${t.key}`, label: t.label, active: active === t.key }))}
+    />
   );
 }
 

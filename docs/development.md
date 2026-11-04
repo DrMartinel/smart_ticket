@@ -112,7 +112,7 @@ Via the API/UI, or for the demo KB: add a guide to `demo_kb/sources.json`, run `
 
 ### Add a page to the admin console
 
-The console has two areas (ADR-0039). Daily work (tickets, teams, KB content, security alerts) goes in the Workspace, at a plain path, with its sidebar link in `components/AppShell.tsx`. Anything that changes how the system behaves for everyone (figures, authority, rollout, thresholds, settings) goes in Admin: the page under `app/admin/`, its link and role in `adminGroups` in `lib/areas.ts`, which also decides who sees the area switcher and where `/admin` lands. Keep the page's own role check and the API route's gate: the sidebar only hides links. Moving a page between areas needs a redirect in `next.config.mjs` and any notification `link=` in core-api updated.
+The console has two areas (ADR-0039). Daily work (tickets, teams, KB content, security alerts) goes in the Workspace, at a plain path, with its sidebar link in `components/AppShell.tsx`. Anything that changes how the system behaves for everyone (figures, authority, rollout, thresholds, settings) goes in Admin: the page under `app/admin/`, its link and role in `adminGroups` in `lib/areas.ts`, which also decides who sees the area switcher and where `/admin` lands. A page that belongs with others goes in their `section(...)` there, and renders `<SectionTabs />` (`components/TabNav.tsx`) at the top so the section's tabs show on it. Keep the page's own role check and the API route's gate: the sidebar only hides links. Moving a page between areas needs a redirect in `next.config.mjs` and any notification `link=` in core-api updated.
 
 ### Change a screen that has a guide
 

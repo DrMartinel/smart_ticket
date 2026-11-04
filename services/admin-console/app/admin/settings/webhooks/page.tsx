@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SectionTabs } from "@/components/TabNav";
 
 const EMPTY: WebhookIn = { name: "", url: "", events: [], secret: "" };
 
@@ -95,6 +96,7 @@ export default function WebhooksPage() {
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+      <SectionTabs className="mb-1" />
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Webhook subscriptions</h1>

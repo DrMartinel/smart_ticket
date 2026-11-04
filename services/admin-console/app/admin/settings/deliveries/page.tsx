@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { SectionTabs } from "@/components/TabNav";
 
 interface Page {
   items: DeliveryOut[];
@@ -87,6 +88,7 @@ export default function DeliveryLogPage() {
 
   return (
     <div className="mx-auto flex max-w-[1280px] flex-col gap-4">
+      <SectionTabs className="mb-1" />
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-xl font-semibold">Delivery log</h1>

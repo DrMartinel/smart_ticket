@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { SectionTabs } from "@/components/TabNav";
 
 const GATE_TEXT: Record<string, string> = {
   auto_route: "P3 gate: reroute rate < 15 % over 14 days on shadow auto_route decisions",
@@ -116,6 +117,7 @@ export default function RolloutPage() {
 
   return (
     <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
+      <SectionTabs className="mb-1" />
       <header>
         <h1 className="text-xl font-semibold">Rollout</h1>
         <p className="text-xs text-muted-foreground">

@@ -27,6 +27,12 @@ tickets, which it is only in part.
      allow/revoke), the authority log, rollout, thresholds.
    - Settings: workflows, stages, SLA policies, calendars, holidays, teams,
      notifications, deliveries, runbooks, webhooks.
+
+   Pages about one thing share a sidebar link and switch by tabs at the top
+   of each page (2026-11-04): Help pages (authority queue, all help pages,
+   authority log), Rollout (rollout, thresholds), SLA (policies, calendars,
+   holidays) and Notifications (matrix, delivery log, webhooks). A user who
+   may open only one page of a section gets that page's own link and no tabs.
 3. **The Workspace holds** tickets, teams, KB content (pages read-only,
    graph, drafts, gaps), and the security team's alerts and PII access log.
    Security staff reach Admin for their report, the authority log and the

@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { SectionTabs } from "@/components/TabNav";
 
 const STATE_TONE: Record<string, Tone> = {
   draft: "neutral",
@@ -72,6 +73,7 @@ export default function ThresholdsPage() {
 
   return (
     <div className="mx-auto flex max-w-[1080px] flex-col gap-4">
+      <SectionTabs className="mb-1" />
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Thresholds</h1>
