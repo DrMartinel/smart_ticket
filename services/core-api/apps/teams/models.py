@@ -48,7 +48,6 @@ class Team(BaseModel):
         default=TeamStrategy.LEAST_LOADED.value,
     )
     max_open_per_member = models.PositiveIntegerField(null=True, blank=True)
-    keycloak_group = models.CharField(max_length=200, null=True, blank=True)
     calendar = models.ForeignKey(
         "sla.Calendar", on_delete=models.PROTECT, null=True, blank=True, related_name="teams"
     )
@@ -146,7 +145,6 @@ class TeamMembership(BaseModel):
     )
     is_available = models.BooleanField(default=True)
     last_assigned_at = models.DateTimeField(null=True, blank=True)
-    source = models.CharField(max_length=10, choices=[("keycloak", "keycloak"), ("local", "local")])
 
     objects = MembershipQuerySet.as_manager()
 

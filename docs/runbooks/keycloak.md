@@ -9,22 +9,21 @@ has all of it; a production realm needs the same, configured by IT.
 | Client | Type | Settings |
 |---|---|---|
 | `smart-ticket` (`OIDC_CLIENT_ID`) | Confidential, standard flow only | PKCE method S256; redirect URIs = `OIDC_REDIRECT_URIS` (each app's `/auth/callback`); front-channel logout off; back-channel logout URL `https://<core-api>/api/auth/oidc/backchannel-logout`, session not required |
-| `smart-ticket-sync` (`KEYCLOAK_ADMIN_CLIENT_ID`) | Confidential, service account only | Service-account roles from `realm-management`: `view-users`, `query-users`, `view-clients`, `query-clients`, `query-groups` |
+| `smart-ticket-sync` (`KEYCLOAK_ADMIN_CLIENT_ID`) | Confidential, service account only | Service-account roles from `realm-management`: `view-users`, `query-users`, `view-clients`, `query-clients` |
 
 Both secrets go in the environment (`OIDC_CLIENT_SECRET`,
 `KEYCLOAK_ADMIN_CLIENT_SECRET`); production refuses the dev values.
 
-## Roles, groups and mappers
+## Roles and mappers
 
 - **Client roles on `smart-ticket`:** exactly one primary role per person
   (`employee`, `technician`, `manager`, `security`) plus any capabilities
   (`workflow_admin`, `kb_editor`, `incident_manager`). No role is refused as
   `no_access`; two primary roles as `ambiguous_role`, with a security alert.
-- **Groups:** `/it/<team>` makes a member and `/it/<team>/lead` a lead of the
-  core-api team with that slug. Other groups are ignored and audited.
-- **Mappers on `smart-ticket`, added to the ID token:** a client-role mapper with
-  claim `resource_access.smart-ticket.roles`, and a group-membership mapper with
-  full paths, claim `groups`.
+- **Groups:** not read. Teams and their members are set in Admin → Settings
+  → Teams (ADR-0041).
+- **Mapper on `smart-ticket`, added to the ID token:** a client-role mapper with
+  claim `resource_access.smart-ticket.roles`.
 
 ## Realm settings
 

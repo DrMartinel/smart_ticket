@@ -43,35 +43,6 @@
   },
   "groups": [
     {
-      "name": "it",
-      "subGroups": [
-        {
-          "name": "network",
-          "subGroups": [
-            {
-              "name": "lead"
-            }
-          ]
-        },
-        {
-          "name": "access",
-          "subGroups": [
-            {
-              "name": "lead"
-            }
-          ]
-        },
-        {
-          "name": "hardware",
-          "subGroups": [
-            {
-              "name": "lead"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "finance"
     },
     {
@@ -125,18 +96,6 @@
             "claim.name": "resource_access.smart-ticket.roles",
             "jsonType.label": "String",
             "multivalued": "true",
-            "id.token.claim": "true",
-            "access.token.claim": "true",
-            "userinfo.token.claim": "true"
-          }
-        },
-        {
-          "name": "groups",
-          "protocol": "openid-connect",
-          "protocolMapper": "oidc-group-membership-mapper",
-          "config": {
-            "full.path": "true",
-            "claim.name": "groups",
             "id.token.claim": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
@@ -212,11 +171,7 @@
           "technician",
           "incident_manager"
         ]
-      },
-      "groups": [
-        "/it/network/lead",
-        "/it/hardware"
-      ]
+      }
     },
     {
       "username": "ha.vt",
@@ -237,10 +192,7 @@
           "technician",
           "kb_editor"
         ]
-      },
-      "groups": [
-        "/it/access/lead"
-      ]
+      }
     },
     {
       "username": "mai.bn",
@@ -261,10 +213,7 @@
           "technician",
           "kb_editor"
         ]
-      },
-      "groups": [
-        "/it/access"
-      ]
+      }
     },
     {
       "username": "huy.pq",
@@ -284,8 +233,7 @@
         "smart-ticket": [
           "manager"
         ]
-      },
-      "groups": []
+      }
     },
     {
       "username": "quang.nv",
@@ -305,8 +253,7 @@
         "smart-ticket": [
           "manager"
         ]
-      },
-      "groups": []
+      }
     },
     {
       "username": "dung.ht",
@@ -326,8 +273,7 @@
         "smart-ticket": [
           "manager"
         ]
-      },
-      "groups": []
+      }
     },
     {
       "username": "anh.lh",
@@ -347,8 +293,7 @@
         "smart-ticket": [
           "security"
         ]
-      },
-      "groups": []
+      }
     },
     {
       "username": "tu.dv",
@@ -369,8 +314,7 @@
           "technician",
           "workflow_admin"
         ]
-      },
-      "groups": []
+      }
     },
     {
       "username": "no.role",
@@ -386,8 +330,7 @@
           "temporary": false
         }
       ],
-      "clientRoles": {},
-      "groups": []
+      "clientRoles": {}
     },
     {
       "username": "two.roles",
@@ -408,8 +351,7 @@
           "technician",
           "manager"
         ]
-      },
-      "groups": []
+      }
     },
     {
       "username": "service-account-smart-ticket-sync",

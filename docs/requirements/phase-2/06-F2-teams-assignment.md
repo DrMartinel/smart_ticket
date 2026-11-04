@@ -167,7 +167,7 @@ Membership state: `is_available` true/false; leave dates.
 | FR-F2-012 | The system shall show a team queue (unassigned first, then by earliest SLA due) and a workload view per member |
 | FR-F2-013 | The system shall keep `tickets.assigned_team` equal to the team's slug for existing readers (lifecycle templates `{{ticket.assignedTeam}}`) |
 | FR-F2-014 | The lifecycle `assign_team` action shall accept only an existing team slug (checked when saved) and may pick a member by strategy (`pick_member: true`) |
-| FR-F2-015 | For `oidc` users, memberships shall come from Keycloak groups (F13); for local users, `workflow_admin` edits them |
+| FR-F2-015 | ~~For `oidc` users, memberships shall come from Keycloak groups (F13); for local users, `workflow_admin` edits them~~ Superseded by ADR-0041: a manager or `workflow_admin` edits every account's memberships in core-api |
 | FR-F2-016 | The system shall audit `ticket_assigned`, `ticket_reassigned`, `assignment_failed`, `team_changed`, `membership_changed`, `availability_changed`, `leave_changed` |
 
 ## g. Data changes

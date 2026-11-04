@@ -18,7 +18,7 @@ from apps.accounts.utils.oidc import Identities, Keycloak, oidc_sign_in
 from apps.audit.models import AuditLog
 from apps.notifications.models import Message
 from apps.core.testing import api_client_with
-from apps.teams.models import Team
+from apps.teams.models import Team, TeamMembership
 
 pytestmark = pytest.mark.django_db
 
@@ -110,24 +110,14 @@ class TestSignIn:
         assert login.payload["method"] == "oidc"
         assert me(response.json()["access"]).status_code == 200
 
-    def test_rights_come_from_keycloak(self, realm, teams):
+    def test_rights_come_from_keycloak(self, realm):
         """AC-F13-02."""
-        duc = realm.add(
-            Person(
-                username="duc.tm",
-                roles=["technician", "incident_manager"],
-                groups=["/it/network/lead", "/it/hardware"],
-            )
-        )
+        duc = realm.add(Person(username="duc.tm", roles=["technician", "incident_manager"]))
 
         body = me(sign_in(realm, duc).json()["access"]).json()
 
         assert body["role"] == "technician"
         assert body["capabilities"] == ["incident_manager"]
-        assert body["teams"] == [
-            {"team": "hardware", "role": "member"},
-            {"team": "network", "role": "lead"},
-        ]
         assert body["auth_source"] == "oidc"
 
     def test_no_client_role_no_access(self, realm):
@@ -251,20 +241,15 @@ class TestSignIn:
 
         assert User.objects.get(external_id=lan.sub).username == "lan.nt-3f9b2c41"
 
-    def test_unknown_roles_and_groups_are_ignored_and_logged(self, realm, teams):
+    def test_unknown_roles_are_ignored_and_logged(self, realm):
         """BR-F13-03."""
-        lan = realm.add(
-            Person(
-                username="lan.nt", roles=["employee", "astronaut"], groups=["/finance", "/it/space"]
-            )
-        )
+        lan = realm.add(Person(username="lan.nt", roles=["employee", "astronaut"]))
 
         response = sign_in(realm, lan)
 
         assert response.status_code == 200
-        assert me(response.json()["access"]).json()["teams"] == []
         (ignored,) = events("identity_claims_ignored")
-        assert ignored.payload["ignored"] == ["astronaut", "/finance"]
+        assert ignored.payload["ignored"] == ["astronaut"]
 
     def test_the_sign_in_config_names_the_authorize_url(self, realm):
         body = Client().get("/api/auth/oidc/config").json()
@@ -439,14 +424,20 @@ class TestLeavers:
         assert User.objects.get(external_id=tu.sub).capability_set() == frozenset()
         assert len(events("identity_rights_changed")) == 1
 
-    def test_a_team_change_alone_keeps_sessions(self, realm, teams):
-        mai = realm.add(Person(username="mai.bn", roles=["technician"], groups=["/it/access"]))
+    def test_keycloak_groups_never_change_teams(self, realm, teams):
+        """ADR-0041."""
+        mai = realm.add(
+            Person(username="mai.bn", roles=["technician"], groups=["/it/network/lead"])
+        )
         access = sign_in(realm, mai).json()["access"]
-        mai.groups = ["/it/access/lead"]
+        user = User.objects.get(external_id=mai.sub)
+        TeamMembership.objects.create(team=Team.objects.get(slug="access"), user=user)
+        mai.groups = ["/it/hardware"]
 
         sync(realm)
+        sign_in(realm, mai)
 
-        assert me(access).json()["teams"] == [{"team": "access", "role": "lead"}]
+        assert me(access).json()["teams"] == [{"team": "access", "role": "member"}]
 
     def test_failed_keycloak_read_deactivates_nobody(self, realm):
         """AC-F13-10."""
@@ -486,9 +477,9 @@ class TestLeavers:
             user=security_user, event="security.alert", body__contains="identity sync"
         ).exists()
 
-    def test_a_second_sync_changes_nothing(self, realm, teams):
+    def test_a_second_sync_changes_nothing(self, realm):
         """Idempotent: the second run finds nothing to do."""
-        duc = realm.add(Person(username="duc.tm", roles=["technician"], groups=["/it/network"]))
+        duc = realm.add(Person(username="duc.tm", roles=["technician"]))
         sign_in(realm, duc)
 
         first, second = sync(realm), sync(realm)

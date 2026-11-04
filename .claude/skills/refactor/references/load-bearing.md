@@ -582,9 +582,8 @@ guard and that comment is later trimmed, the entry is the record.
   that is what the rule must see. *`test_reset_targets_only_the_reporter`,
   `test_what_runs_is_what_the_approver_saw`.*
 - **`ITSM_GRANTABLE_GROUP_PREFIXES` checked at the catalog and again at
-  execute.** `/it/<team>/lead` groups carry Smart Ticket roles (F13); a
-  runbook that could grant them would let an approved ticket make someone a
-  team lead. *`test_a_group_carrying_rights_is_never_grantable`.*
+  execute.** A runbook that could grant any group would let an approved
+  ticket put someone in a group another system reads as rights. *`test_a_group_carrying_rights_is_never_grantable`.*
 - **Catalog changes held in `pending_change`.** Writing them to the live
   fields would let a workflow admin change what an approved runbook does
   without a manager. *`test_a_catalog_change_needs_a_manager`.*

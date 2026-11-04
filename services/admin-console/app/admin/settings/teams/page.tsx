@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/Modal";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
-import type { TeamDetailOut, TeamOut, TeamStrategy, TicketCategory } from "@/lib/types/generated";
+import type { StaffOut, TeamDetailOut, TeamOut, TeamStrategy, TicketCategory } from "@/lib/types/generated";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -23,7 +23,6 @@ interface Draft {
   categories: TicketCategory[];
   strategy: TeamStrategy;
   max_open_per_member: string;
-  keycloak_group: string;
   is_fallback: boolean;
   is_active: boolean;
   reason: string;
@@ -35,7 +34,6 @@ const BLANK: Draft = {
   categories: [],
   strategy: "least_loaded",
   max_open_per_member: "",
-  keycloak_group: "",
   is_fallback: false,
   is_active: true,
   reason: "",
@@ -48,7 +46,6 @@ function draftOf(team: TeamOut): Draft {
     categories: team.categories as TicketCategory[],
     strategy: team.strategy as TeamStrategy,
     max_open_per_member: team.max_open_per_member ? String(team.max_open_per_member) : "",
-    keycloak_group: team.keycloak_group ?? "",
     is_fallback: team.is_fallback,
     is_active: team.is_active,
     reason: "",
@@ -63,6 +60,7 @@ export default function TeamsPage() {
   const [taken, setTaken] = useState<{ category: string; team: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newMember, setNewMember] = useState({ username: "", role: "member" });
+  const [staff, setStaff] = useState<StaffOut[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -83,7 +81,9 @@ export default function TeamsPage() {
     setError(null);
     setTaken(null);
     setEditing({ draft: team ? draftOf(team) : BLANK, create: !team });
+    setNewMember({ username: "", role: "member" });
     setDetail(team ? await api.get<TeamDetailOut>(`/api/teams/${team.slug}`).catch(() => null) : null);
+    if (team) setStaff(await api.get<StaffOut[]>("/api/accounts/staff").catch(() => []));
   };
 
   const save = async (move = false) => {
@@ -95,15 +95,19 @@ export default function TeamsPage() {
       categories: d.categories,
       strategy: d.strategy,
       max_open_per_member: d.max_open_per_member ? Number(d.max_open_per_member) : null,
-      keycloak_group: d.keycloak_group || null,
       is_fallback: d.is_fallback,
       move_categories: move,
       reason: d.reason,
       ...(editing.create ? { slug: d.slug } : { is_active: d.is_active }),
     };
     try {
-      if (editing.create) await api.post("/api/teams", body);
-      else await api.patch(`/api/teams/${d.slug}`, body);
+      if (editing.create) {
+        const created = await api.post<TeamDetailOut>("/api/teams", body);
+        await load();
+        await open(created);
+        return;
+      }
+      await api.patch(`/api/teams/${d.slug}`, body);
       setEditing(null);
       await load();
     } catch (err) {
@@ -115,11 +119,11 @@ export default function TeamsPage() {
     }
   };
 
-  const addMember = async () => {
-    if (!editing || !newMember.username) return;
+  const addMember = async (member = newMember) => {
+    if (!editing || !member.username) return;
     setError(null);
     try {
-      await api.post(`/api/teams/${editing.draft.slug}/members`, newMember);
+      await api.post(`/api/teams/${editing.draft.slug}/members`, member);
       setNewMember({ username: "", role: "member" });
       setDetail(await api.get<TeamDetailOut>(`/api/teams/${editing.draft.slug}`));
       await load();
@@ -148,7 +152,7 @@ export default function TeamsPage() {
         <div>
           <h1 className="text-xl font-semibold">Teams</h1>
           <p className="text-xs text-muted-foreground">
-            Each category is owned by exactly one active team. Company sign-in users get their teams from Keycloak groups.
+            Each category is owned by exactly one active team. Members and leads are set here, for every account.
           </p>
         </div>
         {canEdit && (
@@ -170,7 +174,6 @@ export default function TeamsPage() {
               <TableHead className="px-4 py-2 font-normal">Cap</TableHead>
               <TableHead className="px-4 py-2 font-normal">Members</TableHead>
               <TableHead className="px-4 py-2 font-normal">Lead</TableHead>
-              <TableHead className="px-4 py-2 font-normal">Keycloak group</TableHead>
               <TableHead className="px-4 py-2 font-normal" />
             </TableRow>
           </TableHeader>
@@ -199,7 +202,6 @@ export default function TeamsPage() {
                 <TableCell className="px-4 py-2.5">{t.max_open_per_member ?? "—"}</TableCell>
                 <TableCell className="px-4 py-2.5">{t.members_count}</TableCell>
                 <TableCell className="px-4 py-2.5">{t.leads.join(", ") || "—"}</TableCell>
-                <TableCell className="px-4 py-2.5 font-mono text-xs">{t.keycloak_group ?? "—"}</TableCell>
                 <TableCell className="px-4 py-2.5">
                   {t.is_fallback && <Badge variant="info">fallback</Badge>}
                   {!t.is_active && <Badge variant="neutral">inactive</Badge>}
@@ -260,10 +262,6 @@ export default function TeamsPage() {
                   placeholder="none"
                 />
               </label>
-              <label className="flex flex-col gap-1 sm:col-span-2">
-                <span className="text-xs text-muted-foreground">Keycloak group</span>
-                <Input className="font-mono" value={d.keycloak_group} onChange={(e) => set({ keycloak_group: e.target.value })} />
-              </label>
             </div>
             <fieldset className="flex flex-wrap gap-x-4 gap-y-1.5">
               <legend className="pb-1 text-xs text-muted-foreground">Categories it owns</legend>
@@ -310,33 +308,59 @@ export default function TeamsPage() {
 
             {detail && (
               <div className="flex flex-col gap-2 border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">Members (Keycloak-managed members change through their groups)</p>
+                <p className="text-xs text-muted-foreground">Members</p>
+                {detail.members.length === 0 && <p className="text-xs text-muted-foreground">No members yet.</p>}
                 <ul className="flex flex-col gap-1">
                   {detail.members.map((m) => (
                     <li key={m.username} className="flex items-center justify-between gap-3">
                       <span>
-                        {m.username} · {m.role}
-                        {!m.is_available && " · unavailable"} · <span className="text-muted-foreground">{m.source}</span>
+                        {m.username}
+                        {!m.is_available && <span className="text-muted-foreground"> · unavailable</span>}
                       </span>
-                      {m.source === "local" && (
+                      <span className="flex items-center gap-3">
+                        <NativeSelect
+                          size="sm"
+                          wrapperClassName="w-28"
+                          aria-label={`${m.username}'s role`}
+                          value={m.role}
+                          onChange={(e) => void addMember({ username: m.username, role: e.target.value })}
+                        >
+                          <option value="member">member</option>
+                          <option value="lead">lead</option>
+                        </NativeSelect>
                         <Button variant="link" size="inline" className="text-xs text-danger" onClick={() => void removeMember(m.username)}>
                           Remove
                         </Button>
-                      )}
+                      </span>
                     </li>
                   ))}
                 </ul>
-                <div className="flex flex-wrap items-end gap-2">
-                  <Input
-                    placeholder="username (local account)"
+                <div className="flex flex-wrap items-center gap-2">
+                  <NativeSelect
+                    wrapperClassName="min-w-[220px] flex-1"
+                    aria-label="Person to add"
                     value={newMember.username}
                     onChange={(e) => setNewMember({ ...newMember, username: e.target.value })}
-                  />
-                  <NativeSelect value={newMember.role} onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}>
+                  >
+                    <option value="">Choose a person…</option>
+                    {staff
+                      .filter((p) => !detail.members.some((m) => m.username === p.username))
+                      .map((p) => (
+                        <option key={p.username} value={p.username}>
+                          {p.username} · {p.role}
+                        </option>
+                      ))}
+                  </NativeSelect>
+                  <NativeSelect
+                    wrapperClassName="w-32"
+                    aria-label="Role of the person to add"
+                    value={newMember.role}
+                    onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
+                  >
                     <option value="member">member</option>
                     <option value="lead">lead</option>
                   </NativeSelect>
-                  <Button variant="outline" onClick={() => void addMember()}>
+                  <Button variant="outline" disabled={!newMember.username} onClick={() => void addMember()}>
                     Add member
                   </Button>
                 </div>

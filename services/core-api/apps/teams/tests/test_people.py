@@ -203,20 +203,22 @@ def test_a_new_team_takes_a_category_and_a_technician_cannot_create_one(network,
     assert Team.objects.get(categories__category="software").slug == "cloud"
 
 
-def test_a_keycloak_membership_is_not_edited_here(network, api_as):
+def test_a_company_sign_in_user_is_added_and_removed_here(network, api_as):
     keycloak_user = person("quang.nv")
     keycloak_user.auth_source = AuthSource.OIDC.value
     keycloak_user.save(update_fields=["auth_source"])
+    client = api_as(network.people["huy"])
 
-    response = send(
-        api_as(network.people["huy"]),
-        "post",
-        "/api/teams/network/members",
-        {"username": "quang.nv", "role": "member"},
+    added = send(
+        client, "post", "/api/teams/network/members", {"username": "quang.nv", "role": "lead"}
     )
+    joined = TeamMembership.objects.filter(team__slug="network", user=keycloak_user).first()
+    removed = send(client, "delete", "/api/teams/network/members/quang.nv")
 
-    assert response.status_code == 409
-    assert response.json()["code"] == "managed_by_keycloak"
+    assert added.status_code == 200
+    assert joined is not None and joined.role == "lead"
+    assert removed.status_code == 204
+    assert not TeamMembership.objects.filter(user=keycloak_user).exists()
 
 
 def test_a_local_member_is_added_and_removed_with_audit(network, api_as):
@@ -230,3 +232,29 @@ def test_a_local_member_is_added_and_removed_with_audit(network, api_as):
     assert not TeamMembership.objects.filter(user=newcomer).exists()
     changes = [a.payload["change"] for a in AuditLog.objects.filter(event="membership_changed")]
     assert sorted(changes) == ["added", "removed"]
+
+
+def test_a_requester_is_never_made_a_team_member(network, api_as):
+    response = send(
+        api_as(network.people["huy"]),
+        "post",
+        "/api/teams/network/members",
+        {"username": "lan.nt", "role": "member"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "not_support_staff"
+    assert not TeamMembership.objects.filter(user=network.people["lan"]).exists()
+
+
+def test_the_staff_list_leaves_out_requesters_and_the_deactivated(network, api_as):
+    network.people["khoa"].is_active = False
+    network.people["khoa"].save(update_fields=["is_active"])
+
+    listed = api_as(network.people["huy"]).get("/api/accounts/staff")
+    refused = api_as(network.people["duc"]).get("/api/accounts/staff")
+
+    names = [row["username"] for row in listed.json()]
+    assert "lan.nt" not in names and "khoa.lv" not in names
+    assert {"duc.tm", "huy.pq", "anh.lh"} <= set(names)
+    assert refused.status_code == 403

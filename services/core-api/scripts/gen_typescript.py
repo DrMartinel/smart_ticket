@@ -75,6 +75,7 @@ MODELS = [
     "WebhookOut",
     "TeamOut",
     "MemberOut",
+    "StaffOut",
     "TeamDetailOut",
     "WorkloadRowOut",
     "ReassignmentOut",
@@ -319,6 +320,7 @@ type JsonSchema = dict[str, Any]
 
 def _models() -> dict[str, type[BaseModel]]:
     """Each schema lives in the module that uses it, so gather them by name."""
+    from apps.accounts import response_schema as accounts_response
     from apps.chat import request_schema as chat_request, response_schema as chat_response
     from apps.incidents import (
         request_schema as incidents_request,
@@ -376,6 +378,7 @@ def _models() -> dict[str, type[BaseModel]]:
         reports_response,
         itsm_request,
         itsm_response,
+        accounts_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
@@ -19,24 +19,21 @@ from apps.accounts.utils import IssuedSession, Requester, SignInError, SignInRef
 from apps.audit.models import AuditLog
 from apps.security.utils.alerts import security_alerts
 from apps.security.utils.vocabulary import AlertKind
-from apps.teams.models import MembershipRole, Team, TeamMembership
 
 LOGOUT_EVENT = "http://schemas.openid.net/event/backchannel-logout"
-TEAM_PREFIX = "/it/"
 
 
 @dataclass(frozen=True)
 class Rights:
-    """What a user may do, read from Keycloak's roles and groups (BR-F13-02, 03)."""
+    """What a user may do, read from Keycloak's roles (BR-F13-02)."""
 
     role: UserRole
     capabilities: frozenset[Capability] = frozenset()
-    teams: dict[str, MembershipRole] = field(default_factory=dict)
     ignored: tuple[str, ...] = ()
 
 
 def rights_from_claims(claims: dict[str, Any], client_id: str) -> Rights:
-    """One primary role, any capabilities, and `/it/<team>[/lead]` groups; refuses none or two roles."""
+    """One primary role and any capabilities; refuses none or two roles."""
     roles = set(claims.get("resource_access", {}).get(client_id, {}).get("roles", []))
     primary = sorted(roles & {r.value for r in UserRole})
     if not primary:
@@ -49,17 +46,8 @@ def rights_from_claims(claims: dict[str, Any], client_id: str) -> Rights:
             {"roles": primary},
         )
     capabilities = frozenset(Capability(r) for r in roles & {c.value for c in Capability})
-    teams: dict[str, MembershipRole] = {}
     ignored = sorted(roles - set(primary) - {c.value for c in capabilities})
-    for group in claims.get("groups", []):
-        parts = group.removeprefix(TEAM_PREFIX).split("/") if group.startswith(TEAM_PREFIX) else []
-        if len(parts) == 1 and parts[0]:
-            teams.setdefault(parts[0], MembershipRole.MEMBER)
-        elif len(parts) == 2 and parts[0] and parts[1] == "lead":
-            teams[parts[0]] = MembershipRole.LEAD
-        else:
-            ignored.append(group)
-    return Rights(UserRole(primary[0]), capabilities, teams, tuple(ignored))
+    return Rights(UserRole(primary[0]), capabilities, tuple(ignored))
 
 
 class Keycloak:
@@ -339,8 +327,7 @@ class Identities:
         return user
 
     def apply(self, user: User, rights: Rights, *, audit: bool = True) -> bool:
-        """Sets role, capabilities and team memberships from `rights`; True if role or
-        capabilities changed (BR-F13-05)."""
+        """Sets role and capabilities from `rights`; True if either changed (BR-F13-05)."""
         before_caps = user.capability_set()
         changed = user.role != rights.role.value or before_caps != {
             c.value for c in rights.capabilities
@@ -355,16 +342,6 @@ class Identities:
         for capability in rights.capabilities:
             UserCapability.objects.get_or_create(
                 user=user, capability=capability.value, defaults={"source": "keycloak"}
-            )
-        teams = {t.slug: t for t in Team.objects.filter(slug__in=rights.teams, is_active=True)}
-        TeamMembership.objects.filter(user=user, source="keycloak").exclude(
-            team__slug__in=teams
-        ).delete()
-        for slug, team in teams.items():
-            TeamMembership.objects.update_or_create(
-                team=team,
-                user=user,
-                defaults={"role": rights.teams[slug].value, "source": "keycloak"},
             )
         if changed and audit:
             after = {

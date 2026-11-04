@@ -17,6 +17,11 @@ class TeamOut(Schema):
     role: str
 
 
+class StaffOut(Schema):
+    username: str
+    role: str
+
+
 class UserOut(Schema):
     id: uuid.UUID
     username: str

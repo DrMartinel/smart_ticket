@@ -51,10 +51,8 @@ def ticket(people) -> Ticket:
     and huy.pq leads."""
     network = Team.objects.get(slug="network")
     for key in ("duc", "ha", "mai", "tu"):
-        TeamMembership.objects.create(team=network, user=people[key], source="local")
-    TeamMembership.objects.create(
-        team=network, user=people["huy"], role=MembershipRole.LEAD.value, source="local"
-    )
+        TeamMembership.objects.create(team=network, user=people[key])
+    TeamMembership.objects.create(team=network, user=people["huy"], role=MembershipRole.LEAD.value)
     return Ticket.objects.create(
         public_id="TKT-2026-000412",
         reporter=people["lan"],

@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import ClassVar
 from enum import StrEnum
 
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.models import AbstractUser, UserManager
 from django.db import models
 from django.utils import timezone
 
@@ -45,6 +46,19 @@ class Language(StrEnum):
     EN = "en"
 
 
+class UserQuerySet(models.QuerySet["User"]):
+    def support_staff(self) -> UserQuerySet:
+        """Active technicians, managers and security staff."""
+        return self.filter(
+            is_active=True,
+            role__in=[UserRole.TECHNICIAN.value, UserRole.MANAGER.value, UserRole.SECURITY.value],
+        )
+
+
+class StaffUserManager(UserManager.from_queryset(UserQuerySet)):  # type: ignore[misc]
+    pass
+
+
 class User(AbstractUser, BaseModel):
     role = models.CharField(
         max_length=20,
@@ -65,6 +79,8 @@ class User(AbstractUser, BaseModel):
     language = models.CharField(
         max_length=5, choices=[(lang.value, lang.value) for lang in Language], default="vi"
     )
+
+    objects: ClassVar[StaffUserManager] = StaffUserManager()
 
     class Meta(BaseModel.Meta):
         db_table = "accounts_user"

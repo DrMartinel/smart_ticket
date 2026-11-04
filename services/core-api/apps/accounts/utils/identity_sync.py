@@ -117,14 +117,11 @@ class IdentitySync:
         roles = admin.get(
             f"/users/{user.external_id}/role-mappings/clients/{client_uuid}/composite"
         )
-        groups = admin.get(f"/users/{user.external_id}/groups")
         self.expect_ok(roles)
-        self.expect_ok(groups)
         claims: dict[str, Any] = {
             "resource_access": {
                 settings.OIDC_CLIENT_ID: {"roles": [r["name"] for r in admin.json(roles)]}
             },
-            "groups": [g["path"] for g in admin.json(groups)],
         }
         try:
             return Desired(user, rights_from_claims(claims, settings.OIDC_CLIENT_ID), None)

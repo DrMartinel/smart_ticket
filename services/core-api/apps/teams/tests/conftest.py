@@ -64,12 +64,9 @@ def network(db) -> Network:
             user=people[key],
             role=(role or MembershipRole.MEMBER).value,
             is_available=key != "vy",
-            source="local",
         )
     access = Team.objects.get(slug="access")
-    TeamMembership.objects.create(
-        team=access, user=people["ha"], role=MembershipRole.LEAD.value, source="local"
-    )
+    TeamMembership.objects.create(team=access, user=people["ha"], role=MembershipRole.LEAD.value)
     for key, count in (("duc", 6), ("khoa", 4), ("nam", 2), ("vy", 3)):
         open_tickets(people[key], count, people["lan"])
     Leave.objects.create(

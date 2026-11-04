@@ -19,7 +19,6 @@ class TeamIn(Schema):
     categories: list[TicketCategory] = Field(default_factory=list)
     strategy: TeamStrategy = TeamStrategy.LEAST_LOADED
     max_open_per_member: int | None = Field(None, ge=1)
-    keycloak_group: str | None = Field(None, max_length=200)
     is_fallback: bool = False
     move_categories: bool = False
     reason: str = Field("", max_length=500)
@@ -30,7 +29,6 @@ class TeamPatch(Schema):
     categories: list[TicketCategory] | None = None
     strategy: TeamStrategy | None = None
     max_open_per_member: int | None = Field(None, ge=1)
-    keycloak_group: str | None = Field(None, max_length=200)
     is_fallback: bool | None = None
     is_active: bool | None = None
     move_categories: bool = False

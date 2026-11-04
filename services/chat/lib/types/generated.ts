@@ -480,7 +480,6 @@ export interface TeamOut {
   categories: string[];
   strategy: string;
   max_open_per_member: number | null;
-  keycloak_group: string | null;
   is_fallback: boolean;
   is_active: boolean;
   members_count: number;
@@ -491,7 +490,11 @@ export interface MemberOut {
   username: string;
   role: string;
   is_available: boolean;
-  source: string;
+}
+
+export interface StaffOut {
+  username: string;
+  role: string;
 }
 
 export interface TeamDetailOut {
@@ -500,7 +503,6 @@ export interface TeamDetailOut {
   categories: string[];
   strategy: string;
   max_open_per_member: number | null;
-  keycloak_group: string | null;
   is_fallback: boolean;
   is_active: boolean;
   members_count: number;
@@ -563,7 +565,6 @@ export interface TeamIn {
   categories?: TicketCategory[];
   strategy?: TeamStrategy;
   max_open_per_member?: number | null;
-  keycloak_group?: string | null;
   is_fallback?: boolean;
   move_categories?: boolean;
   reason?: string;
@@ -574,7 +575,6 @@ export interface TeamPatch {
   categories?: TicketCategory[] | null;
   strategy?: TeamStrategy | null;
   max_open_per_member?: number | null;
-  keycloak_group?: string | null;
   is_fallback?: boolean | null;
   is_active?: boolean | null;
   move_categories?: boolean;

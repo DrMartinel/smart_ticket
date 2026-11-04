@@ -17,7 +17,6 @@ class TeamOut(Schema):
     categories: list[str]
     strategy: str
     max_open_per_member: int | None
-    keycloak_group: str | None
     is_fallback: bool
     is_active: bool
     members_count: int
@@ -40,7 +39,6 @@ class MemberOut(Schema):
     username: str
     role: str
     is_available: bool
-    source: str
 
     @staticmethod
     def resolve_username(member: TeamMembership) -> str:

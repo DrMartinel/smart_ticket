@@ -8,17 +8,25 @@ import uuid
 from typing import Literal, cast
 
 from django.conf import settings
+from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse
 from ninja import Form, Header, Router, Status
 
-from apps.accounts.models import AuthClient, RefreshSession, User
-from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_role
+from apps.accounts.models import AuthClient, Capability, RefreshSession, User, UserRole
+from apps.accounts.permissions import (
+    ALL_ROLES,
+    AuthedRequest,
+    SessionAuth,
+    require_access,
+    require_role,
+)
 from apps.accounts.request_schema import LoginIn, OidcExchangeIn
 from apps.accounts.response_schema import (
     OidcConfigOut,
     RefusedOut,
     SessionOut,
     SignInOut,
+    StaffOut,
     UserOut,
 )
 from apps.accounts.utils import IssuedSession, Requester, SessionRefused, sessions
@@ -35,6 +43,12 @@ COOKIE_PATH = "/api/auth/"
 @require_role(*ALL_ROLES)
 def me(request: AuthedRequest) -> User:
     return request.auth
+
+
+@router.get("/staff", auth=SessionAuth(), response=list[StaffOut])
+@require_access(roles=(UserRole.MANAGER,), capabilities=(Capability.WORKFLOW_ADMIN,))
+def staff(request: AuthedRequest) -> QuerySet[User]:
+    return User.objects.support_staff().order_by("username")
 
 
 @auth_router.post("/login", auth=None, response={200: SessionOut, 401: RefusedOut})

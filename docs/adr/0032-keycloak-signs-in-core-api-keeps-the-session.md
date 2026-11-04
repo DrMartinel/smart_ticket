@@ -22,7 +22,8 @@ core-api's own table.
    memory, rotating refresh token in an httpOnly cookie per app,
    `SessionAuth`'s live-family check.
 3. **Rights come from claims** at each sign-in: one primary role (zero or
-   several → refused), capabilities, team groups (ADR-0031).
+   several → refused), capabilities, team groups (ADR-0031). *Team groups:
+   superseded by ADR-0041; Keycloak groups are no longer read.*
 4. **Deprovisioning:** Keycloak back-channel logout revokes all families at
    once; a sync task every 5 minutes deactivates disabled users and revokes
    sessions whose rights shrank. A failed Keycloak read deactivates nobody.

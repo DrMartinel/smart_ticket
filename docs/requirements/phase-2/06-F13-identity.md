@@ -131,7 +131,7 @@ User account states (NEW, on `accounts_user`):
 |---|---|---|---|
 | BR-F13-01 | Keycloak authenticates; core-api issues the session. No Keycloak token reaches the browser except the one-time code; core-api keeps no Keycloak token after the exchange | Keeps ADR-0029's immediate revocation and httpOnly cookie; nothing extra to steal | `OidcSignIn.exchange()` |
 | BR-F13-02 | Primary role = the one `smart-ticket` client role among `employee`, `technician`, `manager`, `security`. Zero → refused. More than one → refused and alerted | One role per user is today's model (`User.role`); guessing a precedence would quietly grant power | Claims mapper |
-| BR-F13-03 | Capabilities = client roles among `workflow_admin`, `kb_editor`, `incident_manager`. Teams = groups under `/it/<team>`; `/it/<team>/lead` = lead. Unknown roles and groups are ignored and logged | ADR-0031 | Claims mapper |
+| BR-F13-03 | Capabilities = client roles among `workflow_admin`, `kb_editor`, `incident_manager`. ~~Teams = groups under `/it/<team>`; `/it/<team>/lead` = lead.~~ Teams live in core-api (ADR-0041); groups are not read. Unknown roles are ignored and logged | ADR-0031 | Claims mapper |
 | BR-F13-04 | Users are identified by `sub` (`external_id`), never by username or email after linking | Usernames change; `sub` doesn't | Model unique constraint |
 | BR-F13-05 | Role or capability lost in Keycloak → all sessions revoked at the next sync, so the next sign-in carries the new rights | Rights must not outlive their grant by more than one sync interval | `identity_sync` |
 | BR-F13-06 | Local password sign-in only for ≤ `identity.max_break_glass_accounts` (2) accounts flagged `is_break_glass`, role `manager`. Every use alerts security | OQ-11 default | `Sessions.login`, DB check |

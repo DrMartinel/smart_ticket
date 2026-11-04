@@ -38,6 +38,7 @@ class AssignmentFailure(StrEnum):
 
 class TeamRefusal(StrEnum):
     NOT_A_MEMBER = "not_a_member"
+    NOT_SUPPORT_STAFF = "not_support_staff"
     ALREADY_ASSIGNED = "already_assigned"
     LEAD_REQUIRED = "lead_required"
     REASON_REQUIRED = "reason_required"
@@ -50,7 +51,6 @@ class TeamRefusal(StrEnum):
     USER_NOT_IN_TEAM = "user_not_in_team"
     TICKET_COMPLETED = "ticket_completed"
     FALLBACK_REQUIRED = "fallback_required"
-    MANAGED_BY_KEYCLOAK = "managed_by_keycloak"
     LEAVE_NOT_FOUND = "leave_not_found"
     NOT_ALLOWED = "not_allowed"
     TICKET_NOT_FOUND = "ticket_not_found"

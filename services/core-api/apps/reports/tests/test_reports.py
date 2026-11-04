@@ -50,14 +50,12 @@ def vn(month: int, day: int, hour: int = 10) -> datetime:
 def person(username: str, role: UserRole, *caps: Capability) -> User:
     user = User.objects.create_user(username=username, password="x", role=role.value)
     for cap in caps:
-        UserCapability.objects.create(user=user, capability=cap.value, source="local")
+        UserCapability.objects.create(user=user, capability=cap.value)
     return user
 
 
 def member(user: User, slug: str, role: str = "member") -> None:
-    TeamMembership.objects.create(
-        team=Team.objects.get(slug=slug), user=user, role=role, source="local"
-    )
+    TeamMembership.objects.create(team=Team.objects.get(slug=slug), user=user, role=role)
 
 
 def ticket(reporter: User, team: str = "access", **fields: Any) -> Ticket:

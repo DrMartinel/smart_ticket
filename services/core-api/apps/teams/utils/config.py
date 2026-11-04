@@ -6,14 +6,14 @@ from typing import Any
 
 from django.db import transaction
 
-from apps.accounts.models import AuthSource, User
+from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.teams.models import MembershipRole, Team, TeamCategory, TeamMembership
 from apps.teams.utils.assignment import TeamError
 from apps.teams.utils.vocabulary import TeamRefusal
 from infrastructure.dtos import TicketCategory
 
-_FIELDS = ("name", "strategy", "max_open_per_member", "keycloak_group", "is_active", "is_fallback")
+_FIELDS = ("name", "strategy", "max_open_per_member", "is_active", "is_fallback")
 
 
 class TeamConfig:
@@ -99,20 +99,18 @@ class TeamConfig:
             "categories": sorted(team.categories.values_list("category", flat=True)),
         }
 
-    # ── members (local users; Keycloak users' teams come from their groups, FR-F2-015) ──
+    # ── members ──
 
     def add_member(
         self, actor: User, team: Team, user: User, role: MembershipRole
     ) -> TeamMembership:
-        if user.auth_source == AuthSource.OIDC.value:
+        if not (user.is_active and user.is_support_staff):
             raise TeamError(
-                409,
-                TeamRefusal.MANAGED_BY_KEYCLOAK,
-                f"{user.username}'s teams come from Keycloak groups",
+                422, TeamRefusal.NOT_SUPPORT_STAFF, f"{user.username} isn't active support staff"
             )
         with transaction.atomic():
             member, _ = TeamMembership.objects.update_or_create(
-                team=team, user=user, defaults={"role": role.value, "source": "local"}
+                team=team, user=user, defaults={"role": role.value}
             )
             self.audit_member("added", actor, team, user, role.value)
         return member
@@ -121,12 +119,6 @@ class TeamConfig:
         member = TeamMembership.objects.filter(team=team, user=user).first()
         if member is None:
             return
-        if member.source == "keycloak":
-            raise TeamError(
-                409,
-                TeamRefusal.MANAGED_BY_KEYCLOAK,
-                f"{user.username}'s teams come from Keycloak groups",
-            )
         with transaction.atomic():
             self.audit_member("removed", actor, team, user, member.role)
             member.delete()
