@@ -199,22 +199,21 @@ class SlaClocks:
     ) -> None:
         if after is None:
             return
-        base = after.base
         clocks = self.locked(ticket)
-        if base.is_backlog:
+        if after.is_backlog:
             for clock in clocks.values():
                 if clock.state in OPEN_CLOCK_STATES:
                     self.finish(clock, ClockState.CANCELLED, ClockEventKind.CANCEL, at, transfer)
             self.mirror(ticket)
             return
         if not any(c.state != ClockState.CANCELLED.value for c in clocks.values()):
-            if base.is_completed:
+            if after.is_completed:
                 return
             clocks = self.start(ticket, at, transfer)
         if actor is not None and actor.role in _STAFF:
             self.respond(ticket, actor, at, transfer)
         resolution = clocks[ClockKind.RESOLUTION.value]
-        if base.is_completed:
+        if after.is_completed:
             for clock in self.locked(ticket).values():
                 if clock.state in OPEN_CLOCK_STATES:
                     self.finish(clock, ClockState.MET, ClockEventKind.MET, at, transfer)
@@ -611,7 +610,7 @@ class SlaClocks:
                 list(
                     Transfer.objects.filter(
                         ticket=ticket, committed_at__isnull=False
-                    ).select_related("before_status__base", "after_status__base", "actor")
+                    ).select_related("before_status", "after_status", "actor")
                 )
             )
             decisions = list(

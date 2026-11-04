@@ -25,6 +25,34 @@ COMPLETED_PIPELINE_STATUSES = frozenset({PipelineStatus.AUTO_REPLIED})
 TRIAGE_STATUSES = frozenset({PipelineStatus.NEW, PipelineStatus.AWAITING_REQUESTER})
 
 
+class StatusKind(StrEnum):
+    """What a workflow status means to the SLA, workload and resolution."""
+
+    BACKLOG = "backlog"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+
+
+# A new status's colour when none is given.
+KIND_COLORS = {
+    StatusKind.BACKLOG: "#6B7280",
+    StatusKind.ACTIVE: "#3B82F6",
+    StatusKind.COMPLETED: "#22C55E",
+}
+
+# The kind each pipeline status is seeded with.
+PIPELINE_STATUS_KINDS = {
+    PipelineStatus.NEW: StatusKind.BACKLOG,
+    PipelineStatus.AWAITING_REQUESTER: StatusKind.BACKLOG,
+    PipelineStatus.PENDING_REVIEW: StatusKind.ACTIVE,
+    PipelineStatus.BLOCKED: StatusKind.ACTIVE,
+    PipelineStatus.ESCALATED: StatusKind.ACTIVE,
+    PipelineStatus.AUTO_REPLIED: StatusKind.COMPLETED,
+    PipelineStatus.AUTO_ROUTED: StatusKind.ACTIVE,
+    PipelineStatus.REOPENED: StatusKind.ACTIVE,
+}
+
+
 class TransitionPolicy(StrEnum):
     STRICT = "strict"
     OPEN = "open"
@@ -112,7 +140,6 @@ class FailureCode(StrEnum):
     STATUS_IN_USE = "status_in_use"
     WORKFLOW_IN_USE = "workflow_in_use"
     FIELD_IN_USE = "field_in_use"
-    SYSTEM_STATUS_IN_USE = "system_status_in_use"
     UNMAPPED_STATUSES = "unmapped_statuses"
     INVALID_CONFIG = "invalid_config"
     NAME_TAKEN = "name_taken"

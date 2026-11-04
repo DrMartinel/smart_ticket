@@ -430,7 +430,7 @@ ADR-0026 is accepted or superseded on a full run, and no Jev-scale threshold is 
 1. ~~Accept or reject ADR-0028.~~ Accepted 2026-10-17, with ADR-0029 (phase 2 PRE-2).
 2. ~~An admin-console page for workflows (statuses, transitions, fields) and
    the ticket's moves, fields and transfer log~~ (`/settings/workflows`,
-   `/settings/stages`, `/board`, `/tickets/[id]`). Still missing: an
+   `/board`, `/tickets/[id]`; stages folded into each status's kind by ADR-0040). Still missing: an
    approvals screen for `GET /api/lifecycle/approvals/mine`.
 3. ~~Notify approvers when `require_approval` asks them~~ (done by phase 2
    F4, 2026-10-26: a mandatory in-app notice and an email, linking to the approval).

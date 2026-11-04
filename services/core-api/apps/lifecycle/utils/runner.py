@@ -47,9 +47,9 @@ class ActionRunner:
         if not claimed:
             return Outcome.OWNED
         run = ActionRun.objects.select_related("transfer").get(pk=run_id)
-        ticket = Ticket.objects.select_related(
-            "reporter", "assigned_to", "workflow_status__base"
-        ).get(pk=run.ticket_id)
+        ticket = Ticket.objects.select_related("reporter", "assigned_to", "workflow_status").get(
+            pk=run.ticket_id
+        )
         workflow = Workflow.objects.of_ticket(ticket)
         handler = HANDLERS[ActionCode(run.action)]
 
@@ -144,7 +144,7 @@ class ActionRunner:
             "ticket.body": ticket.body_masked,
             "ticket.status": ticket.status,
             "ticket.statusName": status.name if status else ticket.status,
-            "ticket.baseStatus": status.base.name if status else "",
+            "ticket.statusKind": status.kind if status else "",
             "ticket.workflow": workflow.name,
             "ticket.category": ticket.category or "",
             "ticket.assignedTeam": ticket.assigned_team or "",

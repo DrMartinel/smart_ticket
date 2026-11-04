@@ -58,7 +58,6 @@ export function adminGroups(user: CurrentUser): AdminGroup[] {
       links: settings
         ? [
             ...show(manager, { href: "/admin/settings/workflows", label: "Workflows" }),
-            ...show(manager, { href: "/admin/settings/stages", label: "Stages" }),
             { href: "/admin/settings/sla", label: "SLA policies", exact: true },
             { href: "/admin/settings/sla/calendars", label: "Calendars" },
             { href: "/admin/settings/sla/holidays", label: "Holidays" },

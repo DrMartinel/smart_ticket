@@ -1,14 +1,20 @@
 // Shapes the lifecycle endpoints return, and the canvas's connection-point geometry.
 
-export interface Stage {
-  id: string;
-  name: string;
-  description: string;
-  color: string;
-  order: number;
-  is_backlog: boolean;
-  is_completed: boolean;
-}
+export type StatusKind = "backlog" | "active" | "completed";
+
+export const STATUS_KINDS: StatusKind[] = ["backlog", "active", "completed"];
+
+export const KIND_LABEL: Record<StatusKind, string> = {
+  backlog: "Not started",
+  active: "In progress",
+  completed: "Resolved",
+};
+
+export const KIND_HINT: Record<StatusKind, string> = {
+  backlog: "not picked up yet; no SLA clock runs",
+  active: "someone is working on it; SLA clocks run",
+  completed: "the ticket is resolved and its SLA stops",
+};
 
 export interface Action {
   id?: string;
@@ -34,7 +40,7 @@ export interface Status {
   color: string;
   order: number;
   coordinates: string | null;
-  base: Stage;
+  kind: StatusKind;
   is_pipeline: boolean;
   actions: Action[];
 }

@@ -13,6 +13,7 @@ from django.db.models import Count, Exists, OuterRef, Q, QuerySet, Subquery, Val
 from django.db.models.functions import Coalesce
 
 from apps.core.models import BaseModel
+from apps.lifecycle.utils.vocabulary import StatusKind
 from infrastructure.dtos import TicketCategory
 
 if TYPE_CHECKING:
@@ -94,7 +95,7 @@ def open_tickets_of(user: Any) -> Subquery:
 
     return Subquery(
         Ticket.objects.filter(assigned_to=OuterRef(user), resolved_at__isnull=True)
-        .exclude(workflow_status__base__is_completed=True)
+        .exclude(workflow_status__kind=StatusKind.COMPLETED.value)
         .order_by()
         .values("assigned_to")
         .annotate(n=Count("id"))

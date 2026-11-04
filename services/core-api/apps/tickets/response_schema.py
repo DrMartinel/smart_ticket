@@ -40,7 +40,7 @@ class StatusOut(Schema):
     key: str
     name: str
     color: str
-    stage: str
+    kind: str
     is_completed: bool
 
 
@@ -59,15 +59,15 @@ def status_of(ticket: Ticket) -> StatusOut:
             key=ticket.status,
             name=ticket.status.replace("_", " "),
             color="",
-            stage="",
+            kind="",
             is_completed=False,
         )
     return StatusOut(
         key=status.key,
         name=status.name,
         color=status.color,
-        stage=status.base.name,
-        is_completed=status.base.is_completed,
+        kind=status.kind,
+        is_completed=status.is_completed,
     )
 
 

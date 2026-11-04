@@ -227,8 +227,7 @@ LEFT JOIN tickets t
       AND t.resolved_at IS NULL
       AND t.workflow_status_id NOT IN (
             SELECT ws.id FROM lifecycle_workflow_statuses ws
-            JOIN lifecycle_system_statuses ss ON ss.id = ws.base_id
-            WHERE ss.name = 'On hold')
+            WHERE ws.kind = 'completed')
 WHERE m.team_id = '7c2e…'
   AND m.is_available
   AND NOT EXISTS (SELECT 1 FROM team_leaves l

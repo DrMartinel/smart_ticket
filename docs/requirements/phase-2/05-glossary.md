@@ -10,7 +10,7 @@ transition, rule, action, transfer) are in ADR-0028.
 | Term | Meaning |
 |---|---|
 | **SLA policy** | A rule that gives a ticket its targets. Matches on category and priority. One policy per (category, priority) pair, plus a default |
-| **SLA target** | One time limit inside a policy. Two kinds: **response** (first human action after handoff) and **resolution** (ticket reaches a completed system status) |
+| **SLA target** | One time limit inside a policy. Two kinds: **response** (first human action after handoff) and **resolution** (ticket reaches a `completed` status) |
 | **SLA clock** | One running count of business time for one target on one ticket. States: `running`, `paused`, `met`, `breached`, `cancelled` |
 | **Business calendar** | Working hours per weekday, a time zone, and a holiday list. Default: Mon–Fri 08:00–17:30, `Asia/Ho_Chi_Minh` [ASSUMPTION] |
 | **Holiday calendar** | Dated non-working days, entered each year from the government's announcement. Not computed from the lunar calendar (Tết dates are set by decision each year) |
@@ -28,7 +28,7 @@ transition, rule, action, transfer) are in ADR-0028.
 | **Team** | A named group of technicians that owns one or more categories |
 | **Membership** | A user's place in a team, with role `member` or `lead` |
 | **Assignment strategy** | How a team picks the next person: `round_robin` (next in order) or `least_loaded` (fewest open assigned tickets) |
-| **Workload** | Count of a person's open tickets, not in a completed or `On hold` system status |
+| **Workload** | Count of a person's open tickets, not in a `completed` status |
 | **Available** | A member who is active, marked available, and not on leave today |
 | **Reassignment** | Moving a ticket to another person or team. Needs a reason code and free text |
 

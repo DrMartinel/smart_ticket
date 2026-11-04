@@ -156,7 +156,7 @@ flowchart TB
 | BR-F3-02 | A conversation ends after `requester.conversation_idle_minutes` (30), on request, or when a turn is `block`ed or `mask_failed` | A blocked turn must never become context | Conversation service |
 | BR-F3-03 | Prior turns are context for drafting and proposing only. The router, the trust scorer and every hard gate run exactly as today on the new ticket | ADR-0001, 0003; hard-gate order fixed | Unchanged `router.py`; wire field read only by ai-engine nodes |
 | BR-F3-04 | A requester sees only tickets they reported; anyone else's is 404 | PRE-1 BR-PRE1-02 | Queryset |
-| BR-F3-05 | Status labels for requesters come from the system status base, not the workflow status name | Workflows can rename statuses; requesters need a stable vocabulary | Label map (§g) |
+| BR-F3-05 | Status labels for requesters come from the status's kind (ADR-0040), not the workflow status name | Workflows can rename statuses; requesters need a stable vocabulary | Label map (§g) |
 | BR-F3-06 | Every comment (requester or staff) is masked inline before storing; staff never see raw text either | Spec §5, BR-X-06 | `Comments.add()` |
 | BR-F3-07 | A requester reply moves the ticket out of `waiting_on_requester` through the workflow (rules and actions apply). If the workflow refuses, the comment stays and the assignee is notified | ADR-0028: only the pipeline bypasses the workflow | `lifecycle.automatic_move` |
 | BR-F3-08 | Reopen within `requester.reopen_window_days` (7) of `resolved_at`; afterwards a new linked ticket | OQ-09; Moveworks | Reopen service |
@@ -207,15 +207,12 @@ flowchart TB
 
 **Requester status labels**
 
-| System status base | vi | en |
+| Status kind (ADR-0040) | vi | en |
 |---|---|---|
-| Intake | Đang tiếp nhận | Received |
-| Open | Đang chờ xử lý | Waiting for support |
-| In progress | Đang xử lý | In progress |
-| On hold + `pauses_sla` | Chờ bạn phản hồi | Waiting for you |
-| On hold (other) | Tạm dừng | On hold |
-| Resolved | Đã giải quyết | Resolved |
-| Closed | Đã đóng | Closed |
+| `backlog` | Đang tiếp nhận | Received |
+| `active` | Đang xử lý | In progress |
+| `active` + `pauses_sla` | Chờ bạn phản hồi | Waiting for you |
+| `completed` | Đã giải quyết | Resolved |
 
 **`thresholds.yaml` — CHANGED** (`requester:` section; `auto_close_after_business_days` is in F1's block)
 

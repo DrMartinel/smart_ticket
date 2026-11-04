@@ -384,8 +384,8 @@ export const TOURS: Tour[] = [
         text: "Edit workflow",
         when: isManager,
         body: w(
-          "Quản lý có thể mở trình sửa quy trình ngay từ đây. Xem hướng dẫn \"Quy trình và giai đoạn\".",
-          "Managers can open the workflow editor from here. See the \"Workflows and stages\" guide.",
+          "Quản lý có thể mở trình sửa quy trình ngay từ đây. Xem hướng dẫn \"Quy trình\".",
+          "Managers can open the workflow editor from here. See the \"Workflows\" guide.",
         ),
       },
     ],
@@ -976,22 +976,13 @@ export const TOURS: Tour[] = [
 
   {
     id: "workflows",
-    title: w("Quy trình và giai đoạn", "Workflows and stages"),
+    title: w("Quy trình", "Workflows"),
     summary: w(
       "Thiết kế trạng thái, bước chuyển, điều kiện, hành động và trường của quy trình xử lý phiếu.",
       "Design a ticket workflow's statuses, moves, checks, actions and fields.",
     ),
     audience: isManager,
     steps: [
-      {
-        title: w("Giai đoạn", "Stages"),
-        href: "/admin/settings/stages",
-        target: HEADER,
-        body: w(
-          "Giai đoạn là các bước hệ thống mà mọi trạng thái quy trình gắn vào (mới, đang làm, chờ, đã giải quyết…). Báo cáo và SLA đọc giai đoạn, nên mỗi quy trình đặt tên trạng thái tuỳ ý.",
-          "Stages are the system steps every workflow status maps onto (new, in progress, waiting, resolved…). Reports and SLAs read the stage, so each workflow can name its statuses freely.",
-        ),
-      },
       {
         title: w("Quy trình", "Workflows"),
         href: "/admin/settings/workflows",
@@ -1008,8 +999,8 @@ export const TOURS: Tour[] = [
         wait: w("Mở một quy trình để đi tiếp.", "Open a workflow to go on."),
         side: "left",
         body: w(
-          "Mỗi ô là một trạng thái. Kéo từ cạnh một trạng thái sang trạng thái khác để nối; nhấp đúp để sửa. \"Add status\" và \"Add transition\" làm điều tương tự qua biểu mẫu; \"Reorder\" đổi thứ tự cột trên bảng.",
-          "Each box is a status. Drag from a status's edge to another to connect them; double-click to edit. \"Add status\" and \"Add transition\" do the same through a form; \"Reorder\" changes the board's column order.",
+          "Mỗi ô là một trạng thái; \"Counts as\" của nó (Not started, In progress, Resolved) quyết định SLA, khối lượng việc và báo cáo, nên tên trạng thái tuỳ ý. Kéo từ cạnh một trạng thái sang trạng thái khác để nối; nhấp đúp để sửa. \"Add status\" và \"Add transition\" làm điều tương tự qua biểu mẫu; \"Reorder\" đổi thứ tự cột trên bảng.",
+          "Each box is a status; its \"Counts as\" (Not started, In progress, Resolved) decides the SLA, workload and reports, so its name can be anything. Drag from a status's edge to another to connect them; double-click to edit. \"Add status\" and \"Add transition\" do the same through a form; \"Reorder\" changes the board's column order.",
         ),
       },
       {

@@ -25,7 +25,6 @@ from apps.audit.models import AuditLog
 from apps.lifecycle.models import (
     ActionRun,
     ApprovalRequest,
-    SystemStatus,
     Transfer,
     TransitionRule,
     Workflow,
@@ -45,6 +44,8 @@ from apps.lifecycle.utils.rules import ConfiguredRule, RuleCode, RuleViolation, 
 from apps.lifecycle.utils.runner import Outcome, runner
 from apps.lifecycle.utils.vocabulary import (
     DONE_RUN_STATES,
+    KIND_COLORS,
+    PIPELINE_STATUS_KINDS,
     TRANSFER_PHASES,
     ApprovalState,
     FailureCode,
@@ -90,7 +91,7 @@ class Lifecycle:
         return allowed_moves(
             current=WorkflowStatus.objects.of_ticket(ticket),
             workflow=workflow,
-            statuses=list(workflow.statuses.select_related("base")),
+            statuses=list(workflow.statuses.all()),
             transitions=list(workflow.transitions.prefetch_related("rules")),
         )
 
@@ -119,24 +120,20 @@ class Lifecycle:
 
     def pipeline_status(self, workflow: Workflow, status: PipelineStatus) -> WorkflowStatus:
         """The workflow's status for `status`, recreated if it has gone missing."""
-        found = workflow.statuses.select_related("base").filter(key=status.value).first()
+        found = workflow.statuses.filter(key=status.value).first()
         if found is not None:
             return found
         logger.warning("workflow %s lost pipeline status %s; recreating it", workflow.id, status)
-        template = (
-            WorkflowStatus.objects.filter(workflow__is_default=True, key=status.value)
-            .select_related("base")
-            .first()
-        )
-        base = template.base if template else SystemStatus.objects.order_by("order").first()
-        if base is None:
-            raise RuntimeError("no system status exists; run the lifecycle migrations")
+        template = WorkflowStatus.objects.filter(
+            workflow__is_default=True, key=status.value
+        ).first()
+        kind = PIPELINE_STATUS_KINDS[status]
         return WorkflowStatus.objects.create(
             workflow=workflow,
-            base=base,
+            kind=template.kind if template else kind.value,
             key=status.value,
             name=template.name if template else status.value,
-            color=template.color if template else base.color,
+            color=template.color if template else KIND_COLORS[kind],
             order=template.order if template else 0,
         )
 
@@ -254,10 +251,7 @@ class Lifecycle:
                 current = WorkflowStatus.objects.of_ticket(ticket)
                 workflow = current.workflow if current else Workflow.objects.of_ticket(ticket)
                 target = (
-                    WorkflowStatus.objects.select_related("base")
-                    .prefetch_related("actions")
-                    .filter(pk=target_id)
-                    .first()
+                    WorkflowStatus.objects.prefetch_related("actions").filter(pk=target_id).first()
                 )
                 if target is None:
                     raise LifecycleError(404, FailureCode.STATUS_NOT_IN_WORKFLOW, "no such status")
@@ -479,7 +473,7 @@ class Lifecycle:
         ticket = Ticket.objects.select_for_update().get(pk=ticket_id)
         transfer = (
             Transfer.objects.select_for_update(of=("self",))
-            .select_related("before_status", "after_status__base")
+            .select_related("before_status", "after_status")
             .get(pk=transfer_id)
         )
         return ticket, transfer
@@ -677,11 +671,7 @@ class Lifecycle:
                 raise LifecycleError(
                     409, FailureCode.TICKET_IN_TRIAGE, f"the ticket is at {current.key!r}"
                 )
-            target = (
-                WorkflowStatus.objects.select_related("base", "workflow")
-                .filter(pk=target_id)
-                .first()
-            )
+            target = WorkflowStatus.objects.select_related("workflow").filter(pk=target_id).first()
             if target is None:
                 raise LifecycleError(404, FailureCode.NOT_FOUND, "no such status")
             if current is not None and target.workflow_id == current.workflow_id:
@@ -749,7 +739,7 @@ class Lifecycle:
         self, source: Workflow, target: Workflow, mapping: Mapping[uuid.UUID, uuid.UUID]
     ) -> dict[uuid.UUID, WorkflowStatus]:
         """Where each of `source`'s statuses goes in `target`; raises `UNMAPPED_STATUSES`."""
-        targets = {s.id: s for s in target.statuses.select_related("base")}
+        targets = {s.id: s for s in target.statuses.all()}
         by_key = {s.key: s for s in targets.values()}
         destinations: dict[uuid.UUID, WorkflowStatus] = {}
         unmapped = []

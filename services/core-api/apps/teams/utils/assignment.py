@@ -462,14 +462,14 @@ class Assignment:
     def locked(self, model: Any, public_id: str) -> Ticket:
         ticket = (
             model.objects.select_for_update(of=("self",))
-            .select_related("team", "assigned_to", "workflow_status__base")
+            .select_related("team", "assigned_to", "workflow_status")
             .filter(public_id=public_id)
             .first()
         )
         if ticket is None:
             raise TeamError(404, TeamRefusal.TICKET_NOT_FOUND, "ticket not found")
         status = ticket.workflow_status
-        if ticket.resolved_at is not None or (status is not None and status.base.is_completed):
+        if ticket.resolved_at is not None or (status is not None and status.is_completed):
             raise TeamError(409, TeamRefusal.TICKET_COMPLETED, "the ticket is already resolved")
         return ticket
 

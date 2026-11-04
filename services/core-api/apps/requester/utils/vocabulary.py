@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from apps.accounts.models import Language
 from apps.core.errors import CodedError
+from apps.lifecycle.utils.vocabulary import StatusKind
+
+if TYPE_CHECKING:
+    from apps.lifecycle.models import WorkflowStatus
 
 
 class RequesterRefusal(StrEnum):
@@ -32,24 +37,21 @@ class CommentState(StrEnum):
     DISCARDED = "discarded"
 
 
-# System status base name -> (vi, en) (F3 §g, BR-F3-05).
+# Status kind -> (vi, en) (F3 §g, BR-F3-05, ADR-0040).
 _LABELS = {
-    "Intake": ("Đang tiếp nhận", "Received"),
-    "Open": ("Đang chờ xử lý", "Waiting for support"),
-    "In progress": ("Đang xử lý", "In progress"),
-    "On hold": ("Tạm dừng", "On hold"),
-    "Resolved": ("Đã giải quyết", "Resolved"),
-    "Closed": ("Đã đóng", "Closed"),
+    StatusKind.BACKLOG.value: ("Đang tiếp nhận", "Received"),
+    StatusKind.ACTIVE.value: ("Đang xử lý", "In progress"),
+    StatusKind.COMPLETED.value: ("Đã giải quyết", "Resolved"),
 }
 _WAITING_FOR_YOU = ("Chờ bạn phản hồi", "Waiting for you")
 
 
-def status_label(base_name: str | None, pauses_sla: bool, language: str) -> str:
-    """The requester's label for a status: from its system status base, never its workflow name."""
-    if base_name == "On hold" and pauses_sla:
+def status_label(status: WorkflowStatus | None, language: str) -> str:
+    """The requester's label for a status: from its kind, never its workflow name."""
+    if status is not None and status.pauses_sla and not status.is_completed:
         pair = _WAITING_FOR_YOU
     else:
-        pair = _LABELS.get(base_name or "Intake", _LABELS["Intake"])
+        pair = _LABELS[status.kind if status else StatusKind.BACKLOG.value]
     return pair[1] if language == Language.EN.value else pair[0]
 
 

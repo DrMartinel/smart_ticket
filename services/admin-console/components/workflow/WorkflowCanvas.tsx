@@ -20,7 +20,7 @@ import {
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { POINTS, POINT_PLACEMENT, parseCoordinates, type Point, type Status, type Transition } from "@/lib/lifecycle";
+import { KIND_LABEL, POINTS, POINT_PLACEMENT, parseCoordinates, type Point, type Status, type Transition } from "@/lib/lifecycle";
 
 type StatusNodeData = { status: Status; used: Set<Point>; editable: boolean; selected: boolean };
 type StatusNode = Node<StatusNodeData, "status">;
@@ -70,7 +70,7 @@ function StatusNodeView({ data }: NodeProps<StatusNode>) {
           )}
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
-          <span className="truncate">{status.base.name}</span>
+          <span className="truncate">{KIND_LABEL[status.kind]}</span>
           {status.actions.length > 0 && <span title="Actions run on enter">⚡ {status.actions.length}</span>}
         </div>
       </div>

@@ -11,7 +11,7 @@ import { Tabs } from "@/components/Modal";
 import WorkflowCanvas from "@/components/workflow/WorkflowCanvas";
 import FieldDialog from "@/components/workflow/FieldDialog";
 import { DeleteDialog, ReorderDialog, StatusDialog, TransitionDialog, type TransitionDraft } from "@/components/workflow/Dialogs";
-import type { Action, Catalog, Field, Stage, Status, Transition, Workflow, WorkflowDetail } from "@/lib/lifecycle";
+import { KIND_LABEL, type Action, type Catalog, type Field, type Status, type Transition, type Workflow, type WorkflowDetail } from "@/lib/lifecycle";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -32,7 +32,6 @@ export default function WorkflowEditorPage() {
   const user = useRequireAuth();
   const { id } = useParams<{ id: string }>();
   const [wf, setWf] = useState<WorkflowDetail | null>(null);
-  const [stages, setStages] = useState<Stage[]>([]);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -42,14 +41,12 @@ export default function WorkflowEditorPage() {
 
   const load = useCallback(async () => {
     try {
-      const [w, s, c, all] = await Promise.all([
+      const [w, c, all] = await Promise.all([
         api.get<WorkflowDetail>(`/api/lifecycle/workflows/${id}`),
-        api.get<Stage[]>("/api/lifecycle/system-statuses"),
         api.get<Catalog>("/api/lifecycle/catalog"),
         api.get<Workflow[]>("/api/lifecycle/workflows"),
       ]);
       setWf(w);
-      setStages(s);
       setCatalog(c);
       setWorkflows(all);
     } catch {
@@ -247,7 +244,6 @@ export default function WorkflowEditorPage() {
         onSaved={saved}
         workflow={wf}
         status={open?.kind === "status" ? open.status : null}
-        stages={stages}
         catalog={catalog}
         context={context}
       />
@@ -347,7 +343,7 @@ function StatusList({ wf, onPick }: { wf: WorkflowDetail; onPick: (s: Status) =>
                 <span className="min-w-0 flex-1">
                   <StatusChip name={s.name} color={s.color} />
                   <span className="block truncate text-xs text-muted-foreground">
-                    {s.base.name}
+                    {KIND_LABEL[s.kind]}
                     {s.is_pipeline && " · triage"}
                   </span>
                 </span>
@@ -400,11 +396,8 @@ function StatusPanel({
       <Section title="Status">
         <StatusChip name={status.name} color={status.color} />
         <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-          <dt className="text-muted-foreground">Stage</dt>
-          <dd>
-            {status.base.name}
-            {status.base.is_completed && <span className="text-xs text-muted-foreground"> (resolved)</span>}
-          </dd>
+          <dt className="text-muted-foreground">Counts as</dt>
+          <dd>{KIND_LABEL[status.kind]}</dd>
           <dt className="text-muted-foreground">Key</dt>
           <dd className="font-mono text-xs leading-5">{status.key}</dd>
           <dt className="text-muted-foreground">Order</dt>

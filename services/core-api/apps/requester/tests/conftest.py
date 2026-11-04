@@ -62,7 +62,7 @@ def desk(clock: Clock, network: Network, ner_finds_nothing) -> Network:  # noqa:
 
 
 def status(key: str) -> WorkflowStatus:
-    return Workflow.objects.default().statuses.select_related("base").get(key=key)
+    return Workflow.objects.default().statuses.get(key=key)
 
 
 def reported(reporter: User, **fields: Any) -> Ticket:

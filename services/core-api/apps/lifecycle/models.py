@@ -1,5 +1,5 @@
 """
-Workflow configuration (system statuses, workflows, statuses, transitions,
+Workflow configuration (workflows, statuses, transitions,
 custom fields, rules, events, actions) and the lifecycle's runtime records
 (transfers, action runs, approvals). ADR-0028.
 """
@@ -25,6 +25,7 @@ from apps.lifecycle.utils.vocabulary import (
     PipelineStatus,
     Position,
     RunState,
+    StatusKind,
     TransferState,
     TransitionPolicy,
     Trigger,
@@ -43,32 +44,6 @@ _TRIAGE_KEYS = frozenset(s.value for s in TRIAGE_STATUSES)
 _POINTS = [(str(i), str(i)) for i in range(1, 9)]
 
 
-class SystemStatus(BaseModel):
-    """A global lifecycle stage every workflow status maps onto."""
-
-    name = models.CharField(max_length=100, unique=True)
-    description = models.TextField(blank=True, default="")
-    color = models.CharField(max_length=9)
-    order = models.IntegerField(default=0)
-    is_backlog = models.BooleanField(default=False)
-    is_completed = models.BooleanField(default=False)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta(BaseModel.Meta):
-        db_table = "lifecycle_system_statuses"
-        ordering = ["order", "name"]
-        constraints = [
-            models.CheckConstraint(
-                condition=~(Q(is_backlog=True) & Q(is_completed=True)),
-                name="chk_system_status_backlog_xor_completed",
-            ),
-        ]
-
-    def __str__(self) -> str:
-        return self.name
-
-
 class WorkflowManager(models.Manager["Workflow"]):
     def default(self) -> Workflow:
         """The workflow new tickets start in, seeded again if it has gone missing."""
@@ -77,7 +52,7 @@ class WorkflowManager(models.Manager["Workflow"]):
             return found
         from apps.lifecycle.seed import seed_default_workflow
 
-        return seed_default_workflow(SystemStatus, Workflow, WorkflowStatus)
+        return seed_default_workflow(Workflow, WorkflowStatus)
 
     def of_ticket(self, ticket: Ticket) -> Workflow:
         """The workflow `ticket` is in; the default one for a ticket that predates workflows."""
@@ -117,7 +92,7 @@ class WorkflowStatusManager(models.Manager["WorkflowStatus"]):
     def of_ticket(self, ticket: Ticket) -> WorkflowStatus | None:
         """The status `ticket` is in; for a ticket that predates workflows, the default
         workflow's status with its `status` key, if there is one."""
-        statuses = self.select_related("base", "workflow")
+        statuses = self.select_related("workflow")
         if ticket.workflow_status_id is not None:
             return statuses.get(pk=ticket.workflow_status_id)
         return statuses.filter(workflow__is_default=True, key=ticket.status).first()
@@ -127,8 +102,8 @@ class WorkflowStatus(BaseModel):
     """One stage of a workflow; `key` is what `Ticket.status` holds while a ticket is in it."""
 
     workflow = models.ForeignKey(Workflow, on_delete=models.CASCADE, related_name="statuses")
-    base = models.ForeignKey(
-        SystemStatus, on_delete=models.PROTECT, related_name="workflow_statuses"
+    kind = models.CharField(
+        max_length=10, choices=_choices(StatusKind), default=StatusKind.ACTIVE.value
     )
     key = models.CharField(max_length=20)
     name = models.CharField(max_length=100)
@@ -152,6 +127,16 @@ class WorkflowStatus(BaseModel):
 
     def __str__(self) -> str:
         return f"{self.workflow_id}:{self.key}"
+
+    @property
+    def is_backlog(self) -> bool:
+        """Whether a ticket here has not been picked up yet."""
+        return self.kind == StatusKind.BACKLOG.value
+
+    @property
+    def is_completed(self) -> bool:
+        """Whether a ticket here is resolved."""
+        return self.kind == StatusKind.COMPLETED.value
 
     @property
     def is_pipeline(self) -> bool:

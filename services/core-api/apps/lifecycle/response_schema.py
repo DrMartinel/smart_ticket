@@ -12,18 +12,6 @@ from apps.lifecycle.models import ApprovalRequest, Transfer, TicketFieldValue
 from apps.lifecycle.utils.resolver import MoveOption
 
 
-class SystemStatusOut(Schema):
-    id: uuid.UUID
-    name: str
-    description: str
-    color: str
-    order: int
-    is_backlog: bool
-    is_completed: bool
-    created_at: datetime
-    updated_at: datetime
-
-
 class ActionOut(Schema):
     id: uuid.UUID
     action: str
@@ -41,7 +29,7 @@ class StatusOut(Schema):
     color: str
     order: int
     coordinates: str | None
-    base: SystemStatusOut
+    kind: str
     is_pipeline: bool
     actions: list[ActionOut]
 
@@ -51,7 +39,7 @@ class StatusBriefOut(Schema):
     key: str
     name: str
     color: str
-    base_id: uuid.UUID
+    kind: str
     is_pipeline: bool
 
 

@@ -19,6 +19,7 @@ from apps.requester.tests.conftest import (
     with_support,
 )
 from apps.requester.utils.tickets import requester_tickets
+from apps.requester.utils.vocabulary import status_label
 from apps.review.models import EvalCandidate, ReviewItem
 from apps.sla.models import Clock as SlaClock
 from apps.tickets.models import Ticket, TicketComment, TicketRating, TicketSource
@@ -108,6 +109,13 @@ class TestMyTickets:
 
         assert row["public_id"] == ticket.public_id
         assert row["status_label"] == "Đang xử lý"
+
+    @pytest.mark.parametrize("key", ["pending_review", "blocked", "escalated", "on_hold"])
+    def test_a_staff_status_shows_the_requester_in_progress(self, desk, key):
+        assert status_label(status(key), "vi") == "Đang xử lý"
+
+    def test_a_closed_ticket_shows_the_requester_resolved(self, desk):
+        assert status_label(status("closed"), "en") == "Resolved"
 
     def test_the_label_follows_the_requesters_language(self, desk, clock, api_as):
         lan = desk.people["lan"]

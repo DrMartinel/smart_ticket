@@ -9,7 +9,7 @@ import { api, ApiError } from "@/lib/api";
 import { priorityTone } from "@/lib/badges";
 import { QUEUE_LABEL } from "@/lib/explain";
 import { dateTime, humanize, relativeTime } from "@/lib/format";
-import type { Status, Workflow, WorkflowDetail } from "@/lib/lifecycle";
+import { KIND_LABEL, type Status, type Workflow, type WorkflowDetail } from "@/lib/lifecycle";
 import type { StaffTicketRow } from "@/lib/types/generated";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Alert } from "@/components/ui/alert";
@@ -228,7 +228,7 @@ export default function BoardPage() {
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: status.color || "var(--border-strong)" }} />
                   <h2 className="truncate text-sm font-semibold">{status.name}</h2>
                   <span className="text-xs text-muted-foreground">{total}</span>
-                  <span className="ml-auto truncate text-[11px] text-muted-foreground">{status.is_pipeline ? "Triage" : status.base.name}</span>
+                  <span className="ml-auto truncate text-[11px] text-muted-foreground">{status.is_pipeline ? "Triage" : KIND_LABEL[status.kind]}</span>
                 </div>
                 {drag && allowed && option && (
                   <p className="mx-3 mb-2 truncate text-[11px] text-muted-foreground">

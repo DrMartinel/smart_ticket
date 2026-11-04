@@ -4,6 +4,7 @@
 **Date:** 2026-11-02
 **Supersedes:** the console navigation in the phase 2 pack: [mockups.md](../requirements/phase-2/mockups.md) line 107 and assumption A-17 ([09-risks-open-questions.md](../requirements/phase-2/09-risks-open-questions.md) line 64)
 **Builds on:** ADR-0002 (authority on KB rows), ADR-0035 (rollout flags and reviewed thresholds), ADR-0036 (KB drafts)
+**Amended by:** ADR-0040 (the Stages page is gone; each workflow status carries its kind)
 
 ## Context
 

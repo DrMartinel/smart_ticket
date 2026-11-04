@@ -22,6 +22,7 @@ from apps.incidents.models import IncidentBroadcast, IncidentLink
 from apps.kb.models import DraftState, GapState, KbDraft, KbGapCluster
 from apps.kb.utils.gaps import kb_gaps, unit
 from apps.kb.utils.graph import GraphHealth, kb_graph
+from apps.lifecycle.utils.vocabulary import StatusKind
 from apps.metrics.utils import percentile
 from apps.notifications.models import Message
 from apps.notifications.utils.vocabulary import Channel, MessageState
@@ -642,7 +643,7 @@ class Reports:
 
     def open_tickets(self) -> QuerySet[Ticket]:
         return Ticket.objects.filter(resolved_at__isnull=True).exclude(
-            workflow_status__base__is_completed=True
+            workflow_status__kind=StatusKind.COMPLETED.value
         )
 
     def member_row(self, membership: TeamMembership, team: Team, period: Period) -> MemberRow:

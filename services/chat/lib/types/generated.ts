@@ -239,7 +239,7 @@ export interface StatusOut {
   key: string;
   name: string;
   color: string;
-  stage: string;
+  kind: string;
   is_completed: boolean;
 }
 

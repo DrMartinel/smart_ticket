@@ -191,7 +191,7 @@ class TicketManager(models.Manager["Ticket"]):
         """Tickets `user` reported, form and chat, with when each last changed (BR-F3-04)."""
         return (
             self.filter(reporter=user)
-            .select_related("workflow_status__base", "team", "reopened_from")
+            .select_related("workflow_status", "team", "reopened_from")
             .prefetch_related("sla_clocks", "ratings")
             .annotate(
                 last_update=Greatest(
@@ -205,7 +205,7 @@ class TicketManager(models.Manager["Ticket"]):
     def in_view(self, view: StaffView, user: User, query: str = "") -> QuerySet[Ticket]:
         """The tickets `view` shows `user`, newest first, matching `query` on id or subject."""
         tickets = self.select_related(
-            "reporter", "assigned_to", "workflow_status__base"
+            "reporter", "assigned_to", "workflow_status"
         ).prefetch_related("review_items", "sla_clocks")
         match view:
             case StaffView.REVIEW:
@@ -234,9 +234,7 @@ class TicketManager(models.Manager["Ticket"]):
         """Tickets with what the staff detail shows loaded, each list in display order."""
         from apps.review.models import ReviewItem
 
-        return self.select_related(
-            "reporter", "assigned_to", "workflow_status__base"
-        ).prefetch_related(
+        return self.select_related("reporter", "assigned_to", "workflow_status").prefetch_related(
             models.Prefetch("routing_decisions", RoutingDecision.objects.order_by("-decided_at")),
             models.Prefetch("review_items", ReviewItem.objects.order_by("-created_at")),
             models.Prefetch("clarifications", TicketClarification.objects.order_by("asked_at")),
@@ -261,7 +259,7 @@ class TicketManager(models.Manager["Ticket"]):
                 )
             )
             .filter(rank__lte=per_column)
-            .select_related("reporter", "assigned_to", "workflow_status__base")
+            .select_related("reporter", "assigned_to", "workflow_status")
             .prefetch_related("review_items", "sla_clocks")
             .order_by("-created_at")
         )
@@ -500,7 +498,7 @@ class Ticket(BaseModel):
         self.workflow_status = status
         self.status = status.key
         self.version += 1
-        if not status.base.is_completed:
+        if not status.is_completed:
             self.resolved_at = None
         elif self.resolved_at is None:
             self.resolved_at = timezone.now()

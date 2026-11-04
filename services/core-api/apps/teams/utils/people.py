@@ -12,6 +12,7 @@ from django.db.models import Case, F, Min, QuerySet, Value, When
 
 from apps.accounts.models import User, UserRole
 from apps.audit.models import AuditLog
+from apps.lifecycle.utils.vocabulary import StatusKind
 from apps.teams.models import Leave, MembershipRole, Team, TeamMembership
 from apps.teams.utils.assignment import TeamError, today
 from apps.teams.utils.vocabulary import TeamRefusal
@@ -130,8 +131,8 @@ class People:
         self.check_member_or_manager(actor, team)
         rows = (
             Ticket.objects.filter(team=team, resolved_at__isnull=True)
-            .exclude(workflow_status__base__is_completed=True)
-            .select_related("reporter", "assigned_to", "workflow_status__base", "team")
+            .exclude(workflow_status__kind=StatusKind.COMPLETED.value)
+            .select_related("reporter", "assigned_to", "workflow_status", "team")
         )
         if unassigned:
             rows = rows.filter(assigned_to__isnull=True)
@@ -156,7 +157,7 @@ class People:
             Ticket.objects.filter(
                 assigned_to__in=[m.user_id for m in rows], resolved_at__isnull=True
             )
-            .exclude(workflow_status__base__is_completed=True)
+            .exclude(workflow_status__kind=StatusKind.COMPLETED.value)
             .values("assigned_to")
             .annotate(oldest=Min("sla_due_at"))
             .values_list("assigned_to", "oldest")

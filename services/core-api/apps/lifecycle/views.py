@@ -14,7 +14,6 @@ from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_unless,
 from apps.lifecycle.models import (
     ApprovalRequest,
     CustomField,
-    SystemStatus,
     Transfer,
     Transition,
     Workflow,
@@ -33,8 +32,6 @@ from apps.lifecycle.request_schema import (
     ReorderIn,
     StatusIn,
     StatusPatch,
-    SystemStatusIn,
-    SystemStatusPatch,
     TransitionIn,
     TransitionPatch,
     ValidateFieldsIn,
@@ -48,7 +45,6 @@ from apps.lifecycle.response_schema import (
     FieldOut,
     MoveOptionOut,
     StatusOut,
-    SystemStatusOut,
     TicketLifecycleOut,
     TransferOut,
     TransitionOut,
@@ -68,7 +64,7 @@ _READ = (UserRole.MANAGER, UserRole.TECHNICIAN)
 _MANAGE = (UserRole.MANAGER,)
 
 
-# ── catalog and system statuses ──
+# ── catalog ──
 
 
 @router.get("/catalog", auth=SessionAuth(), response=CatalogOut)
@@ -77,48 +73,12 @@ def get_catalog(request: AuthedRequest) -> Catalog:
     return workflow_config.catalog()
 
 
-@router.get("/system-statuses", auth=SessionAuth(), response=list[SystemStatusOut])
-@require_role(*_READ)
-def list_system_statuses(request: AuthedRequest) -> QuerySet[SystemStatus]:
-    return SystemStatus.objects.all()
-
-
-@router.post("/system-statuses", auth=SessionAuth(), response={201: SystemStatusOut})
-@require_role(*_MANAGE)
-def create_system_status(request: AuthedRequest, payload: SystemStatusIn) -> Status[SystemStatus]:
-    return Status(201, workflow_config.create_system_status(payload))
-
-
-@router.post("/system-statuses/reorder", auth=SessionAuth(), response=list[SystemStatusOut])
-@require_role(*_MANAGE)
-def reorder_system_statuses(request: AuthedRequest, payload: ReorderIn) -> list[SystemStatus]:
-    return workflow_config.reorder_system_statuses(payload.ids)
-
-
-@router.patch("/system-statuses/{status_id}", auth=SessionAuth(), response=SystemStatusOut)
-@require_role(*_MANAGE)
-def update_system_status(
-    request: AuthedRequest, status_id: uuid.UUID, payload: SystemStatusPatch
-) -> SystemStatus:
-    return workflow_config.update_system_status(
-        get_object_or_404(SystemStatus, pk=status_id), payload
-    )
-
-
-@router.delete("/system-statuses/{status_id}", auth=SessionAuth(), response={204: None})
-@require_role(*_MANAGE)
-def delete_system_status(request: AuthedRequest, status_id: uuid.UUID) -> Status[None]:
-    workflow_config.delete_system_status(get_object_or_404(SystemStatus, pk=status_id))
-    return Status(204, None)
-
-
 # ── workflows ──
 
 
 def _workflow(workflow_id: uuid.UUID) -> Workflow:
     return get_object_or_404(
         Workflow.objects.prefetch_related(
-            "statuses__base",
             "statuses__actions",
             "transitions__rules",
             "transitions__actions",
@@ -181,7 +141,7 @@ def adopt_tickets(request: AuthedRequest, workflow_id: uuid.UUID, payload: Adopt
 
 def _status(status_id: uuid.UUID) -> WorkflowStatus:
     return get_object_or_404(
-        WorkflowStatus.objects.select_related("base", "workflow").prefetch_related("actions"),
+        WorkflowStatus.objects.select_related("workflow").prefetch_related("actions"),
         pk=status_id,
     )
 
@@ -204,18 +164,6 @@ def reorder_statuses(
 ) -> list[WorkflowStatus]:
     return workflow_config.reorder_statuses(
         get_object_or_404(Workflow, pk=workflow_id), payload.ids
-    )
-
-
-@router.get("/statuses/by-base", auth=SessionAuth(), response=list[StatusOut])
-@require_role(*_READ)
-def statuses_by_base(
-    request: AuthedRequest, system_status_id: uuid.UUID, workflow_id: uuid.UUID
-) -> QuerySet[WorkflowStatus]:
-    return (
-        WorkflowStatus.objects.filter(workflow_id=workflow_id, base_id=system_status_id)
-        .select_related("base")
-        .prefetch_related("actions")
     )
 
 

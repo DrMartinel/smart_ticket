@@ -8,15 +8,18 @@ import StatusChip from "@/components/StatusChip";
 import { ActionsEditor, RulesEditor, cleanActions, cleanRules, type ActionContext } from "@/components/workflow/Editors";
 import { api, ApiError } from "@/lib/api";
 import {
+  KIND_HINT,
+  KIND_LABEL,
   PALETTE,
   POINTS,
   POINT_PLACEMENT,
+  STATUS_KINDS,
   type Action,
   type Catalog,
   type Point,
   type Rule,
-  type Stage,
   type Status,
+  type StatusKind,
   type Transition,
   type WorkflowDetail,
 } from "@/lib/lifecycle";
@@ -25,6 +28,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 function useSubmit(onDone: () => void) {
   const [busy, setBusy] = useState(false);
@@ -54,7 +58,6 @@ export function StatusDialog({
   onSaved,
   workflow,
   status,
-  stages,
   catalog,
   context,
   at,
@@ -64,14 +67,13 @@ export function StatusDialog({
   onSaved: () => void;
   workflow: WorkflowDetail;
   status: Status | null;
-  stages: Stage[];
   catalog: Catalog;
   context: ActionContext;
   at?: { x: number; y: number };
 }) {
   const [tab, setTab] = useState<"info" | "actions">("info");
   const [name, setName] = useState("");
-  const [base, setBase] = useState("");
+  const [kind, setKind] = useState<StatusKind>("active");
   const [color, setColor] = useState(PALETTE[0]);
   const [actions, setActions] = useState<Action[]>([]);
   const { busy, error, submit, setError } = useSubmit(onSaved);
@@ -81,15 +83,15 @@ export function StatusDialog({
     setTab("info");
     setError(null);
     setName(status?.name ?? "");
-    setBase(status?.base.id ?? stages.find((s) => !s.is_backlog && !s.is_completed)?.id ?? stages[0]?.id ?? "");
+    setKind(status?.kind ?? "active");
     setColor(status?.color || PALETTE[0]);
     setActions(status?.actions ?? []);
-  }, [open, status, stages, setError]);
+  }, [open, status, setError]);
 
   const locked = !!status?.is_pipeline;
   const save = () =>
     submit(() => {
-      const body = { name: name.trim(), base_id: base, color, ...(locked ? {} : { actions: cleanActions(actions) }) };
+      const body = { name: name.trim(), color, ...(locked ? {} : { kind, actions: cleanActions(actions) }) };
       if (status) return api.patch(`/api/lifecycle/statuses/${status.id}`, body);
       const coordinates = at ? `${Math.round(at.x)}|${Math.round(at.y)}` : undefined;
       return api.post(`/api/lifecycle/workflows/${workflow.id}/statuses`, { ...body, coordinates });
@@ -107,7 +109,7 @@ export function StatusDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={busy || !name.trim() || !base} onClick={save}>
+          <Button disabled={busy || !name.trim()} onClick={save}>
             {status ? "Save" : "Add status"}
           </Button>
         </>
@@ -129,16 +131,18 @@ export function StatusDialog({
           <Labeled label="Name">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Waiting on vendor" autoFocus />
           </Labeled>
-          <Labeled label="Stage" hint="The system stage this status reports as. A resolved stage stops the SLA clock.">
-            <NativeSelect value={base} onChange={(e) => setBase(e.target.value)} disabled={locked}>
-              {stages.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                  {s.is_completed ? " (resolved)" : s.is_backlog ? " (backlog)" : ""}
-                </option>
+          <fieldset className="text-sm" disabled={locked}>
+            <legend className="mb-2 text-xs font-medium text-muted-foreground">Counts as</legend>
+            <RadioGroup value={kind} onValueChange={(next) => setKind(next as StatusKind)} className="gap-2">
+              {STATUS_KINDS.map((k) => (
+                <label key={k} className="flex items-center gap-2">
+                  <RadioGroupItem value={k} disabled={locked} />
+                  {KIND_LABEL[k]}
+                  <span className="text-xs text-muted-foreground">{KIND_HINT[k]}</span>
+                </label>
               ))}
-            </NativeSelect>
-          </Labeled>
+            </RadioGroup>
+          </fieldset>
           <ColorPicker value={color} onChange={setColor} />
         </div>
       ) : (
@@ -452,7 +456,7 @@ export function ReorderDialog({
             <span className="flex-1">
               <StatusChip name={s.name} color={s.color} />
             </span>
-            <span className="text-xs text-muted-foreground">{s.base.name}</span>
+            <span className="text-xs text-muted-foreground">{KIND_LABEL[s.kind]}</span>
             <Button variant="outline" size="sm" disabled={i === 0} onClick={() => move(i, -1)} aria-label={`Move ${s.name} up`}>
               ↑
             </Button>

@@ -14,7 +14,7 @@ from apps.lifecycle.models import Workflow, WorkflowStatus
 from apps.lifecycle.request_schema import ActionIn, StatusIn, TransitionIn, WorkflowIn
 from apps.lifecycle.utils.config import workflow_config
 from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.vocabulary import PipelineStatus, TransitionPolicy
+from apps.lifecycle.utils.vocabulary import PipelineStatus, StatusKind, TransitionPolicy
 from apps.tickets.models import Ticket
 from apps.tickets.utils.patterns import PIILevel
 from infrastructure.outbound import OutboundHttp, OutboundResponse
@@ -110,7 +110,7 @@ def ticket(employee_user) -> Ticket:
 
 
 def status_of(workflow: Workflow, key: str) -> WorkflowStatus:
-    return workflow.statuses.select_related("base").get(key=key)
+    return workflow.statuses.get(key=key)
 
 
 @dataclass
@@ -129,14 +129,9 @@ def strict(manager_user) -> StrictFlow:
     workflow = workflow_config.create_workflow(
         WorkflowIn(name="Strict", transition_policy=TransitionPolicy.STRICT), actor=manager_user
     )
-    bases = {
-        s.base.name: s.base for s in Workflow.objects.default().statuses.select_related("base")
-    }
-    working = workflow_config.add_status(
-        workflow, StatusIn(name="Working", base_id=bases["In progress"].id)
-    )
-    hold = workflow_config.add_status(workflow, StatusIn(name="Hold", base_id=bases["On hold"].id))
-    done = workflow_config.add_status(workflow, StatusIn(name="Done", base_id=bases["Resolved"].id))
+    working = workflow_config.add_status(workflow, StatusIn(name="Working"))
+    hold = workflow_config.add_status(workflow, StatusIn(name="Hold"))
+    done = workflow_config.add_status(workflow, StatusIn(name="Done", kind=StatusKind.COMPLETED))
     review = status_of(workflow, "pending_review")
     for a, b, both in [(review, working, False), (working, hold, True), (working, done, False)]:
         workflow_config.add_transition(

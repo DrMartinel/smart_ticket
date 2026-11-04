@@ -78,7 +78,7 @@ def submitted(reporter: User, **fields: Any) -> Ticket:
 
 
 def status(key: str) -> WorkflowStatus:
-    return Workflow.objects.default().statuses.select_related("base").get(key=key)
+    return Workflow.objects.default().statuses.get(key=key)
 
 
 def handed_off(reporter: User, **fields: Any) -> Ticket:

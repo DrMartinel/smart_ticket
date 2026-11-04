@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.db import IntegrityError, transaction
-from django.db.models import F, Max, ProtectedError, Q, QuerySet
+from django.db.models import Max, Q, QuerySet
 from django.utils import timezone
 from django.utils.text import slugify
 
@@ -20,7 +20,6 @@ from apps.lifecycle.models import (
     CustomField,
     FieldEvent,
     FieldRule,
-    SystemStatus,
     Transfer,
     Transition,
     TransitionRule,
@@ -37,8 +36,6 @@ from apps.lifecycle.request_schema import (
     RuleIn,
     StatusIn,
     StatusPatch,
-    SystemStatusIn,
-    SystemStatusPatch,
     TransitionIn,
     TransitionPatch,
     WorkflowIn,
@@ -58,11 +55,13 @@ from apps.lifecycle.utils.templates import VARIABLES, placeholders
 from apps.tickets.models import Ticket
 from apps.lifecycle.utils.vocabulary import (
     COMPLETED_PIPELINE_STATUSES,
+    KIND_COLORS,
     ActionCode,
     FailureCode,
     Phase,
     PipelineStatus,
     Position,
+    StatusKind,
 )
 
 
@@ -152,57 +151,12 @@ class WorkflowConfig:
             variables=VARIABLES,
         )
 
-    # ── system statuses ──
-
-    @refusing_duplicates
-    def create_system_status(self, data: SystemStatusIn) -> SystemStatus:
-        self.check_name_free(SystemStatus.objects.all(), data.name)
-        order = data.order
-        if order is None:
-            order = (SystemStatus.objects.aggregate(m=Max("order"))["m"] or 0) + 1
-        else:
-            SystemStatus.objects.filter(order__gte=order).update(order=F("order") + 1)
-        status = SystemStatus.objects.create(**data.dict(exclude={"order"}), order=order)
-        self.renumber_system_statuses()
-        status.refresh_from_db()
-        return status
-
-    @refusing_duplicates
-    def update_system_status(self, status: SystemStatus, data: SystemStatusPatch) -> SystemStatus:
-        changes = data.dict(exclude_unset=True, exclude_none=True)
-        if changes.get("name"):
-            self.check_name_free(SystemStatus.objects.exclude(pk=status.pk), changes["name"])
-        completed = changes.get("is_completed", status.is_completed)
-        if completed != status.is_completed:
-            self.check_pipeline_completion(status.workflow_statuses.all(), completed)
-        if changes.get("is_backlog", status.is_backlog) and changes.get(
-            "is_completed", status.is_completed
-        ):
-            raise invalid(["a status cannot be both backlog and completed"])
-        if "order" in changes and changes["order"] != status.order:
-            SystemStatus.objects.filter(order__gte=changes["order"]).exclude(pk=status.pk).update(
-                order=F("order") + 1
-            )
-        for name, value in changes.items():
-            setattr(status, name, value)
-        status.save()
-        if "order" in changes:
-            self.renumber_system_statuses()
-            status.refresh_from_db()
-        self.restamp_resolution(status.workflow_statuses.all(), completed)
-        return status
-
-    def renumber_system_statuses(self) -> None:
-        """Numbers the system statuses 1..n in their current order."""
-        statuses = list(SystemStatus.objects.order_by("order", "name"))
-        for order, status in enumerate(statuses, start=1):
-            status.order = order
-        SystemStatus.objects.bulk_update(statuses, ["order"])
+    # ── status kinds ──
 
     def check_pipeline_completion(
         self, statuses: QuerySet[WorkflowStatus], completed: bool
     ) -> None:
-        """Refuses a stage that would make a pipeline status resolved, or one resolved not."""
+        """Refuses a kind that would make a pipeline status resolved, or one resolved not."""
         wrong = [
             s.key
             for s in statuses
@@ -223,27 +177,6 @@ class WorkflowConfig:
             tickets.filter(resolved_at__isnull=True).update(resolved_at=timezone.now())
         else:
             tickets.update(resolved_at=None)
-
-    def delete_system_status(self, status: SystemStatus) -> None:
-        try:
-            status.delete()
-        except ProtectedError as e:
-            raise LifecycleError(
-                409,
-                FailureCode.SYSTEM_STATUS_IN_USE,
-                "workflow statuses are based on this status",
-                details={"workflow_status_count": status.workflow_statuses.count()},
-            ) from e
-
-    @transaction.atomic
-    def reorder_system_statuses(self, ids: Sequence[uuid.UUID]) -> list[SystemStatus]:
-        statuses = {s.id: s for s in SystemStatus.objects.select_for_update()}
-        if set(ids) != set(statuses) or len(ids) != len(statuses):
-            raise invalid(["ids must list every system status exactly once"])
-        for order, status_id in enumerate(ids, start=1):
-            statuses[status_id].order = order
-        SystemStatus.objects.bulk_update(statuses.values(), ["order"])
-        return list(SystemStatus.objects.all())
 
     # ── workflows ──
 
@@ -267,7 +200,7 @@ class WorkflowConfig:
         WorkflowStatus.objects.bulk_create(
             WorkflowStatus(
                 workflow=workflow,
-                base_id=s.base_id,
+                kind=s.kind,
                 key=s.key,
                 name=s.name,
                 color=s.color,
@@ -322,15 +255,14 @@ class WorkflowConfig:
 
     @refusing_duplicates
     def add_status(self, workflow: Workflow, data: StatusIn) -> WorkflowStatus:
-        base = self.system_status(data.base_id)
         self.check_name_free(workflow.statuses.all(), data.name)
         self.check_actions(data.actions, workflow, owner="status")
         status = WorkflowStatus.objects.create(
             workflow=workflow,
-            base=base,
+            kind=data.kind.value,
             key=self.new_key(workflow, data.name),
             name=data.name,
-            color=data.color or base.color,
+            color=data.color or KIND_COLORS[data.kind],
             order=(workflow.statuses.aggregate(m=Max("order"))["m"] or 0) + 1,
             coordinates=data.coordinates,
         )
@@ -342,18 +274,17 @@ class WorkflowConfig:
         changes = data.dict(exclude_unset=True, exclude={"actions"})
         if changes.get("name"):
             self.check_name_free(status.workflow.statuses.exclude(pk=status.pk), changes["name"])
-        if "base_id" in changes:
-            base = self.system_status(changes.pop("base_id"))
-            if base.is_completed != status.base.is_completed:
+        kind = changes.pop("kind", None)
+        if kind is not None:
+            completed = kind is StatusKind.COMPLETED
+            if completed != status.is_completed:
                 self.check_pipeline_completion(
-                    WorkflowStatus.objects.filter(pk=status.pk), base.is_completed
+                    WorkflowStatus.objects.filter(pk=status.pk), completed
                 )
-                status.base = base
-                status.save(update_fields=["base"])
-                self.restamp_resolution(
-                    WorkflowStatus.objects.filter(pk=status.pk), base.is_completed
-                )
-            status.base = base
+                status.kind = kind.value
+                status.save(update_fields=["kind"])
+                self.restamp_resolution(WorkflowStatus.objects.filter(pk=status.pk), completed)
+            status.kind = kind.value
         for name, value in changes.items():
             if value is not None:
                 setattr(status, name, value)
@@ -421,7 +352,7 @@ class WorkflowConfig:
         for order, status_id in enumerate(ids, start=1):
             statuses[status_id].order = order
         WorkflowStatus.objects.bulk_update(statuses.values(), ["order"])
-        return list(workflow.statuses.select_related("base").prefetch_related("actions"))
+        return list(workflow.statuses.prefetch_related("actions"))
 
     def set_position(self, status: WorkflowStatus, x: float, y: float) -> WorkflowStatus:
         status.coordinates = f"{round(x)}|{round(y)}"
@@ -742,12 +673,6 @@ class WorkflowConfig:
                 f"it cannot be {verb}: actions name it; change those first",
                 details={"action_ids": [str(a.id) for a in actions]},
             )
-
-    def system_status(self, status_id: uuid.UUID) -> SystemStatus:
-        found = SystemStatus.objects.filter(pk=status_id).first()
-        if found is None:
-            raise invalid([f"no system status {status_id}"])
-        return found
 
     def audit(self, event: str, workflow: Workflow, actor: User, **payload: Any) -> None:
         AuditLog.objects.record(

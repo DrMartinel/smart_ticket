@@ -16,7 +16,7 @@ VARIABLES: dict[str, str] = {
     "ticket.body": "The masked body",
     "ticket.status": "The current status key",
     "ticket.statusName": "The current status name",
-    "ticket.baseStatus": "The current system status name",
+    "ticket.statusKind": "backlog, active or completed",
     "ticket.workflow": "The workflow name",
     "ticket.category": "The category the router chose, if any",
     "ticket.assignedTeam": "The assigned team",

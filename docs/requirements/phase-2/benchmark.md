@@ -29,7 +29,7 @@ ITIL 4 practice names follow the 34-practice list ([ITSM.tools summary][itil]).
 |---|---|---|
 | Adopt | Response + resolution targets per (category, priority); ordered policy match, first wins, plus a default | Common to all four ITSM tools; simple to test |
 | Adopt | Business calendar with time zone, working hours, holiday list | JSM, SDP, Freshservice all do it |
-| Adapt | Start/pause/stop as **lifecycle events**, not free conditions. Start at handoff; pause on entering a status flagged `pauses_sla`; stop on entering a completed system status | ADR-0028 already models statuses and actions. Free condition expressions would bring back user-supplied logic ADR-0028 §5 rejected |
+| Adapt | Start/pause/stop as **lifecycle events**, not free conditions. Start at handoff; pause on entering a status flagged `pauses_sla`; stop on entering a `completed` status (ADR-0040) | ADR-0028 already models statuses and actions. Free condition expressions would bring back user-supplied logic ADR-0028 §5 rejected |
 | Adapt | Escalation levels: warn at 75 %, breach at 100 % → team lead, 125 % → manager [ASSUMPTION] | Freshservice/SDP pattern, kept short |
 | Adapt | Holidays entered per year, not computed | Vietnam sets Tết and bridge days by annual decision; 2027 Tết is 4–10 Feb and National Day 2–5 Sep ([VietNamNet][vn-hol]); Culture Day 24 Nov 2026 was added by a one-off approval |
 | Skip | ServiceNow "reset" and "relative" durations | Not needed for an internal desk; extra states to test |

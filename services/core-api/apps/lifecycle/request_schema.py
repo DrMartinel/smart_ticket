@@ -9,7 +9,7 @@ from ninja import Field, Schema
 from pydantic import StringConstraints, field_validator, model_validator
 
 from apps.lifecycle.utils.rules import EventCode, FieldType, RuleCode
-from apps.lifecycle.utils.vocabulary import ActionCode, Position, TransitionPolicy
+from apps.lifecycle.utils.vocabulary import ActionCode, Position, StatusKind, TransitionPolicy
 
 COLOR = r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
 Point = Literal["1", "2", "3", "4", "5", "6", "7", "8"]
@@ -47,30 +47,6 @@ def clean_options(options: list[str]) -> list[str]:
     return cleaned
 
 
-class SystemStatusIn(In):
-    name: Name
-    description: str = ""
-    color: str = Field(pattern=COLOR)
-    order: int | None = Field(default=None, ge=1)
-    is_backlog: bool = False
-    is_completed: bool = False
-
-    @model_validator(mode="after")
-    def backlog_xor_completed(self) -> SystemStatusIn:
-        if self.is_backlog and self.is_completed:
-            raise ValueError("a status cannot be both backlog and completed")
-        return self
-
-
-class SystemStatusPatch(In):
-    name: Name | None = None
-    description: str | None = None
-    color: str | None = Field(default=None, pattern=COLOR)
-    order: int | None = Field(default=None, ge=1)
-    is_backlog: bool | None = None
-    is_completed: bool | None = None
-
-
 class ReorderIn(In):
     ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
 
@@ -98,7 +74,7 @@ class ActionIn(In):
 
 class StatusIn(In):
     name: Name
-    base_id: uuid.UUID
+    kind: StatusKind = StatusKind.ACTIVE
     color: str | None = Field(default=None, pattern=COLOR)
     coordinates: str | None = Field(default=None, pattern=r"^-?\d+\|-?\d+$")
     actions: list[ActionIn] = Field(default=[], max_length=50)
@@ -106,7 +82,7 @@ class StatusIn(In):
 
 class StatusPatch(In):
     name: Name | None = None
-    base_id: uuid.UUID | None = None
+    kind: StatusKind | None = None
     color: str | None = Field(default=None, pattern=COLOR)
     coordinates: str | None = Field(default=None, pattern=r"^-?\d+\|-?\d+$")
     actions: list[ActionIn] | None = Field(default=None, max_length=50)

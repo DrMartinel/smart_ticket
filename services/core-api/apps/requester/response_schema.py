@@ -28,7 +28,7 @@ class RequesterTicketRow(Schema):
     public_id: str
     subject_masked: str
     source: str
-    # From the system status base, in the requester's language (BR-F3-05).
+    # From the status's kind, in the requester's language (BR-F3-05).
     status_label: str
     team: str | None
     resolution_due_at: datetime | None
@@ -49,11 +49,7 @@ class RequesterTicketRow(Schema):
             public_id=ticket.public_id,
             subject_masked=ticket.subject_masked,
             source=ticket.source,
-            status_label=status_label(
-                status.base.name if status else None,
-                bool(status and status.pauses_sla),
-                viewer.language,
-            ),
+            status_label=status_label(status, viewer.language),
             team=ticket.team.name if ticket.team else None,
             **requester_tickets.resolution_clock(ticket),
             unread_comments=requester_tickets.unread(ticket),

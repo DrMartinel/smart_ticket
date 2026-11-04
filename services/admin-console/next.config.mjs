@@ -11,7 +11,9 @@ const nextConfig = {
       "/kb/authority-log",
       "/settings",
       "/settings/:path*",
-    ].map((source) => ({ source, destination: `/admin${source}`, permanent: true }));
+    ]
+      .map((source) => ({ source, destination: `/admin${source}`, permanent: true }))
+      .concat({ source: "/admin/settings/stages", destination: "/admin/settings/workflows", permanent: true });
   },
 };
 

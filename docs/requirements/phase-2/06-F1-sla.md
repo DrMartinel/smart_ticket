@@ -44,7 +44,7 @@ flowchart TB
   HOOK --> Q2{Status pauses_sla?}
   Q2 -- enter --> PAUSE[Pause running clocks]
   Q2 -- leave --> RESUME[Resume, recompute due_at]
-  HOOK --> Q3{Completed system status?}
+  HOOK --> Q3{Completed status?}
   Q3 -- yes --> STOP[Resolution clock met or breached-then-met]
   R1[Staff manual move · public comment F3 · review decision] --> RESP[Response clock met]
   SW[sla.sweep every 60 s] --> W{now ≥ warn_at?}
@@ -69,7 +69,7 @@ triage-only, ADR-0028 §2).
 
 | From | Event | To |
 |---|---|---|
-| — | Handoff (first entry into a status whose base is neither `is_backlog` nor `is_completed`) | `running` |
+| — | Handoff (first entry into a status whose kind is `active`, ADR-0040) | `running` |
 | `running` | Enter a `pauses_sla` status | `paused` |
 | `paused` | Leave it | `running` (due_at recomputed) |
 | `running`/`paused` | Response event (response clock) or enter completed status (resolution clock) | `met` |
@@ -165,7 +165,7 @@ rules; changed by staff with a reason.
 
 | ID | Rule | Rationale | Enforced where |
 |---|---|---|---|
-| BR-F1-01 | Clocks start at **handoff**: the first entry into a status whose base is neither `is_backlog` nor `is_completed`. Time in `new` and `awaiting_requester` never counts | OQ-07; a chat question held for the requester isn't support's work yet | `SlaClocks.on_status_entered` |
+| BR-F1-01 | Clocks start at **handoff**: the first entry into a status whose kind is `active` (ADR-0040). Time in `new` and `awaiting_requester` never counts | OQ-07; a chat question held for the requester isn't support's work yet | `SlaClocks.on_status_entered` |
 | BR-F1-02 | Priority at handoff: linked to an open incident → P1; category `security` → P2; else P3. Staff change it with a reason. Requesters can't. No `proposed_*` field is read | OQ-06; ADR-0001 | `Priority.initial()`, endpoint |
 | BR-F1-03 | Policy = first active row by `order` matching category (null = any) and priority (null = any). A default (both null) must exist and can't be retired | Ordered first-match (JSM goals) | Policy service; DB check |
 | BR-F1-04 | Calendar = policy's (`is_24x7` overrides) → team's (F2) → default calendar | P1 is 24×7 (OQ-05); teams may keep other hours later | Clock service |
@@ -193,7 +193,7 @@ rules; changed by staff with a reason.
 | FR-F1-006 | The system shall compute `due_at` and `warn_at` by walking working intervals, skipping weekends and holidays, in the calendar's zone, storing UTC |
 | FR-F1-007 | The system shall pause and resume clocks on `pauses_sla` statuses and recompute on resume |
 | FR-F1-008 | The system shall mark the response clock met on the events in BR-F1-06 |
-| FR-F1-009 | The system shall mark the resolution clock met on entering a completed system status, and resume it on reopen |
+| FR-F1-009 | The system shall mark the resolution clock met on entering a `completed` status, and resume it on reopen |
 | FR-F1-010 | A beat task shall run every `SLA_SWEEP_INTERVAL_SEC` (60) and fire warning, breach and escalation once each |
 | FR-F1-011 | The system shall mirror the running resolution clock's `due_at` into `tickets.sla_due_at` |
 | FR-F1-012 | The lifecycle `set_sla` action shall set a manual resolution target in **business** hours on the ticket's calendar, audited as an override |

@@ -15,6 +15,7 @@ from apps.incidents.utils.incidents import IncidentError, incidents
 from apps.lifecycle.request_schema import StatusIn
 from apps.lifecycle.tests.conftest import StrictFlow, put_in
 from apps.lifecycle.utils.config import workflow_config
+from apps.lifecycle.utils.vocabulary import StatusKind
 from apps.notifications.models import Message
 from apps.review.models import EvalCandidate, ReviewDecision, ReviewItem
 from apps.rollout.testing import all_live
@@ -284,7 +285,7 @@ class TestResolve:
         """AC-F7-05 (BR-F7-06): one ticket sits in a strict workflow with no way to `resolved`."""
         incident, tickets = confirmed(desk, engine, count=7)
         workflow_config.add_status(
-            strict.workflow, StatusIn(name="Resolved", base_id=strict.done.base_id)
+            strict.workflow, StatusIn(name="Resolved", kind=StatusKind.COMPLETED)
         )
         stuck = put_in(tickets[3], strict.working)
         Ticket.objects.filter(pk=stuck.pk).update(assigned_to=desk["khoa"])

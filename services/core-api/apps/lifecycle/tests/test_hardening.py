@@ -11,15 +11,13 @@ import httpx
 import pytest
 from django.utils import timezone
 
-from apps.lifecycle.models import ActionRun, ApprovalRequest, SystemStatus, Workflow, WorkflowStatus
+from apps.lifecycle.models import ActionRun, ApprovalRequest, Workflow, WorkflowStatus
 from apps.lifecycle.request_schema import (
     FieldIn,
     FieldPatch,
     RuleIn,
     StatusIn,
     StatusPatch,
-    SystemStatusIn,
-    SystemStatusPatch,
     TransitionPatch,
     WorkflowIn,
     WorkflowPatch,
@@ -35,6 +33,7 @@ from apps.lifecycle.utils.vocabulary import (
     FailureCode,
     PipelineStatus,
     RunState,
+    StatusKind,
     TransferState,
     Trigger,
 )
@@ -266,49 +265,31 @@ def test_a_rule_broken_while_a_move_waited_stops_the_commit(
 # ── resolved_at ──
 
 
-def test_rebasing_a_status_onto_a_completed_stage_stamps_its_tickets(ticket, strict):
+def test_making_a_status_completed_stamps_its_tickets(ticket, strict):
     put_in(ticket, strict.working)
-    resolved = SystemStatus.objects.get(name="Resolved")
 
-    workflow_config.update_status(strict.working, StatusPatch(base_id=resolved.id))
+    workflow_config.update_status(strict.working, StatusPatch(kind=StatusKind.COMPLETED))
     assert reload(ticket).resolved_at is not None
 
-    workflow_config.update_status(strict.working, StatusPatch(base_id=strict.hold.base.id))
+    workflow_config.update_status(strict.working, StatusPatch(kind=StatusKind.ACTIVE))
     assert reload(ticket).resolved_at is None
 
 
-def test_marking_a_stage_completed_stamps_tickets_already_in_it(ticket, strict):
-    stage = workflow_config.create_system_status(SystemStatusIn(name="Parked", color="#123456"))
-    parked = workflow_config.add_status(strict.workflow, StatusIn(name="Parked", base_id=stage.id))
-    put_in(ticket, parked)
-
-    workflow_config.update_system_status(stage, SystemStatusPatch(is_completed=True))
-
-    assert reload(ticket).resolved_at is not None
-
-
 def test_a_pipeline_status_keeps_whether_it_counts_as_resolved(strict):
-    resolved = SystemStatus.objects.get(name="Resolved")
-
     with refused(FailureCode.PIPELINE_STATUS_LOCKED):
-        workflow_config.update_status(strict.review, StatusPatch(base_id=resolved.id))
-    with refused(FailureCode.PIPELINE_STATUS_LOCKED):
-        workflow_config.update_system_status(
-            strict.review.base, SystemStatusPatch(is_completed=True)
-        )
+        workflow_config.update_status(strict.review, StatusPatch(kind=StatusKind.COMPLETED))
 
 
 # ── crafted input ──
 
 
 def test_null_in_a_patch_leaves_the_field_alone(strict):
-    stage = strict.working.base
-    workflow_config.update_system_status(
-        stage, SystemStatusPatch.model_validate({"name": None, "order": None})
+    workflow_config.update_status(
+        strict.working, StatusPatch.model_validate({"name": None, "kind": None})
     )
 
-    stage.refresh_from_db()
-    assert stage.name == "In progress"
+    strict.working.refresh_from_db()
+    assert (strict.working.name, strict.working.kind) == ("Working", StatusKind.ACTIVE.value)
 
 
 @pytest.mark.parametrize("body", ['{"x": NaN, "y": 0}', '{"x": 1e308, "y": 0}'])
@@ -345,7 +326,7 @@ def test_a_status_key_always_fits_the_status_column(strict):
     WorkflowStatus.objects.bulk_create(
         WorkflowStatus(
             workflow=strict.workflow,
-            base=strict.working.base,
+            kind=StatusKind.ACTIVE.value,
             key=(stem[:KEY_LENGTH] if n == 1 else stem[: KEY_LENGTH - len(f"_{n}")] + f"_{n}"),
             name=f"filler {n}",
             color="#000000",
@@ -360,9 +341,7 @@ def test_a_status_key_always_fits_the_status_column(strict):
 
 
 def test_vietnamese_d_survives_in_a_status_key(strict):
-    status = workflow_config.add_status(
-        strict.workflow, StatusIn(name="Đang xử lý", base_id=strict.working.base.id)
-    )
+    status = workflow_config.add_status(strict.workflow, StatusIn(name="Đang xử lý"))
 
     assert status.key == "dang_xu_ly"
 
@@ -535,13 +514,6 @@ def test_migrate_to_is_checked_even_when_the_status_is_empty(strict, manager_use
         workflow_config.delete_status(strict.hold, migrate_to=strict.review.id, actor=manager_user)
 
 
-def test_system_status_orders_stay_one_to_n(strict):
-    workflow_config.create_system_status(SystemStatusIn(name="First", color="#000000", order=1))
-
-    orders = list(SystemStatus.objects.order_by("order").values_list("order", flat=True))
-    assert orders == list(range(1, len(orders) + 1))
-
-
 # ── approvals ──
 
 
@@ -600,10 +572,13 @@ def test_a_retried_approval_starts_with_no_old_answer(
 
 def test_reorder_and_validate_are_reachable(api_as, manager_user):
     client = api_as(manager_user)
-    ids = [str(i) for i in SystemStatus.objects.values_list("id", flat=True)]
+    workflow = Workflow.objects.default()
+    ids = [str(i) for i in workflow.statuses.values_list("id", flat=True)]
 
     reorder = client.post(
-        f"{BASE}/system-statuses/reorder", json.dumps({"ids": ids}), content_type="application/json"
+        f"{BASE}/workflows/{workflow.id}/statuses/reorder",
+        json.dumps({"ids": ids}),
+        content_type="application/json",
     )
     validate = client.post(
         f"{BASE}/fields/validate",

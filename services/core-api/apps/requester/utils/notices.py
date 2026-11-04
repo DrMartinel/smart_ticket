@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 def _is_work(status: WorkflowStatus) -> bool:
     """Whether a status is support's work: neither intake nor completed."""
-    return not status.base.is_backlog and not status.base.is_completed
+    return not status.is_backlog and not status.is_completed
 
 
 class TicketNotices:
@@ -26,7 +26,7 @@ class TicketNotices:
         before, after = transfer.before_status, transfer.after_status
         if after is None:
             return
-        if _is_work(after) and (before is None or before.base.is_backlog):
+        if _is_work(after) and (before is None or before.is_backlog):
             self.emit(NotificationEvent.TICKET_RECEIVED, ticket, "received")
         if after.pauses_sla and not (before is not None and before.pauses_sla):
             self.emit(
@@ -36,8 +36,8 @@ class TicketNotices:
                 Notice(data={"status": "waiting_on_requester"}),
             )
         if (
-            after.base.is_completed
-            and not (before is not None and before.base.is_completed)
+            after.is_completed
+            and not (before is not None and before.is_completed)
             and not self.closed_with_incident(ticket)
         ):
             self.emit(

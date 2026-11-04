@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { KIND_LABEL, type StatusKind } from "@/lib/lifecycle";
 
 type Detail = StaffTicketDetail;
 
@@ -321,7 +322,7 @@ export default function TicketPage() {
         <aside className="flex flex-col gap-6">
           <Section title="Status">
             <StatusChip name={detail.status.name} color={detail.status.color} />
-            {detail.status.stage && <p className="mt-1 text-xs text-muted-foreground">Stage: {detail.status.stage}</p>}
+            {detail.status.kind && <p className="mt-1 text-xs text-muted-foreground">Counts as: {KIND_LABEL[detail.status.kind as StatusKind]}</p>}
             {lifecycle?.waiting_transform && (
               <Alert variant="warn" className="mt-3 text-xs"><AlertDescription>A move is in progress: its actions are running.</AlertDescription></Alert>
             )}

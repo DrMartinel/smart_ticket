@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from apps.lifecycle.models import SystemStatus, Workflow, WorkflowStatus
+from apps.lifecycle.models import Workflow, WorkflowStatus
 from apps.lifecycle.request_schema import (
     FieldEventIn,
     FieldIn,
@@ -12,7 +12,6 @@ from apps.lifecycle.request_schema import (
     RuleIn,
     StatusIn,
     StatusPatch,
-    SystemStatusIn,
     TransitionIn,
     TransitionPatch,
     WorkflowIn,
@@ -73,12 +72,8 @@ def test_a_workflow_with_tickets_cannot_be_deleted(ticket, strict, manager_user)
 
 
 def test_a_new_status_gets_a_snake_case_key_that_never_shadows_a_pipeline_status(strict):
-    base = strict.working.base
-
-    first = workflow_config.add_status(
-        strict.workflow, StatusIn(name="Waiting on vendor", base_id=base.id)
-    )
-    shadow = workflow_config.add_status(strict.workflow, StatusIn(name="New!", base_id=base.id))
+    first = workflow_config.add_status(strict.workflow, StatusIn(name="Waiting on vendor"))
+    shadow = workflow_config.add_status(strict.workflow, StatusIn(name="New!"))
 
     assert first.key == "waiting_on_vendor"
     assert shadow.key == "new_2"
@@ -86,15 +81,11 @@ def test_a_new_status_gets_a_snake_case_key_that_never_shadows_a_pipeline_status
 
 def test_a_taken_name_is_refused_not_a_database_error(strict, manager_user):
     with refused(FailureCode.NAME_TAKEN):
-        workflow_config.add_status(
-            strict.workflow, StatusIn(name="Done", base_id=strict.done.base.id)
-        )
+        workflow_config.add_status(strict.workflow, StatusIn(name="Done"))
     with refused(FailureCode.NAME_TAKEN):
         workflow_config.update_status(strict.hold, StatusPatch(name="Working"))
     with refused(FailureCode.NAME_TAKEN):
         workflow_config.create_workflow(WorkflowIn(name="Strict"), actor=manager_user)
-    with refused(FailureCode.NAME_TAKEN):
-        workflow_config.create_system_status(SystemStatusIn(name="Open", color="#000000"))
 
 
 def test_a_pipeline_status_cannot_be_deleted(strict, manager_user):
@@ -289,20 +280,6 @@ def test_an_event_action_must_be_able_to_run_on_an_event(strict):
                 ],
             ),
         )
-
-
-def test_a_system_status_in_use_cannot_be_deleted(strict):
-    with refused(FailureCode.SYSTEM_STATUS_IN_USE):
-        workflow_config.delete_system_status(strict.working.base)
-
-
-def test_inserting_a_system_status_shifts_the_ones_after_it():
-    before = list(SystemStatus.objects.values_list("name", flat=True))
-
-    workflow_config.create_system_status(SystemStatusIn(name="Triage", color="#000000", order=2))
-
-    names = list(SystemStatus.objects.values_list("name", flat=True))
-    assert names == [before[0], "Triage", *before[1:]]
 
 
 def test_reordering_must_list_every_status_once(strict):
