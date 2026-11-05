@@ -19,6 +19,7 @@ out/
 # Eval run artifacts (generated, not authored)
 evals/.results.json
 evals/report.md
+evals/calibration/sweeps/
 
 # Env files with real secrets, in any directory. The glob covers .env.bak /
 # .env.save and any other local copy — those carry the same keys as the
