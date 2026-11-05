@@ -149,6 +149,12 @@ The last full run (2026-10-04 (8), `propose.v8`) fails one gate: auto-reply prec
 
 ---
 
+## The simulated day
+
+[`tools/simulate/`](../tools/simulate/README.md) acts out a working day on the running stack: sixteen people across IT, security, management and four departments sign in through Keycloak and do their jobs through the API the frontends use (chat, the ticket form, review, team queues, incidents, security alerts, KB drafts, access reviews, reports). It is neither a test nor an eval: it gates nothing, and it calls DeepSeek and Jev for every ticket. Its report lists every refusal as a finding, which is how cross-feature gaps show up that unit tests, each holding one feature still, do not.
+
+---
+
 ## Writing tests here
 
 **Test the failure paths.** This system's correctness is mostly about what it does when things go wrong — a test that a degraded run reaches HITL with the right `reason_code` is worth more than another happy-path assertion.

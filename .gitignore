@@ -48,3 +48,6 @@ docker-compose.override.yml
 # The script, sources.json and manifest.json are tracked; manifest.json
 # pins the exact snapshot.
 demo_kb/guides/
+
+# Simulator run output
+tools/simulate/runs/
