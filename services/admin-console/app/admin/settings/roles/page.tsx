@@ -192,7 +192,7 @@ export default function RolesPage() {
         onClose={() => setOpen(null)}
         title={viewing?.name ?? ""}
         subtitle={viewing ? <span className="font-mono text-xs">{viewing.urn}</span> : undefined}
-        width="max-w-2xl"
+        size="xl"
         footer={
           viewing && canManage ? (
             <div className="flex w-full flex-wrap justify-between gap-2">
@@ -263,7 +263,7 @@ export default function RolesPage() {
         onClose={() => setDraft(null)}
         title={draft?.urn ? `Edit ${draft.name}` : "New custom role"}
         subtitle={draft ? <span className="font-mono text-xs">{draft.urn ?? urnFor(draft.name)}</span> : undefined}
-        width="max-w-3xl"
+        size="2xl"
         footer={
           draft && (
             <div className="flex w-full flex-wrap items-center gap-2">

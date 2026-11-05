@@ -87,7 +87,7 @@ export default function RevealDialog({
       title={`Reveal ${placeholder}`}
       subtitle="Your name, the reason and the time go to the PII access log before the value is decrypted. Security can see every reveal."
       onClose={onClose}
-      width="max-w-[520px]"
+      size="md"
       footer={
         revealed ? (
           <Button variant="outline" onClick={onClose}>

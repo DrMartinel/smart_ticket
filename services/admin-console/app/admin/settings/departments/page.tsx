@@ -390,7 +390,7 @@ export default function DepartmentsPage() {
         onClose={() => setImporting(null)}
         title="Import CSV"
         subtitle="Checked first; applied only when every row passes."
-        width="max-w-3xl"
+        size="2xl"
         footer={
           importing && (
             <div className="flex w-full flex-wrap items-center gap-2">

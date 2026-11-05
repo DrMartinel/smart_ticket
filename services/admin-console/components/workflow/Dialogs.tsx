@@ -103,7 +103,7 @@ export function StatusDialog({
       onClose={onClose}
       title={status ? `Edit ${status.name}` : "Add a status"}
       subtitle={locked ? "A triage status: you can rename and recolour it, but only the pipeline moves tickets into it." : undefined}
-      width="max-w-2xl"
+      size="xl"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>
@@ -269,7 +269,7 @@ export function TransitionDialog({
           </span>
         ) : undefined
       }
-      width="max-w-2xl"
+      size="xl"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>

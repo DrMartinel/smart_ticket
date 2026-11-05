@@ -175,7 +175,7 @@ export default function AccessReviewsPage() {
         onClose={() => setDetail(null)}
         title={detail?.name ?? ""}
         subtitle={detail ? `${detail.state} · closes ${formatDate(detail.closes_at)} · unanswered grants are ${detail.on_no_answer === "revoke" ? "revoked" : "flagged"}` : undefined}
-        width="max-w-3xl"
+        size="2xl"
         footer={
           detail?.state === "open" ? (
             <Button variant="outline" onClick={() => setClosing(detail)}>

@@ -38,7 +38,7 @@ export function ConfirmDialog({
       open={open}
       onClose={onClose}
       title={title}
-      width="max-w-md"
+      size="sm"
       footer={
         <>
           <Button variant="outline" onClick={onClose} disabled={busy}>

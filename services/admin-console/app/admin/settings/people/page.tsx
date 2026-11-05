@@ -283,7 +283,7 @@ export default function PeoplePage() {
         onClose={() => setOpen(null)}
         title={person ? person.username : ""}
         subtitle={person ? [person.name, person.email].filter(Boolean).join(" · ") || undefined : undefined}
-        width="max-w-2xl"
+        size="xl"
         footer={
           person ? (
             <Link className="text-sm font-medium text-primary hover:underline" href={`/admin/settings/people/${encodeURIComponent(person.username)}`}>

@@ -79,7 +79,7 @@ export default function FieldDialog({
       open={open}
       onClose={onClose}
       title={field ? `Edit ${field.name}` : "Add a field"}
-      width="max-w-2xl"
+      size="xl"
       footer={
         <>
           <Button variant="outline" onClick={onClose}>

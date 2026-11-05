@@ -550,7 +550,7 @@ export default function PersonPage() {
         open={!!profile}
         onClose={() => setProfile(null)}
         title="Edit profile"
-        width="max-w-2xl"
+        size="xl"
         footer={
           profile && (
             <Button disabled={!profile.reason.trim()} onClick={() => void saveProfile()}>

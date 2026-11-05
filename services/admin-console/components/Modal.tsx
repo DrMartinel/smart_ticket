@@ -7,6 +7,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs as TabsRoot, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 
+// Literal classes, so Tailwind's source scan generates each one.
+const WIDTHS = {
+  sm: "sm:max-w-md",
+  md: "sm:max-w-[520px]",
+  lg: "sm:max-w-xl",
+  xl: "sm:max-w-2xl",
+  "2xl": "sm:max-w-3xl",
+} as const;
+
+export type ModalSize = keyof typeof WIDTHS;
+
 export default function Modal({
   open,
   title,
@@ -14,7 +25,7 @@ export default function Modal({
   onClose,
   children,
   footer,
-  width = "max-w-xl",
+  size = "lg",
 }: {
   open: boolean;
   title: string;
@@ -22,11 +33,11 @@ export default function Modal({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  width?: string;
+  size?: ModalSize;
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className={cn("flex max-h-[85dvh] flex-col gap-0 p-0 sm:max-w-xl", width.replace(/(^|\s)max-w-/g, "$1sm:max-w-"))}>
+      <DialogContent className={cn("flex max-h-[85dvh] flex-col gap-0 p-0", WIDTHS[size])}>
         <DialogHeader className="border-b px-5 py-4 pr-14 text-left">
           <DialogTitle className="font-display text-lg leading-6 font-semibold">{title}</DialogTitle>
           {subtitle ? <DialogDescription>{subtitle}</DialogDescription> : <DialogDescription className="sr-only">{title}</DialogDescription>}

@@ -142,7 +142,7 @@ export default function TeamsPage() {
         onClose={() => setDraft(null)}
         title="New team"
         subtitle="You add members on the team's page once it exists."
-        width="max-w-2xl"
+        size="xl"
         footer={
           <>
             <Button variant="outline" onClick={() => setDraft(null)}>
