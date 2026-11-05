@@ -1,7 +1,7 @@
 """
-RBAC building blocks used by every router: `SessionAuth` and the role gate
-`require_role`, which every route but sign-in, refresh, sign-out and the
-lifecycle callback carries (PRE-1).
+RBAC building blocks used by every router: `SessionAuth` and the permission gate
+`require`, which every route but sign-in, refresh, sign-out and the callbacks
+carries (PRE-1, ADR-0045).
 """
 
 from collections.abc import Callable, Iterable
@@ -21,7 +21,9 @@ from ninja_jwt.authentication import JWTAuth
 from ninja_jwt.exceptions import AuthenticationFailed
 from ninja_jwt.tokens import Token
 
-from apps.accounts.models import Capability, RefreshSession, RefusedCall, User, UserRole
+from apps.accounts.models import RefreshSession, RefusedCall, User
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 
@@ -46,13 +48,8 @@ class SessionAuth(JWTAuth):
         return user
 
 
-ALL_ROLES = tuple(UserRole)
-STAFF = (UserRole.TECHNICIAN, UserRole.MANAGER, UserRole.SECURITY)
-TECHNICIAN_OR_MANAGER = (UserRole.TECHNICIAN, UserRole.MANAGER)
-
-
 class AccessRefusal(StrEnum):
-    ROLE_NOT_ALLOWED = "role_not_allowed"
+    PERMISSION_MISSING = "permission_missing"
 
 
 class AccessError(CodedError):
@@ -66,21 +63,15 @@ class AccessError(CodedError):
 
 @dataclass(frozen=True)
 class Gate:
-    """The roles and capabilities a route lets in (ADR-0031): either one is enough."""
+    """The permission a route needs, held at any scope (ADR-0045)."""
 
-    roles: frozenset[str]
-    capabilities: frozenset[str] = frozenset()
+    permission: Permission
 
     def admits(self, user: User) -> bool:
-        if user.role in self.roles:
-            return True
-        return bool(self.capabilities) and bool(self.capabilities & user.capability_set())
+        return Access.of(user).holds(self.permission)
 
     def describe(self) -> str:
-        text = f"requires role in [{', '.join(sorted(self.roles))}]"
-        if self.capabilities:
-            text += f" or capability in [{', '.join(sorted(self.capabilities))}]"
-        return text
+        return f"requires permission {self.permission.value}"
 
 
 _GATES: WeakKeyDictionary[Callable[..., Any], Gate] = WeakKeyDictionary()
@@ -96,16 +87,19 @@ def gate_of(handler: Callable[..., Any]) -> Gate | None:
     return _GATES[handler]
 
 
-def refuse_unless(
-    request: HttpRequest,
-    user: User,
-    roles: Iterable[UserRole],
-    capabilities: Iterable[Capability] = (),
-) -> None:
-    """Refuses `user` unless their role or a capability is allowed, auditing the refusal."""
-    gate = Gate(frozenset(r.value for r in roles), frozenset(c.value for c in capabilities))
+def refuse_without(request: HttpRequest, user: User, permission: Permission) -> None:
+    """Refuses `user` unless they hold `permission`, auditing the refusal."""
+    gate = Gate(permission)
     if not gate.admits(user):
         _refuse(request, user, gate)
+
+
+def refuse_unless_covers(
+    request: HttpRequest, user: User, permission: Permission, ticket: Any
+) -> None:
+    """Refuses `user` unless `permission` reaches `ticket` by team or department."""
+    if not Access.of(user).covers_ticket(permission, ticket):
+        _refuse(request, user, Gate(permission))
 
 
 def _refuse(request: HttpRequest, user: User, gate: Gate) -> NoReturn:
@@ -125,18 +119,26 @@ def _refuse(request: HttpRequest, user: User, gate: Gate) -> NoReturn:
             "access_denied",
             actor_type="human",
             actor_id=user.id,
-            payload={"route": route, "method": request.method, "role": user.role},
+            payload={
+                "route": route,
+                "method": request.method,
+                "role": user.role,
+                "permission": gate.permission.value,
+            },
             trace_id=getattr(request, "trace_id", None),
         )
-    raise AccessError(AccessRefusal.ROLE_NOT_ALLOWED, gate.describe(), {"role": user.role})
+    raise AccessError(
+        AccessRefusal.PERMISSION_MISSING,
+        gate.describe(),
+        {"role": user.role, "permission": gate.permission.value},
+    )
 
 
-def require_access(*, roles: Iterable[UserRole] = (), capabilities: Iterable[Capability] = ()):
-    """Decorator for Django Ninja handlers: lets in a user whose role or a capability is
-    allowed. `request` must be the first arg and `request.auth` an authenticated User."""
+def require(permission: Permission):
+    """Decorator for Django Ninja handlers: lets in a user who holds `permission`.
+    `request` must be the first arg and `request.auth` an authenticated User."""
 
-    roles, capabilities = tuple(roles), tuple(capabilities)
-    gate = Gate(frozenset(r.value for r in roles), frozenset(c.value for c in capabilities))
+    gate = Gate(permission)
 
     def decorator[**P, R](
         fn: Callable[Concatenate[AuthedRequest, P], R],
@@ -146,7 +148,8 @@ def require_access(*, roles: Iterable[UserRole] = (), capabilities: Iterable[Cap
             user = getattr(request, "auth", None) or getattr(request, "user", None)
             if user is None or not getattr(user, "is_authenticated", False):
                 raise HttpError(401, "authentication required")
-            refuse_unless(request, user, roles, capabilities)
+            if not gate.admits(user):
+                _refuse(request, user, gate)
             return fn(request, *args, **kwargs)
 
         # The handler's signature, its annotations evaluated.
@@ -155,11 +158,6 @@ def require_access(*, roles: Iterable[UserRole] = (), capabilities: Iterable[Cap
         return wrapper
 
     return decorator
-
-
-def require_role(*roles: UserRole):
-    """`require_access` with roles only."""
-    return require_access(roles=roles)
 
 
 class GatedAuth:
@@ -193,5 +191,6 @@ def gate_authentication(routers: Iterable[tuple[str, Any]]) -> None:
                     ]
 
 
-def has_any_role(user: object, roles: Iterable[UserRole]) -> bool:
-    return getattr(user, "role", None) in {r.value for r in roles}
+def holds(user: User, permission: Permission) -> bool:
+    """Whether `user` holds `permission` anywhere."""
+    return Access.of(user).holds(permission)

@@ -7,8 +7,9 @@ import uuid
 from django.utils import timezone
 from ninja import Query, Router, Status
 
-from apps.accounts.models import RefreshSession, UserRole
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require_role
+from apps.accounts.models import RefreshSession
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.audit.models import AuditLog
 from apps.security.models import SecurityAlert
 from apps.security.request_schema import AlertFilter, AssignIn, CloseIn, NoteIn, ReasonIn
@@ -73,40 +74,40 @@ def _detail(alert_id: uuid.UUID) -> AlertDetailOut:
 
 
 @router.get("/alerts", auth=SessionAuth(), response=list[AlertRowOut])
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def list_alerts(request: AuthedRequest, filters: Query[AlertFilter]) -> list[AlertRowOut]:
     rows = SecurityAlert.objects.matching(**filters.model_dump())
     return [AlertRowOut.of(a) for a in rows[:500]]
 
 
 @router.get("/alerts/{alert_id}", auth=SessionAuth(), response=AlertDetailOut)
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def get_alert(request: AuthedRequest, alert_id: uuid.UUID) -> AlertDetailOut:
     return _detail(alert_id)
 
 
 @router.post("/alerts/{alert_id}/ack", auth=SessionAuth(), response=AlertDetailOut)
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def acknowledge(request: AuthedRequest, alert_id: uuid.UUID) -> AlertDetailOut:
     security_alerts.acknowledge(alert_id, request.auth)
     return _detail(alert_id)
 
 
 @router.post("/alerts/{alert_id}/assign", auth=SessionAuth(), response=AlertDetailOut)
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def assign(request: AuthedRequest, alert_id: uuid.UUID, payload: AssignIn) -> AlertDetailOut:
     security_alerts.assign(alert_id, request.auth, payload.user)
     return _detail(alert_id)
 
 
 @router.post("/alerts/{alert_id}/notes", auth=SessionAuth(), response=AlertEventOut)
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def add_note(request: AuthedRequest, alert_id: uuid.UUID, payload: NoteIn) -> AlertEventOut:
     return AlertEventOut.of(security_alerts.note(alert_id, request.auth, payload.note))
 
 
 @router.post("/alerts/{alert_id}/close", auth=SessionAuth(), response=AlertDetailOut)
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def close(request: AuthedRequest, alert_id: uuid.UUID, payload: CloseIn) -> AlertDetailOut:
     security_alerts.close(
         alert_id, request.auth, Resolution(payload.resolution), payload.note, payload.duplicate_of
@@ -115,34 +116,34 @@ def close(request: AuthedRequest, alert_id: uuid.UUID, payload: CloseIn) -> Aler
 
 
 @router.post("/alerts/{alert_id}/reopen", auth=SessionAuth(), response=AlertDetailOut)
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def reopen(request: AuthedRequest, alert_id: uuid.UUID, payload: NoteIn) -> AlertDetailOut:
     security_alerts.reopen(alert_id, request.auth, payload.note)
     return _detail(alert_id)
 
 
 @router.post("/alerts/{alert_id}/release-ticket", auth=SessionAuth(), response=TicketOut)
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def release_ticket(request: AuthedRequest, alert_id: uuid.UUID, payload: ReasonIn) -> Ticket:
     return security_alerts.release(alert_id, request.auth, payload.reason)
 
 
 @router.post("/alerts/{alert_id}/notify-requester", auth=SessionAuth(), response={204: None})
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def notify_requester(request: AuthedRequest, alert_id: uuid.UUID) -> Status[None]:
     security_alerts.notify_requester(alert_id, request.auth)
     return Status(204, None)
 
 
 @router.post("/alerts/{alert_id}/end-sessions", auth=SessionAuth(), response=AlertDetailOut)
-@require_role(UserRole.SECURITY)
+@require(Permission.SECURITY_QUEUE_WORK)
 def end_sessions(request: AuthedRequest, alert_id: uuid.UUID) -> AlertDetailOut:
     security_alerts.end_sessions(alert_id, request.auth)
     return _detail(alert_id)
 
 
 @router.get("/summary", auth=SessionAuth(), response=SummaryOut)
-@require_role(UserRole.SECURITY, UserRole.MANAGER)
+@require(Permission.SECURITY_SUMMARY_READ)
 def summary(request: AuthedRequest) -> SummaryOut:
     cells = security_alerts.summary(_SUMMARY_DAYS)
     return SummaryOut(days=_SUMMARY_DAYS, cells=[SummaryCellOut(**c) for c in cells])

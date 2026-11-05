@@ -16,7 +16,8 @@ from django.db.models import QuerySet
 from ninja import Router, Status
 from ninja.errors import HttpError
 
-from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_role
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.chat.request_schema import ChatAskIn, ChatClarifyIn
 from apps.chat.response_schema import ChatTurnOut
 from apps.chat.utils.conversations import conversations
@@ -43,7 +44,7 @@ def _own_chat_ticket(request: AuthedRequest, public_id: str) -> Ticket:
 
 
 @router.post("/ask", auth=SessionAuth(), response=ChatTurnOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_CHAT)
 def ask(request: AuthedRequest, payload: ChatAskIn) -> ChatTurnOut:
     conversation = conversations.for_turn(request.auth, payload.conversation_id)
     ticket = Ticket.objects.submit(
@@ -58,14 +59,14 @@ def ask(request: AuthedRequest, payload: ChatAskIn) -> ChatTurnOut:
 
 
 @router.post("/conversations/{conversation_id}/end", auth=SessionAuth(), response={204: None})
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_CHAT)
 def end_conversation(request: AuthedRequest, conversation_id: uuid.UUID) -> Status[None]:
     conversations.end_by_requester(request.auth, conversation_id)
     return Status(204, None)
 
 
 @router.get("/tickets", auth=SessionAuth(), response=list[ChatTurnOut])
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_CHAT)
 def history(request: AuthedRequest, conversation_id: uuid.UUID | None = None) -> list[ChatTurnOut]:
     """The turns of one conversation: the named one, else the current one (FR-F3-004)."""
     if conversation_id is None:
@@ -78,13 +79,13 @@ def history(request: AuthedRequest, conversation_id: uuid.UUID | None = None) ->
 
 
 @router.get("/tickets/{public_id}", auth=SessionAuth(), response=ChatTurnOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_CHAT)
 def turn(request: AuthedRequest, public_id: str) -> ChatTurnOut:
     return chat_turn(_own_chat_ticket(request, public_id))
 
 
 @router.post("/tickets/{public_id}/create-ticket", auth=SessionAuth(), response=ChatTurnOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_CHAT)
 def create_ticket(request: AuthedRequest, public_id: str) -> ChatTurnOut:
     ticket = _own_chat_ticket(request, public_id)
     try:
@@ -95,7 +96,7 @@ def create_ticket(request: AuthedRequest, public_id: str) -> ChatTurnOut:
 
 
 @router.post("/tickets/{public_id}/clarify", auth=SessionAuth(), response=ChatTurnOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_CHAT)
 def clarify(request: AuthedRequest, public_id: str, payload: ChatClarifyIn) -> ChatTurnOut:
     ticket = _own_chat_ticket(request, public_id)
     try:

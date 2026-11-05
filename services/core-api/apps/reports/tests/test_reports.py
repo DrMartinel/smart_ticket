@@ -14,7 +14,9 @@ import numpy as np
 import pytest
 from django.utils import timezone
 
-from apps.accounts.models import Capability, User, UserCapability, UserRole
+from apps.accounts.models import Capability, User, UserRole
+
+from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.incidents.models import IncidentLink
 from apps.kb.models import DraftState, KbDraft, KbGapCluster, KbGapReport
@@ -50,7 +52,7 @@ def vn(month: int, day: int, hour: int = 10) -> datetime:
 def person(username: str, role: UserRole, *caps: Capability) -> User:
     user = User.objects.create_user(username=username, password="x", role=role.value)
     for cap in caps:
-        UserCapability.objects.create(user=user, capability=cap.value)
+        grant_capability(user, cap.value)
     return user
 
 

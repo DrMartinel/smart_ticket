@@ -1,9 +1,4 @@
-"""
-Custom user model with an explicit role. RBAC decisions throughout
-core-api key off `User.role`, not off Django's generic permission system —
-the roles here map directly onto spec concepts (Employee / Technician /
-Manager / Security) rather than a general-purpose permission matrix.
-"""
+"""People, their departments, roles and grants (F13, F14)."""
 
 from __future__ import annotations
 
@@ -41,6 +36,15 @@ class Capability(StrEnum):
     INCIDENT_MANAGER = "incident_manager"
 
 
+class PersonStatus(StrEnum):
+    """Where a person is in their lifecycle (F14 §c)."""
+
+    INVITED = "invited"
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    DEACTIVATED = "deactivated"
+
+
 class Language(StrEnum):
     VI = "vi"
     EN = "en"
@@ -52,6 +56,26 @@ class UserQuerySet(models.QuerySet["User"]):
         return self.filter(
             is_active=True,
             role__in=[UserRole.TECHNICIAN.value, UserRole.MANAGER.value, UserRole.SECURITY.value],
+        )
+
+    def with_capability(self, capability: str) -> UserQuerySet:
+        """Active people who hold the add-on role for `capability` everywhere."""
+        from apps.accounts.utils.catalog import ADD_ON_ROLES
+
+        now = timezone.now()
+        urn = ADD_ON_ROLES[Capability(capability)].value
+        return (
+            self.filter(
+                is_active=True,
+                assignments__role__urn=urn,
+                assignments__scope_kind="global",
+                assignments__ended_at__isnull=True,
+                assignments__starts_at__lte=now,
+            )
+            .filter(
+                models.Q(assignments__ends_at__isnull=True) | models.Q(assignments__ends_at__gt=now)
+            )
+            .distinct()
         )
 
 
@@ -78,6 +102,25 @@ class User(AbstractUser, BaseModel):
     language = models.CharField(
         max_length=5, choices=[(lang.value, lang.value) for lang in Language], default="vi"
     )
+    status = models.CharField(
+        max_length=12,
+        choices=[(s.value, s.value) for s in PersonStatus],
+        default=PersonStatus.ACTIVE.value,
+    )
+    department = models.ForeignKey(
+        "accounts.Department",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="people",
+    )
+    line_manager = models.ForeignKey(
+        "self", on_delete=models.SET_NULL, null=True, blank=True, related_name="reports"
+    )
+    job_title = models.CharField(max_length=120, blank=True, default="")
+    location = models.CharField(max_length=120, blank=True, default="")
+    phone = models.CharField(max_length=40, blank=True, default="")
+    employee_id = models.CharField(max_length=40, blank=True, default="")
 
     objects: ClassVar[StaffUserManager] = StaffUserManager()
 
@@ -106,8 +149,16 @@ class User(AbstractUser, BaseModel):
         return self.role == UserRole.SECURITY.value
 
     def capability_set(self) -> frozenset[str]:
-        """The user's capabilities; reads the prefetched rows when there are any."""
-        return frozenset(c.capability for c in self.capabilities.all())
+        """The add-on roles the user holds everywhere, named as capabilities (ADR-0031)."""
+        from apps.accounts.utils.catalog import ADD_ON_ROLES
+
+        by_urn = {urn.value: capability.value for capability, urn in ADD_ON_ROLES.items()}
+        now = timezone.now()
+        return frozenset(
+            by_urn[a.role.urn]
+            for a in self.assignments.all()
+            if a.role.urn in by_urn and a.scope_kind == "global" and a.is_active_at(now)
+        )
 
     def is_locked(self, now: datetime) -> bool:
         """Whether local sign-in is locked after too many failed passwords."""
@@ -163,17 +214,252 @@ class RefreshSession(BaseModel):
         db_table = "accounts_refresh_sessions"
 
 
-class UserCapability(BaseModel):
-    """One capability granted to a user (ADR-0031)."""
+class DepartmentQuerySet(models.QuerySet["Department"]):
+    def live(self) -> DepartmentQuerySet:
+        return self.filter(archived_at__isnull=True)
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="capabilities")
-    capability = models.CharField(max_length=30, choices=[(c.value, c.value) for c in Capability])
-    granted_at = models.DateTimeField(auto_now_add=True)
+
+class Department(BaseModel):
+    """One unit of the organisation the people who ask for help belong to (F14)."""
+
+    code = models.CharField(max_length=30, unique=True)
+    name = models.CharField(max_length=120)
+    parent = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="children"
+    )
+    head = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="headed_departments"
+    )
+    cost_centre = models.CharField(max_length=40, blank=True, default="")
+    is_default = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
+
+    objects = DepartmentQuerySet.as_manager()
 
     class Meta(BaseModel.Meta):
-        db_table = "accounts_user_capabilities"
+        db_table = "acc_departments"
         constraints = [
-            models.UniqueConstraint(fields=["user", "capability"], name="uniq_user_capability")
+            models.UniqueConstraint(
+                fields=["is_default"],
+                condition=models.Q(is_default=True),
+                name="acc_departments_one_default",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.code} {self.name}"
+
+
+class RoleQuerySet(models.QuerySet["Role"]):
+    def live(self) -> RoleQuerySet:
+        return self.filter(retired_at__isnull=True)
+
+
+class Role(BaseModel):
+    """A named set of permissions, granted to people with a scope (ADR-0045)."""
+
+    urn = models.CharField(max_length=120, unique=True)
+    name = models.CharField(max_length=120)
+    description = models.CharField(max_length=500, blank=True, default="")
+    is_system = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    retired_at = models.DateTimeField(null=True, blank=True)
+
+    objects = RoleQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "acc_roles"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(
+                    urn__regex=r"^urn:smart-ticket:role:(system|custom):[a-z][a-z0-9-]{1,47}$"
+                ),
+                name="acc_roles_urn_format",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(is_system=True, urn__startswith="urn:smart-ticket:role:system:")
+                | models.Q(is_system=False, urn__startswith="urn:smart-ticket:role:custom:"),
+                name="acc_roles_urn_kind_matches",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.urn
+
+
+class RolePermission(BaseModel):
+    """One permission in a custom role; system roles keep theirs in code."""
+
+    role = models.ForeignKey(Role, on_delete=models.CASCADE, related_name="permission_rows")
+    permission_urn = models.CharField(max_length=120)
+
+    class Meta(BaseModel.Meta):
+        db_table = "acc_role_permissions"
+        constraints = [
+            models.UniqueConstraint(fields=["role", "permission_urn"], name="uniq_role_permission"),
+            models.CheckConstraint(
+                condition=models.Q(
+                    permission_urn__regex=r"^urn:smart-ticket:perm:[a-z][a-z0-9-]{0,31}(:[a-z][a-z0-9-]{0,31}){1,2}$"
+                ),
+                name="acc_role_permissions_urn_format",
+            ),
+        ]
+
+
+class AssignmentSource(StrEnum):
+    """Why a grant exists."""
+
+    MANUAL = "manual"
+    STRUCTURAL = "structural"
+    MIGRATED = "migrated"
+
+
+class AssignmentQuerySet(models.QuerySet["Assignment"]):
+    def active(self, now: datetime | None = None) -> AssignmentQuerySet:
+        """Grants that apply at `now`: started, not ended, not past their end date."""
+        now = now or timezone.now()
+        return self.filter(ended_at__isnull=True, starts_at__lte=now).filter(
+            models.Q(ends_at__isnull=True) | models.Q(ends_at__gt=now)
+        )
+
+
+class Assignment(BaseModel):
+    """One role granted to one person at one scope (BR-F14-03)."""
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="assignments")
+    role = models.ForeignKey(Role, on_delete=models.PROTECT, related_name="assignments")
+    scope_kind = models.CharField(max_length=12, default="global")
+    scope_team = models.ForeignKey(
+        "teams.Team", on_delete=models.CASCADE, null=True, blank=True, related_name="+"
+    )
+    scope_department = models.ForeignKey(
+        Department, on_delete=models.CASCADE, null=True, blank=True, related_name="+"
+    )
+    source = models.CharField(
+        max_length=12,
+        choices=[(s.value, s.value) for s in AssignmentSource],
+        default=AssignmentSource.MANUAL.value,
+    )
+    granted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    reason = models.CharField(max_length=500, blank=True, default="")
+    starts_at = models.DateTimeField(default=timezone.now)
+    ends_at = models.DateTimeField(null=True, blank=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    ended_reason = models.CharField(max_length=40, blank=True, default="")
+    needs_review = models.BooleanField(default=False)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    objects = AssignmentQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "acc_assignments"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        scope_kind="global", scope_team__isnull=True, scope_department__isnull=True
+                    )
+                    | models.Q(
+                        scope_kind="team", scope_team__isnull=False, scope_department__isnull=True
+                    )
+                    | models.Q(
+                        scope_kind="department",
+                        scope_team__isnull=True,
+                        scope_department__isnull=False,
+                    )
+                ),
+                name="acc_assignments_one_scope",
+            ),
+        ]
+        indexes = [models.Index(fields=["user", "ended_at"], name="acc_assignments_user_live")]
+
+    def is_active_at(self, now: datetime) -> bool:
+        return (
+            self.ended_at is None
+            and self.starts_at <= now
+            and (self.ends_at is None or self.ends_at > now)
+        )
+
+    def scope_label(self) -> str:
+        """The scope as `global`, `team:<slug>` or `department:<code>`."""
+        if self.scope_kind == "team" and self.scope_team is not None:
+            return f"team:{self.scope_team.slug}"
+        if self.scope_kind == "department" and self.scope_department is not None:
+            return f"department:{self.scope_department.code}"
+        return "global"
+
+
+class ReviewCampaignState(StrEnum):
+    DRAFT = "draft"
+    OPEN = "open"
+    CLOSED = "closed"
+
+
+class NoAnswer(StrEnum):
+    """What closing a campaign does to a grant nobody answered for."""
+
+    REVOKE = "revoke"
+    FLAG = "flag"
+
+
+class AccessReviewCampaign(BaseModel):
+    """One access review over a set of grants (UC-F14-07)."""
+
+    name = models.CharField(max_length=120)
+    role = models.ForeignKey(
+        Role, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    department = models.ForeignKey(
+        Department, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    on_no_answer = models.CharField(
+        max_length=10, choices=[(n.value, n.value) for n in NoAnswer], default=NoAnswer.FLAG.value
+    )
+    fallback_reviewer = models.ForeignKey(User, on_delete=models.PROTECT, related_name="+")
+    state = models.CharField(
+        max_length=10,
+        choices=[(s.value, s.value) for s in ReviewCampaignState],
+        default=ReviewCampaignState.OPEN.value,
+    )
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, related_name="+")
+    opened_at = models.DateTimeField(auto_now_add=True)
+    closes_at = models.DateTimeField()
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "acc_review_campaigns"
+
+
+class ReviewDecisionKind(StrEnum):
+    KEEP = "keep"
+    REVOKE = "revoke"
+
+
+class AccessReviewItemQuerySet(models.QuerySet["AccessReviewItem"]):
+    def pending(self) -> AccessReviewItemQuerySet:
+        return self.filter(decision="", campaign__state=ReviewCampaignState.OPEN.value)
+
+
+class AccessReviewItem(BaseModel):
+    """One grant in a campaign and its reviewer's answer."""
+
+    campaign = models.ForeignKey(
+        AccessReviewCampaign, on_delete=models.CASCADE, related_name="items"
+    )
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name="+")
+    reviewer = models.ForeignKey(User, on_delete=models.PROTECT, related_name="+")
+    decision = models.CharField(max_length=10, blank=True, default="")
+    note = models.CharField(max_length=500, blank=True, default="")
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    objects = AccessReviewItemQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "acc_review_items"
+        constraints = [
+            models.UniqueConstraint(fields=["campaign", "assignment"], name="uniq_review_item")
         ]
 
 

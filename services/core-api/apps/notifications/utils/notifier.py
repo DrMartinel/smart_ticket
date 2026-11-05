@@ -225,11 +225,7 @@ class Notifier:
         if kind in _ROLE_KINDS:
             users = list(User.objects.filter(role=_ROLE_KINDS[kind].value, is_active=True))
         elif kind in _CAPABILITY_KINDS:
-            users = list(
-                User.objects.filter(
-                    capabilities__capability=_CAPABILITY_KINDS[kind], is_active=True
-                ).distinct()
-            )
+            users = list(User.objects.with_capability(_CAPABILITY_KINDS[kind]))
         elif kind in (RecipientKind.TEAM_LEAD, RecipientKind.TEAM_MEMBERS):
             team = notice.team or (ticket.assigned_team if ticket else None)
             memberships = TeamMembership.objects.filter(

@@ -13,7 +13,9 @@ from django.db import connection
 from django.db.models import F
 from django.utils import timezone
 
-from apps.accounts.models import Capability, User, UserCapability, UserRole
+from apps.accounts.models import Capability, User, UserRole
+
+from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle, KbAuthorityLog, KbChunk, KbGapCluster, KbGapReport
 from apps.kb.utils.authority import kb_authority
@@ -35,7 +37,7 @@ SSO = BODY + "\n\nNhân viên công ty: dùng cổng SSO nội bộ thay vì li�
 def person(username: str, role: UserRole, *, editor: bool = False) -> User:
     user = User.objects.create_user(username=username, password="x", role=role.value)
     if editor:
-        UserCapability.objects.create(user=user, capability=Capability.KB_EDITOR.value)
+        grant_capability(user, Capability.KB_EDITOR.value)
     return user
 
 

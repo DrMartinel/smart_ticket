@@ -336,9 +336,10 @@ def test_set_sla_overrides_the_resolution_target_in_business_hours(clock, people
 
 
 def test_holidays_missing_for_next_year_tells_admins_once(clock, people):
-    from apps.accounts.models import Capability, UserCapability
+    from apps.accounts.models import Capability
+    from apps.accounts.testing import grant_capability
 
-    UserCapability.objects.create(user=people["tu"], capability=Capability.WORKFLOW_ADMIN.value)
+    grant_capability(people["tu"], Capability.WORKFLOW_ADMIN.value)
     clock.set(2027, 12, 1, 9, 0)
 
     sent = [sla_clocks.holiday_check(), sla_clocks.holiday_check()]
@@ -353,9 +354,10 @@ def test_holidays_missing_for_next_year_tells_admins_once(clock, people):
 
 
 def test_the_holidays_notice_opens_the_admin_settings(clock, people):
-    from apps.accounts.models import Capability, UserCapability
+    from apps.accounts.models import Capability
+    from apps.accounts.testing import grant_capability
 
-    UserCapability.objects.create(user=people["tu"], capability=Capability.WORKFLOW_ADMIN.value)
+    grant_capability(people["tu"], Capability.WORKFLOW_ADMIN.value)
     clock.set(2027, 12, 1, 9, 0)
 
     sla_clocks.holiday_check()

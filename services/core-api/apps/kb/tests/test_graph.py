@@ -8,7 +8,9 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from apps.accounts.models import Capability, User, UserCapability, UserRole
+from apps.accounts.models import Capability, User, UserRole
+
+from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.incidents.utils.incidents import incidents
 from apps.kb.models import (
@@ -49,7 +51,7 @@ OTHERS = ["client-vpn-user.connect", "client-vpn-user.macos-troubleshooting"]
 def person(username: str, role: UserRole, *, editor: bool = False) -> User:
     user = User.objects.create_user(username=username, password="x", role=role.value)
     if editor:
-        UserCapability.objects.create(user=user, capability=Capability.KB_EDITOR.value)
+        grant_capability(user, Capability.KB_EDITOR.value)
     return user
 
 

@@ -14,7 +14,6 @@ from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.accounts.models import UserRole
 from apps.tickets.models import (
     CommentVisibility,
     PiiAccessLog,
@@ -34,7 +33,8 @@ from apps.tickets.response_schema import (
     TicketOut,
     TicketSubmitOut,
 )
-from apps.accounts.permissions import ALL_ROLES, STAFF, AuthedRequest, SessionAuth, require_role
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.sla.request_schema import PriorityIn
 from apps.sla.response_schema import TicketSlaOut
 from apps.sla.utils.clocks import sla_clocks
@@ -47,12 +47,9 @@ from apps.tickets.utils.pii_reveal import PiiReveal, Revealed
 router = Router(tags=["tickets"])
 pii_router = Router(tags=["pii"])
 
-_REVEALERS = (UserRole.TECHNICIAN, UserRole.SECURITY)
-_SECURITY = (UserRole.SECURITY,)
-
 
 @router.post("/submit", auth=SessionAuth(), response=TicketSubmitOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_SUBMIT)
 def submit_ticket(request: AuthedRequest, payload: TicketIn) -> Ticket:
     # Ninja validates `payload` against TicketIn's limits and answers 422
     # itself, so an invalid submission never reaches masking.
@@ -62,7 +59,7 @@ def submit_ticket(request: AuthedRequest, payload: TicketIn) -> Ticket:
 
 
 @router.get("", auth=SessionAuth(), response=StaffTicketPage)
-@require_role(*STAFF)
+@require(Permission.TICKETS_READ)
 def list_tickets(
     request: AuthedRequest,
     view: StaffView = StaffView.ALL,
@@ -74,7 +71,7 @@ def list_tickets(
 
 
 @router.get("/board", auth=SessionAuth(), response=StaffTicketBoard)
-@require_role(*STAFF)
+@require(Permission.TICKETS_READ)
 def ticket_board(
     request: AuthedRequest,
     workflow: uuid.UUID,
@@ -85,7 +82,7 @@ def ticket_board(
 
 
 @router.get("/{public_id}/detail", auth=SessionAuth(), response=StaffTicketDetail)
-@require_role(*STAFF)
+@require(Permission.TICKETS_READ)
 def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
     try:
         return Ticket.objects.for_detail().get(public_id=public_id)
@@ -94,7 +91,7 @@ def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
 
 
 @router.get("/{public_id}", auth=SessionAuth(), response=TicketOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_TICKET_STATUS)
 def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
     try:
         return Ticket.objects.visible_to(request.auth).get(public_id=public_id)
@@ -103,13 +100,13 @@ def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
 
 
 @router.post("/{public_id}/take", auth=SessionAuth(), response=AssignedTicketOut)
-@require_role(*STAFF)
+@require(Permission.TICKETS_TAKE)
 def take(request: AuthedRequest, public_id: str, payload: TakeIn) -> Ticket:
     return assignment.take(public_id, request.auth, payload.expected_version)
 
 
 @router.post("/{public_id}/reassign", auth=SessionAuth(), response=AssignedTicketOut)
-@require_role(*STAFF)
+@require(Permission.TICKETS_REASSIGN)
 def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Ticket:
     return assignment.reassign(
         public_id,
@@ -126,7 +123,7 @@ def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Tic
 
 
 @router.get("/{public_id}/comments", auth=SessionAuth(), response=list[CommentOut])
-@require_role(*STAFF)
+@require(Permission.TICKETS_READ)
 def ticket_comments(request: AuthedRequest, public_id: str) -> list[CommentOut]:
     ticket = _staff_ticket(public_id)
     assignment.check_category_scope(request.auth, ticket)
@@ -136,7 +133,7 @@ def ticket_comments(request: AuthedRequest, public_id: str) -> list[CommentOut]:
 
 
 @router.post("/{public_id}/comments", auth=SessionAuth(), response=CommentOut)
-@require_role(*STAFF)
+@require(Permission.TICKETS_COMMENT)
 def add_comment(request: AuthedRequest, public_id: str, payload: CommentIn) -> CommentOut:
     comment = comments.by_staff(
         _staff_ticket(public_id),
@@ -150,7 +147,7 @@ def add_comment(request: AuthedRequest, public_id: str, payload: CommentIn) -> C
 
 
 @router.get("/{public_id}/sla", auth=SessionAuth(), response=TicketSlaOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_TICKET_STATUS)
 def ticket_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
     try:
         ticket = Ticket.objects.visible_to(request.auth).get(public_id=public_id)
@@ -160,7 +157,7 @@ def ticket_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
 
 
 @router.patch("/{public_id}/priority", auth=SessionAuth(), response=TicketSlaOut)
-@require_role(*STAFF)
+@require(Permission.TICKETS_PRIORITY)
 def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn) -> dict[str, Any]:
     ticket = sla_clocks.change_priority(
         _staff_ticket(public_id),
@@ -173,7 +170,7 @@ def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn)
 
 
 @router.post("/{public_id}/sla/rebuild", auth=SessionAuth(), response=TicketSlaOut)
-@require_role(UserRole.MANAGER)
+@require(Permission.TICKETS_SLA_REBUILD)
 def rebuild_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
     ticket = _staff_ticket(public_id)
     sla_clocks.rebuild(ticket, request.auth)
@@ -188,7 +185,7 @@ def _staff_ticket(public_id: str) -> Ticket:
 
 
 @router.post("/{public_id}/quarantine/reveal", auth=SessionAuth(), response=RevealOut)
-@require_role(*_REVEALERS)
+@require(Permission.PII_REVEAL)
 def reveal(
     request: AuthedRequest, public_id: str, payload: RevealIn, response: HttpResponse
 ) -> Revealed:
@@ -205,13 +202,13 @@ def reveal(
 
 @pii_router.get("/access-log", auth=SessionAuth(), response=list[AccessLogRowOut])
 @paginate(LimitOffsetPagination)
-@require_role(*_SECURITY)
+@require(Permission.PII_ACCESS_LOG_READ)
 def access_log(request: AuthedRequest, filters: Query[AccessLogFilter]) -> QuerySet[PiiAccessLog]:
     return PiiAccessLog.objects.matching(**filters.dict())
 
 
 @pii_router.get("/access-log.csv", auth=SessionAuth())
-@require_role(*_SECURITY)
+@require(Permission.PII_ACCESS_LOG_READ)
 def access_log_csv(request: AuthedRequest, filters: Query[AccessLogFilter]) -> HttpResponse:
     criteria = filters.dict()
     body = PiiReveal(settings.THRESHOLDS.pii_reveal).export_log(

@@ -10,7 +10,9 @@ from pathlib import Path
 import pytest
 from django.conf import settings as django_settings
 
-from apps.accounts.models import Capability, User, UserCapability, UserRole
+from apps.accounts.models import Capability, User, UserRole
+
+from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.lifecycle.tests.conftest import make_ticket
 from apps.lifecycle.utils.vocabulary import PipelineStatus
@@ -47,7 +49,7 @@ def people(db) -> dict[str, User]:
         "tu": person("tu.dv", UserRole.TECHNICIAN),
         "mai": person("mai.bn", UserRole.TECHNICIAN),
     }
-    UserCapability.objects.create(user=found["tu"], capability=Capability.WORKFLOW_ADMIN.value)
+    grant_capability(found["tu"], Capability.WORKFLOW_ADMIN.value)
     return found
 
 

@@ -5,8 +5,11 @@ from __future__ import annotations
 from enum import StrEnum
 
 from django.db import transaction
+from django.utils import timezone
 
-from apps.accounts.models import Capability, User, UserCapability, UserRole
+from apps.accounts.models import Assignment, AssignmentSource, Capability, Role, User, UserRole
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import ADD_ON_ROLES
 from apps.accounts.utils import sessions
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
@@ -57,11 +60,12 @@ class AccountRights:
                 memberships.delete()
             user.role = role.value
             user.save(update_fields=["role"])
-            UserCapability.objects.filter(user=user).exclude(
-                capability__in=after["capabilities"]
-            ).delete()
-            for capability in capabilities:
-                UserCapability.objects.get_or_create(user=user, capability=capability.value)
+            self.set_add_ons(actor, user, capabilities, reason.strip())
+            if role is UserRole.EMPLOYEE:
+                Assignment.objects.active().filter(user=user, role__is_system=False).update(
+                    ended_at=timezone.now(), ended_reason="became_employee"
+                )
+            Access.forget(user)
             sessions.revoke_user(user, "rights_changed")
             AuditLog.objects.record(
                 "rights_changed",
@@ -76,6 +80,29 @@ class AccountRights:
                 },
             )
         return user
+
+    def set_add_ons(
+        self, actor: User, user: User, capabilities: set[Capability], reason: str
+    ) -> None:
+        """Ends the add-on grants not in `capabilities` and grants the missing ones everywhere."""
+        wanted = {ADD_ON_ROLES[c].value for c in capabilities}
+        held = Assignment.objects.active().filter(
+            user=user,
+            scope_kind="global",
+            role__urn__in=[urn.value for urn in ADD_ON_ROLES.values()],
+        )
+        held.exclude(role__urn__in=wanted).update(
+            ended_at=timezone.now(), ended_reason="rights_changed"
+        )
+        have = set(held.values_list("role__urn", flat=True))
+        for urn in sorted(wanted - have):
+            Assignment.objects.create(
+                user=user,
+                role=Role.objects.get(urn=urn),
+                source=AssignmentSource.MANUAL.value,
+                granted_by=actor,
+                reason=reason,
+            )
 
     def check(self, actor: User, user: User, role: UserRole, capabilities: set[Capability]) -> None:
         """The rules every change keeps: never your own, break-glass stays a manager,

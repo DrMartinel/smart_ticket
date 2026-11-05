@@ -9,8 +9,8 @@ from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from ninja import Header, Router, Status
 
-from apps.accounts.models import UserRole
-from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_unless, require_role
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_without, require
 from apps.lifecycle.models import (
     CustomField,
     Transfer,
@@ -57,15 +57,12 @@ from apps.tickets.models import Ticket
 
 router = Router(tags=["lifecycle"])
 
-_READ = (UserRole.MANAGER, UserRole.TECHNICIAN)
-_MANAGE = (UserRole.MANAGER,)
-
 
 # ── catalog ──
 
 
 @router.get("/catalog", auth=SessionAuth(), response=CatalogOut)
-@require_role(*_READ)
+@require(Permission.WORKFLOWS_READ)
 def get_catalog(request: AuthedRequest) -> Catalog:
     return workflow_config.catalog()
 
@@ -87,26 +84,26 @@ def _workflow(workflow_id: uuid.UUID) -> Workflow:
 
 
 @router.get("/workflows", auth=SessionAuth(), response=list[WorkflowOut])
-@require_role(*_READ)
+@require(Permission.WORKFLOWS_READ)
 def list_workflows(request: AuthedRequest) -> QuerySet[Workflow]:
     return Workflow.objects.all()
 
 
 @router.post("/workflows", auth=SessionAuth(), response={201: WorkflowDetailOut})
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def create_workflow(request: AuthedRequest, payload: WorkflowIn) -> Status[Workflow]:
     workflow = workflow_config.create_workflow(payload, actor=request.auth)
     return Status(201, _workflow(workflow.id))
 
 
 @router.get("/workflows/{workflow_id}", auth=SessionAuth(), response=WorkflowDetailOut)
-@require_role(*_READ)
+@require(Permission.WORKFLOWS_READ)
 def get_workflow(request: AuthedRequest, workflow_id: uuid.UUID) -> Workflow:
     return _workflow(workflow_id)
 
 
 @router.patch("/workflows/{workflow_id}", auth=SessionAuth(), response=WorkflowOut)
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def update_workflow(
     request: AuthedRequest, workflow_id: uuid.UUID, payload: WorkflowPatch
 ) -> Workflow:
@@ -116,14 +113,14 @@ def update_workflow(
 
 
 @router.delete("/workflows/{workflow_id}", auth=SessionAuth(), response={204: None})
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def delete_workflow(request: AuthedRequest, workflow_id: uuid.UUID) -> Status[None]:
     workflow_config.delete_workflow(get_object_or_404(Workflow, pk=workflow_id), actor=request.auth)
     return Status(204, None)
 
 
 @router.post("/workflows/{workflow_id}/adopt", auth=SessionAuth(), response=AdoptOut)
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def adopt_tickets(request: AuthedRequest, workflow_id: uuid.UUID, payload: AdoptIn) -> Adoption:
     return lifecycle.adopt_tickets(
         get_object_or_404(Workflow, pk=payload.source_workflow_id),
@@ -144,7 +141,7 @@ def _status(status_id: uuid.UUID) -> WorkflowStatus:
 
 
 @router.post("/workflows/{workflow_id}/statuses", auth=SessionAuth(), response={201: StatusOut})
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def add_status(
     request: AuthedRequest, workflow_id: uuid.UUID, payload: StatusIn
 ) -> Status[WorkflowStatus]:
@@ -155,7 +152,7 @@ def add_status(
 @router.post(
     "/workflows/{workflow_id}/statuses/reorder", auth=SessionAuth(), response=list[StatusOut]
 )
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def reorder_statuses(
     request: AuthedRequest, workflow_id: uuid.UUID, payload: ReorderIn
 ) -> list[WorkflowStatus]:
@@ -165,7 +162,7 @@ def reorder_statuses(
 
 
 @router.patch("/statuses/{status_id}", auth=SessionAuth(), response=StatusOut)
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def update_status(
     request: AuthedRequest, status_id: uuid.UUID, payload: StatusPatch
 ) -> WorkflowStatus:
@@ -174,7 +171,7 @@ def update_status(
 
 
 @router.post("/statuses/{status_id}/position", auth=SessionAuth(), response=StatusOut)
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def set_status_position(
     request: AuthedRequest, status_id: uuid.UUID, payload: PositionIn
 ) -> WorkflowStatus:
@@ -182,7 +179,7 @@ def set_status_position(
 
 
 @router.delete("/statuses/{status_id}", auth=SessionAuth(), response={204: None})
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def delete_status(
     request: AuthedRequest, status_id: uuid.UUID, migrate_to: uuid.UUID | None = None
 ) -> Status[None]:
@@ -205,7 +202,7 @@ def _transition(transition_id: uuid.UUID) -> Transition:
 @router.post(
     "/workflows/{workflow_id}/transitions", auth=SessionAuth(), response={201: TransitionOut}
 )
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def add_transition(
     request: AuthedRequest, workflow_id: uuid.UUID, payload: TransitionIn
 ) -> Status[Transition]:
@@ -216,7 +213,7 @@ def add_transition(
 
 
 @router.patch("/transitions/{transition_id}", auth=SessionAuth(), response=TransitionOut)
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def update_transition(
     request: AuthedRequest, transition_id: uuid.UUID, payload: TransitionPatch
 ) -> Transition:
@@ -225,7 +222,7 @@ def update_transition(
 
 
 @router.delete("/transitions/{transition_id}", auth=SessionAuth(), response={204: None})
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def delete_transition(request: AuthedRequest, transition_id: uuid.UUID) -> Status[None]:
     _transition(transition_id).delete()
     return Status(204, None)
@@ -242,7 +239,7 @@ def _field(field_id: uuid.UUID) -> CustomField:
 
 
 @router.post("/workflows/{workflow_id}/fields", auth=SessionAuth(), response={201: FieldOut})
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def add_field(
     request: AuthedRequest, workflow_id: uuid.UUID, payload: FieldIn
 ) -> Status[CustomField]:
@@ -251,7 +248,7 @@ def add_field(
 
 
 @router.post("/fields/validate", auth=SessionAuth(), response=ValidationOut)
-@require_role(*_READ)
+@require(Permission.WORKFLOWS_READ)
 def validate_fields(request: AuthedRequest, payload: ValidateFieldsIn) -> FieldCheck:
     return field_values.validate(
         get_object_or_404(Workflow, pk=payload.workflow_id), payload.values
@@ -259,14 +256,14 @@ def validate_fields(request: AuthedRequest, payload: ValidateFieldsIn) -> FieldC
 
 
 @router.patch("/fields/{field_id}", auth=SessionAuth(), response=FieldOut)
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def update_field(request: AuthedRequest, field_id: uuid.UUID, payload: FieldPatch) -> CustomField:
     workflow_config.update_field(_field(field_id), payload)
     return _field(field_id)
 
 
 @router.delete("/fields/{field_id}", auth=SessionAuth(), response={204: None})
-@require_role(*_MANAGE)
+@require(Permission.WORKFLOWS_MANAGE)
 def delete_field(request: AuthedRequest, field_id: uuid.UUID) -> Status[None]:
     workflow_config.delete_field(_field(field_id))
     return Status(204, None)
@@ -287,22 +284,22 @@ def _lifecycle_of(public_id: str) -> Ticket:
 
 
 @router.get("/tickets/{public_id}", auth=SessionAuth(), response=TicketLifecycleOut)
-@require_role(*_READ)
+@require(Permission.TICKETS_LIFECYCLE_READ)
 def get_ticket_lifecycle(request: AuthedRequest, public_id: str) -> Ticket:
     return _lifecycle_of(public_id)
 
 
 @router.get("/tickets/{public_id}/transitions", auth=SessionAuth(), response=list[MoveOptionOut])
-@require_role(*_READ)
+@require(Permission.TICKETS_LIFECYCLE_READ)
 def list_moves(request: AuthedRequest, public_id: str) -> list[MoveOption]:
     return lifecycle.options(_ticket(public_id))
 
 
 @router.post("/tickets/{public_id}/move", auth=SessionAuth(), response=TicketLifecycleOut)
-@require_role(*_READ)
+@require(Permission.TICKETS_MOVE)
 def move_ticket(request: AuthedRequest, public_id: str, payload: MoveIn) -> Ticket:
     if payload.force:
-        refuse_unless(request, request.auth, (UserRole.MANAGER,))
+        refuse_without(request, request.auth, Permission.TICKETS_MOVE_FORCE)
     lifecycle.move(
         _ticket(public_id).id,
         payload.status_id,
@@ -316,7 +313,7 @@ def move_ticket(request: AuthedRequest, public_id: str, payload: MoveIn) -> Tick
 @router.post(
     "/tickets/{public_id}/change-workflow", auth=SessionAuth(), response=TicketLifecycleOut
 )
-@require_role(*_MANAGE)
+@require(Permission.TICKETS_WORKFLOW_CHANGE)
 def change_ticket_workflow(
     request: AuthedRequest, public_id: str, payload: ChangeWorkflowIn
 ) -> Ticket:
@@ -325,14 +322,14 @@ def change_ticket_workflow(
 
 
 @router.put("/tickets/{public_id}/fields", auth=SessionAuth(), response=TicketLifecycleOut)
-@require_role(*_READ)
+@require(Permission.TICKETS_FIELDS_WRITE)
 def write_fields(request: AuthedRequest, public_id: str, payload: FieldValuesIn) -> Ticket:
     field_values.write(_ticket(public_id).id, payload.values, actor=request.auth)
     return _lifecycle_of(public_id)
 
 
 @router.get("/tickets/{public_id}/transfers", auth=SessionAuth(), response=list[TransferOut])
-@require_role(*_READ)
+@require(Permission.TICKETS_LIFECYCLE_READ)
 def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]:
     return (
         Transfer.objects.filter(ticket=_ticket(public_id))
@@ -343,7 +340,7 @@ def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]
 
 
 @router.post("/tickets/{public_id}/retry", auth=SessionAuth(), response=TransferOut)
-@require_role(*_READ)
+@require(Permission.TICKETS_TRANSFERS_RETRY)
 def retry_transfer(request: AuthedRequest, public_id: str) -> Transfer:
     transfer = lifecycle.retry(_ticket(public_id).id, request.auth)
     return (
@@ -354,7 +351,7 @@ def retry_transfer(request: AuthedRequest, public_id: str) -> Transfer:
 
 
 @router.get("/transfers/failed", auth=SessionAuth(), response=list[TransferOut])
-@require_role(*_READ)
+@require(Permission.TICKETS_LIFECYCLE_READ)
 def failed_transfers(request: AuthedRequest) -> QuerySet[Transfer]:
     return Transfer.objects.failed_queue().prefetch_related("runs")
 

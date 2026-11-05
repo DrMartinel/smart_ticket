@@ -11,14 +11,8 @@ from apps.review.models import SECURITY_QUEUES, ReviewDecision, ReviewError, Rev
 from apps.review.request_schema import CommentDecisionIn, DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
 from apps.review.utils import review_decisions
-from apps.accounts.permissions import (
-    TECHNICIAN_OR_MANAGER,
-    STAFF,
-    AuthedRequest,
-    SessionAuth,
-    refuse_unless,
-    require_role,
-)
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_without, require
 from apps.tickets.utils.comments import CommentReviewChoice, comments
 from apps.tickets.utils.router import ReviewQueue
 
@@ -26,7 +20,7 @@ router = Router(tags=["review"])
 
 
 @router.get("/queue", auth=SessionAuth(), response=list[ReviewItemOut])
-@require_role(*STAFF)
+@require(Permission.REVIEW_QUEUE_WORK)
 def list_queue(
     request: AuthedRequest, queue: str | None = None, state: str = "pending"
 ) -> QuerySet[ReviewItem]:
@@ -36,13 +30,13 @@ def list_queue(
 
 
 @router.get("/items/{item_id}", auth=SessionAuth(), response=ReviewItemOut)
-@require_role(*STAFF)
+@require(Permission.REVIEW_QUEUE_WORK)
 def get_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     return _visible(request, _get_or_404(item_id))
 
 
 @router.post("/items/{item_id}/claim", auth=SessionAuth(), response=ReviewItemOut)
-@require_role(*STAFF)
+@require(Permission.REVIEW_QUEUE_WORK)
 def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     item = _visible(request, _get_or_404(item_id))
     try:
@@ -53,13 +47,13 @@ def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
 
 
 @router.post("/items/{item_id}/decide", auth=SessionAuth(), response=DecisionOut)
-@require_role(*STAFF)
+@require(Permission.REVIEW_QUEUE_WORK)
 def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn) -> ReviewDecision:
     item = _visible(request, _get_or_404(item_id))
     if item.comment_id is not None:
         raise HttpError(422, "a held comment is decided at /comment-decision")
     if item.queue == ReviewQueue.RUNBOOK_APPROVAL:
-        refuse_unless(request, request.auth, TECHNICIAN_OR_MANAGER)
+        refuse_without(request, request.auth, Permission.RUNBOOKS_EXECUTE)
     try:
         return review_decisions.decide(item, request.auth, payload)
     except ReviewError as e:
@@ -67,7 +61,7 @@ def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn)
 
 
 @router.post("/items/{item_id}/comment-decision", auth=SessionAuth(), response=ReviewItemOut)
-@require_role(*STAFF)
+@require(Permission.REVIEW_QUEUE_WORK)
 def decide_comment(
     request: AuthedRequest, item_id: uuid.UUID, payload: CommentDecisionIn
 ) -> ReviewItem:
@@ -79,7 +73,7 @@ def decide_comment(
 def _visible(request: AuthedRequest, item: ReviewItem) -> ReviewItem:
     """Refuses a blocked ticket's item to anyone but security (BR-F8-07)."""
     if item.queue in SECURITY_QUEUES:
-        refuse_unless(request, request.auth, (UserRole.SECURITY,))
+        refuse_without(request, request.auth, Permission.SECURITY_QUEUE_WORK)
     return item
 
 

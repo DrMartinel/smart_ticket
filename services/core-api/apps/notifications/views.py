@@ -11,8 +11,8 @@ from django.db.models import QuerySet
 from ninja import Query, Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.accounts.models import Capability, UserRole
-from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_access
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.notifications.models import Message, WebhookSubscription
 from apps.notifications.request_schema import (
     DeliveryFilter,
@@ -48,15 +48,12 @@ from apps.notifications.utils.dispatcher import dispatcher
 
 router = Router(tags=["notifications"])
 
-_ADMIN = (Capability.WORKFLOW_ADMIN,)
-_MANAGER = (UserRole.MANAGER,)
-
 
 # ── a user's own ──
 
 
 @router.get("", auth=SessionAuth(), response=InboxOut)
-@require_access(roles=ALL_ROLES)
+@require(Permission.SELF_NOTIFICATIONS)
 def notifications(
     request: AuthedRequest,
     unread: bool = False,
@@ -73,26 +70,26 @@ def notifications(
 
 
 @router.post("/read-all", auth=SessionAuth(), response={204: None})
-@require_access(roles=ALL_ROLES)
+@require(Permission.SELF_NOTIFICATIONS)
 def read_all(request: AuthedRequest) -> Status:
     inbox.read_all(request.auth)
     return Status(204, None)
 
 
 @router.get("/preferences", auth=SessionAuth(), response=list[PreferenceOut])
-@require_access(roles=ALL_ROLES)
+@require(Permission.SELF_NOTIFICATIONS)
 def preferences(request: AuthedRequest) -> list[PreferenceView]:
     return config.preferences(request.auth)
 
 
 @router.put("/preferences", auth=SessionAuth(), response=list[PreferenceOut])
-@require_access(roles=ALL_ROLES)
+@require(Permission.SELF_NOTIFICATIONS)
 def save_preferences(request: AuthedRequest, payload: list[PreferenceIn]) -> list[PreferenceView]:
     return config.save_preferences(request.auth, [p.dict() for p in payload])
 
 
 @router.put("/language", auth=SessionAuth(), response=LanguageOut)
-@require_access(roles=ALL_ROLES)
+@require(Permission.SELF_NOTIFICATIONS)
 def set_language(request: AuthedRequest, payload: LanguageIn) -> dict[str, str]:
     return {"language": config.set_language(request.auth, payload.language)}
 
@@ -101,13 +98,13 @@ def set_language(request: AuthedRequest, payload: LanguageIn) -> dict[str, str]:
 
 
 @router.get("/matrix", auth=SessionAuth(), response=list[MatrixCellOut])
-@require_access(roles=_MANAGER, capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_MATRIX_READ)
 def matrix(request: AuthedRequest) -> list[MatrixCellView]:
     return config.matrix()
 
 
 @router.put("/matrix", auth=SessionAuth(), response=list[MatrixCellOut])
-@require_access(capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_MATRIX_MANAGE)
 def save_matrix(request: AuthedRequest, payload: MatrixIn) -> list[MatrixCellView]:
     return config.save_matrix(
         request.auth, [c.model_dump(mode="json") for c in payload.changes], payload.reason
@@ -119,13 +116,13 @@ def save_matrix(request: AuthedRequest, payload: MatrixIn) -> list[MatrixCellVie
 
 @router.get("/deliveries", auth=SessionAuth(), response=list[DeliveryOut])
 @paginate(LimitOffsetPagination)
-@require_access(roles=_MANAGER, capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_DELIVERIES_MANAGE)
 def deliveries(request: AuthedRequest, filters: Query[DeliveryFilter]) -> QuerySet[Message]:
     return Message.objects.deliveries().matching(**filters.dict())
 
 
 @router.post("/deliveries/retry", auth=SessionAuth(), response=RetryOut)
-@require_access(roles=_MANAGER, capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_DELIVERIES_MANAGE)
 def retry(request: AuthedRequest, payload: RetryIn) -> dict[str, int]:
     rows = (
         Message.objects.all() if payload.all_failed else Message.objects.filter(pk__in=payload.ids)
@@ -137,19 +134,19 @@ def retry(request: AuthedRequest, payload: RetryIn) -> dict[str, int]:
 
 
 @router.get("/webhooks", auth=SessionAuth(), response=list[WebhookOut])
-@require_access(capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_WEBHOOKS_MANAGE)
 def webhooks(request: AuthedRequest) -> QuerySet[WebhookSubscription]:
     return WebhookSubscription.objects.select_related("created_by")
 
 
 @router.post("/webhooks", auth=SessionAuth(), response={201: WebhookOut})
-@require_access(capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_WEBHOOKS_MANAGE)
 def subscribe(request: AuthedRequest, payload: WebhookIn) -> Status:
     return Status(201, config.subscribe(request.auth, payload.dict()))
 
 
 @router.patch("/webhooks/{subscription_id}", auth=SessionAuth(), response=WebhookOut)
-@require_access(capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_WEBHOOKS_MANAGE)
 def update_webhook(
     request: AuthedRequest, subscription_id: uuid.UUID, payload: WebhookPatch
 ) -> WebhookSubscription:
@@ -159,7 +156,7 @@ def update_webhook(
 
 
 @router.delete("/webhooks/{subscription_id}", auth=SessionAuth(), response={204: None})
-@require_access(capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_WEBHOOKS_MANAGE)
 def unsubscribe(request: AuthedRequest, subscription_id: uuid.UUID) -> Status:
     config.unsubscribe(request.auth, subscription_id)
     return Status(204, None)
@@ -169,7 +166,7 @@ def unsubscribe(request: AuthedRequest, subscription_id: uuid.UUID) -> Status:
 
 
 @router.get("/templates/{event}/{channel}/{language}", auth=SessionAuth(), response=TemplateOut)
-@require_access(capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_TEMPLATES_MANAGE)
 def template(
     request: AuthedRequest, event: str, channel: PersonChannel, language: TemplateLanguage
 ) -> TemplateView:
@@ -177,7 +174,7 @@ def template(
 
 
 @router.put("/templates/{event}/{channel}/{language}", auth=SessionAuth(), response=TemplateOut)
-@require_access(capabilities=_ADMIN)
+@require(Permission.NOTIFICATIONS_TEMPLATES_MANAGE)
 def save_template(
     request: AuthedRequest,
     event: str,
@@ -192,7 +189,7 @@ def save_template(
 
 
 @router.post("/{notification_id}/read", auth=SessionAuth(), response={204: None})
-@require_access(roles=ALL_ROLES)
+@require(Permission.SELF_NOTIFICATIONS)
 def read(request: AuthedRequest, notification_id: uuid.UUID) -> Status:
     inbox.read(request.auth, notification_id)
     return Status(204, None)

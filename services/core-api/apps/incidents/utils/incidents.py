@@ -234,7 +234,7 @@ class Incidents:
     # ── the incident manager ──
 
     def check_manager(self, actor: User) -> None:
-        if not actor.capabilities.filter(capability=Capability.INCIDENT_MANAGER.value).exists():
+        if Capability.INCIDENT_MANAGER.value not in actor.capability_set():
             raise IncidentError(403, IncidentRefusal.NOT_ALLOWED, "incident managers only")
 
     def get(self, public_id: str) -> Incident:
@@ -617,9 +617,7 @@ class Incidents:
                 .exists()
             ):
                 raise IncidentError(404, IncidentRefusal.NOT_LINKED, "not linked to this incident")
-            is_manager = actor.capabilities.filter(
-                capability=Capability.INCIDENT_MANAGER.value
-            ).exists()
+            is_manager = Capability.INCIDENT_MANAGER.value in actor.capability_set()
             if not is_manager and ticket.assigned_to_id != actor.id:
                 raise IncidentError(
                     403, IncidentRefusal.NOT_ALLOWED, "incident managers and the assignee"

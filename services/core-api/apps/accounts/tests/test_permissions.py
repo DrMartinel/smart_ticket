@@ -1,8 +1,7 @@
 """
-The role gate for Ninja handlers, `require_role`. It must refuse a request
-with no authenticated user (401) and a user outside the allowed roles (403)
-before the handler runs. A gate that lets a call through on a missing or
-unexpected user is worse than none, because the endpoint looks protected.
+The permission gate for Ninja handlers, `require`. It must refuse a request
+with no authenticated user (401) and a user without the permission (403)
+before the handler runs.
 """
 
 from typing import cast
@@ -12,14 +11,8 @@ from django.test import RequestFactory
 from ninja.errors import HttpError
 
 from apps.accounts.models import User, UserRole
-
-from apps.accounts.permissions import (
-    AccessError,
-    AccessRefusal,
-    AuthedRequest,
-    has_any_role,
-    require_role,
-)
+from apps.accounts.permissions import AccessError, AccessRefusal, AuthedRequest, holds, require
+from apps.accounts.utils.catalog import Permission
 
 
 class Handler:
@@ -28,7 +21,7 @@ class Handler:
     def __init__(self) -> None:
         self.calls = 0
 
-        @require_role(UserRole.MANAGER, UserRole.SECURITY)
+        @require(Permission.SECURITY_SUMMARY_READ)
         def handle(request: AuthedRequest) -> str:
             self.calls += 1
             return "ran"
@@ -54,7 +47,7 @@ def test_no_authenticated_user_is_refused_with_401():
 
 
 @pytest.mark.django_db
-def test_a_role_outside_the_allowed_set_is_refused_with_403():
+def test_a_person_without_the_permission_is_refused_with_403():
     handler = Handler()
     technician = User.objects.create_user(username="t", password="x", role="technician")
 
@@ -62,21 +55,22 @@ def test_a_role_outside_the_allowed_set_is_refused_with_403():
         handler.handle(request_as(technician))
 
     assert refused.value.status == 403
-    assert refused.value.code is AccessRefusal.ROLE_NOT_ALLOWED
+    assert refused.value.code is AccessRefusal.PERMISSION_MISSING
     assert handler.calls == 0
 
 
+@pytest.mark.django_db
 @pytest.mark.parametrize("role", [UserRole.MANAGER, UserRole.SECURITY])
-def test_an_allowed_role_reaches_the_handler(role):
+def test_a_role_holding_the_permission_reaches_the_handler(role):
     handler = Handler()
 
     assert handler.handle(request_as(User(username="m", role=role.value))) == "ran"
     assert handler.calls == 1
 
 
-def test_has_any_role():
+@pytest.mark.django_db
+def test_holds_reads_the_base_role():
     manager = User(username="m", role=UserRole.MANAGER.value)
 
-    assert has_any_role(manager, [UserRole.MANAGER])
-    assert not has_any_role(manager, [UserRole.EMPLOYEE, UserRole.TECHNICIAN])
-    assert not has_any_role(object(), [UserRole.MANAGER])
+    assert holds(manager, Permission.ROLLOUT_FLAG_ON)
+    assert not holds(manager, Permission.SECURITY_QUEUE_WORK)

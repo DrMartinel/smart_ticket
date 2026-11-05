@@ -139,7 +139,7 @@ def test_employees_and_managers_are_refused_at_the_route(api_as, people, ticket,
     response = reveal(api_as, people[who])
 
     assert response.status_code == 403
-    assert response.json()["code"] == "role_not_allowed"
+    assert response.json()["code"] == "permission_missing"
 
 
 def test_critical_label_needs_security(api_as, people, ticket):

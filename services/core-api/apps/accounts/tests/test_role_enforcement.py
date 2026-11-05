@@ -35,7 +35,7 @@ UNGATED_BY_DESIGN = {
 
 
 def ungated_routes(routers: Iterable[tuple[str, Router]]) -> list[str]:
-    """Each route with no `require_role`, as "METHOD /path (module.handler)"."""
+    """Each route with no `require` gate, as "METHOD /path (module.handler)"."""
     found = []
     for prefix, router in routers:
         for path, path_view in router.path_operations.items():
@@ -149,7 +149,7 @@ class TestRefusals:
         )
 
         assert response.status_code == 403
-        assert response.json()["code"] == "role_not_allowed"
+        assert response.json()["code"] == "permission_missing"
         item.refresh_from_db()
         assert item.state == "pending"
         assert not ReviewDecision.objects.exists()
@@ -162,9 +162,12 @@ class TestRefusals:
         response = api_as(lan).get("/api/metrics/dashboard")
 
         assert response.json() == {
-            "code": "role_not_allowed",
-            "message": "requires role in [manager, technician]",
-            "details": {"role": "employee"},
+            "code": "permission_missing",
+            "message": "requires permission urn:smart-ticket:perm:reports:dashboard:read",
+            "details": {
+                "role": "employee",
+                "permission": "urn:smart-ticket:perm:reports:dashboard:read",
+            },
         }
 
     def test_refusal_audit_row_names_route_method_and_role(self, api_as):
@@ -175,7 +178,12 @@ class TestRefusals:
 
         row = AuditLog.objects.get(event="access_denied")
         assert row.actor_id == lan.id
-        assert row.payload == {"route": "api/review/queue", "method": "GET", "role": "employee"}
+        assert row.payload == {
+            "route": "api/review/queue",
+            "method": "GET",
+            "role": "employee",
+            "permission": "urn:smart-ticket:perm:review:queue:work",
+        }
 
     def test_refusals_are_audited_once_per_window(self, api_as, monkeypatch):
         """BR-PRE1-03: one row per user, route and method within the window."""
@@ -294,7 +302,7 @@ def test_a_role_outside_the_route_table_is_refused(api_as, method, path, body, r
     response = send(path, body, content_type="application/json") if body else send(path)
 
     assert response.status_code == 403
-    assert response.json()["code"] == "role_not_allowed"
+    assert response.json()["code"] == "permission_missing"
 
 
 @pytest.mark.django_db
@@ -305,7 +313,7 @@ def test_a_refused_caller_is_refused_before_the_body_is_read(api_as):
     response = api_as(lan).post("/api/kb", {}, content_type="application/json")
 
     assert response.status_code == 403
-    assert response.json()["code"] == "role_not_allowed"
+    assert response.json()["code"] == "permission_missing"
     assert "detail" not in response.json()
     assert access_denied_rows(lan) == 1
 
@@ -323,7 +331,7 @@ def test_only_a_manager_may_force_a_move(api_as, technician_user):
     )
 
     assert response.status_code == 403
-    assert response.json()["code"] == "role_not_allowed"
+    assert response.json()["code"] == "permission_missing"
     assert access_denied_rows(technician_user) == 1
 
 

@@ -6,7 +6,9 @@ import json
 
 import pytest
 
-from apps.accounts.models import RefreshSession, User, UserCapability
+from apps.accounts.models import RefreshSession, User
+
+from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.teams.models import Team, TeamMembership
 from apps.tickets.models import Ticket
@@ -81,7 +83,7 @@ def test_an_employee_with_open_tickets_is_refused(boss, api_as):
 
 def test_an_employee_leaves_every_team_and_capability(boss, api_as):
     khoa = person("khoa.lv")
-    UserCapability.objects.create(user=khoa, capability="kb_editor")
+    grant_capability(khoa, "kb_editor")
     TeamMembership.objects.create(team=Team.objects.get(slug="network"), user=khoa)
 
     response = put_rights(api_as(boss), "khoa.lv", "employee")
@@ -112,7 +114,7 @@ def test_a_change_needs_a_reason(boss, api_as):
 
 def test_a_workflow_admin_lists_people_but_sets_no_rights(boss, api_as):
     tu = person("tu.dv")
-    UserCapability.objects.create(user=tu, capability="workflow_admin")
+    grant_capability(tu, "workflow_admin")
     person("lan.nt", "employee")
 
     listed = api_as(tu).get("/api/accounts/people")

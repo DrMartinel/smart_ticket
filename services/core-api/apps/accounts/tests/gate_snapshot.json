@@ -1,0 +1,1598 @@
+{
+ "DELETE /api/auth/sessions/{family}": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.accounts.views.end_sign_in"
+ },
+ "DELETE /api/incidents/{public_id}/links/{ticket}": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.incidents.views.unlink"
+ },
+ "DELETE /api/kb/{slug}/graph/overrides/{target}": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [],
+  "view": "apps.kb.views.remove_override"
+ },
+ "DELETE /api/lifecycle/fields/{field_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.delete_field"
+ },
+ "DELETE /api/lifecycle/statuses/{status_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.delete_status"
+ },
+ "DELETE /api/lifecycle/transitions/{transition_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.delete_transition"
+ },
+ "DELETE /api/lifecycle/workflows/{workflow_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.delete_workflow"
+ },
+ "DELETE /api/me/leaves/{leave_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.remove_leave"
+ },
+ "DELETE /api/notifications/webhooks/{subscription_id}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.notifications.views.unsubscribe"
+ },
+ "DELETE /api/sla/calendars/{calendar_id}/holidays/{holiday_id}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.sla.views.remove_holiday"
+ },
+ "DELETE /api/teams/{slug}/members/{username}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.teams.views.remove_member"
+ },
+ "GET /api/accounts/me": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.accounts.views.me"
+ },
+ "GET /api/accounts/people": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.accounts.views.people"
+ },
+ "GET /api/accounts/staff": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.accounts.views.staff"
+ },
+ "GET /api/auth/oidc/config": {
+  "capabilities": null,
+  "roles": null,
+  "view": "apps.accounts.views.oidc_config"
+ },
+ "GET /api/auth/sessions": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.accounts.views.list_sign_ins"
+ },
+ "GET /api/chat/tickets": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.chat.views.history"
+ },
+ "GET /api/chat/tickets/{public_id}": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.chat.views.turn"
+ },
+ "GET /api/fewshot/category/{category}": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.fewshot.views.list_active"
+ },
+ "GET /api/incidents": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.incidents.views.list_incidents"
+ },
+ "GET /api/incidents/{public_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.incidents.views.get_incident"
+ },
+ "GET /api/itsm/review-items/{item_id}/runbook": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.itsm_mock.views.runbook_panel"
+ },
+ "GET /api/itsm/runbooks": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.itsm_mock.views.list_runbooks"
+ },
+ "GET /api/kb": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.kb.views.list_articles"
+ },
+ "GET /api/kb/authority-log": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager",
+   "security"
+  ],
+  "view": "apps.kb.views.authority_log"
+ },
+ "GET /api/kb/authority-log.csv": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager",
+   "security"
+  ],
+  "view": "apps.kb.views.authority_log_csv"
+ },
+ "GET /api/kb/authority-queue": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.authority_queue"
+ },
+ "GET /api/kb/drafts": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.list_drafts"
+ },
+ "GET /api/kb/drafts/{draft_id}": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.get_draft"
+ },
+ "GET /api/kb/drafts/{draft_id}/diff": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.draft_diff"
+ },
+ "GET /api/kb/gaps": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.gaps"
+ },
+ "GET /api/kb/{slug}/graph": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.page_graph"
+ },
+ "GET /api/lifecycle/catalog": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.get_catalog"
+ },
+ "GET /api/lifecycle/tickets/{public_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.get_ticket_lifecycle"
+ },
+ "GET /api/lifecycle/tickets/{public_id}/transfers": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.list_transfers"
+ },
+ "GET /api/lifecycle/tickets/{public_id}/transitions": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.list_moves"
+ },
+ "GET /api/lifecycle/transfers/failed": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.failed_transfers"
+ },
+ "GET /api/lifecycle/workflows": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.list_workflows"
+ },
+ "GET /api/lifecycle/workflows/{workflow_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.get_workflow"
+ },
+ "GET /api/me/availability": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.my_availability"
+ },
+ "GET /api/metrics/dashboard": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.metrics.views.dashboard"
+ },
+ "GET /api/notifications": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.notifications.views.notifications"
+ },
+ "GET /api/notifications/deliveries": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.notifications.views.deliveries"
+ },
+ "GET /api/notifications/matrix": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.notifications.views.matrix"
+ },
+ "GET /api/notifications/preferences": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.notifications.views.preferences"
+ },
+ "GET /api/notifications/templates/{event}/{channel}/{language}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.notifications.views.template"
+ },
+ "GET /api/notifications/webhooks": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.notifications.views.webhooks"
+ },
+ "GET /api/pii/access-log": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.tickets.views.access_log"
+ },
+ "GET /api/pii/access-log.csv": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.tickets.views.access_log_csv"
+ },
+ "GET /api/reports/csat": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.csat"
+ },
+ "GET /api/reports/csat.csv": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.csat_csv"
+ },
+ "GET /api/reports/incidents": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.reports.views.incidents"
+ },
+ "GET /api/reports/incidents.csv": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.reports.views.incidents_csv"
+ },
+ "GET /api/reports/kb": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.reports.views.kb"
+ },
+ "GET /api/reports/kb.csv": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.reports.views.kb_csv"
+ },
+ "GET /api/reports/notifications": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.reports.views.notifications"
+ },
+ "GET /api/reports/notifications.csv": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.reports.views.notifications_csv"
+ },
+ "GET /api/reports/reviewers": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.reviewers"
+ },
+ "GET /api/reports/reviewers.csv": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.reviewers_csv"
+ },
+ "GET /api/reports/rollout": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security"
+  ],
+  "view": "apps.reports.views.rollout"
+ },
+ "GET /api/reports/rollout.csv": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security"
+  ],
+  "view": "apps.reports.views.rollout_csv"
+ },
+ "GET /api/reports/security": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security"
+  ],
+  "view": "apps.reports.views.security"
+ },
+ "GET /api/reports/security.csv": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security"
+  ],
+  "view": "apps.reports.views.security_csv"
+ },
+ "GET /api/reports/sla": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.sla"
+ },
+ "GET /api/reports/sla.csv": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.sla_csv"
+ },
+ "GET /api/reports/sla/tickets": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.sla_tickets"
+ },
+ "GET /api/reports/sla/tickets.csv": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.sla_tickets_csv"
+ },
+ "GET /api/reports/teams/{slug}": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.team"
+ },
+ "GET /api/reports/teams/{slug}.csv": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.reports.views.team_csv"
+ },
+ "GET /api/requester/tickets": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.requester.views.my_tickets"
+ },
+ "GET /api/requester/tickets/{public_id}": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.requester.views.my_ticket"
+ },
+ "GET /api/review/items/{item_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.review.views.get_item"
+ },
+ "GET /api/review/queue": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.review.views.list_queue"
+ },
+ "GET /api/rollout": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.rollout.views.get_rollout"
+ },
+ "GET /api/security/alerts": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.list_alerts"
+ },
+ "GET /api/security/alerts/{alert_id}": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.get_alert"
+ },
+ "GET /api/security/summary": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security"
+  ],
+  "view": "apps.security.views.summary"
+ },
+ "GET /api/sla/breaches": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.sla.views.breaches"
+ },
+ "GET /api/sla/calendars": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.sla.views.calendars"
+ },
+ "GET /api/sla/calendars/{calendar_id}/holidays": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.sla.views.holidays"
+ },
+ "GET /api/sla/policies": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.sla.views.policies"
+ },
+ "GET /api/teams": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.teams"
+ },
+ "GET /api/teams/{slug}": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.team"
+ },
+ "GET /api/teams/{slug}/queue": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.queue"
+ },
+ "GET /api/teams/{slug}/workload": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.workload"
+ },
+ "GET /api/thresholds/current": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.rollout.views.current"
+ },
+ "GET /api/tickets": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.list_tickets"
+ },
+ "GET /api/tickets/board": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.ticket_board"
+ },
+ "GET /api/tickets/{public_id}": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.get_ticket"
+ },
+ "GET /api/tickets/{public_id}/comments": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.ticket_comments"
+ },
+ "GET /api/tickets/{public_id}/detail": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.ticket_detail"
+ },
+ "GET /api/tickets/{public_id}/sla": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.ticket_sla"
+ },
+ "PATCH /api/itsm/runbooks/{code}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.itsm_mock.views.change_runbook"
+ },
+ "PATCH /api/kb/drafts/{draft_id}": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.update_draft"
+ },
+ "PATCH /api/lifecycle/fields/{field_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.update_field"
+ },
+ "PATCH /api/lifecycle/statuses/{status_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.update_status"
+ },
+ "PATCH /api/lifecycle/transitions/{transition_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.update_transition"
+ },
+ "PATCH /api/lifecycle/workflows/{workflow_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.update_workflow"
+ },
+ "PATCH /api/notifications/webhooks/{subscription_id}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.notifications.views.update_webhook"
+ },
+ "PATCH /api/rollout/gates/{gate_id}": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.rollout.views.change_gate"
+ },
+ "PATCH /api/sla/calendars/{calendar_id}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.sla.views.edit_calendar"
+ },
+ "PATCH /api/sla/policies/{policy_id}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.sla.views.edit_policy"
+ },
+ "PATCH /api/teams/{slug}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.teams.views.update_team"
+ },
+ "PATCH /api/tickets/{public_id}/priority": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.change_priority"
+ },
+ "POST /api/auth/login": {
+  "capabilities": null,
+  "roles": null,
+  "view": "apps.accounts.views.login"
+ },
+ "POST /api/auth/logout": {
+  "capabilities": null,
+  "roles": null,
+  "view": "apps.accounts.views.logout"
+ },
+ "POST /api/auth/logout-everywhere": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.accounts.views.logout_everywhere"
+ },
+ "POST /api/auth/oidc/backchannel-logout": {
+  "capabilities": null,
+  "roles": null,
+  "view": "apps.accounts.views.oidc_backchannel_logout"
+ },
+ "POST /api/auth/oidc/exchange": {
+  "capabilities": null,
+  "roles": null,
+  "view": "apps.accounts.views.oidc_exchange"
+ },
+ "POST /api/auth/refresh": {
+  "capabilities": null,
+  "roles": null,
+  "view": "apps.accounts.views.refresh"
+ },
+ "POST /api/chat/ask": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.chat.views.ask"
+ },
+ "POST /api/chat/conversations/{conversation_id}/end": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.chat.views.end_conversation"
+ },
+ "POST /api/chat/tickets/{public_id}/clarify": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.chat.views.clarify"
+ },
+ "POST /api/chat/tickets/{public_id}/create-ticket": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.chat.views.create_ticket"
+ },
+ "POST /api/incidents": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [],
+  "view": "apps.incidents.views.declare"
+ },
+ "POST /api/incidents/{public_id}/broadcasts": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [],
+  "view": "apps.incidents.views.broadcast"
+ },
+ "POST /api/incidents/{public_id}/confirm": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [],
+  "view": "apps.incidents.views.confirm"
+ },
+ "POST /api/incidents/{public_id}/dismiss": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [],
+  "view": "apps.incidents.views.dismiss"
+ },
+ "POST /api/incidents/{public_id}/links": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [],
+  "view": "apps.incidents.views.add_links"
+ },
+ "POST /api/incidents/{public_id}/reopen": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [],
+  "view": "apps.incidents.views.reopen"
+ },
+ "POST /api/incidents/{public_id}/resolve": {
+  "capabilities": [
+   "incident_manager"
+  ],
+  "roles": [],
+  "view": "apps.incidents.views.resolve"
+ },
+ "POST /api/itsm/executions/{execution_id}/callback": {
+  "capabilities": null,
+  "roles": null,
+  "view": "apps.itsm_mock.views.callback"
+ },
+ "POST /api/itsm/executions/{execution_id}/resolve": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.itsm_mock.views.resolve"
+ },
+ "POST /api/itsm/review-items/{item_id}/execute": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.itsm_mock.views.execute"
+ },
+ "POST /api/itsm/runbooks": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.itsm_mock.views.create_runbook"
+ },
+ "POST /api/itsm/runbooks/{code}/activate": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.itsm_mock.views.activate_runbook"
+ },
+ "POST /api/kb": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.create_article"
+ },
+ "POST /api/kb/auto-reply-allowed/bulk": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.bulk_auto_reply"
+ },
+ "POST /api/kb/drafts": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.create_draft"
+ },
+ "POST /api/kb/drafts/{draft_id}/rebase": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.rebase_draft"
+ },
+ "POST /api/kb/drafts/{draft_id}/review": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.review_draft"
+ },
+ "POST /api/kb/drafts/{draft_id}/submit": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.submit_draft"
+ },
+ "POST /api/kb/drafts/{draft_id}/withdraw": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.withdraw_draft"
+ },
+ "POST /api/kb/gaps/{cluster_id}/dismiss": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.dismiss_gap"
+ },
+ "POST /api/kb/{slug}/auto-reply-allowed": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.toggle_auto_reply"
+ },
+ "POST /api/kb/{slug}/graph/edges/{target}/confirm": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [],
+  "view": "apps.kb.views.confirm_edge"
+ },
+ "POST /api/kb/{slug}/graph/overrides": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [],
+  "view": "apps.kb.views.add_override"
+ },
+ "POST /api/kb/{slug}/graph/rebuild": {
+  "capabilities": [
+   "kb_editor"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.rebuild_graph"
+ },
+ "POST /api/kb/{slug}/reingest": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.reingest"
+ },
+ "POST /api/kb/{slug}/risk-tier": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.kb.views.change_risk_tier"
+ },
+ "POST /api/lifecycle/action-runs/{run_id}/callback": {
+  "capabilities": null,
+  "roles": null,
+  "view": "apps.lifecycle.views.run_callback"
+ },
+ "POST /api/lifecycle/fields/validate": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.validate_fields"
+ },
+ "POST /api/lifecycle/statuses/{status_id}/position": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.set_status_position"
+ },
+ "POST /api/lifecycle/tickets/{public_id}/change-workflow": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.change_ticket_workflow"
+ },
+ "POST /api/lifecycle/tickets/{public_id}/move": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.move_ticket"
+ },
+ "POST /api/lifecycle/tickets/{public_id}/retry": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.retry_transfer"
+ },
+ "POST /api/lifecycle/workflows": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.create_workflow"
+ },
+ "POST /api/lifecycle/workflows/{workflow_id}/adopt": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.adopt_tickets"
+ },
+ "POST /api/lifecycle/workflows/{workflow_id}/fields": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.add_field"
+ },
+ "POST /api/lifecycle/workflows/{workflow_id}/statuses": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.add_status"
+ },
+ "POST /api/lifecycle/workflows/{workflow_id}/statuses/reorder": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.reorder_statuses"
+ },
+ "POST /api/lifecycle/workflows/{workflow_id}/transitions": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.lifecycle.views.add_transition"
+ },
+ "POST /api/me/leaves": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.add_leave"
+ },
+ "POST /api/notifications/deliveries/retry": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.notifications.views.retry"
+ },
+ "POST /api/notifications/read-all": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.notifications.views.read_all"
+ },
+ "POST /api/notifications/webhooks": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.notifications.views.subscribe"
+ },
+ "POST /api/notifications/{notification_id}/read": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.notifications.views.read"
+ },
+ "POST /api/requester/tickets/{public_id}/reopen": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.requester.views.reopen"
+ },
+ "POST /api/requester/tickets/{public_id}/replies": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.requester.views.reply"
+ },
+ "POST /api/review/items/{item_id}/claim": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.review.views.claim_item"
+ },
+ "POST /api/review/items/{item_id}/comment-decision": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.review.views.decide_comment"
+ },
+ "POST /api/review/items/{item_id}/decide": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.review.views.decide_item"
+ },
+ "POST /api/rollout/{branch}/off": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security"
+  ],
+  "view": "apps.rollout.views.turn_off"
+ },
+ "POST /api/rollout/{branch}/on": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.rollout.views.turn_on"
+ },
+ "POST /api/security/alerts/{alert_id}/ack": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.acknowledge"
+ },
+ "POST /api/security/alerts/{alert_id}/assign": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.assign"
+ },
+ "POST /api/security/alerts/{alert_id}/close": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.close"
+ },
+ "POST /api/security/alerts/{alert_id}/end-sessions": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.end_sessions"
+ },
+ "POST /api/security/alerts/{alert_id}/notes": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.add_note"
+ },
+ "POST /api/security/alerts/{alert_id}/notify-requester": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.notify_requester"
+ },
+ "POST /api/security/alerts/{alert_id}/release-ticket": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.release_ticket"
+ },
+ "POST /api/security/alerts/{alert_id}/reopen": {
+  "capabilities": [],
+  "roles": [
+   "security"
+  ],
+  "view": "apps.security.views.reopen"
+ },
+ "POST /api/sla/calendars": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.sla.views.create_calendar"
+ },
+ "POST /api/sla/calendars/{calendar_id}/holidays": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.sla.views.add_holidays"
+ },
+ "POST /api/sla/policies": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.sla.views.draft_policy"
+ },
+ "POST /api/sla/policies/{policy_id}/activate": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.sla.views.activate_policy"
+ },
+ "POST /api/sla/policies/{policy_id}/retire": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.sla.views.retire_policy"
+ },
+ "POST /api/sla/preview": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.sla.views.preview"
+ },
+ "POST /api/teams": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.teams.views.create_team"
+ },
+ "POST /api/teams/{slug}/members": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.teams.views.add_member"
+ },
+ "POST /api/tickets/submit": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.submit_ticket"
+ },
+ "POST /api/tickets/{public_id}/comments": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.add_comment"
+ },
+ "POST /api/tickets/{public_id}/quarantine/reveal": {
+  "capabilities": [],
+  "roles": [
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.reveal"
+ },
+ "POST /api/tickets/{public_id}/reassign": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.reassign"
+ },
+ "POST /api/tickets/{public_id}/sla/rebuild": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.tickets.views.rebuild_sla"
+ },
+ "POST /api/tickets/{public_id}/take": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.tickets.views.take"
+ },
+ "PUT /api/accounts/people/{username}/rights": {
+  "capabilities": [],
+  "roles": [
+   "manager"
+  ],
+  "view": "apps.accounts.views.set_rights"
+ },
+ "PUT /api/lifecycle/tickets/{public_id}/fields": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "technician"
+  ],
+  "view": "apps.lifecycle.views.write_fields"
+ },
+ "PUT /api/me/availability": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.set_my_availability"
+ },
+ "PUT /api/notifications/language": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.notifications.views.set_language"
+ },
+ "PUT /api/notifications/matrix": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.notifications.views.save_matrix"
+ },
+ "PUT /api/notifications/preferences": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.notifications.views.save_preferences"
+ },
+ "PUT /api/notifications/templates/{event}/{channel}/{language}": {
+  "capabilities": [
+   "workflow_admin"
+  ],
+  "roles": [],
+  "view": "apps.notifications.views.save_template"
+ },
+ "PUT /api/requester/tickets/{public_id}/rating": {
+  "capabilities": [],
+  "roles": [
+   "employee",
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.requester.views.rate"
+ },
+ "PUT /api/teams/{slug}/members/{username}/availability": {
+  "capabilities": [],
+  "roles": [
+   "manager",
+   "security",
+   "technician"
+  ],
+  "view": "apps.teams.views.set_member_availability"
+ }
+}

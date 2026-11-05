@@ -10,7 +10,9 @@ from typing import Any
 import pytest
 from django.core.mail.backends.base import BaseEmailBackend
 
-from apps.accounts.models import Capability, User, UserCapability, UserRole
+from apps.accounts.models import Capability, User, UserRole
+
+from apps.accounts.testing import grant_capability
 from apps.notifications import tasks
 from apps.teams.models import MembershipRole, Team, TeamMembership
 from apps.teams.utils.assignment import ReassignRequest, assignment
@@ -33,7 +35,7 @@ def person(username: str, role: UserRole, **extra: Any) -> User:
 @pytest.fixture
 def people(db) -> dict[str, User]:
     tu = person("tu.dv", UserRole.TECHNICIAN)
-    UserCapability.objects.create(user=tu, capability=Capability.WORKFLOW_ADMIN.value)
+    grant_capability(tu, Capability.WORKFLOW_ADMIN.value)
     return {
         "lan": person("lan.nt", UserRole.EMPLOYEE),
         "duc": person("duc.tm", UserRole.TECHNICIAN),

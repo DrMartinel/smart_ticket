@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 
-from apps.accounts.models import Capability, UserCapability
+from apps.accounts.models import Capability
+
+from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.sla.models import Calendar, Holiday, Policy
 from apps.sla.tests.conftest import handed_off
@@ -26,7 +28,7 @@ def send(client, method: str, url: str, body: dict):
 
 
 def admin(person):
-    UserCapability.objects.create(user=person, capability=Capability.WORKFLOW_ADMIN.value)
+    grant_capability(person, Capability.WORKFLOW_ADMIN.value)
     return person
 
 

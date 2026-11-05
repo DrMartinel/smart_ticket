@@ -10,8 +10,8 @@ from django.db.models import QuerySet
 from ninja import Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.accounts.models import Capability, UserRole
-from apps.accounts.permissions import STAFF, AuthedRequest, SessionAuth, require_access
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.sla.models import Calendar, Clock, Holiday, Policy
 from apps.sla.request_schema import (
     CalendarIn,
@@ -28,27 +28,24 @@ from apps.sla.utils.config import SlaConfigError, SlaConfigRefusal, sla_config
 
 router = Router(tags=["sla"])
 
-_ADMIN = (Capability.WORKFLOW_ADMIN,)
-_MANAGER = (UserRole.MANAGER,)
-
 
 # ── policies ──
 
 
 @router.get("/policies", auth=SessionAuth(), response=list[PolicyOut])
-@require_access(roles=STAFF)
+@require(Permission.SLA_READ)
 def policies(request: AuthedRequest) -> QuerySet[Policy]:
     return Policy.objects.select_related("calendar", "created_by", "approved_by")
 
 
 @router.post("/policies", auth=SessionAuth(), response={201: PolicyOut})
-@require_access(capabilities=_ADMIN)
+@require(Permission.SLA_MANAGE)
 def draft_policy(request: AuthedRequest, payload: PolicyIn) -> Status:
     return Status(201, sla_config.draft(request.auth, payload.model_dump(mode="json")))
 
 
 @router.patch("/policies/{policy_id}", auth=SessionAuth(), response=PolicyOut)
-@require_access(capabilities=_ADMIN)
+@require(Permission.SLA_MANAGE)
 def edit_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: PolicyPatch) -> Policy:
     return sla_config.edit(
         request.auth, policy_id, payload.model_dump(mode="json", exclude_unset=True)
@@ -56,13 +53,13 @@ def edit_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: PolicyPat
 
 
 @router.post("/policies/{policy_id}/activate", auth=SessionAuth(), response=PolicyOut)
-@require_access(roles=_MANAGER, capabilities=_ADMIN)
+@require(Permission.SLA_POLICIES_ACTIVATE)
 def activate_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
     return sla_config.activate(request.auth, policy_id, payload.reason)
 
 
 @router.post("/policies/{policy_id}/retire", auth=SessionAuth(), response=PolicyOut)
-@require_access(roles=_MANAGER, capabilities=_ADMIN)
+@require(Permission.SLA_POLICIES_ACTIVATE)
 def retire_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
     return sla_config.retire(request.auth, policy_id, payload.reason)
 
@@ -71,19 +68,19 @@ def retire_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonI
 
 
 @router.get("/calendars", auth=SessionAuth(), response=list[CalendarOut])
-@require_access(roles=STAFF)
+@require(Permission.SLA_READ)
 def calendars(request: AuthedRequest) -> QuerySet[Calendar]:
     return Calendar.objects.all()
 
 
 @router.post("/calendars", auth=SessionAuth(), response={201: CalendarOut})
-@require_access(capabilities=_ADMIN)
+@require(Permission.SLA_MANAGE)
 def create_calendar(request: AuthedRequest, payload: CalendarIn) -> Status:
     return Status(201, sla_config.save_calendar(request.auth, payload.model_dump()))
 
 
 @router.patch("/calendars/{calendar_id}", auth=SessionAuth(), response=CalendarOut)
-@require_access(capabilities=_ADMIN)
+@require(Permission.SLA_MANAGE)
 def edit_calendar(
     request: AuthedRequest, calendar_id: uuid.UUID, payload: CalendarPatch
 ) -> Calendar:
@@ -93,7 +90,7 @@ def edit_calendar(
 
 
 @router.get("/calendars/{calendar_id}/holidays", auth=SessionAuth(), response=list[HolidayOut])
-@require_access(roles=STAFF)
+@require(Permission.SLA_READ)
 def holidays(request: AuthedRequest, calendar_id: uuid.UUID) -> QuerySet[Holiday]:
     return Holiday.objects.filter(calendar_id=calendar_id)
 
@@ -101,7 +98,7 @@ def holidays(request: AuthedRequest, calendar_id: uuid.UUID) -> QuerySet[Holiday
 @router.post(
     "/calendars/{calendar_id}/holidays", auth=SessionAuth(), response={201: list[HolidayOut]}
 )
-@require_access(capabilities=_ADMIN)
+@require(Permission.SLA_MANAGE)
 def add_holidays(request: AuthedRequest, calendar_id: uuid.UUID, payload: HolidayIn) -> Status:
     start = payload.date or payload.from_date
     end = payload.date or payload.to_date or start
@@ -113,7 +110,7 @@ def add_holidays(request: AuthedRequest, calendar_id: uuid.UUID, payload: Holida
 @router.delete(
     "/calendars/{calendar_id}/holidays/{holiday_id}", auth=SessionAuth(), response={204: None}
 )
-@require_access(capabilities=_ADMIN)
+@require(Permission.SLA_MANAGE)
 def remove_holiday(request: AuthedRequest, calendar_id: uuid.UUID, holiday_id: uuid.UUID) -> Status:
     sla_config.remove_holiday(request.auth, calendar_id, holiday_id)
     return Status(204, None)
@@ -123,7 +120,7 @@ def remove_holiday(request: AuthedRequest, calendar_id: uuid.UUID, holiday_id: u
 
 
 @router.post("/preview", auth=SessionAuth(), response=PreviewOut)
-@require_access(roles=STAFF)
+@require(Permission.SLA_READ)
 def preview(request: AuthedRequest, payload: PreviewIn) -> Preview:
     return sla_clocks.preview(
         payload.category.value if payload.category else None, payload.priority, payload.start_at
@@ -132,7 +129,7 @@ def preview(request: AuthedRequest, payload: PreviewIn) -> Preview:
 
 @router.get("/breaches", auth=SessionAuth(), response=list[BreachOut])
 @paginate(LimitOffsetPagination)
-@require_access(roles=STAFF)
+@require(Permission.SLA_READ)
 def breaches(
     request: AuthedRequest, team: str | None = None, state: str | None = None
 ) -> QuerySet[Clock]:

@@ -8,7 +8,9 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from apps.accounts.models import Capability, User, UserCapability, UserRole
+from apps.accounts.models import Capability, User, UserRole
+
+from apps.accounts.testing import grant_capability
 from apps.lifecycle.tests.conftest import strict  # noqa: F401 — the fixture
 from apps.sla.tests.conftest import clock, submitted  # noqa: F401 — the fixture
 from apps.tickets.models import Ticket
@@ -91,7 +93,7 @@ def desk(db) -> dict[str, User]:
         "binh": person("binh.tt"),
         "chi": person("chi.lt"),
     }
-    UserCapability.objects.create(user=people["duc"], capability=Capability.INCIDENT_MANAGER.value)
+    grant_capability(people["duc"], Capability.INCIDENT_MANAGER.value)
     return people
 
 

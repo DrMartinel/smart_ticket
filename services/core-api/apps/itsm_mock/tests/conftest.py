@@ -14,7 +14,9 @@ import httpx
 import pytest
 from django.utils import timezone
 
-from apps.accounts.models import Capability, User, UserCapability, UserRole
+from apps.accounts.models import Capability, User, UserRole
+
+from apps.accounts.testing import grant_capability
 from apps.itsm_mock.models import ExecutorKind, Runbook
 from apps.itsm_mock.utils.executors import EXECUTORS
 from apps.review.models import ReviewAction, ReviewDecision, ReviewItem
@@ -27,7 +29,7 @@ from infrastructure.outbound import OutboundResponse
 def person(username: str, role: UserRole, *capabilities: Capability) -> User:
     user = User.objects.create_user(username=username, password="x", role=role.value)
     for capability in capabilities:
-        UserCapability.objects.create(user=user, capability=capability.value)
+        grant_capability(user, capability.value)
     return user
 
 

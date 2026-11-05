@@ -7,13 +7,8 @@ import uuid
 from django.conf import settings
 from ninja import Router
 
-from apps.accounts.models import UserRole
-from apps.accounts.permissions import (
-    STAFF,
-    AuthedRequest,
-    SessionAuth,
-    require_role,
-)
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.rollout.models import RolloutFlag, RolloutGate
 from apps.rollout.request_schema import FlagOnIn, GateChangeIn, ReasonIn
 from apps.rollout.response_schema import (
@@ -59,13 +54,13 @@ def _rollout() -> RolloutOut:
 
 
 @router.get("", auth=SessionAuth(), response=RolloutOut)
-@require_role(*STAFF)
+@require(Permission.ROLLOUT_READ)
 def get_rollout(request: AuthedRequest) -> RolloutOut:
     return _rollout()
 
 
 @router.post("/{branch}/on", auth=SessionAuth(), response=RolloutOut)
-@require_role(UserRole.MANAGER)
+@require(Permission.ROLLOUT_FLAG_ON)
 def turn_on(request: AuthedRequest, branch: str, payload: FlagOnIn) -> RolloutOut:
     rollout.turn_on(
         branch, request.auth, payload.reason, payload.gate_override_reason, payload.entered_values
@@ -74,14 +69,14 @@ def turn_on(request: AuthedRequest, branch: str, payload: FlagOnIn) -> RolloutOu
 
 
 @router.post("/{branch}/off", auth=SessionAuth(), response=RolloutOut)
-@require_role(UserRole.MANAGER, UserRole.SECURITY)
+@require(Permission.ROLLOUT_FLAG_OFF)
 def turn_off(request: AuthedRequest, branch: str, payload: ReasonIn) -> RolloutOut:
     rollout.turn_off(branch, request.auth, payload.reason)
     return _rollout()
 
 
 @router.patch("/gates/{gate_id}", auth=SessionAuth(), response=GateChangeOut)
-@require_role(UserRole.MANAGER)
+@require(Permission.ROLLOUT_GATES_MANAGE)
 def change_gate(request: AuthedRequest, gate_id: uuid.UUID, payload: GateChangeIn) -> GateChangeOut:
     change = rollout.change_gate(
         gate_id, request.auth, payload.threshold, payload.window_days, payload.reason
@@ -93,6 +88,6 @@ def change_gate(request: AuthedRequest, gate_id: uuid.UUID, payload: GateChangeI
 
 
 @thresholds_router.get("/current", auth=SessionAuth(), response=CurrentThresholdsOut)
-@require_role(*STAFF)
+@require(Permission.ROLLOUT_THRESHOLDS_READ)
 def current(request: AuthedRequest) -> CurrentThresholdsOut:
     return CurrentThresholdsOut.loaded()

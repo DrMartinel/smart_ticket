@@ -7,7 +7,8 @@ from datetime import datetime
 
 from ninja import Router
 
-from apps.accounts.permissions import ALL_ROLES, AuthedRequest, SessionAuth, require_role
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.requester.request_schema import RatingIn, ReopenIn, ReplyIn
 from apps.requester.response_schema import (
     RatingOut,
@@ -24,7 +25,7 @@ router = Router(tags=["requester"])
 
 
 @router.get("/tickets", auth=SessionAuth(), response=RequesterTicketList)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_TICKETS)
 def my_tickets(request: AuthedRequest, before: datetime | None = None) -> RequesterTicketList:
     listing = requester_tickets.listing(request.auth, before)
     return RequesterTicketList(
@@ -35,26 +36,26 @@ def my_tickets(request: AuthedRequest, before: datetime | None = None) -> Reques
 
 
 @router.get("/tickets/{public_id}", auth=SessionAuth(), response=RequesterTicketOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_TICKETS)
 def my_ticket(request: AuthedRequest, public_id: str) -> RequesterTicketOut:
     return RequesterTicketOut.detail(requester_tickets.own(request.auth, public_id), request.auth)
 
 
 @router.post("/tickets/{public_id}/replies", auth=SessionAuth(), response=ThreadCommentOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_TICKETS)
 def reply(request: AuthedRequest, public_id: str, payload: ReplyIn) -> ThreadCommentOut:
     comment = requester_tickets.reply(request.auth, public_id, payload.body)
     return ThreadCommentOut.of(comment, request.auth)
 
 
 @router.post("/tickets/{public_id}/reopen", auth=SessionAuth(), response=ReopenOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_TICKETS)
 def reopen(request: AuthedRequest, public_id: str, payload: ReopenIn) -> ReopenOut:
     done = requester_tickets.reopen(request.auth, public_id, payload.reason)
     return ReopenOut(reopened=done.reopened, new_ticket=done.new_ticket)
 
 
 @router.put("/tickets/{public_id}/rating", auth=SessionAuth(), response=RatingOut)
-@require_role(*ALL_ROLES)
+@require(Permission.REQUESTER_TICKETS)
 def rate(request: AuthedRequest, public_id: str, payload: RatingIn) -> TicketRating:
     return requester_tickets.rate(request.auth, public_id, payload.score, payload.comment)

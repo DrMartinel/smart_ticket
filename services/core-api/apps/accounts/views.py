@@ -12,14 +12,9 @@ from django.db.models import QuerySet
 from django.http import HttpRequest, HttpResponse
 from ninja import Form, Header, Router, Status
 
-from apps.accounts.models import AuthClient, Capability, RefreshSession, User, UserRole
-from apps.accounts.permissions import (
-    ALL_ROLES,
-    AuthedRequest,
-    SessionAuth,
-    require_access,
-    require_role,
-)
+from apps.accounts.models import AuthClient, RefreshSession, User
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.accounts.request_schema import LoginIn, OidcExchangeIn, RightsIn
 from apps.accounts.response_schema import (
     OidcConfigOut,
@@ -42,32 +37,32 @@ COOKIE_PATH = "/api/auth/"
 
 
 @router.get("/me", auth=SessionAuth(), response=UserOut)
-@require_role(*ALL_ROLES)
+@require(Permission.SELF_PROFILE)
 def me(request: AuthedRequest) -> User:
     return request.auth
 
 
 @router.get("/staff", auth=SessionAuth(), response=list[StaffOut])
-@require_access(roles=(UserRole.MANAGER,), capabilities=(Capability.WORKFLOW_ADMIN,))
+@require(Permission.ACCESS_PEOPLE_READ)
 def staff(request: AuthedRequest) -> QuerySet[User]:
     return User.objects.support_staff().order_by("username")
 
 
 @router.get("/people", auth=SessionAuth(), response=list[AccountOut])
-@require_access(roles=(UserRole.MANAGER,), capabilities=(Capability.WORKFLOW_ADMIN,))
+@require(Permission.ACCESS_PEOPLE_READ)
 def people(request: AuthedRequest) -> QuerySet[User]:
-    return User.objects.prefetch_related("capabilities", "team_memberships__team").order_by(
+    return User.objects.prefetch_related("assignments__role", "team_memberships__team").order_by(
         "username"
     )
 
 
 @router.put("/people/{username}/rights", auth=SessionAuth(), response=AccountOut)
-@require_access(roles=(UserRole.MANAGER,))
+@require(Permission.ACCESS_GRANT)
 def set_rights(request: AuthedRequest, username: str, payload: RightsIn) -> User:
     account_rights.assign(
         request.auth, username, payload.role, set(payload.capabilities), payload.reason
     )
-    return User.objects.prefetch_related("capabilities", "team_memberships__team").get(
+    return User.objects.prefetch_related("assignments__role", "team_memberships__team").get(
         username=username
     )
 
@@ -147,20 +142,20 @@ def logout(
 
 
 @auth_router.get("/sessions", auth=SessionAuth(), response=list[SignInOut])
-@require_role(*ALL_ROLES)
+@require(Permission.SELF_SESSIONS)
 def list_sign_ins(request: AuthedRequest) -> list[RefreshSession]:
     return sessions.live(request.auth)
 
 
 @auth_router.delete("/sessions/{family}", auth=SessionAuth(), response={204: None})
-@require_role(*ALL_ROLES)
+@require(Permission.SELF_SESSIONS)
 def end_sign_in(request: AuthedRequest, family: uuid.UUID) -> Status[None]:
     sessions.end(request.auth, family)
     return Status(204, None)
 
 
 @auth_router.post("/logout-everywhere", auth=SessionAuth(), response={204: None})
-@require_role(*ALL_ROLES)
+@require(Permission.SELF_SESSIONS)
 def logout_everywhere(request: AuthedRequest, response: HttpResponse) -> Status[None]:
     sessions.end_all(request.auth)
     for client in AuthClient:
