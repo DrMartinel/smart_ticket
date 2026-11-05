@@ -180,6 +180,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Reports: the nightly facts table, every report and its scope, CSV, the weekly email (F10) | [apps/reports/](services/core-api/apps/reports/), the queries in [reports.py](services/core-api/apps/reports/utils/reports.py), the facts in [facts.py](services/core-api/apps/reports/utils/facts.py) |
 | The entity graph as a KB feature: a page's edges, editor overrides, rebuild requests, graph health (F11, ADR-0037) | [graph.py](services/core-api/apps/kb/utils/graph.py); the `--pending` build in ai-engine [build.py](services/ai-engine/src/ai_engine/core/associations/build.py), run by compose's `graph-builder` |
 | Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
+| People, departments and access: URN permissions, roles, scoped grants, reviews (F14, ADR-0045 Proposed, branch `f14-org-access`) | the catalogue in [catalog.py](services/core-api/apps/accounts/utils/catalog.py), the evaluator in [access.py](services/core-api/apps/accounts/utils/access.py), grants in [grants.py](services/core-api/apps/accounts/utils/grants.py); `roles.py`, `departments.py`, `people.py`, `reviews.py`, `org_import.py` beside them |
 | Runbooks: the catalog, execution, Keycloak and n8n executors (F12, ADR-0038) | [apps/itsm_mock/](services/core-api/apps/itsm_mock/), the service in [runbooks.py](services/core-api/apps/itsm_mock/utils/runbooks.py), the executors in [executors.py](services/core-api/apps/itsm_mock/utils/executors.py) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
@@ -252,8 +253,8 @@ write in its current transaction (the authority log row is ADR-0002).
 `apps/core` is the shared foundation: abstract `BaseModel`, middleware,
 ops commands (`wait_for_db`), generic test helpers. Every app may import
 from it; it imports from no app (`apps/core/tests/test_boundary.py`).
-The role gate (`require_role`, `AuthedRequest`) lives in
-`apps/accounts/permissions.py`, beside the `User` and `UserRole` it checks;
+The route gate (`require(Permission…)`, `AuthedRequest`) lives in
+`apps/accounts/permissions.py`, beside the `User` and the `Access` it checks;
 it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 `infrastructure/` (the ai-engine client, with its wire schema in `dtos.py`) and
 `config/settings/{base,development,production,test}.py`. Tests live in a
@@ -277,7 +278,9 @@ it can't live in `core`, which may not import `accounts`. Beside `apps/` sit
 | Any tunable number | `thresholds.yaml`, nowhere else, by pull request; give a changed file a new `version` (ADR-0044) |
 | Which area a console page sits in | Daily work in the Workspace (`components/AppShell.tsx`); figures, authority, rollout, thresholds and settings in Admin under `/admin/*` (`lib/areas.ts`, ADR-0039). Old paths redirect in `next.config.mjs` |
 | Whether a branch acts live | Admin → Rollout (F9 flags); never a code path around `Rollout.is_live` |
-| Sign-in, token lifetimes, who may call what | `apps/accounts/utils.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
+| Sign-in, token lifetimes | `apps/accounts/utils.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
+| Who may call what | A route's `require(Permission.…)`; a new permission is a `Permission` URN with its `PermissionSpec` in `catalog.py`, never a check on a role name (ADR-0045). A new route goes in `ADDED_SINCE_SNAPSHOT` in `test_access_equivalence.py`. Frontends read `user.permissions` through `can()` in `lib/permissions.ts` |
+| Someone's access | Admin → People & access: a grant (`grants.grant`), a custom role (`roles`), a department head (`departments.set_head`), a person's status (`people`); never an `Assignment` row written directly. Each takes a reason and ends the person's sessions |
 | A ticket's status | `lifecycle.system_move` from pipeline code, `lifecycle.move` for a person: never `ticket.status = …` (ADR-0028) |
 | What a workflow action can do | `apps/lifecycle/utils/actions.py` (a handler and an `ActionCode`); rules and events in `utils/rules.py` |
 | SLA targets, hours, holidays | Data: `/admin/settings/sla` (a workflow admin or manager drafts and activates a policy, ADR-0043), calendars and holidays; percentages in `thresholds.yaml` `sla`. Clocks change only through `sla_clocks`, called by the engine after a status change |
@@ -469,6 +472,6 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (forty-four
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (forty-five
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
 0030–0038 come from the phase 2 pack, all accepted).

@@ -53,7 +53,7 @@ class AccessRefusal(StrEnum):
 
 
 class AccessError(CodedError):
-    """A caller outside a route's roles and capabilities."""
+    """A caller without a route's permission."""
 
     code: AccessRefusal
 

@@ -140,6 +140,8 @@ class Departments:
             head = User.objects.filter(username=username, is_active=True).first()
             if head is None:
                 raise OrgError(404, OrgRefusal.USER_NOT_FOUND, f"no active user {username!r}")
+            if actor is not None and head.pk == actor.pk and department.head_id != actor.pk:
+                raise OrgError(403, OrgRefusal.OWN_RIGHTS, "another person makes you a head")
         department.head = head
         department.save(update_fields=["head"])
         grants.set_department_head(actor, department, head)

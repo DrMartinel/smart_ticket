@@ -3,6 +3,8 @@
 **Status:** Proposed (2026-11-05). Needs the owner's acceptance, and the
 Information Security Officer's sign-off on §e and §i.
 **ADR:** [ADR-0045](../../adr/0045-roles-are-permission-sets-with-scope.md) (Proposed)
+**Built:** 2026-11-05 on branch `f14-org-access`, not merged. Where the build
+departs from this spec, ADR-0045 *Implementation* lists it and wins.
 **Builds on:** ADR-0029 (sessions), ADR-0031 (roles, capabilities, team
 scope), ADR-0041 (teams in core-api), ADR-0042 (roles set in the console),
 ADR-0043 (one person applies a change)
@@ -125,7 +127,7 @@ flowchart LR
 | Trigger | Person page → Access → Add |
 | Main flow | 1. Picks a role. 2. Picks a scope the role allows (global / department subtree / team). 3. Optionally sets an end date. 4. Gives a reason. 5. Saves. |
 | Exception | 1x. Self-grant → `own_rights`. 2x. Scope outside the granter's own scope → `scope_exceeds_yours`. 1y. A role with any staff-only permission to a person whose base is `employee` → `capability_needs_staff`. |
-| Postconditions | Assignment active; the person's `access_version` increments, which ends their sessions (ADR-0042 §2). Audit row `rights_changed` lists the grant. |
+| Postconditions | Assignment active; the person's `access_version` increments, which ends their sessions (ADR-0042 §2). Audit row `rights_changed` lists the grant. *Built: the sessions are ended directly, no counter; the row is `grant_changed`.* |
 | Rules | BR-F14-03, 05, 06, 07, 09 |
 
 | Field | UC-F14-03 · Manage the department tree |
@@ -178,8 +180,8 @@ flowchart LR
 | BR-F14-03 | **A role assignment is (person, role, scope, starts_at, ends_at?)**. Scope is `global`, `department:<id>` (that department and its descendants) or `team:<id>`. A person may hold any number of assignments. | One model replaces the role, the capabilities and the implied lead rights |
 | BR-F14-04 | **Locked permissions** can only come from a *system role* and can't be added to a custom role: `urn:smart-ticket:perm:kb:authority:grant` (ADR-0002), `urn:smart-ticket:perm:pii:reveal:critical` and `urn:smart-ticket:perm:pii:access-log:read`, `urn:smart-ticket:perm:security:queue:*`, `urn:smart-ticket:perm:rollout:flag:on`, `urn:smart-ticket:perm:access:admin`, `urn:smart-ticket:perm:break-glass:*`. | These are where a quiet widening does the most damage; listed in `load-bearing.md` |
 | BR-F14-05 | **No escalation:** nobody grants, or adds to a role, a permission they don't hold at a scope that covers the target. Nobody changes their own grants (`own_rights`, kept from ADR-0042). | Standard RBAC no-escalation rule |
-| BR-F14-06 | **Base kind** stays on the person: `employee` (requester) or `staff`. Staff-only permissions (anything outside `urn:smart-ticket:perm:requester:*` and `urn:smart-ticket:perm:self:*`) need `staff`; an employee holds no add-on role (owner, 2026-11-05, Q1). Becoming an `employee` ends staff grants and team memberships (ADR-0042 §3 kept). | Keeps the requester / support boundary the chat and console are built on |
-| BR-F14-07 | **A rights change ends the person's sessions** via an `access_version` counter on the person, carried in the session and checked by `SessionAuth`. | ADR-0042 §2, without a sign-in per grant |
+| BR-F14-06 | **Base kind** stays on the person: `employee` (requester) or `staff` (*built: read from `users.role`*). Staff-only permissions (anything outside `urn:smart-ticket:perm:requester:*` and `urn:smart-ticket:perm:self:*`) need `staff`; an employee holds no add-on role (owner, 2026-11-05, Q1). Becoming an `employee` ends staff grants and team memberships (ADR-0042 §3 kept). | Keeps the requester / support boundary the chat and console are built on |
+| BR-F14-07 | **A rights change ends the person's sessions** via an `access_version` counter on the person, carried in the session and checked by `SessionAuth`. *Built: the change ends the sessions directly (ADR-0045 Implementation 3).* | ADR-0042 §2, without a sign-in per grant |
 | BR-F14-08 | **There is always one active person with `urn:smart-ticket:perm:access:admin`.** The console refuses to end the last one (`last_access_admin`). Break-glass accounts hold the `urn:smart-ticket:role:system:break-glass` role, which can't be changed (`break_glass_fixed`). | Lock-out protection |
 | BR-F14-09 | **System roles** reproduce today's matrix exactly: `urn:smart-ticket:role:system:employee`, `…:technician`, `…:manager`, `…:security`, plus the add-ons `…:workflow-admin`, `…:kb-editor`, `…:incident-manager` and the new `…:team-lead` (Q2) and `…:department-head`. Their permission sets are defined in code and migrated, and they can be copied but not edited or retired. | Migration is behaviour-preserving (§i), and a known-good baseline always exists |
 | BR-F14-10 | **Departments form a tree** with no cycles and a maximum depth of `access.department_max_depth`. Every person is in exactly one department; the default department (`is_default`) holds anyone not placed yet. | Simple, reportable hierarchy |
@@ -188,7 +190,7 @@ flowchart LR
 | BR-F14-13 | **A mover's old department-scoped grants are flagged, not silently kept or dropped**; they end after `access.mover_review_days` unless confirmed. | Movers are where stale access accumulates |
 | BR-F14-14 | **A leaver loses every grant and team at once;** grants are ended, not deleted, so the audit trail and reports keep them. | BR-X-03 |
 | BR-F14-15 | **Reviewer for a grant:** the person's line manager if they hold `urn:smart-ticket:perm:access:review` over the grant's scope, else the department head, else the campaign's fallback reviewer. Nobody reviews their own grant. | Matches Okta and Entra defaults |
-| BR-F14-16 | **Time-bound grants** expire through the beat task `access.expire_grants` every `access.expiry_sweep_minutes`; the person and the granter get a notice `access.grant_expiring` `access.expiry_notice_hours` before. | Covers holiday cover and contractors without a reminder |
+| BR-F14-16 | **Time-bound grants** expire through the beat task `access.expire_grants` every `access.expiry_sweep_minutes` (*built: `access_sweep` every `ACCESS_SWEEP_INTERVAL_SEC`*); the person and the granter get a notice `access.grant_expiring` `access.expiry_notice_hours` before. | Covers holiday cover and contractors without a reminder |
 | BR-F14-17 | **Access is explainable:** for any (person, permission) the service returns the grants that give it, and for any permission the people who hold it. Both read the same `Access` evaluator the gates use. | One evaluator, so the explanation can't drift from enforcement |
 | BR-F14-18 | **Access never reaches ai-engine, routing, the trust score or a prompt.** `router.py` imports nothing from `apps.accounts`. | Hard rules 1 and 6; ADR-0001 |
 | BR-F14-20 | **A permission is named by a URN:** `urn:smart-ticket:perm:<area>:<action>[:<qualifier>]`, each segment matching `[a-z][a-z0-9-]{0,31}`, lowercase, with 2–3 segments after `perm` (e.g. `urn:smart-ticket:perm:tickets:take`, `urn:smart-ticket:perm:pii:reveal:critical`). Only code defines permissions. A permission's URN never changes: renaming an action means a new permission, a data migration of `acc_role_permissions`, and the old member kept as an alias for one release. A removed permission's URN is never reused. A family written `urn:smart-ticket:perm:<area>:*` in this spec is notation for every permission under that prefix; it is never stored or granted, so a role always lists exact permissions. | Same reasons as BR-F14-19, and the API, exports and session claims name permissions and roles the same way. No wildcard grants, so a new permission never reaches an existing role by accident |
@@ -202,7 +204,7 @@ New tunables go in `thresholds.yaml` under `access:`: `department_max_depth`, `m
 |---|---|
 | FR-F14-001 | `Permission` enum with about 60 entries whose values are URNs (BR-F14-20), grouped by area: `tickets`, `review`, `kb`, `incidents`, `security`, `pii`, `sla`, `teams`, `workflows`, `notifications`, `runbooks`, `reports`, `rollout`, `access`, `org`, `requester`, `self`. Each member carries a label, description, `staff_only` and `locked` flags, and the scopes it is meaningful at; members are named after the URN (`Permission.TICKETS_TAKE = "urn:smart-ticket:perm:tickets:take"`) |
 | FR-F14-002 | `require(Permission.X)` decorator replaces `require_access` / `require_role` on every route; the route test (PRE-1) asserts every route has exactly one permission gate |
-| FR-F14-003 | `Access.of(user)` returns `{permission: ScopeSet}` built from active assignments, cached per `(user_id, access_version)`; `ScopeSet.covers(team=…, department=…)` answers row-level questions |
+| FR-F14-003 | `Access.of(user)` returns `{permission: ScopeSet}` built from active assignments, cached per `(user_id, access_version)` (*built: per request*); `ScopeSet.covers(team=…, department=…)` answers row-level questions |
 | FR-F14-004 | Querysets take an `Access`, not a role: `Ticket.objects.visible_to(access)`, `Team.objects.managed_by(access)`, `Reports.scope(access)` (replaces `team_scope`) |
 | FR-F14-005 | Department CRUD, move and archive, with a tree view; head and cost centre; CSV import of departments and of people (dry run first, then apply) |
 | FR-F14-006 | Person profile fields: department, line manager, job title, location, phone (masked in exports), employee ID, status |
@@ -228,7 +230,7 @@ New tables (all `BaseModel`, prefix `acc_`):
 | `acc_review_campaigns` | `id`, `name`, `filter` (JSON), `opens_at`, `closes_at`, `on_no_answer`, `fallback_reviewer_id`, `state` |
 | `acc_review_items` | `campaign_id`, `assignment_id`, `reviewer_id`, `decision` null, `note`, `decided_at` |
 
-Changed: `users` gains `department_id` (not null, default department), `line_manager_id`, `job_title`, `location`, `phone`, `employee_id`, `status`, `access_version`. `users.role` becomes `kind` (`employee`/`staff`) after the migration. `user_capabilities` is migrated into `acc_assignments` and then dropped. `team_memberships.role = lead` gets a matching `urn:smart-ticket:role:system:team-lead` assignment at `team:<id>`, kept in step by `Teams.set_lead`.
+Changed: `users` gains `department_id` (not null, default department), `line_manager_id`, `job_title`, `location`, `phone`, `employee_id`, `status`, `access_version`. `users.role` becomes `kind` (`employee`/`staff`) after the migration. *Built: `department_id` nullable with the default filled in, no `access_version`, and `users.role` stays the base role (ADR-0045 Implementation 1, 3, 7).* `user_capabilities` is migrated into `acc_assignments` and then dropped. `team_memberships.role = lead` gets a matching `urn:smart-ticket:role:system:team-lead` assignment at `team:<id>`, kept in step by `Teams.set_lead`.
 
 Example rows:
 
@@ -256,21 +258,25 @@ acc_assignments
 | GET/PATCH | `/api/access/roles/{urn}` (URL-encoded, e.g. `urn%3Asmart-ticket%3Arole%3Acustom%3Aread-only-audit`) | same |
 | POST | `/api/access/roles/{urn}/retire` | `urn:smart-ticket:perm:access:roles:manage` |
 | GET/POST | `/api/access/people/{username}/assignments` | `urn:smart-ticket:perm:access:read` / `urn:smart-ticket:perm:access:grant` |
-| POST | `/api/access/assignments/{id}/end` | `urn:smart-ticket:perm:access:grant` |
+| POST | `/api/access/assignments/{id}/end`, `/extend`, `/confirm` | `urn:smart-ticket:perm:access:grant` |
+| GET | `/api/access/me` | signed in |
+| GET | `/api/access/people/{username}/access` | `urn:smart-ticket:perm:access:read` |
 | GET | `/api/access/people/{username}/explain?permission=` | `urn:smart-ticket:perm:access:read`, or self |
 | GET | `/api/access/holders?permission=` | `urn:smart-ticket:perm:access:read` |
-| GET/POST/PATCH | `/api/org/departments`, `/{id}`, `/{id}/move`, `/{id}/archive` | `urn:smart-ticket:perm:org:departments:manage` (head: own subtree) |
+| GET/POST/PATCH | `/api/org/departments`, `/{code}`, `/{code}/people`, `/{code}/move`, `/{code}/archive` | `urn:smart-ticket:perm:org:departments:manage` (no head delegation yet) |
 | POST | `/api/org/import/{departments,people}?dry_run=` | `urn:smart-ticket:perm:org:import` |
 | POST | `/api/accounts/people` (pre-provision), `/{username}/suspend`, `/reactivate`, `/deactivate` | `urn:smart-ticket:perm:access:people:manage` |
-| GET/POST | `/api/access/reviews`, `/{id}/open`, `/{id}/close`, `/items/{id}/decide` | `urn:smart-ticket:perm:access:review:manage` / reviewer |
+| GET/POST | `/api/access/reviews`, `/{id}`, `/{id}/close` | `urn:smart-ticket:perm:access:review:manage` |
+| GET/POST | `/api/access/reviews/inbox`, `/items/{id}/decide` | `urn:smart-ticket:perm:access:review:respond`, the item's reviewer only |
+| GET | `/api/requester/department-tickets?open_only=` | `urn:smart-ticket:perm:requester:department:read` |
 
 `PUT /api/accounts/people/{username}/rights` (ADR-0042) stays for one release as a shim that writes system-role assignments, then is withdrawn.
 
-**Tasks:** `access.expire_grants`, `access.review_reminders`, `access.mover_review_expiry`.
+**Tasks:** one `access_sweep` every `ACCESS_SWEEP_INTERVAL_SEC`: ends expired grants and unconfirmed mover grants, sends expiry notices once, closes due reviews and sends reminders.
 
 **Notifier events** (catalog + seed migration): `access.granted`, `access.grant_expiring`, `access.review_assigned`, `access.review_closing`, `org.person_moved`.
 
-**Audit events:** `role_changed`, `rights_changed` (now per assignment), `department_changed`, `person_provisioned`, `person_status_changed`, `review_decided`, `review_closed`.
+**Audit events:** `role_changed`, `grant_changed` (one per assignment; `rights_changed` stays the PUT rights summary), `department_changed`, `person_provisioned`, `person_changed`, `person_status_changed`, `person_moved`, `person_left`, `review_opened`, `review_decided`, `review_closed`.
 
 ## i. Impact on existing behaviour and regression tests
 

@@ -579,6 +579,11 @@ def test_nobody_reviews_their_own_grant(boss, deputy):
         access_reviews.decide(deputy, item.id, ReviewDecisionKind.KEEP, "")
 
 
+def test_nobody_makes_themselves_a_department_head(boss, finance):
+    with refused(OrgRefusal.OWN_RIGHTS):
+        departments.set_head(boss, finance, "huy.pq")
+
+
 def test_an_opener_reviewing_their_own_grant_passes_it_to_another_admin(boss, deputy):
     give(deputy, "huy.pq", SystemRole.KB_EDITOR.value)
     campaign = access_reviews.open(

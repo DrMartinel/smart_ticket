@@ -395,7 +395,7 @@ guard and that comment is later trimmed, the entry is the record.
 
 ### Role enforcement (PRE-1)
 
-- **`require_role` on every route, even "every role" ones** (`ALL_ROLES`).
+- **A `require(Permission…)` gate on every route, even signed-in-only ones** (once `require_role` with `ALL_ROLES`).
   It looks redundant next to `SessionAuth`. Without it,
   `test_every_route_is_gated` can't tell a route someone forgot from one
   that is meant for everyone. *`apps/accounts/tests/test_role_enforcement.py`.*
@@ -415,6 +415,35 @@ guard and that comment is later trimmed, the entry is the record.
   (`may_run_runbooks` for the approver and the executor) beside the route
   gates. Approvals recorded before PRE-1 had no role check; the model
   check refuses them however execution is reached (ADR-0006).
+
+### People, departments and access (F14, ADR-0045)
+
+- **Locked permissions** (`PermissionSpec.locked`) that a custom role can
+  never hold. Without them a custom role is a quiet path to KB authority,
+  PII reveal or access admin that no route gate notices.
+  *`test_every_locked_permission_is_refused_on_a_custom_role`.*
+- **`ADDED_SINCE_SNAPSHOT` and the route snapshot** in
+  `test_access_equivalence.py`. They look like bookkeeping. They are the only
+  proof the move from roles to permissions changed nobody's access: a new
+  route must be listed with its permission, and every old route must admit
+  the same people as before.
+- **System roles grantable by `access:grant` holders, custom roles only by
+  holders of each permission** (`Grants.check_grantable`). Making system
+  roles follow the custom rule stops a manager giving the ADR-0042 add-ons;
+  making custom roles follow the system rule lets a manager build one with
+  anything they lack.
+- **`Grants.changed` ending the person's sessions.** `Access.of` is cached on
+  the user object for the request; without the revoke, a grant ended now
+  still applies until the session's token expires.
+- **The grantee excluded at every step of `AccessReviews.reviewer`,** with
+  `no_other_reviewer` when nobody else can answer. Falling back to the
+  opener alone hands an access admin their own grant to keep.
+- **`People.set_status` writing through a queryset `.update()`.**
+  `test_pipeline_statuses_are_written_only_by_the_lifecycle` reads any
+  `x.status =` as a ticket status write.
+- **`select_for_update(of=("self",))`** in `Grants.locked` and
+  `People.release_tickets`: Postgres refuses a row lock across the nullable
+  joins `select_related` adds.
 
 ## ai-engine
 

@@ -31,8 +31,58 @@ ADR-0042 then moved role assignment into the console.
 ## Consequences
 
 - New jobs become data, but a badly built custom role can widen access quietly. Mitigations: locked permissions, no-escalation, access reviews and the explain view. There is no security notice, so a quiet widening is caught only by a review or by someone reading the audit log.
-- One more evaluator (`Access`) on every request, cached per person's `access_version`.
+- One more evaluator (`Access`) on every request, built once per request; a grant change ends the person's sessions so the next request reads it.
 - About 180 gate and check sites and 47 frontend files change. This is spread over four PRs, the first with no behaviour change.
 - Role and permission URNs appear in session claims, audit rows and exports, so they must never be renamed. A wrong name stays as a retired role.
 - An employee never holds an add-on role, and team-lead rights are a system role.
 - `team_scope` in reports and every role-named queryset move to `Access`.
+
+## Implementation (2026-11-05, branch `f14-org-access`)
+
+Built as decided, with these departures. Each one is the smaller choice;
+none widens access beyond the decision above.
+
+1. **`User.role` stays the base role** (employee, technician, manager,
+   security), mapped to a system role URN. No separate `kind` field: the
+   base role already says staff or not, and the PUT rights endpoint and its
+   tests keep working.
+2. **No escalation applies to custom roles.** Granting or editing one needs
+   the actor to hold each of its permissions over the scope. A system role
+   is grantable by anyone who holds `access:grant` everywhere, so a manager
+   can still give the ADR-0042 add-ons (Knowledge editor, Workflow admin,
+   Incident manager) that a manager does not itself hold. Locked permissions
+   still come only from system roles.
+3. **No `access_version`.** `Access.of(user)` is built per request (cached on
+   the user object); a grant change ends the person's sessions (ADR-0029)
+   instead. Editing a custom role does not end its holders' sessions: the
+   change reaches them at their next request.
+4. **Per-grant audit rows are `grant_changed`.** `rights_changed` stays the
+   person-level summary the PUT rights endpoint writes. Roles write
+   `role_changed`, departments `department_changed`, people
+   `person_provisioned` / `person_changed` / `person_status_changed` /
+   `person_moved` / `person_left`, reviews `review_opened` /
+   `review_decided` / `review_closed`.
+5. **The scopes a role may be granted at come from its permissions** (each
+   permission lists its scopes; a role allows those every permission
+   allows), not a stored column.
+6. **`acc_role_permissions` checks the URN's format only.** Whether a URN is
+   in the catalogue is checked in code, and a URN the catalogue no longer
+   knows is ignored when access is built.
+7. **`users.department` is nullable;** provisioning and the migration fill
+   in the default department (`GENERAL`), which can't be archived.
+8. **No break-glass role and no department-head delegation.** Break-glass
+   stays the ADR-0032 local sign-in for managers and is excluded when
+   counting access admins.
+9. **Department scope adds to base permissions; it never removes them.** A
+   technician still works every ticket through their base role; a
+   department-scoped grant reaches tickets whose requester is in that
+   subtree.
+10. **A review never goes to the grantee.** The line manager, then department
+    heads up the tree, then the fallback, the opener and any other access
+    admin, each only if they can answer reviews; with nobody else the review
+    is refused `no_other_reviewer`.
+11. **Nobody makes themselves a department head** (`own_rights`), the same
+    rule as a grant. Team leads are unchanged (ADR-0041).
+12. **The sweep interval is an operational setting**
+    (`ACCESS_SWEEP_INTERVAL_SEC` in `.env.example`); the review, mover and
+    expiry periods are tunables in `thresholds.yaml` `access:`.
