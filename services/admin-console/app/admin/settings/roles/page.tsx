@@ -26,10 +26,11 @@ interface Draft {
   name: string;
   description: string;
   permissions: string[];
+  delegable: boolean;
   reason: string;
 }
 
-const BLANK: Draft = { urn: null, name: "", description: "", permissions: [], reason: "" };
+const BLANK: Draft = { urn: null, name: "", description: "", permissions: [], delegable: false, reason: "" };
 
 /** The URN a new custom role will get, as core-api makes it from the name. */
 function urnFor(name: string): string {
@@ -86,7 +87,7 @@ export default function RolesPage() {
     if (!draft) return;
     setFormError(null);
     try {
-      const body = { name: draft.name, description: draft.description, permissions: draft.permissions, reason: draft.reason };
+      const body = { name: draft.name, description: draft.description, permissions: draft.permissions, delegable: draft.delegable, reason: draft.reason };
       const saved = draft.urn
         ? await api.patch<RoleOut>(`/api/access/roles/${encodeURIComponent(draft.urn)}`, body)
         : await api.post<RoleOut>("/api/access/roles", body);
@@ -204,6 +205,7 @@ export default function RolesPage() {
                     name: `${viewing.name} copy`,
                     description: viewing.description,
                     permissions: viewing.permissions.filter((p) => !catalogue.find((c) => c.urn === p)?.locked),
+                    delegable: false,
                     reason: "",
                   })
                 }
@@ -217,7 +219,7 @@ export default function RolesPage() {
                   </Button>
                   <Button
                     onClick={() =>
-                      setDraft({ urn: viewing.urn, name: viewing.name, description: viewing.description, permissions: viewing.permissions, reason: "" })
+                      setDraft({ urn: viewing.urn, name: viewing.name, description: viewing.description, permissions: viewing.permissions, delegable: viewing.delegable ?? false, reason: "" })
                     }
                   >
                     Edit
@@ -233,6 +235,7 @@ export default function RolesPage() {
             {viewing.description && <p className="text-muted-foreground">{viewing.description}</p>}
             <p className="text-xs text-muted-foreground">
               Grantable at: {viewing.scopes.join(", ") || "—"} · {viewing.holders} active grants
+              {viewing.delegable ? " · department heads may grant it in their departments" : ""}
             </p>
             {byArea.map(([area, perms]) => {
               const held = perms.filter((p) => viewing.permissions.includes(p.urn));
@@ -291,6 +294,13 @@ export default function RolesPage() {
                 <Textarea rows={2} value={draft.description} maxLength={500} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
               </Labeled>
             </div>
+            <label className="flex items-start gap-2">
+              <Checkbox className="mt-0.5" checked={draft.delegable} onCheckedChange={(on) => setDraft({ ...draft, delegable: on === true })} />
+              <span>
+                <span className="font-medium">Delegable to department heads</span>
+                <span className="block text-xs text-muted-foreground">A head may grant it to people in their departments, scoped to a department they head.</span>
+              </span>
+            </label>
             <p className="text-xs text-muted-foreground">
               Locked permissions come only from system roles. You can add only permissions you hold everywhere yourself.
             </p>

@@ -26,6 +26,7 @@ import { Decision, Panel, Proposal } from "@/components/ui/panel";
 import { ErrorState, LoadingState, Skeleton } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 import { KIND_LABEL, type StatusKind } from "@/lib/lifecycle";
+import { P, can, supervises } from "@/lib/permissions";
 
 type Detail = StaffTicketDetail;
 
@@ -148,7 +149,7 @@ export default function TicketPage() {
 
   const latest = detail.routing[0];
   const runbookItem = detail.reviews.find((r) => r.queue === "runbook_approval") ?? null;
-  const mayReveal = user.role === "technician" || user.role === "security";
+  const mayReveal = can(user, P.piiReveal);
 
   return (
     <Page width="record">
@@ -179,7 +180,7 @@ export default function TicketPage() {
                 text={detail.body_masked}
                 placeholders={detail.pii_placeholders ?? []}
                 canReveal={mayReveal}
-                isSecurity={user.role === "security"}
+                isSecurity={can(user, P.piiRevealAny)}
               />
             </div>
             {mayReveal && (detail.pii_placeholders ?? []).length > 0 && (
@@ -317,7 +318,7 @@ export default function TicketPage() {
             </Section>
           )}
 
-          {runbookItem && (user.role === "technician" || user.role === "manager") && (
+          {runbookItem && can(user, P.runbooksExecute) && (
             <Section title="Runbook">
               <RunbookPanel key={`${runbookItem.id}:${runbookItem.state}`} itemId={runbookItem.id} onChanged={() => void load()} />
             </Section>
@@ -327,7 +328,7 @@ export default function TicketPage() {
             <CommentsPanel
               publicId={detail.public_id}
               version={detail.version}
-              canWrite={user.role !== "employee" && !TRIAGE.has(detail.status.key) && !detail.resolved_at}
+              canWrite={can(user, P.ticketsComment) && !TRIAGE.has(detail.status.key) && !detail.resolved_at}
               canWait={moves.some((m) => m.status.key === "waiting_on_requester")}
               onChanged={() => void load()}
             />
@@ -399,7 +400,7 @@ export default function TicketPage() {
                 category: detail.category,
                 version: detail.version,
               }}
-              canTake={!detail.assignee && !!detail.assigned_team && (user.role === "manager" || (user.teams ?? []).some((t) => t.team === detail.assigned_team))}
+              canTake={!detail.assignee && !!detail.assigned_team && can(user, P.ticketsTake) && (supervises(user, detail.assigned_team) || (user.teams ?? []).some((t) => t.team === detail.assigned_team))}
               busy={busy}
               onTake={() =>
                 act(
@@ -424,7 +425,7 @@ export default function TicketPage() {
               <dt className="text-muted-foreground">Priority</dt>
               <dd className="flex items-center gap-2">
                 <PriorityChip priority={detail.priority} />
-                {user.role !== "employee" && (
+                {can(user, P.ticketsPriority) && (
                   <Button variant="link" size="inline" className="text-xs" onClick={() => setPriorityOpen(true)}>
                     Change…
                   </Button>

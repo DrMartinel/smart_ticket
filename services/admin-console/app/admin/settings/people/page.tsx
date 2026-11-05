@@ -3,7 +3,7 @@
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 
-// People (ADR-0042, F14): every account, its status, department, role, capabilities and teams; new people are invited here.
+// People (ADR-0045, F14): every account, its status, department, base role, add-on roles and teams; new people are invited here.
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -18,7 +18,6 @@ import { useToast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -30,18 +29,16 @@ const ROLES: { value: UserRole; label: string; hint: string }[] = [
   { value: "security", label: "Security", hint: "Handles security alerts and personal-data access." },
 ];
 
-const CAPABILITIES: { value: Capability; label: string; hint: string }[] = [
-  { value: "workflow_admin", label: "Workflow admin", hint: "Edits workflows, SLAs, teams, notifications and runbooks." },
-  { value: "kb_editor", label: "KB editor", hint: "Writes and reviews help-page drafts." },
-  { value: "incident_manager", label: "Incident manager", hint: "Confirms mass incidents and updates everyone affected." },
-];
+const CAP_LABEL: Record<Capability, string> = {
+  workflow_admin: "Workflow admin",
+  kb_editor: "KB editor",
+  incident_manager: "Incident manager",
+};
 
 const ROLE_LABEL = Object.fromEntries(ROLES.map((r) => [r.value, r.label]));
-const CAP_LABEL = Object.fromEntries(CAPABILITIES.map((c) => [c.value, c.label]));
 
 interface RightsDraft {
   role: UserRole;
-  capabilities: Capability[];
   reason: string;
 }
 
@@ -90,14 +87,14 @@ export default function PeoplePage() {
   }, [people, query, roleFilter, statusFilter]);
 
   if (!user) return null;
-  const isManager = user.role === "manager";
-  const canEditTeams = isManager || (user.capabilities ?? []).includes("workflow_admin");
+  const mayGrant = can(user, P.accessGrant);
+  const canEditTeams = can(user, P.teamsManage);
   const person = people?.find((p) => p.username === open) ?? null;
   const counts = Object.fromEntries(ROLES.map((r) => [r.value, (people ?? []).filter((p) => p.role === r.value).length]));
 
   const openPerson = (p: AccountOut) => {
     setOpen(p.username);
-    setRights({ role: p.role as UserRole, capabilities: p.capabilities as Capability[], reason: "" });
+    setRights({ role: p.role as UserRole, reason: "" });
     setJoining({ team: "", role: "member" });
     setError(null);
   };
@@ -106,12 +103,11 @@ export default function PeoplePage() {
     if (!person || !rights) return;
     setError(null);
     try {
-      const body = { ...rights, capabilities: rights.role === "employee" ? [] : rights.capabilities };
-      await api.put(`/api/accounts/people/${encodeURIComponent(person.username)}/rights`, body);
+      await api.put(`/api/accounts/people/${encodeURIComponent(person.username)}/base-role`, rights);
       await load();
       setRights({ ...rights, reason: "" });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Couldn't change the rights.");
+      setError(err instanceof ApiError ? err.message : "Couldn't change the role.");
     }
   };
 
@@ -152,11 +148,8 @@ export default function PeoplePage() {
   };
 
   const self = person?.username === user.username;
-  const rightsLocked = !isManager || self || !person;
-  const changed =
-    !!person &&
-    !!rights &&
-    (rights.role !== person.role || [...rights.capabilities].sort().join() !== [...person.capabilities].sort().join());
+  const rightsLocked = !mayGrant || self || !person;
+  const changed = !!person && !!rights && rights.role !== person.role;
   const isStaff = (role: string) => role !== "employee";
   const teamName = new Map(teams.map((t) => [t.slug, t.name]));
 
@@ -167,7 +160,7 @@ export default function PeoplePage() {
         className="mb-2"
         eyebrow="Admin / People & access"
         title="People"
-        description={<>Company sign-in proves who someone is; their department, role, capabilities and teams are set here. Open a person for their grants and what they can do.</>}
+        description={<>Company sign-in proves who someone is; their department, base role and teams are set here. Open a person to grant add-on roles and see what they can do.</>}
         actions={
       <>
       <div className="flex flex-wrap items-center gap-2">
@@ -212,7 +205,7 @@ export default function PeoplePage() {
               <TableHead>Person</TableHead>
               <TableHead>Department</TableHead>
               <TableHead>Role</TableHead>
-              <TableHead>Capabilities</TableHead>
+              <TableHead>Add-on roles</TableHead>
               <TableHead>Teams</TableHead>
               <TableHead>Sign-in</TableHead>
               <TableHead>Last signed in</TableHead>
@@ -247,7 +240,7 @@ export default function PeoplePage() {
                     {p.capabilities.length === 0 && <span className="text-muted-foreground">—</span>}
                     {p.capabilities.map((c) => (
                       <Badge key={c} variant="brand">
-                        {CAP_LABEL[c] ?? c}
+                        {CAP_LABEL[c as Capability] ?? c}
                       </Badge>
                     ))}
                   </span>
@@ -295,7 +288,7 @@ export default function PeoplePage() {
         {person && rights && (
           <div className="flex flex-col gap-5 text-sm">
             <section className="flex flex-col gap-3">
-              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Role</h2>
+              <h2 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Base role</h2>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {ROLES.map((r) => (
                   <label
@@ -320,36 +313,20 @@ export default function PeoplePage() {
                 ))}
               </div>
 
-              <h2 className="pt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">Capabilities</h2>
-              <div className="flex flex-col gap-2">
-                {CAPABILITIES.map((c) => (
-                  <label key={c.value} className={`flex gap-2 ${rightsLocked || !isStaff(rights.role) ? "opacity-60" : ""}`}>
-                    <Checkbox
-                      className="mt-0.5"
-                      checked={isStaff(rights.role) && rights.capabilities.includes(c.value)}
-                      disabled={rightsLocked || !isStaff(rights.role)}
-                      onCheckedChange={(on) =>
-                        setRights({
-                          ...rights,
-                          capabilities: on === true ? [...rights.capabilities, c.value] : rights.capabilities.filter((x) => x !== c.value),
-                        })
-                      }
-                    />
-                    <span>
-                      <span className="font-medium">{c.label}</span>
-                      <span className="block text-xs text-muted-foreground">{c.hint}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
+              <p className="text-xs text-muted-foreground">
+                Add-on roles such as workflow admin, KB editor or incident manager are granted on the full record, below.
+              </p>
 
               {self && <p className="text-xs text-muted-foreground">Another manager changes your own role.</p>}
-              {!isManager && <p className="text-xs text-muted-foreground">Only a manager changes roles and capabilities.</p>}
+              {!mayGrant && <p className="text-xs text-muted-foreground">Only someone who grants access changes a base role.</p>}
               {person.is_break_glass && <p className="text-xs text-muted-foreground">A break-glass account always stays a manager.</p>}
               {!rightsLocked && changed && (
                 <div className="flex flex-col gap-2 rounded-md border border-border bg-background p-3">
-                  {rights.role === "employee" && person.teams.length > 0 && (
-                    <p className="text-xs text-warn">As an employee they leave every team: {person.teams.map((t) => t.team).join(", ")}.</p>
+                  {rights.role === "employee" && (person.teams.length > 0 || person.capabilities.length > 0) && (
+                    <p className="text-xs text-warn">
+                      As an employee they leave every team and lose their add-on roles
+                      {person.teams.length > 0 ? `: ${person.teams.map((t) => t.team).join(", ")}` : ""}.
+                    </p>
                   )}
                   <p className="text-xs text-muted-foreground">Saving signs them out everywhere so the change applies at once.</p>
                   <div className="flex flex-wrap items-center gap-2">

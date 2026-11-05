@@ -19,6 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { P, can } from "@/lib/permissions";
 
 const REBUILD_STATE_VI: Record<string, string> = {
   pending: "Waiting",
@@ -170,7 +171,7 @@ export default function PageGraphPage() {
   }, [user, load]);
 
   if (!user) return null;
-  const editor = (user.capabilities ?? []).includes("kb_editor");
+  const editor = can(user, P.kbGraphEdit);
 
   const run = async (call: () => Promise<unknown>) => {
     setBusy(true);

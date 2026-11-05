@@ -1,9 +1,9 @@
 # 6. F14 People, departments and access (RBAC) — NEW + CHANGED
 
-**Status:** Proposed (2026-11-05). Needs the owner's acceptance, and the
-Information Security Officer's sign-off on §e and §i.
-**ADR:** [ADR-0045](../../adr/0045-roles-are-permission-sets-with-scope.md) (Proposed)
-**Built:** 2026-11-05 on branch `f14-org-access`, not merged. Where the build
+**Status:** Accepted (2026-11-05), the owner's decision. The Information
+Security Officer's sign-off on §e and §i is still outstanding.
+**ADR:** [ADR-0045](../../adr/0045-roles-are-permission-sets-with-scope.md) (Accepted)
+**Built:** 2026-11-05, merged to `main`. Where the build
 departs from this spec, ADR-0045 *Implementation* lists it and wins.
 **Builds on:** ADR-0029 (sessions), ADR-0031 (roles, capabilities, team
 scope), ADR-0041 (teams in core-api), ADR-0042 (roles set in the console),
@@ -263,14 +263,15 @@ acc_assignments
 | GET | `/api/access/people/{username}/access` | `urn:smart-ticket:perm:access:read` |
 | GET | `/api/access/people/{username}/explain?permission=` | `urn:smart-ticket:perm:access:read`, or self |
 | GET | `/api/access/holders?permission=` | `urn:smart-ticket:perm:access:read` |
-| GET/POST/PATCH | `/api/org/departments`, `/{code}`, `/{code}/people`, `/{code}/move`, `/{code}/archive` | `urn:smart-ticket:perm:org:departments:manage` (no head delegation yet) |
+| GET/POST/PATCH | `/api/org/departments`, `/{code}`, `/{code}/people`, `/{code}/move`, `/{code}/archive` | `urn:smart-ticket:perm:org:departments:manage` (reads: `…:org:departments:read`); a head within their subtree, except move, archive and setting a head |
+| GET/POST | `/api/org/departments/{code}/grants`, `/{code}/grants/{id}/end`, `/api/org/delegable-roles` | `urn:smart-ticket:perm:org:departments:read` to list; `urn:smart-ticket:perm:access:grant:delegable` to grant or end a delegable custom role within the head's subtree |
 | POST | `/api/org/import/{departments,people}?dry_run=` | `urn:smart-ticket:perm:org:import` |
 | POST | `/api/accounts/people` (pre-provision), `/{username}/suspend`, `/reactivate`, `/deactivate` | `urn:smart-ticket:perm:access:people:manage` |
 | GET/POST | `/api/access/reviews`, `/{id}`, `/{id}/close` | `urn:smart-ticket:perm:access:review:manage` |
 | GET/POST | `/api/access/reviews/inbox`, `/items/{id}/decide` | `urn:smart-ticket:perm:access:review:respond`, the item's reviewer only |
 | GET | `/api/requester/department-tickets?open_only=` | `urn:smart-ticket:perm:requester:department:read` |
 
-`PUT /api/accounts/people/{username}/rights` (ADR-0042) stays for one release as a shim that writes system-role assignments, then is withdrawn.
+`PUT /api/accounts/people/{username}/rights` (ADR-0042) is withdrawn; a base role is set at `PUT /api/accounts/people/{username}/base-role` (`urn:smart-ticket:perm:access:grant`), and add-ons are grants.
 
 **Tasks:** one `access_sweep` every `ACCESS_SWEEP_INTERVAL_SEC`: ends expired grants and unconfirmed mover grants, sends expiry notices once, closes due reviews and sends reminders.
 

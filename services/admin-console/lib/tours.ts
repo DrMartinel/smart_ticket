@@ -1,6 +1,7 @@
 // The step-by-step guides to each feature of the support console, in Vietnamese and English.
 
 import { adminGroups } from "./areas";
+import { P, can, canEverywhere } from "./permissions";
 import type { CurrentUser } from "./auth";
 import type { Tour, Words } from "@/components/tour/types";
 
@@ -16,11 +17,8 @@ const OPEN_A_TICKET = w(
   "Open any ticket in the table (click its subject) to go on.",
 );
 
-const isManager = (u: CurrentUser) => u.role === "manager";
-const isReviewer = (u: CurrentUser) => u.role === "technician" || u.role === "manager";
-const can = (u: CurrentUser, capability: string) => u.capabilities?.includes(capability) ?? false;
-const isKbEditor = (u: CurrentUser) => isManager(u) || can(u, "kb_editor");
-const isWorkflowAdmin = (u: CurrentUser) => can(u, "workflow_admin");
+const has = (urn: string) => (u: CurrentUser) => can(u, urn);
+const isReviewer = (u: CurrentUser) => can(u, P.reviewQueue) && can(u, P.ticketsAllCategories);
 const hasTeam = (u: CurrentUser) => (u.teams ?? []).length > 0;
 const hasAdmin = (u: CurrentUser) => adminGroups(u).length > 0;
 
@@ -77,7 +75,7 @@ export const TOURS: Tour[] = [
         title: w("Nhóm của bạn", "Your teams"),
         target: '[data-tour="nav-teams"]',
         side: "right",
-        when: (u) => hasTeam(u) || isManager(u),
+        when: (u) => hasTeam(u) || can(u, P.teamsManage),
         body: w(
           "Hàng chờ của nhóm bạn: phiếu thuộc nhóm nhưng chưa ai nhận. Bạn nhận phiếu ở đây, và xem khối lượng việc của từng người.",
           "Your team's queue: tickets the team owns that nobody has taken. Take tickets from here and see each member's workload.",
@@ -96,7 +94,7 @@ export const TOURS: Tour[] = [
         title: w("Bảo mật", "Security"),
         target: '[data-tour="nav-security"]',
         side: "right",
-        when: (u) => u.role === "security",
+        when: has(P.securityQueue),
         body: w(
           "Cảnh báo bảo mật và nhật ký xem dữ liệu cá nhân. Báo cáo bảo mật và nút tắt tự động hoá (Rollout) nằm trong Admin.",
           "Security alerts and the personal-data access log. The security report and the automation off switch (Rollout) are in Admin.",
@@ -117,7 +115,7 @@ export const TOURS: Tour[] = [
         title: w("Admin: quản trị", "Admin: governance"),
         target: '[data-tour="nav-governance"]',
         side: "right",
-        when: (u) => isManager(u) || isWorkflowAdmin(u) || isKbEditor(u) || u.role === "security",
+        when: hasAdmin,
         body: w(
           "Ai được làm gì một mình: quyền trả lời tự động của từng trang trợ giúp và nhật ký của nó, cờ triển khai tự động hoá, và tệp ngưỡng đang chạy.",
           "What may act on its own: each help page's automatic-answer authority and its log, the automation rollout flags, and the loaded thresholds.",
@@ -127,7 +125,7 @@ export const TOURS: Tour[] = [
         title: w("Admin: cài đặt", "Admin: settings"),
         target: '[data-tour="nav-settings"]',
         side: "right",
-        when: (u) => isManager(u) || isWorkflowAdmin(u),
+        when: has(P.teamsManage),
         body: w(
           "Quy trình, SLA, nhóm, thông báo và runbook. Thay đổi ở đây có hiệu lực ngay khi người có quyền lưu, kèm lý do trong nhật ký.",
           "Workflows, SLAs, teams, notifications and runbooks. A change here takes effect when someone allowed to make it saves it, with a reason in the audit log.",
@@ -342,7 +340,7 @@ export const TOURS: Tour[] = [
       "Xem phiếu theo cột trạng thái và kéo thả để chuyển trạng thái.",
       "See tickets as columns by status and drag them to move.",
     ),
-    audience: (u) => u.role !== "security",
+    audience: has(P.ticketsAllCategories),
     steps: [
       {
         title: w("Bảng", "The board"),
@@ -382,7 +380,7 @@ export const TOURS: Tour[] = [
         title: w("Sửa quy trình", "Edit the workflow"),
         target: "main header a, main header button",
         text: "Edit workflow",
-        when: isManager,
+        when: has(P.workflowsManage),
         body: w(
           "Quản lý có thể mở trình sửa quy trình ngay từ đây. Xem hướng dẫn \"Quy trình\".",
           "Managers can open the workflow editor from here. See the \"Workflows\" guide.",
@@ -435,7 +433,7 @@ export const TOURS: Tour[] = [
       "Chính sách SLA: soạn và bật chính sách; lịch làm việc và ngày nghỉ.",
       "SLA policies: drafting and activating them; business calendars and holidays.",
     ),
-    audience: (u) => isManager(u) || isWorkflowAdmin(u),
+    audience: (u) => can(u, P.slaManage) || can(u, P.slaActivate),
     steps: [
       {
         title: w("Chính sách SLA", "SLA policies"),
@@ -450,7 +448,7 @@ export const TOURS: Tour[] = [
         title: w("Tạo bản nháp", "Draft a policy"),
         target: "main button",
         text: "New policy draft",
-        when: isWorkflowAdmin,
+        when: has(P.slaManage),
         body: w(
           "\"New policy draft\" mở biểu mẫu: thứ tự, danh mục, độ ưu tiên, hai thời hạn và lịch. \"Preview\" cho biết phiếu nào sẽ khớp. \"Save draft\" lưu bản nháp; nó chưa có hiệu lực.\n\nĐể sửa một chính sách đang chạy, dùng \"Draft a change\" ở dòng đó; \"Retire\" để ngừng nó.",
           "\"New policy draft\" opens the form: order, category, priority, both targets and the calendar. \"Preview\" shows which tickets would match. \"Save draft\" keeps it as a draft; it isn't live yet.\n\nTo change a live policy, use \"Draft a change\" on its row; \"Retire\" ends it.",
@@ -507,7 +505,7 @@ export const TOURS: Tour[] = [
       {
         title: w("Khai báo thủ công", "Declare one yourself"),
         target: 'main a[href="/incidents/new"]',
-        when: (u) => can(u, "incident_manager"),
+        when: has(P.incidentsManage),
         body: w(
           "Biết trước có sự cố? \"Khai báo sự cố\" mở biểu mẫu: tên, dịch vụ bị ảnh hưởng, danh mục, các phiếu liên quan (mã phiếu cách nhau bởi dấu phẩy) và cập nhật đầu tiên (nội dung tiếng Việt, tiếng Anh tuỳ chọn, giai đoạn, ETA).",
           "Know about an outage already? \"Khai báo sự cố\" opens the form: name, affected service, category, linked tickets (ids separated by commas) and the first update (Vietnamese text, optional English, stage, ETA).",
@@ -630,7 +628,7 @@ export const TOURS: Tour[] = [
       "Từ bản nháp đến trang xuất bản: viết, xem trước, gửi duyệt, một người khác duyệt, và tìm chủ đề còn thiếu.",
       "From draft to published page: write, preview, submit, a second person reviews, and find missing topics.",
     ),
-    audience: isKbEditor,
+    audience: has(P.kbDraftsManage),
     steps: [
       {
         title: w("Bản nháp", "Drafts"),
@@ -698,7 +696,7 @@ export const TOURS: Tour[] = [
       "Đọc trang, chọn mức rủi ro và cấp (hoặc không cấp) quyền dùng trang để trả lời tự động.",
       "Read a page, set its risk tier, and grant (or withhold) its use for automatic answers.",
     ),
-    audience: isManager,
+    audience: has(P.kbAuthorityQueue),
     steps: [
       {
         title: w("Hàng chờ quyền", "The authority queue"),
@@ -756,7 +754,7 @@ export const TOURS: Tour[] = [
       "Từ cảnh báo đến đóng: xác nhận, báo người gửi, chấm dứt phiên, ghi chú, gỡ chặn; kèm nhật ký xem dữ liệu cá nhân.",
       "From alert to close: acknowledge, notify the requester, end sign-ins, note, release; plus the personal-data access log.",
     ),
-    audience: (u) => u.role === "security",
+    audience: has(P.securityQueue),
     steps: [
       {
         title: w("Cảnh báo", "Alerts"),
@@ -821,7 +819,7 @@ export const TOURS: Tour[] = [
       "Nhận phiếu từ hàng chờ nhóm, xem khối lượng việc, và (quản lý) cấu hình nhóm.",
       "Take tickets from your team's queue, see workload, and (managers) set up teams.",
     ),
-    audience: (u) => hasTeam(u) || isManager(u),
+    audience: (u) => hasTeam(u) || can(u, P.teamsManage),
     steps: [
       {
         title: w("Nhóm của bạn", "Your team"),
@@ -856,10 +854,10 @@ export const TOURS: Tour[] = [
         title: w("Cấu hình nhóm", "Set up teams"),
         href: "/admin/settings/teams",
         target: HEADER,
-        when: isManager,
+        when: has(P.teamsManage),
         body: w(
           "\"New team\" tạo nhóm: tên, danh mục sở hữu, cách giao (ít việc nhất…), giới hạn mỗi người và nhóm dự phòng (nhận danh mục chưa ai sở hữu). Bấm tên nhóm để mở trang của nhóm: thêm, bớt thành viên và trưởng nhóm. Thẻ People bên cạnh đặt vai trò và quyền của từng người. Mỗi lần lưu cần lý do và được ghi nhật ký.",
-          "\"New team\" creates one: name, owned categories, assignment strategy (fewest open tickets…), per-member cap and fallback (gets categories no team owns). Click a team to open its page and add or remove members and leads. The People tab next to it sets each person's role and capabilities. Every save needs a reason and is logged.",
+          "\"New team\" creates one: name, owned categories, assignment strategy (fewest open tickets…), per-member cap and fallback (gets categories no team owns). Click a team to open its page and add or remove members and leads. The People tab next to it sets each person's base role; add-on roles are granted on their record. Every save needs a reason and is logged.",
         ),
       },
     ],
@@ -878,7 +876,7 @@ export const TOURS: Tour[] = [
         title: w("Dashboard", "Dashboard"),
         href: "/admin/dashboard",
         target: H1,
-        when: (u) => u.role !== "security",
+        when: has(P.reportsDashboard),
         body: w(
           "Con số quan trọng nhất là \"Reopened after an automatic answer\": câu trả lời tự động sai mà vẫn đóng phiếu chỉ lộ ra khi người gửi mở lại. Bên cạnh là tỷ lệ tự động hoá, SLA giải quyết và số phiếu chờ duyệt.",
           "The number that matters most is \"Reopened after an automatic answer\": a wrong automatic answer that closed the ticket stays hidden until the requester reopens it. Beside it: automation rate, resolution SLA, and tickets waiting for review.",
@@ -887,7 +885,7 @@ export const TOURS: Tour[] = [
       {
         title: w("Chất lượng và hệ thống", "Quality and system"),
         target: "main",
-        when: (u) => u.role !== "security",
+        when: has(P.reportsDashboard),
         side: "top",
         body: w(
           "\"Quality of AI decisions\": tỷ lệ người duyệt sửa, chuyển nhóm, từ chối. \"System\": độ trễ, chi phí mỗi phiếu, tỷ lệ lần chạy bị lỗi.",
@@ -917,7 +915,7 @@ export const TOURS: Tour[] = [
         title: w("Cảnh báo bảo mật (tóm tắt)", "Security alerts summary"),
         href: "/admin/security/summary",
         target: H1,
-        when: isManager,
+        when: (u) => canEverywhere(u, P.reportsTeams),
         body: w(
           "Quản lý chỉ thấy số lượng cảnh báo theo loại trong 30 ngày, không thấy chi tiết. Chi tiết thuộc về nhóm bảo mật.",
           "Managers see only alert counts by kind over 30 days, never the details. Those belong to the security team.",
@@ -933,7 +931,7 @@ export const TOURS: Tour[] = [
       "Hai chìa khoá để một nhánh chạy thật, cờ triển khai, và tệp ngưỡng đang chạy.",
       "The two keys a branch needs to act live, rollout flags, and the loaded thresholds.",
     ),
-    audience: isManager,
+    audience: has(P.rolloutOn),
     steps: [
       {
         title: w("Hai chìa khoá", "Two keys"),
@@ -972,7 +970,7 @@ export const TOURS: Tour[] = [
       "Thiết kế trạng thái, bước chuyển, điều kiện, hành động và trường của quy trình xử lý phiếu.",
       "Design a ticket workflow's statuses, moves, checks, actions and fields.",
     ),
-    audience: isManager,
+    audience: has(P.workflowsManage),
     steps: [
       {
         title: w("Quy trình", "Workflows"),
@@ -1013,7 +1011,7 @@ export const TOURS: Tour[] = [
       "Quản trị quy trình định nghĩa thao tác tự động, và cách runbook chạy trên phiếu.",
       "A workflow admin defines automated actions, and how they run on a ticket.",
     ),
-    audience: (u) => isManager(u) || isWorkflowAdmin(u),
+    audience: (u) => can(u, P.runbooksManage) || can(u, P.runbooksActivate),
     steps: [
       {
         title: w("Danh mục", "The catalog"),
@@ -1028,7 +1026,7 @@ export const TOURS: Tour[] = [
         title: w("Thêm hoặc sửa", "Add or change"),
         target: "main button",
         text: "Thêm runbook",
-        when: isWorkflowAdmin,
+        when: has(P.runbooksManage),
         body: w(
           "\"Thêm runbook\" (hoặc \"Sửa\" ở một dòng): mã, tiêu đề, bộ thực thi, cấu hình JSON, các trường bắt buộc, đối tượng (chỉ người gửi hay bất kỳ ai) và mức rủi ro.",
           "\"Thêm runbook\" (add, or \"Sửa\" on a row to edit): code, title, executor, JSON config, required fields, target (the requester only, or anyone) and risk.",
@@ -1084,7 +1082,7 @@ export const TOURS: Tour[] = [
         title: w("Bảng mặc định", "The defaults"),
         href: "/admin/settings/notifications",
         target: HEADER,
-        when: (u) => isManager(u) || isWorkflowAdmin(u),
+        when: has(P.notificationsMatrixRead),
         body: w(
           "Ai nhận sự kiện nào qua kênh nào, cho mọi người. Danh sách sự kiện do code định nghĩa, còn mặc định là dữ liệu quản trị quy trình chỉnh; mỗi lần lưu cần lý do.",
           "Who gets each event on which channel, for everyone. The events are defined in code; the defaults are data workflow admins edit, with a reason for every save.",
@@ -1094,7 +1092,7 @@ export const TOURS: Tour[] = [
         title: w("Nhật ký gửi", "Delivery log"),
         href: "/admin/settings/deliveries",
         target: HEADER,
-        when: (u) => isManager(u) || isWorkflowAdmin(u),
+        when: has(P.notificationsMatrixRead),
         body: w(
           "Mọi email và webhook đã gửi, kèm kết quả. Gửi lỗi? \"Retry\" từng cái hoặc \"Retry all failed\".",
           "Every email and webhook sent, with its result. Failed? \"Retry\" one or \"Retry all failed\".",
@@ -1104,7 +1102,7 @@ export const TOURS: Tour[] = [
         title: w("Webhook", "Webhooks"),
         href: "/admin/settings/webhooks",
         target: HEADER,
-        when: isWorkflowAdmin,
+        when: has(P.notificationsWebhooksManage),
         body: w(
           "Gửi sự kiện sang hệ thống khác dưới dạng JSON có chữ ký, chỉ tới các máy chủ được cho phép. \"New subscription\" để thêm.",
           "Send events to other systems as signed JSON, to allow-listed hosts only. \"New subscription\" adds one.",

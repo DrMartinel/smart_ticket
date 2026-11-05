@@ -563,22 +563,19 @@ department, so the linked-ticket list shows usernames only.
 
 ## 21. People, departments and access follow-ups (F14)
 
-**Priority:** High · **Spec:** [06-F14-org-access.md](requirements/phase-2/06-F14-org-access.md) · **ADR:** 0045 (Proposed)
+**Priority:** High · **Spec:** [06-F14-org-access.md](requirements/phase-2/06-F14-org-access.md) · **ADR:** 0045 (Accepted 2026-11-05)
 
-- **Accept ADR-0045** (owner) and get the Information Security Officer's
-  sign-off on spec §e and §i, then merge `f14-org-access`. Until then the
-  branch's migrations (`accounts.0008`–`0011`, `notifications.0007`) must
-  not run on the shared dev DB: the main containers still read
-  `accounts_user_capabilities`. The browser check used a copy,
-  `smart_triage_f14`; drop it after the merge.
-- **Withdraw `PUT /api/accounts/people/{username}/rights`** one release after
-  the merge (ADR-0042's endpoint, kept as a shim).
-- **Department-head delegation** (a head managing their own subtree) is not
-  built; heads read their department's tickets and answer reviews only.
+Done 2026-11-05: ADR-0045 accepted and merged; `PUT …/rights` replaced by
+`PUT …/base-role`; department-head delegation; department reports; services
+and both frontends check permissions, not role names; the CSV import's dry
+run checked in the browser; the sweep run on the dev stack.
+
+- **The Information Security Officer's sign-off** on spec §e and §i.
 - **Run the first quarterly review** with `flag` (owner Q6), then switch to
   `revoke`.
-- **Check the CSV import in the browser** with a real HR export, and the
-  sweep's expiry notices on a real clock.
-- **Point `Reports` department filters at departments** (spec §i): reports
-  still scope by team only.
+- **A real HR export through the CSV import**, and the sweep's expiry
+  notices on a real clock (the checks used the sample rows and found
+  nothing due).
+- **A department filter in the SLA report's UI**: the API takes
+  `department`; the console doesn't offer it yet.
 

@@ -529,9 +529,8 @@ export interface AccountOut {
   job_title?: string;
 }
 
-export interface RightsIn {
+export interface BaseRoleIn {
   role: UserRole;
-  capabilities?: Capability[];
   reason?: string;
 }
 
@@ -1743,6 +1742,7 @@ export interface UserOut {
   capabilities?: string[];
   teams?: UserTeamOut[];
   permissions?: string[];
+  permissions_everywhere?: string[];
   status?: string;
   name?: string;
   department?: DepartmentRefOut | null;
@@ -1765,6 +1765,7 @@ export interface RoleOut {
   name: string;
   description: string;
   is_system: boolean;
+  delegable?: boolean;
   created_at: string;
   retired_at: string | null;
   permissions: string[];
@@ -1953,6 +1954,7 @@ export interface RoleIn {
   name: string;
   description?: string;
   permissions: string[];
+  delegable?: boolean;
   reason: string;
 }
 
@@ -1960,6 +1962,7 @@ export interface RolePatchIn {
   name?: string | null;
   description?: string | null;
   permissions?: string[] | null;
+  delegable?: boolean | null;
   reason: string;
 }
 

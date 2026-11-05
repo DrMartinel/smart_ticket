@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SectionTabs } from "@/components/TabNav";
+import { P, can } from "@/lib/permissions";
 
 export default function AuthorityQueuePage() {
   const user = useRequireAuth();
@@ -45,7 +46,7 @@ export default function AuthorityQueuePage() {
   }, []);
 
   useEffect(() => {
-    if (user?.role === "manager") load();
+    if (can(user, P.kbAuthorityQueue)) load();
   }, [user, load]);
 
   if (!user) return null;

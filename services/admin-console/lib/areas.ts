@@ -26,65 +26,68 @@ export function areaOf(pathname: string): Area {
 }
 
 export function canEditKb(user: CurrentUser): boolean {
-  return user.role === "manager" || (user.capabilities ?? []).includes("kb_editor");
+  return can(user, P.kbDraftsManage);
 }
 
 /** The Admin sidebar's groups and the links `user` may open, in display order. */
 export function adminGroups(user: CurrentUser): AdminGroup[] {
-  const manager = user.role === "manager";
-  const security = user.role === "security";
-  const workflowAdmin = (user.capabilities ?? []).includes("workflow_admin");
-  const settings = manager || workflowAdmin;
   const show = (on: boolean, link: AdminLink): AdminLink[] => (on ? [link] : []);
+  const securityReportsOnly = can(user, P.reportsSecurity) && !can(user, P.reportsDashboard);
+  const anyReport = [P.reportsOperations, P.reportsTeams, P.reportsKb, P.reportsRollout, P.reportsSecurity, P.reportsIncidents, P.reportsNotifications].some(
+    (urn) => can(user, urn),
+  );
 
   const groups: AdminGroup[] = [
     {
       label: "Insights",
       links: [
-        ...show(!security, { href: "/admin/dashboard", label: "Dashboard" }),
-        ...show(true, { href: security ? "/admin/reports/security" : "/admin/reports", label: "Reports", prefix: "/admin/reports" }),
-        ...show(manager, { href: "/admin/security/summary", label: "Security alerts" }),
+        ...show(can(user, P.reportsDashboard), { href: "/admin/dashboard", label: "Dashboard" }),
+        ...show(anyReport, { href: securityReportsOnly ? "/admin/reports/security" : "/admin/reports", label: "Reports", prefix: "/admin/reports" }),
+        ...show(can(user, P.securitySummary) && !can(user, P.securityQueue), { href: "/admin/security/summary", label: "Security alerts" }),
       ],
     },
     {
       label: "Governance",
       links: [
         ...section("Help pages", [
-          ...show(manager, { href: "/admin/kb/authority", label: "Authority queue", exact: true }),
-          ...show(manager, { href: "/admin/kb/pages", label: "All help pages" }),
-          ...show(canEditKb(user) || security, { href: "/admin/kb/authority-log", label: "Authority log" }),
+          ...show(can(user, P.kbAuthorityQueue), { href: "/admin/kb/authority", label: "Authority queue", exact: true }),
+          ...show(can(user, P.kbAuthorityQueue), { href: "/admin/kb/pages", label: "All help pages" }),
+          ...show(can(user, P.kbAuthorityLog), { href: "/admin/kb/authority-log", label: "Authority log" }),
         ]),
         ...section("Rollout", [
-          ...show(settings || security, { href: "/admin/settings/rollout", label: "Rollout" }),
-          ...show(settings, { href: "/admin/settings/thresholds", label: "Thresholds" }),
+          ...show(can(user, P.rolloutOff), { href: "/admin/settings/rollout", label: "Rollout" }),
+          ...show(can(user, P.rolloutOff) && can(user, P.thresholdsRead), { href: "/admin/settings/thresholds", label: "Thresholds" }),
         ]),
       ],
     },
     {
       label: "Settings",
-      links: settings
-        ? [
-            ...show(manager, { href: "/admin/settings/workflows", label: "Workflows" }),
-            ...section("SLA", [
-              { href: "/admin/settings/sla", label: "Policies", exact: true },
-              { href: "/admin/settings/sla/calendars", label: "Calendars" },
-              { href: "/admin/settings/sla/holidays", label: "Holidays" },
-            ]),
-            ...section("People & access", [
-              ...show(can(user, P.peopleRead), { href: "/admin/settings/people", label: "People" }),
-              ...show(can(user, P.departmentsRead), { href: "/admin/settings/departments", label: "Departments" }),
-              { href: "/admin/settings/teams", label: "Teams" },
-              ...show(can(user, P.accessRead), { href: "/admin/settings/roles", label: "Roles" }),
-              ...show(can(user, P.reviewManage), { href: "/admin/settings/access-reviews", label: "Access reviews" }),
-            ]),
-            ...section("Notifications", [
-              { href: "/admin/settings/notifications", label: "Matrix" },
-              { href: "/admin/settings/deliveries", label: "Delivery log" },
-              ...show(workflowAdmin, { href: "/admin/settings/webhooks", label: "Webhooks" }),
-            ]),
-            { href: "/admin/settings/runbooks", label: "Runbooks" },
-          ]
-        : [],
+      links: [
+        ...show(can(user, P.workflowsManage), { href: "/admin/settings/workflows", label: "Workflows" }),
+        ...section(
+          "SLA",
+          can(user, P.slaManage) || can(user, P.slaActivate)
+            ? [
+                { href: "/admin/settings/sla", label: "Policies", exact: true },
+                { href: "/admin/settings/sla/calendars", label: "Calendars" },
+                { href: "/admin/settings/sla/holidays", label: "Holidays" },
+              ]
+            : [],
+        ),
+        ...section("People & access", [
+          ...show(can(user, P.peopleRead), { href: "/admin/settings/people", label: "People" }),
+          ...show(can(user, P.departmentsRead), { href: "/admin/settings/departments", label: "Departments" }),
+          ...show(can(user, P.teamsManage), { href: "/admin/settings/teams", label: "Teams" }),
+          ...show(can(user, P.accessRead), { href: "/admin/settings/roles", label: "Roles" }),
+          ...show(can(user, P.reviewManage), { href: "/admin/settings/access-reviews", label: "Access reviews" }),
+        ]),
+        ...section("Notifications", [
+          ...show(can(user, P.notificationsMatrixRead), { href: "/admin/settings/notifications", label: "Matrix" }),
+          ...show(can(user, P.notificationsDeliveries), { href: "/admin/settings/deliveries", label: "Delivery log" }),
+          ...show(can(user, P.notificationsWebhooksManage), { href: "/admin/settings/webhooks", label: "Webhooks" }),
+        ]),
+        ...show(can(user, P.runbooksManage) || can(user, P.runbooksActivate), { href: "/admin/settings/runbooks", label: "Runbooks" }),
+      ],
     },
   ];
   return groups.filter((g) => g.links.length > 0);

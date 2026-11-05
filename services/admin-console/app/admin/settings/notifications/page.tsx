@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { SectionTabs } from "@/components/TabNav";
+import { P, can } from "@/lib/permissions";
 
 type Channel = "in_app" | "email";
 
@@ -72,7 +73,7 @@ export default function NotificationMatrixPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
-  const canEdit = user?.capabilities?.includes("workflow_admin") ?? false;
+  const canEdit = can(user, P.notificationsMatrixManage);
 
   useEffect(() => {
     if (!user) return;

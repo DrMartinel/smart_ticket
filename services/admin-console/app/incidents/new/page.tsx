@@ -19,6 +19,7 @@ import { Page, PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { ShieldOff } from "lucide-react";
+import { P, can } from "@/lib/permissions";
 
 const CATEGORIES = ["network", "access", "hardware", "software", "security", "other"];
 
@@ -39,7 +40,7 @@ export default function DeclareIncidentPage() {
   const [tried, setTried] = useState(false);
 
   if (!user) return null;
-  if (!user.capabilities?.includes("incident_manager")) {
+  if (!can(user, P.incidentsManage)) {
     return (
       <Page width="form">
         <PageHeader eyebrow="Workspace / Incidents" vi="Khai báo sự cố" title="Declare an incident" back={{ href: "/incidents", label: "Incidents" }} />

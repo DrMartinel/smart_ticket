@@ -42,6 +42,7 @@ import { Card } from "@/components/ui/card";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { P, canEverywhere } from "@/lib/permissions";
 
 function ratio(c: ComplianceOut): string {
   return `${c.met}/${c.met + c.breached}`;
@@ -58,7 +59,7 @@ function Failed({ error }: { error: string | null }) {
 function useTeams(user: CurrentUser): string[] {
   const [all, setAll] = useState<string[]>([]);
   useEffect(() => {
-    if (user.role !== "manager") return;
+    if (!canEverywhere(user, P.reportsTeams)) return;
     api
       .get<TeamOut[]>("/api/teams")
       .then((r) => setAll(r.map((t) => t.slug)))
@@ -123,7 +124,7 @@ export function SlaReport({ user }: { user: CurrentUser }) {
     <>
       <Header title="SLA compliance" note="Clocks that stopped in the period: met ÷ (met + late), in business hours.">
         <MonthPicker value={month} onChange={setMonth} />
-        <TeamPicker user={user} value={team} onChange={setTeam} allowAll={user.role === "manager" || (user.teams ?? []).filter((t) => t.role === "lead").length > 1} />
+        <TeamPicker user={user} value={team} onChange={setTeam} allowAll={canEverywhere(user, P.reportsTeams) || (user.teams ?? []).filter((t) => t.role === "lead").length > 1} />
         <ExportButton path={`/api/reports/sla.csv${q}`} filename={`sla-${month}.csv`} />
       </Header>
       <Failed error={error} />
@@ -186,7 +187,7 @@ export function SlaReport({ user }: { user: CurrentUser }) {
 export function TeamsReport({ user }: { user: CurrentUser }) {
   const own = (user.teams ?? []).map((t) => t.team);
   const teams = useTeams(user);
-  const choices = user.role === "manager" ? teams : own;
+  const choices = canEverywhere(user, P.reportsTeams) ? teams : own;
   const [team, setTeam] = useState(own[0] ?? "");
   const slug = team || choices[0] || "";
   const { data, error } = useReport<TeamReportOut>(slug ? `/api/reports/teams/${slug}` : null);

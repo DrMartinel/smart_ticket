@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { SectionTabs } from "@/components/TabNav";
+import { P, can } from "@/lib/permissions";
 
 const GATE_TEXT: Record<string, string> = {
   auto_route: "P3 gate: reroute rate < 15 % over 14 days on shadow auto_route decisions",
@@ -72,8 +73,8 @@ export default function RolloutPage() {
       </Page>
     );
 
-  const isManager = user.role === "manager";
-  const mayTurnOff = isManager || user.role === "security";
+  const isManager = can(user, P.rolloutOn);
+  const mayTurnOff = can(user, P.rolloutOff);
 
   const open = (d: Dialog) => {
     setDialog(d);

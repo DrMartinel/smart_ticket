@@ -19,6 +19,7 @@ import type { WorkloadRowOut } from "@/lib/types/generated";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { supervises } from "@/lib/permissions";
 
 export default function WorkloadPage() {
   const user = useRequireAuth();
@@ -45,7 +46,7 @@ export default function WorkloadPage() {
   if (!user) return null;
 
   const team = teams.find((t) => t.slug === slug);
-  const canEdit = user.role === "manager" || (user.teams ?? []).some((t) => t.team === slug && t.role === "lead");
+  const canEdit = supervises(user, slug);
 
   const setAvailable = async (member: string, available: boolean) => {
     setError(null);

@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { P, can } from "@/lib/permissions";
 
 export default function TeamsPage() {
   const user = useRequireAuth();
@@ -40,7 +41,7 @@ export default function TeamsPage() {
   }, [user, load]);
 
   if (!user) return null;
-  const canEdit = user.role === "manager" || (user.capabilities ?? []).includes("workflow_admin");
+  const canEdit = can(user, P.teamsManage);
 
   const create = async (move = false) => {
     if (!draft) return;

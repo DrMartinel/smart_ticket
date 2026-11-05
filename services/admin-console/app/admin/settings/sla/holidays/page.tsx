@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionTabs } from "@/components/TabNav";
+import { P, can } from "@/lib/permissions";
 
 interface Run {
   first: HolidayOut;
@@ -79,7 +80,7 @@ export default function HolidaysPage() {
   const shown = runs(holidays.filter((h) => h.date.startsWith(year)));
 
   if (!user) return null;
-  const isAdmin = (user.capabilities ?? []).includes("workflow_admin");
+  const isAdmin = can(user, P.slaManage);
   const calendar = calendars.find((c) => c.id === calendarId);
   const nextYear = String(Number(year) + 1);
   const nextHas = holidays.some((h) => h.date.startsWith(nextYear));

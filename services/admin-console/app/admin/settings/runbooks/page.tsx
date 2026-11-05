@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
+import { P, can } from "@/lib/permissions";
 
 type Form = {
   code: string;
@@ -118,8 +119,8 @@ export default function RunbooksPage() {
   }, [user, load]);
 
   if (!user) return null;
-  const admin = (user.capabilities ?? []).includes("workflow_admin");
-  const manager = user.role === "manager";
+  const admin = can(user, P.runbooksManage);
+  const activator = can(user, P.runbooksActivate);
 
   const act = async (call: () => Promise<unknown>) => {
     setBusy(true);
@@ -297,7 +298,7 @@ export default function RunbooksPage() {
                             Edit
                           </Button>
                         )}
-                        {(admin || manager) && (r.pending_change || !r.approved_at) && (
+                        {activator && (r.pending_change || !r.approved_at) && (
                           <Button variant="link" size="inline"
                             disabled={busy}
                             onClick={() => void act(() => api.post(`/api/itsm/runbooks/${r.code}/activate`))}

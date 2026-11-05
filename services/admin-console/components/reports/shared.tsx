@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { TabNav } from "@/components/TabNav";
+import { P, can, canEverywhere } from "@/lib/permissions";
 
 export type ReportTab =
   | "sla"
@@ -24,23 +25,23 @@ export type ReportTab =
   | "incidents"
   | "notifications";
 
-const has = (user: CurrentUser, cap: string) => (user.capabilities ?? []).includes(cap);
 const leads = (user: CurrentUser) => (user.teams ?? []).filter((t) => t.role === "lead").map((t) => t.team);
+const allTeams = (user: CurrentUser) => canEverywhere(user, P.reportsTeams);
+const byDepartment = (user: CurrentUser) => can(user, P.reportsOperations) && !canEverywhere(user, P.reportsOperations);
 
 /** The tabs `user` may open, in display order. */
 export function reportTabs(user: CurrentUser): { key: ReportTab; label: string }[] {
-  const manager = user.role === "manager";
-  const tech = user.role === "technician";
+  const supervisor = allTeams(user) || leads(user).length > 0 || byDepartment(user);
   const tabs: { key: ReportTab; label: string; show: boolean }[] = [
-    { key: "sla", label: "SLA", show: manager || leads(user).length > 0 },
-    { key: "teams", label: "Teams", show: manager || (tech && (user.teams ?? []).length > 0) },
-    { key: "reviewers", label: "Reviewers", show: manager || tech },
-    { key: "kb", label: "KB", show: manager || has(user, "kb_editor") },
-    { key: "csat", label: "CSAT", show: manager || leads(user).length > 0 },
-    { key: "rollout", label: "Rollout", show: manager || user.role === "security" },
-    { key: "security", label: "Security", show: manager || user.role === "security" },
-    { key: "incidents", label: "Incidents", show: manager || has(user, "incident_manager") },
-    { key: "notifications", label: "Notifications", show: manager || has(user, "workflow_admin") },
+    { key: "sla", label: "SLA", show: supervisor },
+    { key: "teams", label: "Teams", show: allTeams(user) || (can(user, P.reportsOperations) && (user.teams ?? []).length > 0) },
+    { key: "reviewers", label: "Reviewers", show: canEverywhere(user, P.reportsOperations) },
+    { key: "kb", label: "KB", show: can(user, P.reportsKb) },
+    { key: "csat", label: "CSAT", show: supervisor },
+    { key: "rollout", label: "Rollout", show: can(user, P.reportsRollout) },
+    { key: "security", label: "Security", show: can(user, P.reportsSecurity) },
+    { key: "incidents", label: "Incidents", show: can(user, P.reportsIncidents) },
+    { key: "notifications", label: "Notifications", show: can(user, P.reportsNotifications) },
   ];
   return tabs.filter((t) => t.show);
 }
@@ -55,7 +56,7 @@ export function ReportTabs({ user, active }: { user: CurrentUser; active: Report
 
 /** The teams a report's team picker offers: every team for a manager, else the ones `user` leads. */
 export function pickableTeams(user: CurrentUser, all: string[]): string[] {
-  return user.role === "manager" ? all : leads(user);
+  return allTeams(user) ? all : leads(user);
 }
 
 export function Stat({ label, value, note, tone }: { label: string; value: string; note?: ReactNode; tone?: "warn" | "danger" }) {

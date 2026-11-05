@@ -20,6 +20,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SectionTabs } from "@/components/TabNav";
+import { P, can } from "@/lib/permissions";
 
 const CATEGORIES: TicketCategory[] = ["hardware", "software", "network", "access", "security", "other"];
 const PRIORITIES: Priority[] = ["P1", "P2", "P3", "P4"];
@@ -87,8 +88,8 @@ export default function SlaPoliciesPage() {
   }, [user, load]);
 
   if (!user) return null;
-  const isAdmin = (user.capabilities ?? []).includes("workflow_admin");
-  const mayActivate = isAdmin || user.role === "manager";
+  const isAdmin = can(user, P.slaManage);
+  const mayActivate = can(user, P.slaActivate);
 
   const act = async (fn: () => Promise<unknown>) => {
     setError(null);

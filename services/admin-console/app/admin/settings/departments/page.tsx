@@ -19,8 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
-import { P, can } from "@/lib/permissions";
-import type { AccountOut, DepartmentOut, ImportOut, StaffOut } from "@/lib/types/generated";
+import { P, can, canEverywhere, shortUrn } from "@/lib/permissions";
+import type { AccountOut, AssignmentOut, DepartmentOut, ImportOut, RoleOut, StaffOut } from "@/lib/types/generated";
 
 type Mode = "create" | "edit" | "move" | "archive";
 
@@ -52,6 +52,12 @@ export default function DepartmentsPage() {
   const [importing, setImporting] = useState<{ kind: ImportKind; csv: string; reason: string; result: ImportOut | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [placing, setPlacing] = useState<{ username: string; reason: string } | null>(null);
+  const [deptGrants, setDeptGrants] = useState<AssignmentOut[] | null>(null);
+  const [delegable, setDelegable] = useState<RoleOut[]>([]);
+  const [delegating, setDelegating] = useState<{ username: string; role: string; ends_at: string; reason: string } | null>(null);
+  const [ending, setEnding] = useState<{ row: AssignmentOut; reason: string } | null>(null);
+  const [refresh, setRefresh] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -72,12 +78,28 @@ export default function DepartmentsPage() {
   }, [user, load]);
 
   useEffect(() => {
-    if (!selected || !can(user, P.peopleRead)) return setMembers(null);
+    if (!selected || !can(user, P.departmentsRead)) return setMembers(null);
     api
       .get<AccountOut[]>(`/api/org/departments/${encodeURIComponent(selected)}/people`)
       .then(setMembers)
       .catch(() => setMembers([]));
-  }, [selected, user]);
+  }, [selected, user, refresh]);
+
+  useEffect(() => {
+    if (!selected || !(can(user, P.grantDelegable) || can(user, P.accessRead))) return setDeptGrants(null);
+    api
+      .get<AssignmentOut[]>(`/api/org/departments/${encodeURIComponent(selected)}/grants`)
+      .then(setDeptGrants)
+      .catch(() => setDeptGrants(null));
+  }, [selected, user, refresh]);
+
+  useEffect(() => {
+    if (!can(user, P.grantDelegable)) return;
+    api
+      .get<RoleOut[]>("/api/org/delegable-roles")
+      .then(setDelegable)
+      .catch(() => setDelegable([]));
+  }, [user]);
 
   const tree = useMemo(() => {
     const children = new Map<string | null, DepartmentOut[]>();
@@ -95,6 +117,8 @@ export default function DepartmentsPage() {
 
   if (!user) return null;
   const canManage = can(user, P.departmentsManage);
+  const manageEverywhere = canEverywhere(user, P.departmentsManage);
+  const mayDelegate = can(user, P.grantDelegable);
   const canImport = can(user, P.orgImport);
   const current = rows?.find((d) => d.code === selected) ?? null;
 
@@ -126,7 +150,13 @@ export default function DepartmentsPage() {
           reason: draft.reason,
         });
       } else if (draft.mode === "edit") {
-        await api.patch(`/api/org/departments/${code}`, { name: draft.name, head: draft.head, cost_centre: draft.cost_centre, reason: draft.reason });
+        const before = rows?.find((d) => d.code === draft.code)?.head ?? "";
+        await api.patch(`/api/org/departments/${code}`, {
+          name: draft.name,
+          ...(draft.head !== before ? { head: draft.head } : {}),
+          cost_centre: draft.cost_centre,
+          reason: draft.reason,
+        });
       } else if (draft.mode === "move") {
         await api.post(`/api/org/departments/${code}/move`, { parent: draft.parent || null, reason: draft.reason });
       } else {
@@ -138,6 +168,19 @@ export default function DepartmentsPage() {
       await load();
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : "Couldn't save the department.");
+    }
+  };
+
+  const act = async (call: () => Promise<unknown>, done: string, close: () => void) => {
+    setFormError(null);
+    try {
+      await call();
+      toast.success(done);
+      close();
+      setRefresh((n) => n + 1);
+      await load();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : "Couldn't save the change.");
     }
   };
 
@@ -236,13 +279,25 @@ export default function DepartmentsPage() {
                   <Button size="sm" variant="outline" onClick={() => open("edit", current)}>
                     Edit
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => open("move", current)}>
-                    Move
+                  {manageEverywhere && (
+                    <Button size="sm" variant="outline" onClick={() => open("move", current)}>
+                      Move
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setFormError(null);
+                      setPlacing({ username: "", reason: "" });
+                    }}
+                  >
+                    Move a person here
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => open("create", current)}>
                     Add below
                   </Button>
-                  {!current.is_default && (
+                  {manageEverywhere && !current.is_default && (
                     <Button size="sm" variant="outline" className="text-danger" onClick={() => open("archive", current)}>
                       Archive
                     </Button>
@@ -307,6 +362,73 @@ export default function DepartmentsPage() {
                     </TableBody>
                   </Table>
                 )}
+                {deptGrants && (
+                  <section className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="eyebrow">Grants scoped here and below</h3>
+                      {mayDelegate && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={delegable.length === 0}
+                          title={delegable.length === 0 ? "No custom role is marked delegable" : undefined}
+                          onClick={() => {
+                            setFormError(null);
+                            setDelegating({ username: "", role: delegable[0]?.urn ?? "", ends_at: "", reason: "" });
+                          }}
+                        >
+                          Grant a role
+                        </Button>
+                      )}
+                    </div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Person</TableHead>
+                          <TableHead>Role</TableHead>
+                          <TableHead>At</TableHead>
+                          <TableHead>Ends</TableHead>
+                          <TableHead />
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {deptGrants.length === 0 && (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-muted-foreground">
+                              No grants scoped to this department.
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        {deptGrants.map((g) => (
+                          <TableRow key={g.id}>
+                            <TableCell>{g.user}</TableCell>
+                            <TableCell>
+                              {g.role_name}
+                              <span className="block font-mono text-xs text-muted-foreground">{shortUrn(g.role)}</span>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs">{g.scope}</TableCell>
+                            <TableCell className="text-xs">{g.ends_at ? new Date(g.ends_at).toLocaleDateString() : "—"}</TableCell>
+                            <TableCell className="text-right">
+                              {mayDelegate && delegable.some((r) => r.urn === g.role) && (
+                                <Button
+                                  variant="link"
+                                  size="inline"
+                                  className="text-xs text-danger"
+                                  onClick={() => {
+                                    setFormError(null);
+                                    setEnding({ row: g, reason: "" });
+                                  }}
+                                >
+                                  End
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </section>
+                )}
               </div>
             )}
           </Panel>
@@ -345,6 +467,7 @@ export default function DepartmentsPage() {
                 <Labeled label="Name" required>
                   <Input value={draft.name} maxLength={120} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
                 </Labeled>
+                {manageEverywhere && (
                 <Labeled label="Head" hint="The head is granted the department-head role over this department and everything under it.">
                   <NativeSelect value={draft.head} onChange={(e) => setDraft({ ...draft, head: e.target.value })}>
                     <option value="">No head</option>
@@ -355,6 +478,7 @@ export default function DepartmentsPage() {
                     ))}
                   </NativeSelect>
                 </Labeled>
+                )}
                 <Labeled label="Cost centre">
                   <Input value={draft.cost_centre} maxLength={40} onChange={(e) => setDraft({ ...draft, cost_centre: e.target.value })} />
                 </Labeled>
@@ -379,6 +503,144 @@ export default function DepartmentsPage() {
             )}
             <Labeled label="Reason" required>
               <Input value={draft.reason} maxLength={500} placeholder="Kept in the audit log" onChange={(e) => setDraft({ ...draft, reason: e.target.value })} />
+            </Labeled>
+            {formError && <ErrorState compact title={formError} />}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!placing}
+        onClose={() => setPlacing(null)}
+        title={current ? `Move a person into ${current.name}` : ""}
+        subtitle="They keep their grants; a grant scoped to their old department may need a second look."
+        footer={
+          placing &&
+          current && (
+            <Button
+              disabled={!placing.username.trim() || !placing.reason.trim()}
+              onClick={() =>
+                void act(
+                  () => api.post(`/api/org/departments/${encodeURIComponent(current.code)}/people`, placing),
+                  `Moved ${placing.username} to ${current.code}`,
+                  () => setPlacing(null),
+                )
+              }
+            >
+              Move
+            </Button>
+          )
+        }
+      >
+        {placing && (
+          <div className="flex flex-col gap-3 text-sm">
+            <Labeled label="Username" required hint="Someone in a department you look after.">
+              <Input value={placing.username} onChange={(e) => setPlacing({ ...placing, username: e.target.value })} />
+            </Labeled>
+            <Labeled label="Reason" required>
+              <Input value={placing.reason} maxLength={500} placeholder="Kept in the audit log" onChange={(e) => setPlacing({ ...placing, reason: e.target.value })} />
+            </Labeled>
+            {formError && <ErrorState compact title={formError} />}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!delegating}
+        onClose={() => setDelegating(null)}
+        title={current ? `Grant a role in ${current.name}` : ""}
+        subtitle="Only roles marked delegable, to someone in your departments, scoped to this department and everything under it."
+        footer={
+          delegating &&
+          current && (
+            <Button
+              disabled={!delegating.username.trim() || !delegating.role || !delegating.reason.trim()}
+              onClick={() =>
+                void act(
+                  () =>
+                    api.post(`/api/org/departments/${encodeURIComponent(current.code)}/grants`, {
+                      username: delegating.username,
+                      role: delegating.role,
+                      reason: delegating.reason,
+                      ends_at: delegating.ends_at ? new Date(delegating.ends_at).toISOString() : null,
+                    }),
+                  `Granted to ${delegating.username}`,
+                  () => setDelegating(null),
+                )
+              }
+            >
+              Grant
+            </Button>
+          )
+        }
+      >
+        {delegating && (
+          <div className="flex flex-col gap-3 text-sm">
+            <Labeled label="Person" required>
+              {members ? (
+                <NativeSelect value={delegating.username} onChange={(e) => setDelegating({ ...delegating, username: e.target.value })}>
+                  <option value="">Pick someone…</option>
+                  {members
+                    .filter((m) => m.is_active && m.username !== user.username)
+                    .map((m) => (
+                      <option key={m.username} value={m.username}>
+                        {m.username}
+                      </option>
+                    ))}
+                </NativeSelect>
+              ) : (
+                <Input value={delegating.username} onChange={(e) => setDelegating({ ...delegating, username: e.target.value })} />
+              )}
+            </Labeled>
+            <Labeled label="Role" required>
+              <NativeSelect value={delegating.role} onChange={(e) => setDelegating({ ...delegating, role: e.target.value })}>
+                {delegable.map((r) => (
+                  <option key={r.urn} value={r.urn}>
+                    {r.name}
+                  </option>
+                ))}
+              </NativeSelect>
+            </Labeled>
+            <Labeled label="Ends" hint="Leave empty for no end date; the access review still asks about it.">
+              <Input type="date" value={delegating.ends_at} onChange={(e) => setDelegating({ ...delegating, ends_at: e.target.value })} />
+            </Labeled>
+            <Labeled label="Reason" required>
+              <Input value={delegating.reason} maxLength={500} placeholder="Kept in the audit log" onChange={(e) => setDelegating({ ...delegating, reason: e.target.value })} />
+            </Labeled>
+            {formError && <ErrorState compact title={formError} />}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!ending}
+        onClose={() => setEnding(null)}
+        title={ending ? `End ${ending.row.role_name} for ${ending.row.user}` : ""}
+        size="sm"
+        footer={
+          ending &&
+          current && (
+            <Button
+              variant="destructive"
+              disabled={!ending.reason.trim()}
+              onClick={() =>
+                void act(
+                  () =>
+                    api.post(`/api/org/departments/${encodeURIComponent(current.code)}/grants/${ending.row.id}/end`, { reason: ending.reason }),
+                  "Grant ended",
+                  () => setEnding(null),
+                )
+              }
+            >
+              End grant
+            </Button>
+          )
+        }
+      >
+        {ending && (
+          <div className="flex flex-col gap-3 text-sm">
+            <Labeled label="Reason" required>
+              <Input value={ending.reason} maxLength={500} placeholder="Kept in the audit log" onChange={(e) => setEnding({ ...ending, reason: e.target.value })} />
             </Labeled>
             {formError && <ErrorState compact title={formError} />}
           </div>

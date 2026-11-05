@@ -21,6 +21,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { P, can } from "@/lib/permissions";
 
 const CATEGORIES = ["access", "network", "hardware", "software", "security", "other"];
 const TIERS = ["low", "medium", "high"];
@@ -142,7 +143,7 @@ export default function DraftPage() {
             Update to the current page
           </Button>
         )}
-        {(isAuthor || user.role === "manager") && [...EDITABLE, "conflict"].includes(draft.state) && (
+        {(isAuthor || can(user, P.kbDraftsWithdrawAny)) && [...EDITABLE, "conflict"].includes(draft.state) && (
           <Button variant="outline" onClick={() => setConfirmWithdraw(true)}>
             Withdraw…
           </Button>

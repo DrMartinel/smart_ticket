@@ -40,6 +40,7 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/org/departments/{code}": Permission.ORG_DEPARTMENTS_READ,
     "GET /api/org/departments/{code}/people": Permission.ORG_DEPARTMENTS_READ,
     "POST /api/org/departments/{code}/people": Permission.ORG_DEPARTMENTS_MANAGE,
+    "GET /api/org/delegable-roles": Permission.ACCESS_GRANT_DELEGABLE,
     "GET /api/org/departments/{code}/grants": Permission.ORG_DEPARTMENTS_READ,
     "POST /api/org/departments/{code}/grants": Permission.ACCESS_GRANT_DELEGABLE,
     "POST /api/org/departments/{code}/grants/{assignment_id}/end": (

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { EmptyState, LoadingState } from "@/components/ui/states";
+import { P, can } from "@/lib/permissions";
 
 export default function TeamsIndexPage() {
   const user = useRequireAuth();
@@ -34,16 +35,16 @@ export default function TeamsIndexPage() {
         ) : (
           <EmptyState
             icon={Users}
-            title={user.role === "manager" ? "There are no teams yet" : "You're not in a team yet"}
+            title={can(user, P.teamsManage) ? "There are no teams yet" : "You're not in a team yet"}
             action={
-              user.role === "manager" && (
+              can(user, P.teamsManage) && (
                 <Button asChild>
                   <Link href="/admin/settings/teams">Set up teams</Link>
                 </Button>
               )
             }
           >
-            {user.role === "manager"
+            {can(user, P.teamsManage)
               ? "Create a team and give it categories; tickets in those categories go to its queue."
               : "Ask a manager or your team lead to add you to a team."}
           </EmptyState>

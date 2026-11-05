@@ -441,6 +441,22 @@ guard and that comment is later trimmed, the entry is the record.
 - **`People.set_status` writing through a queryset `.update()`.**
   `test_pipeline_statuses_are_written_only_by_the_lifecycle` reads any
   `x.status =` as a ticket status write.
+- **`test_services_check_permissions_not_role_names`** and its short
+  allowlist. A service that tests `user.role == "manager"` again quietly
+  ignores custom roles and scoped grants: a custom role holding the
+  permission is refused, and a manager whose grant was ended keeps the rule.
+- **`delegated=True` going through `check_delegated` *and then* the
+  hold-each-permission check.** Skipping the second lets a head hand out
+  a delegable role holding permissions the head lacks in that subtree;
+  skipping the first lets a head grant system roles or anyone outside
+  their subtree.
+- **`WITHDRAWN_SINCE_SNAPSHOT`** in `test_access_equivalence.py`: routes the
+  snapshot had that are gone on purpose (`PUT …/rights`). Without it the
+  equivalence test either fails or gets its snapshot edited, which hides
+  the next accidental removal.
+- **`tickets.requester_department` set at submit,** not read through the
+  reporter later. A person moved to another department would otherwise
+  carry their old tickets into their new head's reports.
 - **`select_for_update(of=("self",))`** in `Grants.locked` and
   `People.release_tickets`: Postgres refuses a row lock across the nullable
   joins `select_related` adds.

@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { P, can } from "@/lib/permissions";
 
 type Selection = { kind: "status" | "transition"; id: string } | null;
 type Open =
@@ -74,7 +75,7 @@ export default function WorkflowEditorPage() {
       </Page>
     );
 
-  const canEdit = user.role === "manager";
+  const canEdit = can(user, P.workflowsManage);
   const byId = Object.fromEntries(wf.statuses.map((s) => [s.id, s]));
   const close = () => setOpen(null);
   const saved = () => {

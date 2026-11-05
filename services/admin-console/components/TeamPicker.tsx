@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import type { SessionUser } from "@/lib/session";
 import type { TeamOut } from "@/lib/types/generated";
 import { NativeSelect } from "@/components/ui/native-select";
+import { P, canEverywhere } from "@/lib/permissions";
 
 export function useVisibleTeams(user: SessionUser | null): TeamOut[] {
   return useVisibleTeamsState(user).teams;
@@ -21,7 +22,7 @@ export function useVisibleTeamsState(user: SessionUser | null): { teams: TeamOut
       .get<TeamOut[]>("/api/teams")
       .then((all) => {
         const mine = new Set((user.teams ?? []).map((t) => t.team));
-        setState({ teams: user.role === "manager" ? all : all.filter((t) => mine.has(t.slug)), loaded: true });
+        setState({ teams: canEverywhere(user, P.reportsTeams) ? all : all.filter((t) => mine.has(t.slug)), loaded: true });
       })
       .catch(() => setState({ teams: [], loaded: true }));
   }, [user]);

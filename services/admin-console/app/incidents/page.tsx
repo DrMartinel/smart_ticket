@@ -17,6 +17,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { P, can } from "@/lib/permissions";
 
 const ORDER: Record<string, number> = { proposed: 0, confirmed: 1, resolved: 2 };
 
@@ -25,7 +26,7 @@ export default function IncidentsPage() {
   const [status, setStatus] = useState("");
   const [rows, setRows] = useState<IncidentRowOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const isManager = user?.capabilities?.includes("incident_manager") ?? false;
+  const isManager = can(user, P.incidentsManage);
 
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {

@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { P, can } from "@/lib/permissions";
 
 interface KbArticle {
   id: string;
@@ -68,7 +69,7 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, category, offset]);
 
-  const isManager = manage && user.role === "manager";
+  const isManager = manage && can(user, P.kbAuthorityGrant);
   const isEditor = !manage && canEditKb(user);
 
   const toggle = async (article: KbArticle) => {

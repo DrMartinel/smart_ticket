@@ -144,7 +144,7 @@ function Navigation({
   const area = areaOf(pathname);
   const admin = adminGroups(user);
   const onTickets = pathname.startsWith("/tickets");
-  const isManager = user.role === "manager";
+  const allTeams = can(user, P.teamsManage);
 
   return (
     <>
@@ -185,23 +185,23 @@ function Navigation({
                   {v.label}
                 </NavItem>
               ))}
-              {user.role !== "security" && (
+              {can(user, P.ticketsAllCategories) && (
                 <NavItem href="/board" icon={Columns3} active={pathname.startsWith("/board")}>
                   Board
                 </NavItem>
               )}
-              {user.role !== "employee" && (
+              {can(user, P.slaRead) && (
                 <NavItem href="/sla" icon={AlarmClock} active={pathname === "/sla"}>
                   SLA at risk
                 </NavItem>
               )}
-              {user.role !== "employee" && (
+              {can(user, P.incidentsRead) && (
                 <NavItem href="/incidents" icon={Siren} active={pathname.startsWith("/incidents")}>
                   Incidents
                 </NavItem>
               )}
             </Group>
-            {user.role !== "employee" && ((user.teams ?? []).length > 0 || isManager) && (
+            {can(user, P.teamsRead) && ((user.teams ?? []).length > 0 || allTeams) && (
               <Group label="Teams">
                 {(user.teams ?? []).map((t) => (
                   <NavItem
@@ -214,7 +214,7 @@ function Navigation({
                     {t.role === "lead" && <span className="ml-1.5 text-xs font-normal text-muted-foreground">lead</span>}
                   </NavItem>
                 ))}
-                {isManager && (user.teams ?? []).length === 0 && (
+                {allTeams && (user.teams ?? []).length === 0 && (
                   <NavItem href="/teams" icon={Users} active={pathname.startsWith("/teams")}>
                     All teams
                   </NavItem>
@@ -226,14 +226,16 @@ function Navigation({
                 Help pages
               </NavItem>
             </Group>
-            {user.role === "security" && (
+            {(can(user, P.securityQueue) || can(user, P.piiAccessLog)) && (
               <Group label="Security">
-                <NavItem href="/security/alerts" icon={ShieldAlert} active={pathname.startsWith("/security/alerts")}>
-                  Alerts
-                </NavItem>
-                <NavItem href="/security/access-log" icon={FileLock2} active={pathname.startsWith("/security/access-log")}>
+                {can(user, P.securityQueue) && (
+                  <NavItem href="/security/alerts" icon={ShieldAlert} active={pathname.startsWith("/security/alerts")}>
+                    Alerts
+                  </NavItem>
+                )}
+                {can(user, P.piiAccessLog) && <NavItem href="/security/access-log" icon={FileLock2} active={pathname.startsWith("/security/access-log")}>
                   PII access log
-                </NavItem>
+                </NavItem>}
               </Group>
             )}
           </>
@@ -257,7 +259,7 @@ function Navigation({
           <NavItem href="/me/notifications" icon={Bell} active={pathname === "/me/notifications"} quiet>
             My notifications
           </NavItem>
-          {user.role !== "employee" && (
+          {can(user, P.availabilityOwn) && (
             <NavItem href="/me/availability" icon={CalendarClock} active={pathname === "/me/availability"} quiet>
               My availability
             </NavItem>

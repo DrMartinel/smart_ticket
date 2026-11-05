@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { P, can } from "@/lib/permissions";
 
 interface Workflow {
   id: string;
@@ -44,7 +45,7 @@ export default function WorkflowsPage() {
   }, [user]);
 
   if (!user) return null;
-  const canEdit = user.role === "manager";
+  const canEdit = can(user, P.workflowsManage);
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -503,6 +503,22 @@ def place_in_department(request: AuthedRequest, code: str, payload: PlaceIn) -> 
     return person(user.username)
 
 
+@org_router.get("/delegable-roles", auth=SessionAuth(), response=list[RoleOut])
+@require(Permission.ACCESS_GRANT_DELEGABLE)
+def delegable_roles(request: AuthedRequest) -> list[RoleOut]:
+    rows = (
+        Role.objects.filter(is_system=False, delegable=True, retired_at__isnull=True)
+        .annotate(
+            live=Count(
+                "assignments",
+                filter=Q(assignments__ended_at__isnull=True, assignments__user__is_active=True),
+            )
+        )
+        .order_by("name")
+    )
+    return [RoleOut.of(role, role.live) for role in rows]
+
+
 @org_router.get("/departments/{code}/grants", auth=SessionAuth(), response=list[AssignmentOut])
 @require(Permission.ORG_DEPARTMENTS_READ)
 def department_grants(request: AuthedRequest, code: str) -> list[AssignmentOut]:

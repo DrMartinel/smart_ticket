@@ -807,6 +807,17 @@ def test_a_head_cannot_delegate_outside_their_subtree(boss, finance):
         )
 
 
+def test_a_head_is_offered_only_live_delegable_roles(boss, finance, api_as):
+    urn = delegable_reporter(boss)
+    roles.create(boss, RoleDraft("Reporter", "", [Permission.REPORTS_OPERATIONS_READ.value], "x"))
+    tu = person("tu.dv", "security")
+    departments.set_head(boss, finance, "tu.dv")
+
+    response = api_as(tu).get("/api/org/delegable-roles")
+
+    assert [r["urn"] for r in response.json()] == [urn]
+
+
 def test_the_delegated_grant_route_refuses_an_employee_head(boss, finance, api_as):
     urn = delegable_reporter(boss)
     lan = person("lan.nt", "employee", department=finance)

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { P, can } from "@/lib/permissions";
 
 const STAFF_ROLES = ["technician", "manager", "security"];
 
@@ -47,7 +48,7 @@ export default function TeamPage() {
   }, [user, load]);
 
   if (!user) return null;
-  const canEdit = user.role === "manager" || (user.capabilities ?? []).includes("workflow_admin");
+  const canEdit = can(user, P.teamsManage);
   const byName = new Map(people.map((p) => [p.username, p]));
 
   const save = async (move = false) => {

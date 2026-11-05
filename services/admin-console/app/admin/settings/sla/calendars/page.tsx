@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SectionTabs } from "@/components/TabNav";
+import { P, can } from "@/lib/permissions";
 
 const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
 const LABEL: Record<string, string> = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun" };
@@ -63,7 +64,7 @@ export default function CalendarsPage() {
   }, [user, load]);
 
   if (!user) return null;
-  const isAdmin = (user.capabilities ?? []).includes("workflow_admin");
+  const isAdmin = can(user, P.slaManage);
 
   const open = (calendar: CalendarOut | null) => {
     setError(null);

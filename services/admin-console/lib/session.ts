@@ -27,6 +27,7 @@ export interface SessionUser {
   teams?: { team: string; role: "member" | "lead" }[];
   /** Every permission URN the person holds somewhere (F14). */
   permissions?: string[];
+  permissions_everywhere?: string[];
   status?: "invited" | "active" | "suspended" | "deactivated";
   name?: string;
   department?: { code: string; name: string } | null;

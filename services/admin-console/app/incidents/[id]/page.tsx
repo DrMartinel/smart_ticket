@@ -27,6 +27,7 @@ import { Decision, Panel, Proposal } from "@/components/ui/panel";
 import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 import { Link2, Megaphone } from "lucide-react";
+import { P, can } from "@/lib/permissions";
 
 const CATEGORIES = ["network", "access", "hardware", "software", "security", "other"];
 
@@ -71,7 +72,7 @@ export default function IncidentPage() {
   const [etaUnknown, setEtaUnknown] = useState(false);
 
   const toast = useToast();
-  const isManager = user?.capabilities?.includes("incident_manager") ?? false;
+  const isManager = can(user, P.incidentsManage);
 
   const load = useCallback(() => {
     api
@@ -358,7 +359,7 @@ export default function IncidentPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {(isManager || l.assigned_to === user.username) && incident.status !== "closed" && (
+                    {(can(user, P.incidentsUnlink) || l.assigned_to === user.username) && incident.status !== "closed" && (
                       <Button variant="link" size="inline"  onClick={() => setUnlinking(l.ticket)}>
                         Unlink…
                       </Button>

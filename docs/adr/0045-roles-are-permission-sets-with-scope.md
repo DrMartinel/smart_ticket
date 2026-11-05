@@ -1,8 +1,8 @@
 # ADR-0045: Roles are permission sets, granted with a scope
 
-**Status:** Proposed (2026-11-05). Needs the owner's acceptance and the Information Security Officer's sign-off.
+**Status:** Accepted (2026-11-05), the owner's decision. The Information Security Officer's sign-off on spec §e and §i is still outstanding (TODO 21).
 **Date:** 2026-11-05
-**Supersedes (when accepted):** ADR-0031 §1–§3 (fixed roles and capabilities as the unit of access), ADR-0042 §1 for *what* a role is (who sets it stays the console)
+**Supersedes:** ADR-0031 §1–§3 (fixed roles and capabilities as the unit of access), ADR-0042 §1 for *what* a role is (who sets it stays the console)
 **Builds on:** ADR-0002, ADR-0006, ADR-0029, ADR-0041, ADR-0042, ADR-0043
 **Spec:** [06-F14-org-access.md](../requirements/phase-2/06-F14-org-access.md)
 
@@ -37,15 +37,16 @@ ADR-0042 then moved role assignment into the console.
 - An employee never holds an add-on role, and team-lead rights are a system role.
 - `team_scope` in reports and every role-named queryset move to `Access`.
 
-## Implementation (2026-11-05, branch `f14-org-access`)
+## Implementation (2026-11-05, merged to `main`)
 
 Built as decided, with these departures. Each one is the smaller choice;
 none widens access beyond the decision above.
 
 1. **`User.role` stays the base role** (employee, technician, manager,
    security), mapped to a system role URN. No separate `kind` field: the
-   base role already says staff or not, and the PUT rights endpoint and its
-   tests keep working.
+   base role already says staff or not. It is set at
+   `PUT /api/accounts/people/{username}/base-role`, which keeps add-on grants
+   unless the person becomes an employee; ADR-0042's `PUT …/rights` is gone.
 2. **No escalation applies to custom roles.** Granting or editing one needs
    the actor to hold each of its permissions over the scope. A system role
    is grantable by anyone who holds `access:grant` everywhere, so a manager
@@ -70,9 +71,8 @@ none widens access beyond the decision above.
    knows is ignored when access is built.
 7. **`users.department` is nullable;** provisioning and the migration fill
    in the default department (`GENERAL`), which can't be archived.
-8. **No break-glass role and no department-head delegation.** Break-glass
-   stays the ADR-0032 local sign-in for managers and is excluded when
-   counting access admins.
+8. **No break-glass role.** Break-glass stays the ADR-0032 local sign-in for
+   managers and is excluded when counting access admins.
 9. **Department scope adds to base permissions; it never removes them.** A
    technician still works every ticket through their base role; a
    department-scoped grant reaches tickets whose requester is in that
@@ -86,3 +86,24 @@ none widens access beyond the decision above.
 12. **The sweep interval is an operational setting**
     (`ACCESS_SWEEP_INTERVAL_SEC` in `.env.example`); the review, mover and
     expiry periods are tunables in `thresholds.yaml` `access:`.
+13. **Services check permissions, never role names.** Every service rule
+    that read `user.role` or a capability now asks `Access.of(user)` for a
+    permission (`teams:supervise`, `tickets:all-categories`,
+    `kb:drafts:withdraw-any`, `pii:reveal:any`, `reports:reviewers:all`,
+    `reports:security:detail` were added for rules no permission named).
+    Only the base-role rules in `rights.py`, `grants.py`, `access.py` and
+    `set_break_glass` may name a role (`test_services_check_permissions_not_role_names`).
+    The frontends read `permissions` and `permissions_everywhere` through
+    `can()` / `canEverywhere()`.
+14. **Department heads delegate within their subtree.** A head holds
+    `access:grant:delegable` (locked, department scope) and may grant or end
+    a custom role marked `delegable`, scoped to a department they head, to a
+    person in that subtree, and still only with permissions the head holds
+    there. System roles and roles not marked delegable are refused
+    `role_not_delegable`. A head may also rename a department, add one below
+    it and move people into it; moving or archiving a department, or setting
+    a head, needs `org:departments:manage` everywhere.
+15. **Reports have a department dimension.** A ticket records its
+    requester's department at submit (`tickets.requester_department`); the
+    facts table carries it, and a viewer whose operations-report access is
+    department-scoped sees only their subtree (`Reports.department_scope`).

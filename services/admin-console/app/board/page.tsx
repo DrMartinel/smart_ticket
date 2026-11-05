@@ -20,6 +20,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, Skeleton } from "@/components/ui/states";
+import { P, can } from "@/lib/permissions";
 
 type Card = StaffTicketRow;
 
@@ -168,7 +169,7 @@ export default function BoardPage() {
             <Checkbox checked={hideTriage} onCheckedChange={(checked) => setHideTriage(checked === true)} />
             Hide empty triage columns
           </label>
-          {wf && user.role === "manager" && (
+          {wf && can(user, P.workflowsManage) && (
             <Button asChild variant="outline">
               <Link href={`/admin/settings/workflows/${wf.id}`}>
                 Edit workflow

@@ -23,7 +23,8 @@ hold everything about what they may do.
    (`PUT /api/accounts/people/{username}/rights`, `AccountRights.assign`);
    a manager or workflow admin can list people. The change applies at once,
    with no second approval, and needs a reason; it is audited as
-   `rights_changed`.
+   `rights_changed`. *Superseded by ADR-0045 for what a role is: roles are
+   permission sets granted with a scope, set in Admin → People & access.*
 2. **A change ends the person's sign-ins** (`rights_changed`), so their
    next session carries the new rights.
 3. **Refusals:** nobody changes their own rights (`own_rights`); a
