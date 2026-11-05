@@ -17,6 +17,8 @@ from django.db.models import Q
 from django.utils import timezone
 
 from apps.accounts.models import User, UserRole
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 from apps.notifications.utils.notifier import Notice, notifier
@@ -477,8 +479,10 @@ class SlaClocks:
         return locked
 
     def check_may_change(self, ticket: Ticket, actor: User) -> None:
-        """The assignee, the team lead or a manager (UC-F1-05)."""
-        if actor.role == UserRole.MANAGER.value or ticket.assigned_to_id == actor.id:
+        """The assignee, the team lead or a supervisor of the team (UC-F1-05)."""
+        if ticket.assigned_to_id == actor.id or Access.of(actor).covers_team(
+            Permission.TEAMS_SUPERVISE, ticket.team_id
+        ):
             return
         if ticket.team is not None and ticket.team.is_lead(actor):
             return

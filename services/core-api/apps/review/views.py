@@ -6,7 +6,7 @@ from django.db.models import QuerySet
 from ninja import Router
 from ninja.errors import HttpError
 
-from apps.accounts.models import UserRole
+from apps.accounts.utils.access import Access
 from apps.review.models import SECURITY_QUEUES, ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import CommentDecisionIn, DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
@@ -25,7 +25,9 @@ def list_queue(
     request: AuthedRequest, queue: str | None = None, state: str = "pending"
 ) -> QuerySet[ReviewItem]:
     return ReviewItem.objects.for_queue(
-        queue=queue, state=state, security=request.auth.role == UserRole.SECURITY.value
+        queue=queue,
+        state=state,
+        security=not Access.of(request.auth).holds(Permission.TICKETS_ALL_CATEGORIES),
     )
 
 

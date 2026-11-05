@@ -22,6 +22,7 @@ class Permission(StrEnum):
     """Every action core-api gates, named by URN (BR-F14-20)."""
 
     ACCESS_GRANT = "urn:smart-ticket:perm:access:grant"
+    ACCESS_GRANT_DELEGABLE = "urn:smart-ticket:perm:access:grant:delegable"
     ACCESS_PEOPLE_MANAGE = "urn:smart-ticket:perm:access:people:manage"
     ACCESS_PEOPLE_READ = "urn:smart-ticket:perm:access:people:read"
     ACCESS_READ = "urn:smart-ticket:perm:access:read"
@@ -36,6 +37,7 @@ class Permission(StrEnum):
     KB_AUTHORITY_QUEUE = "urn:smart-ticket:perm:kb:authority:queue"
     KB_AUTHORITY_RISK_TIER = "urn:smart-ticket:perm:kb:authority:risk-tier"
     KB_DRAFTS_MANAGE = "urn:smart-ticket:perm:kb:drafts:manage"
+    KB_DRAFTS_WITHDRAW_ANY = "urn:smart-ticket:perm:kb:drafts:withdraw-any"
     KB_GAPS_MANAGE = "urn:smart-ticket:perm:kb:gaps:manage"
     KB_GRAPH_EDIT = "urn:smart-ticket:perm:kb:graph:edit"
     KB_GRAPH_READ = "urn:smart-ticket:perm:kb:graph:read"
@@ -53,13 +55,16 @@ class Permission(StrEnum):
     ORG_IMPORT = "urn:smart-ticket:perm:org:import"
     PII_ACCESS_LOG_READ = "urn:smart-ticket:perm:pii:access-log:read"
     PII_REVEAL = "urn:smart-ticket:perm:pii:reveal"
+    PII_REVEAL_ANY = "urn:smart-ticket:perm:pii:reveal:any"
     REPORTS_DASHBOARD_READ = "urn:smart-ticket:perm:reports:dashboard:read"
     REPORTS_INCIDENTS_READ = "urn:smart-ticket:perm:reports:incidents:read"
     REPORTS_KB_READ = "urn:smart-ticket:perm:reports:kb:read"
     REPORTS_NOTIFICATIONS_READ = "urn:smart-ticket:perm:reports:notifications:read"
     REPORTS_OPERATIONS_READ = "urn:smart-ticket:perm:reports:operations:read"
+    REPORTS_REVIEWERS_ALL = "urn:smart-ticket:perm:reports:reviewers:all"
     REPORTS_ROLLOUT_READ = "urn:smart-ticket:perm:reports:rollout:read"
     REPORTS_SECURITY_READ = "urn:smart-ticket:perm:reports:security:read"
+    REPORTS_SECURITY_DETAIL = "urn:smart-ticket:perm:reports:security:detail"
     REPORTS_TEAMS_READ = "urn:smart-ticket:perm:reports:teams:read"
     REQUESTER_CHAT = "urn:smart-ticket:perm:requester:chat"
     REQUESTER_DEPARTMENT_READ = "urn:smart-ticket:perm:requester:department:read"
@@ -90,6 +95,8 @@ class Permission(StrEnum):
     TEAMS_LEAD = "urn:smart-ticket:perm:teams:lead"
     TEAMS_MANAGE = "urn:smart-ticket:perm:teams:manage"
     TEAMS_READ = "urn:smart-ticket:perm:teams:read"
+    TEAMS_SUPERVISE = "urn:smart-ticket:perm:teams:supervise"
+    TICKETS_ALL_CATEGORIES = "urn:smart-ticket:perm:tickets:all-categories"
     TICKETS_COMMENT = "urn:smart-ticket:perm:tickets:comment"
     TICKETS_FIELDS_WRITE = "urn:smart-ticket:perm:tickets:fields:write"
     TICKETS_LIFECYCLE_READ = "urn:smart-ticket:perm:tickets:lifecycle:read"
@@ -133,6 +140,11 @@ def _spec(
 P = Permission
 PERMISSIONS: dict[Permission, PermissionSpec] = {
     P.ACCESS_GRANT: _spec("Set a person's base role and grant roles", locked=True),
+    P.ACCESS_GRANT_DELEGABLE: _spec(
+        "Grant delegable custom roles to people in the departments you head",
+        locked=True,
+        scopes=("department",),
+    ),
     P.ACCESS_PEOPLE_MANAGE: _spec(
         "Pre-provision, suspend, reactivate and deactivate people", locked=True
     ),
@@ -149,6 +161,7 @@ PERMISSIONS: dict[Permission, PermissionSpec] = {
     P.KB_AUTHORITY_QUEUE: _spec("Read the authority queue"),
     P.KB_AUTHORITY_RISK_TIER: _spec("Change a page's risk tier", locked=True),
     P.KB_DRAFTS_MANAGE: _spec("Write, review and withdraw page drafts"),
+    P.KB_DRAFTS_WITHDRAW_ANY: _spec("Withdraw anyone's page draft"),
     P.KB_GAPS_MANAGE: _spec("Read and dismiss knowledge gaps"),
     P.KB_GRAPH_EDIT: _spec("Correct a page's graph"),
     P.KB_GRAPH_READ: _spec("Read a page's graph"),
@@ -162,19 +175,26 @@ PERMISSIONS: dict[Permission, PermissionSpec] = {
     P.NOTIFICATIONS_TEMPLATES_MANAGE: _spec("Change notification templates"),
     P.NOTIFICATIONS_WEBHOOKS_MANAGE: _spec("Manage webhooks"),
     P.ORG_DEPARTMENTS_MANAGE: _spec(
-        "Create, change, move and archive departments and place people"
+        "Create, change, move and archive departments and place people", scopes=("department",)
     ),
-    P.ORG_DEPARTMENTS_READ: _spec("Read the department tree"),
+    P.ORG_DEPARTMENTS_READ: _spec("Read the department tree", scopes=("department",)),
     P.ORG_IMPORT: _spec("Import departments and people from CSV"),
     P.PII_ACCESS_LOG_READ: _spec("Read the PII access log", locked=True),
     P.PII_REVEAL: _spec("Reveal quarantined personal data", locked=True),
+    P.PII_REVEAL_ANY: _spec(
+        "Reveal any placeholder on any ticket, credentials included", locked=True
+    ),
     P.REPORTS_DASHBOARD_READ: _spec("Read the dashboard"),
     P.REPORTS_INCIDENTS_READ: _spec("Read the incidents report"),
     P.REPORTS_KB_READ: _spec("Read the knowledge report"),
     P.REPORTS_NOTIFICATIONS_READ: _spec("Read the notifications report"),
-    P.REPORTS_OPERATIONS_READ: _spec("Read SLA, team, reviewer and satisfaction reports"),
+    P.REPORTS_OPERATIONS_READ: _spec(
+        "Read SLA, team, reviewer and satisfaction reports", scopes=("department",)
+    ),
+    P.REPORTS_REVIEWERS_ALL: _spec("Read every reviewer's figures"),
     P.REPORTS_ROLLOUT_READ: _spec("Read the rollout report"),
     P.REPORTS_SECURITY_READ: _spec("Read the security report"),
+    P.REPORTS_SECURITY_DETAIL: _spec("Read the security report's alert detail", locked=True),
     P.REPORTS_TEAMS_READ: _spec("Read a team's figures in reports", scopes=("team",)),
     P.REQUESTER_CHAT: _spec("Ask IT in the chat", staff_only=False),
     P.REQUESTER_DEPARTMENT_READ: _spec(
@@ -209,6 +229,11 @@ PERMISSIONS: dict[Permission, PermissionSpec] = {
     P.TEAMS_LEAD: _spec("Lead a team", scopes=("team",)),
     P.TEAMS_MANAGE: _spec("Create and change teams and their members"),
     P.TEAMS_READ: _spec("Read teams, queues and workload"),
+    P.TEAMS_SUPERVISE: _spec(
+        "Supervise a team: its queue, workload, availability, takes and reassignments",
+        scopes=("team",),
+    ),
+    P.TICKETS_ALL_CATEGORIES: _spec("Work tickets of every category, not only security ones"),
     P.TICKETS_COMMENT: _spec("Comment on a ticket", scopes=("team", "department")),
     P.TICKETS_FIELDS_WRITE: _spec(
         "Write a ticket's workflow fields", scopes=("team", "department")
@@ -277,6 +302,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     ),
     SystemRole.TECHNICIAN: frozenset(
         {
+            P.TICKETS_ALL_CATEGORIES,
             P.ACCESS_REVIEW_RESPOND,
             P.INCIDENTS_READ,
             P.INCIDENTS_UNLINK,
@@ -316,6 +342,10 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     ),
     SystemRole.MANAGER: frozenset(
         {
+            P.KB_DRAFTS_WITHDRAW_ANY,
+            P.REPORTS_REVIEWERS_ALL,
+            P.TEAMS_SUPERVISE,
+            P.TICKETS_ALL_CATEGORIES,
             P.ACCESS_GRANT,
             P.ACCESS_PEOPLE_MANAGE,
             P.ACCESS_PEOPLE_READ,
@@ -391,6 +421,8 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     ),
     SystemRole.SECURITY: frozenset(
         {
+            P.PII_REVEAL_ANY,
+            P.REPORTS_SECURITY_DETAIL,
             P.ACCESS_READ,
             P.ACCESS_REVIEW_RESPOND,
             P.INCIDENTS_READ,
@@ -472,6 +504,10 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     ),
     SystemRole.DEPARTMENT_HEAD: frozenset(
         {
+            P.ACCESS_GRANT_DELEGABLE,
+            P.ORG_DEPARTMENTS_MANAGE,
+            P.ORG_DEPARTMENTS_READ,
+            P.REPORTS_OPERATIONS_READ,
             P.REQUESTER_DEPARTMENT_READ,
         }
     ),

@@ -10,7 +10,9 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 from django.db.models import Case, F, Min, QuerySet, Value, When
 
-from apps.accounts.models import User, UserRole
+from apps.accounts.models import User
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.audit.models import AuditLog
 from apps.lifecycle.utils.vocabulary import StatusKind
 from apps.teams.models import Leave, MembershipRole, Team, TeamMembership
@@ -111,8 +113,10 @@ class People:
         )
 
     def check_lead_of(self, actor: User, user: User, team: Team | None) -> None:
-        """A manager edits anyone; a lead edits members of a team they lead."""
-        if actor.role == UserRole.MANAGER.value:
+        """A supervisor of the team edits anyone in it; a lead edits members of a team they lead."""
+        if team is not None and Access.of(actor).covers_team(Permission.TEAMS_SUPERVISE, team.id):
+            return
+        if team is None and Access.of(actor).holds_everywhere(Permission.TEAMS_SUPERVISE):
             return
         led = TeamMembership.objects.filter(user=actor, role=MembershipRole.LEAD.value)
         if team is not None:
@@ -151,7 +155,7 @@ class People:
             .filter(team=team)
             .order_by("user__username")
         )
-        if actor.role != UserRole.MANAGER.value and not team.is_lead(actor):
+        if not self.supervises(actor, team) and not team.is_lead(actor):
             rows = rows.filter(user=actor)
         due = dict(
             Ticket.objects.filter(
@@ -183,8 +187,11 @@ class People:
             for m in rows
         ]
 
+    def supervises(self, actor: User, team: Team) -> bool:
+        return Access.of(actor).covers_team(Permission.TEAMS_SUPERVISE, team.id)
+
     def check_member_or_manager(self, actor: User, team: Team) -> None:
-        if actor.role == UserRole.MANAGER.value or team.membership_of(actor) is not None:
+        if self.supervises(actor, team) or team.membership_of(actor) is not None:
             return
         raise TeamError(403, TeamRefusal.NOT_A_MEMBER, f"you're not in team {team.slug}")
 

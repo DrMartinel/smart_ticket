@@ -18,7 +18,12 @@ from apps.accounts.utils.catalog import (
 from config.urls import api
 
 SNAPSHOT = json.loads((Path(__file__).parent / "gate_snapshot.json").read_text())
+WITHDRAWN_SINCE_SNAPSHOT = {
+    "PUT /api/accounts/people/{username}/rights",
+}
+
 ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
+    "PUT /api/accounts/people/{username}/base-role": Permission.ACCESS_GRANT,
     "GET /api/access/holders": Permission.ACCESS_READ,
     "GET /api/access/me": Permission.SELF_PROFILE,
     "GET /api/access/people/{username}/access": Permission.ACCESS_READ,
@@ -33,7 +38,13 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/accounts/people/{username}": Permission.ACCESS_PEOPLE_READ,
     "GET /api/org/departments": Permission.ORG_DEPARTMENTS_READ,
     "GET /api/org/departments/{code}": Permission.ORG_DEPARTMENTS_READ,
-    "GET /api/org/departments/{code}/people": Permission.ACCESS_PEOPLE_READ,
+    "GET /api/org/departments/{code}/people": Permission.ORG_DEPARTMENTS_READ,
+    "POST /api/org/departments/{code}/people": Permission.ORG_DEPARTMENTS_MANAGE,
+    "GET /api/org/departments/{code}/grants": Permission.ORG_DEPARTMENTS_READ,
+    "POST /api/org/departments/{code}/grants": Permission.ACCESS_GRANT_DELEGABLE,
+    "POST /api/org/departments/{code}/grants/{assignment_id}/end": (
+        Permission.ACCESS_GRANT_DELEGABLE
+    ),
     "GET /api/requester/department-tickets": Permission.REQUESTER_DEPARTMENT_READ,
     "PATCH /api/access/roles/{urn}": Permission.ACCESS_ROLES_MANAGE,
     "PATCH /api/accounts/people/{username}": Permission.ACCESS_PEOPLE_MANAGE,
@@ -89,8 +100,10 @@ def new_admits(permission: Permission, role: UserRole, caps: frozenset[Capabilit
 
 def test_every_snapshot_route_still_exists_with_a_gate_or_none():
     current = routes()
-    assert set(SNAPSHOT) <= set(current)
-    for key, old in SNAPSHOT.items():
+    kept = {k: v for k, v in SNAPSHOT.items() if k not in WITHDRAWN_SINCE_SNAPSHOT}
+    assert set(kept) <= set(current)
+    assert not WITHDRAWN_SINCE_SNAPSHOT & set(current)
+    for key, old in kept.items():
         assert (old["roles"] is None) == (current[key] is None), key
 
 
@@ -104,7 +117,7 @@ def test_old_and_new_gates_admit_the_same_people(role):
     current = routes()
     diffs = []
     for key, old in SNAPSHOT.items():
-        if old["roles"] is None:
+        if old["roles"] is None or key in WITHDRAWN_SINCE_SNAPSHOT:
             continue
         permission = current[key]
         assert permission is not None
@@ -138,5 +151,6 @@ def test_system_role_urns_are_well_formed():
 def test_an_employee_role_holds_no_staff_only_permission():
     from apps.accounts.utils.catalog import SystemRole
 
-    for role in (SystemRole.EMPLOYEE, SystemRole.DEPARTMENT_HEAD):
-        assert not [p for p in SYSTEM_ROLE_PERMISSIONS[role] if PERMISSIONS[p].staff_only]
+    assert not [
+        p for p in SYSTEM_ROLE_PERMISSIONS[SystemRole.EMPLOYEE] if PERMISSIONS[p].staff_only
+    ]

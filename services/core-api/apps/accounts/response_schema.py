@@ -88,6 +88,7 @@ class UserOut(Schema):
     teams: list[UserTeamOut] = []
     # Every permission the person holds somewhere; navigation reads this (FR-F14-013).
     permissions: list[str] = []
+    permissions_everywhere: list[str] = []
     status: str = "active"
     name: str = ""
     department: DepartmentRefOut | None = None
@@ -98,6 +99,11 @@ class UserOut(Schema):
     @staticmethod
     def resolve_permissions(user: User) -> list[str]:
         return Access.of(user).permissions()
+
+    @staticmethod
+    def resolve_permissions_everywhere(user: User) -> list[str]:
+        access = Access.of(user)
+        return [p for p in access.permissions() if access.holds_everywhere(Permission(p))]
 
     @staticmethod
     def resolve_name(user: User) -> str:
@@ -181,6 +187,7 @@ class RoleOut(Schema):
     name: str
     description: str
     is_system: bool
+    delegable: bool = False
     created_at: datetime
     retired_at: datetime | None
     permissions: list[str]
@@ -195,6 +202,7 @@ class RoleOut(Schema):
             name=role.name,
             description=role.description,
             is_system=role.is_system,
+            delegable=role.delegable,
             created_at=role.created_at,
             retired_at=role.retired_at,
             permissions=sorted(p.value for p in permissions),

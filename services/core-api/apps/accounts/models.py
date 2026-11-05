@@ -136,18 +136,6 @@ class User(AbstractUser, BaseModel):
     def __str__(self) -> str:
         return f"{self.username} ({self.role})"
 
-    @property
-    def is_manager(self) -> bool:
-        return self.role == UserRole.MANAGER.value
-
-    @property
-    def is_technician(self) -> bool:
-        return self.role == UserRole.TECHNICIAN.value
-
-    @property
-    def is_security(self) -> bool:
-        return self.role == UserRole.SECURITY.value
-
     def capability_set(self) -> frozenset[str]:
         """The add-on roles the user holds everywhere, named as capabilities (ADR-0031)."""
         from apps.accounts.utils.catalog import ADD_ON_ROLES
@@ -172,11 +160,6 @@ class User(AbstractUser, BaseModel):
             UserRole.MANAGER.value,
             UserRole.SECURITY.value,
         )
-
-    @property
-    def may_run_runbooks(self) -> bool:
-        """Whether the user may approve or execute a runbook (ADR-0006, FR-PRE1-005)."""
-        return self.role in (UserRole.TECHNICIAN.value, UserRole.MANAGER.value)
 
 
 class AuthClient(StrEnum):
@@ -262,6 +245,8 @@ class Role(BaseModel):
     name = models.CharField(max_length=120)
     description = models.CharField(max_length=500, blank=True, default="")
     is_system = models.BooleanField(default=False)
+    # A department head may grant it within their subtree (FR-F14-009).
+    delegable = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     retired_at = models.DateTimeField(null=True, blank=True)
 

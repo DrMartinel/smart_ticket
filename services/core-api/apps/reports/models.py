@@ -39,6 +39,7 @@ class TicketFacts(BaseModel):
     ticket = models.OneToOneField("tickets.Ticket", on_delete=models.CASCADE, related_name="facts")
     created_day = models.DateField()
     team = models.CharField(max_length=50, null=True, blank=True)
+    department = models.CharField(max_length=30, blank=True, default="")
     category = models.CharField(max_length=20, null=True, blank=True)
     priority = models.CharField(max_length=2, null=True, blank=True)
     source = models.CharField(max_length=10, blank=True, default="")

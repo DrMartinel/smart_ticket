@@ -77,7 +77,9 @@ class ReportFacts:
         now = timezone.now()
         zone = report_zone()
         ids = self.changed_since(last)
-        for ticket in Ticket.objects.filter(id__in=ids).select_related("team"):
+        for ticket in Ticket.objects.filter(id__in=ids).select_related(
+            "team", "requester_department", "reporter__department"
+        ):
             with transaction.atomic():
                 TicketFacts.objects.update_or_create(
                     ticket=ticket, defaults=self.facts_of(ticket, zone, now)
@@ -112,6 +114,11 @@ class ReportFacts:
         calendar = clock.calendar(holidays_of(calendar_id) if calendar_id else frozenset())
         return calendar.elapsed(start, end) / 60
 
+    def department_of(self, ticket: Ticket) -> str:
+        """The requester's department when they submitted, else their department now."""
+        department = ticket.requester_department or ticket.reporter.department
+        return department.code if department else ""
+
     def facts_of(self, ticket: Ticket, zone: ZoneInfo, now: datetime) -> dict[str, Any]:
         clocks = self.latest_clocks(ticket)
         response = clocks.get(ClockKind.RESPONSE.value)
@@ -136,6 +143,7 @@ class ReportFacts:
         return {
             "created_day": ticket.created_at.astimezone(zone).date(),
             "team": ticket.team.slug if ticket.team else ticket.assigned_team,
+            "department": self.department_of(ticket),
             "category": ticket.category,
             "priority": ticket.priority,
             "source": ticket.source or "",

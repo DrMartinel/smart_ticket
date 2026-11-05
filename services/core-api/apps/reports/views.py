@@ -59,7 +59,12 @@ def csv_response(body: str, name: str) -> HttpResponse:
 
 def _sla(request: AuthedRequest, f: SlaFilter) -> SlaReport:
     return reports.sla(
-        request.auth, month=f.month, team=f.team, priority=f.priority, category=f.category
+        request.auth,
+        month=f.month,
+        team=f.team,
+        priority=f.priority,
+        category=f.category,
+        department=f.department,
     )
 
 
@@ -87,6 +92,7 @@ def _sla_tickets(request: AuthedRequest, f: SlaTicketsFilter, page: int | None) 
         kind=f.kind,
         state=f.state,
         page=page,
+        department=f.department,
     )
 
 

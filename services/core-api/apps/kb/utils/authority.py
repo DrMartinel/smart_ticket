@@ -12,6 +12,8 @@ from typing import Any
 from django.db import transaction
 from django.db.models import F, QuerySet
 
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.kb.models import (
@@ -113,7 +115,8 @@ class KbAuthority:
         try:
             article.set_auto_reply_allowed(allowed=allowed, actor=actor, reason=reason)
         except KBGovernanceError as e:
-            code = KbRefusal.NOT_ALLOWED if not actor.is_manager else KbRefusal.REASON_REQUIRED
+            allowed_to = Access.of(actor).holds(Permission.KB_AUTHORITY_GRANT)
+            code = KbRefusal.REASON_REQUIRED if allowed_to else KbRefusal.NOT_ALLOWED
             raise KbError(403 if code is KbRefusal.NOT_ALLOWED else 422, code, str(e)) from e
         AuditLog.objects.record(
             "kb_authority_granted" if allowed else "kb_authority_revoked",

@@ -6,7 +6,7 @@ from datetime import datetime
 
 from ninja import Field, Schema
 
-from apps.accounts.models import Capability, NoAnswer, ReviewDecisionKind, UserRole
+from apps.accounts.models import NoAnswer, ReviewDecisionKind, UserRole
 from apps.accounts.utils.catalog import ScopeKind
 
 
@@ -24,9 +24,8 @@ class LoginIn(Schema):
     password: str = Field(min_length=1, max_length=4096)
 
 
-class RightsIn(Schema):
+class BaseRoleIn(Schema):
     role: UserRole
-    capabilities: list[Capability] = Field(default_factory=list)
     reason: str = Field("", max_length=500)
 
 
@@ -40,6 +39,7 @@ class RoleIn(Schema):
     name: str = Field(min_length=2, max_length=120)
     description: str = Field("", max_length=500)
     permissions: list[str] = Field(min_length=1, max_length=200)
+    delegable: bool = False
     reason: str = Field(min_length=1, max_length=500)
 
 
@@ -47,7 +47,17 @@ class RolePatchIn(Schema):
     name: str | None = Field(None, min_length=2, max_length=120)
     description: str | None = Field(None, max_length=500)
     permissions: list[str] | None = Field(None, max_length=200)
+    delegable: bool | None = None
     reason: str = Field(min_length=1, max_length=500)
+
+
+class DelegatedGrantIn(Schema):
+    """A delegable role for someone in the department, at that department."""
+
+    username: str = Field(min_length=1, max_length=150)
+    role: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1, max_length=500)
+    ends_at: datetime | None = None
 
 
 class GrantIn(Schema):
@@ -81,6 +91,11 @@ class DepartmentPatchIn(Schema):
     name: str | None = Field(None, min_length=1, max_length=120)
     head: str | None = Field(None, max_length=150)
     cost_centre: str | None = Field(None, max_length=40)
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class PlaceIn(Schema):
+    username: str = Field(min_length=1, max_length=150)
     reason: str = Field(min_length=1, max_length=500)
 
 

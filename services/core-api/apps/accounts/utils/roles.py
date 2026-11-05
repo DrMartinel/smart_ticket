@@ -28,6 +28,7 @@ class RoleDraft:
     description: str | None
     permissions: list[str] | None
     reason: str
+    delegable: bool | None = None
 
 
 class Roles:
@@ -49,7 +50,11 @@ class Roles:
                     409, OrgRefusal.ROLE_URN_TAKEN, f"{urn} is taken, perhaps by a retired role"
                 )
             role = Role.objects.create(
-                urn=urn, name=name, description=(draft.description or "").strip(), is_system=False
+                urn=urn,
+                name=name,
+                description=(draft.description or "").strip(),
+                is_system=False,
+                delegable=bool(draft.delegable),
             )
             RolePermission.objects.bulk_create(
                 RolePermission(role=role, permission_urn=p.value) for p in sorted(permissions)
@@ -70,7 +75,9 @@ class Roles:
                 role.name = draft.name.strip()
             if draft.description is not None:
                 role.description = draft.description.strip()
-            role.save(update_fields=["name", "description"])
+            if draft.delegable is not None:
+                role.delegable = draft.delegable
+            role.save(update_fields=["name", "description", "delegable"])
             if after != before:
                 RolePermission.objects.filter(role=role).exclude(
                     permission_urn__in=[p.value for p in after]
@@ -158,6 +165,7 @@ class Roles:
                 "name": role.name,
                 "added": sorted(p.value for p in added),
                 "removed": sorted(p.value for p in removed),
+                "delegable": role.delegable,
                 "reason": reason,
             },
         )

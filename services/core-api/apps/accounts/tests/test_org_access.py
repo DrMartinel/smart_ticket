@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -627,6 +628,197 @@ def test_an_empty_review_is_refused(boss):
             boss,
             CampaignRequest("Q4", "huy.pq", NoAnswer.FLAG, role_urn=SystemRole.KB_EDITOR.value),
         )
+
+
+def test_a_custom_role_reaches_the_service_its_route_admits(boss, deputy):
+    from apps.incidents.utils.incidents import incidents
+
+    give(deputy, "huy.pq", SystemRole.INCIDENT_MANAGER.value)
+    role = roles.create(
+        boss, RoleDraft("Incident deputy", "", [Permission.INCIDENTS_MANAGE.value], "cover")
+    )
+    person("vy.nt", "technician")
+    give(boss, "vy.nt", role.urn)
+
+    incidents.check_manager(User.objects.get(username="vy.nt"))
+
+
+def test_a_team_scoped_supervisor_sees_only_that_teams_queue(boss):
+    from apps.teams.utils.people import TeamError
+    from apps.teams.utils.people import people as team_people
+
+    role = roles.create(
+        boss, RoleDraft("Night supervisor", "", [Permission.TEAMS_SUPERVISE.value], "nights")
+    )
+    person("vy.nt", "technician")
+    give(boss, "vy.nt", role.urn, ScopeKind.TEAM, "network")
+    vy = User.objects.get(username="vy.nt")
+
+    team_people.check_member_or_manager(vy, Team.objects.get(slug="network"))
+    with pytest.raises(TeamError):
+        team_people.check_member_or_manager(vy, Team.objects.get(slug="access"))
+
+
+SERVICES = Path(__file__).resolve().parents[2]
+ROLE_NAME_CHECK = re.compile(
+    r"\.role\s*(==|!=)\s*UserRole\.|\.role not in \(UserRole|Capability\.\w+\.value in"
+    r"|\.is_manager\b|\.is_security\b|may_run_runbooks"
+)
+BASE_ROLE_FILES = {
+    "accounts/utils/rights.py",
+    "accounts/utils/grants.py",
+    "accounts/utils/access.py",
+    "accounts/management/commands/set_break_glass.py",
+}
+
+
+def test_services_check_permissions_not_role_names():
+    found = [
+        f"{path.relative_to(SERVICES)}:{n}"
+        for path in SERVICES.glob("*/**/*.py")
+        if "tests" not in path.parts
+        and "migrations" not in path.parts
+        and str(path.relative_to(SERVICES)) not in BASE_ROLE_FILES
+        for n, line in enumerate(path.read_text().splitlines(), 1)
+        if ROLE_NAME_CHECK.search(line)
+    ]
+    assert found == []
+
+
+def test_an_employee_head_gets_no_staff_only_permission(boss, finance):
+    person("lan.nt", "employee")
+    departments.set_head(boss, finance, "lan.nt")
+
+    held = Access.of(User.objects.get(username="lan.nt"))
+
+    assert held.holds(Permission.REQUESTER_DEPARTMENT_READ)
+    assert not held.holds(Permission.ORG_DEPARTMENTS_MANAGE)
+    assert not held.holds(Permission.REPORTS_OPERATIONS_READ)
+
+
+def test_a_head_renames_and_adds_below_but_not_above(boss, finance):
+    person("tu.dv")
+    departments.set_head(boss, finance, "tu.dv")
+    tu = User.objects.get(username="tu.dv")
+
+    departments.update(tu, "FIN-AP", DepartmentDraft(name="Payables team"), "clearer")
+    departments.create(tu, "FIN-AR", DepartmentDraft(name="Receivables", parent="FIN"), "new")
+    with refused(OrgRefusal.SCOPE_NOT_ALLOWED):
+        departments.update(tu, "ENG", DepartmentDraft(name="Eng"), "try")
+    with refused(OrgRefusal.SCOPE_NOT_ALLOWED):
+        departments.create(tu, "TOP", DepartmentDraft(name="Top"), "try")
+    with refused(OrgRefusal.SCOPE_NOT_ALLOWED):
+        departments.update(tu, "FIN-AP", DepartmentDraft(head="lan.nt"), "try")
+    with refused(OrgRefusal.SCOPE_NOT_ALLOWED):
+        departments.archive(tu, "FIN-AR", "try")
+
+
+def test_a_head_moves_people_only_within_their_subtree(boss, finance):
+    person("tu.dv")
+    departments.set_head(boss, finance, "tu.dv")
+    tu = User.objects.get(username="tu.dv")
+    lan = person("lan.nt", "employee", department=finance)
+    person("an.lv", "employee")
+
+    departments.move_person(tu, "FIN-AP", "lan.nt", "joins payables")
+    lan.refresh_from_db()
+    assert lan.department is not None and lan.department.code == "FIN-AP"
+    with refused(OrgRefusal.SCOPE_NOT_ALLOWED):
+        departments.move_person(tu, "FIN", "an.lv", "poach")
+    with refused(OrgRefusal.SCOPE_NOT_ALLOWED):
+        departments.move_person(tu, "ENG", "lan.nt", "push out")
+    with refused(OrgRefusal.OWN_RIGHTS):
+        departments.move_person(tu, "FIN-AP", "tu.dv", "self")
+
+
+def test_a_heads_reports_cover_their_subtree_only(boss, finance):
+    from apps.reports.utils.facts import ReportFacts
+    from apps.reports.utils.reports import ReportError, Reports
+
+    person("tu.dv", "security")
+    departments.set_head(boss, finance, "tu.dv")
+    tu = User.objects.get(username="tu.dv")
+    payables = Department.objects.get(code="FIN-AP")
+    make_ticket(person("lan.nt", "employee", department=payables))
+    make_ticket(person("an.lv", "employee", department=Department.objects.get(code="ENG")))
+    ReportFacts().build(full=True)
+
+    _, rows = Reports().filtered(tu, None, None, None)
+
+    assert set(rows.values_list("department", flat=True)) == {"FIN-AP"}
+    assert Reports().department_scope(boss, "FIN") == ["FIN", "FIN-AP"]
+    with pytest.raises(ReportError):
+        Reports().department_scope(tu, "ENG")
+
+
+def delegable_reporter(boss) -> str:
+    return roles.create(
+        boss,
+        RoleDraft("Deputy reporter", "", [Permission.REPORTS_OPERATIONS_READ.value], "cover", True),
+    ).urn
+
+
+def test_a_head_grants_a_delegable_role_within_their_subtree(boss, finance):
+    urn = delegable_reporter(boss)
+    person("tu.dv", "security")
+    departments.set_head(boss, finance, "tu.dv")
+    tu = User.objects.get(username="tu.dv")
+    person("vy.nt", "security", department=Department.objects.get(code="FIN-AP"))
+
+    row = grants.grant(
+        tu, GrantRequest("vy.nt", urn, ScopeKind.DEPARTMENT, "FIN-AP", "cover"), delegated=True
+    )
+
+    assert Access.of(User.objects.get(username="vy.nt")).holds(Permission.REPORTS_OPERATIONS_READ)
+    grants.end(tu, row.id, "back", delegated=True)
+
+
+def test_a_head_cannot_grant_a_role_not_marked_delegable(boss, finance):
+    role = roles.create(
+        boss, RoleDraft("Reporter", "", [Permission.REPORTS_OPERATIONS_READ.value], "x")
+    )
+    person("tu.dv", "security")
+    departments.set_head(boss, finance, "tu.dv")
+    person("vy.nt", "security", department=finance)
+
+    with refused(OrgRefusal.ROLE_NOT_DELEGABLE):
+        grants.grant(
+            User.objects.get(username="tu.dv"),
+            GrantRequest("vy.nt", role.urn, ScopeKind.DEPARTMENT, "FIN", "x"),
+            delegated=True,
+        )
+
+
+def test_a_head_cannot_delegate_outside_their_subtree(boss, finance):
+    urn = delegable_reporter(boss)
+    person("tu.dv", "security")
+    departments.set_head(boss, finance, "tu.dv")
+    tu = User.objects.get(username="tu.dv")
+    person("vy.nt", "security", department=Department.objects.get(code="ENG"))
+    person("an.lv", "security", department=finance)
+
+    with refused(OrgRefusal.SCOPE_NOT_ALLOWED):
+        grants.grant(
+            tu, GrantRequest("vy.nt", urn, ScopeKind.DEPARTMENT, "FIN", "x"), delegated=True
+        )
+    with refused(OrgRefusal.SCOPE_NOT_ALLOWED):
+        grants.grant(
+            tu, GrantRequest("an.lv", urn, ScopeKind.DEPARTMENT, "ENG", "x"), delegated=True
+        )
+
+
+def test_the_delegated_grant_route_refuses_an_employee_head(boss, finance, api_as):
+    urn = delegable_reporter(boss)
+    lan = person("lan.nt", "employee", department=finance)
+    departments.set_head(boss, finance, "lan.nt")
+
+    response = api_as(lan).post(
+        "/api/org/departments/FIN/grants",
+        json.dumps({"username": "lan.nt", "role": urn, "reason": "x"}),
+        content_type="application/json",
+    )
+
+    assert response.status_code == 403
 
 
 # ── boundaries ──

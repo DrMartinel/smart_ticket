@@ -16,7 +16,9 @@ from django.db import connection, transaction
 from django.utils import timezone
 from pgvector.django import CosineDistance
 
-from apps.accounts.models import Capability, User
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 from apps.incidents.models import IncidentBroadcast, IncidentLink
@@ -234,7 +236,7 @@ class Incidents:
     # ── the incident manager ──
 
     def check_manager(self, actor: User) -> None:
-        if Capability.INCIDENT_MANAGER.value not in actor.capability_set():
+        if not Access.of(actor).holds(Permission.INCIDENTS_MANAGE):
             raise IncidentError(403, IncidentRefusal.NOT_ALLOWED, "incident managers only")
 
     def get(self, public_id: str) -> Incident:
@@ -617,7 +619,7 @@ class Incidents:
                 .exists()
             ):
                 raise IncidentError(404, IncidentRefusal.NOT_LINKED, "not linked to this incident")
-            is_manager = Capability.INCIDENT_MANAGER.value in actor.capability_set()
+            is_manager = Access.of(actor).holds(Permission.INCIDENTS_MANAGE)
             if not is_manager and ticket.assigned_to_id != actor.id:
                 raise IncidentError(
                     403, IncidentRefusal.NOT_ALLOWED, "incident managers and the assignee"

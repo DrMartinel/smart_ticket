@@ -24,6 +24,9 @@ def test_me_returns_the_authenticated_user(employee_user, api_as):
         "capabilities": [],
         "teams": [],
         "permissions": sorted(p.value for p in SYSTEM_ROLE_PERMISSIONS[SystemRole.EMPLOYEE]),
+        "permissions_everywhere": sorted(
+            p.value for p in SYSTEM_ROLE_PERMISSIONS[SystemRole.EMPLOYEE]
+        ),
         "status": "active",
         "name": "",
         "department": None,

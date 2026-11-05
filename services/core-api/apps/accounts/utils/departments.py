@@ -14,7 +14,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Assignment, AssignmentSource, Department, User
 from apps.accounts.utils.access import Access
-from apps.accounts.utils.catalog import ScopeKind
+from apps.accounts.utils.catalog import Permission, ScopeKind
 from apps.accounts.utils.grants import grants, require_reason
 from apps.accounts.utils.vocabulary import EndReason, OrgError, OrgRefusal
 from apps.audit.models import AuditLog
@@ -52,6 +52,7 @@ class Departments:
             if Department.objects.filter(code=code).exists():
                 raise OrgError(409, OrgRefusal.DEPARTMENT_CODE_TAKEN, f"{code} is taken")
             parent = self.live(draft.parent) if draft.parent else None
+            self.check_reach(actor, parent, everywhere=parent is None or bool(draft.head))
             self.check_depth(parent, 1)
             department = Department.objects.create(
                 code=code,
@@ -71,6 +72,7 @@ class Departments:
         reason = require_reason(reason)
         with transaction.atomic():
             department = self.live(code, lock=True)
+            self.check_reach(actor, department, everywhere=draft.head is not None)
             before = self.snapshot(department)
             if draft.name is not None and draft.name.strip():
                 department.name = draft.name.strip()
@@ -89,6 +91,7 @@ class Departments:
         reason = require_reason(reason)
         with transaction.atomic():
             department = self.live(code, lock=True)
+            self.check_reach(actor, department, everywhere=True)
             before = self.snapshot(department)
             parent = self.live(parent_code) if parent_code else None
             if parent is not None and parent.id in self.subtree_ids(department):
@@ -106,6 +109,7 @@ class Departments:
         reason = require_reason(reason)
         with transaction.atomic():
             department = self.live(code, lock=True)
+            self.check_reach(actor, department, everywhere=True)
             if department.is_default:
                 raise OrgError(
                     409, OrgRefusal.DEPARTMENT_IS_DEFAULT, "the default department stays"
@@ -147,6 +151,38 @@ class Departments:
         grants.set_department_head(actor, department, head)
 
     # ── people ──
+
+    def check_reach(
+        self, actor: User | None, *targets: Department | None, everywhere: bool = False
+    ) -> None:
+        """Refuses unless `actor` manages departments everywhere, or, when `everywhere` isn't
+        needed, over each of `targets` (BR-F14-11)."""
+        if actor is None:
+            return
+        access = Access.of(actor)
+        if access.holds_everywhere(Permission.ORG_DEPARTMENTS_MANAGE):
+            return
+        reach = access.department_ids(Permission.ORG_DEPARTMENTS_MANAGE) or frozenset()
+        if everywhere or not all(t is not None and t.id in reach for t in targets):
+            raise OrgError(
+                403,
+                OrgRefusal.SCOPE_NOT_ALLOWED,
+                "a department head changes only names, sub-departments and people under them",
+            )
+
+    def move_person(self, actor: User, code: str, username: str, reason: str) -> User:
+        """Moves `username` into `code`, both inside what `actor` manages (BR-F14-11)."""
+        reason = require_reason(reason)
+        with transaction.atomic():
+            department = self.live(code)
+            user = User.objects.select_related("department").filter(username=username).first()
+            if user is None or not user.is_active:
+                raise OrgError(404, OrgRefusal.USER_NOT_FOUND, f"no active user {username!r}")
+            if user.pk == actor.pk:
+                raise OrgError(403, OrgRefusal.OWN_RIGHTS, "another person moves you")
+            self.check_reach(actor, user.department, department)
+            self.place(actor, user, department, reason)
+        return user
 
     def place(
         self,

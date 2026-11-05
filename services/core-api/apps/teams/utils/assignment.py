@@ -14,7 +14,9 @@ from django.db import connection, transaction
 from django.db.models import F
 from django.utils import timezone
 
-from apps.accounts.models import User, UserRole
+from apps.accounts.models import User
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 from apps.notifications.utils.notifier import Notice, notifier
@@ -272,7 +274,8 @@ class Assignment:
             ticket = self.locked(Ticket, public_id)
             team = ticket.team
             if team is None or not (
-                actor.role == UserRole.MANAGER.value or team.membership_of(actor) is not None
+                Access.of(actor).covers_team(Permission.TEAMS_SUPERVISE, team.id)
+                or team.membership_of(actor) is not None
             ):
                 raise TeamError(403, TeamRefusal.NOT_A_MEMBER, "you're not in this ticket's team")
             self.check_category_scope(actor, ticket)
@@ -414,8 +417,12 @@ class Assignment:
     def check_reassigner(
         self, actor: User, ticket: Ticket, current: Team | None, target: Team
     ) -> None:
-        """BR-F2-04: the assignee within the team, the lead in and out of it, a manager anywhere."""
-        if actor.role == UserRole.MANAGER.value:
+        """BR-F2-04: the assignee within the team, the lead in and out of it, a supervisor of both
+        teams anywhere."""
+        access = Access.of(actor)
+        if access.covers_team(Permission.TEAMS_SUPERVISE, target.id) and (
+            current is None or access.covers_team(Permission.TEAMS_SUPERVISE, current.id)
+        ):
             return
         self.check_category_scope(actor, ticket)
         is_lead = current is not None and current.is_lead(actor)
@@ -430,7 +437,10 @@ class Assignment:
 
     def check_category_scope(self, actor: User, ticket: Ticket) -> None:
         """Security staff act only on security tickets (BR-F2-04)."""
-        if actor.role == UserRole.SECURITY.value and ticket.category != TicketCategory.SECURITY:
+        if (
+            not Access.of(actor).holds(Permission.TICKETS_ALL_CATEGORIES)
+            and ticket.category != TicketCategory.SECURITY
+        ):
             raise TeamError(403, TeamRefusal.NOT_ALLOWED, "security works security tickets only")
 
     def category_for(

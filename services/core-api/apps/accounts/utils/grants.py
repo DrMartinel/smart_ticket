@@ -64,14 +64,15 @@ class Target:
 class Grants:
     """Every change to who holds which role where, each audited and ending the person's sign-ins."""
 
-    def grant(self, actor: User, request: GrantRequest) -> Assignment:
-        """Gives `request.username` the role at the scope, refusing anything the actor couldn't hold."""
+    def grant(self, actor: User, request: GrantRequest, *, delegated: bool = False) -> Assignment:
+        """Gives `request.username` the role at the scope, refusing anything the actor couldn't hold;
+        `delegated` for a department head granting within their subtree."""
         reason = require_reason(request.reason)
         with transaction.atomic():
             user = locked_user(request.username)
             role = live_role(request.role_urn)
             target = self.target(request.scope_kind, request.scope_ref)
-            self.check_grantable(actor, user, role, target)
+            self.check_grantable(actor, user, role, target, delegated=delegated)
             starts_at = request.starts_at or timezone.now()
             if request.ends_at is not None and request.ends_at <= max(starts_at, timezone.now()):
                 raise OrgError(422, OrgRefusal.ENDS_BEFORE_START, "the grant must end later")
@@ -106,7 +107,9 @@ class Grants:
             )
         return row
 
-    def end(self, actor: User, assignment_id: uuid.UUID, reason: str) -> Assignment:
+    def end(
+        self, actor: User, assignment_id: uuid.UUID, reason: str, *, delegated: bool = False
+    ) -> Assignment:
         """Ends a grant now; a structural grant ends only with the structure behind it."""
         reason = require_reason(reason)
         with transaction.atomic():
@@ -117,7 +120,9 @@ class Grants:
                     OrgRefusal.GRANT_IS_STRUCTURAL,
                     "change the team lead or department head instead",
                 )
-            self.check_grantable(actor, row.user, row.role, self.target_of(row), ending=True)
+            self.check_grantable(
+                actor, row.user, row.role, self.target_of(row), ending=True, delegated=delegated
+            )
             self.end_rows(Assignment.objects.filter(pk=row.pk), EndReason.ENDED, actor, reason)
             row.refresh_from_db()
         return row
@@ -154,7 +159,14 @@ class Grants:
     # ── the rules ──
 
     def check_grantable(
-        self, actor: User, user: User, role: Role, target: Target, *, ending: bool = False
+        self,
+        actor: User,
+        user: User,
+        role: Role,
+        target: Target,
+        *,
+        ending: bool = False,
+        delegated: bool = False,
     ) -> None:
         """Never your own grants, no base or structural role by hand, staff-only roles for
         staff, a scope the role allows; a system role from an access admin, a custom role only
@@ -189,7 +201,9 @@ class Grants:
                     {"allowed": [s.value for s in role_scopes(permissions)]},
                 )
         access = Access.of(actor)
-        if role.is_system:
+        if delegated:
+            self.check_delegated(access, user, role, target)
+        elif role.is_system:
             if not access.holds_everywhere(Permission.ACCESS_GRANT):
                 raise OrgError(
                     403,
@@ -205,6 +219,24 @@ class Grants:
                 OrgRefusal.CANNOT_GRANT_UNHELD,
                 "you can only grant what you hold over that scope",
                 {"permissions": unheld},
+            )
+
+    def check_delegated(self, access: Access, user: User, role: Role, target: Target) -> None:
+        """A delegable custom role, at a department the head reaches, to someone in it."""
+        if role.is_system or not role.delegable:
+            raise OrgError(
+                403, OrgRefusal.ROLE_NOT_DELEGABLE, f"{role.urn} isn't delegable to heads"
+            )
+        reach = access.department_ids(Permission.ACCESS_GRANT_DELEGABLE)
+        if reach is not None and not (
+            target.department is not None
+            and target.department.id in reach
+            and user.department_id in reach
+        ):
+            raise OrgError(
+                403,
+                OrgRefusal.SCOPE_NOT_ALLOWED,
+                "a head grants only at their department, to people in it",
             )
 
     def covers(self, access: Access, permission: Permission, target: Target) -> bool:

@@ -78,7 +78,7 @@ MODELS = [
     "StaffOut",
     "UserTeamOut",
     "AccountOut",
-    "RightsIn",
+    "BaseRoleIn",
     "TeamDetailOut",
     "WorkloadRowOut",
     "ReassignmentOut",

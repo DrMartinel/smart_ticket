@@ -12,6 +12,8 @@ from typing import Any
 from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
 
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.security.utils.alerts import security_alerts
@@ -128,11 +130,12 @@ class PiiReveal:
 
     def check_access(self, ticket: Ticket, actor: User, placeholder: str) -> ReviewItem | None:
         """Security, the holder of a claimed review item, or the assignee (BR-F5-01, 02)."""
-        if placeholder_level(placeholder) is PIILevel.CRITICAL and not actor.is_security:
+        reveals_any = Access.of(actor).holds(Permission.PII_REVEAL_ANY)
+        if placeholder_level(placeholder) is PIILevel.CRITICAL and not reveals_any:
             raise RevealError(
                 403, RevealRefusal.CRITICAL_NEEDS_SECURITY, "only security may reveal a credential"
             )
-        if actor.is_security:
+        if reveals_any:
             return None
         claimed = ReviewItem.objects.filter(ticket=ticket, state="claimed", claimed_by=actor)
         review_item = claimed.order_by("-claimed_at").first()

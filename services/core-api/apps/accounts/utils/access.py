@@ -150,6 +150,11 @@ class Access:
     def permissions(self) -> list[str]:
         return sorted(p.value for p in self.scopes)
 
+    def covers_team(self, permission: Permission, team_id: uuid.UUID | None) -> bool:
+        """Whether `permission` reaches the team `team_id`."""
+        scope = self.scopes.get(permission)
+        return scope is not None and scope.covers(team_id=team_id, department_id=None)
+
     def covers_ticket(self, permission: Permission, ticket: Ticket) -> bool:
         """Whether `permission` reaches `ticket` by its team or its requester's department."""
         scope = self.scopes.get(permission)

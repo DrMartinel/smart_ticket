@@ -28,6 +28,7 @@ from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.accounts.request_schema import (
     CampaignIn,
     DecideIn,
+    DelegatedGrantIn,
     DepartmentIn,
     DepartmentMoveIn,
     DepartmentPatchIn,
@@ -36,10 +37,11 @@ from apps.accounts.request_schema import (
     ImportIn,
     LoginIn,
     OidcExchangeIn,
+    PlaceIn,
     ProfileIn,
     ProvisionIn,
     ReasonIn,
-    RightsIn,
+    BaseRoleIn,
     RoleIn,
     RolePatchIn,
 )
@@ -66,7 +68,7 @@ from apps.accounts.response_schema import (
     UserOut,
 )
 from apps.accounts.utils.access import Access, explained, holders, scope_names
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.utils.catalog import Permission, ScopeKind
 from apps.accounts.utils.departments import DepartmentDraft, departments
 from apps.accounts.utils.grants import GrantRequest, grants
 from apps.accounts.utils.org_import import ImportResult, org_import
@@ -111,12 +113,10 @@ def people(request: AuthedRequest) -> QuerySet[User]:
     )
 
 
-@router.put("/people/{username}/rights", auth=SessionAuth(), response=AccountOut)
+@router.put("/people/{username}/base-role", auth=SessionAuth(), response=AccountOut)
 @require(Permission.ACCESS_GRANT)
-def set_rights(request: AuthedRequest, username: str, payload: RightsIn) -> User:
-    account_rights.assign(
-        request.auth, username, payload.role, set(payload.capabilities), payload.reason
-    )
+def set_base_role(request: AuthedRequest, username: str, payload: BaseRoleIn) -> User:
+    account_rights.set_base_role(request.auth, username, payload.role, payload.reason)
     return person(username)
 
 
@@ -216,7 +216,13 @@ def list_roles(request: AuthedRequest, include_retired: bool = False) -> list[Ro
 def create_role(request: AuthedRequest, payload: RoleIn) -> RoleOut:
     role = roles.create(
         request.auth,
-        RoleDraft(payload.name, payload.description, payload.permissions, payload.reason),
+        RoleDraft(
+            payload.name,
+            payload.description,
+            payload.permissions,
+            payload.reason,
+            payload.delegable,
+        ),
     )
     return RoleOut.of(role)
 
@@ -236,7 +242,13 @@ def update_role(request: AuthedRequest, urn: str, payload: RolePatchIn) -> RoleO
     role = roles.update(
         request.auth,
         urn,
-        RoleDraft(payload.name, payload.description, payload.permissions, payload.reason),
+        RoleDraft(
+            payload.name,
+            payload.description,
+            payload.permissions,
+            payload.reason,
+            payload.delegable,
+        ),
     )
     return RoleOut.of(role, Assignment.objects.active().filter(role=role).count())
 
@@ -471,14 +483,70 @@ def get_department(request: AuthedRequest, code: str) -> DepartmentOut:
 
 
 @org_router.get("/departments/{code}/people", auth=SessionAuth(), response=list[AccountOut])
-@require(Permission.ACCESS_PEOPLE_READ)
+@require(Permission.ORG_DEPARTMENTS_READ)
 def department_people(request: AuthedRequest, code: str) -> QuerySet[User]:
+    department = departments.live(code)
+    if not Access.of(request.auth).holds(Permission.ACCESS_PEOPLE_READ):
+        departments.check_reach(request.auth, department)
     return (
-        User.objects.filter(department__code=code.upper())
+        User.objects.filter(department=department)
         .select_related(*PERSON_RELATIONS)
         .prefetch_related("assignments__role", "team_memberships__team")
         .order_by("username")
     )
+
+
+@org_router.post("/departments/{code}/people", auth=SessionAuth(), response=AccountOut)
+@require(Permission.ORG_DEPARTMENTS_MANAGE)
+def place_in_department(request: AuthedRequest, code: str, payload: PlaceIn) -> User:
+    user = departments.move_person(request.auth, code, payload.username, payload.reason)
+    return person(user.username)
+
+
+@org_router.get("/departments/{code}/grants", auth=SessionAuth(), response=list[AssignmentOut])
+@require(Permission.ORG_DEPARTMENTS_READ)
+def department_grants(request: AuthedRequest, code: str) -> list[AssignmentOut]:
+    department = departments.live(code)
+    if not Access.of(request.auth).holds(Permission.ACCESS_READ):
+        departments.check_reach(request.auth, department)
+    now = timezone.now()
+    rows = (
+        Assignment.objects.active(now)
+        .filter(scope_department_id__in=departments.subtree_ids(department))
+        .select_related("user", "role", "granted_by", "scope_team", "scope_department")
+        .order_by("user__username")
+    )
+    return [AssignmentOut.of(row, now) for row in rows]
+
+
+@org_router.post("/departments/{code}/grants", auth=SessionAuth(), response=AssignmentOut)
+@require(Permission.ACCESS_GRANT_DELEGABLE)
+def delegate_grant(request: AuthedRequest, code: str, payload: DelegatedGrantIn) -> AssignmentOut:
+    row = grants.grant(
+        request.auth,
+        GrantRequest(
+            username=payload.username,
+            role_urn=payload.role,
+            scope_kind=ScopeKind.DEPARTMENT,
+            scope_ref=code,
+            reason=payload.reason,
+            starts_at=None,
+            ends_at=payload.ends_at,
+        ),
+        delegated=True,
+    )
+    return AssignmentOut.of(row, timezone.now())
+
+
+@org_router.post(
+    "/departments/{code}/grants/{assignment_id}/end", auth=SessionAuth(), response=AssignmentOut
+)
+@require(Permission.ACCESS_GRANT_DELEGABLE)
+def end_delegated_grant(
+    request: AuthedRequest, code: str, assignment_id: uuid.UUID, payload: ReasonIn
+) -> AssignmentOut:
+    row = grants.end(request.auth, assignment_id, payload.reason, delegated=True)
+    return AssignmentOut.of(row, timezone.now())
 
 
 @org_router.patch("/departments/{code}", auth=SessionAuth(), response=DepartmentOut)

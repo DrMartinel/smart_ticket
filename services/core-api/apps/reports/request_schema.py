@@ -13,6 +13,7 @@ MONTH = r"^\d{4}-(0[1-9]|1[0-2])$"
 class SlaFilter(Schema):
     month: str | None = Field(default=None, pattern=MONTH)
     team: str | None = None
+    department: str | None = Field(default=None, max_length=30)
     priority: str | None = None
     category: str | None = None
 

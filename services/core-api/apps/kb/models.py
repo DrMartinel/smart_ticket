@@ -214,7 +214,10 @@ class KbArticle(BaseModel):
         """The only legitimate way to flip `auto_reply_allowed`. Spec §15 Q3 /
         ADR-0002: manager role required, reason mandatory, logged."""
 
-        if not actor.is_manager:
+        from apps.accounts.utils.access import Access
+        from apps.accounts.utils.catalog import Permission
+
+        if not Access.of(actor).holds(Permission.KB_AUTHORITY_GRANT):
             raise KBGovernanceError("only manager-role users may change auto_reply_allowed")
         if not reason or not reason.strip():
             raise KBGovernanceError("reason is required")
@@ -249,7 +252,10 @@ class KbArticle(BaseModel):
 
     @transaction.atomic
     def set_risk_tier(self, *, risk_tier: str, actor: User, reason: str) -> KbArticle:
-        if not actor.is_manager:
+        from apps.accounts.utils.access import Access
+        from apps.accounts.utils.catalog import Permission
+
+        if not Access.of(actor).holds(Permission.KB_AUTHORITY_RISK_TIER):
             raise KBGovernanceError("only manager-role users may change risk_tier")
         if not reason or not reason.strip():
             raise KBGovernanceError("reason is required")

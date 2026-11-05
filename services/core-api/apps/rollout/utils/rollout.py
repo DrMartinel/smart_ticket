@@ -11,7 +11,9 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.accounts.models import User, UserRole
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.notifications.utils.notifier import Notice, notifier
 from apps.notifications.utils.vocabulary import NotificationEvent
@@ -55,8 +57,8 @@ class Rollout:
         flag, _ = RolloutFlag.objects.get_or_create(branch=branch)
         return flag
 
-    def check_manager(self, actor: User) -> None:
-        if actor.role != UserRole.MANAGER.value:
+    def check_holds(self, actor: User, permission: Permission) -> None:
+        if not Access.of(actor).holds(permission):
             raise RolloutError(403, RolloutRefusal.NOT_A_MANAGER, "only a manager may do this")
 
     def turn_on(
@@ -69,7 +71,7 @@ class Rollout:
     ) -> FlagRequest:
         """A manager turns a branch live at once, with a reason, the gate values now and an
         override reason for any gate not met (ADR-0043)."""
-        self.check_manager(actor)
+        self.check_holds(actor, Permission.ROLLOUT_FLAG_ON)
         reason = reason.strip()
         if not reason:
             raise RolloutError(422, RolloutRefusal.REASON_REQUIRED, "say why")
@@ -140,7 +142,7 @@ class Rollout:
 
     def turn_off(self, branch: str, actor: User, reason: str) -> RolloutFlag:
         """Any manager or security, alone, at once (BR-F9-02)."""
-        if actor.role not in (UserRole.MANAGER.value, UserRole.SECURITY.value):
+        if not Access.of(actor).holds(Permission.ROLLOUT_FLAG_OFF):
             raise RolloutError(403, RolloutRefusal.NOT_A_MANAGER, "managers and security only")
         reason = reason.strip()
         if not reason:
@@ -190,7 +192,7 @@ class Rollout:
         reason: str,
     ) -> GateChange:
         """A manager changes a gate at once (ADR-0043); the change row records it."""
-        self.check_manager(actor)
+        self.check_holds(actor, Permission.ROLLOUT_GATES_MANAGE)
         if not reason.strip():
             raise RolloutError(422, RolloutRefusal.REASON_REQUIRED, "say why")
         with transaction.atomic():

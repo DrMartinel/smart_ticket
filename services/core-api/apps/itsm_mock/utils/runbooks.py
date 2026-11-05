@@ -13,6 +13,8 @@ from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.crypto import constant_time_compare
 
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.itsm_mock.models import (
@@ -113,7 +115,7 @@ class Runbooks:
             raise RunbookError(
                 422, R.NOT_A_RUNBOOK_ITEM, "review item is not a runbook_approval item"
             )
-        if not decision.reviewer.may_run_runbooks:
+        if not Access.of(decision.reviewer).holds(Permission.RUNBOOKS_EXECUTE):
             raise RunbookError(
                 422,
                 R.APPROVER_NOT_STAFF,
@@ -163,7 +165,7 @@ class Runbooks:
 
     def execute(self, item_id: uuid.UUID, actor: User, payload: dict[str, Any]) -> RunbookExecution:
         """Records an approver's payload for a run and queues it (BR-F12-03)."""
-        if not actor.may_run_runbooks:
+        if not Access.of(actor).holds(Permission.RUNBOOKS_EXECUTE):
             raise RunbookError(
                 403, R.EXECUTOR_NOT_STAFF, "only a technician or manager may execute a runbook"
             )

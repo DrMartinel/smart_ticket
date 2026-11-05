@@ -16,7 +16,7 @@ from django.conf import settings
 from django.db.models import Count, Min, Q, QuerySet
 from django.utils import timezone
 
-from apps.accounts.models import User, UserRole
+from apps.accounts.models import User
 from apps.accounts.utils.access import Access
 from apps.accounts.utils.catalog import Permission
 from apps.core.errors import CodedError
@@ -431,6 +431,26 @@ class Reports:
             return [team]
         raise ReportError(403, ReportRefusal.SCOPE_DENIED, "only a manager or the team's lead")
 
+    def department_scope(self, viewer: User, department: str | None) -> list[str] | None:
+        """The department codes `viewer` may read with `department` asked for, subtrees
+        included; None means every department (FR-F14-014)."""
+        from apps.accounts.models import Department
+        from apps.accounts.utils.departments import departments
+
+        reach = Access.of(viewer).department_ids(Permission.REPORTS_OPERATIONS_READ)
+        asked = departments.subtree_ids(departments.live(department)) if department else None
+        if reach is None:
+            ids = asked
+        elif asked is None:
+            ids = set(reach)
+        elif asked <= reach:
+            ids = asked
+        else:
+            raise ReportError(403, ReportRefusal.SCOPE_DENIED, "outside the departments you head")
+        if ids is None:
+            return None
+        return sorted(Department.objects.filter(id__in=ids).values_list("code", flat=True))
+
     def team_facts(self, teams: list[str] | None) -> TicketFactsQuerySet:
         rows = TicketFacts.objects.all()
         return rows if teams is None else rows.filter(team__in=teams)
@@ -479,9 +499,14 @@ class Reports:
         team: str | None,
         priority: str | None,
         category: str | None,
+        department: str | None = None,
     ) -> tuple[list[str] | None, TicketFactsQuerySet]:
-        teams = self.team_scope(viewer, team)
+        codes = self.department_scope(viewer, department)
+        restricted = Access.of(viewer).department_ids(Permission.REPORTS_OPERATIONS_READ)
+        teams = None if restricted is not None and team is None else self.team_scope(viewer, team)
         rows = self.team_facts(teams)
+        if codes is not None:
+            rows = rows.filter(department__in=codes)
         if priority:
             rows = rows.filter(priority=priority)
         if category:
@@ -496,9 +521,10 @@ class Reports:
         team: str | None = None,
         priority: str | None = None,
         category: str | None = None,
+        department: str | None = None,
     ) -> SlaReport:
         period = Period.month(month, report_zone())
-        teams, rows = self.filtered(viewer, team, priority, category)
+        teams, rows = self.filtered(viewer, team, priority, category, department)
         touched = self.in_period(rows, period)
         no_data = touched.filter(
             response_state=FactState.NONE.value, resolution_state=FactState.NONE.value
@@ -565,10 +591,11 @@ class Reports:
         kind: str = "resolution",
         state: str | None = None,
         page: int | None = 1,
+        department: str | None = None,
     ) -> Page:
         """The tickets behind an SLA cell: stopped clocks, or `excluded` for the left-out ones."""
         period = Period.month(month, report_zone())
-        _, rows = self.filtered(viewer, team, priority, category)
+        _, rows = self.filtered(viewer, team, priority, category, department)
         if state == "excluded":
             rows = self.in_period(rows, period).filter(
                 Q(linked_incident=True)
@@ -680,7 +707,7 @@ class Reports:
     def reviewers(self, viewer: User, days: int, reviewer: str | None = None) -> ReviewerReport:
         """Every reviewer for a manager; anyone else gets their own row, and asking for someone
         else's is refused."""
-        if not viewer.is_manager:
+        if not Access.of(viewer).holds(Permission.REPORTS_REVIEWERS_ALL):
             if reviewer not in (None, viewer.username):
                 raise ReportError(403, ReportRefusal.SCOPE_DENIED, "a reviewer sees only themself")
             reviewer = viewer.username
@@ -942,7 +969,7 @@ class Reports:
         report = SecurityReport(
             month=period.label, detail=False, total=alerts.count(), by_kind=kinds
         )
-        if viewer.role != UserRole.SECURITY.value:
+        if not Access.of(viewer).holds(Permission.REPORTS_SECURITY_DETAIL):
             return report
         acked = list(
             alerts.filter(acknowledged_at__isnull=False).values_list(

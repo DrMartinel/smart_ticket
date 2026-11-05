@@ -31,6 +31,8 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
@@ -196,7 +198,7 @@ class Command(BaseCommand):
         user = User.objects.filter(username=username).first()
         # Checked here as well as in set_auto_reply_allowed, so a wrong
         # username fails before thousands of pages are embedded.
-        if user is None or not user.is_manager:
+        if user is None or not Access.of(user).holds(Permission.KB_AUTHORITY_GRANT):
             raise CommandError(f"--approver {username!r} must be an existing manager-role user")
         return user
 

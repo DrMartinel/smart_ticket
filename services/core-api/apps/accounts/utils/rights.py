@@ -32,6 +32,17 @@ class RightsError(CodedError):
 class AccountRights:
     """Changes who may do what, ending the person's sign-ins so the change applies at once."""
 
+    def set_base_role(self, actor: User, username: str, role: UserRole, reason: str) -> User:
+        """Sets `username`'s base role, keeping their add-on grants unless they become an
+        employee."""
+        user = User.objects.filter(username=username).first()
+        if user is None:
+            raise RightsError(404, RightsRefusal.USER_NOT_FOUND, f"no user {username!r}")
+        kept = (
+            set() if role is UserRole.EMPLOYEE else {Capability(c) for c in user.capability_set()}
+        )
+        return self.assign(actor, username, role, kept, reason)
+
     def assign(
         self,
         actor: User,

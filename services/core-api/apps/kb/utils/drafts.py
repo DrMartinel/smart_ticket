@@ -12,7 +12,9 @@ from typing import Any
 from django.db import transaction
 from django.utils import timezone
 
-from apps.accounts.models import Capability, User
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
+from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 from apps.kb.models import (
@@ -70,7 +72,7 @@ class DraftDiff:
 
 def can_edit_kb(user: User) -> bool:
     """KB editors and managers write and review drafts."""
-    return user.is_manager or Capability.KB_EDITOR.value in user.capability_set()
+    return Access.of(user).holds(Permission.KB_DRAFTS_MANAGE)
 
 
 class KbDrafts:
@@ -173,7 +175,9 @@ class KbDrafts:
     def withdraw(self, draft_id: Any, actor: User) -> KbDraft:
         with transaction.atomic():
             draft = self.get(draft_id, lock=True)
-            if draft.author_id != actor.id and not actor.is_manager:
+            if draft.author_id != actor.id and not Access.of(actor).holds(
+                Permission.KB_DRAFTS_WITHDRAW_ANY
+            ):
                 raise KbError(403, KbRefusal.NOT_ALLOWED, "the author or a manager")
             if not draft.is_editable() and draft.state != DraftState.CONFLICT.value:
                 raise KbError(409, KbRefusal.NOT_EDITABLE, f"the draft is {draft.state}")

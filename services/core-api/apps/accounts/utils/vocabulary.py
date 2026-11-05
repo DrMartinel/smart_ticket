@@ -55,6 +55,7 @@ class OrgRefusal(StrEnum):
     NOT_YOUR_REVIEW = "not_your_review"
     FALLBACK_CANNOT_REVIEW = "fallback_cannot_review"
     NO_OTHER_REVIEWER = "no_other_reviewer"
+    ROLE_NOT_DELEGABLE = "role_not_delegable"
 
 
 class OrgError(CodedError):

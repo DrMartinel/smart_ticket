@@ -393,6 +393,7 @@ class TicketManager(models.Manager["Ticket"]):
             ticket = self.create(
                 public_id=self.next_public_id(),
                 reporter=reporter,
+                requester_department_id=reporter.department_id,
                 subject_masked=result.subject_masked,
                 body_masked=result.body_masked,
                 pii_level=result.pii_level.value,
@@ -438,6 +439,10 @@ class Ticket(BaseModel):
     public_id = models.CharField(max_length=32, unique=True)  # TKT-2026-000123
     reporter = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="reported_tickets"
+    )
+    # The reporter's department when they submitted (FR-F14-014).
+    requester_department = models.ForeignKey(
+        "accounts.Department", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )
 
     subject_masked = models.TextField()
