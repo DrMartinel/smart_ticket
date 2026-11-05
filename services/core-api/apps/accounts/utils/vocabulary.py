@@ -54,6 +54,7 @@ class OrgRefusal(StrEnum):
     REVIEW_DECIDED = "review_decided"
     NOT_YOUR_REVIEW = "not_your_review"
     FALLBACK_CANNOT_REVIEW = "fallback_cannot_review"
+    NO_OTHER_REVIEWER = "no_other_reviewer"
 
 
 class OrgError(CodedError):

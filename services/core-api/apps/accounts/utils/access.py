@@ -13,6 +13,7 @@ from apps.accounts.models import Assignment, Department, Role, RolePermission, U
 from apps.accounts.utils.catalog import (
     BASE_ROLES,
     PERMISSIONS,
+    SYSTEM_ROLE_NAMES,
     SYSTEM_ROLE_PERMISSIONS,
     Permission,
     ScopeKind,
@@ -91,7 +92,7 @@ class Access:
             access.add(
                 permission,
                 Scope(everywhere=True),
-                Source(base.value, base.value, "global", None, None, None, None),
+                Source(base.value, SYSTEM_ROLE_NAMES[base], "global", None, None, None, None),
             )
         rows = list(
             Assignment.objects.active(timezone.now())

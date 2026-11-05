@@ -65,7 +65,7 @@ export default function TeamsPage() {
       <SectionTabs className="mb-1" />
       <PageHeader
         className="mb-2"
-        eyebrow="Admin / People & teams"
+        eyebrow="Admin / People & access"
         title="Teams"
         description={<>{teams ? `${active} active teams · ${members} memberships. ` : ""}Each category belongs to exactly one active team.</>}
         actions={

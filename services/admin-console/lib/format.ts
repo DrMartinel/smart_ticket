@@ -52,3 +52,9 @@ export function humanize(code: string | null | undefined): string {
   const text = code.replaceAll("_", " ");
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/** A day, e.g. "5 Nov 2026"; "—" for none. */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}

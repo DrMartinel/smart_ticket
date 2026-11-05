@@ -25,6 +25,14 @@ export interface SessionUser {
   language?: "vi" | "en";
   capabilities?: string[];
   teams?: { team: string; role: "member" | "lead" }[];
+  /** Every permission URN the person holds somewhere (F14). */
+  permissions?: string[];
+  status?: "invited" | "active" | "suspended" | "deactivated";
+  name?: string;
+  department?: { code: string; name: string } | null;
+  line_manager?: string | null;
+  job_title?: string;
+  location?: string;
 }
 
 interface SessionOut {

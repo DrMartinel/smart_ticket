@@ -23,7 +23,7 @@ from apps.accounts.models import (
     ReviewDecisionKind,
     User,
 )
-from apps.accounts.utils.access import Access
+from apps.accounts.utils.access import Access, holders
 from apps.accounts.utils.catalog import Permission
 from apps.accounts.utils.departments import departments
 from apps.accounts.utils.grants import grants, live_role, require_reason
@@ -79,9 +79,16 @@ class AccessReviews:
                 created_by=actor,
                 closes_at=closes_at,
             )
+            admins = [
+                person
+                for person, _ in holders(Permission.ACCESS_REVIEW_MANAGE)
+                if Access.of(person).holds(Permission.ACCESS_REVIEW_RESPOND)
+            ]
             items = [
                 AccessReviewItem(
-                    campaign=campaign, assignment=row, reviewer=self.reviewer(row, fallback, actor)
+                    campaign=campaign,
+                    assignment=row,
+                    reviewer=self.reviewer(row, [fallback, actor, *admins]),
                 )
                 for row in rows
             ]
@@ -108,15 +115,15 @@ class AccessReviews:
             rows = rows.filter(user__department_id__in=departments.subtree_ids(department))
         return list(rows)
 
-    def reviewer(self, row: Assignment, fallback: User, opener: User) -> User:
+    def reviewer(self, row: Assignment, fallbacks: list[User]) -> User:
         """The line manager, else the nearest department head, who can answer reviews; else the
-        fallback; never the person whose grant it is (BR-F14-15)."""
+        first of `fallbacks` who can; never the person whose grant it is (BR-F14-15)."""
         candidates: list[User | None] = [row.user.line_manager]
         department = row.user.department
         while department is not None:
             candidates.append(department.head)
             department = department.parent
-        for candidate in [*candidates, fallback, opener]:
+        for candidate in [*candidates, *fallbacks]:
             if (
                 candidate is not None
                 and candidate.pk != row.user_id
@@ -124,7 +131,11 @@ class AccessReviews:
                 and Access.of(candidate).holds(Permission.ACCESS_REVIEW_RESPOND)
             ):
                 return candidate
-        return fallback
+        raise OrgError(
+            422,
+            OrgRefusal.NO_OTHER_REVIEWER,
+            f"nobody but {row.user.username} can review their {row.role.name} grant",
+        )
 
     def decide(
         self, actor: User, item_id: uuid.UUID, decision: ReviewDecisionKind, note: str

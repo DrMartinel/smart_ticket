@@ -55,7 +55,7 @@ from apps.accounts.response_schema import (
     OidcConfigOut,
     PermissionOut,
     PersonAccessOut,
-    PersonOut,
+    PersonRecordOut,
     RefusedOut,
     ReviewItemOut,
     RoleOut,
@@ -120,7 +120,7 @@ def set_rights(request: AuthedRequest, username: str, payload: RightsIn) -> User
     return person(username)
 
 
-@router.post("/people", auth=SessionAuth(), response=PersonOut)
+@router.post("/people", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def provision_person(request: AuthedRequest, payload: ProvisionIn) -> User:
     user = people_service.provision(
@@ -129,34 +129,34 @@ def provision_person(request: AuthedRequest, payload: ProvisionIn) -> User:
     return person(user.username)
 
 
-@router.get("/people/{username}", auth=SessionAuth(), response=PersonOut)
+@router.get("/people/{username}", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_READ)
 def get_person(request: AuthedRequest, username: str) -> User:
     return person(username)
 
 
-@router.patch("/people/{username}", auth=SessionAuth(), response=PersonOut)
+@router.patch("/people/{username}", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def update_person(request: AuthedRequest, username: str, payload: ProfileIn) -> User:
     people_service.update(request.auth, username, profile_of(payload), payload.reason)
     return person(username)
 
 
-@router.post("/people/{username}/suspend", auth=SessionAuth(), response=PersonOut)
+@router.post("/people/{username}/suspend", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def suspend_person(request: AuthedRequest, username: str, payload: ReasonIn) -> User:
     people_service.suspend(request.auth, username, payload.reason)
     return person(username)
 
 
-@router.post("/people/{username}/reactivate", auth=SessionAuth(), response=PersonOut)
+@router.post("/people/{username}/reactivate", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def reactivate_person(request: AuthedRequest, username: str, payload: ReasonIn) -> User:
     people_service.reactivate(request.auth, username, payload.reason)
     return person(username)
 
 
-@router.post("/people/{username}/deactivate", auth=SessionAuth(), response=PersonOut)
+@router.post("/people/{username}/deactivate", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def deactivate_person(request: AuthedRequest, username: str, payload: ReasonIn) -> User:
     people_service.deactivate(request.auth, username, payload.reason)

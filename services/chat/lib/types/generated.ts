@@ -41,7 +41,15 @@ export type GapState = "open" | "drafted" | "dismissed";
 
 export type ReassignReason = "wrong_team" | "workload" | "skill" | "leave" | "escalation" | "requester_request" | "other";
 
-export type RecipientKind = "requester" | "assignee" | "team_lead" | "team_members" | "manager" | "security" | "workflow_admins" | "kb_editors" | "incident_managers" | "approver" | "linked_requesters" | "previous_assignee";
+export type RecipientKind = "requester" | "assignee" | "team_lead" | "team_members" | "manager" | "security" | "workflow_admins" | "kb_editors" | "incident_managers" | "approver" | "linked_requesters" | "previous_assignee" | "subject";
+
+export type ScopeKind = "global" | "team" | "department";
+
+export type PersonStatus = "invited" | "active" | "suspended" | "deactivated";
+
+export type NoAnswer = "revoke" | "flag";
+
+export type ReviewDecisionKind = "keep" | "revoke";
 
 export type ExecutorKind = "keycloak" | "n8n" | "mock";
 
@@ -515,6 +523,10 @@ export interface AccountOut {
   is_active: boolean;
   is_break_glass: boolean;
   last_login: string | null;
+  status?: string;
+  department?: DepartmentRefOut | null;
+  line_manager?: string | null;
+  job_title?: string;
 }
 
 export interface RightsIn {
@@ -1714,6 +1726,321 @@ export interface ChannelRowOut {
 export interface NotificationReportOut {
   days: number;
   channels: ChannelRowOut[];
+}
+
+export interface DepartmentRefOut {
+  code: string;
+  name: string;
+}
+
+export interface UserOut {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  auth_source?: string;
+  language?: string;
+  capabilities?: string[];
+  teams?: UserTeamOut[];
+  permissions?: string[];
+  status?: string;
+  name?: string;
+  department?: DepartmentRefOut | null;
+  line_manager?: string | null;
+  job_title?: string;
+  location?: string;
+}
+
+export interface PermissionOut {
+  urn: string;
+  area: string;
+  label: string;
+  staff_only: boolean;
+  locked: boolean;
+  scopes: string[];
+}
+
+export interface RoleOut {
+  urn: string;
+  name: string;
+  description: string;
+  is_system: boolean;
+  created_at: string;
+  retired_at: string | null;
+  permissions: string[];
+  scopes: string[];
+  holders: number;
+}
+
+export interface AssignmentOut {
+  id: string;
+  user: string;
+  role: string;
+  role_name: string;
+  scope_kind: string;
+  scope: string;
+  source: string;
+  granted_by: string | null;
+  reason: string;
+  starts_at: string;
+  ends_at: string | null;
+  ended_at: string | null;
+  ended_reason: string;
+  needs_review: boolean;
+  review_due_at: string | null;
+  reviewed_at: string | null;
+  active: boolean;
+}
+
+export interface SourceOut {
+  role_urn: string;
+  role_name: string;
+  scope: string;
+  assignment_id: string | null;
+  granted_by: string | null;
+  granted_at: string | null;
+  ends_at: string | null;
+}
+
+export interface ScopeOut {
+  everywhere: boolean;
+  teams: string[];
+  departments: string[];
+}
+
+export interface EffectivePermissionOut {
+  urn: string;
+  scope: ScopeOut;
+  sources: SourceOut[];
+}
+
+export interface PersonAccessOut {
+  username: string;
+  role: string;
+  permissions: EffectivePermissionOut[];
+}
+
+export interface ExplainOut {
+  username: string;
+  permission: string;
+  holds: boolean;
+  scope: ScopeOut | null;
+  sources: SourceOut[];
+}
+
+export interface HolderOut {
+  username: string;
+  name: string;
+  role: string;
+  sources: SourceOut[];
+}
+
+export interface DepartmentOut {
+  code: string;
+  name: string;
+  parent: string | null;
+  head: string | null;
+  cost_centre: string;
+  is_default: boolean;
+  archived_at: string | null;
+  people: number;
+}
+
+export interface ImportRowOut {
+  line: number;
+  key: string;
+  action: string;
+  errors: string[];
+}
+
+export interface ImportOut {
+  applied: boolean;
+  dry_run: boolean;
+  rows: ImportRowOut[];
+}
+
+export interface PersonRecordOut {
+  username: string;
+  name: string;
+  email: string;
+  role: string;
+  capabilities: string[];
+  teams: UserTeamOut[];
+  auth_source: string;
+  is_active: boolean;
+  is_break_glass: boolean;
+  last_login: string | null;
+  status?: string;
+  department?: DepartmentRefOut | null;
+  line_manager?: string | null;
+  job_title?: string;
+  first_name: string;
+  last_name: string;
+  location: string;
+  phone: string;
+  employee_id: string;
+  date_joined: string;
+}
+
+export interface ReviewItemOut {
+  id: string;
+  campaign: string;
+  campaign_name: string;
+  closes_at: string;
+  user: string;
+  user_name: string;
+  role: string;
+  role_name: string;
+  scope: string;
+  granted_by: string | null;
+  granted_at: string;
+  reviewer: string;
+  decision: string;
+  note: string;
+  decided_at: string | null;
+}
+
+export interface CampaignOut {
+  id: string;
+  name: string;
+  role: string | null;
+  department: string | null;
+  on_no_answer: string;
+  fallback_reviewer: string;
+  state: string;
+  created_by: string;
+  opened_at: string;
+  closes_at: string;
+  closed_at: string | null;
+  total: number;
+  kept: number;
+  revoked: number;
+  pending: number;
+}
+
+export interface CampaignDetailOut {
+  id: string;
+  name: string;
+  role: string | null;
+  department: string | null;
+  on_no_answer: string;
+  fallback_reviewer: string;
+  state: string;
+  created_by: string;
+  opened_at: string;
+  closes_at: string;
+  closed_at: string | null;
+  total: number;
+  kept: number;
+  revoked: number;
+  pending: number;
+  items?: ReviewItemOut[];
+}
+
+export interface DepartmentTicketOut {
+  public_id: string;
+  subject_masked: string;
+  requester: string;
+  requester_name: string;
+  department: string | null;
+  status_label: string;
+  team: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface RoleIn {
+  name: string;
+  description?: string;
+  permissions: string[];
+  reason: string;
+}
+
+export interface RolePatchIn {
+  name?: string | null;
+  description?: string | null;
+  permissions?: string[] | null;
+  reason: string;
+}
+
+export interface GrantIn {
+  role: string;
+  scope_kind?: ScopeKind;
+  scope?: string | null;
+  reason: string;
+  starts_at?: string | null;
+  ends_at?: string | null;
+}
+
+export interface ExtendIn {
+  ends_at?: string | null;
+  reason: string;
+}
+
+export interface DepartmentIn {
+  code: string;
+  name: string;
+  parent?: string | null;
+  head?: string | null;
+  cost_centre?: string;
+  reason: string;
+}
+
+export interface DepartmentPatchIn {
+  name?: string | null;
+  head?: string | null;
+  cost_centre?: string | null;
+  reason: string;
+}
+
+export interface DepartmentMoveIn {
+  parent?: string | null;
+  reason: string;
+}
+
+export interface ImportIn {
+  csv: string;
+  reason: string;
+}
+
+export interface ProfileIn {
+  first_name?: string | null;
+  last_name?: string | null;
+  job_title?: string | null;
+  location?: string | null;
+  phone?: string | null;
+  employee_id?: string | null;
+  department?: string | null;
+  line_manager?: string | null;
+  reason: string;
+}
+
+export interface ProvisionIn {
+  first_name?: string | null;
+  last_name?: string | null;
+  job_title?: string | null;
+  location?: string | null;
+  phone?: string | null;
+  employee_id?: string | null;
+  department?: string | null;
+  line_manager?: string | null;
+  reason: string;
+  username: string;
+  email: string;
+}
+
+export interface CampaignIn {
+  name: string;
+  fallback_reviewer: string;
+  on_no_answer?: NoAnswer;
+  role?: string | null;
+  department?: string | null;
+  closes_at?: string | null;
+}
+
+export interface DecideIn {
+  decision: ReviewDecisionKind;
+  note?: string;
 }
 
 export type LLMProposal =

@@ -24,9 +24,12 @@ import {
   Layers,
   UserRound,
   FileLock2,
+  KeyRound,
+  ClipboardCheck,
 } from "lucide-react";
 import { useAuth, type CurrentUser } from "@/lib/auth";
 import { adminGroups, areaOf, isActive } from "@/lib/areas";
+import { P, can } from "@/lib/permissions";
 import { VIEWS, useViewCounts } from "@/lib/views";
 import { cn } from "@/lib/utils";
 import NotificationBell from "./NotificationBell";
@@ -257,6 +260,14 @@ function Navigation({
           {user.role !== "employee" && (
             <NavItem href="/me/availability" icon={CalendarClock} active={pathname === "/me/availability"} quiet>
               My availability
+            </NavItem>
+          )}
+          <NavItem href="/me/access" icon={KeyRound} active={pathname === "/me/access"} quiet>
+            My access
+          </NavItem>
+          {can(user, P.reviewRespond) && (
+            <NavItem href="/me/access-reviews" icon={ClipboardCheck} active={pathname === "/me/access-reviews"} quiet>
+              Access reviews
             </NavItem>
           )}
           <li>

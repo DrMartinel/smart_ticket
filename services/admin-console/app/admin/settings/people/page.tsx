@@ -3,15 +3,18 @@
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 
-// People (ADR-0042): every account, its role, capabilities and teams; a manager changes them here.
+// People (ADR-0042, F14): every account, its status, department, role, capabilities and teams; new people are invited here.
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Modal from "@/components/Modal";
+import Modal, { Labeled } from "@/components/Modal";
 import { SectionTabs } from "@/components/TabNav";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
-import type { AccountOut, Capability, TeamOut, UserRole } from "@/lib/types/generated";
+import { P, can } from "@/lib/permissions";
+import type { AccountOut, Capability, DepartmentOut, TeamOut, UserRole } from "@/lib/types/generated";
+import { useToast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -52,15 +55,21 @@ export default function PeoplePage() {
   const [rights, setRights] = useState<RightsDraft | null>(null);
   const [joining, setJoining] = useState({ team: "", role: "member" });
   const [error, setError] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<DepartmentOut[]>([]);
+  const [statusFilter, setStatusFilter] = useState("");
+  const [invite, setInvite] = useState<{ username: string; email: string; first_name: string; last_name: string; department: string; job_title: string; reason: string } | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     try {
-      const [p, t] = await Promise.all([
+      const [p, t, d] = await Promise.all([
         api.get<AccountOut[]>("/api/accounts/people"),
         api.get<TeamOut[]>("/api/teams").catch(() => []),
+        api.get<DepartmentOut[]>("/api/org/departments").catch(() => []),
       ]);
       setPeople(p);
       setTeams(t);
+      setDepartments(d);
     } catch {
       setError("Couldn't load people.");
     }
@@ -75,9 +84,10 @@ export default function PeoplePage() {
     return (people ?? []).filter(
       (p) =>
         (!roleFilter || p.role === roleFilter) &&
+        (!statusFilter || p.status === statusFilter) &&
         (!q || p.username.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)),
     );
-  }, [people, query, roleFilter]);
+  }, [people, query, roleFilter, statusFilter]);
 
   if (!user) return null;
   const isManager = user.role === "manager";
@@ -117,6 +127,19 @@ export default function PeoplePage() {
     }
   };
 
+  const sendInvite = async () => {
+    if (!invite) return;
+    setError(null);
+    try {
+      await api.post("/api/accounts/people", { ...invite, department: invite.department || null });
+      toast.success(`Invited ${invite.username}; they link on their first company sign-in`);
+      setInvite(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't invite them.");
+    }
+  };
+
   const leave = async (team: string) => {
     if (!person) return;
     setError(null);
@@ -142,9 +165,9 @@ export default function PeoplePage() {
       <SectionTabs className="mb-1" />
       <PageHeader
         className="mb-2"
-        eyebrow="Admin / People & teams"
+        eyebrow="Admin / People & access"
         title="People"
-        description={<>Company sign-in proves who someone is; their role, capabilities and teams are set here.</>}
+        description={<>Company sign-in proves who someone is; their department, role, capabilities and teams are set here. Open a person for their grants and what they can do.</>}
         actions={
       <>
       <div className="flex flex-wrap items-center gap-2">
@@ -157,18 +180,37 @@ export default function PeoplePage() {
             </option>
           ))}
         </NativeSelect>
+        <NativeSelect wrapperClassName="w-40" aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="">Any status</option>
+          {["invited", "active", "suspended", "deactivated"].map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </NativeSelect>
+        {can(user, P.peopleManage) && (
+          <Button
+            onClick={() => {
+              setError(null);
+              setInvite({ username: "", email: "", first_name: "", last_name: "", department: "", job_title: "", reason: "" });
+            }}
+          >
+            Invite person
+          </Button>
+        )}
       </div>
       </>
       }
       />
 
-      {error && !open && <ErrorState title={error} />}
+      {error && !open && !invite && <ErrorState title={error} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[900px]">
           <TableHeader>
             <TableRow>
               <TableHead>Person</TableHead>
+              <TableHead>Department</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Capabilities</TableHead>
               <TableHead>Teams</TableHead>
@@ -179,7 +221,7 @@ export default function PeoplePage() {
           <TableBody>
             {people && shown.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="p-0">
+                <TableCell colSpan={7} className="p-0">
                   <EmptyState compact title="Nobody matches" />
                 </TableCell>
               </TableRow>
@@ -194,6 +236,10 @@ export default function PeoplePage() {
                   <span className="font-medium text-primary">{p.username}</span>
                   {p.username === user.username && <span className="text-xs text-muted-foreground"> · you</span>}
                   <span className="block text-xs text-muted-foreground">{[p.name, p.email].filter(Boolean).join(" · ") || "—"}</span>
+                </TableCell>
+                <TableCell>
+                  {p.department?.name ?? "—"}
+                  {p.job_title && <span className="block text-xs text-muted-foreground">{p.job_title}</span>}
                 </TableCell>
                 <TableCell>{ROLE_LABEL[p.role] ?? p.role}</TableCell>
                 <TableCell>
@@ -219,9 +265,9 @@ export default function PeoplePage() {
                 </TableCell>
                 <TableCell>
                   {p.is_break_glass ? "Break-glass" : p.auth_source === "oidc" ? "Company" : "Local"}
-                  {!p.is_active && (
-                    <Badge variant="neutral" className="ml-1.5">
-                      deactivated
+                  {p.status && p.status !== "active" && (
+                    <Badge variant={p.status === "invited" ? "info" : p.status === "suspended" ? "warn" : "neutral"} className="ml-1.5">
+                      {p.status}
                     </Badge>
                   )}
                 </TableCell>
@@ -238,6 +284,13 @@ export default function PeoplePage() {
         title={person ? person.username : ""}
         subtitle={person ? [person.name, person.email].filter(Boolean).join(" · ") || undefined : undefined}
         width="max-w-2xl"
+        footer={
+          person ? (
+            <Link className="text-sm font-medium text-primary hover:underline" href={`/admin/settings/people/${encodeURIComponent(person.username)}`}>
+              Open the full record: profile, grants and what they can do →
+            </Link>
+          ) : undefined
+        }
       >
         {person && rights && (
           <div className="flex flex-col gap-5 text-sm">
@@ -381,6 +434,53 @@ export default function PeoplePage() {
             </section>
 
             {error && <p className="rounded-md bg-danger-soft px-3 py-2 text-danger">{error}</p>}
+          </div>
+        )}
+      </Modal>
+      <Modal
+        open={!!invite}
+        onClose={() => setInvite(null)}
+        title="Invite a person"
+        subtitle="They start as an employee and link to their company account by verified email at first sign-in."
+        footer={
+          invite && (
+            <Button disabled={!invite.username.trim() || !invite.email.trim() || !invite.reason.trim()} onClick={() => void sendInvite()}>
+              Invite
+            </Button>
+          )
+        }
+      >
+        {invite && (
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <Labeled label="Username" required>
+              <Input value={invite.username} onChange={(e) => setInvite({ ...invite, username: e.target.value })} />
+            </Labeled>
+            <Labeled label="Work email" required>
+              <Input type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} />
+            </Labeled>
+            <Labeled label="First name">
+              <Input value={invite.first_name} onChange={(e) => setInvite({ ...invite, first_name: e.target.value })} />
+            </Labeled>
+            <Labeled label="Last name">
+              <Input value={invite.last_name} onChange={(e) => setInvite({ ...invite, last_name: e.target.value })} />
+            </Labeled>
+            <Labeled label="Department">
+              <NativeSelect value={invite.department} onChange={(e) => setInvite({ ...invite, department: e.target.value })}>
+                <option value="">Default department</option>
+                {departments.map((d) => (
+                  <option key={d.code} value={d.code}>
+                    {d.name} ({d.code})
+                  </option>
+                ))}
+              </NativeSelect>
+            </Labeled>
+            <Labeled label="Job title">
+              <Input value={invite.job_title} onChange={(e) => setInvite({ ...invite, job_title: e.target.value })} />
+            </Labeled>
+            <Labeled label="Reason" required className="sm:col-span-2">
+              <Input value={invite.reason} placeholder="Kept in the audit log" onChange={(e) => setInvite({ ...invite, reason: e.target.value })} />
+            </Labeled>
+            {error && <ErrorState compact title={error} className="sm:col-span-2" />}
           </div>
         )}
       </Modal>

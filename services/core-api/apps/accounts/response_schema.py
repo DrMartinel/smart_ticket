@@ -331,7 +331,7 @@ class ImportOut(Schema):
     rows: list[ImportRowOut]
 
 
-class PersonOut(AccountOut):
+class PersonRecordOut(AccountOut):
     """One person's record for the console's person page."""
 
     first_name: str

@@ -1,6 +1,7 @@
 // The console's two areas: the Workspace, where staff handle tickets, and Admin, where the system is set up and governed.
 
 import type { CurrentUser } from "@/lib/auth";
+import { P, can } from "@/lib/permissions";
 
 export type Area = "workspace" | "admin";
 
@@ -69,9 +70,12 @@ export function adminGroups(user: CurrentUser): AdminGroup[] {
               { href: "/admin/settings/sla/calendars", label: "Calendars" },
               { href: "/admin/settings/sla/holidays", label: "Holidays" },
             ]),
-            ...section("People & teams", [
-              { href: "/admin/settings/people", label: "People" },
+            ...section("People & access", [
+              ...show(can(user, P.peopleRead), { href: "/admin/settings/people", label: "People" }),
+              ...show(can(user, P.departmentsRead), { href: "/admin/settings/departments", label: "Departments" }),
               { href: "/admin/settings/teams", label: "Teams" },
+              ...show(can(user, P.accessRead), { href: "/admin/settings/roles", label: "Roles" }),
+              ...show(can(user, P.reviewManage), { href: "/admin/settings/access-reviews", label: "Access reviews" }),
             ]),
             ...section("Notifications", [
               { href: "/admin/settings/notifications", label: "Matrix" },

@@ -99,7 +99,7 @@ export default function TeamPage() {
       <SectionTabs className="mb-1" />
       <PageHeader
         className="mb-2"
-        eyebrow="Admin / People & teams"
+        eyebrow="Admin / People & access"
         back={{ href: "/admin/settings/teams", label: "All teams" }}
         title={team?.name ?? slug}
         meta={

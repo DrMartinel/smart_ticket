@@ -9,12 +9,14 @@
 
 import type {
   ChatTurnOut,
+  DepartmentTicketOut,
   InboxOut,
   RatingOut,
   ReopenOut,
   RequesterTicketList,
   RequesterTicketOut,
   ThreadCommentOut,
+  UserOut,
 } from "@/lib/types/generated";
 import { accessTokenForRequest, refreshSession, type SessionUser } from "./session";
 
@@ -90,7 +92,13 @@ export const notificationsApi = {
 const ticketPath = (publicId: string) => `/api/requester/tickets/${encodeURIComponent(publicId)}`;
 
 /** The requester's own tickets, form and chat (F3). */
+export const profileApi = {
+  me: () => request<UserOut>("/api/accounts/me"),
+};
+
 export const requesterApi = {
+  departmentTickets: (openOnly: boolean) =>
+    request<DepartmentTicketOut[]>(`/api/requester/department-tickets?open_only=${openOnly}`),
   list: (before?: string) =>
     request<RequesterTicketList>(`/api/requester/tickets${before ? `?before=${encodeURIComponent(before)}` : ""}`),
   ticket: (publicId: string) => request<RequesterTicketOut>(ticketPath(publicId)),

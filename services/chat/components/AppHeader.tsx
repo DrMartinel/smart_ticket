@@ -4,8 +4,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, LogOut, MessageSquare, Ticket } from "lucide-react";
+import { BookOpen, Building2, LogOut, MessageSquare, Ticket } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { DEPARTMENT_READ } from "@/lib/session";
 import NotificationBell from "./NotificationBell";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -15,9 +16,14 @@ export default function AppHeader() {
   const path = usePathname();
   const onTickets = path.startsWith("/tickets");
   const onGuides = path.startsWith("/guides");
+  const onDepartment = path.startsWith("/department");
+  const onProfile = path.startsWith("/profile");
   const tabs = [
-    { href: "/", label: "Ask", icon: MessageSquare, active: !onTickets && !onGuides },
+    { href: "/", label: "Ask", icon: MessageSquare, active: !onTickets && !onGuides && !onDepartment && !onProfile },
     { href: "/tickets", label: "My tickets", icon: Ticket, active: onTickets },
+    ...(user?.permissions?.includes(DEPARTMENT_READ)
+      ? [{ href: "/department", label: "Department", icon: Building2, active: onDepartment }]
+      : []),
   ];
   return (
     <header className="border-b border-border bg-card">
@@ -70,7 +76,15 @@ export default function AppHeader() {
             <span className="hidden md:inline">Guides</span>
           </Link>
           <NotificationBell />
-          {user && <span className="hidden max-w-32 truncate px-1 text-sm text-muted-foreground lg:inline">{user.username}</span>}
+          {user && (
+            <Link
+              href="/profile"
+              aria-current={onProfile ? "page" : undefined}
+              className="hidden max-w-32 truncate rounded-md px-1 text-sm text-muted-foreground hover:text-foreground lg:inline"
+            >
+              {user.username}
+            </Link>
+          )}
           <Button variant="ghost" size="sm" onClick={() => void logout()} className="text-muted-foreground" aria-label="Sign out">
             <LogOut aria-hidden />
             <span className="hidden md:inline">Sign out</span>

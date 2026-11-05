@@ -579,6 +579,26 @@ def test_nobody_reviews_their_own_grant(boss, deputy):
         access_reviews.decide(deputy, item.id, ReviewDecisionKind.KEEP, "")
 
 
+def test_an_opener_reviewing_their_own_grant_passes_it_to_another_admin(boss, deputy):
+    give(deputy, "huy.pq", SystemRole.KB_EDITOR.value)
+    campaign = access_reviews.open(
+        boss, CampaignRequest("Q4", "huy.pq", NoAnswer.FLAG, role_urn=SystemRole.KB_EDITOR.value)
+    )
+
+    item = AccessReviewItem.objects.get(campaign=campaign)
+    assert item.reviewer == deputy
+
+
+def test_a_review_only_its_grantee_could_answer_is_refused(boss, deputy):
+    give(deputy, "huy.pq", SystemRole.KB_EDITOR.value)
+    User.objects.filter(pk=deputy.pk).update(is_active=False)
+    with refused(OrgRefusal.NO_OTHER_REVIEWER):
+        access_reviews.open(
+            boss,
+            CampaignRequest("Q4", "huy.pq", NoAnswer.FLAG, role_urn=SystemRole.KB_EDITOR.value),
+        )
+
+
 def test_the_line_manager_reviews_and_a_keep_survives_close(boss, deputy):
     tu = person("tu.dv", line_manager=deputy)
     give(boss, "tu.dv", SystemRole.KB_EDITOR.value)
