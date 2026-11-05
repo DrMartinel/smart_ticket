@@ -34,7 +34,7 @@ from apps.tickets.response_schema import (
     TicketSubmitOut,
 )
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require
+from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_unless_covers, require
 from apps.sla.request_schema import PriorityIn
 from apps.sla.response_schema import TicketSlaOut
 from apps.sla.utils.clocks import sla_clocks
@@ -78,16 +78,18 @@ def ticket_board(
     q: str = "",
     per_column: int = Query(50, ge=1, le=200),
 ) -> TicketBoard:
-    return Ticket.objects.board(workflow, query=q, per_column=per_column)
+    return Ticket.objects.board(workflow, request.auth, query=q, per_column=per_column)
 
 
 @router.get("/{public_id}/detail", auth=SessionAuth(), response=StaffTicketDetail)
 @require(Permission.TICKETS_READ)
 def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
     try:
-        return Ticket.objects.for_detail().get(public_id=public_id)
+        ticket = Ticket.objects.for_detail().get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
+    refuse_unless_covers(request, request.auth, Permission.TICKETS_READ, ticket)
+    return ticket
 
 
 @router.get("/{public_id}", auth=SessionAuth(), response=TicketOut)
@@ -102,12 +104,14 @@ def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
 @router.post("/{public_id}/take", auth=SessionAuth(), response=AssignedTicketOut)
 @require(Permission.TICKETS_TAKE)
 def take(request: AuthedRequest, public_id: str, payload: TakeIn) -> Ticket:
+    _staff_ticket(request, public_id, Permission.TICKETS_TAKE)
     return assignment.take(public_id, request.auth, payload.expected_version)
 
 
 @router.post("/{public_id}/reassign", auth=SessionAuth(), response=AssignedTicketOut)
 @require(Permission.TICKETS_REASSIGN)
 def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Ticket:
+    _staff_ticket(request, public_id, Permission.TICKETS_REASSIGN)
     return assignment.reassign(
         public_id,
         request.auth,
@@ -125,7 +129,7 @@ def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Tic
 @router.get("/{public_id}/comments", auth=SessionAuth(), response=list[CommentOut])
 @require(Permission.TICKETS_READ)
 def ticket_comments(request: AuthedRequest, public_id: str) -> list[CommentOut]:
-    ticket = _staff_ticket(public_id)
+    ticket = _staff_ticket(request, public_id, Permission.TICKETS_READ)
     assignment.check_category_scope(request.auth, ticket)
     rows = ticket.comments.select_related("author").prefetch_related("review_items")
     rows = rows.order_by("created_at")
@@ -136,7 +140,7 @@ def ticket_comments(request: AuthedRequest, public_id: str) -> list[CommentOut]:
 @require(Permission.TICKETS_COMMENT)
 def add_comment(request: AuthedRequest, public_id: str, payload: CommentIn) -> CommentOut:
     comment = comments.by_staff(
-        _staff_ticket(public_id),
+        _staff_ticket(request, public_id, Permission.TICKETS_COMMENT),
         request.auth,
         payload.body,
         visibility=CommentVisibility(payload.visibility),
@@ -160,7 +164,7 @@ def ticket_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
 @require(Permission.TICKETS_PRIORITY)
 def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn) -> dict[str, Any]:
     ticket = sla_clocks.change_priority(
-        _staff_ticket(public_id),
+        _staff_ticket(request, public_id, Permission.TICKETS_PRIORITY),
         request.auth,
         payload.priority,
         payload.reason,
@@ -172,16 +176,18 @@ def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn)
 @router.post("/{public_id}/sla/rebuild", auth=SessionAuth(), response=TicketSlaOut)
 @require(Permission.TICKETS_SLA_REBUILD)
 def rebuild_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
-    ticket = _staff_ticket(public_id)
+    ticket = _staff_ticket(request, public_id, Permission.TICKETS_SLA_REBUILD)
     sla_clocks.rebuild(ticket, request.auth)
     return sla_clocks.view(ticket, staff=True)
 
 
-def _staff_ticket(public_id: str) -> Ticket:
+def _staff_ticket(request: AuthedRequest, public_id: str, permission: Permission) -> Ticket:
     try:
-        return Ticket.objects.get(public_id=public_id)
+        ticket = Ticket.objects.select_related("reporter").get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
+    refuse_unless_covers(request, request.auth, permission, ticket)
+    return ticket
 
 
 @router.post("/{public_id}/quarantine/reveal", auth=SessionAuth(), response=RevealOut)

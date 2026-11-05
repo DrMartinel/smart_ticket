@@ -200,6 +200,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.rollout.tasks.sweep",
         "schedule": float(env("ROLLOUT_SWEEP_INTERVAL_SEC")),
     },
+    "access-sweep": {
+        "task": "apps.accounts.tasks.access_sweep",
+        "schedule": float(env("ACCESS_SWEEP_INTERVAL_SEC")),
+    },
     "itsm-sweep": {
         "task": "apps.itsm_mock.tasks.sweep",
         "schedule": float(env("ITSM_SWEEP_INTERVAL_SEC")),
@@ -504,6 +508,15 @@ class AssignmentThresholds(BaseModel):
     reassign_note_min_chars: int = Field(ge=1)
 
 
+class AccessThresholds(BaseModel):
+    department_max_depth: int = Field(ge=1)
+    mover_review_days: int = Field(ge=1)
+    expiry_notice_hours: int = Field(ge=1)
+    review_default_days: int = Field(ge=1)
+    review_reminder_days: int = Field(ge=1)
+    import_max_rows: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -531,6 +544,7 @@ class Thresholds(BaseModel):
     security: SecurityThresholds
     kb_gaps: KbGapsThresholds
     reports: ReportsThresholds
+    access: AccessThresholds
 
     @property
     def retrieval_floor(self) -> float:

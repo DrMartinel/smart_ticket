@@ -349,7 +349,9 @@ class Assignment(BaseModel):
     ended_at = models.DateTimeField(null=True, blank=True)
     ended_reason = models.CharField(max_length=40, blank=True, default="")
     needs_review = models.BooleanField(default=False)
+    review_due_at = models.DateTimeField(null=True, blank=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    expiry_noticed_at = models.DateTimeField(null=True, blank=True)
 
     objects = AssignmentQuerySet.as_manager()
 
@@ -427,6 +429,7 @@ class AccessReviewCampaign(BaseModel):
     opened_at = models.DateTimeField(auto_now_add=True)
     closes_at = models.DateTimeField()
     closed_at = models.DateTimeField(null=True, blank=True)
+    reminded_at = models.DateTimeField(null=True, blank=True)
 
     class Meta(BaseModel.Meta):
         db_table = "acc_review_campaigns"

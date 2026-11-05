@@ -14,6 +14,7 @@ import numpy as np
 import pytest
 from django.utils import timezone
 
+from apps.accounts.utils.grants import grants
 from apps.accounts.models import Capability, User, UserRole
 
 from apps.accounts.testing import grant_capability
@@ -57,7 +58,9 @@ def person(username: str, role: UserRole, *caps: Capability) -> User:
 
 
 def member(user: User, slug: str, role: str = "member") -> None:
-    TeamMembership.objects.create(team=Team.objects.get(slug=slug), user=user, role=role)
+    team = Team.objects.get(slug=slug)
+    TeamMembership.objects.create(team=team, user=user, role=role)
+    grants.set_team_lead(None, team, user, lead=role == "lead")
 
 
 def ticket(reporter: User, team: str = "access", **fields: Any) -> Ticket:

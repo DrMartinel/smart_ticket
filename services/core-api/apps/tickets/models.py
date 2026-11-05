@@ -184,8 +184,26 @@ class StaffView(StrEnum):
 # Review item states that still wait for a person.
 class TicketManager(models.Manager["Ticket"]):
     def visible_to(self, user: User) -> QuerySet[Ticket]:
-        """Every ticket for support staff; a requester's own tickets otherwise."""
-        return self.all() if user.is_support_staff else self.filter(reporter=user)
+        """The tickets `user` may read as staff, and the ones they reported (FR-F14-004)."""
+        reach = self.reach(user)
+        return self.all() if reach is None else self.filter(reach | models.Q(reporter=user))
+
+    def reach(self, user: User) -> models.Q | None:
+        """The tickets `user`'s ticket-read grants cover; None for every ticket."""
+        from apps.accounts.utils.access import Access
+        from apps.accounts.utils.catalog import Permission
+
+        return Access.of(user).ticket_filter(Permission.TICKETS_READ)
+
+    def in_department_of(self, user: User) -> QuerySet[Ticket]:
+        """Tickets raised by people in the departments `user` heads, subtrees included."""
+        from apps.accounts.utils.access import Access
+        from apps.accounts.utils.catalog import Permission
+
+        departments = Access.of(user).department_ids(Permission.REQUESTER_DEPARTMENT_READ)
+        if departments is None:
+            return self.all()
+        return self.filter(reporter__department_id__in=departments)
 
     def for_requester(self, user: User) -> QuerySet[Ticket]:
         """Tickets `user` reported, form and chat, with when each last changed (BR-F3-04)."""
@@ -207,6 +225,9 @@ class TicketManager(models.Manager["Ticket"]):
         tickets = self.select_related(
             "reporter", "assigned_to", "workflow_status"
         ).prefetch_related("review_items", "sla_clocks")
+        reach = self.reach(user)
+        if reach is not None:
+            tickets = tickets.filter(reach)
         match view:
             case StaffView.REVIEW:
                 from apps.review.models import SECURITY_QUEUES, ReviewItem
@@ -214,7 +235,10 @@ class TicketManager(models.Manager["Ticket"]):
                 waiting = ReviewItem.objects.filter(
                     ticket=models.OuterRef("pk"), state__in=ReviewItem.OPEN_STATES
                 )
-                if user.role != "security":
+                from apps.accounts.utils.access import Access
+                from apps.accounts.utils.catalog import Permission
+
+                if not Access.of(user).holds(Permission.SECURITY_QUEUE_WORK):
                     waiting = waiting.exclude(queue__in=SECURITY_QUEUES)
                 tickets = tickets.filter(models.Exists(waiting))
             case StaffView.MINE:
@@ -241,9 +265,15 @@ class TicketManager(models.Manager["Ticket"]):
             models.Prefetch("ai_runs", AiRun.objects.order_by("-created_at")),
         )
 
-    def board(self, workflow_id: uuid.UUID, *, query: str, per_column: int) -> TicketBoard:
-        """The newest `per_column` tickets of each status in `workflow_id`, and every status's count."""
+    def board(
+        self, workflow_id: uuid.UUID, user: User, *, query: str, per_column: int
+    ) -> TicketBoard:
+        """The newest `per_column` tickets of each status in `workflow_id` `user` may read, and
+        every status's count."""
         tickets = self.filter(workflow_status__workflow_id=workflow_id)
+        reach = self.reach(user)
+        if reach is not None:
+            tickets = tickets.filter(reach)
         query = query.strip()
         if query:
             tickets = tickets.filter(

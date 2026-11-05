@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from django.core.mail.backends.base import BaseEmailBackend
 
+from apps.accounts.utils.grants import grants
 from apps.accounts.models import Capability, User, UserRole
 
 from apps.accounts.testing import grant_capability
@@ -55,6 +56,7 @@ def ticket(people) -> Ticket:
     for key in ("duc", "ha", "mai", "tu"):
         TeamMembership.objects.create(team=network, user=people[key])
     TeamMembership.objects.create(team=network, user=people["huy"], role=MembershipRole.LEAD.value)
+    grants.set_team_lead(None, network, people["huy"], lead=True)
     return Ticket.objects.create(
         public_id="TKT-2026-000412",
         reporter=people["lan"],

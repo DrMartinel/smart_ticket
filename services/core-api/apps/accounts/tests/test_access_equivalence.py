@@ -18,7 +18,45 @@ from apps.accounts.utils.catalog import (
 from config.urls import api
 
 SNAPSHOT = json.loads((Path(__file__).parent / "gate_snapshot.json").read_text())
-ADDED_SINCE_SNAPSHOT: dict[str, str] = {}
+ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
+    "GET /api/access/holders": Permission.ACCESS_READ,
+    "GET /api/access/me": Permission.SELF_PROFILE,
+    "GET /api/access/people/{username}/access": Permission.ACCESS_READ,
+    "GET /api/access/people/{username}/assignments": Permission.ACCESS_READ,
+    "GET /api/access/people/{username}/explain": Permission.ACCESS_READ,
+    "GET /api/access/permissions": Permission.ACCESS_READ,
+    "GET /api/access/reviews": Permission.ACCESS_REVIEW_MANAGE,
+    "GET /api/access/reviews/inbox": Permission.ACCESS_REVIEW_RESPOND,
+    "GET /api/access/reviews/{campaign_id}": Permission.ACCESS_REVIEW_MANAGE,
+    "GET /api/access/roles": Permission.ACCESS_READ,
+    "GET /api/access/roles/{urn}": Permission.ACCESS_READ,
+    "GET /api/accounts/people/{username}": Permission.ACCESS_PEOPLE_READ,
+    "GET /api/org/departments": Permission.ORG_DEPARTMENTS_READ,
+    "GET /api/org/departments/{code}": Permission.ORG_DEPARTMENTS_READ,
+    "GET /api/org/departments/{code}/people": Permission.ACCESS_PEOPLE_READ,
+    "GET /api/requester/department-tickets": Permission.REQUESTER_DEPARTMENT_READ,
+    "PATCH /api/access/roles/{urn}": Permission.ACCESS_ROLES_MANAGE,
+    "PATCH /api/accounts/people/{username}": Permission.ACCESS_PEOPLE_MANAGE,
+    "PATCH /api/org/departments/{code}": Permission.ORG_DEPARTMENTS_MANAGE,
+    "POST /api/access/assignments/{assignment_id}/confirm": Permission.ACCESS_GRANT,
+    "POST /api/access/assignments/{assignment_id}/end": Permission.ACCESS_GRANT,
+    "POST /api/access/assignments/{assignment_id}/extend": Permission.ACCESS_GRANT,
+    "POST /api/access/people/{username}/assignments": Permission.ACCESS_GRANT,
+    "POST /api/access/reviews": Permission.ACCESS_REVIEW_MANAGE,
+    "POST /api/access/reviews/items/{item_id}/decide": Permission.ACCESS_REVIEW_RESPOND,
+    "POST /api/access/reviews/{campaign_id}/close": Permission.ACCESS_REVIEW_MANAGE,
+    "POST /api/access/roles": Permission.ACCESS_ROLES_MANAGE,
+    "POST /api/access/roles/{urn}/retire": Permission.ACCESS_ROLES_MANAGE,
+    "POST /api/accounts/people": Permission.ACCESS_PEOPLE_MANAGE,
+    "POST /api/accounts/people/{username}/deactivate": Permission.ACCESS_PEOPLE_MANAGE,
+    "POST /api/accounts/people/{username}/reactivate": Permission.ACCESS_PEOPLE_MANAGE,
+    "POST /api/accounts/people/{username}/suspend": Permission.ACCESS_PEOPLE_MANAGE,
+    "POST /api/org/departments": Permission.ORG_DEPARTMENTS_MANAGE,
+    "POST /api/org/departments/{code}/archive": Permission.ORG_DEPARTMENTS_MANAGE,
+    "POST /api/org/departments/{code}/move": Permission.ORG_DEPARTMENTS_MANAGE,
+    "POST /api/org/import/departments": Permission.ORG_IMPORT,
+    "POST /api/org/import/people": Permission.ORG_IMPORT,
+}
 
 
 def routes() -> dict[str, Permission | None]:
@@ -56,8 +94,9 @@ def test_every_snapshot_route_still_exists_with_a_gate_or_none():
         assert (old["roles"] is None) == (current[key] is None), key
 
 
-def test_new_routes_are_listed():
-    assert set(routes()) - set(SNAPSHOT) == set(ADDED_SINCE_SNAPSHOT)
+def test_new_routes_are_listed_with_their_permission():
+    current = routes()
+    assert {k: current[k] for k in set(current) - set(SNAPSHOT)} == ADDED_SINCE_SNAPSHOT
 
 
 @pytest.mark.parametrize("role", list(UserRole))

@@ -17,6 +17,8 @@ from django.db.models import Count, Min, Q, QuerySet
 from django.utils import timezone
 
 from apps.accounts.models import User, UserRole
+from apps.accounts.utils.access import Access
+from apps.accounts.utils.catalog import Permission
 from apps.core.errors import CodedError
 from apps.incidents.models import IncidentBroadcast, IncidentLink
 from apps.kb.models import DraftState, GapState, KbDraft, KbGapCluster
@@ -36,7 +38,7 @@ from apps.rollout.utils.vocabulary import FlagBranch
 from apps.security.models import SecurityAlert
 from apps.security.utils.vocabulary import AlertKind, Resolution
 from apps.sla.models import Clock, ClockState
-from apps.teams.models import MembershipRole, Reassignment, Team, TeamMembership
+from apps.teams.models import Reassignment, Team, TeamMembership
 from apps.tickets.models import Incident, IncidentStatus, RoutingDecision, Ticket, TicketRating
 from apps.tickets.utils.router import ReasonCode
 
@@ -417,18 +419,12 @@ class Reports:
 
     # ── scope (BR-F10-05) ──
 
-    def lead_teams(self, user: User) -> set[str]:
-        return set(
-            TeamMembership.objects.filter(user=user, role=MembershipRole.LEAD.value).values_list(
-                "team__slug", flat=True
-            )
-        )
-
     def team_scope(self, viewer: User, team: str | None) -> list[str] | None:
         """The teams `viewer` may read with `team` asked for; None means every team."""
-        if viewer.is_manager:
+        team_ids = Access.of(viewer).team_ids(Permission.REPORTS_TEAMS_READ)
+        if team_ids is None:
             return [team] if team else None
-        led = self.lead_teams(viewer)
+        led = set(Team.objects.filter(id__in=team_ids).values_list("slug", flat=True))
         if team is None and led:
             return sorted(led)
         if team is not None and team in led:
@@ -615,7 +611,8 @@ class Reports:
         period = Period.days(start, end, zone)
         memberships = TeamMembership.objects.filter(team=team).select_related("user")
         own = memberships.filter(user=viewer).first()
-        if viewer.is_manager or (own is not None and own.role == MembershipRole.LEAD.value):
+        led = Access.of(viewer).team_ids(Permission.REPORTS_TEAMS_READ)
+        if led is None or team.id in led:
             shown = list(memberships.order_by("user__username"))
         elif own is not None:
             shown = [own]

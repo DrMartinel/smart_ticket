@@ -56,6 +56,8 @@ class Notice:
     link: str = ""
     previous_assignee: User | None = None
     linked_requesters: tuple[User, ...] = ()
+    # The people an event is about, e.g. the person granted a role.
+    subjects: tuple[User, ...] = ()
     # A team other than the ticket's, e.g. the fallback team.
     team: str | None = None
     transfer: Transfer | None = None
@@ -240,6 +242,8 @@ class Notifier:
             users = [ticket.assigned_to] if ticket else []
         elif kind is RecipientKind.PREVIOUS_ASSIGNEE:
             users = [notice.previous_assignee]
+        elif kind is RecipientKind.SUBJECT:
+            users = list(notice.subjects)
         else:
             users = list(notice.linked_requesters)
         return [u for u in users if u is not None and u.is_active]

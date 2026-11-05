@@ -5,11 +5,12 @@ from __future__ import annotations
 from enum import StrEnum
 
 from django.db import transaction
-from django.utils import timezone
 
 from apps.accounts.models import Assignment, AssignmentSource, Capability, Role, User, UserRole
 from apps.accounts.utils.access import Access
-from apps.accounts.utils.catalog import ADD_ON_ROLES
+from apps.accounts.utils.catalog import ADD_ON_ROLES, SystemRole
+from apps.accounts.utils.grants import grants
+from apps.accounts.utils.vocabulary import EndReason
 from apps.accounts.utils import sessions
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
@@ -53,17 +54,27 @@ class AccountRights:
             if before == after:
                 return user
             self.check(actor, user, role, capabilities)
+            if user.role == UserRole.MANAGER.value and role is not UserRole.MANAGER:
+                grants.check_not_last_admin(user)
             left = []
             if role is UserRole.EMPLOYEE:
-                memberships = TeamMembership.objects.filter(user=user).select_related("team")
+                from apps.teams.utils.config import team_config
+
+                memberships = list(TeamMembership.objects.filter(user=user).select_related("team"))
                 left = sorted(m.team.slug for m in memberships)
-                memberships.delete()
+                for membership in memberships:
+                    team_config.leave(actor, membership, "became_employee")
             user.role = role.value
             user.save(update_fields=["role"])
             self.set_add_ons(actor, user, capabilities, reason.strip())
             if role is UserRole.EMPLOYEE:
-                Assignment.objects.active().filter(user=user, role__is_system=False).update(
-                    ended_at=timezone.now(), ended_reason="became_employee"
+                grants.end_rows(
+                    Assignment.objects.active()
+                    .filter(user=user)
+                    .exclude(role__urn=SystemRole.DEPARTMENT_HEAD.value),
+                    EndReason.BECAME_EMPLOYEE,
+                    actor,
+                    reason.strip(),
                 )
             Access.forget(user)
             sessions.revoke_user(user, "rights_changed")
@@ -91,9 +102,7 @@ class AccountRights:
             scope_kind="global",
             role__urn__in=[urn.value for urn in ADD_ON_ROLES.values()],
         )
-        held.exclude(role__urn__in=wanted).update(
-            ended_at=timezone.now(), ended_reason="rights_changed"
-        )
+        grants.end_rows(held.exclude(role__urn__in=wanted), EndReason.RIGHTS_CHANGED, actor, reason)
         have = set(held.values_list("role__urn", flat=True))
         for urn in sorted(wanted - have):
             Assignment.objects.create(

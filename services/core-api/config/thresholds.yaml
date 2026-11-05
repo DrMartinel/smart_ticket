@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-004"
+version: "CR-2026-005"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -258,3 +258,19 @@ reports:
   window_days: 30
   kb_weeks: 8
   rollout_days: 14
+
+access:
+  # Levels a department tree may have below the root, the root counted as 1
+  # (F14, BR-F14-10).
+  department_max_depth: 6
+  # Days a mover's old department-scoped grants wait for confirmation before
+  # they end (BR-F14-13). 🔧 assumption, not measured.
+  mover_review_days: 14
+  # Hours before a time-bound grant ends that the person is told (BR-F14-16).
+  expiry_notice_hours: 48
+  # Days an access review stays open when it is opened without a close date,
+  # and days before closing that reviewers with work left are reminded.
+  review_default_days: 14
+  review_reminder_days: 3
+  # Rows one CSV import may hold (FR-F14-005).
+  import_max_rows: 2000

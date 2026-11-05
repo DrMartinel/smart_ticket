@@ -7,6 +7,7 @@ from typing import Any
 from django.db import transaction
 
 from apps.accounts.models import User
+from apps.accounts.utils.grants import grants
 from apps.audit.models import AuditLog
 from apps.teams.models import MembershipRole, Team, TeamCategory, TeamMembership
 from apps.teams.utils.assignment import TeamError
@@ -112,6 +113,7 @@ class TeamConfig:
             member, _ = TeamMembership.objects.update_or_create(
                 team=team, user=user, defaults={"role": role.value}
             )
+            grants.set_team_lead(actor, team, user, lead=role is MembershipRole.LEAD)
             self.audit_member("added", actor, team, user, role.value)
         return member
 
@@ -120,15 +122,34 @@ class TeamConfig:
         if member is None:
             return
         with transaction.atomic():
-            self.audit_member("removed", actor, team, user, member.role)
-            member.delete()
+            self.leave(actor, member, "removed")
 
-    def audit_member(self, change: str, actor: User, team: Team, user: User, role: str) -> None:
+    def leave(self, actor: User | None, member: TeamMembership, reason: str) -> None:
+        """Removes a membership and the team-lead grant that came with it."""
+        self.audit_member("removed", actor, member.team, member.user, member.role, reason)
+        grants.set_team_lead(actor, member.team, member.user, lead=False)
+        member.delete()
+
+    def audit_member(
+        self,
+        change: str,
+        actor: User | None,
+        team: Team,
+        user: User,
+        role: str,
+        reason: str = "",
+    ) -> None:
         AuditLog.objects.record(
             "membership_changed",
-            actor_type="human",
-            actor_id=actor.id,
-            payload={"change": change, "team": team.slug, "user": user.username, "role": role},
+            actor_type="human" if actor else "system",
+            actor_id=actor.id if actor else None,
+            payload={
+                "change": change,
+                "team": team.slug,
+                "user": user.username,
+                "role": role,
+                **({"reason": reason} if reason else {}),
+            },
         )
 
 

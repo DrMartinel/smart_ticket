@@ -45,7 +45,10 @@ class IdentitySync:
                 return None
             users = list(
                 User.objects.filter(
-                    auth_source=AuthSource.OIDC.value, is_active=True, is_break_glass=False
+                    auth_source=AuthSource.OIDC.value,
+                    is_active=True,
+                    is_break_glass=False,
+                    external_id__isnull=False,
                 )
             )
             try:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.db.models import Q
 from django.utils import timezone
@@ -266,3 +266,41 @@ def holders(permission: Permission) -> list[tuple[User, list[Source]]]:
         if sources:
             found.append((person, sources))
     return found
+
+
+def role_permissions(role: Role) -> frozenset[Permission]:
+    """The permissions `role` holds: from code for a system role, from its rows otherwise."""
+    if role.is_system:
+        return SYSTEM_ROLE_PERMISSIONS.get(SystemRole(role.urn), frozenset())
+    return custom_permissions({role.id}).get(role.id, frozenset())
+
+
+def role_scopes(permissions: frozenset[Permission]) -> list[ScopeKind]:
+    """The scopes a role holding `permissions` may be granted at: those every one allows."""
+    return [s for s in ScopeKind if all(s in PERMISSIONS[p].scopes for p in permissions)]
+
+
+def scope_names(scope: Scope) -> dict[str, Any]:
+    """A scope with team slugs and department codes in place of ids."""
+    from apps.teams.models import Team
+
+    return {
+        "everywhere": scope.everywhere,
+        "teams": sorted(Team.objects.filter(id__in=scope.team_ids).values_list("slug", flat=True)),
+        "departments": sorted(
+            Department.objects.filter(id__in=scope.department_ids).values_list("code", flat=True)
+        ),
+    }
+
+
+def explained(user: User) -> list[dict[str, Any]]:
+    """Every permission `user` holds, where it applies, and the grants behind it."""
+    access = Access.of(user)
+    return [
+        {
+            "urn": permission.value,
+            "scope": scope_names(scope),
+            "sources": [vars(s) for s in access.sources.get(permission, [])],
+        }
+        for permission, scope in sorted(access.scopes.items(), key=lambda item: item[0].value)
+    ]

@@ -10,7 +10,13 @@ from django.shortcuts import get_object_or_404
 from ninja import Header, Router, Status
 
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_without, require
+from apps.accounts.permissions import (
+    AuthedRequest,
+    SessionAuth,
+    refuse_unless_covers,
+    refuse_without,
+    require,
+)
 from apps.lifecycle.models import (
     CustomField,
     Transfer,
@@ -272,8 +278,10 @@ def delete_field(request: AuthedRequest, field_id: uuid.UUID) -> Status[None]:
 # ── tickets ──
 
 
-def _ticket(public_id: str) -> Ticket:
-    return get_object_or_404(Ticket, public_id=public_id)
+def _ticket(request: AuthedRequest, public_id: str, permission: Permission) -> Ticket:
+    ticket = get_object_or_404(Ticket.objects.select_related("reporter"), public_id=public_id)
+    refuse_unless_covers(request, request.auth, permission, ticket)
+    return ticket
 
 
 def _lifecycle_of(public_id: str) -> Ticket:
@@ -286,13 +294,14 @@ def _lifecycle_of(public_id: str) -> Ticket:
 @router.get("/tickets/{public_id}", auth=SessionAuth(), response=TicketLifecycleOut)
 @require(Permission.TICKETS_LIFECYCLE_READ)
 def get_ticket_lifecycle(request: AuthedRequest, public_id: str) -> Ticket:
+    _ticket(request, public_id, Permission.TICKETS_LIFECYCLE_READ)
     return _lifecycle_of(public_id)
 
 
 @router.get("/tickets/{public_id}/transitions", auth=SessionAuth(), response=list[MoveOptionOut])
 @require(Permission.TICKETS_LIFECYCLE_READ)
 def list_moves(request: AuthedRequest, public_id: str) -> list[MoveOption]:
-    return lifecycle.options(_ticket(public_id))
+    return lifecycle.options(_ticket(request, public_id, Permission.TICKETS_LIFECYCLE_READ))
 
 
 @router.post("/tickets/{public_id}/move", auth=SessionAuth(), response=TicketLifecycleOut)
@@ -301,7 +310,7 @@ def move_ticket(request: AuthedRequest, public_id: str, payload: MoveIn) -> Tick
     if payload.force:
         refuse_without(request, request.auth, Permission.TICKETS_MOVE_FORCE)
     lifecycle.move(
-        _ticket(public_id).id,
+        _ticket(request, public_id, Permission.TICKETS_MOVE).id,
         payload.status_id,
         actor=request.auth,
         force=payload.force,
@@ -317,14 +326,22 @@ def move_ticket(request: AuthedRequest, public_id: str, payload: MoveIn) -> Tick
 def change_ticket_workflow(
     request: AuthedRequest, public_id: str, payload: ChangeWorkflowIn
 ) -> Ticket:
-    lifecycle.change_workflow(_ticket(public_id).id, payload.status_id, actor=request.auth)
+    lifecycle.change_workflow(
+        _ticket(request, public_id, Permission.TICKETS_WORKFLOW_CHANGE).id,
+        payload.status_id,
+        actor=request.auth,
+    )
     return _lifecycle_of(public_id)
 
 
 @router.put("/tickets/{public_id}/fields", auth=SessionAuth(), response=TicketLifecycleOut)
 @require(Permission.TICKETS_FIELDS_WRITE)
 def write_fields(request: AuthedRequest, public_id: str, payload: FieldValuesIn) -> Ticket:
-    field_values.write(_ticket(public_id).id, payload.values, actor=request.auth)
+    field_values.write(
+        _ticket(request, public_id, Permission.TICKETS_FIELDS_WRITE).id,
+        payload.values,
+        actor=request.auth,
+    )
     return _lifecycle_of(public_id)
 
 
@@ -332,7 +349,9 @@ def write_fields(request: AuthedRequest, public_id: str, payload: FieldValuesIn)
 @require(Permission.TICKETS_LIFECYCLE_READ)
 def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]:
     return (
-        Transfer.objects.filter(ticket=_ticket(public_id))
+        Transfer.objects.filter(
+            ticket=_ticket(request, public_id, Permission.TICKETS_LIFECYCLE_READ)
+        )
         .select_related("ticket", "before_status", "after_status", "actor")
         .prefetch_related("runs")
         .order_by("-created_at")
@@ -342,7 +361,9 @@ def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]
 @router.post("/tickets/{public_id}/retry", auth=SessionAuth(), response=TransferOut)
 @require(Permission.TICKETS_TRANSFERS_RETRY)
 def retry_transfer(request: AuthedRequest, public_id: str) -> Transfer:
-    transfer = lifecycle.retry(_ticket(public_id).id, request.auth)
+    transfer = lifecycle.retry(
+        _ticket(request, public_id, Permission.TICKETS_TRANSFERS_RETRY).id, request.auth
+    )
     return (
         Transfer.objects.select_related("ticket", "before_status", "after_status", "actor")
         .prefetch_related("runs")

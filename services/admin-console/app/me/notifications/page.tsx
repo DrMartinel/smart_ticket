@@ -27,6 +27,7 @@ const VIA: Record<string, string> = {
   incident_managers: "incident manager",
   approver: "approver",
   linked_requesters: "affected requester",
+  subject: "you",
 };
 
 interface Row {

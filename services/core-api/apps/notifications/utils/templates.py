@@ -233,6 +233,29 @@ DEFAULTS: dict[NotificationEvent, dict[Language, tuple[str, str]]] = {
     },
 }
 
+DEFAULTS |= {
+    E.ACCESS_GRANTED: {
+        VI: ("Bạn được cấp quyền: {{notice.detail}}", "{{notice.actor}}: {{notice.reason}}"),
+        EN: ("You were granted {{notice.detail}}", "{{notice.actor}}: {{notice.reason}}"),
+    },
+    E.ACCESS_GRANT_EXPIRING: {
+        VI: ("Quyền sắp hết hạn: {{notice.detail}}", "{{notice.message}}"),
+        EN: ("Your access is ending: {{notice.detail}}", "{{notice.message}}"),
+    },
+    E.ACCESS_REVIEW_ASSIGNED: {
+        VI: ("Rà soát quyền: {{notice.detail}}", "{{notice.message}}\n\n{{notice.link}}"),
+        EN: ("Access review: {{notice.detail}}", "{{notice.message}}\n\n{{notice.link}}"),
+    },
+    E.ACCESS_REVIEW_CLOSING: {
+        VI: ("Đợt rà soát sắp đóng: {{notice.detail}}", "{{notice.message}}\n\n{{notice.link}}"),
+        EN: ("Access review closing: {{notice.detail}}", "{{notice.message}}\n\n{{notice.link}}"),
+    },
+    E.ORG_PERSON_MOVED: {
+        VI: ("Bạn đã chuyển sang {{notice.detail}}", "{{notice.actor}}: {{notice.reason}}"),
+        EN: ("You moved to {{notice.detail}}", "{{notice.actor}}: {{notice.reason}}"),
+    },
+}
+
 
 def default_template(event: NotificationEvent, language: Language) -> tuple[str, str]:
     """The built-in subject and body; an event without one names its label and ticket."""

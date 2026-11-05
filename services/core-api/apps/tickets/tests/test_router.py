@@ -30,6 +30,7 @@ from config.settings.base import (
     RequesterThresholds,
     KbGapsThresholds,
     ReportsThresholds,
+    AccessThresholds,
     SecurityThresholds,
     SlaThresholds,
     Thresholds,
@@ -135,6 +136,14 @@ def make_thresholds(**overrides) -> Thresholds:
             window_days=30,
             kb_weeks=8,
             rollout_days=14,
+        ),
+        access=AccessThresholds(
+            department_max_depth=6,
+            mover_review_days=14,
+            expiry_notice_hours=48,
+            review_default_days=14,
+            review_reminder_days=3,
+            import_max_rows=2000,
         ),
     )
     base.update(overrides)

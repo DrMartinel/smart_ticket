@@ -28,6 +28,7 @@ class RecipientKind(StrEnum):
     INCIDENT_MANAGERS = "incident_managers"
     LINKED_REQUESTERS = "linked_requesters"
     PREVIOUS_ASSIGNEE = "previous_assignee"
+    SUBJECT = "subject"
 
 
 # Kinds whose notices open in the chat app rather than the admin console.
@@ -72,6 +73,11 @@ class NotificationEvent(StrEnum):
     ROLLOUT_GATE_UNMET = "rollout.gate_unmet"
     REPORT_WEEKLY = "report.weekly"
     RUNBOOK_FINISHED = "runbook.finished"
+    ACCESS_GRANTED = "access.granted"
+    ACCESS_GRANT_EXPIRING = "access.grant_expiring"
+    ACCESS_REVIEW_ASSIGNED = "access.review_assigned"
+    ACCESS_REVIEW_CLOSING = "access.review_closing"
+    ORG_PERSON_MOVED = "org.person_moved"
 
 
 class NotificationRefusal(StrEnum):
@@ -288,6 +294,29 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.RUNBOOK_FINISHED: EventSpec(
         "F12", True, "Runbook finished", "Runbook đã chạy xong", _cells((K.ASSIGNEE,), IN_APP)
+    ),
+    E.ACCESS_GRANTED: EventSpec(
+        "F14", True, "Access granted", "Được cấp quyền", _cells((K.SUBJECT,), BOTH)
+    ),
+    E.ACCESS_GRANT_EXPIRING: EventSpec(
+        "F14", True, "Access expiring", "Quyền sắp hết hạn", _cells((K.SUBJECT,), BOTH)
+    ),
+    E.ACCESS_REVIEW_ASSIGNED: EventSpec(
+        "F14",
+        True,
+        "Access review assigned",
+        "Được giao rà soát quyền",
+        _cells((K.SUBJECT,), BOTH),
+    ),
+    E.ACCESS_REVIEW_CLOSING: EventSpec(
+        "F14",
+        True,
+        "Access review closing",
+        "Đợt rà soát quyền sắp đóng",
+        _cells((K.SUBJECT,), BOTH),
+    ),
+    E.ORG_PERSON_MOVED: EventSpec(
+        "F14", True, "Moved department", "Chuyển phòng ban", _cells((K.SUBJECT,), IN_APP)
     ),
 }
 

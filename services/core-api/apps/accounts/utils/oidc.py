@@ -12,8 +12,9 @@ import jwt
 from django.conf import settings
 from django.db import IntegrityError, transaction
 
-from apps.accounts.models import AuthClient, AuthSource, User
+from apps.accounts.models import AuthClient, AuthSource, Department, User
 from apps.accounts.utils import IssuedSession, Requester, SignInError, SignInRefusal, sessions
+from apps.accounts.utils.people import people
 from apps.audit.models import AuditLog
 from apps.security.utils.alerts import security_alerts
 from apps.security.utils.vocabulary import AlertKind
@@ -236,6 +237,7 @@ class Identities:
         if not user.is_active:
             user.is_active = True
             user.save(update_fields=["is_active"])
+        people.mark_signed_in(user)
         return user
 
     def link(self, claims: dict[str, Any]) -> User | None:
@@ -284,6 +286,7 @@ class Identities:
                     last_name=claims.get("family_name") or last,
                     external_id=sub,
                     auth_source=AuthSource.OIDC.value,
+                    department=Department.objects.filter(is_default=True).first(),
                 )
         except IntegrityError:
             existing = User.objects.filter(external_id=sub).first()
@@ -296,11 +299,11 @@ class Identities:
         return user
 
     def deprovision(self, user: User, reason: str) -> None:
-        """Deactivates the user and ends every sign-in (BR-F13-05)."""
+        """Deactivates the user through the leaver path and ends every sign-in (BR-F13-05,
+        FR-F14-012)."""
         with transaction.atomic():
-            user.is_active = False
-            user.save(update_fields=["is_active"])
             sessions.revoke_user(user, "idp_deprovisioned")
+            people.leave(None, user, reason)
             self.audit("identity_deactivated", user, {"reason": reason})
 
     def audit(self, event: str, user: User, payload: dict[str, Any]) -> None:

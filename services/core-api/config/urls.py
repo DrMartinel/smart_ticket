@@ -9,7 +9,7 @@ from django.urls import path
 from ninja_extra import NinjaExtraAPI
 
 from apps.accounts.permissions import gate_authentication
-from apps.accounts.views import auth_router
+from apps.accounts.views import access_router, auth_router, org_router
 from apps.core.errors import CodedError
 from apps.accounts.views import router as accounts_router
 from apps.tickets.views import pii_router
@@ -36,6 +36,8 @@ api = NinjaExtraAPI(title="Smart Ticket Triage — core-api", version="1.0.0")
 
 api.add_router("/auth", auth_router)
 api.add_router("/accounts", accounts_router)
+api.add_router("/access", access_router)
+api.add_router("/org", org_router)
 api.add_router("/tickets", tickets_router)
 api.add_router("/pii", pii_router)
 api.add_router("/kb", kb_router)

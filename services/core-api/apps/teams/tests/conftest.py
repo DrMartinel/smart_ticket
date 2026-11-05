@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from apps.accounts.utils.grants import grants
 from apps.accounts.models import User, UserRole
 from apps.lifecycle.tests.conftest import make_ticket
 from apps.lifecycle.utils.vocabulary import PipelineStatus
@@ -65,8 +66,10 @@ def network(db) -> Network:
             role=(role or MembershipRole.MEMBER).value,
             is_available=key != "vy",
         )
+    grants.set_team_lead(None, team, people["duc"], lead=True)
     access = Team.objects.get(slug="access")
     TeamMembership.objects.create(team=access, user=people["ha"], role=MembershipRole.LEAD.value)
+    grants.set_team_lead(None, access, people["ha"], lead=True)
     for key, count in (("duc", 6), ("khoa", 4), ("nam", 2), ("vy", 3)):
         open_tickets(people[key], count, people["lan"])
     Leave.objects.create(

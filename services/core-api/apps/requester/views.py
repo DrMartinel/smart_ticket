@@ -1,14 +1,15 @@
-"""The requester's tickets, form and chat: list, thread, reply, reopen, rate (F3). Every endpoint
-sees only the caller's own tickets; anyone else's is a 404 (BR-F3-04)."""
+"""The requester's tickets, form and chat: list, thread, reply, reopen, rate (F3), and the tickets
+of the departments a department head heads (F14)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from ninja import Router
+from ninja import Query, Router
 
 from apps.accounts.utils.catalog import Permission
 from apps.accounts.permissions import AuthedRequest, SessionAuth, require
+from apps.accounts.response_schema import DepartmentTicketOut
 from apps.requester.request_schema import RatingIn, ReopenIn, ReplyIn
 from apps.requester.response_schema import (
     RatingOut,
@@ -19,7 +20,8 @@ from apps.requester.response_schema import (
     ThreadCommentOut,
 )
 from apps.requester.utils.tickets import requester_tickets
-from apps.tickets.models import TicketRating
+from apps.requester.utils.vocabulary import status_label
+from apps.tickets.models import Ticket, TicketRating
 
 router = Router(tags=["requester"])
 
@@ -33,6 +35,32 @@ def my_tickets(request: AuthedRequest, before: datetime | None = None) -> Reques
         recent=[RequesterTicketRow.of(t, request.auth) for t in listing.recent],
         more_before=listing.more_before,
     )
+
+
+@router.get("/department-tickets", auth=SessionAuth(), response=list[DepartmentTicketOut])
+@require(Permission.REQUESTER_DEPARTMENT_READ)
+def department_tickets(
+    request: AuthedRequest, open_only: bool = True, limit: int = Query(100, ge=1, le=500)
+) -> list[DepartmentTicketOut]:
+    rows = Ticket.objects.in_department_of(request.auth).select_related(
+        "reporter__department", "workflow_status", "team"
+    )
+    if open_only:
+        rows = rows.filter(resolved_at__isnull=True)
+    return [
+        DepartmentTicketOut(
+            public_id=t.public_id,
+            subject_masked=t.subject_masked,
+            requester=t.reporter.username,
+            requester_name=t.reporter.get_full_name(),
+            department=t.reporter.department.code if t.reporter.department else None,
+            status_label=status_label(t.workflow_status, request.auth.language),
+            team=t.team.name if t.team else None,
+            created_at=t.created_at,
+            resolved_at=t.resolved_at,
+        )
+        for t in rows.order_by("-created_at")[:limit]
+    ]
 
 
 @router.get("/tickets/{public_id}", auth=SessionAuth(), response=RequesterTicketOut)
