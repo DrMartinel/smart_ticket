@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
+
 from django.conf import settings
 from django.db import models
 
 from apps.core.models import BaseModel
+
+
+class CloseState(StrEnum):
+    """Where close-all has got with a linked ticket."""
+
+    CLOSING = "closing"
+    CLOSED = "closed"
+    FAILED = "failed"
 
 
 class IncidentLinkQuerySet(models.QuerySet["IncidentLink"]):
@@ -26,6 +36,11 @@ class IncidentLink(BaseModel):
     similarity = models.FloatField(null=True, blank=True)
     unlinked_at = models.DateTimeField(null=True, blank=True)
     unlink_reason = models.TextField(blank=True, default="")
+    close_state = models.CharField(
+        max_length=10, blank=True, default="", choices=[(c.value, c.value) for c in CloseState]
+    )
+    close_code = models.CharField(max_length=40, blank=True, default="")
+    close_started_at = models.DateTimeField(null=True, blank=True)
 
     objects = IncidentLinkQuerySet.as_manager()
 

@@ -181,6 +181,13 @@ export default function IncidentPage() {
         <Alert variant={result.failed.length > 0 ? "warn" : "ok"}>
           <AlertDescription>
           Closed {result.closed.length} ticket{result.closed.length === 1 ? "" : "s"}.
+          {(result.closing?.length ?? 0) > 0 && (
+            <>
+              {" "}
+              {result.closing?.length} more {result.closing?.length === 1 ? "is" : "are"} on the way: their workflow runs an action
+              first, and close-all finishes them within a minute or so.
+            </>
+          )}
           {result.failed.length > 0 && (
             <>
               {" "}

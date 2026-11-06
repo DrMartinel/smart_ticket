@@ -155,7 +155,7 @@ clock (a staff public message, BR-F1-06).
 | BR-F7-03 | Confirming approves each linked ticket's pending `escalate` review item in the incident manager's name; it never changes the routing decision | The router chose `escalate`; confirming agrees with it | Confirm service |
 | BR-F7-04 | Once an incident is confirmed, an `escalate` / `mass_incident` decision for a newly linked ticket is carried out by attaching it to the incident (no new review item) | `escalate` means "hand to incident management"; the incident is that hand | `_execute_or_enqueue` ESCALATE branch |
 | BR-F7-05 | Broadcasts go once per requester per broadcast, are mandatory, and show the ETA. Text is written by a person and masked like any comment | Spec §9; BR-X-06 | Broadcast service, F4 |
-| BR-F7-06 | Close-all is one governed `automatic_move` per ticket, each audited; a refused move doesn't stop the rest | Per-ticket audit; ADR-0028 | Resolve service |
+| BR-F7-06 | Close-all takes each ticket along its workflow's shortest path to `resolved`, every step a governed automatic move, each audited; empty required text fields on the way get the resolution note; a refused ticket doesn't stop the rest | Per-ticket audit; ADR-0028 | Resolve service, incident sweep |
 | BR-F7-07 | Linked tickets' resolution clocks pause while their incident is `confirmed`; they resume on unlink, dismiss, or resolve without close-all | 40 tickets can't each be fixed separately; the incident carries the clock | F1 hook (BR-F1-15) |
 | BR-F7-08 | No auto-reply ever for a linked ticket | Spec §9; today's `mass_incident` gate | Unchanged router gate |
 | BR-F7-09 | `ticket_count` = number of linked tickets, counted from the links | Fixes defect 2 | Query, not a stored sum |
@@ -173,7 +173,7 @@ clock (a staff public message, BR-F1-06).
 | FR-F7-006 | The system shall attach newly linked tickets of a confirmed incident without a review item, and show the requester the latest broadcast |
 | FR-F7-007 | The system shall send broadcasts once per requester (in-app + email, mandatory) and add a system public comment to each linked ticket |
 | FR-F7-008 | The system shall show delivery counts per broadcast: requesters, in-app delivered, email delivered, email failed |
-| FR-F7-009 | On resolve with close-all, the system shall move each linked open ticket to `resolved` via `automatic_move` with the resolution note, and list failures |
+| FR-F7-009 | On resolve with close-all, the system shall move each linked open ticket along its workflow's path to `resolved` with the resolution note, finish those waiting on a step's actions from the incident sweep, and list failures |
 | FR-F7-010 | The system shall pause and resume linked tickets' resolution clocks per BR-F7-07 |
 | FR-F7-011 | The system shall unlink a ticket with a reason and give it a `low_confidence` review item |
 | FR-F7-012 | The chat shall show an incident banner (title, stage, ETA, last update) on every linked ticket |
@@ -301,20 +301,26 @@ Code wins (README §0.4 item 5). Item 1 is the owner's decision of 2026-10-26:
    `escalate` ones: the detector links tickets that were routed (HITL) before
    the incident existed. Routing decisions are never changed, no eval
    candidate is written, and nothing is handed off to a team.
-4. **Close-all runs inside the resolve request**, one governed
-   `automatic_move` per ticket, already-resolved tickets skipped; §h's
-   `incidents.close_all` Celery task isn't used, since the response is the
-   result list. Each ticket gets the note through the final broadcast's
+4. **Close-all starts inside the resolve request**, already-resolved
+   tickets skipped, and the response is the result list (closed, still
+   closing, refused); §h's separate `incidents.close_all` Celery task isn't
+   used: the incident sweep carries on the tickets still closing (item 6). Each ticket gets the note through the final broadcast's
    public comment, not a second one. A refused ticket's assignee gets the new
    event `incident.ticket_not_closed` (in-app); a ticket with no assignee is
    only listed.
 5. **No per-ticket `ticket.resolved` notice** for a ticket closed with its
    incident: the requester had the final broadcast.
-6. **In a strict workflow close-all can't close a ticket still at
-   `escalated`**: confirm hands nothing off, and a pipeline status only leads
-   to `assigned`. Those tickets are listed with `transition_not_allowed` and
-   their clocks resume (seen on the dev database, whose default workflow is
-   strict). Open: TODO 16.
+6. **Close-all walks the workflow's path** (decided 2026-11-06, TODO 16).
+   In a strict workflow a ticket still at `escalated` or `pending_review`
+   reaches `resolved` only through `assigned` and `in_progress`, so close-all
+   takes the shortest modelled path, each step a governed automatic move with
+   its rules and actions, never through a pipeline status. Empty required
+   text fields of the path's transitions get the masked resolution note in
+   the incident manager's name, and every step's rules are checked before the
+   first move, so a ticket is refused whole or not at all. A step whose
+   actions run on Celery leaves the ticket `closing` (per link:
+   `close_state`, `close_code`); the incident sweep carries it on and lists
+   it closed or refused like the rest. Reopening the incident stops it.
 7. **Broadcasts, the resolution note and every reason are masked with both
    tiers**, like a comment; values are dropped, never quarantined. When
    masking fails nothing is sent or stored (`503 mask_failed`).

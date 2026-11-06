@@ -147,6 +147,7 @@ class IncidentDetailOut(IncidentRowOut):
 
 class CloseResultOut(Schema):
     closed: list[str]
+    closing: list[str] = []
     failed: list[dict[str, str]]
 
 

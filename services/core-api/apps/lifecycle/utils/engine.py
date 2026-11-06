@@ -24,7 +24,9 @@ from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.lifecycle.models import (
     ActionRun,
+    CustomField,
     Transfer,
+    Transition,
     TransitionRule,
     Workflow,
     WorkflowStatus,
@@ -36,10 +38,19 @@ from apps.lifecycle.utils.resolver import (
     MoveOption,
     Resolution,
     allowed_moves,
+    find_transition,
+    path_to,
     plan_runs,
     resolve,
 )
-from apps.lifecycle.utils.rules import ConfiguredRule, RuleCode, RuleViolation, violations
+from apps.lifecycle.utils.rules import (
+    ConfiguredRule,
+    FieldType,
+    RuleCode,
+    RuleViolation,
+    is_empty,
+    violations,
+)
 from apps.lifecycle.utils.runner import Outcome, runner
 from apps.lifecycle.utils.vocabulary import (
     DONE_RUN_STATES,
@@ -51,6 +62,7 @@ from apps.lifecycle.utils.vocabulary import (
     PipelineStatus,
     RunState,
     TransferState,
+    TransitionPolicy,
     Trigger,
 )
 from apps.requester.utils.notices import ticket_notices
@@ -214,6 +226,85 @@ class Lifecycle:
         transfer = self.request_move(ticket.pk, target.id, actor=None, trigger=Trigger.ACTION)
         ticket.refresh_from_db(fields=[*_MOVED_FIELDS])
         return transfer
+
+    def step_toward(
+        self, ticket: Ticket, status_key: str, *, required_text: str, actor: User
+    ) -> bool:
+        """Moves a ticket along the workflow's shortest path to `status_key`, as far as its moves
+        complete now, and says whether it got there. Empty required text fields of the path's
+        transitions get `required_text` (already masked) in `actor`'s name, and every step's
+        rules are checked before the first move. Updates the caller's instance."""
+        with transaction.atomic():
+            ticket.refresh_from_db(fields=[*_MOVED_FIELDS, "waiting_transform"])
+            workflow = Workflow.objects.of_ticket(ticket)
+            target = workflow.statuses.filter(key=status_key).first()
+            if target is None:
+                raise LifecycleError(
+                    404,
+                    FailureCode.STATUS_NOT_IN_WORKFLOW,
+                    f"no status {status_key!r} in the workflow",
+                )
+            if ticket.workflow_status_id == target.id:
+                return True
+            if ticket.waiting_transform or ticket.transfers.open().exists():
+                return False
+            current = WorkflowStatus.objects.of_ticket(ticket)
+            transitions = list(workflow.transitions.prefetch_related("rules__field"))
+            steps = self.path_of(workflow, transitions, current, target)
+            hops: list[tuple[Resolution, WorkflowStatus]] = []
+            for before, after in zip([current, *steps], steps) if current else ():
+                hop = find_transition(transitions, before, after)
+                if hop is not None and hop.transition is not None:
+                    hops.append((hop, after))
+            self.fill_required_text(
+                ticket, [t for hop, _ in hops if (t := hop.transition)], required_text, actor
+            )
+            for hop, after in hops:
+                self.check_transition_rules(ticket, hop, after)
+            for step in steps:
+                transfer = self.request_move(ticket.pk, step.id, actor=None, trigger=Trigger.ACTION)
+                ticket.refresh_from_db(fields=[*_MOVED_FIELDS, "waiting_transform"])
+                if transfer is not None and transfer.state != TransferState.COMPLETED.value:
+                    break
+            return ticket.workflow_status_id == target.id
+
+    def path_of(
+        self,
+        workflow: Workflow,
+        transitions: list[Transition],
+        current: WorkflowStatus | None,
+        target: WorkflowStatus,
+    ) -> list[WorkflowStatus]:
+        """The statuses a ticket at `current` enters on its way to `target`."""
+        if current is None or workflow.transition_policy == TransitionPolicy.OPEN.value:
+            return [target]
+        steps = path_to(transitions, list(workflow.statuses.all()), current, target)
+        if steps is None:
+            raise LifecycleError(
+                422,
+                FailureCode.TRANSITION_NOT_ALLOWED,
+                f"no path from {current.name!r} to {target.name!r}",
+            )
+        return steps
+
+    def fill_required_text(
+        self, ticket: Ticket, transitions: list[Transition], text: str, actor: User
+    ) -> None:
+        """Writes `text` into each empty text field one of `transitions` requires."""
+        values = field_values.of(ticket)
+        empty: dict[CustomField, Any] = {
+            rule.field: text
+            for transition in transitions
+            for rule in transition.rules.all()
+            if rule.is_active
+            and rule.rule == RuleCode.REQUIRED.value
+            and rule.field.field_type in (FieldType.TEXT.value, FieldType.TEXTAREA.value)
+            and is_empty(values.get(str(rule.field_id)))
+        }
+        if empty:
+            field_values.apply(
+                ticket.id, empty, actor=actor, depth=0, quarantine={}, pii_level=None
+            )
 
     def request_move(
         self,

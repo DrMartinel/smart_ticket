@@ -11,7 +11,7 @@ import pytest
 from apps.accounts.models import Capability, User, UserRole
 
 from apps.accounts.testing import grant_capability
-from apps.lifecycle.tests.conftest import strict  # noqa: F401 — the fixture
+from apps.lifecycle.tests.conftest import celery, strict, webhooks  # noqa: F401 — the fixtures
 from apps.sla.tests.conftest import clock, submitted  # noqa: F401 — the fixture
 from apps.tickets.models import Ticket
 from apps.tickets.utils.pipeline import _degraded_signals, ticket_process
@@ -104,3 +104,13 @@ def arrive(reporter: User, engine: Engine, axis: int) -> Ticket:
     ticket_process(str(ticket.id))
     ticket.refresh_from_db()
     return ticket
+
+
+@pytest.fixture
+def queue(celery, monkeypatch):  # noqa: F811 — the lifecycle fixture
+    """The lifecycle's recorded Celery queue, with notification sends dropped: on-commit work
+    runs at once under it."""
+    from apps.notifications import tasks
+
+    monkeypatch.setattr(tasks.dispatch, "delay", lambda message_id: None)
+    return celery

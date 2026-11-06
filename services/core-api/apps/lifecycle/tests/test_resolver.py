@@ -6,7 +6,7 @@ import pytest
 
 from apps.lifecycle.models import Transition, Workflow, WorkflowAction, WorkflowStatus
 from apps.lifecycle.utils.errors import LifecycleError
-from apps.lifecycle.utils.resolver import allowed_moves, plan_runs, resolve
+from apps.lifecycle.utils.resolver import allowed_moves, path_to, plan_runs, resolve
 from apps.lifecycle.utils.vocabulary import (
     Direction,
     FailureCode,
@@ -179,3 +179,25 @@ def test_runs_are_planned_before_then_enter_then_after():
 
 def test_an_inactive_action_is_not_planned():
     assert plan_runs([action("set_field", "after", active=False)], []) == []
+
+
+ESCALATED = status("escalated")
+STATUSES = [NEW, REVIEW, WORKING, HOLD, DONE, ESCALATED]
+
+
+def test_the_path_takes_the_fewest_modelled_steps():
+    assert path_to(TRANSITIONS, STATUSES, REVIEW, DONE) == [WORKING, DONE]
+
+
+def test_a_bidirectional_transition_is_walked_backwards():
+    assert path_to(TRANSITIONS, STATUSES, HOLD, DONE) == [WORKING, DONE]
+
+
+def test_no_path_when_no_transition_leads_there():
+    assert path_to(TRANSITIONS, STATUSES, DONE, REVIEW) is None
+
+
+def test_the_path_never_passes_through_a_pipeline_status():
+    through_pipeline = [link(HOLD, ESCALATED), link(ESCALATED, DONE)]
+
+    assert path_to(through_pipeline, STATUSES, HOLD, DONE) is None

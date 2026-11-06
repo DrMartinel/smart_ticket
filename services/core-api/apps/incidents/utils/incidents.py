@@ -21,7 +21,7 @@ from apps.accounts.utils.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
-from apps.incidents.models import IncidentBroadcast, IncidentLink
+from apps.incidents.models import CloseState, IncidentBroadcast, IncidentLink
 from apps.notifications.models import Message
 from apps.notifications.utils.notifier import Notice, notifier
 from apps.notifications.utils.vocabulary import NotificationEvent
@@ -64,6 +64,7 @@ class IncidentError(CodedError):
 @dataclass
 class CloseResult:
     closed: list[str] = field(default_factory=list)
+    closing: list[str] = field(default_factory=list)
     failed: list[dict[str, str]] = field(default_factory=list)
 
 
@@ -507,40 +508,13 @@ class Incidents:
         return result
 
     def close_all(self, incident: Incident, actor: User) -> CloseResult:
-        """Moves each linked open ticket to `resolved`, each audited; a refusal is listed and its
-        assignee told."""
-        from apps.lifecycle.utils.engine import lifecycle
-        from apps.lifecycle.utils.errors import LifecycleError
-        from apps.sla.utils.clocks import sla_clocks
-
-        result = CloseResult()
-        for ticket in self.linked(incident):
-            if ticket.resolved_at is not None:
-                continue
-            try:
-                with transaction.atomic():
-                    lifecycle.automatic_move(ticket, "resolved")
-                    AuditLog.objects.record(
-                        "incident_ticket_closed",
-                        actor_type="human",
-                        actor_id=actor.id,
-                        ticket_id=ticket.id,
-                        payload={"incident": incident.public_id},
-                    )
-                result.closed.append(ticket.public_id)
-            except LifecycleError as e:
-                result.failed.append({"ticket": ticket.public_id, "code": e.code.value})
-                sla_clocks.incident_hold(ticket, False)
-                notifier.emit(
-                    NotificationEvent.INCIDENT_TICKET_NOT_CLOSED,
-                    ticket,
-                    Notice(
-                        actor=actor.username,
-                        reason=incident.public_id,
-                        detail=e.code.value,
-                        data={"incident": incident.public_id, "code": e.code.value},
-                    ),
-                )
+        """Starts each linked open ticket on its workflow's path to `resolved` with the resolution
+        note; the sweep carries on with tickets still on the way (BR-F7-06)."""
+        now = timezone.now()
+        IncidentLink.objects.active().filter(
+            incident=incident, ticket__resolved_at__isnull=True
+        ).update(close_state=CloseState.CLOSING.value, close_code="", close_started_at=now)
+        result = self.continue_closing(incident, actor)
         AuditLog.objects.record(
             "incident_close_all",
             actor_type="human",
@@ -548,10 +522,96 @@ class Incidents:
             payload={
                 "incident": incident.public_id,
                 "closed": len(result.closed),
+                "closing": result.closing,
                 "failed": result.failed,
             },
         )
         return result
+
+    def continue_closing(self, incident: Incident, actor: User) -> CloseResult:
+        """Moves each ticket close-all is still closing as far as it goes now; one arriving is
+        audited, one refused is listed and its assignee told."""
+        from apps.lifecycle.utils.engine import lifecycle
+        from apps.lifecycle.utils.errors import LifecycleError
+
+        result = CloseResult()
+        links = IncidentLink.objects.active().filter(
+            incident=incident, close_state=CloseState.CLOSING.value
+        )
+        for link in links.select_related("ticket"):
+            ticket = link.ticket
+            code = self.stopped_move(link)
+            arrived = False
+            if code is None:
+                try:
+                    with transaction.atomic():
+                        arrived = lifecycle.step_toward(
+                            ticket,
+                            "resolved",
+                            required_text=incident.resolution_note_masked,
+                            actor=actor,
+                        )
+                        if arrived:
+                            self.closed(link, actor)
+                except LifecycleError as e:
+                    code = e.code.value
+            if arrived:
+                result.closed.append(ticket.public_id)
+            elif code is not None:
+                self.not_closed(link, actor, code)
+                result.failed.append({"ticket": ticket.public_id, "code": code})
+            else:
+                result.closing.append(ticket.public_id)
+        return result
+
+    def stopped_move(self, link: IncidentLink) -> str | None:
+        """The failure code of a move close-all made that failed or was cancelled, if any."""
+        from apps.lifecycle.models import Transfer
+        from apps.lifecycle.utils.vocabulary import TransferState, Trigger
+
+        stopped = (
+            Transfer.objects.filter(
+                ticket_id=link.ticket_id,
+                trigger=Trigger.ACTION.value,
+                created_at__gte=link.close_started_at,
+                state__in=[TransferState.FAILED.value, TransferState.CANCELLED.value],
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        return (stopped.failure_code or stopped.state) if stopped else None
+
+    def closed(self, link: IncidentLink, actor: User) -> None:
+        """Records that close-all brought a ticket to `resolved`."""
+        link.close_state = CloseState.CLOSED.value
+        link.save(update_fields=["close_state"])
+        AuditLog.objects.record(
+            "incident_ticket_closed",
+            actor_type="human",
+            actor_id=actor.id,
+            ticket_id=link.ticket_id,
+            payload={"incident": link.incident.public_id},
+        )
+
+    def not_closed(self, link: IncidentLink, actor: User, code: str) -> None:
+        """Records that close-all couldn't close a ticket: its clock runs again and its assignee
+        is told."""
+        from apps.sla.utils.clocks import sla_clocks
+
+        link.close_state, link.close_code = CloseState.FAILED.value, code
+        link.save(update_fields=["close_state", "close_code"])
+        incident = link.incident
+        sla_clocks.incident_hold(link.ticket, False)
+        notifier.emit(
+            NotificationEvent.INCIDENT_TICKET_NOT_CLOSED,
+            link.ticket,
+            Notice(
+                actor=actor.username,
+                reason=incident.public_id,
+                detail=code,
+                data={"incident": incident.public_id, "code": code},
+            ),
+        )
 
     def reopen(self, public_id: str, actor: User, reason: str) -> Incident:
         """The same outage is back: confirmed again, clocks of linked open tickets wait again."""
@@ -568,6 +628,9 @@ class Incidents:
             incident.status = IncidentStatus.CONFIRMED.value
             incident.resolved_at = None
             incident.save()
+            IncidentLink.objects.filter(
+                incident=incident, close_state=CloseState.CLOSING.value
+            ).update(close_state="")
             for ticket in self.linked(incident):
                 if ticket.resolved_at is None:
                     sla_clocks.incident_hold(ticket, True)
@@ -681,7 +744,8 @@ class Incidents:
     # ── the sweep (BR-F7-10) ──
 
     def sweep(self, now: datetime | None = None) -> dict[str, int]:
-        """Target breaches once each; resolved incidents closed after `auto_close_after_days`."""
+        """Target breaches once each; close-all carried on; resolved incidents closed after
+        `auto_close_after_days`."""
         now = now or timezone.now()
         breached = 0
         for incident in Incident.objects.filter(
@@ -704,6 +768,18 @@ class Incidents:
                     event_id=uuid.uuid5(uuid.NAMESPACE_URL, f"incident_breach:{incident.id}"),
                 )
                 breached += 1
+        closing = 0
+        for incident in (
+            Incident.objects.filter(
+                links__close_state=CloseState.CLOSING.value,
+                links__unlinked_at__isnull=True,
+                resolved_by__isnull=False,
+            )
+            .select_related("resolved_by")
+            .distinct()
+        ):
+            if incident.resolved_by is not None:
+                closing += len(self.continue_closing(incident, incident.resolved_by).closing)
         cutoff = now - timedelta(days=settings.THRESHOLDS.incident.auto_close_after_days)
         closed = Incident.objects.filter(
             status=IncidentStatus.RESOLVED.value, resolved_at__lte=cutoff
@@ -712,7 +788,7 @@ class Incidents:
             AuditLog.objects.record(
                 "incident_closed", actor_type="system", payload={"count": closed}
             )
-        return {"breached": breached, "closed": closed}
+        return {"breached": breached, "closed": closed, "closing": closing}
 
 
 # --- the incidents service ---

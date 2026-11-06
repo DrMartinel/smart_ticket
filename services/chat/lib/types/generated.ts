@@ -1156,6 +1156,7 @@ export interface IncidentDetailOut {
 
 export interface CloseResultOut {
   closed: string[];
+  closing?: string[];
   failed: Record<string, string>[];
 }
 

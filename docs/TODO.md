@@ -480,7 +480,7 @@ single-turn set and on the approved multi-turn cases, and the run is in
 
 ---
 
-## 16. Close-all in strict workflows (F7)
+## 16. ~~Close-all in strict workflows (F7)~~ (done 2026-11-06: close-all walks the workflow's path, F7 v0.6.10 item 6)
 
 **Priority:** Medium · **Spec:** F7 BR-F7-03, BR-F7-06 (v0.6.10 item 6)
 

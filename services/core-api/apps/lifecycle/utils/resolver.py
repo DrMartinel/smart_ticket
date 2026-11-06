@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from apps.lifecycle.models import Transition, Workflow, WorkflowAction, WorkflowStatus
 from apps.lifecycle.utils.errors import LifecycleError
@@ -50,6 +51,42 @@ def find_transition(
         if direction is not None and transition.destination_from(current.id) == target.id:
             return Resolution(transition, direction)
     return None
+
+
+def path_to(
+    transitions: Sequence[Transition],
+    statuses: Sequence[WorkflowStatus],
+    current: WorkflowStatus,
+    target: WorkflowStatus,
+) -> list[WorkflowStatus] | None:
+    """The fewest statuses a ticket at `current` enters to reach `target` by modelled transitions,
+    `target` last and no pipeline status on the way; None when no path leads there."""
+    by_id = {s.id: s for s in statuses}
+    came_from: dict[Any, Any] = {current.id: None}
+    frontier = [current.id]
+    while frontier and target.id not in came_from:
+        reached = []
+        for here in frontier:
+            for transition in transitions:
+                if transition.direction_from(here) is None:
+                    continue
+                there = transition.destination_from(here)
+                status = by_id.get(there)
+                if there in came_from or status is None:
+                    continue
+                if status.is_pipeline and there != target.id:
+                    continue
+                came_from[there] = here
+                reached.append(there)
+        frontier = reached
+    if target.id not in came_from:
+        return None
+    path = []
+    step = target.id
+    while step != current.id:
+        path.append(by_id[step])
+        step = came_from[step]
+    return path[::-1]
 
 
 def resolve(

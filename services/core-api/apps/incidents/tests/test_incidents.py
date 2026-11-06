@@ -12,9 +12,18 @@ from apps.audit.models import AuditLog
 from apps.incidents.models import IncidentLink
 from apps.incidents.tests.conftest import PRINTER, VPN, Engine, arrive, near
 from apps.incidents.utils.incidents import IncidentError, incidents
-from apps.lifecycle.request_schema import StatusIn
-from apps.lifecycle.tests.conftest import StrictFlow, put_in
+from apps.incidents.models import CloseState
+from apps.lifecycle.request_schema import (
+    FieldIn,
+    RuleIn,
+    StatusIn,
+    TransitionIn,
+    TransitionPatch,
+)
+from apps.lifecycle.tests.conftest import StrictFlow, actions, put_in
 from apps.lifecycle.utils.config import workflow_config
+from apps.lifecycle.utils.fields import field_values
+from apps.lifecycle.utils.rules import FieldType, RuleCode
 from apps.lifecycle.utils.vocabulary import StatusKind
 from apps.notifications.models import Message
 from apps.review.models import EvalCandidate, ReviewDecision, ReviewItem
@@ -304,6 +313,108 @@ class TestResolve:
             ticket.refresh_from_db()
         assert sum(t.resolved_at is not None for t in tickets) == 6
 
+    def test_close_all_walks_a_strict_workflow_to_resolved(self, desk, engine, clock, strict):
+        """From `pending_review`, the only way to `resolved` runs through `working`."""
+        incident, tickets = confirmed(desk, engine)
+        resolved = with_resolved(strict)
+        for ticket in tickets:
+            put_in(ticket, strict.review)
+
+        result = incidents.resolve(incident.public_id, desk["duc"], "VPN hoạt động lại.", True)
+
+        assert sorted(result.closed) == sorted(t.public_id for t in tickets)
+        assert result.failed == [] and result.closing == []
+        ticket = Ticket.objects.get(pk=tickets[0].pk)
+        assert ticket.workflow_status == resolved
+        assert {t.after_status for t in ticket.transfers.filter(trigger="action")} == {
+            strict.working,
+            resolved,
+        }
+
+    def test_close_all_writes_the_note_into_a_required_text_field(
+        self, desk, engine, clock, strict
+    ):
+        incident, tickets = confirmed(desk, engine)
+        resolved = with_resolved(strict)
+        field = required_on(strict, resolved, "Resolution", FieldType.TEXTAREA)
+        put_in(tickets[0], strict.working)
+
+        result = incidents.resolve(incident.public_id, desk["duc"], "Đã thay chứng chỉ.", True)
+
+        assert tickets[0].public_id in result.closed
+        incident.refresh_from_db()
+        assert field_values.of(tickets[0])[str(field.id)] == incident.resolution_note_masked
+
+    def test_a_required_field_the_note_cannot_fill_refuses_before_any_move(
+        self, desk, engine, clock, strict
+    ):
+        incident, tickets = confirmed(desk, engine)
+        resolved = with_resolved(strict)
+        required_on(strict, resolved, "Root cause", FieldType.SELECT, options=["Network", "App"])
+        stuck = put_in(tickets[0], strict.review)
+
+        result = incidents.resolve(incident.public_id, desk["duc"], "VPN hoạt động lại.", True)
+
+        assert result.failed == [{"ticket": stuck.public_id, "code": "rule_violation"}]
+        assert Ticket.objects.get(pk=stuck.pk).workflow_status == strict.review
+        link = IncidentLink.objects.get(ticket=stuck)
+        assert (link.close_state, link.close_code) == (CloseState.FAILED.value, "rule_violation")
+
+    def test_a_ticket_waiting_on_an_action_is_closed_by_the_sweep(
+        self, desk, engine, clock, strict, queue, webhooks
+    ):
+        incident, tickets = confirmed(desk, engine)
+        with_resolved(strict)
+        webhook_after_review(strict)
+        waiting = put_in(tickets[0], strict.review)
+
+        result = incidents.resolve(incident.public_id, desk["duc"], "VPN hoạt động lại.", True)
+
+        assert result.closing == [waiting.public_id]
+        assert Ticket.objects.get(pk=waiting.pk).workflow_status == strict.working
+        queue.drain()
+        assert incidents.sweep()["closing"] == 0
+        assert Ticket.objects.get(pk=waiting.pk).resolved_at is not None
+        assert IncidentLink.objects.get(ticket=waiting).close_state == CloseState.CLOSED.value
+        assert AuditLog.objects.filter(
+            event="incident_ticket_closed", ticket_id=waiting.id
+        ).exists()
+
+    def test_a_step_that_fails_after_resolve_is_listed_and_the_assignee_told(
+        self, desk, engine, clock, strict, queue, webhooks
+    ):
+        incident, tickets = confirmed(desk, engine)
+        with_resolved(strict)
+        webhook_after_review(strict)
+        webhooks.status = 500
+        failing = put_in(tickets[0], strict.review)
+        Ticket.objects.filter(pk=failing.pk).update(assigned_to=desk["khoa"])
+
+        incidents.resolve(incident.public_id, desk["duc"], "VPN hoạt động lại.", True)
+        queue.drain()
+        incidents.sweep()
+
+        link = IncidentLink.objects.get(ticket=failing)
+        assert link.close_state == CloseState.FAILED.value
+        assert link.close_code
+        assert Ticket.objects.get(pk=failing.pk).resolved_at is None
+        assert Message.objects.filter(
+            user=desk["khoa"], event="incident.ticket_not_closed"
+        ).exists()
+
+    def test_reopening_stops_close_all(self, desk, engine, clock, strict, queue, webhooks):
+        incident, tickets = confirmed(desk, engine)
+        with_resolved(strict)
+        webhook_after_review(strict)
+        waiting = put_in(tickets[0], strict.review)
+        incidents.resolve(incident.public_id, desk["duc"], "VPN hoạt động lại.", True)
+
+        incidents.reopen(incident.public_id, desk["duc"], "VPN lại gián đoạn.")
+        queue.drain()
+        incidents.sweep()
+
+        assert Ticket.objects.get(pk=waiting.pk).workflow_status == strict.working
+
     def test_close_all_sends_no_per_ticket_resolved_notice(self, desk, engine, clock):
         incident, tickets = confirmed(desk, engine)
 
@@ -318,6 +429,49 @@ class TestResolve:
         with pytest.raises(IncidentError) as refused:
             incidents.resolve(incident.public_id, desk["duc"], " ", True)
         assert refused.value.code == "reason_required"
+
+
+def with_resolved(strict: StrictFlow):
+    """Adds `resolved` to the strict workflow, reached from `working`."""
+    resolved = workflow_config.add_status(
+        strict.workflow, StatusIn(name="Resolved", kind=StatusKind.COMPLETED)
+    )
+    workflow_config.add_transition(
+        strict.workflow,
+        TransitionIn(
+            from_status_id=strict.working.id,
+            to_status_id=resolved.id,
+            name="working->resolved",
+            is_bidirectional=False,
+        ),
+    )
+    return resolved
+
+
+def required_on(strict: StrictFlow, resolved, name: str, kind: FieldType, **kw):
+    """A field the move from `working` to `resolved` requires."""
+    field = workflow_config.add_field(strict.workflow, FieldIn(name=name, field_type=kind, **kw))
+    workflow_config.update_transition(
+        strict.working.outgoing.get(to_status=resolved),
+        TransitionPatch(rules=[RuleIn(field_id=field.id, rule=RuleCode.REQUIRED)]),
+    )
+    return field
+
+
+def webhook_after_review(strict: StrictFlow) -> None:
+    """A webhook the move from `pending_review` to `working` calls once it is made."""
+    workflow_config.update_transition(
+        strict.review.outgoing.get(to_status=strict.working),
+        TransitionPatch(
+            actions=actions(
+                {
+                    "action": "call_webhook",
+                    "params": {"url": "http://localhost/x"},
+                    "position": "after",
+                }
+            )
+        ),
+    )
 
 
 class TestClocks:

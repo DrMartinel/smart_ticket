@@ -9,5 +9,6 @@ from apps.incidents.utils.incidents import incidents
 
 @shared_task
 def sweep() -> dict[str, int]:
-    """Beat task: target-breach notices and closing resolved incidents (BR-F7-10)."""
+    """Beat task: target-breach notices, close-all carried on, and closing resolved incidents
+    (BR-F7-06, BR-F7-10)."""
     return incidents.sweep()
