@@ -156,7 +156,7 @@ footer { color: var(--muted); font-size: 12px; }
     </div>
     <div class="grid-2">
       <div class="panel"><p class="chart-title">Retrieval recall@3</p><p class="chart-sub">Gold article among the first 3 pages · 60 tickets, then 500 from 10/11 · gated until 10/12, recall@5 since</p><div id="c-recall"></div></div>
-      <div class="panel"><p class="chart-title">Auto-reply precision</p><p class="chart-sub">Auto-replies whose golden branch is auto_reply · absolute gate</p><div id="c-autoreply"></div></div>
+      <div class="panel"><p class="chart-title">Auto-reply precision</p><p class="chart-sub">Auto-replies whose golden branch is auto_reply · gated until 11/06, page precision since</p><div id="c-autoreply"></div></div>
       <div class="panel"><p class="chart-title">Branch accuracy</p><p class="chart-sub">Routed branch matches the golden branch · every labeled ticket (145; 171 from 10/04; 611 from 10/12) · reported, not gated</p><div id="c-branch"></div></div>
       <div class="panel"><p class="chart-title">F1 by category</p><p class="chart-sub">Gate 0.85 for every category, never averaged (rule 9) · ▼ below gate</p><div class="scroll" id="t-f1"></div></div>
     </div>
@@ -185,7 +185,7 @@ footer { color: var(--muted); font-size: 12px; }
   const shown = (s) => String(s).replace(/\b([Pp])roduction\b/g, (_, p) => (p === "P" ? "Baseline" : "baseline"));
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const parse = (txt) => txt.split("\n").filter((l) => l.trim()).map((l) => JSON.parse(l));
-  const UNITS = { retrieval_recall_at_5: "ratio", retrieval_recall_at_3: "ratio", auto_reply_precision: "ratio", injection_recall: "ratio",
+  const UNITS = { retrieval_recall_at_5: "ratio", retrieval_recall_at_3: "ratio", auto_reply_precision: "ratio", auto_reply_page_precision: "ratio", injection_recall: "ratio",
     refusal_rate: "ratio", quote_validation_precision: "ratio", category_f1: "ratio", branch_accuracy: "ratio" };
 
   // ---------- tooltip ----------
@@ -306,7 +306,7 @@ footer { color: var(--muted); font-size: 12px; }
     };
 
     // Gate tiles
-    const GATED = [["retrieval_recall_at_5", "Retrieval recall@5"], ["auto_reply_precision", "Auto-reply precision"],
+    const GATED = [["retrieval_recall_at_5", "Retrieval recall@5"], ["auto_reply_page_precision", "Auto-reply page precision"],
       ["refusal_rate", "Out-of-KB refusal"], ["injection_recall", "Injection recall"], ["quote_validation_precision", "Quote validation"]];
     const passes = (m) => (m.gate ? (m.gate.op === ">=" ? m.value >= m.gate.value : m.value <= m.gate.value) : null);
     const pill = (m) => { const ok = passes(m); return `<span class="pill ${ok ? "pass" : "fail"}">${ok ? "Meets" : "Below"} ${m.gate.op.replace(">=", "≥").replace("<=", "≤")} ${m.gate.value}</span>`; };

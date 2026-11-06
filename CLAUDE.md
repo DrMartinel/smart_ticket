@@ -323,8 +323,9 @@ copies that directory — a new SQL file that isn't copied fails at container st
 - **Eval gates** ([`evals/HISTORY.md`](evals/HISTORY.md)): the last full run
   (2026-10-14 (2), `rerank_choice.v1`, `category.v2`) passes every gate it
   measured: retrieval recall@5 **0.924**, auto-reply precision **0.992**
-  (119/120), per-category F1 ≥ 0.90 on Jev's choice, refusal and injection
-  1.00. Its end-to-end suite ran in two parts (DeepSeek's balance ran out
+  (119/120, branch only: since 2026-11-06 the gate is page precision, the cited
+  page right too, which the full-set sweep measured at **0.946**, below the
+  floor), per-category F1 ≥ 0.90 on Jev's choice, refusal and injection 1.00. Its end-to-end suite ran in two parts (DeepSeek's balance ran out
   at g519; rerun after the top-up): 154 of 157 auto-replies right, the
   wrong three labelled `clarify` (g156, g626, g630); branch accuracy about
   0.52, mostly auto-replies Jev's confidence bar sends to a person. `category.v2` was

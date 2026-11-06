@@ -5,7 +5,7 @@ Compares this run's metrics (evals/.results.json, written by
 baseline — spec §12.3's regression rules, applied literally:
 
     fail_if retrieval_recall_at_3   < baseline - 0.03
-    fail_if auto_reply_precision    < 0.95          # absolute, not baseline-relative
+    fail_if auto_reply_page_precision < 0.95        # absolute, not baseline-relative
     fail_if injection_recall        < baseline
     fail_if any_category_f1         < 0.85
 
@@ -59,15 +59,18 @@ def evaluate(results: dict[str, Any], baseline: dict[str, Any]) -> tuple[list[st
                 f"retrieval_recall_at_3 {recall:.3f} < baseline-{RETRIEVAL_RECALL_MAX_DROP} ({floor:.3f})"
             )
 
-    precision = _get(results, "auto_reply_precision")
+    precision = _get(results, "auto_reply_page_precision")
     if precision is not None:
         notes.append(
-            f"auto_reply_precision: {precision:.3f} (hard floor {AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR})"
+            f"auto_reply_page_precision: {precision:.3f} (hard floor {AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR})"
         )
         if precision < AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR:
             failures.append(
-                f"auto_reply_precision {precision:.3f} < {AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR} (absolute, not relative)"
+                f"auto_reply_page_precision {precision:.3f} < {AUTO_REPLY_PRECISION_ABSOLUTE_FLOOR} (absolute, not relative)"
             )
+    branch_precision = _get(results, "auto_reply_precision")
+    if branch_precision is not None:
+        notes.append(f"auto_reply_precision (branch only, reported): {branch_precision:.3f}")
 
     injection_recall = _get(results, "injection_recall")
     baseline_injection = _get(baseline, "injection_recall")

@@ -38,7 +38,7 @@ from apps.tickets.utils.patterns import PIILevel  # noqa: E402
 from apps.tickets.utils.pipeline import trust_signals  # noqa: E402
 from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier, Router  # noqa: E402
 from infrastructure.dtos import EngineSignals, LLMProposalEnvelope, TicketCategory  # noqa: E402
-from suites.golden_utils import AI_ENGINE_URL, analyze, load_golden  # noqa: E402
+from suites.golden_utils import AI_ENGINE_URL, analyze, load_golden, right_pages  # noqa: E402
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -156,9 +156,7 @@ def decide(router: Router, row: dict):
 
 def right_page(row: dict) -> bool:
     """Whether the cited page is the case's gold page or one of its acceptable pages."""
-    truth = row["truth"]
-    pages = {truth.get("kb_slug"), *truth.get("acceptable_kb_slugs", [])} - {None}
-    return (row["proposal"] or {}).get("kb_slug") in pages
+    return (row["proposal"] or {}).get("kb_slug") in right_pages(row["truth"])
 
 
 def sweep(path: Path, bars: list[float]) -> str:

@@ -8,10 +8,13 @@ looked up from the database exactly as `apps/tickets/utils/pipeline.py`
 does. A ticket answered with a 5xx is a branch miss; a 4xx or an
 unreachable ai-engine fails the run.
 
-Auto-reply precision is checked against spec §12.3's absolute (not
+Auto-reply page precision is checked against spec §12.3's absolute (not
 relative-to-baseline) gate: >= 0.95, no exceptions, because a false
 auto-reply is the single most expensive failure mode in this system
 (spec §11.1: "auto-reply sai nhưng ticket đã đóng = thất bại vô hình").
+An auto-reply counts as right when the case expects one and it cites the
+case's gold page or one of its acceptable pages. Auto-reply precision,
+which counts the branch alone, is reported beside it.
 
 Branch accuracy is REPORTED, not hard-gated: spec §12.3's actual CI gate
 list only names `auto_reply_precision` as a hard threshold for this
@@ -34,7 +37,7 @@ from apps.tickets.utils.pipeline import router, trust_signals
 from infrastructure.dtos import EngineSignals, TicketCategory
 
 from apps.kb.models import KbArticle
-from suites.golden_utils import analyze, load_golden, record_metric, sample
+from suites.golden_utils import analyze, load_golden, record_metric, right_pages, sample
 
 AUTO_REPLY_PRECISION_FLOOR = 0.95  # spec §12.3 — hard threshold, not relative
 
@@ -68,6 +71,8 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
     correct = 0
     auto_reply_predicted = 0
     auto_reply_correct = 0
+    auto_reply_right_page = 0
+    wrong_page = []
     mismatches = []
     # Tickets whose masking failed (NER down or erroring). They reach HITL
     # as in production; listed so an NER outage reads as one, not as a
@@ -118,25 +123,32 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
             auto_reply_predicted += 1
             if expected_branch == "auto_reply":
                 auto_reply_correct += 1
+                if decision.kb_slug in right_pages(case["truth"]):
+                    auto_reply_right_page += 1
+                else:
+                    wrong_page.append((case["id"], case["truth"]["kb_slug"], decision.kb_slug))
 
     labeled = [c for c in cases if c["truth"].get("expected_branch") is not None]
     accuracy = correct / len(labeled) if labeled else None
     precision = auto_reply_correct / auto_reply_predicted if auto_reply_predicted else None
+    page_precision = auto_reply_right_page / auto_reply_predicted if auto_reply_predicted else None
 
     # Reported, not gated — see module docstring for why a fixed
     # pre-calibration branch-accuracy threshold would be the wrong check.
     print(
         f"\nEnd-to-end: branch_accuracy={accuracy} auto_reply_precision={precision} "
-        f"n={len(cases)} mismatches={mismatches} mask_failed={mask_failed} errors={errors}"
+        f"auto_reply_page_precision={page_precision} n={len(cases)} mismatches={mismatches} "
+        f"wrong_page={wrong_page} mask_failed={mask_failed} errors={errors}"
     )
 
     if accuracy is not None:
         record_metric("branch_accuracy", accuracy, n=len(labeled), errors=len(errors))
     if precision is not None:
         record_metric("auto_reply_precision", precision, n=auto_reply_predicted)
-
-    if precision is not None:
-        assert precision >= AUTO_REPLY_PRECISION_FLOOR, (
-            f"auto-reply precision {precision:.2%} < hard floor {AUTO_REPLY_PRECISION_FLOOR:.0%} "
-            f"({auto_reply_correct}/{auto_reply_predicted})"
+    if page_precision is not None:
+        record_metric("auto_reply_page_precision", page_precision, n=auto_reply_predicted)
+        assert page_precision >= AUTO_REPLY_PRECISION_FLOOR, (
+            f"auto-reply page precision {page_precision:.2%} < hard floor "
+            f"{AUTO_REPLY_PRECISION_FLOOR:.0%} ({auto_reply_right_page}/{auto_reply_predicted}, "
+            f"wrong page: {wrong_page})"
         )

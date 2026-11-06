@@ -122,7 +122,7 @@ fail when the invariant they describe is broken.
 | `test_quote_validation` | Hallucination-catch precision | ≥ 0.95 |
 | `test_refusal` | Out-of-KB refusal rate | ≥ 0.90 |
 | `test_injection` | Detection recall | ≥ 0.95 |
-| `test_end_to_end` | Auto-reply precision (and branch accuracy, reported only) | ≥ 0.95 **absolute** |
+| `test_end_to_end` | Auto-reply page precision: the case expects an auto-reply **and** the cited page is its gold or an acceptable page (auto-reply precision on the branch alone, and branch accuracy, reported only) | ≥ 0.95 **absolute** |
 | `test_masking` | PII level accuracy, over-masking rate, consistency | reported only |
 
 Two of these are deliberately not negotiable:
@@ -130,6 +130,8 @@ Two of these are deliberately not negotiable:
 **Per-category F1, never averaged.** An average hides the case that matters most: `security` is rare and severe, and can sit at F1 0.4 while the mean looks healthy.
 
 **Auto-reply precision is an absolute floor, not relative to baseline.** A relative gate ratchets downward one acceptable-looking regression at a time.
+
+**It checks the page, not just the branch.** Until 2026-11-06 the gate counted an auto-reply right when the case expected one, whatever page it cited, and read 0.992 on 2026-10-14. The `min_rerank_confidence` sweep (`evals/calibration/sweep_rerank_confidence.py`) measured the same rule at 1.000 on the full set while 8 of 149 auto-replies cited neither the gold page nor an acceptable one: page precision 0.946, below the floor. Some of those 8 may be pages that answer as well and were never listed; adding them to `acceptable_kb_slugs` takes the blind two-reviewer review, never the author of the change.
 
 ### Known failures
 

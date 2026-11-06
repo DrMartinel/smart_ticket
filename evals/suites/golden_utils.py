@@ -74,6 +74,13 @@ def kb_category(slug: str) -> str | None:
     return _kb_categories().get(slug)
 
 
+def right_pages(truth: dict) -> set[str]:
+    """The pages that answer a case: its gold page and its acceptable pages."""
+    return (
+        {truth["kb_slug"], *truth.get("acceptable_kb_slugs", [])} if truth.get("kb_slug") else set()
+    )
+
+
 def sample(cases: list[dict], n: int = DEFAULT_SAMPLE) -> list[dict]:
     return cases if EVAL_FULL_RUN else cases[:n]
 

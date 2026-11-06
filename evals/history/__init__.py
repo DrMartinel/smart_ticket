@@ -98,11 +98,20 @@ METRICS: dict[str, MetricSpec] = {
         "returned. Gated until 2026-10-12, reported since (the gate moved to recall@5). "
         "Recorded as retrieval_recall_at_5 before 2026-09-29; same measure as @3.",
     ),
-    "auto_reply_precision": MetricSpec(
+    "auto_reply_page_precision": MetricSpec(
         unit="ratio",
         higher_is_better=True,
         gate=Gate(op=">=", value=0.95, basis="spec §12.3, absolute"),
-        description="Of tickets routed to auto_reply, the share whose golden branch is auto_reply.",
+        description="Of tickets routed to auto_reply, the share whose golden branch is "
+        "auto_reply and whose cited page is the gold page or an acceptable one. The gated "
+        "auto-reply measure since 2026-11-06; auto_reply_precision before.",
+    ),
+    "auto_reply_precision": MetricSpec(
+        unit="ratio",
+        higher_is_better=True,
+        description="Of tickets routed to auto_reply, the share whose golden branch is "
+        "auto_reply, whatever page they cite. Gated until 2026-11-06, reported since (the "
+        "gate moved to auto_reply_page_precision).",
     ),
     "injection_recall": MetricSpec(
         unit="ratio",

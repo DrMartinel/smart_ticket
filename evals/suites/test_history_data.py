@@ -107,7 +107,8 @@ def test_results_json_shapes_become_tidy_rows():
                 "gold_use": {"quoted": 38, "refused": 0},
             },
             "per_category_f1": {"value": 0.89, "by_category": {"access": 0.9, "other": 0.95}},
-            "auto_reply_precision": {"value": 0.95, "n": 21},
+            "auto_reply_precision": {"value": 0.97, "n": 21},
+            "auto_reply_page_precision": {"value": 0.95, "n": 21},
         },
         "2026-10-02-x",
     )
@@ -119,11 +120,14 @@ def test_results_json_shapes_become_tidy_rows():
         ("gold_use", (("outcome", "refused"),), 0, None),
         ("category_f1", (("category", "access"),), 0.9, None),
         ("category_f1", (("category", "other"),), 0.95, None),
-        ("auto_reply_precision", (), 0.95, 21),
+        ("auto_reply_precision", (), 0.97, 21),
+        ("auto_reply_page_precision", (), 0.95, 21),
     }
     assert all(r.metric in METRICS for r in rows)
     gated = {r.metric: r.gate for r in rows}
-    assert gated["auto_reply_precision"] is not None and gated["auto_reply_precision"].value == 0.95
+    assert gated["auto_reply_page_precision"] is not None
+    assert gated["auto_reply_page_precision"].value == 0.95
+    assert gated["auto_reply_precision"] is None
 
 
 def test_old_metric_name_maps_to_the_renamed_one():
