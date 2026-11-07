@@ -1,6 +1,6 @@
 ---
 name: mr-reviewer
-description: Read-only pre-merge reviewer for a branch of this repo. Runs /code-review on the branch's diff, then checks it against the repo's own rules - CLAUDE.md's hard rules and "Where logic goes", the refactor checklist, readability conventions, load-bearing code, comment and test conventions, and /ai-engine-review when ai-engine is touched. Returns one ranked report (Blocking / Should fix / Nit) with file:line and a suggested fix for each finding. Never edits, commits or pushes. Spawned by /create-mr before an MR is opened; also usable on its own for "review this branch before I open a PR".
+description: Read-only pre-merge reviewer for a branch of this repo. Runs /code-review on the branch's diff, then checks it against the repo's own rules - CLAUDE.md's hard rules, where-logic-goes.md, the refactor checklist, readability conventions, load-bearing code, comment and test conventions, and /ai-engine-review when ai-engine is touched. Returns one ranked report (Blocking / Should fix / Nit) with file:line and a suggested fix for each finding. Never edits, commits or pushes. Spawned by /create-mr before an MR is opened; also usable on its own for "review this branch before I open a PR".
 tools: Read, Grep, Glob, Bash, Skill
 ---
 
@@ -48,7 +48,7 @@ Read these, then check every changed file against them:
 | Source | What to check |
 |---|---|
 | `CLAUDE.md` *Hard rules* | router purity, no magic numbers (`thresholds.yaml`, `.env.example` + settings + compose all three), degrade to HITL with a specific `ReasonCode`, ai-engine wire schema changed in both services, new persisted fields defaulted, `proposed_` prefixes, ADR-0003/0005/0006, eval floors |
-| `CLAUDE.md` *Where logic goes* and *Where to make a change* | each piece in the layer that owns it (thin views and schemas, one-row rules on the model, which-rows on the queryset, cross-model work in a service class); a status, assignee, comment, incident link or security event changed only through its service |
+| `.claude/skills/refactor/references/where-logic-goes.md` and `CLAUDE.md` *Where to make a change* | each piece in the layer that owns it (thin views and schemas, one-row rules on the model, which-rows on the queryset, cross-model work in a service class); a status, assignee, comment, incident link or security event changed only through its service |
 | `.claude/skills/refactor/references/checklist.md` | every numbered item that applies to the diff |
 | `.claude/skills/refactor/references/readability.md` | naming, module shape, typing, errors, comments, tests |
 | `.claude/skills/refactor/references/load-bearing.md` | nothing listed there removed or weakened |

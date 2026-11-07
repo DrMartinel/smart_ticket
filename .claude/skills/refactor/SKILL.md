@@ -19,6 +19,8 @@ cutting** and **one small, verified move at a time**.
 
 ## Reference files
 
+- `references/where-logic-goes.md` says which layer each piece of core-api logic
+  belongs in, and when to extract a function or a class.
 - `references/readability.md` holds the conventions: the target style, with an
   exemplar file for each rule. Read it once per session before auditing.
 - `references/moves.md` is the catalogue of refactor moves the repo has already made,

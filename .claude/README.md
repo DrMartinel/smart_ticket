@@ -61,6 +61,7 @@ To understand a rule, or change it, edit the reference file, not the SKILL.md:
 
 | Topic | File |
 |---|---|
+| Which core-api layer a piece of logic goes in; when to extract a function or a class | [`skills/refactor/references/where-logic-goes.md`](skills/refactor/references/where-logic-goes.md) |
 | General Python taste: module shape, comments, naming, typing, errors, tests, commits | [`skills/refactor/references/readability.md`](skills/refactor/references/readability.md) |
 | Refactor moves the repo endorses, each with its precedent commit | [`skills/refactor/references/moves.md`](skills/refactor/references/moves.md) |
 | Code that looks removable but isn't, and the test or ADR that guards it | [`skills/refactor/references/load-bearing.md`](skills/refactor/references/load-bearing.md) |

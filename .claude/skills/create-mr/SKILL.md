@@ -61,7 +61,7 @@ Spawn the **`mr-reviewer`** subagent (`.claude/agents/mr-reviewer.md`) in the
 background, so it reviews while you run the checks in step 4. Prompt it with the
 base, the head branch and what you learnt in step 2 (series position, the spec
 or ADR the change implements). It runs `/code-review high` on the diff, then
-checks the repo's own rules: CLAUDE.md's hard rules and *Where logic goes*, the
+checks the repo's own rules: CLAUDE.md's hard rules, `where-logic-goes.md`, the
 refactor checklist, readability, load-bearing code, comments, tests and docs,
 and `/ai-engine-review` when ai-engine is touched.
 

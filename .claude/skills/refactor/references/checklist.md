@@ -50,7 +50,7 @@ listed under "outside the diff", never failed.
 - **Violation:** a handler that loops over models and writes; a manager method
   that writes `AuditLog` and queues a task.
 - **Fix:** move the work onto a `utils` service class the handler calls.
-- **Source:** CLAUDE.md *Where logic goes* rule 1
+- **Source:** `where-logic-goes.md` rule 1
 
 ### C-05 [convention] Model methods stay pure-ish
 - **Check:** a model method the diff adds or changes doesn't touch `request`,
@@ -58,7 +58,7 @@ listed under "outside the diff", never failed.
   `@property`.
 - **Violation:** `KbArticle.ingest` calling `ai_engine.embed(...)`.
 - **Fix:** a method on a `utils` service class that does the call and the writes.
-- **Source:** CLAUDE.md *Where logic goes* rule 5
+- **Source:** `where-logic-goes.md` rule 5
 
 ## Functions and classes
 
@@ -68,7 +68,7 @@ listed under "outside the diff", never failed.
 - **Violation:** `def model_id(): return f"deepseek:{settings.cloud_model}"` with
   one caller; `def main(argv): return cls(cls.parse_args(argv)).run()`.
 - **Fix:** inline it at the caller.
-- **Source:** CLAUDE.md *Where logic goes* rule 2
+- **Source:** `where-logic-goes.md` rule 2
 
 ### C-07 [convention] A private `_helper` is the last resort
 - **Check:** before a new `_helper`, the diff considered, in order: is it about
@@ -80,7 +80,7 @@ listed under "outside the diff", never failed.
 - **Violation:** `_discount(coupon, subtotal)`, a private helper computing one
   coupon's discount.
 - **Fix:** `coupon.discount_for(subtotal)`, a model method.
-- **Source:** CLAUDE.md *Where logic goes* rule 3
+- **Source:** `where-logic-goes.md` rule 3
 
 ### C-08 [convention] A class earns its place
 - **Check:** each new class holds state or groups several behaviours around one
@@ -88,7 +88,7 @@ listed under "outside the diff", never failed.
 - **Violation:** `class EntityGraphStore` whose only method is `replace`.
 - **Fix:** `replace` becomes a method of the class that owns that work, and
   `EntityGraphStore` goes.
-- **Source:** CLAUDE.md *Where logic goes* rule 4
+- **Source:** `where-logic-goes.md` rule 4
 
 ### C-09 [convention] No data held or derived twice
 - **Check:** no second record type, dict or method that rebuilds what an object
