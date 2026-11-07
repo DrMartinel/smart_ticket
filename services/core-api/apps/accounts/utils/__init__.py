@@ -29,6 +29,8 @@ from apps.notifications.utils.vocabulary import NotificationEvent
 
 
 INVALID_CREDENTIALS = "invalid username or password"
+# The `act` claim of a token an agent turn uses on the user's behalf (ADR-0046).
+AGENT_ACT = "agent"
 
 
 class SessionRefused(Exception):
@@ -322,6 +324,29 @@ class Sessions:
             refresh=raw,
             refresh_expires_at=session.expires_at if raw is not None else None,
         )
+
+    def issue_for_agent(
+        self, user: User, family: uuid.UUID, *, conversation: uuid.UUID, turn: uuid.UUID
+    ) -> str:
+        """An access token for one agent turn acting as `user` in the live sign-in `family`
+        (ADR-0046)."""
+        live = RefreshSession.objects.live_family(family).filter(user=user)
+        family_ends = (
+            live.order_by("-family_expires_at").values_list("family_expires_at", flat=True).first()
+        )
+        if family_ends is None:
+            raise SessionRefused("the sign-in this agent turn belongs to has ended")
+        lifetime = timedelta(seconds=settings.THRESHOLDS.agent.token_ttl_seconds)
+        # ninja_jwt annotates for_user as returning the class; it returns a token.
+        access = cast(AccessToken, AccessToken.for_user(user))  # type: ignore[misc]
+        access.set_exp(from_time=timezone.now(), lifetime=lifetime)
+        if access["exp"] > family_ends.timestamp():
+            access["exp"] = int(family_ends.timestamp())
+        access["sid"] = str(family)
+        access["act"] = AGENT_ACT
+        access["agc"] = str(conversation)
+        access["agt"] = str(turn)
+        return str(access)
 
 
 # --- the sessions service ---

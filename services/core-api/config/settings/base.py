@@ -517,6 +517,11 @@ class AccessThresholds(BaseModel):
     import_max_rows: int = Field(ge=1)
 
 
+class AgentThresholds(BaseModel):
+    # Lifetime of an agent turn's access token (F15, BR-F15-02).
+    token_ttl_seconds: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -545,6 +550,7 @@ class Thresholds(BaseModel):
     kb_gaps: KbGapsThresholds
     reports: ReportsThresholds
     access: AccessThresholds
+    agent: AgentThresholds
 
     @property
     def retrieval_floor(self) -> float:
