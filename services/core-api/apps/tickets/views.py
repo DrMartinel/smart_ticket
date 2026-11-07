@@ -34,7 +34,7 @@ from apps.tickets.response_schema import (
     TicketSubmitOut,
 )
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_unless_covers, require
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.sla.request_schema import PriorityIn
 from apps.sla.response_schema import TicketSlaOut
 from apps.sla.utils.clocks import sla_clocks
@@ -88,7 +88,7 @@ def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
         ticket = Ticket.objects.for_detail().get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
-    refuse_unless_covers(request, Permission.TICKETS_READ, ticket)
+    request.auth.require_covering(Permission.TICKETS_READ, ticket)
     return ticket
 
 
@@ -186,7 +186,7 @@ def _staff_ticket(request: AuthedRequest, public_id: str, permission: Permission
         ticket = Ticket.objects.select_related("reporter").get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
-    refuse_unless_covers(request, permission, ticket)
+    request.auth.require_covering(permission, ticket)
     return ticket
 
 

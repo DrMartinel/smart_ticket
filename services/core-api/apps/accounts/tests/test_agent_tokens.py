@@ -15,7 +15,7 @@ from apps.accounts.models import AuthClient
 from apps.accounts.permissions import (
     AccessError,
     AccessRefusal,
-    Gate,
+    Caller,
     SessionAuth,
     gate_of,
     require,
@@ -93,7 +93,7 @@ def test_no_agent_token_is_minted_for_an_ended_sign_in(employee_user):
 def test_every_gated_route_refuses_an_agent_token_even_with_the_permission(
     employee_user, monkeypatch
 ):
-    monkeypatch.setattr(Gate, "admits", lambda self, user: True)
+    monkeypatch.setattr(Caller, "holds", lambda self, permission: True)
     token = agent_token_for(employee_user)
     ungated, refused = set(), set()
 

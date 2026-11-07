@@ -12,7 +12,7 @@ from apps.review.request_schema import CommentDecisionIn, DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
 from apps.review.utils import review_decisions
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, refuse_without, require
+from apps.accounts.permissions import AuthedRequest, SessionAuth, require
 from apps.tickets.utils.comments import CommentReviewChoice, comments
 from apps.tickets.utils.router import ReviewQueue
 
@@ -55,7 +55,7 @@ def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn)
     if item.comment_id is not None:
         raise HttpError(422, "a held comment is decided at /comment-decision")
     if item.queue == ReviewQueue.RUNBOOK_APPROVAL:
-        refuse_without(request, Permission.RUNBOOKS_EXECUTE)
+        request.auth.require(Permission.RUNBOOKS_EXECUTE)
     try:
         return review_decisions.decide(item, request.auth.user, payload)
     except ReviewError as e:
@@ -75,7 +75,7 @@ def decide_comment(
 def _visible(request: AuthedRequest, item: ReviewItem) -> ReviewItem:
     """Refuses a blocked ticket's item to anyone but security (BR-F8-07)."""
     if item.queue in SECURITY_QUEUES:
-        refuse_without(request, Permission.SECURITY_QUEUE_WORK)
+        request.auth.require(Permission.SECURITY_QUEUE_WORK)
     return item
 
 
