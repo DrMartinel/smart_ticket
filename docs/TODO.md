@@ -579,3 +579,46 @@ run checked in the browser; the sweep run on the dev stack.
 - **A department filter in the SLA report's UI**: the API takes
   `department`; the console doesn't offer it yet.
 
+
+## 22. Move one-row rules onto the models (anemic models)
+
+**Priority:** Medium · **Rules:** [where-logic-goes.md](../.claude/skills/refactor/references/where-logic-goes.md) rules 1 and 5 · checklist C-04, C-05
+
+Some core-api models are only fields while their rules sit in `utils`
+(found 2026-11-08 by grep, so the counts are rough): about 65 checks of a
+row's `.state` / `.kind` outside `models.py`, and 239 inline
+`.objects.filter(` calls in `utils` against 66 queryset methods. Cross-model
+work and outside calls stay in services; a rule about one row's own data
+becomes a model method or property, and a filter with a business name a
+queryset method.
+
+- **`sla/utils/clocks.py`** (18 checks): `clock.state in OPEN_CLOCK_STATES`,
+  `in _COUNTING`, `== ClockState.PAUSED.value` become `clock.is_open`,
+  `is_counting`, `is_paused`; `Clock.objects.filter(ticket=…,
+  kind=RESOLUTION)` a queryset method. Start here.
+- **`security/utils/alerts.py`**: `alert.state == AlertState.NEW.value` (4×),
+  `alert.kind not in CREDENTIAL_KINDS` → `alert.is_new`, `is_credential`.
+- **`kb/utils/drafts.py`**: `draft.state != DraftState.CONFLICT.value` and
+  the like, beside the existing `KbDraft.is_editable()`.
+- **`incidents/utils/incidents.py`** (7), **`itsm_mock/utils/runbooks.py`**
+  (6), **`chat/utils/turns.py`** (4): the same kind of state checks.
+- **One-row derivations outside the model:** `ReportFacts.department_of(ticket)`
+  → `ticket.department_at_submit`; choosing the waiting review item in
+  `open_review_of(ticket)` (`tickets/response_schema.py`) → a ticket method,
+  the schema keeping only the shaping.
+- **Inline filters with a business name** in `utils` → queryset methods. Plain
+  lookups by id stay where they are.
+
+The opposite smell (models and managers that write to other tables) is
+listed in `where-logic-goes.md` under "Code that predates these rules".
+
+### Work
+
+One `/refactor` per file, behaviour-preserving, tests green before and after
+each move; no sweep across apps in one change.
+
+### Done when
+
+No `.state` / `.kind` comparison of a row outside its own model in the files
+above, each named filter is a queryset method, and the checklist pass on
+each file is clean.
