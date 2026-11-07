@@ -8,7 +8,7 @@ from django.conf import settings
 from ninja import Router
 
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require
+from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.rollout.models import RolloutFlag, RolloutGate
 from apps.rollout.request_schema import FlagOnIn, GateChangeIn, ReasonIn
 from apps.rollout.response_schema import (
@@ -54,13 +54,13 @@ def _rollout() -> RolloutOut:
 
 
 @router.get("", auth=SessionAuth(), response=RolloutOut)
-@require(Permission.ROLLOUT_READ)
+@require(Permission.ROLLOUT_READ, agent=AgentTier.NONE)
 def get_rollout(request: AuthedRequest) -> RolloutOut:
     return _rollout()
 
 
 @router.post("/{branch}/on", auth=SessionAuth(), response=RolloutOut)
-@require(Permission.ROLLOUT_FLAG_ON)
+@require(Permission.ROLLOUT_FLAG_ON, agent=AgentTier.NONE)
 def turn_on(request: AuthedRequest, branch: str, payload: FlagOnIn) -> RolloutOut:
     rollout.turn_on(
         branch,
@@ -73,14 +73,14 @@ def turn_on(request: AuthedRequest, branch: str, payload: FlagOnIn) -> RolloutOu
 
 
 @router.post("/{branch}/off", auth=SessionAuth(), response=RolloutOut)
-@require(Permission.ROLLOUT_FLAG_OFF)
+@require(Permission.ROLLOUT_FLAG_OFF, agent=AgentTier.NONE)
 def turn_off(request: AuthedRequest, branch: str, payload: ReasonIn) -> RolloutOut:
     rollout.turn_off(branch, request.auth.user, payload.reason)
     return _rollout()
 
 
 @router.patch("/gates/{gate_id}", auth=SessionAuth(), response=GateChangeOut)
-@require(Permission.ROLLOUT_GATES_MANAGE)
+@require(Permission.ROLLOUT_GATES_MANAGE, agent=AgentTier.NONE)
 def change_gate(request: AuthedRequest, gate_id: uuid.UUID, payload: GateChangeIn) -> GateChangeOut:
     change = rollout.change_gate(
         gate_id, request.auth.user, payload.threshold, payload.window_days, payload.reason
@@ -92,6 +92,6 @@ def change_gate(request: AuthedRequest, gate_id: uuid.UUID, payload: GateChangeI
 
 
 @thresholds_router.get("/current", auth=SessionAuth(), response=CurrentThresholdsOut)
-@require(Permission.ROLLOUT_THRESHOLDS_READ)
+@require(Permission.ROLLOUT_THRESHOLDS_READ, agent=AgentTier.NONE)
 def current(request: AuthedRequest) -> CurrentThresholdsOut:
     return CurrentThresholdsOut.loaded()
