@@ -21,6 +21,7 @@ from django.utils import timezone
 from pydantic_core import to_jsonable_python
 
 from apps.accounts.models import User
+from apps.accounts.utils import AGENT_ACT
 from apps.agent.models import AgentAction, AgentActionKind, AgentActionState
 from apps.audit.context import audit_context
 from apps.audit.models import AuditLog
@@ -100,7 +101,7 @@ class AgentOrigin:
 
     def audit_fields(self) -> dict[str, str]:
         return {
-            "via": "agent",
+            "via": AGENT_ACT,
             "agent_conversation_id": str(self.conversation),
             "agent_turn_id": str(self.turn),
             "agent_tool": self.tool,
@@ -125,8 +126,8 @@ class AgentActions:
         )
         target_kind, target_ref = next(
             (
-                (kind, str(call.arguments[name]))
-                for name, kind in _TARGETS.items()
+                (target, str(call.arguments[name]))
+                for name, target in _TARGETS.items()
                 if name in call.arguments
             ),
             ("", ""),
@@ -164,8 +165,8 @@ class AgentActions:
 
     @contextmanager
     def applying(self, action_id: str, user: User, call: AgentCall) -> Iterator[AgentAction]:
-        """Runs the block as `user` applying their pending action `action_id`, in one
-        transaction; the action is applied only if the block succeeds."""
+        """Runs the block as `user` applying their pending action `action_id`: the action is
+        claimed first, and put back to pending if the block raises."""
         try:
             key = uuid.UUID(action_id)
         except ValueError as e:
@@ -193,36 +194,37 @@ class AgentActions:
                     AgentActionRefusal.MISMATCH,
                     "this call is not the one the assistant proposed",
                 )
-            origin = AgentOrigin(action.conversation_id, action.turn_id, action.tool)
-            fields = (
-                {
-                    **origin.audit_fields(),
-                    "agent_action_id": str(action.id),
-                    "confirmed_by": str(user.id),
-                }
-                if confirm
-                else {"agent_draft_id": str(action.id)}
-            )
-            token = _applying.set(action)
-            try:
-                with audit_context(fields):
-                    yield action
-                    AuditLog.objects.record(
-                        "agent_action_applied",
-                        actor_type="human",
-                        actor_id=user.id,
-                        payload={
-                            "route": action.route,
-                            "method": action.method,
-                            "kind": action.kind,
-                        },
-                    )
-            finally:
-                _applying.reset(token)
             action.state = AgentActionState.APPLIED.value
             action.resolved_at = timezone.now()
             action.resolved_by = user
             action.save(update_fields=["state", "resolved_at", "resolved_by"])
+        origin = AgentOrigin(action.conversation_id, action.turn_id, action.tool)
+        fields = (
+            {
+                **origin.audit_fields(),
+                "agent_action_id": str(action.id),
+                "confirmed_by": str(user.id),
+            }
+            if confirm
+            else {"agent_draft_id": str(action.id)}
+        )
+        token = _applying.set(action)
+        try:
+            with audit_context(fields):
+                yield action
+                AuditLog.objects.record(
+                    "agent_action_applied",
+                    actor_type="human",
+                    actor_id=user.id,
+                    payload={"route": action.route, "method": action.method, "kind": action.kind},
+                )
+        except BaseException:
+            AgentAction.objects.filter(id=action.id, state=AgentActionState.APPLIED.value).update(
+                state=AgentActionState.PENDING.value, resolved_at=None, resolved_by=None
+            )
+            raise
+        finally:
+            _applying.reset(token)
 
     def draft_being_applied(self) -> uuid.UUID | None:
         """The agent draft the current request is applying, if any."""
@@ -237,5 +239,7 @@ class AgentActions:
             409, AgentActionRefusal.NOT_PENDING, "no pending action of yours has this id"
         )
 
+
+# --- the agent actions service ---
 
 agent_actions = AgentActions()
