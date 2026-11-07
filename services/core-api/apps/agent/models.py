@@ -3,7 +3,6 @@ person applies (F15, ADR-0046)."""
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
 
 from django.conf import settings
@@ -14,6 +13,10 @@ from apps.core.models import BaseModel
 
 def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
     return [(m.value, m.value) for m in enum]
+
+
+# The longest concrete path an agent action can hold.
+PATH_MAX_LENGTH = 300
 
 
 class AgentActionKind(StrEnum):
@@ -41,7 +44,7 @@ class AgentAction(BaseModel):
     tool = models.CharField(max_length=40, blank=True, default="")
     method = models.CharField(max_length=8)
     route = models.CharField(max_length=200)
-    path = models.CharField(max_length=300)
+    path = models.CharField(max_length=PATH_MAX_LENGTH)
     arguments = models.JSONField()
     arguments_sha256 = models.CharField(max_length=64)
     target_kind = models.CharField(max_length=20, blank=True, default="")
@@ -66,6 +69,3 @@ class AgentAction(BaseModel):
             models.Index(fields=["user", "state"]),
             models.Index(fields=["target_kind", "target_ref", "state"]),
         ]
-
-    def has_expired(self, now: datetime) -> bool:
-        return self.expires_at <= now

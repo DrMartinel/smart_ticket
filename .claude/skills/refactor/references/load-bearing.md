@@ -475,9 +475,14 @@ guard and that comment is later trimmed, the entry is the record.
   not wrapping the handler in one.** Routes write refusal rows on purpose and
   then raise (`access_denied`, `pii_reveal_refused`, security alerts). An
   outer transaction would roll those rows back, and a failed draft could be
-  retried without the reveal rate limit counting it.
+  retried without the reveal rate limit counting it. Only the route's own
+  failure puts the action back to `pending`: the `agent_action_applied` write
+  sits outside that `try`, or a lost audit row would let a done action run
+  again.
   *`test_a_refused_apply_keeps_its_access_denied_row`,
-  `test_a_rate_limited_reveal_through_a_draft_is_recorded_and_alerted`.*
+  `test_a_rate_limited_reveal_through_a_draft_is_recorded_and_alerted`,
+  `test_an_applied_action_cannot_be_applied_again`,
+  `test_a_failed_applied_audit_row_does_not_reopen_a_done_action`.*
 
 ## ai-engine
 

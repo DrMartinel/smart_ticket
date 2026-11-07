@@ -13,7 +13,7 @@ from functools import wraps
 import inspect
 import re
 import uuid
-from typing import Any, Concatenate, NoReturn, cast
+from typing import Any, Concatenate, NoReturn, assert_never, cast
 from weakref import WeakKeyDictionary
 
 from django.conf import settings
@@ -253,12 +253,10 @@ def require(permission: Permission, *, agent: AgentTier | None = None):
                             "human-only action",
                             {"draft_id": str(draft.id)},
                         )
+                    case AgentTier.NONE | None:
+                        raise AssertionError("Caller.admit refuses an agent on this route")
                     case _:
-                        raise AccessError(
-                            AccessRefusal.AGENT_NOT_ALLOWED,
-                            "an agent may not call this route",
-                            {"permission": gate.permission.value},
-                        )
+                        assert_never(gate.agent_tier)
             action_id = request.headers.get(AGENT_ACTION_HEADER)
             if action_id:
                 with agent_actions.applying(action_id, caller.user, AgentCall.of(request, kwargs)):
