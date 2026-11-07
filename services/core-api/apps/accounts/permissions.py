@@ -1,8 +1,8 @@
 """
 RBAC building blocks used by every router: `SessionAuth` and the permission gate
 `require`, which every route but sign-in, refresh, sign-out and the callbacks
-carries (PRE-1, ADR-0045). The gate also refuses a token an agent turn uses
-(ADR-0046).
+carries (PRE-1, ADR-0045). The gate also holds each route's agent tier, which
+decides what a token an agent turn uses may do there (ADR-0046).
 """
 
 from collections.abc import Callable, Iterable
@@ -11,6 +11,7 @@ from datetime import timedelta
 from enum import StrEnum
 from functools import wraps
 import inspect
+import re
 import uuid
 from typing import Any, Concatenate, NoReturn, cast
 from weakref import WeakKeyDictionary
@@ -27,23 +28,32 @@ from apps.accounts.models import RefreshSession, RefusedCall, User
 from apps.accounts.utils import AGENT_ACT
 from apps.accounts.utils.access import Access
 from apps.accounts.utils.catalog import Permission
+from apps.agent.models import AgentActionKind
+from apps.agent.utils.actions import (
+    AGENT_ACTION_HEADER,
+    AgentActionPending,
+    AgentCall,
+    AgentOrigin,
+    agent_actions,
+)
+from apps.audit.context import audit_context
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 
 
-@dataclass(frozen=True)
-class AgentActing:
-    """The agent conversation and turn a token was issued to (ADR-0046)."""
+# The header an agent's call names its tool in, and the shape of a tool's name.
+AGENT_TOOL_HEADER = "X-Agent-Tool"
+TOOL_NAME = re.compile(r"^[a-z][a-z_]{0,39}$")
 
-    conversation: uuid.UUID
-    turn: uuid.UUID
 
-    def audit_fields(self) -> dict[str, str]:
-        return {
-            "via": AGENT_ACT,
-            "agent_conversation_id": str(self.conversation),
-            "agent_turn_id": str(self.turn),
-        }
+class AgentTier(StrEnum):
+    """What a token an agent turn uses may do on a route (ADR-0046 §5)."""
+
+    READ = "read"
+    SELF = "self"
+    CONFIRM = "confirm"
+    HUMAN_ONLY = "human_only"
+    NONE = "none"
 
 
 class SessionAuth(JWTAuth):
@@ -63,9 +73,11 @@ class SessionAuth(JWTAuth):
             try:
                 if act != AGENT_ACT:
                     raise ValueError(act)
-                agent = AgentActing(uuid.UUID(validated["agc"]), uuid.UUID(validated["agt"]))
+                conversation, turn = uuid.UUID(validated["agc"]), uuid.UUID(validated["agt"])
             except (KeyError, TypeError, ValueError) as e:
                 raise AuthenticationFailed("this token's actor is not one core-api issues") from e
+            tool = request.headers.get(AGENT_TOOL_HEADER, "")
+            agent = AgentOrigin(conversation, turn, tool if TOOL_NAME.match(tool) else "")
         match = getattr(request, "resolver_match", None)
         return Caller(
             user=user,
@@ -79,6 +91,7 @@ class SessionAuth(JWTAuth):
 class AccessRefusal(StrEnum):
     PERMISSION_MISSING = "permission_missing"
     AGENT_NOT_ALLOWED = "agent_not_allowed"
+    HUMAN_ONLY_ACTION = "human_only_action"
 
 
 class AccessError(CodedError):
@@ -92,21 +105,24 @@ class AccessError(CodedError):
 
 @dataclass(frozen=True)
 class Gate:
-    """The permission a route needs, held at any scope (ADR-0045)."""
+    """The permission a route needs, held at any scope (ADR-0045), and its agent tier
+    (ADR-0046); a route with no tier refuses agents."""
 
     permission: Permission
+    agent_tier: AgentTier | None = None
 
 
 @dataclass(frozen=True)
 class Caller:
     """Who an authenticated request comes from and the route it calls: the user, and the
-    agent acting for them, None when the user sent it. Admits or refuses itself."""
+    agent turn and tool acting for them, None when the user sent it. Admits or refuses
+    itself."""
 
     user: User
     route: str
     method: str
     trace_id: str | None = None
-    agent: AgentActing | None = None
+    agent: AgentOrigin | None = None
 
     def holds(self, permission: Permission) -> bool:
         return Access.of(self.user).holds(permission)
@@ -122,9 +138,10 @@ class Caller:
             self.refuse(Gate(permission))
 
     def admit(self, gate: Gate) -> None:
-        """Refuses this caller without the gate's permission, then any agent acting for them."""
+        """Refuses this caller without the gate's permission, then any agent acting for them
+        on a route whose tier refuses agents."""
         self.require(gate.permission)
-        if self.agent is not None:
+        if self.agent is not None and gate.agent_tier in (None, AgentTier.NONE):
             AuditLog.objects.record(
                 "agent_call_refused",
                 actor_type="human",
@@ -194,11 +211,12 @@ def gate_of(handler: Callable[..., Any]) -> Gate | None:
     return _GATES[handler]
 
 
-def require(permission: Permission):
-    """Decorator for Django Ninja handlers: lets in a user who holds `permission`.
-    `request` must be the first arg and `request.auth` its `Caller`."""
+def require(permission: Permission, *, agent: AgentTier | None = None):
+    """Decorator for Django Ninja handlers: lets in a user who holds `permission`, and an agent
+    acting for them as the route's `agent` tier allows. `request` must be the first arg and
+    `request.auth` its `Caller`."""
 
-    gate = Gate(permission)
+    gate = Gate(permission, agent)
 
     def decorator[**P, R](
         fn: Callable[Concatenate[AuthedRequest, P], R],
@@ -209,6 +227,42 @@ def require(permission: Permission):
             if not isinstance(caller, Caller) or not caller.user.is_authenticated:
                 raise HttpError(401, "authentication required")
             caller.admit(gate)
+            if caller.agent is not None:
+                match gate.agent_tier:
+                    case AgentTier.READ | AgentTier.SELF:
+                        with audit_context(caller.agent.audit_fields()):
+                            return fn(request, *args, **kwargs)
+                    case AgentTier.CONFIRM:
+                        raise AgentActionPending(
+                            agent_actions.propose(
+                                AgentActionKind.CONFIRM,
+                                caller.user,
+                                AgentCall.of(request, kwargs),
+                                caller.agent,
+                            )
+                        )
+                    case AgentTier.HUMAN_ONLY:
+                        draft = agent_actions.propose(
+                            AgentActionKind.DRAFT,
+                            caller.user,
+                            AgentCall.of(request, kwargs),
+                            caller.agent,
+                        )
+                        raise AccessError(
+                            AccessRefusal.HUMAN_ONLY_ACTION,
+                            "human-only action",
+                            {"draft_id": str(draft.id)},
+                        )
+                    case _:
+                        raise AccessError(
+                            AccessRefusal.AGENT_NOT_ALLOWED,
+                            "an agent may not call this route",
+                            {"permission": gate.permission.value},
+                        )
+            action_id = request.headers.get(AGENT_ACTION_HEADER)
+            if action_id:
+                with agent_actions.applying(action_id, caller.user, AgentCall.of(request, kwargs)):
+                    return fn(request, *args, **kwargs)
             return fn(request, *args, **kwargs)
 
         # The handler's signature, its annotations evaluated.

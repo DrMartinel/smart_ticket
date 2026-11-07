@@ -10,6 +10,7 @@ from ninja_extra import NinjaExtraAPI
 
 from apps.accounts.permissions import gate_authentication
 from apps.accounts.views import access_router, auth_router, org_router
+from apps.agent.utils.actions import AgentActionPending
 from apps.core.errors import CodedError
 from apps.accounts.views import router as accounts_router
 from apps.tickets.views import pii_router
@@ -66,6 +67,21 @@ def refused(request: HttpRequest, exc: CodedError) -> HttpResponse:
         request,
         {"code": exc.code.value, "message": exc.message, "details": exc.details},
         status=exc.status,
+    )
+    response["Cache-Control"] = "no-store"
+    return response
+
+
+@api.exception_handler(AgentActionPending)
+def awaiting_confirmation(request: HttpRequest, exc: AgentActionPending) -> HttpResponse:
+    response = api.create_response(
+        request,
+        {
+            "action_id": str(exc.action.id),
+            "state": "awaiting_confirmation",
+            "expires_at": exc.action.expires_at.isoformat(),
+        },
+        status=202,
     )
     response["Cache-Control"] = "no-store"
     return response
