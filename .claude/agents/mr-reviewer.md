@@ -41,6 +41,19 @@ against `.claude/skills/refactor/references/load-bearing.md` and CLAUDE.md's
 `router.py` impure, merge the LLM's proposal into a decision, or turn a failure
 into an empty result. Say that you dropped it and why.
 
+Its reuse and simplification findings must also fit
+`.claude/skills/refactor/references/where-logic-goes.md`. Read it before you
+keep any of them. Reword a fix that breaks it into one that doesn't, or drop it
+and say why. That covers a fix that:
+
+- extracts a helper with one caller, or passes more than 3 arguments through (rule 2);
+- adds a module-level or private `_helper` where a model, queryset or
+  service-class method fits (rule 3);
+- adds a class with a single public method (rule 4);
+- puts cross-model work, `request` or a side effect on a model method (rules 1 and 5).
+
+Keep a `/code-review` finding that the diff itself breaks one of these rules.
+
 ## 3. This repo's rules
 
 Read these, then check every changed file against them:
@@ -77,8 +90,8 @@ Merge duplicates across the passes. Rank by severity:
 Each finding: `path:line`, one sentence on what is wrong, the concrete scenario
 or rule it breaks (name the CLAUDE.md rule, checklist item number or ADR), and a
 suggested fix. Then list the areas you checked and found clean, the
-`/code-review` suggestions you dropped as load-bearing, and end with one line
-the MR's Test plan can quote:
+`/code-review` suggestions you dropped (as load-bearing, or against
+`where-logic-goes.md`), and end with one line the MR's Test plan can quote:
 
 ```
 Review: /code-review high + repo rules — <n> blocking, <n> should fix, <n> nits.
