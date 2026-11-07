@@ -30,19 +30,19 @@ def list_runbooks(request: AuthedRequest) -> QuerySet[Runbook]:
 @router.post("/runbooks", auth=SessionAuth(), response={201: RunbookOut})
 @require(Permission.RUNBOOKS_CATALOG_MANAGE)
 def create_runbook(request: AuthedRequest, payload: RunbookIn) -> Status[Runbook]:
-    return Status(201, runbooks.create(payload.code, payload.fields(), request.auth))
+    return Status(201, runbooks.create(payload.code, payload.fields(), request.auth.user))
 
 
 @router.patch("/runbooks/{code}", auth=SessionAuth(), response=RunbookOut)
 @require(Permission.RUNBOOKS_CATALOG_MANAGE)
 def change_runbook(request: AuthedRequest, code: str, payload: RunbookChangeIn) -> Runbook:
-    return runbooks.change(code, payload.changes(), request.auth)
+    return runbooks.change(code, payload.changes(), request.auth.user)
 
 
 @router.post("/runbooks/{code}/activate", auth=SessionAuth(), response=RunbookOut)
 @require(Permission.RUNBOOKS_CATALOG_ACTIVATE)
 def activate_runbook(request: AuthedRequest, code: str) -> Runbook:
-    return runbooks.activate(code, request.auth)
+    return runbooks.activate(code, request.auth.user)
 
 
 # ── executions ──
@@ -57,7 +57,7 @@ def runbook_panel(request: AuthedRequest, item_id: uuid.UUID) -> RunbookPanel:
 @router.post("/review-items/{item_id}/execute", auth=SessionAuth(), response=RunbookExecutionOut)
 @require(Permission.RUNBOOKS_EXECUTE)
 def execute(request: AuthedRequest, item_id: uuid.UUID, payload: ExecuteIn) -> RunbookExecution:
-    return runbooks.execute(item_id, request.auth, payload.payload)
+    return runbooks.execute(item_id, request.auth.user, payload.payload)
 
 
 @router.post("/executions/{execution_id}/resolve", auth=SessionAuth(), response=RunbookExecutionOut)
@@ -65,7 +65,9 @@ def execute(request: AuthedRequest, item_id: uuid.UUID, payload: ExecuteIn) -> R
 def resolve(
     request: AuthedRequest, execution_id: uuid.UUID, payload: ExecutionResolveIn
 ) -> RunbookExecution:
-    return runbooks.resolve(execution_id, request.auth, ExecutionState(payload.state), payload.note)
+    return runbooks.resolve(
+        execution_id, request.auth.user, ExecutionState(payload.state), payload.note
+    )
 
 
 @router.post(

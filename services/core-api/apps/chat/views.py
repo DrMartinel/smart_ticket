@@ -31,7 +31,7 @@ router = Router(tags=["chat"])
 
 def _own_chat_tickets(request: AuthedRequest) -> QuerySet[Ticket]:
     return Ticket.objects.filter(
-        reporter=request.auth, source=TicketSource.CHAT.value
+        reporter=request.auth.user, source=TicketSource.CHAT.value
     ).select_related("workflow_status")
 
 
@@ -46,9 +46,9 @@ def _own_chat_ticket(request: AuthedRequest, public_id: str) -> Ticket:
 @router.post("/ask", auth=SessionAuth(), response=ChatTurnOut)
 @require(Permission.REQUESTER_CHAT)
 def ask(request: AuthedRequest, payload: ChatAskIn) -> ChatTurnOut:
-    conversation = conversations.for_turn(request.auth, payload.conversation_id)
+    conversation = conversations.for_turn(request.auth.user, payload.conversation_id)
     ticket = Ticket.objects.submit(
-        reporter=request.auth,
+        reporter=request.auth.user,
         ticket_in=ticket_in_from_message(payload.message),
         trace_id=getattr(request, "trace_id", None),
         source=TicketSource.CHAT,
@@ -61,7 +61,7 @@ def ask(request: AuthedRequest, payload: ChatAskIn) -> ChatTurnOut:
 @router.post("/conversations/{conversation_id}/end", auth=SessionAuth(), response={204: None})
 @require(Permission.REQUESTER_CHAT)
 def end_conversation(request: AuthedRequest, conversation_id: uuid.UUID) -> Status[None]:
-    conversations.end_by_requester(request.auth, conversation_id)
+    conversations.end_by_requester(request.auth.user, conversation_id)
     return Status(204, None)
 
 
@@ -70,7 +70,7 @@ def end_conversation(request: AuthedRequest, conversation_id: uuid.UUID) -> Stat
 def history(request: AuthedRequest, conversation_id: uuid.UUID | None = None) -> list[ChatTurnOut]:
     """The turns of one conversation: the named one, else the current one (FR-F3-004)."""
     if conversation_id is None:
-        current = conversations.current(request.auth)
+        current = conversations.current(request.auth.user)
         if current is None:
             return []
         conversation_id = current.id
@@ -89,7 +89,9 @@ def turn(request: AuthedRequest, public_id: str) -> ChatTurnOut:
 def create_ticket(request: AuthedRequest, public_id: str) -> ChatTurnOut:
     ticket = _own_chat_ticket(request, public_id)
     try:
-        ticket = release_to_support(ticket.id, request.auth.id, getattr(request, "trace_id", None))
+        ticket = release_to_support(
+            ticket.id, request.auth.user.id, getattr(request, "trace_id", None)
+        )
     except NotAwaitingRequester as e:
         raise HttpError(409, "this question is not waiting for a ticket") from e
     return chat_turn(ticket)
@@ -101,7 +103,7 @@ def clarify(request: AuthedRequest, public_id: str, payload: ChatClarifyIn) -> C
     ticket = _own_chat_ticket(request, public_id)
     try:
         ticket = clarifications.answer(
-            ticket.id, request.auth.id, payload.answer, getattr(request, "trace_id", None)
+            ticket.id, request.auth.user.id, payload.answer, getattr(request, "trace_id", None)
         )
     except NotAwaitingAnswer as e:
         raise HttpError(409, "this question is no longer waiting for an answer") from e

@@ -89,28 +89,32 @@ def get_alert(request: AuthedRequest, alert_id: uuid.UUID) -> AlertDetailOut:
 @router.post("/alerts/{alert_id}/ack", auth=SessionAuth(), response=AlertDetailOut)
 @require(Permission.SECURITY_QUEUE_WORK)
 def acknowledge(request: AuthedRequest, alert_id: uuid.UUID) -> AlertDetailOut:
-    security_alerts.acknowledge(alert_id, request.auth)
+    security_alerts.acknowledge(alert_id, request.auth.user)
     return _detail(alert_id)
 
 
 @router.post("/alerts/{alert_id}/assign", auth=SessionAuth(), response=AlertDetailOut)
 @require(Permission.SECURITY_QUEUE_WORK)
 def assign(request: AuthedRequest, alert_id: uuid.UUID, payload: AssignIn) -> AlertDetailOut:
-    security_alerts.assign(alert_id, request.auth, payload.user)
+    security_alerts.assign(alert_id, request.auth.user, payload.user)
     return _detail(alert_id)
 
 
 @router.post("/alerts/{alert_id}/notes", auth=SessionAuth(), response=AlertEventOut)
 @require(Permission.SECURITY_QUEUE_WORK)
 def add_note(request: AuthedRequest, alert_id: uuid.UUID, payload: NoteIn) -> AlertEventOut:
-    return AlertEventOut.of(security_alerts.note(alert_id, request.auth, payload.note))
+    return AlertEventOut.of(security_alerts.note(alert_id, request.auth.user, payload.note))
 
 
 @router.post("/alerts/{alert_id}/close", auth=SessionAuth(), response=AlertDetailOut)
 @require(Permission.SECURITY_QUEUE_WORK)
 def close(request: AuthedRequest, alert_id: uuid.UUID, payload: CloseIn) -> AlertDetailOut:
     security_alerts.close(
-        alert_id, request.auth, Resolution(payload.resolution), payload.note, payload.duplicate_of
+        alert_id,
+        request.auth.user,
+        Resolution(payload.resolution),
+        payload.note,
+        payload.duplicate_of,
     )
     return _detail(alert_id)
 
@@ -118,27 +122,27 @@ def close(request: AuthedRequest, alert_id: uuid.UUID, payload: CloseIn) -> Aler
 @router.post("/alerts/{alert_id}/reopen", auth=SessionAuth(), response=AlertDetailOut)
 @require(Permission.SECURITY_QUEUE_WORK)
 def reopen(request: AuthedRequest, alert_id: uuid.UUID, payload: NoteIn) -> AlertDetailOut:
-    security_alerts.reopen(alert_id, request.auth, payload.note)
+    security_alerts.reopen(alert_id, request.auth.user, payload.note)
     return _detail(alert_id)
 
 
 @router.post("/alerts/{alert_id}/release-ticket", auth=SessionAuth(), response=TicketOut)
 @require(Permission.SECURITY_QUEUE_WORK)
 def release_ticket(request: AuthedRequest, alert_id: uuid.UUID, payload: ReasonIn) -> Ticket:
-    return security_alerts.release(alert_id, request.auth, payload.reason)
+    return security_alerts.release(alert_id, request.auth.user, payload.reason)
 
 
 @router.post("/alerts/{alert_id}/notify-requester", auth=SessionAuth(), response={204: None})
 @require(Permission.SECURITY_QUEUE_WORK)
 def notify_requester(request: AuthedRequest, alert_id: uuid.UUID) -> Status[None]:
-    security_alerts.notify_requester(alert_id, request.auth)
+    security_alerts.notify_requester(alert_id, request.auth.user)
     return Status(204, None)
 
 
 @router.post("/alerts/{alert_id}/end-sessions", auth=SessionAuth(), response=AlertDetailOut)
 @require(Permission.SECURITY_QUEUE_WORK)
 def end_sessions(request: AuthedRequest, alert_id: uuid.UUID) -> AlertDetailOut:
-    security_alerts.end_sessions(alert_id, request.auth)
+    security_alerts.end_sessions(alert_id, request.auth.user)
     return _detail(alert_id)
 
 

@@ -13,8 +13,6 @@ from apps.accounts.utils.catalog import Permission
 from apps.accounts.permissions import (
     AuthedRequest,
     SessionAuth,
-    refuse_unless_covers,
-    refuse_without,
     require,
 )
 from apps.lifecycle.models import (
@@ -98,7 +96,7 @@ def list_workflows(request: AuthedRequest) -> QuerySet[Workflow]:
 @router.post("/workflows", auth=SessionAuth(), response={201: WorkflowDetailOut})
 @require(Permission.WORKFLOWS_MANAGE)
 def create_workflow(request: AuthedRequest, payload: WorkflowIn) -> Status[Workflow]:
-    workflow = workflow_config.create_workflow(payload, actor=request.auth)
+    workflow = workflow_config.create_workflow(payload, actor=request.auth.user)
     return Status(201, _workflow(workflow.id))
 
 
@@ -114,14 +112,16 @@ def update_workflow(
     request: AuthedRequest, workflow_id: uuid.UUID, payload: WorkflowPatch
 ) -> Workflow:
     return workflow_config.update_workflow(
-        get_object_or_404(Workflow, pk=workflow_id), payload, actor=request.auth
+        get_object_or_404(Workflow, pk=workflow_id), payload, actor=request.auth.user
     )
 
 
 @router.delete("/workflows/{workflow_id}", auth=SessionAuth(), response={204: None})
 @require(Permission.WORKFLOWS_MANAGE)
 def delete_workflow(request: AuthedRequest, workflow_id: uuid.UUID) -> Status[None]:
-    workflow_config.delete_workflow(get_object_or_404(Workflow, pk=workflow_id), actor=request.auth)
+    workflow_config.delete_workflow(
+        get_object_or_404(Workflow, pk=workflow_id), actor=request.auth.user
+    )
     return Status(204, None)
 
 
@@ -132,7 +132,7 @@ def adopt_tickets(request: AuthedRequest, workflow_id: uuid.UUID, payload: Adopt
         get_object_or_404(Workflow, pk=payload.source_workflow_id),
         get_object_or_404(Workflow, pk=workflow_id),
         payload.status_mapping,
-        actor=request.auth,
+        actor=request.auth.user,
     )
 
 
@@ -189,7 +189,9 @@ def set_status_position(
 def delete_status(
     request: AuthedRequest, status_id: uuid.UUID, migrate_to: uuid.UUID | None = None
 ) -> Status[None]:
-    workflow_config.delete_status(_status(status_id), migrate_to=migrate_to, actor=request.auth)
+    workflow_config.delete_status(
+        _status(status_id), migrate_to=migrate_to, actor=request.auth.user
+    )
     return Status(204, None)
 
 
@@ -280,7 +282,7 @@ def delete_field(request: AuthedRequest, field_id: uuid.UUID) -> Status[None]:
 
 def _ticket(request: AuthedRequest, public_id: str, permission: Permission) -> Ticket:
     ticket = get_object_or_404(Ticket.objects.select_related("reporter"), public_id=public_id)
-    refuse_unless_covers(request, request.auth, permission, ticket)
+    request.auth.require_covering(permission, ticket)
     return ticket
 
 
@@ -308,11 +310,11 @@ def list_moves(request: AuthedRequest, public_id: str) -> list[MoveOption]:
 @require(Permission.TICKETS_MOVE)
 def move_ticket(request: AuthedRequest, public_id: str, payload: MoveIn) -> Ticket:
     if payload.force:
-        refuse_without(request, request.auth, Permission.TICKETS_MOVE_FORCE)
+        request.auth.require(Permission.TICKETS_MOVE_FORCE)
     lifecycle.move(
         _ticket(request, public_id, Permission.TICKETS_MOVE).id,
         payload.status_id,
-        actor=request.auth,
+        actor=request.auth.user,
         force=payload.force,
         expected_version=payload.expected_version,
     )
@@ -329,7 +331,7 @@ def change_ticket_workflow(
     lifecycle.change_workflow(
         _ticket(request, public_id, Permission.TICKETS_WORKFLOW_CHANGE).id,
         payload.status_id,
-        actor=request.auth,
+        actor=request.auth.user,
     )
     return _lifecycle_of(public_id)
 
@@ -340,7 +342,7 @@ def write_fields(request: AuthedRequest, public_id: str, payload: FieldValuesIn)
     field_values.write(
         _ticket(request, public_id, Permission.TICKETS_FIELDS_WRITE).id,
         payload.values,
-        actor=request.auth,
+        actor=request.auth.user,
     )
     return _lifecycle_of(public_id)
 
@@ -362,7 +364,7 @@ def list_transfers(request: AuthedRequest, public_id: str) -> QuerySet[Transfer]
 @require(Permission.TICKETS_TRANSFERS_RETRY)
 def retry_transfer(request: AuthedRequest, public_id: str) -> Transfer:
     transfer = lifecycle.retry(
-        _ticket(request, public_id, Permission.TICKETS_TRANSFERS_RETRY).id, request.auth
+        _ticket(request, public_id, Permission.TICKETS_TRANSFERS_RETRY).id, request.auth.user
     )
     return (
         Transfer.objects.select_related("ticket", "before_status", "after_status", "actor")

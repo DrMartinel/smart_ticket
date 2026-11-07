@@ -41,27 +41,27 @@ def policies(request: AuthedRequest) -> QuerySet[Policy]:
 @router.post("/policies", auth=SessionAuth(), response={201: PolicyOut})
 @require(Permission.SLA_MANAGE)
 def draft_policy(request: AuthedRequest, payload: PolicyIn) -> Status:
-    return Status(201, sla_config.draft(request.auth, payload.model_dump(mode="json")))
+    return Status(201, sla_config.draft(request.auth.user, payload.model_dump(mode="json")))
 
 
 @router.patch("/policies/{policy_id}", auth=SessionAuth(), response=PolicyOut)
 @require(Permission.SLA_MANAGE)
 def edit_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: PolicyPatch) -> Policy:
     return sla_config.edit(
-        request.auth, policy_id, payload.model_dump(mode="json", exclude_unset=True)
+        request.auth.user, policy_id, payload.model_dump(mode="json", exclude_unset=True)
     )
 
 
 @router.post("/policies/{policy_id}/activate", auth=SessionAuth(), response=PolicyOut)
 @require(Permission.SLA_POLICIES_ACTIVATE)
 def activate_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
-    return sla_config.activate(request.auth, policy_id, payload.reason)
+    return sla_config.activate(request.auth.user, policy_id, payload.reason)
 
 
 @router.post("/policies/{policy_id}/retire", auth=SessionAuth(), response=PolicyOut)
 @require(Permission.SLA_POLICIES_ACTIVATE)
 def retire_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
-    return sla_config.retire(request.auth, policy_id, payload.reason)
+    return sla_config.retire(request.auth.user, policy_id, payload.reason)
 
 
 # ── calendars and holidays ──
@@ -76,7 +76,7 @@ def calendars(request: AuthedRequest) -> QuerySet[Calendar]:
 @router.post("/calendars", auth=SessionAuth(), response={201: CalendarOut})
 @require(Permission.SLA_MANAGE)
 def create_calendar(request: AuthedRequest, payload: CalendarIn) -> Status:
-    return Status(201, sla_config.save_calendar(request.auth, payload.model_dump()))
+    return Status(201, sla_config.save_calendar(request.auth.user, payload.model_dump()))
 
 
 @router.patch("/calendars/{calendar_id}", auth=SessionAuth(), response=CalendarOut)
@@ -85,7 +85,7 @@ def edit_calendar(
     request: AuthedRequest, calendar_id: uuid.UUID, payload: CalendarPatch
 ) -> Calendar:
     return sla_config.save_calendar(
-        request.auth, payload.model_dump(exclude_unset=True), calendar_id
+        request.auth.user, payload.model_dump(exclude_unset=True), calendar_id
     )
 
 
@@ -104,7 +104,9 @@ def add_holidays(request: AuthedRequest, calendar_id: uuid.UUID, payload: Holida
     end = payload.date or payload.to_date or start
     if start is None or end is None:
         raise SlaConfigError(422, SlaConfigRefusal.BAD_INTERVAL, "give a date, or from and to")
-    return Status(201, sla_config.add_holidays(request.auth, calendar_id, start, end, payload.name))
+    return Status(
+        201, sla_config.add_holidays(request.auth.user, calendar_id, start, end, payload.name)
+    )
 
 
 @router.delete(
@@ -112,7 +114,7 @@ def add_holidays(request: AuthedRequest, calendar_id: uuid.UUID, payload: Holida
 )
 @require(Permission.SLA_MANAGE)
 def remove_holiday(request: AuthedRequest, calendar_id: uuid.UUID, holiday_id: uuid.UUID) -> Status:
-    sla_config.remove_holiday(request.auth, calendar_id, holiday_id)
+    sla_config.remove_holiday(request.auth.user, calendar_id, holiday_id)
     return Status(204, None)
 
 
