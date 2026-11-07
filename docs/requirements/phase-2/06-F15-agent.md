@@ -840,11 +840,19 @@ Each departure is the smaller choice; none lets an agent do more.
 5. An action stores its validated `arguments` as the agent sent them, not
    masked again. They are written by the model from masked text, not typed
    by a person (BR-X-06), and the route masks them when the action is applied.
-6. Applying any action writes one `agent_action_applied` audit row in the
-   handler's transaction (a confirm's carries `via=agent` and `confirmed_by`,
-   a draft's `agent_draft_id` only), because some routes the agent reaches,
-   review `decide` and `claim` among them, write no audit row of their own.
+6. Applying an action claims it (`applied`) in a short transaction of its
+   own, then runs the route outside it, so the refusal and alert rows a route
+   writes before it raises are kept. A route that raises puts the action back
+   to `pending`. A route that succeeds is followed by one
+   `agent_action_applied` audit row (a confirm's carries `via=agent` and
+   `confirmed_by`, a draft's `agent_draft_id` only), because some routes the
+   agent reaches, review `decide` and `claim` among them, write no audit row
+   of their own. That row is written after the route's own transaction, not
+   inside it.
 7. A failed apply leaves the action `pending` until it expires; `superseded`
    is set by the sweep in PR 6, not by the apply.
 8. An agent call names its tool in an `X-Agent-Tool` header, which every
    stamped audit row and every action records.
+9. Only the user the agent acted for may apply its confirm or draft, where
+   BR-F15-07 says "a person". A draft can't be handed to someone the turn
+   never acted for, such as a lead; widening this needs an owner's decision.
