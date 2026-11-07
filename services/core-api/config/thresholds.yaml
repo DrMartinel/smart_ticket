@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-005"
+version: "CR-2026-006"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -274,3 +274,8 @@ access:
   review_reminder_days: 3
   # Rows one CSV import may hold (FR-F14-005).
   import_max_rows: 2000
+
+agent:
+  # Seconds an agent turn's token lives (F15, BR-F15-02); it also dies with
+  # the turn and with the sign-in it was minted from. 🔧 assumption, not measured.
+  token_ttl_seconds: 300

@@ -31,6 +31,7 @@ from config.settings.base import (
     KbGapsThresholds,
     ReportsThresholds,
     AccessThresholds,
+    AgentThresholds,
     SecurityThresholds,
     SlaThresholds,
     Thresholds,
@@ -145,6 +146,7 @@ def make_thresholds(**overrides) -> Thresholds:
             review_reminder_days=3,
             import_max_rows=2000,
         ),
+        agent=AgentThresholds(token_ttl_seconds=300),
     )
     base.update(overrides)
     return Thresholds(**base)
