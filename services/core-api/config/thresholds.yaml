@@ -279,3 +279,8 @@ agent:
   # Seconds an agent turn's token lives (F15, BR-F15-02); it also dies with
   # the turn and with the sign-in it was minted from. 🔧 assumption, not measured.
   token_ttl_seconds: 300
+  # Minutes a call the agent proposed waits for the user's confirmation, and
+  # hours a draft it left on a human-only route waits for a person (BR-F15-06,
+  # BR-F15-07). 🔧 assumptions, not measured.
+  confirm_ttl_minutes: 30
+  draft_ttl_hours: 72

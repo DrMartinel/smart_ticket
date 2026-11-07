@@ -1,4 +1,4 @@
-"""An agent turn's token acts as its user and is refused on every route (F15 PR 1, ADR-0046)."""
+"""An agent turn's token acts as its user, and a route without an agent tier refuses it (ADR-0046)."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from apps.accounts.models import AuthClient
 from apps.accounts.permissions import (
     AccessError,
     AccessRefusal,
+    AgentTier,
     Caller,
     SessionAuth,
     gate_of,
@@ -90,30 +91,37 @@ def test_no_agent_token_is_minted_for_an_ended_sign_in(employee_user):
         )
 
 
-def test_every_gated_route_refuses_an_agent_token_even_with_the_permission(
+def test_every_route_with_tier_none_refuses_an_agent_token_even_with_the_permission(
     employee_user, monkeypatch
 ):
     monkeypatch.setattr(Caller, "holds", lambda self, permission: True)
     token = agent_token_for(employee_user)
-    ungated, refused = set(), set()
+    refused = 0
 
     for key, operation in operations():
-        if gate_of(operation.view_func) is None:
-            ungated.add(key)
-            assert not operation.auth_callbacks, key
+        gate = gate_of(operation.view_func)
+        if gate is None or gate.agent_tier is not AgentTier.NONE:
             continue
         request = RequestFactory().get("/", HTTP_AUTHORIZATION=f"Bearer {token}")
         for callback in operation.auth_callbacks:
             with pytest.raises(AccessError) as refused_with:
                 callback(request)
             assert refused_with.value.code is AccessRefusal.AGENT_NOT_ALLOWED, key
-        refused.add(key)
+        refused += 1
+
+    assert refused == 202
+
+
+def test_ungated_routes_read_no_bearer_token():
+    ungated = {key for key, op in operations() if gate_of(op.view_func) is None}
 
     assert ungated == UNGATED
-    assert len(refused) == len(list(operations())) - len(UNGATED)
+    for key, operation in operations():
+        if key in UNGATED:
+            assert not operation.auth_callbacks, key
 
 
-def test_require_refuses_an_agent_when_the_handler_is_called_directly(employee_user):
+def test_a_route_with_no_agent_tier_refuses_an_agent(employee_user):
     token = agent_token_for(employee_user)
     request = RequestFactory().get("/", HTTP_AUTHORIZATION=f"Bearer {token}")
     setattr(request, "auth", SessionAuth()(request))

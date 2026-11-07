@@ -8,7 +8,7 @@ from datetime import datetime
 from ninja import Query, Router
 
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require
+from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.accounts.response_schema import DepartmentTicketOut
 from apps.requester.request_schema import RatingIn, ReopenIn, ReplyIn
 from apps.requester.response_schema import (
@@ -27,7 +27,7 @@ router = Router(tags=["requester"])
 
 
 @router.get("/tickets", auth=SessionAuth(), response=RequesterTicketList)
-@require(Permission.REQUESTER_TICKETS)
+@require(Permission.REQUESTER_TICKETS, agent=AgentTier.READ)
 def my_tickets(request: AuthedRequest, before: datetime | None = None) -> RequesterTicketList:
     listing = requester_tickets.listing(request.auth.user, before)
     return RequesterTicketList(
@@ -38,7 +38,7 @@ def my_tickets(request: AuthedRequest, before: datetime | None = None) -> Reques
 
 
 @router.get("/department-tickets", auth=SessionAuth(), response=list[DepartmentTicketOut])
-@require(Permission.REQUESTER_DEPARTMENT_READ)
+@require(Permission.REQUESTER_DEPARTMENT_READ, agent=AgentTier.NONE)
 def department_tickets(
     request: AuthedRequest, open_only: bool = True, limit: int = Query(100, ge=1, le=500)
 ) -> list[DepartmentTicketOut]:
@@ -64,7 +64,7 @@ def department_tickets(
 
 
 @router.get("/tickets/{public_id}", auth=SessionAuth(), response=RequesterTicketOut)
-@require(Permission.REQUESTER_TICKETS)
+@require(Permission.REQUESTER_TICKETS, agent=AgentTier.READ)
 def my_ticket(request: AuthedRequest, public_id: str) -> RequesterTicketOut:
     return RequesterTicketOut.detail(
         requester_tickets.own(request.auth.user, public_id), request.auth.user
@@ -72,20 +72,20 @@ def my_ticket(request: AuthedRequest, public_id: str) -> RequesterTicketOut:
 
 
 @router.post("/tickets/{public_id}/replies", auth=SessionAuth(), response=ThreadCommentOut)
-@require(Permission.REQUESTER_TICKETS)
+@require(Permission.REQUESTER_TICKETS, agent=AgentTier.CONFIRM)
 def reply(request: AuthedRequest, public_id: str, payload: ReplyIn) -> ThreadCommentOut:
     comment = requester_tickets.reply(request.auth.user, public_id, payload.body)
     return ThreadCommentOut.of(comment, request.auth.user)
 
 
 @router.post("/tickets/{public_id}/reopen", auth=SessionAuth(), response=ReopenOut)
-@require(Permission.REQUESTER_TICKETS)
+@require(Permission.REQUESTER_TICKETS, agent=AgentTier.CONFIRM)
 def reopen(request: AuthedRequest, public_id: str, payload: ReopenIn) -> ReopenOut:
     done = requester_tickets.reopen(request.auth.user, public_id, payload.reason)
     return ReopenOut(reopened=done.reopened, new_ticket=done.new_ticket)
 
 
 @router.put("/tickets/{public_id}/rating", auth=SessionAuth(), response=RatingOut)
-@require(Permission.REQUESTER_TICKETS)
+@require(Permission.REQUESTER_TICKETS, agent=AgentTier.NONE)
 def rate(request: AuthedRequest, public_id: str, payload: RatingIn) -> TicketRating:
     return requester_tickets.rate(request.auth.user, public_id, payload.score, payload.comment)

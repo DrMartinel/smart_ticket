@@ -92,6 +92,7 @@ INSTALLED_APPS = [
     "apps.rollout",
     "apps.incidents",
     "apps.reports",
+    "apps.agent",
 ]
 
 MIDDLEWARE = [
@@ -520,6 +521,9 @@ class AccessThresholds(BaseModel):
 class AgentThresholds(BaseModel):
     # Lifetime of an agent turn's access token (F15, BR-F15-02).
     token_ttl_seconds: int = Field(ge=1)
+    # Lifetimes of a pending confirm and a human-only draft (BR-F15-06, BR-F15-07).
+    confirm_ttl_minutes: int = Field(ge=1)
+    draft_ttl_hours: int = Field(ge=1)
 
 
 class Thresholds(BaseModel):

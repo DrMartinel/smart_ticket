@@ -14,6 +14,7 @@ from typing import Any
 
 from django.db import models
 
+from apps.audit.context import context_fields
 from apps.core.models import BaseModel
 
 
@@ -39,7 +40,7 @@ class AuditLogManager(models.Manager["AuditLog"]):
             actor_type=actor_type,
             actor_id=actor_id,
             event=event,
-            payload=payload or {},
+            payload={**(payload or {}), **context_fields()},
             trace_id=trace_id,
         )
 
