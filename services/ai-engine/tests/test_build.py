@@ -7,7 +7,8 @@ from uuid import UUID
 
 import pytest
 
-from ai_engine.graph.build.graph import Cycles
+from graphlib import TopologicalSorter
+
 from ai_engine.graph.build.node import Terminal
 from ai_engine.graph.nodes.candidate_pool.node import CandidatePoolNode
 from ai_engine.graph.nodes.classify_category.node import (
@@ -225,7 +226,10 @@ def test_the_draft_prompt_is_the_file_settings_draft_prompt_version_names():
     assert "-->" not in DRAFT_PROMPT
 
 
-def test_the_triage_graph_rejects_every_cycle():
-    from ai_engine.graph.triage import _triage
+def test_the_triage_graph_has_no_cycle():
+    successors: dict[str, set[str]] = {}
+    for source, target in _edges():
+        if "__start__" not in (source, target) and "__end__" not in (source, target):
+            successors.setdefault(source, set()).add(target)
 
-    assert _triage._graph.cycles is Cycles.REJECT
+    TopologicalSorter(successors).prepare()

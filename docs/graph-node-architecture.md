@@ -312,7 +312,7 @@ A graph built with `GraphBuilder(entry=…, cycles=Cycles.BOUNDED)` may loop, bu
 every cycle must pass through a node with a **limit outcome** routed out of
 it. A node names its limit outcomes in `limits` (members of its own `Outcome`,
 checked when the class is defined), and its `decide()` returns one once the loop
-has reached its cap. `compile()` drops every node whose limit outcome leads
+has reached its cap. `compile()` drops every node whose limit outcomes all lead
 somewhere that can't come back to it, and raises `unbounded cycle: …` if what
 is left still has a cycle. A loop that skips the limit node, or a limit whose
 exit leads back into the loop, is caught at startup rather than spinning until

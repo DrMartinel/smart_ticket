@@ -67,7 +67,7 @@ class Graph:
     def _reachable(self, start: BaseNode[Any] | None = None) -> list[BaseNode[Any]]:
         """Depth-first from `start` (the entry when not given), in first-visit order."""
         seen: dict[BaseNode[Any], None] = {}  # insertion-ordered set
-        stack = [start or self.entry]
+        stack = [start if start is not None else self.entry]
         while stack:
             node = stack.pop()
             if node not in seen:
@@ -117,13 +117,12 @@ class Graph:
             raise ValueError(f"cycle: {' -> '.join(type(n).__name__ for n in cycle)}")
 
     def _check_cycles_bounded(self, nodes: list[BaseNode[Any]]) -> None:
-        """Every cycle passes through a node with a limit outcome routed out of it."""
-        bounding = {
-            node
-            for node in nodes
-            for edge in self.edges_from(node)
-            if edge.outcome in type(node).limits and node not in self._reachable(edge.target)
-        }
+        """Every cycle passes through a node whose limit outcomes are all routed out of it."""
+        bounding = set()
+        for node in nodes:
+            exits = [e.target for e in self.edges_from(node) if e.outcome in type(node).limits]
+            if exits and all(node not in self._reachable(target) for target in exits):
+                bounding.add(node)
         if cycle := self._cycle_among([node for node in nodes if node not in bounding]):
             raise ValueError(f"unbounded cycle: {' -> '.join(type(n).__name__ for n in cycle)}")
 
