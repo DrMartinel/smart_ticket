@@ -7,7 +7,7 @@ import uuid
 from datetime import timedelta
 
 import pytest
-from django.db import IntegrityError, transaction
+from django.db import DatabaseError, IntegrityError, transaction
 from django.conf import settings
 from django.test import RequestFactory
 from django.utils import timezone
@@ -327,3 +327,56 @@ def test_a_rate_limited_reveal_through_a_draft_is_recorded_and_alerted(employee_
     assert SecurityAlert.objects.filter(kind="reveal_rate_limited").exists()
     draft.refresh_from_db()
     assert draft.state == AgentActionState.PENDING.value
+
+
+def test_an_applied_action_cannot_be_applied_again(technician_user, employee_user):
+    item = runbook_item(employee_user)
+    action = proposed_claim(technician_user, item)
+    client = api_client_for(technician_user)
+
+    first = apply(client, f"/api/review/items/{item.id}/claim", action)
+    second = apply(client, f"/api/review/items/{item.id}/claim", action)
+
+    assert first.status_code == 200
+    assert second.status_code == 409
+    assert second.json()["code"] == "agent_action_not_pending"
+    assert AuditLog.objects.filter(event="agent_action_applied").count() == 1
+
+
+def test_a_failed_applied_audit_row_does_not_reopen_a_done_action(
+    technician_user, employee_user, monkeypatch
+):
+    item = runbook_item(employee_user)
+    action = proposed_claim(technician_user, item)
+    manager = type(AuditLog.objects)
+    record = manager.record
+
+    def fails_on_applied(self, event, *args, **kwargs):
+        if event == "agent_action_applied":
+            raise DatabaseError("connection lost")
+        return record(self, event, *args, **kwargs)
+
+    monkeypatch.setattr(manager, "record", fails_on_applied)
+
+    with pytest.raises(DatabaseError):
+        apply(api_client_for(technician_user), f"/api/review/items/{item.id}/claim", action)
+
+    item.refresh_from_db()
+    assert item.state == "claimed"
+    action.refresh_from_db()
+    assert action.state == AgentActionState.APPLIED.value
+
+
+def test_an_agent_call_with_an_overlong_path_is_refused_and_audited(manager_user):
+    public_id = "T" * 400
+
+    response = as_agent(manager_user, "take_ticket").post(
+        f"/api/tickets/{public_id}/take", {"expected_version": 1}, content_type="application/json"
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "agent_action_path_too_long"
+    assert not AgentAction.objects.exists()
+    row = AuditLog.objects.get(event="agent_call_refused")
+    assert row.payload["reason"] == "agent_action_path_too_long"
+    assert row.payload["via"] == "agent"

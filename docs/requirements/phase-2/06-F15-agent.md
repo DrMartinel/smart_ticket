@@ -843,14 +843,18 @@ Each departure is the smaller choice; none lets an agent do more.
 6. Applying an action claims it (`applied`) in a short transaction of its
    own, then runs the route outside it, so the refusal and alert rows a route
    writes before it raises are kept. A route that raises puts the action back
-   to `pending`. A route that succeeds is followed by one
-   `agent_action_applied` audit row (a confirm's carries `via=agent` and
+   to `pending`; a failure after the route succeeded, writing the audit row
+   included, leaves it `applied`, so a done action never runs twice. A route
+   that succeeds is followed by one `agent_action_applied` audit row (a confirm's carries `via=agent` and
    `confirmed_by`, a draft's `agent_draft_id` only), because some routes the
    agent reaches, review `decide` and `claim` among them, write no audit row
    of their own. That row is written after the route's own transaction, not
    inside it.
 7. A failed apply leaves the action `pending` until it expires; `superseded`
-   is set by the sweep in PR 6, not by the apply.
+   is set by the sweep in PR 6, not by the apply. A worker that dies between
+   the claim and the route's end leaves the action `applied` with no
+   `agent_action_applied` row, whether or not the route ran; the PR 6 sweep
+   flags those for a person.
 8. An agent call names its tool in an `X-Agent-Tool` header, which every
    stamped audit row and every action records.
 9. Only the user the agent acted for may apply its confirm or draft, where

@@ -22,7 +22,7 @@ from pydantic_core import to_jsonable_python
 
 from apps.accounts.models import User
 from apps.accounts.utils import AGENT_ACT
-from apps.agent.models import AgentAction, AgentActionKind, AgentActionState
+from apps.agent.models import PATH_MAX_LENGTH, AgentAction, AgentActionKind, AgentActionState
 from apps.audit.context import audit_context
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
@@ -37,12 +37,17 @@ class AgentActionRefusal(StrEnum):
     MISMATCH = "agent_action_mismatch"
     NOT_PENDING = "agent_action_not_pending"
     EXPIRED = "agent_action_expired"
+    PATH_TOO_LONG = "agent_action_path_too_long"
 
 
 class AgentActionError(CodedError):
     """An apply core-api refuses."""
 
     code: AgentActionRefusal
+
+    @classmethod
+    def not_pending(cls) -> AgentActionError:
+        return cls(409, AgentActionRefusal.NOT_PENDING, "no pending action of yours has this id")
 
 
 class AgentActionPending(Exception):
@@ -132,6 +137,21 @@ class AgentActions:
             ),
             ("", ""),
         )
+        if len(call.path) > PATH_MAX_LENGTH:
+            AuditLog.objects.record(
+                "agent_call_refused",
+                actor_type="human",
+                actor_id=user.id,
+                payload={
+                    "route": call.route,
+                    "method": call.method,
+                    "reason": AgentActionRefusal.PATH_TOO_LONG.value,
+                    **origin.audit_fields(),
+                },
+            )
+            raise AgentActionError(
+                422, AgentActionRefusal.PATH_TOO_LONG, "this call's path is too long to hold"
+            )
         with transaction.atomic():
             action = AgentAction.objects.create(
                 kind=kind.value,
@@ -166,11 +186,12 @@ class AgentActions:
     @contextmanager
     def applying(self, action_id: str, user: User, call: AgentCall) -> Iterator[AgentAction]:
         """Runs the block as `user` applying their pending action `action_id`: the action is
-        claimed first, and put back to pending if the block raises."""
+        claimed first, put back to pending if the block raises, and audited as applied after
+        the block succeeds."""
         try:
             key = uuid.UUID(action_id)
         except ValueError as e:
-            raise self._not_pending() from e
+            raise AgentActionError.not_pending() from e
         now = timezone.now()
         if AgentAction.objects.filter(
             id=key, user=user, state=AgentActionState.PENDING.value, expires_at__lte=now
@@ -179,11 +200,11 @@ class AgentActions:
         with transaction.atomic():
             action = (
                 AgentAction.objects.select_for_update()
-                .filter(id=key, user=user, state=AgentActionState.PENDING.value)
+                .filter(id=key, user=user, state=AgentActionState.PENDING.value, expires_at__gt=now)
                 .first()
             )
             if action is None:
-                raise self._not_pending()
+                raise AgentActionError.not_pending()
             confirm = action.kind == AgentActionKind.CONFIRM.value
             same_call = (
                 action.arguments_sha256 == call.sha256() if confirm else action.path == call.path
@@ -211,18 +232,21 @@ class AgentActions:
         token = _applying.set(action)
         try:
             with audit_context(fields):
-                yield action
+                try:
+                    yield action
+                except BaseException:
+                    AgentAction.objects.filter(
+                        id=action.id, state=AgentActionState.APPLIED.value
+                    ).update(
+                        state=AgentActionState.PENDING.value, resolved_at=None, resolved_by=None
+                    )
+                    raise
                 AuditLog.objects.record(
                     "agent_action_applied",
                     actor_type="human",
                     actor_id=user.id,
                     payload={"route": action.route, "method": action.method, "kind": action.kind},
                 )
-        except BaseException:
-            AgentAction.objects.filter(id=action.id, state=AgentActionState.APPLIED.value).update(
-                state=AgentActionState.PENDING.value, resolved_at=None, resolved_by=None
-            )
-            raise
         finally:
             _applying.reset(token)
 
@@ -232,12 +256,6 @@ class AgentActions:
         if action is None or action.kind != AgentActionKind.DRAFT.value:
             return None
         return action.id
-
-    @staticmethod
-    def _not_pending() -> AgentActionError:
-        return AgentActionError(
-            409, AgentActionRefusal.NOT_PENDING, "no pending action of yours has this id"
-        )
 
 
 # --- the agent actions service ---
