@@ -94,7 +94,7 @@ COOKIE_PATH = "/api/auth/"
 @router.get("/me", auth=SessionAuth(), response=UserOut)
 @require(Permission.SELF_PROFILE)
 def me(request: AuthedRequest) -> User:
-    return User.objects.select_related(*PERSON_RELATIONS).get(pk=request.auth.pk)
+    return User.objects.select_related(*PERSON_RELATIONS).get(pk=request.auth.user.pk)
 
 
 @router.get("/staff", auth=SessionAuth(), response=list[StaffOut])
@@ -116,7 +116,7 @@ def people(request: AuthedRequest) -> QuerySet[User]:
 @router.put("/people/{username}/base-role", auth=SessionAuth(), response=AccountOut)
 @require(Permission.ACCESS_GRANT)
 def set_base_role(request: AuthedRequest, username: str, payload: BaseRoleIn) -> User:
-    account_rights.set_base_role(request.auth, username, payload.role, payload.reason)
+    account_rights.set_base_role(request.auth.user, username, payload.role, payload.reason)
     return person(username)
 
 
@@ -124,7 +124,7 @@ def set_base_role(request: AuthedRequest, username: str, payload: BaseRoleIn) ->
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def provision_person(request: AuthedRequest, payload: ProvisionIn) -> User:
     user = people_service.provision(
-        request.auth, payload.username, payload.email, profile_of(payload), payload.reason
+        request.auth.user, payload.username, payload.email, profile_of(payload), payload.reason
     )
     return person(user.username)
 
@@ -138,28 +138,28 @@ def get_person(request: AuthedRequest, username: str) -> User:
 @router.patch("/people/{username}", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def update_person(request: AuthedRequest, username: str, payload: ProfileIn) -> User:
-    people_service.update(request.auth, username, profile_of(payload), payload.reason)
+    people_service.update(request.auth.user, username, profile_of(payload), payload.reason)
     return person(username)
 
 
 @router.post("/people/{username}/suspend", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def suspend_person(request: AuthedRequest, username: str, payload: ReasonIn) -> User:
-    people_service.suspend(request.auth, username, payload.reason)
+    people_service.suspend(request.auth.user, username, payload.reason)
     return person(username)
 
 
 @router.post("/people/{username}/reactivate", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def reactivate_person(request: AuthedRequest, username: str, payload: ReasonIn) -> User:
-    people_service.reactivate(request.auth, username, payload.reason)
+    people_service.reactivate(request.auth.user, username, payload.reason)
     return person(username)
 
 
 @router.post("/people/{username}/deactivate", auth=SessionAuth(), response=PersonRecordOut)
 @require(Permission.ACCESS_PEOPLE_MANAGE)
 def deactivate_person(request: AuthedRequest, username: str, payload: ReasonIn) -> User:
-    people_service.deactivate(request.auth, username, payload.reason)
+    people_service.deactivate(request.auth.user, username, payload.reason)
     return person(username)
 
 
@@ -215,7 +215,7 @@ def list_roles(request: AuthedRequest, include_retired: bool = False) -> list[Ro
 @require(Permission.ACCESS_ROLES_MANAGE)
 def create_role(request: AuthedRequest, payload: RoleIn) -> RoleOut:
     role = roles.create(
-        request.auth,
+        request.auth.user,
         RoleDraft(
             payload.name,
             payload.description,
@@ -240,7 +240,7 @@ def get_role(request: AuthedRequest, urn: str) -> RoleOut:
 @require(Permission.ACCESS_ROLES_MANAGE)
 def update_role(request: AuthedRequest, urn: str, payload: RolePatchIn) -> RoleOut:
     role = roles.update(
-        request.auth,
+        request.auth.user,
         urn,
         RoleDraft(
             payload.name,
@@ -256,7 +256,7 @@ def update_role(request: AuthedRequest, urn: str, payload: RolePatchIn) -> RoleO
 @access_router.post("/roles/{urn}/retire", auth=SessionAuth(), response=RoleOut)
 @require(Permission.ACCESS_ROLES_MANAGE)
 def retire_role(request: AuthedRequest, urn: str, payload: ReasonIn) -> RoleOut:
-    return RoleOut.of(roles.retire(request.auth, urn, payload.reason))
+    return RoleOut.of(roles.retire(request.auth.user, urn, payload.reason))
 
 
 @access_router.get(
@@ -282,7 +282,7 @@ def list_assignments(
 @require(Permission.ACCESS_GRANT)
 def grant(request: AuthedRequest, username: str, payload: GrantIn) -> AssignmentOut:
     row = grants.grant(
-        request.auth,
+        request.auth.user,
         GrantRequest(
             username=username,
             role_urn=payload.role,
@@ -301,7 +301,9 @@ def grant(request: AuthedRequest, username: str, payload: GrantIn) -> Assignment
 def end_assignment(
     request: AuthedRequest, assignment_id: uuid.UUID, payload: ReasonIn
 ) -> AssignmentOut:
-    return AssignmentOut.of(grants.end(request.auth, assignment_id, payload.reason), timezone.now())
+    return AssignmentOut.of(
+        grants.end(request.auth.user, assignment_id, payload.reason), timezone.now()
+    )
 
 
 @access_router.post(
@@ -311,7 +313,7 @@ def end_assignment(
 def extend_assignment(
     request: AuthedRequest, assignment_id: uuid.UUID, payload: ExtendIn
 ) -> AssignmentOut:
-    row = grants.extend(request.auth, assignment_id, payload.ends_at, payload.reason)
+    row = grants.extend(request.auth.user, assignment_id, payload.ends_at, payload.reason)
     return AssignmentOut.of(row, timezone.now())
 
 
@@ -322,7 +324,7 @@ def extend_assignment(
 def confirm_assignment(
     request: AuthedRequest, assignment_id: uuid.UUID, payload: ReasonIn
 ) -> AssignmentOut:
-    row = grants.confirm(request.auth, assignment_id, payload.reason)
+    row = grants.confirm(request.auth.user, assignment_id, payload.reason)
     return AssignmentOut.of(row, timezone.now())
 
 
@@ -330,9 +332,9 @@ def confirm_assignment(
 @require(Permission.SELF_PROFILE)
 def my_access(request: AuthedRequest) -> dict[str, Any]:
     return {
-        "username": request.auth.username,
-        "role": request.auth.role,
-        "permissions": explained(request.auth),
+        "username": request.auth.user.username,
+        "role": request.auth.user.role,
+        "permissions": explained(request.auth.user),
     }
 
 
@@ -385,7 +387,7 @@ def list_reviews(request: AuthedRequest) -> list[CampaignOut]:
 @require(Permission.ACCESS_REVIEW_MANAGE)
 def open_review(request: AuthedRequest, payload: CampaignIn) -> CampaignOut:
     campaign = access_reviews.open(
-        request.auth,
+        request.auth.user,
         CampaignRequest(
             name=payload.name,
             fallback_reviewer=payload.fallback_reviewer,
@@ -401,7 +403,9 @@ def open_review(request: AuthedRequest, payload: CampaignIn) -> CampaignOut:
 @access_router.get("/reviews/inbox", auth=SessionAuth(), response=list[ReviewItemOut])
 @require(Permission.ACCESS_REVIEW_RESPOND)
 def review_inbox(request: AuthedRequest) -> list[ReviewItemOut]:
-    rows = review_items().filter(reviewer=request.auth).pending().order_by("campaign__closes_at")
+    rows = (
+        review_items().filter(reviewer=request.auth.user).pending().order_by("campaign__closes_at")
+    )
     return [ReviewItemOut.of(item) for item in rows]
 
 
@@ -425,7 +429,7 @@ def get_review(request: AuthedRequest, campaign_id: uuid.UUID) -> CampaignDetail
 @access_router.post("/reviews/{campaign_id}/close", auth=SessionAuth(), response=CampaignOut)
 @require(Permission.ACCESS_REVIEW_MANAGE)
 def close_review(request: AuthedRequest, campaign_id: uuid.UUID) -> CampaignOut:
-    campaign = access_reviews.close(request.auth, campaign_id)
+    campaign = access_reviews.close(request.auth.user, campaign_id)
     return CampaignOut.of(campaign, access_reviews.summary(campaign))
 
 
@@ -434,7 +438,7 @@ def close_review(request: AuthedRequest, campaign_id: uuid.UUID) -> CampaignOut:
 def decide_review_item(
     request: AuthedRequest, item_id: uuid.UUID, payload: DecideIn
 ) -> ReviewItemOut:
-    access_reviews.decide(request.auth, item_id, payload.decision, payload.note)
+    access_reviews.decide(request.auth.user, item_id, payload.decision, payload.note)
     return ReviewItemOut.of(review_items().get(pk=item_id))
 
 
@@ -468,7 +472,7 @@ def list_departments(request: AuthedRequest, include_archived: bool = False) -> 
 @require(Permission.ORG_DEPARTMENTS_MANAGE)
 def create_department(request: AuthedRequest, payload: DepartmentIn) -> DepartmentOut:
     department = departments.create(
-        request.auth,
+        request.auth.user,
         payload.code,
         DepartmentDraft(payload.name, payload.parent, payload.head, payload.cost_centre),
         payload.reason,
@@ -486,8 +490,8 @@ def get_department(request: AuthedRequest, code: str) -> DepartmentOut:
 @require(Permission.ORG_DEPARTMENTS_READ)
 def department_people(request: AuthedRequest, code: str) -> QuerySet[User]:
     department = departments.live(code)
-    if not Access.of(request.auth).holds(Permission.ACCESS_PEOPLE_READ):
-        departments.check_reach(request.auth, department)
+    if not Access.of(request.auth.user).holds(Permission.ACCESS_PEOPLE_READ):
+        departments.check_reach(request.auth.user, department)
     return (
         User.objects.filter(department=department)
         .select_related(*PERSON_RELATIONS)
@@ -499,7 +503,7 @@ def department_people(request: AuthedRequest, code: str) -> QuerySet[User]:
 @org_router.post("/departments/{code}/people", auth=SessionAuth(), response=AccountOut)
 @require(Permission.ORG_DEPARTMENTS_MANAGE)
 def place_in_department(request: AuthedRequest, code: str, payload: PlaceIn) -> User:
-    user = departments.move_person(request.auth, code, payload.username, payload.reason)
+    user = departments.move_person(request.auth.user, code, payload.username, payload.reason)
     return person(user.username)
 
 
@@ -523,8 +527,8 @@ def delegable_roles(request: AuthedRequest) -> list[RoleOut]:
 @require(Permission.ORG_DEPARTMENTS_READ)
 def department_grants(request: AuthedRequest, code: str) -> list[AssignmentOut]:
     department = departments.live(code)
-    if not Access.of(request.auth).holds(Permission.ACCESS_READ):
-        departments.check_reach(request.auth, department)
+    if not Access.of(request.auth.user).holds(Permission.ACCESS_READ):
+        departments.check_reach(request.auth.user, department)
     now = timezone.now()
     rows = (
         Assignment.objects.active(now)
@@ -539,7 +543,7 @@ def department_grants(request: AuthedRequest, code: str) -> list[AssignmentOut]:
 @require(Permission.ACCESS_GRANT_DELEGABLE)
 def delegate_grant(request: AuthedRequest, code: str, payload: DelegatedGrantIn) -> AssignmentOut:
     row = grants.grant(
-        request.auth,
+        request.auth.user,
         GrantRequest(
             username=payload.username,
             role_urn=payload.role,
@@ -561,7 +565,7 @@ def delegate_grant(request: AuthedRequest, code: str, payload: DelegatedGrantIn)
 def end_delegated_grant(
     request: AuthedRequest, code: str, assignment_id: uuid.UUID, payload: ReasonIn
 ) -> AssignmentOut:
-    row = grants.end(request.auth, assignment_id, payload.reason, delegated=True)
+    row = grants.end(request.auth.user, assignment_id, payload.reason, delegated=True)
     return AssignmentOut.of(row, timezone.now())
 
 
@@ -571,7 +575,7 @@ def update_department(
     request: AuthedRequest, code: str, payload: DepartmentPatchIn
 ) -> DepartmentOut:
     department = departments.update(
-        request.auth,
+        request.auth.user,
         code,
         DepartmentDraft(name=payload.name, head=payload.head, cost_centre=payload.cost_centre),
         payload.reason,
@@ -582,14 +586,14 @@ def update_department(
 @org_router.post("/departments/{code}/move", auth=SessionAuth(), response=DepartmentOut)
 @require(Permission.ORG_DEPARTMENTS_MANAGE)
 def move_department(request: AuthedRequest, code: str, payload: DepartmentMoveIn) -> DepartmentOut:
-    department = departments.move(request.auth, code, payload.parent, payload.reason)
+    department = departments.move(request.auth.user, code, payload.parent, payload.reason)
     return department_out(department.code)
 
 
 @org_router.post("/departments/{code}/archive", auth=SessionAuth(), response=DepartmentOut)
 @require(Permission.ORG_DEPARTMENTS_MANAGE)
 def archive_department(request: AuthedRequest, code: str, payload: ReasonIn) -> DepartmentOut:
-    department = departments.archive(request.auth, code, payload.reason)
+    department = departments.archive(request.auth.user, code, payload.reason)
     return department_out(department.code)
 
 
@@ -598,7 +602,7 @@ def archive_department(request: AuthedRequest, code: str, payload: ReasonIn) -> 
 def import_departments(
     request: AuthedRequest, payload: ImportIn, dry_run: bool = Query(True)
 ) -> dict[str, Any]:
-    result = org_import.departments(request.auth, payload.csv, payload.reason, dry_run=dry_run)
+    result = org_import.departments(request.auth.user, payload.csv, payload.reason, dry_run=dry_run)
     return import_out(result, dry_run)
 
 
@@ -607,7 +611,7 @@ def import_departments(
 def import_people(
     request: AuthedRequest, payload: ImportIn, dry_run: bool = Query(True)
 ) -> dict[str, Any]:
-    result = org_import.people(request.auth, payload.csv, payload.reason, dry_run=dry_run)
+    result = org_import.people(request.auth.user, payload.csv, payload.reason, dry_run=dry_run)
     return import_out(result, dry_run)
 
 
@@ -701,20 +705,20 @@ def logout(
 @auth_router.get("/sessions", auth=SessionAuth(), response=list[SignInOut])
 @require(Permission.SELF_SESSIONS)
 def list_sign_ins(request: AuthedRequest) -> list[RefreshSession]:
-    return sessions.live(request.auth)
+    return sessions.live(request.auth.user)
 
 
 @auth_router.delete("/sessions/{family}", auth=SessionAuth(), response={204: None})
 @require(Permission.SELF_SESSIONS)
 def end_sign_in(request: AuthedRequest, family: uuid.UUID) -> Status[None]:
-    sessions.end(request.auth, family)
+    sessions.end(request.auth.user, family)
     return Status(204, None)
 
 
 @auth_router.post("/logout-everywhere", auth=SessionAuth(), response={204: None})
 @require(Permission.SELF_SESSIONS)
 def logout_everywhere(request: AuthedRequest, response: HttpResponse) -> Status[None]:
-    sessions.end_all(request.auth)
+    sessions.end_all(request.auth.user)
     for client in AuthClient:
         response.delete_cookie(cookie_name(client), path=COOKIE_PATH)
     return Status(204, None)

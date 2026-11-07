@@ -69,7 +69,7 @@ def list_articles(request: AuthedRequest, filters: Query[ArticleFilter]) -> Quer
 @require(Permission.KB_PAGES_CREATE)
 def create_article(request: AuthedRequest, payload: ArticleIn) -> Status[KbDraft]:
     draft = kb_drafts.create(
-        request.auth,
+        request.auth.user,
         {
             "kind": DraftKind.CREATE,
             "slug": payload.slug,
@@ -93,13 +93,13 @@ def reingest(request: AuthedRequest, slug: str) -> ReingestOut:
 @router.post("/{slug}/auto-reply-allowed", auth=SessionAuth(), response=ArticleOut)
 @require(Permission.KB_AUTHORITY_GRANT)
 def toggle_auto_reply(request: AuthedRequest, slug: str, payload: AutoReplyFlagIn) -> KbArticle:
-    return kb_authority.set_allowed(slug, request.auth, payload.allowed, payload.reason)
+    return kb_authority.set_allowed(slug, request.auth.user, payload.allowed, payload.reason)
 
 
 @router.post("/{slug}/risk-tier", auth=SessionAuth(), response=ArticleOut)
 @require(Permission.KB_AUTHORITY_RISK_TIER)
 def change_risk_tier(request: AuthedRequest, slug: str, payload: RiskTierIn) -> KbArticle:
-    return kb_authority.set_tier(slug, request.auth, payload.risk_tier, payload.reason)
+    return kb_authority.set_tier(slug, request.auth.user, payload.risk_tier, payload.reason)
 
 
 # ── drafts (F6 UC-F6-01, 02, 07) ──
@@ -120,7 +120,7 @@ def list_drafts(request: AuthedRequest, filters: Query[DraftFilter]) -> QuerySet
 @router.post("/drafts", auth=SessionAuth(), response={201: DraftOut})
 @require(Permission.KB_DRAFTS_MANAGE)
 def create_draft(request: AuthedRequest, payload: DraftIn) -> Status[KbDraft]:
-    return Status(201, kb_drafts.create(request.auth, payload.model_dump()))
+    return Status(201, kb_drafts.create(request.auth.user, payload.model_dump()))
 
 
 @router.get("/drafts/{draft_id}", auth=SessionAuth(), response=DraftOut)
@@ -132,31 +132,33 @@ def get_draft(request: AuthedRequest, draft_id: uuid.UUID) -> KbDraft:
 @router.patch("/drafts/{draft_id}", auth=SessionAuth(), response=DraftOut)
 @require(Permission.KB_DRAFTS_MANAGE)
 def update_draft(request: AuthedRequest, draft_id: uuid.UUID, payload: DraftPatchIn) -> KbDraft:
-    return kb_drafts.update(draft_id, request.auth, payload.model_dump(exclude_none=True))
+    return kb_drafts.update(draft_id, request.auth.user, payload.model_dump(exclude_none=True))
 
 
 @router.post("/drafts/{draft_id}/submit", auth=SessionAuth(), response=DraftOut)
 @require(Permission.KB_DRAFTS_MANAGE)
 def submit_draft(request: AuthedRequest, draft_id: uuid.UUID) -> KbDraft:
-    return kb_drafts.submit(draft_id, request.auth)
+    return kb_drafts.submit(draft_id, request.auth.user)
 
 
 @router.post("/drafts/{draft_id}/review", auth=SessionAuth(), response=DraftOut)
 @require(Permission.KB_DRAFTS_MANAGE)
 def review_draft(request: AuthedRequest, draft_id: uuid.UUID, payload: DraftReviewIn) -> KbDraft:
-    return kb_drafts.review(draft_id, request.auth, payload.decision == "approve", payload.comment)
+    return kb_drafts.review(
+        draft_id, request.auth.user, payload.decision == "approve", payload.comment
+    )
 
 
 @router.post("/drafts/{draft_id}/withdraw", auth=SessionAuth(), response=DraftOut)
 @require(Permission.KB_DRAFTS_MANAGE)
 def withdraw_draft(request: AuthedRequest, draft_id: uuid.UUID) -> KbDraft:
-    return kb_drafts.withdraw(draft_id, request.auth)
+    return kb_drafts.withdraw(draft_id, request.auth.user)
 
 
 @router.post("/drafts/{draft_id}/rebase", auth=SessionAuth(), response=DraftOut)
 @require(Permission.KB_DRAFTS_MANAGE)
 def rebase_draft(request: AuthedRequest, draft_id: uuid.UUID) -> KbDraft:
-    return kb_drafts.rebase(draft_id, request.auth)
+    return kb_drafts.rebase(draft_id, request.auth.user)
 
 
 @router.get("/drafts/{draft_id}/diff", auth=SessionAuth(), response=DraftDiffOut)
@@ -181,7 +183,7 @@ def authority_queue(request: AuthedRequest) -> list[AuthorityQueueItemOut]:
 @require(Permission.KB_AUTHORITY_GRANT)
 def bulk_auto_reply(request: AuthedRequest, payload: BulkAllowedIn) -> BulkAllowedOut:
     return BulkAllowedOut(
-        updated=kb_authority.bulk(payload.slugs, request.auth, payload.allowed, payload.reason)
+        updated=kb_authority.bulk(payload.slugs, request.auth.user, payload.allowed, payload.reason)
     )
 
 
@@ -198,7 +200,8 @@ def authority_log(
 @require(Permission.KB_AUTHORITY_LOG_READ)
 def authority_log_csv(request: AuthedRequest, filters: Query[AuthorityLogFilter]) -> HttpResponse:
     response = HttpResponse(
-        kb_authority.export(request.auth, filters.dict()), content_type="text/csv; charset=utf-8"
+        kb_authority.export(request.auth.user, filters.dict()),
+        content_type="text/csv; charset=utf-8",
     )
     response["Content-Disposition"] = 'attachment; filename="kb-authority-log.csv"'
     response["Cache-Control"] = "no-store"
@@ -229,7 +232,7 @@ def gaps(request: AuthedRequest) -> GapReportOut:
 def dismiss_gap(
     request: AuthedRequest, cluster_id: uuid.UUID, payload: GapDismissIn
 ) -> GapClusterOut:
-    return GapClusterOut.of(kb_gaps.dismiss(cluster_id, request.auth, payload.reason))
+    return GapClusterOut.of(kb_gaps.dismiss(cluster_id, request.auth.user, payload.reason))
 
 
 # ── page graph (F11, ADR-0037) ──
@@ -244,7 +247,7 @@ def page_graph(request: AuthedRequest, slug: str) -> PageGraph:
 @router.post("/{slug}/graph/edges/{target}/confirm", auth=SessionAuth(), response=GraphEdgeOut)
 @require(Permission.KB_GRAPH_EDIT)
 def confirm_edge(request: AuthedRequest, slug: str, target: str) -> GraphEdge:
-    return kb_graph.confirm(slug, target, request.auth)
+    return kb_graph.confirm(slug, target, request.auth.user)
 
 
 @router.post("/{slug}/graph/overrides", auth=SessionAuth(), response={201: AssociationOverrideOut})
@@ -253,7 +256,7 @@ def add_override(
     request: AuthedRequest, slug: str, payload: GraphOverrideIn
 ) -> Status[KbAssociationOverride]:
     override = kb_graph.add_override(
-        slug, payload.target, payload.action, payload.reason, request.auth
+        slug, payload.target, payload.action, payload.reason, request.auth.user
     )
     return Status(201, override)
 
@@ -263,11 +266,11 @@ def add_override(
 def remove_override(
     request: AuthedRequest, slug: str, target: str, payload: GraphReasonIn
 ) -> Status[None]:
-    kb_graph.remove_override(slug, target, payload.reason, request.auth)
+    kb_graph.remove_override(slug, target, payload.reason, request.auth.user)
     return Status(204, None)
 
 
 @router.post("/{slug}/graph/rebuild", auth=SessionAuth(), response={201: RebuildRequestOut})
 @require(Permission.KB_GRAPH_REBUILD)
 def rebuild_graph(request: AuthedRequest, slug: str) -> Status[KbGraphRebuildRequest]:
-    return Status(201, kb_graph.rebuild(slug, request.auth))
+    return Status(201, kb_graph.rebuild(slug, request.auth.user))

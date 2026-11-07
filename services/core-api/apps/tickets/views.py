@@ -54,7 +54,7 @@ def submit_ticket(request: AuthedRequest, payload: TicketIn) -> Ticket:
     # Ninja validates `payload` against TicketIn's limits and answers 422
     # itself, so an invalid submission never reaches masking.
     return Ticket.objects.submit(
-        reporter=request.auth, ticket_in=payload, trace_id=getattr(request, "trace_id", None)
+        reporter=request.auth.user, ticket_in=payload, trace_id=getattr(request, "trace_id", None)
     )
 
 
@@ -67,7 +67,7 @@ def list_tickets(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
 ) -> TicketPage:
-    return Ticket.objects.page(view, request.auth, query=q, number=page, size=limit)
+    return Ticket.objects.page(view, request.auth.user, query=q, number=page, size=limit)
 
 
 @router.get("/board", auth=SessionAuth(), response=StaffTicketBoard)
@@ -78,7 +78,7 @@ def ticket_board(
     q: str = "",
     per_column: int = Query(50, ge=1, le=200),
 ) -> TicketBoard:
-    return Ticket.objects.board(workflow, request.auth, query=q, per_column=per_column)
+    return Ticket.objects.board(workflow, request.auth.user, query=q, per_column=per_column)
 
 
 @router.get("/{public_id}/detail", auth=SessionAuth(), response=StaffTicketDetail)
@@ -88,7 +88,7 @@ def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
         ticket = Ticket.objects.for_detail().get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
-    refuse_unless_covers(request, request.auth, Permission.TICKETS_READ, ticket)
+    refuse_unless_covers(request, Permission.TICKETS_READ, ticket)
     return ticket
 
 
@@ -96,7 +96,7 @@ def ticket_detail(request: AuthedRequest, public_id: str) -> Ticket:
 @require(Permission.REQUESTER_TICKET_STATUS)
 def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
     try:
-        return Ticket.objects.visible_to(request.auth).get(public_id=public_id)
+        return Ticket.objects.visible_to(request.auth.user).get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
 
@@ -105,7 +105,7 @@ def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
 @require(Permission.TICKETS_TAKE)
 def take(request: AuthedRequest, public_id: str, payload: TakeIn) -> Ticket:
     _staff_ticket(request, public_id, Permission.TICKETS_TAKE)
-    return assignment.take(public_id, request.auth, payload.expected_version)
+    return assignment.take(public_id, request.auth.user, payload.expected_version)
 
 
 @router.post("/{public_id}/reassign", auth=SessionAuth(), response=AssignedTicketOut)
@@ -114,7 +114,7 @@ def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Tic
     _staff_ticket(request, public_id, Permission.TICKETS_REASSIGN)
     return assignment.reassign(
         public_id,
-        request.auth,
+        request.auth.user,
         ReassignRequest(
             to_user=payload.to_user,
             to_team=payload.to_team,
@@ -130,7 +130,7 @@ def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Tic
 @require(Permission.TICKETS_READ)
 def ticket_comments(request: AuthedRequest, public_id: str) -> list[CommentOut]:
     ticket = _staff_ticket(request, public_id, Permission.TICKETS_READ)
-    assignment.check_category_scope(request.auth, ticket)
+    assignment.check_category_scope(request.auth.user, ticket)
     rows = ticket.comments.select_related("author").prefetch_related("review_items")
     rows = rows.order_by("created_at")
     return [CommentOut.of(c) for c in rows]
@@ -141,7 +141,7 @@ def ticket_comments(request: AuthedRequest, public_id: str) -> list[CommentOut]:
 def add_comment(request: AuthedRequest, public_id: str, payload: CommentIn) -> CommentOut:
     comment = comments.by_staff(
         _staff_ticket(request, public_id, Permission.TICKETS_COMMENT),
-        request.auth,
+        request.auth.user,
         payload.body,
         visibility=CommentVisibility(payload.visibility),
         move_to_waiting=payload.move_to_waiting,
@@ -154,10 +154,10 @@ def add_comment(request: AuthedRequest, public_id: str, payload: CommentIn) -> C
 @require(Permission.REQUESTER_TICKET_STATUS)
 def ticket_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
     try:
-        ticket = Ticket.objects.visible_to(request.auth).get(public_id=public_id)
+        ticket = Ticket.objects.visible_to(request.auth.user).get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
-    return sla_clocks.view(ticket, staff=request.auth.is_support_staff)
+    return sla_clocks.view(ticket, staff=request.auth.user.is_support_staff)
 
 
 @router.patch("/{public_id}/priority", auth=SessionAuth(), response=TicketSlaOut)
@@ -165,7 +165,7 @@ def ticket_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
 def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn) -> dict[str, Any]:
     ticket = sla_clocks.change_priority(
         _staff_ticket(request, public_id, Permission.TICKETS_PRIORITY),
-        request.auth,
+        request.auth.user,
         payload.priority,
         payload.reason,
         payload.expected_version,
@@ -177,7 +177,7 @@ def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn)
 @require(Permission.TICKETS_SLA_REBUILD)
 def rebuild_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
     ticket = _staff_ticket(request, public_id, Permission.TICKETS_SLA_REBUILD)
-    sla_clocks.rebuild(ticket, request.auth)
+    sla_clocks.rebuild(ticket, request.auth.user)
     return sla_clocks.view(ticket, staff=True)
 
 
@@ -186,7 +186,7 @@ def _staff_ticket(request: AuthedRequest, public_id: str, permission: Permission
         ticket = Ticket.objects.select_related("reporter").get(public_id=public_id)
     except Ticket.DoesNotExist as e:
         raise HttpError(404, "ticket not found") from e
-    refuse_unless_covers(request, request.auth, permission, ticket)
+    refuse_unless_covers(request, permission, ticket)
     return ticket
 
 
@@ -198,7 +198,7 @@ def reveal(
     response["Cache-Control"] = "no-store"
     return PiiReveal(settings.THRESHOLDS.pii_reveal).reveal(
         public_id=public_id,
-        actor=request.auth,
+        actor=request.auth.user,
         placeholder=payload.placeholder,
         reason_code=payload.reason_code,
         reason=payload.reason,
@@ -219,7 +219,7 @@ def access_log_csv(request: AuthedRequest, filters: Query[AccessLogFilter]) -> H
     criteria = filters.dict()
     body = PiiReveal(settings.THRESHOLDS.pii_reveal).export_log(
         PiiAccessLog.objects.matching(**criteria),
-        request.auth,
+        request.auth.user,
         filters.model_dump(mode="json", by_alias=True, exclude_none=True),
     )
     response = HttpResponse(body, content_type="text/csv; charset=utf-8")
