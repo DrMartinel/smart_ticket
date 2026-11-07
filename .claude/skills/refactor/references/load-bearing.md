@@ -460,6 +460,24 @@ guard and that comment is later trimmed, the entry is the record.
 - **`select_for_update(of=("self",))`** in `Grants.locked` and
   `People.release_tickets`: Postgres refuses a row lock across the nullable
   joins `select_related` adds.
+- **`runbooks.approval_of` refusing a decision whose `decided_via` isn't
+  `human`.** The `review_decision_decided_by_a_person` CHECK already forces
+  `human`, so the check looks dead. It is ADR-0046 §7's second check, so a
+  later write path that bypasses the constraint still can't run a runbook on
+  an agent's approval (ADR-0006).
+  *`test_a_runbook_refuses_an_approval_not_made_by_a_person`.*
+- **`require` returning or raising in its agent branch before it reads
+  `X-Agent-Action`, and `AgentActions.applying` filtering on `user=user`.**
+  Either change lets an agent apply its own confirm or draft, or one person
+  apply another's. *`test_an_agent_cannot_apply_an_action`,
+  `test_someone_elses_action_is_not_theirs_to_apply`.*
+- **`AgentActions.applying` claiming the action in its own short transaction,
+  not wrapping the handler in one.** Routes write refusal rows on purpose and
+  then raise (`access_denied`, `pii_reveal_refused`, security alerts). An
+  outer transaction would roll those rows back, and a failed draft could be
+  retried without the reveal rate limit counting it.
+  *`test_a_refused_apply_keeps_its_access_denied_row`,
+  `test_a_rate_limited_reveal_through_a_draft_is_recorded_and_alerted`.*
 
 ## ai-engine
 
