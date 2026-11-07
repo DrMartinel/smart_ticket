@@ -16,7 +16,6 @@ from apps.accounts.permissions import (
     AccessRefusal,
     AuthedRequest,
     Caller,
-    holds,
     require,
 )
 from apps.accounts.utils.catalog import Permission
@@ -39,7 +38,7 @@ class Handler:
 def request_as(user: User | None) -> AuthedRequest:
     request = cast(AuthedRequest, RequestFactory().get("/"))
     if user is not None:
-        request.auth = Caller(user)
+        request.auth = Caller(user, route="/", method="GET")
     return request
 
 
@@ -79,5 +78,7 @@ def test_a_role_holding_the_permission_reaches_the_handler(role):
 def test_holds_reads_the_base_role():
     manager = User(username="m", role=UserRole.MANAGER.value)
 
-    assert holds(manager, Permission.ROLLOUT_FLAG_ON)
-    assert not holds(manager, Permission.SECURITY_QUEUE_WORK)
+    caller = Caller(manager, route="/", method="GET")
+
+    assert caller.holds(Permission.ROLLOUT_FLAG_ON)
+    assert not caller.holds(Permission.SECURITY_QUEUE_WORK)

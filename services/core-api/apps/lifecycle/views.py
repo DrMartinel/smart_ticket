@@ -13,8 +13,6 @@ from apps.accounts.utils.catalog import Permission
 from apps.accounts.permissions import (
     AuthedRequest,
     SessionAuth,
-    refuse_unless_covers,
-    refuse_without,
     require,
 )
 from apps.lifecycle.models import (
@@ -284,7 +282,7 @@ def delete_field(request: AuthedRequest, field_id: uuid.UUID) -> Status[None]:
 
 def _ticket(request: AuthedRequest, public_id: str, permission: Permission) -> Ticket:
     ticket = get_object_or_404(Ticket.objects.select_related("reporter"), public_id=public_id)
-    refuse_unless_covers(request, permission, ticket)
+    request.auth.require_covering(permission, ticket)
     return ticket
 
 
@@ -312,7 +310,7 @@ def list_moves(request: AuthedRequest, public_id: str) -> list[MoveOption]:
 @require(Permission.TICKETS_MOVE)
 def move_ticket(request: AuthedRequest, public_id: str, payload: MoveIn) -> Ticket:
     if payload.force:
-        refuse_without(request, Permission.TICKETS_MOVE_FORCE)
+        request.auth.require(Permission.TICKETS_MOVE_FORCE)
     lifecycle.move(
         _ticket(request, public_id, Permission.TICKETS_MOVE).id,
         payload.status_id,
