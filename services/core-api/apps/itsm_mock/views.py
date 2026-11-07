@@ -4,7 +4,7 @@ from django.db.models import QuerySet
 from ninja import Header, Router, Status
 
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require
+from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.itsm_mock.models import ExecutionState, Runbook, RunbookExecution
 from apps.itsm_mock.request_schema import (
     CallbackIn,
@@ -22,25 +22,25 @@ router = Router(tags=["itsm"])
 
 
 @router.get("/runbooks", auth=SessionAuth(), response=list[RunbookOut])
-@require(Permission.RUNBOOKS_CATALOG_READ)
+@require(Permission.RUNBOOKS_CATALOG_READ, agent=AgentTier.NONE)
 def list_runbooks(request: AuthedRequest) -> QuerySet[Runbook]:
     return Runbook.objects.select_related("approved_by", "drafted_by")
 
 
 @router.post("/runbooks", auth=SessionAuth(), response={201: RunbookOut})
-@require(Permission.RUNBOOKS_CATALOG_MANAGE)
+@require(Permission.RUNBOOKS_CATALOG_MANAGE, agent=AgentTier.NONE)
 def create_runbook(request: AuthedRequest, payload: RunbookIn) -> Status[Runbook]:
     return Status(201, runbooks.create(payload.code, payload.fields(), request.auth.user))
 
 
 @router.patch("/runbooks/{code}", auth=SessionAuth(), response=RunbookOut)
-@require(Permission.RUNBOOKS_CATALOG_MANAGE)
+@require(Permission.RUNBOOKS_CATALOG_MANAGE, agent=AgentTier.NONE)
 def change_runbook(request: AuthedRequest, code: str, payload: RunbookChangeIn) -> Runbook:
     return runbooks.change(code, payload.changes(), request.auth.user)
 
 
 @router.post("/runbooks/{code}/activate", auth=SessionAuth(), response=RunbookOut)
-@require(Permission.RUNBOOKS_CATALOG_ACTIVATE)
+@require(Permission.RUNBOOKS_CATALOG_ACTIVATE, agent=AgentTier.NONE)
 def activate_runbook(request: AuthedRequest, code: str) -> Runbook:
     return runbooks.activate(code, request.auth.user)
 
@@ -49,19 +49,19 @@ def activate_runbook(request: AuthedRequest, code: str) -> Runbook:
 
 
 @router.get("/review-items/{item_id}/runbook", auth=SessionAuth(), response=RunbookPanelOut)
-@require(Permission.RUNBOOKS_EXECUTE)
+@require(Permission.RUNBOOKS_EXECUTE, agent=AgentTier.NONE)
 def runbook_panel(request: AuthedRequest, item_id: uuid.UUID) -> RunbookPanel:
     return runbooks.panel(item_id)
 
 
 @router.post("/review-items/{item_id}/execute", auth=SessionAuth(), response=RunbookExecutionOut)
-@require(Permission.RUNBOOKS_EXECUTE)
+@require(Permission.RUNBOOKS_EXECUTE, agent=AgentTier.HUMAN_ONLY)
 def execute(request: AuthedRequest, item_id: uuid.UUID, payload: ExecuteIn) -> RunbookExecution:
     return runbooks.execute(item_id, request.auth.user, payload.payload)
 
 
 @router.post("/executions/{execution_id}/resolve", auth=SessionAuth(), response=RunbookExecutionOut)
-@require(Permission.RUNBOOKS_EXECUTE)
+@require(Permission.RUNBOOKS_EXECUTE, agent=AgentTier.HUMAN_ONLY)
 def resolve(
     request: AuthedRequest, execution_id: uuid.UUID, payload: ExecutionResolveIn
 ) -> RunbookExecution:

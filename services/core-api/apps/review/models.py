@@ -100,6 +100,10 @@ class ReviewItem(BaseModel):
         return self
 
 
+class DecidedVia(StrEnum):
+    HUMAN = "human"
+
+
 class ReviewDecision(BaseModel):
     """One human decision = one training label. Spec §3.4: "câu hỏi cụ
     thể, không phải nút Approve" — this is why the fields below are
@@ -123,9 +127,24 @@ class ReviewDecision(BaseModel):
 
     time_spent_sec = models.IntegerField()  # detects approval fatigue
     decided_at = models.DateTimeField(auto_now_add=True)
+    # Who made the decision: always a person (ADR-0046 §7).
+    decided_via = models.CharField(
+        max_length=10,
+        choices=[(v.value, v.value) for v in DecidedVia],
+        default=DecidedVia.HUMAN.value,
+    )
+    from_agent_action = models.ForeignKey(
+        "agent.AgentAction", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
 
     class Meta(BaseModel.Meta):
         db_table = "review_decisions"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(decided_via=DecidedVia.HUMAN.value),
+                name="review_decision_decided_by_a_person",
+            )
+        ]
 
 
 class EvalCandidate(BaseModel):

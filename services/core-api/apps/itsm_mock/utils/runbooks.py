@@ -34,7 +34,7 @@ from apps.itsm_mock.utils.executors import (
 )
 from apps.notifications.utils.notifier import Notice, notifier
 from apps.notifications.utils.vocabulary import NotificationEvent
-from apps.review.models import ReviewDecision, ReviewItem
+from apps.review.models import DecidedVia, ReviewDecision, ReviewItem
 from apps.tickets.models import CommentVisibility
 from apps.tickets.utils.comments import comments
 from apps.tickets.utils.router import ReviewQueue
@@ -114,6 +114,12 @@ class Runbooks:
         if item.queue != ReviewQueue.RUNBOOK_APPROVAL.value:
             raise RunbookError(
                 422, R.NOT_A_RUNBOOK_ITEM, "review item is not a runbook_approval item"
+            )
+        if decision.decided_via != DecidedVia.HUMAN.value:
+            raise RunbookError(
+                422,
+                R.APPROVER_NOT_A_PERSON,
+                "the approving decision was not made by a person (ADR-0046 §7)",
             )
         if not Access.of(decision.reviewer).holds(Permission.RUNBOOKS_EXECUTE):
             raise RunbookError(
