@@ -31,31 +31,12 @@ from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 
 
-class AuthedRequest(HttpRequest):
-    """A request that passed Ninja's auth: `request.auth` is the user."""
-
-    auth: User
-
-
 @dataclass(frozen=True)
 class AgentActing:
-    """The agent conversation and turn a request's token was issued to (ADR-0046)."""
+    """The agent conversation and turn a token was issued to (ADR-0046)."""
 
     conversation: uuid.UUID
     turn: uuid.UUID
-
-    @classmethod
-    def of_token(cls, token: Token) -> "AgentActing | None":
-        """The agent a token acts for, None for a person's own token."""
-        act = token.get("act")
-        if act is None:
-            return None
-        try:
-            if act != AGENT_ACT:
-                raise ValueError(act)
-            return cls(conversation=uuid.UUID(token["agc"]), turn=uuid.UUID(token["agt"]))
-        except (KeyError, TypeError, ValueError) as e:
-            raise AuthenticationFailed("this token's actor is not one core-api issues") from e
 
     def audit_fields(self) -> dict[str, str]:
         return {
@@ -65,9 +46,19 @@ class AgentActing:
         }
 
 
-def agent_acting(request: HttpRequest) -> AgentActing | None:
-    """The agent a request acts for, None when a person sent it."""
-    return getattr(request, "agent_acting", None)
+@dataclass(frozen=True)
+class Caller:
+    """Who an authenticated request comes from: the user, and the agent acting for them,
+    None when the user sent it."""
+
+    user: User
+    agent: AgentActing | None = None
+
+
+class AuthedRequest(HttpRequest):
+    """A request that passed Ninja's auth: `request.auth` is its caller."""
+
+    auth: Caller
 
 
 class SessionAuth(JWTAuth):
@@ -80,9 +71,17 @@ class SessionAuth(JWTAuth):
         family = validated.get("sid")
         if not family or not RefreshSession.objects.live_family(family).filter(user=user).exists():
             raise AuthenticationFailed("the sign-in this token belongs to has ended")
-        setattr(request, "agent_acting", AgentActing.of_token(validated))
         request.user = user
-        return user
+        act = validated.get("act")
+        if act is None:
+            return Caller(user)
+        try:
+            if act != AGENT_ACT:
+                raise ValueError(act)
+            agent = AgentActing(uuid.UUID(validated["agc"]), uuid.UUID(validated["agt"]))
+        except (KeyError, TypeError, ValueError) as e:
+            raise AuthenticationFailed("this token's actor is not one core-api issues") from e
+        return Caller(user, agent)
 
 
 class AccessRefusal(StrEnum):
@@ -125,28 +124,41 @@ def gate_of(handler: Callable[..., Any]) -> Gate | None:
     return _GATES[handler]
 
 
-def refuse_without(request: HttpRequest, user: User, permission: Permission) -> None:
-    """Refuses `user` unless they hold `permission`, auditing the refusal."""
+def refuse_without(request: AuthedRequest, permission: Permission) -> None:
+    """Refuses the caller unless they hold `permission`, auditing the refusal."""
     gate = Gate(permission)
-    if not gate.admits(user):
-        _refuse(request, user, gate)
+    if not gate.admits(request.auth.user):
+        _refuse(request, request.auth, gate)
 
 
-def refuse_unless_covers(
-    request: HttpRequest, user: User, permission: Permission, ticket: Any
-) -> None:
-    """Refuses `user` unless `permission` reaches `ticket` by team or department."""
-    if not Access.of(user).covers_ticket(permission, ticket):
-        _refuse(request, user, Gate(permission))
+def refuse_unless_covers(request: AuthedRequest, permission: Permission, ticket: Any) -> None:
+    """Refuses the caller unless `permission` reaches `ticket` by team or department."""
+    if not Access.of(request.auth.user).covers_ticket(permission, ticket):
+        _refuse(request, request.auth, Gate(permission))
 
 
-def _admit(request: HttpRequest, user: User, gate: Gate) -> None:
-    """Refuses `user` without the gate's permission, then any agent acting for them."""
-    if not gate.admits(user):
-        _refuse(request, user, gate)
-    acting = agent_acting(request)
-    if acting is not None:
-        _refuse_agent(request, user, gate, acting)
+def _admit(request: HttpRequest, caller: Caller, gate: Gate) -> None:
+    """Refuses a caller without the gate's permission, then any agent acting for them."""
+    if not gate.admits(caller.user):
+        _refuse(request, caller, gate)
+    if caller.agent is not None:
+        AuditLog.objects.record(
+            "agent_call_refused",
+            actor_type="human",
+            actor_id=caller.user.id,
+            payload={
+                "route": _route(request),
+                "method": request.method,
+                "permission": gate.permission.value,
+                **caller.agent.audit_fields(),
+            },
+            trace_id=getattr(request, "trace_id", None),
+        )
+        raise AccessError(
+            AccessRefusal.AGENT_NOT_ALLOWED,
+            "an agent may not call this route",
+            {"permission": gate.permission.value},
+        )
 
 
 def _route(request: HttpRequest) -> str:
@@ -154,27 +166,8 @@ def _route(request: HttpRequest) -> str:
     return match.route if match is not None else request.path
 
 
-def _refuse_agent(request: HttpRequest, user: User, gate: Gate, acting: AgentActing) -> NoReturn:
-    AuditLog.objects.record(
-        "agent_call_refused",
-        actor_type="human",
-        actor_id=user.id,
-        payload={
-            "route": _route(request),
-            "method": request.method,
-            "permission": gate.permission.value,
-            **acting.audit_fields(),
-        },
-        trace_id=getattr(request, "trace_id", None),
-    )
-    raise AccessError(
-        AccessRefusal.AGENT_NOT_ALLOWED,
-        "an agent may not call this route",
-        {"permission": gate.permission.value},
-    )
-
-
-def _refuse(request: HttpRequest, user: User, gate: Gate) -> NoReturn:
+def _refuse(request: HttpRequest, caller: Caller, gate: Gate) -> NoReturn:
+    user = caller.user
     route = _route(request)
     RefusedCall.objects.create(user=user, route=route[:200])
     window = timedelta(seconds=settings.THRESHOLDS.access_denied.audit_window_seconds)
@@ -195,7 +188,7 @@ def _refuse(request: HttpRequest, user: User, gate: Gate) -> NoReturn:
                 "method": request.method,
                 "role": user.role,
                 "permission": gate.permission.value,
-                **(acting.audit_fields() if (acting := agent_acting(request)) else {}),
+                **(caller.agent.audit_fields() if caller.agent else {}),
             },
             trace_id=getattr(request, "trace_id", None),
         )
@@ -208,7 +201,7 @@ def _refuse(request: HttpRequest, user: User, gate: Gate) -> NoReturn:
 
 def require(permission: Permission):
     """Decorator for Django Ninja handlers: lets in a user who holds `permission`.
-    `request` must be the first arg and `request.auth` an authenticated User."""
+    `request` must be the first arg and `request.auth` its `Caller`."""
 
     gate = Gate(permission)
 
@@ -217,10 +210,10 @@ def require(permission: Permission):
     ) -> Callable[Concatenate[AuthedRequest, P], R]:
         @wraps(fn)
         def wrapper(request: AuthedRequest, *args: P.args, **kwargs: P.kwargs) -> R:
-            user = getattr(request, "auth", None) or getattr(request, "user", None)
-            if user is None or not getattr(user, "is_authenticated", False):
+            caller = getattr(request, "auth", None)
+            if not isinstance(caller, Caller) or not caller.user.is_authenticated:
                 raise HttpError(401, "authentication required")
-            _admit(request, user, gate)
+            _admit(request, caller, gate)
             return fn(request, *args, **kwargs)
 
         # The handler's signature, its annotations evaluated.
@@ -240,10 +233,10 @@ class GatedAuth:
         self.gate = gate
 
     def __call__(self, request: HttpRequest) -> Any:
-        user = self.auth(request)
-        if user:
-            _admit(request, user, self.gate)
-        return user
+        caller = self.auth(request)
+        if caller:
+            _admit(request, caller, self.gate)
+        return caller
 
     def __getattr__(self, name: str) -> Any:
         """The wrapped auth's other attributes, e.g. the scheme the API docs show."""

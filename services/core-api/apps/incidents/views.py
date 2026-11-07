@@ -60,7 +60,7 @@ def get_incident(request: AuthedRequest, public_id: str) -> IncidentDetailOut:
 @require(Permission.INCIDENTS_MANAGE)
 def declare(request: AuthedRequest, body: DeclareIn) -> Status[IncidentDetailOut]:
     incident = incidents.declare(
-        request.auth,
+        request.auth.user,
         body.title,
         body.category,
         body.service,
@@ -73,47 +73,47 @@ def declare(request: AuthedRequest, body: DeclareIn) -> Status[IncidentDetailOut
 @router.post("/{public_id}/confirm", auth=SessionAuth(), response=IncidentDetailOut)
 @require(Permission.INCIDENTS_MANAGE)
 def confirm(request: AuthedRequest, public_id: str, body: ConfirmIn) -> IncidentDetailOut:
-    incidents.confirm(public_id, request.auth, body.title, body.category, body.service)
+    incidents.confirm(public_id, request.auth.user, body.title, body.category, body.service)
     return _detail(public_id)
 
 
 @router.post("/{public_id}/dismiss", auth=SessionAuth(), response=IncidentDetailOut)
 @require(Permission.INCIDENTS_MANAGE)
 def dismiss(request: AuthedRequest, public_id: str, body: ReasonIn) -> IncidentDetailOut:
-    incidents.dismiss(public_id, request.auth, body.reason)
+    incidents.dismiss(public_id, request.auth.user, body.reason)
     return _detail(public_id)
 
 
 @router.post("/{public_id}/broadcasts", auth=SessionAuth(), response={201: BroadcastOut})
 @require(Permission.INCIDENTS_MANAGE)
 def broadcast(request: AuthedRequest, public_id: str, body: BroadcastIn) -> Status[BroadcastOut]:
-    sent = incidents.broadcast(public_id, request.auth, **body.model_dump())
+    sent = incidents.broadcast(public_id, request.auth.user, **body.model_dump())
     return Status(201, BroadcastOut.of(sent))
 
 
 @router.post("/{public_id}/resolve", auth=SessionAuth(), response=CloseResultOut)
 @require(Permission.INCIDENTS_MANAGE)
 def resolve(request: AuthedRequest, public_id: str, body: ResolveIn) -> CloseResultOut:
-    result = incidents.resolve(public_id, request.auth, body.resolution_note, body.close_all)
+    result = incidents.resolve(public_id, request.auth.user, body.resolution_note, body.close_all)
     return CloseResultOut(closed=result.closed, failed=result.failed)
 
 
 @router.post("/{public_id}/reopen", auth=SessionAuth(), response=IncidentDetailOut)
 @require(Permission.INCIDENTS_MANAGE)
 def reopen(request: AuthedRequest, public_id: str, body: ReasonIn) -> IncidentDetailOut:
-    incidents.reopen(public_id, request.auth, body.reason)
+    incidents.reopen(public_id, request.auth.user, body.reason)
     return _detail(public_id)
 
 
 @router.post("/{public_id}/links", auth=SessionAuth(), response=IncidentDetailOut)
 @require(Permission.INCIDENTS_MANAGE)
 def add_links(request: AuthedRequest, public_id: str, body: LinksIn) -> IncidentDetailOut:
-    incidents.add_links(public_id, request.auth, body.ticket_ids)
+    incidents.add_links(public_id, request.auth.user, body.ticket_ids)
     return _detail(public_id)
 
 
 @router.delete("/{public_id}/links/{ticket}", auth=SessionAuth(), response={204: None})
 @require(Permission.INCIDENTS_UNLINK)
 def unlink(request: AuthedRequest, public_id: str, ticket: str, body: ReasonIn) -> Status[None]:
-    incidents.unlink(public_id, ticket, request.auth, body.reason)
+    incidents.unlink(public_id, ticket, request.auth.user, body.reason)
     return Status(204, None)

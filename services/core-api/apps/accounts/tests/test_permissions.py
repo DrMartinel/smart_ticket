@@ -11,7 +11,14 @@ from django.test import RequestFactory
 from ninja.errors import HttpError
 
 from apps.accounts.models import User, UserRole
-from apps.accounts.permissions import AccessError, AccessRefusal, AuthedRequest, holds, require
+from apps.accounts.permissions import (
+    AccessError,
+    AccessRefusal,
+    AuthedRequest,
+    Caller,
+    holds,
+    require,
+)
 from apps.accounts.utils.catalog import Permission
 
 
@@ -32,7 +39,7 @@ class Handler:
 def request_as(user: User | None) -> AuthedRequest:
     request = cast(AuthedRequest, RequestFactory().get("/"))
     if user is not None:
-        request.auth = user
+        request.auth = Caller(user)
     return request
 
 

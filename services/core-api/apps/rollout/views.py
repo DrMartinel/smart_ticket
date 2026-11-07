@@ -63,7 +63,11 @@ def get_rollout(request: AuthedRequest) -> RolloutOut:
 @require(Permission.ROLLOUT_FLAG_ON)
 def turn_on(request: AuthedRequest, branch: str, payload: FlagOnIn) -> RolloutOut:
     rollout.turn_on(
-        branch, request.auth, payload.reason, payload.gate_override_reason, payload.entered_values
+        branch,
+        request.auth.user,
+        payload.reason,
+        payload.gate_override_reason,
+        payload.entered_values,
     )
     return _rollout()
 
@@ -71,7 +75,7 @@ def turn_on(request: AuthedRequest, branch: str, payload: FlagOnIn) -> RolloutOu
 @router.post("/{branch}/off", auth=SessionAuth(), response=RolloutOut)
 @require(Permission.ROLLOUT_FLAG_OFF)
 def turn_off(request: AuthedRequest, branch: str, payload: ReasonIn) -> RolloutOut:
-    rollout.turn_off(branch, request.auth, payload.reason)
+    rollout.turn_off(branch, request.auth.user, payload.reason)
     return _rollout()
 
 
@@ -79,7 +83,7 @@ def turn_off(request: AuthedRequest, branch: str, payload: ReasonIn) -> RolloutO
 @require(Permission.ROLLOUT_GATES_MANAGE)
 def change_gate(request: AuthedRequest, gate_id: uuid.UUID, payload: GateChangeIn) -> GateChangeOut:
     change = rollout.change_gate(
-        gate_id, request.auth, payload.threshold, payload.window_days, payload.reason
+        gate_id, request.auth.user, payload.threshold, payload.window_days, payload.reason
     )
     return GateChangeOut.of(change)
 

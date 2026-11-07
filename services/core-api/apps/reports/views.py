@@ -59,7 +59,7 @@ def csv_response(body: str, name: str) -> HttpResponse:
 
 def _sla(request: AuthedRequest, f: SlaFilter) -> SlaReport:
     return reports.sla(
-        request.auth,
+        request.auth.user,
         month=f.month,
         team=f.team,
         priority=f.priority,
@@ -78,13 +78,13 @@ def sla(request: AuthedRequest, filters: Query[SlaFilter]) -> SlaReport:
 @require(Permission.REPORTS_OPERATIONS_READ)
 def sla_csv(request: AuthedRequest, filters: Query[SlaFilter]) -> HttpResponse:
     report = _sla(request, filters)
-    body = report_export.write(request.auth, "sla", filters.dict(), report_export.sla(report))
+    body = report_export.write(request.auth.user, "sla", filters.dict(), report_export.sla(report))
     return csv_response(body, f"sla-{report.month}")
 
 
 def _sla_tickets(request: AuthedRequest, f: SlaTicketsFilter, page: int | None) -> Page:
     return reports.sla_tickets(
-        request.auth,
+        request.auth.user,
         month=f.month,
         team=f.team,
         priority=f.priority,
@@ -106,7 +106,7 @@ def sla_tickets(request: AuthedRequest, filters: Query[SlaTicketsFilter]) -> Pag
 @require(Permission.REPORTS_OPERATIONS_READ)
 def sla_tickets_csv(request: AuthedRequest, filters: Query[SlaTicketsFilter]) -> HttpResponse:
     body = report_export.write(
-        request.auth,
+        request.auth.user,
         "sla_tickets",
         filters.dict(),
         report_export.sla_tickets(_sla_tickets(request, filters, None)),
@@ -120,9 +120,9 @@ def sla_tickets_csv(request: AuthedRequest, filters: Query[SlaTicketsFilter]) ->
 @router.get("/teams/{slug}.csv", auth=SessionAuth())
 @require(Permission.REPORTS_OPERATIONS_READ)
 def team_csv(request: AuthedRequest, slug: str, filters: Query[TeamFilter]) -> HttpResponse:
-    report = reports.team(request.auth, slug, filters.start, filters.end)
+    report = reports.team(request.auth.user, slug, filters.start, filters.end)
     body = report_export.write(
-        request.auth, "team", {"team": slug, **filters.dict()}, report_export.team(report)
+        request.auth.user, "team", {"team": slug, **filters.dict()}, report_export.team(report)
     )
     return csv_response(body, f"team-{slug}")
 
@@ -130,7 +130,7 @@ def team_csv(request: AuthedRequest, slug: str, filters: Query[TeamFilter]) -> H
 @router.get("/teams/{slug}", auth=SessionAuth(), response=TeamReportOut)
 @require(Permission.REPORTS_OPERATIONS_READ)
 def team(request: AuthedRequest, slug: str, filters: Query[TeamFilter]) -> TeamReport:
-    return reports.team(request.auth, slug, filters.start, filters.end)
+    return reports.team(request.auth.user, slug, filters.start, filters.end)
 
 
 # ── reviewers ──
@@ -138,7 +138,7 @@ def team(request: AuthedRequest, slug: str, filters: Query[TeamFilter]) -> TeamR
 
 def _reviewers(request: AuthedRequest, f: ReviewerFilter) -> ReviewerReport:
     days = f.days or settings.THRESHOLDS.reports.window_days
-    return reports.reviewers(request.auth, days, f.reviewer)
+    return reports.reviewers(request.auth.user, days, f.reviewer)
 
 
 @router.get("/reviewers", auth=SessionAuth(), response=ReviewerReportOut)
@@ -152,7 +152,7 @@ def reviewers(request: AuthedRequest, filters: Query[ReviewerFilter]) -> Reviewe
 def reviewers_csv(request: AuthedRequest, filters: Query[ReviewerFilter]) -> HttpResponse:
     report = _reviewers(request, filters)
     body = report_export.write(
-        request.auth, "reviewers", filters.dict(), report_export.reviewers(report)
+        request.auth.user, "reviewers", filters.dict(), report_export.reviewers(report)
     )
     return csv_response(body, "reviewers")
 
@@ -173,7 +173,9 @@ def kb(request: AuthedRequest, filters: Query[WeeksFilter]) -> KbReport:
 @router.get("/kb.csv", auth=SessionAuth())
 @require(Permission.REPORTS_KB_READ)
 def kb_csv(request: AuthedRequest, filters: Query[WeeksFilter]) -> HttpResponse:
-    body = report_export.write(request.auth, "kb", filters.dict(), report_export.kb(_kb(filters)))
+    body = report_export.write(
+        request.auth.user, "kb", filters.dict(), report_export.kb(_kb(filters))
+    )
     return csv_response(body, "kb")
 
 
@@ -181,7 +183,7 @@ def kb_csv(request: AuthedRequest, filters: Query[WeeksFilter]) -> HttpResponse:
 
 
 def _csat(request: AuthedRequest, f: CsatFilter) -> CsatReport:
-    return reports.csat(request.auth, month=f.month, team=f.team)
+    return reports.csat(request.auth.user, month=f.month, team=f.team)
 
 
 @router.get("/csat", auth=SessionAuth(), response=CsatReportOut)
@@ -194,7 +196,9 @@ def csat(request: AuthedRequest, filters: Query[CsatFilter]) -> CsatReport:
 @require(Permission.REPORTS_OPERATIONS_READ)
 def csat_csv(request: AuthedRequest, filters: Query[CsatFilter]) -> HttpResponse:
     report = _csat(request, filters)
-    body = report_export.write(request.auth, "csat", filters.dict(), report_export.csat(report))
+    body = report_export.write(
+        request.auth.user, "csat", filters.dict(), report_export.csat(report)
+    )
     return csv_response(body, f"csat-{report.month}")
 
 
@@ -215,7 +219,7 @@ def rollout(request: AuthedRequest, filters: Query[DaysFilter]) -> RolloutReport
 @require(Permission.REPORTS_ROLLOUT_READ)
 def rollout_csv(request: AuthedRequest, filters: Query[DaysFilter]) -> HttpResponse:
     body = report_export.write(
-        request.auth, "rollout", filters.dict(), report_export.rollout(_rollout(filters))
+        request.auth.user, "rollout", filters.dict(), report_export.rollout(_rollout(filters))
     )
     return csv_response(body, "rollout")
 
@@ -226,15 +230,15 @@ def rollout_csv(request: AuthedRequest, filters: Query[DaysFilter]) -> HttpRespo
 @router.get("/security", auth=SessionAuth(), response=SecurityReportOut)
 @require(Permission.REPORTS_SECURITY_READ)
 def security(request: AuthedRequest, filters: Query[MonthFilter]) -> SecurityReport:
-    return reports.security(request.auth, filters.month)
+    return reports.security(request.auth.user, filters.month)
 
 
 @router.get("/security.csv", auth=SessionAuth())
 @require(Permission.REPORTS_SECURITY_READ)
 def security_csv(request: AuthedRequest, filters: Query[MonthFilter]) -> HttpResponse:
-    report = reports.security(request.auth, filters.month)
+    report = reports.security(request.auth.user, filters.month)
     body = report_export.write(
-        request.auth, "security", filters.dict(), report_export.security(report)
+        request.auth.user, "security", filters.dict(), report_export.security(report)
     )
     return csv_response(body, f"security-{report.month}")
 
@@ -253,7 +257,7 @@ def incidents(request: AuthedRequest, filters: Query[MonthFilter]) -> IncidentRe
 def incidents_csv(request: AuthedRequest, filters: Query[MonthFilter]) -> HttpResponse:
     report = reports.incidents(filters.month)
     body = report_export.write(
-        request.auth, "incidents", filters.dict(), report_export.incidents(report)
+        request.auth.user, "incidents", filters.dict(), report_export.incidents(report)
     )
     return csv_response(body, f"incidents-{report.month}")
 
@@ -275,7 +279,7 @@ def notifications(request: AuthedRequest, filters: Query[DaysFilter]) -> Notific
 @require(Permission.REPORTS_NOTIFICATIONS_READ)
 def notifications_csv(request: AuthedRequest, filters: Query[DaysFilter]) -> HttpResponse:
     body = report_export.write(
-        request.auth,
+        request.auth.user,
         "notifications",
         filters.dict(),
         report_export.notifications(_notifications(filters)),

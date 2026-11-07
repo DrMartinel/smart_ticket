@@ -60,7 +60,7 @@ def teams(request: AuthedRequest) -> QuerySet[Team]:
 @router.post("", auth=SessionAuth(), response={201: TeamDetailOut})
 @require(Permission.TEAMS_MANAGE)
 def create_team(request: AuthedRequest, payload: TeamIn) -> Status:
-    team_config.save(request.auth, payload.slug, payload.model_dump(mode="json"), create=True)
+    team_config.save(request.auth.user, payload.slug, payload.model_dump(mode="json"), create=True)
     return Status(201, _teams().get(slug=payload.slug))
 
 
@@ -73,7 +73,7 @@ def team(request: AuthedRequest, slug: str) -> Team:
 @router.patch("/{slug}", auth=SessionAuth(), response=TeamDetailOut)
 @require(Permission.TEAMS_MANAGE)
 def update_team(request: AuthedRequest, slug: str, payload: TeamPatch) -> Team:
-    team_config.save(request.auth, slug, payload.model_dump(mode="json"), create=False)
+    team_config.save(request.auth.user, slug, payload.model_dump(mode="json"), create=False)
     return _teams().get(slug=slug)
 
 
@@ -81,14 +81,17 @@ def update_team(request: AuthedRequest, slug: str, payload: TeamPatch) -> Team:
 @require(Permission.TEAMS_MANAGE)
 def add_member(request: AuthedRequest, slug: str, payload: MemberIn) -> TeamMembership:
     return team_config.add_member(
-        request.auth, assignment.team(slug), _user(payload.username), MembershipRole(payload.role)
+        request.auth.user,
+        assignment.team(slug),
+        _user(payload.username),
+        MembershipRole(payload.role),
     )
 
 
 @router.delete("/{slug}/members/{username}", auth=SessionAuth(), response={204: None})
 @require(Permission.TEAMS_MANAGE)
 def remove_member(request: AuthedRequest, slug: str, username: str) -> Status:
-    team_config.remove_member(request.auth, assignment.team(slug), _user(username))
+    team_config.remove_member(request.auth.user, assignment.team(slug), _user(username))
     return Status(204, None)
 
 
@@ -100,7 +103,7 @@ def set_member_availability(
     request: AuthedRequest, slug: str, username: str, payload: AvailabilityIn
 ) -> list[TeamMembership]:
     return people.set_availability(
-        request.auth, payload.is_available, user=_user(username), team=assignment.team(slug)
+        request.auth.user, payload.is_available, user=_user(username), team=assignment.team(slug)
     )
 
 
@@ -112,14 +115,14 @@ def set_member_availability(
 @require(Permission.TEAMS_READ)
 def queue(request: AuthedRequest, slug: str, unassigned: bool = False) -> QuerySet[Ticket]:
     return people.queue(
-        assignment.team(slug), request.auth, unassigned=unassigned
+        assignment.team(slug), request.auth.user, unassigned=unassigned
     ).prefetch_related("review_items", "sla_clocks")
 
 
 @router.get("/{slug}/workload", auth=SessionAuth(), response=list[WorkloadRowOut])
 @require(Permission.TEAMS_READ)
 def workload(request: AuthedRequest, slug: str) -> list[WorkloadRow]:
-    return people.workload(assignment.team(slug), request.auth)
+    return people.workload(assignment.team(slug), request.auth.user)
 
 
 # ── my availability and leave ──
@@ -135,14 +138,14 @@ def _mine(user: User) -> dict[str, Any]:
 @me_router.get("/availability", auth=SessionAuth(), response=MyAvailabilityOut)
 @require(Permission.TEAMS_AVAILABILITY_OWN)
 def my_availability(request: AuthedRequest) -> dict[str, Any]:
-    return _mine(request.auth)
+    return _mine(request.auth.user)
 
 
 @me_router.put("/availability", auth=SessionAuth(), response=MyAvailabilityOut)
 @require(Permission.TEAMS_AVAILABILITY_OWN)
 def set_my_availability(request: AuthedRequest, payload: AvailabilityIn) -> dict[str, Any]:
-    people.set_availability(request.auth, payload.is_available)
-    return _mine(request.auth)
+    people.set_availability(request.auth.user, payload.is_available)
+    return _mine(request.auth.user)
 
 
 @me_router.post("/leaves", auth=SessionAuth(), response={201: LeaveOut})
@@ -150,7 +153,7 @@ def set_my_availability(request: AuthedRequest, payload: AvailabilityIn) -> dict
 def add_leave(request: AuthedRequest, payload: LeaveIn) -> Status:
     user = _user(payload.user) if payload.user else None
     leave = people.add_leave(
-        request.auth, payload.starts_on, payload.ends_on, payload.note, user=user
+        request.auth.user, payload.starts_on, payload.ends_on, payload.note, user=user
     )
     return Status(201, leave)
 
@@ -158,5 +161,5 @@ def add_leave(request: AuthedRequest, payload: LeaveIn) -> Status:
 @me_router.delete("/leaves/{leave_id}", auth=SessionAuth(), response={204: None})
 @require(Permission.TEAMS_AVAILABILITY_OWN)
 def remove_leave(request: AuthedRequest, leave_id: uuid.UUID) -> Status:
-    people.remove_leave(request.auth, leave_id)
+    people.remove_leave(request.auth.user, leave_id)
     return Status(204, None)
