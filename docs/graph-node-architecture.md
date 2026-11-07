@@ -235,7 +235,8 @@ comments trimmed here):
 _triage = GraphBuilder(entry=injection)
 _triage.route(injection, InjectionOutcome.INJECTION_DETECTED, emit_signals)
 _triage.route(injection, InjectionOutcome.INJECTION_CLEAR, mask_guard)
-_triage.route(mask_guard, MaskGuardOutcome.MASK_FAILED, emit_signals)  # a mask-failed ticket reaches no model
+# a mask-failed ticket reaches no model
+_triage.route(mask_guard, MaskGuardOutcome.MASK_FAILED, emit_signals)
 _triage.route(mask_guard, MaskGuardOutcome.MASKED, draft_answer)  # HyDE (ADR-0021)
 _triage.route(draft_answer, SingleExit.DONE, hybrid_retrieve)
 _triage.route(hybrid_retrieve, SingleExit.DONE, candidate_pool)
