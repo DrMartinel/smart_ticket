@@ -69,9 +69,27 @@ class LoopNode(BaseNode):
         return LoopOutcome.AGAIN
 
 
+class TwoCapOutcome(StrEnum):
+    AGAIN = "Again"
+    GIVE_UP = "GiveUp"
+    ESCALATE = "Escalate"
+
+
+class TwoCapNode(BaseNode):
+    Outcome = TwoCapOutcome
+    limits = frozenset({TwoCapOutcome.GIVE_UP, TwoCapOutcome.ESCALATE})
+
+    def __call__(self, state):
+        return {}
+
+    def decide(self, state: Any) -> TwoCapOutcome:
+        return TwoCapOutcome.AGAIN
+
+
 # One instance per class, shared by every test: routes live on each builder,
 # so wiring one test's graph does not rewire another's.
 gate, work, stop, stray, loop = GateNode(), WorkNode(), StopNode(), StrayNode(), LoopNode()
+two_cap = TwoCapNode()
 
 
 def _wire(work: BaseNode = work) -> GraphBuilder:
@@ -357,6 +375,18 @@ def test_a_limit_routed_back_into_its_cycle_does_not_bound_it():
     g.route(work, SingleExit.DONE, loop)
     g.route(gate, GateOutcome.OPEN, loop)  # the limit's way out leads back in
     g.route(gate, GateOutcome.SHUT, stop)
+    g.route(stop, SingleExit.DONE, g.end)
+
+    with pytest.raises(ValueError, match="unbounded cycle: "):
+        g.compile(_State)
+
+
+def test_one_limit_routed_back_into_the_cycle_does_not_bound_it():
+    g = GraphBuilder(entry=two_cap, cycles=Cycles.BOUNDED)
+    g.route(two_cap, TwoCapOutcome.AGAIN, work)
+    g.route(two_cap, TwoCapOutcome.GIVE_UP, stop)
+    g.route(two_cap, TwoCapOutcome.ESCALATE, work)  # this limit's way out leads back in
+    g.route(work, SingleExit.DONE, two_cap)
     g.route(stop, SingleExit.DONE, g.end)
 
     with pytest.raises(ValueError, match="unbounded cycle: "):
