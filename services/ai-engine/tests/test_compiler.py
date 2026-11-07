@@ -13,6 +13,7 @@ import pytest
 
 from ai_engine.graph.build.node import BaseNode, SingleExit, Terminal, terminal
 from ai_engine.graph.build.builder import GraphBuilder
+from ai_engine.graph.build.graph import Cycles
 
 
 class _State(TypedDict, total=False):
@@ -50,9 +51,27 @@ class StrayNode(BaseNode):
         return {}
 
 
+class LoopOutcome(StrEnum):
+    AGAIN = "Again"
+    LIMIT_REACHED = "LimitReached"
+
+
+class LoopNode(BaseNode):
+    Outcome = LoopOutcome
+    limits = frozenset({LoopOutcome.LIMIT_REACHED})
+
+    def __call__(self, state):
+        return {}
+
+    def decide(self, state: Any) -> LoopOutcome:
+        if len(state.get("seen", [])) >= 3:
+            return LoopOutcome.LIMIT_REACHED
+        return LoopOutcome.AGAIN
+
+
 # One instance per class, shared by every test: routes live on each builder,
 # so wiring one test's graph does not rewire another's.
-gate, work, stop, stray = GateNode(), WorkNode(), StopNode(), StrayNode()
+gate, work, stop, stray, loop = GateNode(), WorkNode(), StopNode(), StrayNode(), LoopNode()
 
 
 def _wire(work: BaseNode = work) -> GraphBuilder:
@@ -318,3 +337,84 @@ def test_update_key_missing_from_the_schema_raises():
 
     with pytest.raises(ValueError, match=r"TypoNode returned keys .* \['sean'\]"):
         g.compile(_State).invoke({})
+
+
+def test_a_bounded_cycle_without_a_limit_raises():
+    g = GraphBuilder(entry=gate, cycles=Cycles.BOUNDED)
+    g.route(gate, GateOutcome.OPEN, work)
+    g.route(gate, GateOutcome.SHUT, stop)
+    g.route(work, SingleExit.DONE, gate)
+    g.route(stop, SingleExit.DONE, g.end)
+
+    with pytest.raises(ValueError, match="unbounded cycle: "):
+        g.compile(_State)
+
+
+def test_a_limit_routed_back_into_its_cycle_does_not_bound_it():
+    g = GraphBuilder(entry=loop, cycles=Cycles.BOUNDED)
+    g.route(loop, LoopOutcome.AGAIN, work)
+    g.route(loop, LoopOutcome.LIMIT_REACHED, gate)
+    g.route(work, SingleExit.DONE, loop)
+    g.route(gate, GateOutcome.OPEN, loop)  # the limit's way out leads back in
+    g.route(gate, GateOutcome.SHUT, stop)
+    g.route(stop, SingleExit.DONE, g.end)
+
+    with pytest.raises(ValueError, match="unbounded cycle: "):
+        g.compile(_State)
+
+
+def test_a_second_loop_that_bypasses_the_limit_raises():
+    g = GraphBuilder(entry=loop, cycles=Cycles.BOUNDED)
+    g.route(loop, LoopOutcome.AGAIN, work)
+    g.route(loop, LoopOutcome.LIMIT_REACHED, stop)
+    g.route(work, SingleExit.DONE, gate)
+    g.route(gate, GateOutcome.OPEN, loop)
+    g.route(gate, GateOutcome.SHUT, work)  # work -> gate -> work never meets the limit
+    g.route(stop, SingleExit.DONE, g.end)
+
+    with pytest.raises(
+        ValueError,
+        match=r"unbounded cycle: (GateNode -> WorkNode -> GateNode|WorkNode -> GateNode -> WorkNode)$",
+    ):
+        g.compile(_State)
+
+
+def test_a_self_loop_needs_a_limit():
+    g = GraphBuilder(entry=gate, cycles=Cycles.BOUNDED)
+    g.route(gate, GateOutcome.OPEN, gate)
+    g.route(gate, GateOutcome.SHUT, stop)
+    g.route(stop, SingleExit.DONE, g.end)
+
+    with pytest.raises(ValueError, match=r"unbounded cycle: GateNode -> GateNode$"):
+        g.compile(_State)
+
+
+def test_a_limit_must_be_one_of_the_nodes_outcomes():
+    with pytest.raises(TypeError, match="limits name outcomes it cannot produce"):
+
+        class CapNode(BaseNode):
+            limits = frozenset({GateOutcome.SHUT})
+
+            def __call__(self, state):
+                return {}
+
+
+def test_a_bounded_cycle_runs_until_its_limit_then_leaves():
+    g = GraphBuilder(entry=loop, cycles=Cycles.BOUNDED)
+    g.route(loop, LoopOutcome.AGAIN, work)
+    g.route(loop, LoopOutcome.LIMIT_REACHED, stop)
+    g.route(work, SingleExit.DONE, loop)
+    g.route(stop, SingleExit.DONE, g.end)
+
+    assert g.compile(_State).invoke({})["seen"] == ["work", "work", "work"]
+
+
+def test_the_default_still_rejects_a_cycle_a_limit_bounds():
+    g = GraphBuilder(entry=loop)
+    g.route(loop, LoopOutcome.AGAIN, work)
+    g.route(loop, LoopOutcome.LIMIT_REACHED, stop)
+    g.route(work, SingleExit.DONE, loop)
+    g.route(stop, SingleExit.DONE, g.end)
+
+    with pytest.raises(ValueError, match=r"^cycle: "):
+        g.compile(_State)
