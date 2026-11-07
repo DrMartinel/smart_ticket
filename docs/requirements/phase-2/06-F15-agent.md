@@ -252,14 +252,16 @@ All new tables inherit `BaseModel` (BR-X-04), prefix `agent_`.
 | ai-engine prompts | NEW `core/prompts/agent.v1.md`; `AGENT_PROMPT_VERSION` in `.env.example` |
 
 ```python
-class AgentLimits(BaseModel):            # frozen
+class AgentLimits(BaseModel):  # frozen
     max_steps: int
     max_tool_calls: int
     max_model_tokens: int
 
-class AgentEarlierTurn(BaseModel):       # frozen
+
+class AgentEarlierTurn(BaseModel):  # frozen
     message_masked: str
-    reply: str                            # code-built: prose + receipts as text
+    reply: str  # code-built: prose + receipts as text
+
 
 class AgentTurnRequest(BaseModel):
     turn_id: UUID
@@ -268,8 +270,10 @@ class AgentTurnRequest(BaseModel):
     message_masked: str
     earlier_turns: list[AgentEarlierTurn] = Field(default_factory=list)
     limits: AgentLimits
-    chat_conversation_id: UUID | None = None   # filled into ask_helpdesk by the tool, never by the model
-    token: SecretStr                           # never logged, never in a trace
+    # filled into ask_helpdesk by the tool, never by the model
+    chat_conversation_id: UUID | None = None
+    token: SecretStr  # never logged, never in a trace
+
 
 class AgentStep(BaseModel):
     seq: int
@@ -282,27 +286,46 @@ class AgentStep(BaseModel):
     action_id: UUID | None = None
     injection_flagged: bool = False
 
-class AgentStopReason(StrEnum):           # ai-engine's vocabulary; core-api maps it to ReasonCode
-    STEP_LIMIT = "step_limit"; TOOL_LIMIT = "tool_limit"; BUDGET = "budget"
-    TOOL_FAILED = "tool_failed"; TOOL_OUTCOME_UNKNOWN = "tool_outcome_unknown"
-    INJECTION = "injection"; INJECTION_IN_RESULT = "injection_in_result"
-    MODEL_UNAVAILABLE = "model_unavailable"; SCHEMA_INVALID = "schema_invalid"
+
+class AgentStopReason(StrEnum):  # ai-engine's vocabulary; core-api maps it to ReasonCode
+    STEP_LIMIT = "step_limit"
+    TOOL_LIMIT = "tool_limit"
+    BUDGET = "budget"
+    TOOL_FAILED = "tool_failed"
+    TOOL_OUTCOME_UNKNOWN = "tool_outcome_unknown"
+    INJECTION = "injection"
+    INJECTION_IN_RESULT = "injection_in_result"
+    MODEL_UNAVAILABLE = "model_unavailable"
+    SCHEMA_INVALID = "schema_invalid"
     TOKEN_REFUSED = "token_refused"
+
 
 class AgentTurnResponse(BaseModel):
     outcome: Literal["replied", "awaiting_confirmation", "handed_off"]
-    reply: str = ""                       # empty when handed_off
+    reply: str = ""  # empty when handed_off
     stop_reason: AgentStopReason | None = None
     steps: list[AgentStep] = Field(default_factory=list)
-    model: str; prompt_version: str
-    tokens_in: int = 0; tokens_out: int = 0; cost_usd: float = 0.0
+    model: str
+    prompt_version: str
+    tokens_in: int = 0
+    tokens_out: int = 0
+    cost_usd: float = 0.0
 ```
 
 The model's own output is one closed union, validated in ai-engine:
 
 ```python
-class CallTool(BaseModel):  action: Literal["call_tool"]; tool: ToolName; arguments: dict[str, Any]
-class Reply(BaseModel):     action: Literal["reply"]; text: str = Field(max_length=4000)
+class CallTool(BaseModel):
+    action: Literal["call_tool"]
+    tool: ToolName
+    arguments: dict[str, Any]
+
+
+class Reply(BaseModel):
+    action: Literal["reply"]
+    text: str = Field(max_length=4000)
+
+
 AgentAction = Annotated[CallTool | Reply, Field(discriminator="action")]
 ```
 
@@ -581,14 +604,16 @@ _agent.route(screen_message, ScreenOutcome.INJECTION_DETECTED, hand_off)
 _agent.route(screen_message, ScreenOutcome.CLEAR, choose_action)
 _agent.route(choose_action, ChooseOutcome.CALL_TOOL, call_tool)
 _agent.route(choose_action, ChooseOutcome.REPLY, finish)
-_agent.route(choose_action, ChooseOutcome.LIMIT_REACHED, hand_off)      # steps, tool calls, tokens
+_agent.route(choose_action, ChooseOutcome.LIMIT_REACHED, hand_off)  # steps, tool calls, tokens
 _agent.route(choose_action, ChooseOutcome.MODEL_FAILED, hand_off)
 _agent.route(choose_action, ChooseOutcome.SCHEMA_INVALID, hand_off)
-_agent.route(call_tool, CallOutcome.RESULT, choose_action)              # the loop; 200, 403 refused, 404, 409, 422
-_agent.route(call_tool, CallOutcome.DRAFTED, choose_action)             # 403 human_only_action
-_agent.route(call_tool, CallOutcome.AWAITING_CONFIRMATION, finish)      # 202: the turn ends with a card
-_agent.route(call_tool, CallOutcome.FAILED, hand_off)                   # 5xx, unreachable, 401, write after injection
-_agent.route(call_tool, CallOutcome.OUTCOME_UNKNOWN, hand_off)          # a write timed out after sending
+# the loop; 200, 403 refused, 404, 409, 422
+_agent.route(call_tool, CallOutcome.RESULT, choose_action)
+_agent.route(call_tool, CallOutcome.DRAFTED, choose_action)  # 403 human_only_action
+_agent.route(call_tool, CallOutcome.AWAITING_CONFIRMATION, finish)  # 202: the turn ends with a card
+# 5xx, unreachable, 401, write after injection
+_agent.route(call_tool, CallOutcome.FAILED, hand_off)
+_agent.route(call_tool, CallOutcome.OUTCOME_UNKNOWN, hand_off)  # a write timed out after sending
 _agent.route(finish, SingleExit.DONE, _agent.end)
 _agent.route(hand_off, SingleExit.DONE, _agent.end)
 agent_graph = _agent.compile(AgentState)
