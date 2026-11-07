@@ -8,18 +8,25 @@ from datetime import timedelta
 
 import pytest
 from django.db import IntegrityError, transaction
+from django.conf import settings
 from django.test import RequestFactory
 from django.utils import timezone
 
+from apps.accounts.models import RefusedCall, User
 from apps.accounts.testing import api_client_for
 from apps.agent.models import AgentAction, AgentActionState
-from apps.agent.tests.test_tiers import as_agent, runbook_item
+from apps.agent.testing import as_agent, runbook_item
 from apps.agent.utils.actions import AgentCall
 from apps.audit.context import audit_context
 from apps.audit.models import AuditLog
 from apps.itsm_mock.utils.executors import RunbookError
 from apps.itsm_mock.utils.runbooks import runbooks
 from apps.review.models import DecidedVia, ReviewAction, ReviewDecision
+from apps.security.models import SecurityAlert
+from apps.tickets.models import PiiAccessLog, PiiQuarantine, Ticket
+from apps.tickets.utils.crypto import build_quarantine_entries
+from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.utils.router import ReviewQueue
 
 pytestmark = pytest.mark.django_db
 
@@ -219,3 +226,104 @@ def test_a_malformed_action_id_is_refused(technician_user, employee_user):
 
     assert response.status_code == 409
     assert response.json()["code"] == "agent_action_not_pending"
+
+
+def test_a_draft_applied_to_another_item_is_refused(technician_user, employee_user):
+    item, other = runbook_item(employee_user), runbook_item(employee_user)
+    drafted = as_agent(technician_user).post(
+        f"/api/review/items/{item.id}/decide",
+        {"action_taken": "approve", "time_spent_sec": 0},
+        content_type="application/json",
+    )
+    draft = AgentAction.objects.get(id=drafted.json()["details"]["draft_id"])
+
+    response = apply(
+        api_client_for(technician_user),
+        f"/api/review/items/{other.id}/decide",
+        draft,
+        {"action_taken": "approve", "time_spent_sec": 0},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "agent_action_mismatch"
+    assert not ReviewDecision.objects.exists()
+
+
+def test_an_agent_call_the_user_may_not_make_stores_nothing(employee_user, technician_user):
+    item = runbook_item(technician_user)
+
+    response = as_agent(employee_user).post(
+        f"/api/review/items/{item.id}/decide",
+        {"action_taken": "approve", "time_spent_sec": 0},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "permission_missing"
+    assert not AgentAction.objects.exists()
+
+
+def test_a_refused_apply_keeps_its_access_denied_row(technician_user, employee_user):
+    item = runbook_item(employee_user, ReviewQueue.INJECTION)
+    drafted = as_agent(technician_user).post(
+        f"/api/review/items/{item.id}/decide",
+        {"action_taken": "approve", "time_spent_sec": 0},
+        content_type="application/json",
+    )
+    draft = AgentAction.objects.get(id=drafted.json()["details"]["draft_id"])
+
+    response = apply(
+        api_client_for(technician_user),
+        f"/api/review/items/{item.id}/decide",
+        draft,
+        {"action_taken": "approve", "time_spent_sec": 0},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "permission_missing"
+    row = AuditLog.objects.get(event="access_denied")
+    assert row.payload["permission"] == "urn:smart-ticket:perm:security:queue:work"
+    assert RefusedCall.objects.filter(user=technician_user).exists()
+    draft.refresh_from_db()
+    assert draft.state == AgentActionState.PENDING.value
+
+
+def test_a_rate_limited_reveal_through_a_draft_is_recorded_and_alerted(employee_user):
+    security = User.objects.create_user(username="anh.lh", password="x", role="security")
+    entries = build_quarantine_entries({"[CCCD_1]": "001203004567"})
+    ticket = Ticket.objects.create(
+        public_id="TKT-AG-REVEAL",
+        reporter=employee_user,
+        subject_masked="Account locked",
+        body_masked="CCCD [CCCD_1]",
+        pii_level=PIILevel.CRITICAL.value,
+        pii_map={ph: str(e.ref) for ph, e in entries.items()},
+    )
+    PiiQuarantine.objects.store(ticket, entries)
+    for _ in range(settings.THRESHOLDS.pii_reveal.max_per_user_per_hour):
+        PiiAccessLog.objects.create(
+            ref=ticket.pii_map["[CCCD_1]"],
+            actor=security,
+            ticket=ticket,
+            placeholder="[CCCD_1]",
+            reason_code="security_investigation",
+            reason="earlier reveal",
+        )
+    url = f"/api/tickets/{ticket.public_id}/quarantine/reveal"
+    body = {
+        "placeholder": "[CCCD_1]",
+        "reason_code": "security_investigation",
+        "reason": "Checking the identity number against the HR record",
+    }
+    drafted = as_agent(security, "draft_pii_reveal").post(
+        url, body, content_type="application/json"
+    )
+    draft = AgentAction.objects.get(id=drafted.json()["details"]["draft_id"])
+
+    response = apply(api_client_for(security), url, draft, body)
+
+    assert response.status_code == 429
+    assert AuditLog.objects.filter(event="pii_reveal_refused").exists()
+    assert SecurityAlert.objects.filter(kind="reveal_rate_limited").exists()
+    draft.refresh_from_db()
+    assert draft.state == AgentActionState.PENDING.value

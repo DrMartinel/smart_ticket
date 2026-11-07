@@ -109,7 +109,7 @@ def test_every_route_with_tier_none_refuses_an_agent_token_even_with_the_permiss
             assert refused_with.value.code is AccessRefusal.AGENT_NOT_ALLOWED, key
         refused += 1
 
-    assert refused > 150
+    assert refused == 202
 
 
 def test_ungated_routes_read_no_bearer_token():
