@@ -382,7 +382,7 @@ A single-exit node needs neither an `Outcome` nor a `decide()` — it inherits
 `InferNode`, `ValidateNode`, …).
 
 Checklist when adding one (the full recipe is
-`.claude/skills/ai-engine-feature/references/recipes/node.md`):
+`.claude/skills/feature/references/ai-engine/recipes/node.md`):
 
 - If it branches, define a module-level `<Name>Outcome` enum in domain language,
   assign it to `Outcome`, and annotate `decide()` with it.

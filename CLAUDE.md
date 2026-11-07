@@ -238,7 +238,7 @@ read it before adding a module, class or helper in core-api.
 | What a runbook does, or who may run it | Data: Admin → Settings → Runbooks (a workflow admin's change is live at once, ADR-0043); grantable groups in `ITSM_GRANTABLE_GROUP_PREFIXES`; executor code in `apps/itsm_mock/utils/executors.py`. Never a path around `runbooks.execute` and the worker's `runbooks.run`, which both check ADR-0006 |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
-`/ai-engine-feature` for any ai-engine change · `/ai-engine-review` before a PR ·
+`/feature` for any feature change, in any service · `/review` before a PR ·
 `/refactor` for behaviour-preserving cleanup in any Python service. The
 repo-wide style guide is `.claude/skills/refactor/references/readability.md`.
 

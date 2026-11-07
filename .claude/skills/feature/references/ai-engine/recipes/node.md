@@ -69,7 +69,7 @@ Checks while writing:
 
 - `__call__` never assigns to `self`.
 - Use `settings.x` where it's needed, and read `retrieval_floor` from `state`.
-- Choose a failure shape from `ai-engine-conventions.md` → *Failure semantics* on
+- Choose a failure shape from `../conventions.md` → *Failure semantics* on
   purpose. Put a comment on any `except`.
 - Build any text sent to a provider from `ticket.subject_masked` and
   `ticket.body_masked` only.

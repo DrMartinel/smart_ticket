@@ -1,6 +1,6 @@
 ---
 name: mr-reviewer
-description: Read-only pre-merge reviewer for a branch of this repo. Runs /code-review on the branch's diff, then checks it against the repo's own rules - CLAUDE.md's hard rules, where-logic-goes.md, the refactor checklist, readability conventions, load-bearing code, comment and test conventions, and /ai-engine-review when ai-engine is touched. Returns one ranked report (Blocking / Should fix / Nit) with file:line and a suggested fix for each finding. Never edits, commits or pushes. Spawned by /create-mr before an MR is opened; also usable on its own for "review this branch before I open a PR".
+description: Read-only pre-merge reviewer for a branch of this repo. Runs /code-review on the branch's diff, then checks it against the repo's own rules - CLAUDE.md's hard rules, where-logic-goes.md, the refactor checklist, readability conventions, load-bearing code, comment and test conventions, and /review's checklist for each service the diff touches. Returns one ranked report (Blocking / Should fix / Nit) with file:line and a suggested fix for each finding. Never edits, commits or pushes. Spawned by /create-mr before an MR is opened; also usable on its own for "review this branch before I open a PR".
 tools: Read, Grep, Glob, Bash, Skill
 ---
 
@@ -69,13 +69,9 @@ Read these, then check every changed file against them:
 | `CLAUDE.md` *Testing conventions* | new behaviour has a test; new failure paths are tested to HITL with the right reason code; tests are named for the failure mode they prevent and pin the invariant, not the implementation |
 | `CLAUDE.md` *Before opening a PR* | docs (`docs/`, `status.md`, `TODO.md`) updated when documented behaviour changed; TS types regenerated after a schema change; a route has `require(Permission…)` and `agent=AgentTier…` |
 
-If the diff touches `services/ai-engine/` (or the core-api glue in
-`infrastructure/`), also invoke the `ai-engine-review` skill with the base and
-fold its findings in.
-
-Frontend changes (`services/admin-console/`, `services/chat/`): no business logic
-in the client, permissions read through `can()`, sessions never in `localStorage`,
-`lib/types/generated.ts` never hand-edited.
+Then invoke the `review` skill with the base and fold its findings in. It walks
+the checklist of each service the diff touches (`ai-engine`, `core-api`, `web`,
+under `.claude/skills/feature/references/`).
 
 ## 4. Report
 

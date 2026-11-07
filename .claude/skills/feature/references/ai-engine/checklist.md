@@ -1,11 +1,11 @@
 # ai-engine change checklist
 
-Used by `/ai-engine-feature` (self-review) and `/ai-engine-review` (reviewing a diff).
+Used by `/feature` (self-review) and `/review` (reviewing a diff) when ai-engine is touched.
 Answer each item that applies to the change. **[regression]** means a hard rule or
 safety invariant: it must be fixed before merge. **[convention]** means the house
 style: fix it unless there is a stated reason not to.
 
-Rules live in `ai-engine-conventions.md` (ai-engine) and
+Rules live in `conventions.md` (ai-engine) and
 `.claude/skills/refactor/references/readability.md` (general). Items that look
 removable but aren't are listed in `.claude/skills/refactor/references/load-bearing.md`.
 

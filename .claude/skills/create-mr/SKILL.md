@@ -63,7 +63,7 @@ base, the head branch and what you learnt in step 2 (series position, the spec
 or ADR the change implements). It runs `/code-review high` on the diff, then
 checks the repo's own rules: CLAUDE.md's hard rules, `where-logic-goes.md`, the
 refactor checklist, readability, load-bearing code, comments, tests and docs,
-and `/ai-engine-review` when ai-engine is touched.
+and `/review` for each service the diff touches.
 
 If `mr-reviewer` isn't listed as an agent type (agents load at session start, so
 a session older than the file won't have it), spawn `general-purpose` with:

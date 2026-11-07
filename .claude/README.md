@@ -11,8 +11,8 @@ and never override them.
 
 | Skill | Use it to… | Invoke | You get back |
 |---|---|---|---|
-| **`/ai-engine-feature`** | build or change anything in `services/ai-engine`: a node, provider, state field, signal, retrieval change, prompt bump, or setting | `/ai-engine-feature add a node that flags duplicate-ticket language before retrieval` | a plan for you to approve, then the implementation, tests, verification and docs |
-| **`/ai-engine-review`** | check a branch before you open a PR | `/ai-engine-review` (base defaults to `main`) or `/ai-engine-review HEAD~3` | a report sorted into Regression / Convention / Nit, with `file:line` links and fixes. It doesn't edit anything |
+| **`/feature`** | build or change a feature in any service: a core-api route, model, service or setting; an ai-engine node, provider, state field, signal, retrieval change or prompt bump; a console or chat page | `/feature add a node that flags duplicate-ticket language before retrieval`, or `/feature let a team lead pause a member's assignments` | a plan for you to approve, then the implementation, tests, verification and docs |
+| **`/review`** | check a branch before you open a PR, against the checklist of each service it touches | `/review` (base defaults to `main`) or `/review HEAD~3` | a report sorted into Regression / Convention / Nit, with `file:line` links and fixes. It doesn't edit anything |
 | **`/refactor`** | clean up Python in any service (ai-engine, core-api, evals) without changing what it does, or check changes against the checklist | `/refactor services/core-api/apps/tickets/utils/pipeline.py`, or `/refactor check my changes against the checklist` | an audit table of proposed moves (applied one at a time once you pick them), or a pass/fail table per checklist item |
 | **`/checklist-add`** | add a rule to the checklist `/refactor` enforces | `/checklist-add docstrings never name the return value` | the new numbered item, with how to check it, a real example from the repo, and where it came from |
 | **`/create-mr`** | open a merge request (GitHub PR) for the current branch | `/create-mr`, or `/create-mr main this is F15 PR 3` | a review by the `mr-reviewer` subagent (`/code-review` plus the repo's rules), then a drafted title and a body with **Summary**, **Rationale** and **Test plan** (checked, none empty) for you to approve; then the push and the PR link |
@@ -26,11 +26,11 @@ and never override them.
 
 ## Typical flows
 
-**New ai-engine feature**
+**New feature**
 ```
-/ai-engine-feature <what>  →  review the plan, answer open questions, approve
-                           →  Claude implements, tests (failure paths first), runs pytest/mypy/ruff
-                           →  /ai-engine-review  →  commit (ask Claude, or do it yourself)  →  /create-mr
+/feature <what>  →  review the plan, answer open questions, approve
+                 →  Claude implements, tests (failure paths first), runs each service's checks
+                 →  /review  →  commit (ask Claude, or do it yourself)  →  /create-mr
 ```
 
 **Cleanup**
@@ -39,7 +39,7 @@ and never override them.
                                      →  each move applied + verified separately  →  commit the ones you like
 ```
 
-**Before a PR**, run `/ai-engine-review` even if you wrote the code by hand.
+**Before a PR**, run `/review` even if you wrote the code by hand.
 
 ## Where the workflows stop
 
@@ -47,9 +47,9 @@ Every workflow **stops and waits for you** at one point:
 
 | Skill | Stops after | What you're shown |
 |---|---|---|
-| `/ai-engine-feature` | planning | files to touch, state fields and their defaults, outcomes and routes, each failure path and the reason code it ends at, the tests, and which hard rules are in play |
+| `/feature` | planning | files to touch, ai-engine state fields and outcomes, core-api routes (permission and agent tier) and data, each failure path and the reason code it ends at, the tests, and which hard rules are in play |
 | `/refactor` | the audit | ranked moves (gain, risk, guarding test, draft commit), behaviour changes it noticed, and load-bearing code it chose to leave alone |
-| `/ai-engine-review` | the report | nothing gets edited unless you ask |
+| `/review` | the report | nothing gets edited unless you ask |
 | `/create-mr` | the review, then the draft | blocking findings first (fix or accept each), then the title, base and head, the commits going in, the full description and the check results; nothing is pushed until you say yes |
 
 The skills **never commit on their own**. They propose commit messages in the repo's
@@ -65,10 +65,11 @@ To understand a rule, or change it, edit the reference file, not the SKILL.md:
 | General Python taste: module shape, comments, naming, typing, errors, tests, commits | [`skills/refactor/references/readability.md`](skills/refactor/references/readability.md) |
 | Refactor moves the repo endorses, each with its precedent commit | [`skills/refactor/references/moves.md`](skills/refactor/references/moves.md) |
 | Code that looks removable but isn't, and the test or ADR that guards it | [`skills/refactor/references/load-bearing.md`](skills/refactor/references/load-bearing.md) |
-| ai-engine specifics: node contract, providers, failure semantics, state, DB | [`skills/ai-engine-feature/references/ai-engine-conventions.md`](skills/ai-engine-feature/references/ai-engine-conventions.md) |
-| Step-by-step recipes (node, provider, signal, prompt, retrieval) | [`skills/ai-engine-feature/references/recipes/`](skills/ai-engine-feature/references/recipes/) |
-| Test toolkit and templates for ai-engine | [`skills/ai-engine-feature/references/testing.md`](skills/ai-engine-feature/references/testing.md) |
-| Review checklist (shared by the feature and review skills) | [`skills/ai-engine-feature/references/checklist.md`](skills/ai-engine-feature/references/checklist.md) |
+| ai-engine specifics: node contract, providers, failure semantics, state, DB | [`skills/feature/references/ai-engine/conventions.md`](skills/feature/references/ai-engine/conventions.md) |
+| ai-engine recipes (node, provider, signal, prompt, retrieval) | [`skills/feature/references/ai-engine/recipes/`](skills/feature/references/ai-engine/recipes/) |
+| Test toolkit and templates for ai-engine | [`skills/feature/references/ai-engine/testing.md`](skills/feature/references/ai-engine/testing.md) |
+| core-api recipes (route, model, tunable or setting) | [`skills/feature/references/core-api/recipes/`](skills/feature/references/core-api/recipes/) |
+| Review checklists, one per service (shared by `/feature` and `/review`) | [`ai-engine`](skills/feature/references/ai-engine/checklist.md) · [`core-api`](skills/feature/references/core-api/checklist.md) · [`web`](skills/feature/references/web/checklist.md) |
 
 ## Maintaining the skills
 
@@ -83,7 +84,7 @@ To understand a rule, or change it, edit the reference file, not the SKILL.md:
 - **When a file or symbol is renamed**, grep `.claude/skills/` for the old name.
   `/refactor`'s sweep step does this automatically.
 - **After editing a skill, test it:** run it in plan mode on a throwaway request,
-  e.g. `/ai-engine-feature add a node that flags duplicate-ticket language before retrieval`.
+  e.g. `/feature add a node that flags duplicate-ticket language before retrieval`.
   Check that the plan touches the right files (state, node module, `graph/triage.py`,
   `conftest.py`, `test_build.py`), routes every outcome, lists failure paths first,
   and stops before writing code.
