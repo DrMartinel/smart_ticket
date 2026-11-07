@@ -25,6 +25,7 @@ class RunbookRefusal(StrEnum):
     NOT_APPROVED = "not_approved"
     NOT_A_RUNBOOK_ITEM = "not_a_runbook_item"
     APPROVER_NOT_STAFF = "approver_not_staff"
+    APPROVER_NOT_A_PERSON = "approver_not_a_person"
     EXECUTOR_NOT_STAFF = "executor_not_staff"
     REVIEW_ITEM_NOT_FOUND = "review_item_not_found"
     UNKNOWN_RUNBOOK = "unknown_runbook"

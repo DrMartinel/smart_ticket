@@ -8,6 +8,7 @@ from typing import Any
 from django.db import transaction
 
 from apps.accounts.models import User
+from apps.agent.utils.actions import agent_actions
 from apps.review.models import (
     SECURITY_QUEUES,
     EvalCandidate,
@@ -53,6 +54,7 @@ class ReviewDecisions:
             action_taken=action,
             override_reason=choice.override_reason,
             time_spent_sec=choice.time_spent_sec,
+            from_agent_action_id=agent_actions.draft_being_applied(),
         )
         item.state = "resolved"
         item.save(update_fields=["state"])
