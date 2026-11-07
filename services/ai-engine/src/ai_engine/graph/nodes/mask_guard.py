@@ -18,7 +18,7 @@ class MaskGuardOutcome(StrEnum):
     MASKED = "Masked"
 
 
-class MaskGuardNode(BaseNode):
+class MaskGuardNode(BaseNode[TriageState]):
     """A `mask_failed` ticket goes to `emit_signals`; every other one to the drafting model."""
 
     Outcome = MaskGuardOutcome

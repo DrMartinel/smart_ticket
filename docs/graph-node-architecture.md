@@ -75,7 +75,9 @@ one-time setup that must fail at boot, like `InferNode` loading its prompt.
 `GraphBuilder`, which maps each outcome of a node *instance* to the next
 instance, all in one route list in `graph/triage.py`. That makes nodes reusable
 and removes any definition-order constraint between node classes. (A cycle could
-be expressed, but `compile()` rejects it: every node runs at most once.)
+be expressed, but `compile()` rejects it: every node runs at most once. Only a
+graph built with `Cycles.BOUNDED`, the F15 agent graph, may loop, and only
+through a limit outcome; see below.)
 
 **Everything is validated at startup.** Bad routes raise as they are declared;
 unrouted outcomes and unreachable nodes raise inside `GraphBuilder.compile()` —
@@ -304,6 +306,18 @@ from the entry, then, before anything is registered, raises `ValueError` on:
 - a cycle, even one with a way out to the end (via stdlib
   `graphlib.TopologicalSorter`). Every node runs at most once per ticket, so a
   proposal that fails validation reaches a human rather than the model again.
+  This is the default, `Cycles.REJECT`, and the triage graph's.
+
+A graph built with `GraphBuilder(entry=…, cycles=Cycles.BOUNDED)` may loop, but
+every cycle must pass through a node with a **limit outcome** routed out of
+it. A node names its limit outcomes in `limits` (members of its own `Outcome`,
+checked when the class is defined), and its `decide()` returns one once the loop
+has reached its cap. `compile()` drops every node whose limit outcome leads
+somewhere that can't come back to it, and raises `unbounded cycle: …` if what
+is left still has a cycle. A loop that skips the limit node, or a limit whose
+exit leads back into the loop, is caught at startup rather than spinning until
+LangGraph's recursion limit fails the run. The cap itself is counted by the
+node at runtime.
 
 Each instance registers under its own class's `name`, so a test double shows
 up under its own name: a `FakeInferNode(...)` (a subclass of `InferNode`)

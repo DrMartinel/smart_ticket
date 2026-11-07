@@ -19,7 +19,7 @@ from ai_engine.graph.nodes.emit_signals.signals import (
 )
 
 
-class EmitSignalsNode(BaseNode):
+class EmitSignalsNode(BaseNode[TriageState]):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         reranked = state.reranked
         final = [r.final_score() for r in reranked]

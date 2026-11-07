@@ -16,7 +16,7 @@ from langgraph.typing import StateLike
 
 from ai_engine.graph.build.node import BaseNode, terminal
 from ai_engine.graph.build.edge import Edge
-from ai_engine.graph.build.graph import Graph
+from ai_engine.graph.build.graph import Cycles, Graph
 
 
 class GraphBuilder:
@@ -28,17 +28,18 @@ class GraphBuilder:
     - `builder.end` is the one `Terminal` instance, shared by every builder.
       Routing to it is how a path finishes; it holds the only edge to END.
     - Bad wiring raises in `route()` or `compile()`, at startup — never mid-run.
-      That includes any cycle: every graph it builds is acyclic.
+      That includes any cycle, unless the builder is `Cycles.BOUNDED`: then
+      every cycle must pass through a node's limit outcome routed out of it.
     - Every node runs behind an adapter that rejects update keys the state
       schema lacks. LangGraph would drop them silently, so a typo'd key would
       look like it worked.
     """
 
-    def __init__(self, *, entry: BaseNode) -> None:
+    def __init__(self, *, entry: BaseNode[Any], cycles: Cycles = Cycles.REJECT) -> None:
         self.end = terminal
-        self._graph = Graph(entry=entry, end=self.end)
+        self._graph = Graph(entry=entry, end=self.end, cycles=cycles)
 
-    def route(self, source: BaseNode, outcome: StrEnum, target: BaseNode) -> None:
+    def route(self, source: BaseNode[Any], outcome: StrEnum, target: BaseNode[Any]) -> None:
         """When `source` ends in `outcome`, run `target` next."""
         self._graph.add(Edge(source, outcome, target))
 
@@ -73,7 +74,7 @@ class GraphBuilder:
 
 # A function, not inlined into compile()'s loop: each wrapper must capture its
 # own node. A closure defined in the loop body would see only the last one.
-def _reject_unknown_keys(node: BaseNode, state_keys: set[str]):
+def _reject_unknown_keys(node: BaseNode[Any], state_keys: set[str]):
     """Wrap `node` so an update it returns may only use known state keys.
     A non-dict update still raises — here (`set(None)`, a string's
     characters as keys) or in LangGraph (an empty list) — so no check here."""

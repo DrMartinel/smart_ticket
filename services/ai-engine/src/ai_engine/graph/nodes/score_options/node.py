@@ -18,7 +18,7 @@ from ai_engine.graph.nodes.score_options.scorer import option_scorer
 from ai_engine.graph.state import TriageState
 
 
-class ScoreOptionsNode(BaseNode):
+class ScoreOptionsNode(BaseNode[TriageState]):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         proposal = state.proposal.root if state.proposal else None
         if not isinstance(proposal, ClarificationProposal) or not state.clarify_options_in_topk:

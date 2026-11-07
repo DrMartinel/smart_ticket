@@ -21,7 +21,7 @@ from ai_engine.graph.nodes.retrieve.vector import vector_search
 from ai_engine.graph.state import Candidate, TriageState
 
 
-class HybridRetrieveNode(BaseNode):
+class HybridRetrieveNode(BaseNode[TriageState]):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         ticket = state.ticket
         query = f"{ticket.subject_masked}\n{ticket.body_masked}".strip()
