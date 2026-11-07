@@ -15,6 +15,7 @@ and never override them.
 | **`/ai-engine-review`** | check a branch before you open a PR | `/ai-engine-review` (base defaults to `main`) or `/ai-engine-review HEAD~3` | a report sorted into Regression / Convention / Nit, with `file:line` links and fixes. It doesn't edit anything |
 | **`/refactor`** | clean up Python in any service (ai-engine, core-api, evals) without changing what it does, or check changes against the checklist | `/refactor services/core-api/apps/tickets/utils/pipeline.py`, or `/refactor check my changes against the checklist` | an audit table of proposed moves (applied one at a time once you pick them), or a pass/fail table per checklist item |
 | **`/checklist-add`** | add a rule to the checklist `/refactor` enforces | `/checklist-add docstrings never name the return value` | the new numbered item, with how to check it, a real example from the repo, and where it came from |
+| **`/create-mr`** | open a merge request (GitHub PR) for the current branch | `/create-mr`, or `/create-mr main this is F15 PR 3` | a review by the `mr-reviewer` subagent (`/code-review` plus the repo's rules), then a drafted title and a body with **Summary**, **Rationale** and **Test plan** (checked, none empty) for you to approve; then the push and the PR link |
 
 ## How to invoke
 
@@ -29,7 +30,7 @@ and never override them.
 ```
 /ai-engine-feature <what>  →  review the plan, answer open questions, approve
                            →  Claude implements, tests (failure paths first), runs pytest/mypy/ruff
-                           →  /ai-engine-review  →  commit (ask Claude, or do it yourself)  →  PR
+                           →  /ai-engine-review  →  commit (ask Claude, or do it yourself)  →  /create-mr
 ```
 
 **Cleanup**
@@ -49,6 +50,7 @@ Every workflow **stops and waits for you** at one point:
 | `/ai-engine-feature` | planning | files to touch, state fields and their defaults, outcomes and routes, each failure path and the reason code it ends at, the tests, and which hard rules are in play |
 | `/refactor` | the audit | ranked moves (gain, risk, guarding test, draft commit), behaviour changes it noticed, and load-bearing code it chose to leave alone |
 | `/ai-engine-review` | the report | nothing gets edited unless you ask |
+| `/create-mr` | the review, then the draft | blocking findings first (fix or accept each), then the title, base and head, the commits going in, the full description and the check results; nothing is pushed until you say yes |
 
 The skills **never commit on their own**. They propose commit messages in the repo's
 style (`refactor(ai-engine): …`, with a body saying why) and commit only when you ask.
