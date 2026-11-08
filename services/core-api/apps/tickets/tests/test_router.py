@@ -10,7 +10,14 @@ from uuid import UUID
 
 import pytest
 
-from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, ReviewQueue, Router
+from apps.tickets.utils.router import (
+    AGENT_HANDOFF_REASONS,
+    Branch,
+    KBArticleMeta,
+    ReasonCode,
+    ReviewQueue,
+    Router,
+)
 from config.settings.base import (
     AccessDeniedThresholds,
     AssignmentThresholds,
@@ -272,6 +279,54 @@ def test_mask_failed_goes_to_mask_failed_queue_priority_1():
     assert d.queue is not None
     assert d.queue.value == "mask_failed"
     assert d.priority == 1
+
+
+@pytest.mark.parametrize("reason", sorted(AGENT_HANDOFF_REASONS))
+def test_router_sends_agent_handoff_to_hitl_with_its_reason(reason):
+    """FR-F15-017: perfect signals and a perfect proposal still go to a person."""
+    signals = good_signals(**{"policy.agent_handoff_reason": reason.value})
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    assert d.branch is Branch.HITL
+    assert d.reason_code is reason
+    assert d.queue is not None
+    assert d.queue.value == "low_confidence"
+
+
+@pytest.mark.parametrize(
+    ("policy", "branch", "reason"),
+    [
+        ({"policy.injection_detected": True}, Branch.BLOCK, ReasonCode.INJECTION_DETECTED),
+        ({"policy.pii_level": PIILevel.CRITICAL}, Branch.BLOCK, ReasonCode.PII_CRITICAL),
+        ({"policy.mass_incident": True}, Branch.ESCALATE, ReasonCode.MASS_INCIDENT),
+        ({"policy.pii_level": PIILevel.MASK_FAILED}, Branch.HITL, ReasonCode.PII_MASK_FAILED),
+    ],
+)
+def test_each_earlier_gate_still_wins_over_an_agent_handoff(policy, branch, reason):
+    signals = good_signals(**{**policy, "policy.agent_handoff_reason": "agent_mask_failed"})
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    assert (d.branch, d.reason_code) == (branch, reason)
+
+
+def test_an_agent_handoff_wins_over_every_later_check():
+    """The reason survives a ticket the triage graph refused or could not propose for."""
+    signals = good_signals(
+        **{"retrieval.rerank_total": 0.0, "policy.agent_handoff_reason": "agent_tool_failed"}
+    )
+    d = Router(TH).route(signals, None, None)
+    assert d.reason_code is ReasonCode.AGENT_TOOL_FAILED
+
+
+def test_router_decision_unchanged_without_agent_handoff():
+    signals = good_signals()
+    assert signals.policy.agent_handoff_reason is None
+    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    assert d.branch is Branch.AUTO_REPLY
+
+
+def test_every_agent_handoff_reason_is_an_agent_reason_code():
+    assert {r.value for r in AGENT_HANDOFF_REASONS} == {
+        r.value for r in ReasonCode if r.value.startswith("agent_")
+    }
 
 
 def test_no_proposal_is_schema_invalid():

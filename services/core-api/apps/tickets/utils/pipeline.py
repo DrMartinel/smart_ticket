@@ -80,12 +80,14 @@ def trust_signals(
     kb: KBArticleMeta | None,
     *,
     clarifications_asked: int,
+    agent_handoff_reason: str | None = None,
 ) -> TrustSignals:
     """ai-engine's findings plus the policy core-api knows itself: the
     ticket's PII level, the KB page's authority, from core-api's own KB
     read (ADR-0002; `kb` is None unless an auto-reply proposal names an
-    active page, and then auto-reply is denied), and how many questions the
-    ticket has asked its requester (ADR-0023). Pure."""
+    active page, and then auto-reply is denied), how many questions the
+    ticket has asked its requester (ADR-0023), and why the agent handed it
+    off (F15). Pure."""
     return TrustSignals(
         retrieval=engine.retrieval,
         generation=engine.generation,
@@ -97,6 +99,7 @@ def trust_signals(
             injection_detected=engine.injection_detected,
             mass_incident=False,
             clarifications_asked=clarifications_asked,
+            agent_handoff_reason=agent_handoff_reason,
         ),
         llm_self_confidence=engine.llm_self_confidence,
     )
@@ -533,7 +536,11 @@ def ticket_process(ticket_id: str) -> TaskResult:
             ticket,
             idempotency_key,
             trust_signals(
-                resp.signals, masked.pii_level, None, clarifications_asked=clarifications_asked
+                resp.signals,
+                masked.pii_level,
+                None,
+                clarifications_asked=clarifications_asked,
+                agent_handoff_reason=ticket.agent_handoff_reason,
             ),
             resp.proposal,
             resp=resp,
@@ -543,7 +550,11 @@ def ticket_process(ticket_id: str) -> TaskResult:
 
     kb_meta = _kb_meta(resp.proposal)
     signals = trust_signals(
-        resp.signals, masked.pii_level, kb_meta, clarifications_asked=clarifications_asked
+        resp.signals,
+        masked.pii_level,
+        kb_meta,
+        clarifications_asked=clarifications_asked,
+        agent_handoff_reason=ticket.agent_handoff_reason,
     )
     decision = router.route(signals, resp.proposal, kb_meta)
     ai_run = _persist_ai_run(
