@@ -5,6 +5,7 @@ import type { CurrentUser } from "@/lib/auth";
 const perm = (name: string) => `urn:smart-ticket:perm:${name}`;
 
 export const P = {
+  agentUse: perm("agent:use"),
   accessRead: perm("access:read"),
   accessGrant: perm("access:grant"),
   grantDelegable: perm("access:grant:delegable"),

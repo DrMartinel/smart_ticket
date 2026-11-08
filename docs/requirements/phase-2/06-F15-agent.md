@@ -961,3 +961,15 @@ Each departure is the smaller choice; none lets an agent do more.
     divider; the next message starts a new one.
 40. The assistant page is English only, like the rest of the chat outside its
     guides (FR-F15-021 asks for vi and en; TODO 23).
+
+**PR 8 (console UI).**
+41. The console's assistant is one side panel on every Workspace page (not
+    Admin), opened from a button, for anyone holding `agent:use` and
+    `tickets:read`. Its conversation lives in the panel.
+42. A review is decided on its ticket's page, so drafts for the ticket and
+    for its review item show there, above the review. A decision draft opens
+    in the review form, pre-filled and editable, and is applied with the
+    form's answers and `X-Agent-Action`. Other drafts (reassign, priority,
+    comment decision) apply as drafted or are dismissed.
+43. The ticket detail carries `agent_handoff_reason`; the page names it above
+    the routing decision.
