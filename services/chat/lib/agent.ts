@@ -9,17 +9,41 @@ const POLL_MS = 1500;
 
 /** One row of the assistant conversation: a turn from core-api, or a message still being sent. */
 export type AgentRow =
+  | { kind: "ended"; key: string }
   | { kind: "sending"; key: string; text: string }
   | { kind: "failed"; key: string; text: string; error: string }
   | { kind: "server"; key: string; turn: AgentTurnOut };
 
 const UNFINISHED = new Set(["queued", "running"]);
 
+/** What became of a confirmation the employee answered, shown in place of its card. */
+export type ActionResult = { label: string; tone: "ok" | "info" | "warn"; text: string; ticket?: string };
+
+// Refusals after which the action is no longer pending: its card gives way to the message.
+const FINAL_REFUSALS: Record<string, string> = {
+  agent_action_expired: "This has expired. Ask the assistant again if you still want it.",
+  agent_action_not_pending: "This was already dealt with.",
+  not_pending: "This was already dealt with.",
+};
+
+function confirmedResult(action: AgentActionOut, response: unknown): ActionResult {
+  const reopen = response as { reopened?: boolean; new_ticket?: string | null } | null;
+  if (reopen && reopen.reopened === false && reopen.new_ticket) {
+    return {
+      label: "Done",
+      tone: "ok",
+      text: "That ticket was closed too long ago to reopen, so a new one was opened:",
+      ticket: reopen.new_ticket,
+    };
+  }
+  return { label: "Done", tone: "ok", text: action.tool === "reopen_my_ticket" ? "Reopened." : "Sent." };
+}
+
 function sendError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "agent_off") return "The assistant is switched off right now. You can still ask on the Ask page.";
     if (err.code === "turn_running") return "The assistant is still working on your last message.";
-    if (err.status === 422) return "Please type a message of up to 4,000 characters.";
+    if (err.status === 422) return err.message;
   }
   return "I couldn't send that. Check your connection and try again.";
 }
@@ -32,6 +56,13 @@ export function useAgentConversation(enabled: boolean) {
   const [handoffs, setHandoffs] = useState<Record<string, ChatTurnOut>>({});
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<Record<string, string>>({});
+  const [results, setResults] = useState<Record<string, ActionResult>>({});
+  const [creating, setCreating] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<Record<string, string>>({});
+  // Bumped after each poll, so the next one is scheduled whether or not anything changed.
+  const [turnTick, setTurnTick] = useState(0);
+  const [handoffTick, setHandoffTick] = useState(0);
+  const handoffTried = useRef(new Set<string>());
   const conversationRef = useRef<string | null>(null);
 
   const replace = useCallback((key: string, next: AgentRow) => {
@@ -63,29 +94,36 @@ export function useAgentConversation(enabled: boolean) {
           // transient: the next tick tries again
         }
       }
-      setRows((prev) => [...prev]);
+      setTurnTick((n) => n + 1);
     }, POLL_MS);
     return () => window.clearTimeout(timer);
-  }, [enabled, rows, replace, loadPending]);
+  }, [enabled, rows, replace, loadPending, turnTick]);
 
   // Load each hand-off ticket, and poll it while the helpdesk is still deciding.
   useEffect(() => {
     const ids = rows.flatMap((r) => (r.kind === "server" && r.turn.handoff_ticket ? [r.turn.handoff_ticket] : []));
     const due = ids.filter((id) => !handoffs[id] || handoffs[id].state === "thinking");
     if (due.length === 0) return;
+    const first = due.some((id) => !handoffTried.current.has(id));
     const timer = window.setTimeout(
       async () => {
-        const fresh = await Promise.all(due.map((id) => chatApi.turn(id).catch(() => null)));
-        setHandoffs((prev) => {
-          const next = { ...prev };
-          fresh.forEach((t) => t && (next[t.public_id] = t));
-          return next;
-        });
+        due.forEach((id) => handoffTried.current.add(id));
+        const fresh = (await Promise.all(due.map((id) => chatApi.turn(id).catch(() => null)))).filter(
+          (t): t is ChatTurnOut => t !== null,
+        );
+        if (fresh.length > 0) {
+          setHandoffs((prev) => {
+            const next = { ...prev };
+            fresh.forEach((t) => (next[t.public_id] = t));
+            return next;
+          });
+        }
+        setHandoffTick((n) => n + 1);
       },
-      due.some((id) => !handoffs[id]) ? 0 : POLL_MS,
+      first ? 0 : POLL_MS,
     );
     return () => window.clearTimeout(timer);
-  }, [rows, handoffs]);
+  }, [rows, handoffs, handoffTick]);
 
   /** Sends a message; a conversation that has ended is replaced by a new one. */
   const send = useCallback(
@@ -97,7 +135,11 @@ export function useAgentConversation(enabled: boolean) {
         .catch((err) => {
           if (!(err instanceof ApiError && err.code === "conversation_ended")) throw err;
           conversationRef.current = null;
-          setRows((prev) => prev.filter((r) => r.key === key));
+          setRows((prev) => {
+            const earlier = prev.filter((r) => r.key !== key);
+            const mine = prev.filter((r) => r.key === key);
+            return earlier.length > 0 ? [...earlier, { kind: "ended", key: `ended-${key}` }, ...mine] : mine;
+          });
           return post();
         })
         .then((turn) => {
@@ -119,23 +161,31 @@ export function useAgentConversation(enabled: boolean) {
     [rows, send],
   );
 
-  /** Runs or cancels a confirmation; either way it leaves the pending list. */
+  /** Runs or cancels a confirmation; once it is no longer pending, its result replaces the card. */
   const resolve = useCallback(
     async (action: AgentActionOut, run: boolean) => {
-      setBusyAction(action.action_id);
-      setActionError((prev) => ({ ...prev, [action.action_id]: "" }));
+      const id = action.action_id;
+      setBusyAction(id);
+      setActionError((prev) => ({ ...prev, [id]: "" }));
       try {
-        await (run ? agentApi.confirm(action) : agentApi.dismiss(action.action_id));
-        setPending((prev) => prev.filter((a) => a.action_id !== action.action_id));
+        const response = await (run ? agentApi.confirm(action) : agentApi.dismiss(id));
+        setResults((prev) => ({
+          ...prev,
+          [id]: run ? confirmedResult(action, response) : { label: "Cancelled", tone: "info", text: "Nothing was sent." },
+        }));
+        setPending((prev) => prev.filter((a) => a.action_id !== id));
       } catch (err) {
-        const message =
-          err instanceof ApiError && err.code === "agent_action_expired"
-            ? "This has expired. Ask the assistant again if you still want it."
-            : err instanceof ApiError
-              ? err.message
-              : "That didn't go through. Try again.";
-        setActionError((prev) => ({ ...prev, [action.action_id]: message }));
-        loadPending();
+        const final = err instanceof ApiError && err.code ? FINAL_REFUSALS[err.code] : undefined;
+        if (final) {
+          setResults((prev) => ({ ...prev, [id]: { label: "Not sent", tone: "warn", text: final } }));
+          setPending((prev) => prev.filter((a) => a.action_id !== id));
+        } else {
+          setActionError((prev) => ({
+            ...prev,
+            [id]: err instanceof ApiError ? err.message : "That didn't go through. Try again.",
+          }));
+          loadPending();
+        }
       } finally {
         setBusyAction(null);
       }
@@ -144,8 +194,16 @@ export function useAgentConversation(enabled: boolean) {
   );
 
   const createTicket = useCallback(async (publicId: string) => {
-    const fresh = await chatApi.createTicket(publicId).catch(() => chatApi.turn(publicId).catch(() => null));
-    if (fresh) setHandoffs((prev) => ({ ...prev, [fresh.public_id]: fresh }));
+    setCreating(publicId);
+    setCreateError((prev) => ({ ...prev, [publicId]: "" }));
+    try {
+      const fresh = await chatApi.createTicket(publicId).catch(() => chatApi.turn(publicId));
+      setHandoffs((prev) => ({ ...prev, [fresh.public_id]: fresh }));
+    } catch {
+      setCreateError((prev) => ({ ...prev, [publicId]: "I couldn't open the ticket. Try again." }));
+    } finally {
+      setCreating(null);
+    }
   }, []);
 
   /** Ends the conversation on screen: the next message starts a new one. */
@@ -162,6 +220,9 @@ export function useAgentConversation(enabled: boolean) {
     handoffs,
     busyAction,
     actionError,
+    results,
+    creating,
+    createError,
     send,
     retry,
     confirm: (a: AgentActionOut) => resolve(a, true),
