@@ -628,8 +628,9 @@ each file is clean.
 **Priority:** High before the `agent_chat` or `agent_console` flag goes on · **Spec:** [06-F15-agent.md](requirements/phase-2/06-F15-agent.md) · ADR-0046
 
 - **No eval has run on `agent.v1`.** The scripted trace suite
-  (`evals/suites/test_agent_traces.py`, in the offline gate) was written in
-  PR 9 and has not been run; run it first. Then the live agent eval
+  (`evals/suites/test_agent_traces.py`) was written in PR 9 and has not been
+  run; run it first (it needs Postgres, no model), then add it to the
+  offline eval gate's suite step. Then the live agent eval
   (OQ-F15-07), with an injection-in-result case per surface, before
   production picks `AGENT_CLIENT_PROVIDER`, reported ungated until a
   baseline is reviewed by someone other than its author (OQ-F15-08).
@@ -649,6 +650,12 @@ each file is clean.
   writes a second `ReviewDecision` and `EvalCandidate` and hands off again.
   Refuse a non-open item with a coded 409. Predates F15; seen in the PR 8
   review, where the console's draft link can lead to it.
+
+- **`agent_step_limit` cannot fire with the shipped thresholds.** Every
+  model call that doesn't end the turn is a tool call, and
+  `max_tool_calls_per_turn` (6) is below `max_steps` (8), so the tool cap
+  always stops a turn first. Raise the tool cap to at least `max_steps`, or
+  reword AC-F15-05 around `agent_tool_limit` (seen in the PR 9 review).
 
 - **A `critical` ticket still reaches triage's models.** ai-engine's
   `mask_guard` short-circuits only `mask_failed`, so a ticket at `critical`
