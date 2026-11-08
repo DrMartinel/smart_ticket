@@ -284,7 +284,9 @@ guard and that comment is later trimmed, the entry is the record.
   context is an extra; a failure building it must never keep the ticket from
   a decision (ADR-0034, BR-X-07). *`test_a_failure_building_context_analyses_the_ticket_alone`.*
 - **Only `draft_answer`, `infer` and `graph/ticket.py` read `prior_turns` in
-  ai-engine.** Anywhere else it could become a signal or a score.
+  ai-engine, and only the agent's request, state and `choose_action` read
+  `earlier_turns` (BR-F15-17).** Anywhere else they could become a signal or a
+  score.
   *ai-engine `test_only_the_draft_the_proposal_and_the_agent_read_earlier_turns`.*
 - **`hidden_for_review` and the comment's review item.** A comment whose NER
   failed carries only the regex tier's masking; staff must not read it until a

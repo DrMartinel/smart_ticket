@@ -74,7 +74,7 @@ def reported(reporter: User, **fields: Any) -> Ticket:
         body_masked=fields.pop(
             "body_masked", "VPN báo lỗi TLS handshake failed khi kết nối từ nhà"
         ),
-        pii_level="routine",
+        pii_level=fields.pop("pii_level", "routine"),
         **fields,
     )
     lifecycle.start(ticket)

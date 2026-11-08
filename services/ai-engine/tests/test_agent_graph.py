@@ -472,12 +472,15 @@ def test_untrusted_fields_are_wrapped():
     assert thread[2]["body_masked"] == WITHHELD
 
 
-def test_mask_failed_text_is_withheld_on_every_surface():
-    """BR-F15-09: text whose masking failed reaches no model, whoever wrote it."""
+@pytest.mark.parametrize("pii_level", ["mask_failed", None, "", "unknown"])
+def test_text_not_known_to_be_masked_is_withheld_on_every_surface(pii_level):
+    """BR-F15-09: text whose masking failed, or may have, reaches no model."""
 
     context = Context(SecretStr(_TOKEN), _ME, "alice", None)
     leaked = "raw-text-masking-failed-on"
-    row = {"public_id": "TK-1", "subject_masked": leaked, "pii_level": "mask_failed"}
+    row = {"public_id": "TK-1", "subject_masked": leaked}
+    if pii_level is not None:
+        row["pii_level"] = pii_level
     review = {
         **row,
         "body_masked": leaked,
@@ -486,8 +489,8 @@ def test_mask_failed_text_is_withheld_on_every_surface():
         "routing_decisions": [],
     }
     comments = [
-        {"body_masked": leaked, "hidden_for_review": True},
-        {"body_masked": leaked, "discarded": True},
+        {"body_masked": leaked, "hidden_for_review": True, "pii_level": "routine"},
+        {"body_masked": leaked, "discarded": True, "pii_level": "routine"},
         {"body_masked": leaked, "pii_level": "mask_failed"},
     ]
     bodies = {
@@ -508,7 +511,7 @@ def test_mask_failed_text_is_withheld_on_every_surface():
 
 def test_a_review_comment_is_always_withheld():
     context = Context(SecretStr(_TOKEN), _ME, "alice", None)
-    body = {"id": "r1", "pii_level": "masked", "comment": {"body_masked": "regex tier only"}}
+    body = {"id": "r1", "pii_level": "routine", "comment": {"body_masked": "regex tier only"}}
 
     projected = TOOLS["get_review_item"].project(body, context)
 

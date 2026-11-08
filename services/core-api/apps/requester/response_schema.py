@@ -39,7 +39,7 @@ class RequesterTicketRow(Schema):
     # Until when the ticket may be reopened or rated; None while it is open.
     can_reopen_until: datetime | None
     rating: int | None
-    pii_level: str = ""
+    pii_level: str
 
     @classmethod
     def of(cls, ticket: Ticket, viewer: User) -> RequesterTicketRow:

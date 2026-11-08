@@ -860,7 +860,7 @@ export interface RequesterTicketRow {
   resolved_at: string | null;
   can_reopen_until: string | null;
   rating: number | null;
-  pii_level?: string;
+  pii_level: string;
 }
 
 export interface RequesterTicketList {
@@ -893,7 +893,7 @@ export interface RequesterTicketOut {
   resolved_at: string | null;
   can_reopen_until: string | null;
   rating: number | null;
-  pii_level?: string;
+  pii_level: string;
   body_masked: string;
   thread: ThreadCommentOut[];
   rating_detail: RatingOut | null;
