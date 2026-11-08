@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { Bot, Plus, X } from "lucide-react";
-import { TOOL_LABEL, useAgentConversation, type AgentRow } from "@/lib/agent";
+import { AGENT_MESSAGE_MAX, TOOL_LABEL, useAgentConversation, type ActionResult, type AgentRow } from "@/lib/agent";
 import { reasonText } from "@/lib/explain";
 import type { AgentActionOut, AgentReceiptOut } from "@/lib/types/generated";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +24,20 @@ const OUTCOME: Record<AgentReceiptOut["outcome"], { label: string; variant: "ok"
   unknown: { label: "Not sure it went through", variant: "warn" },
 };
 
+function decoded(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 /** The page a call's path is about: a ticket, or a review item (which opens its ticket). */
 function pageOf(path: string): { href: string; label: string } | null {
   const ticket = /\/api\/tickets\/([^/]+)/.exec(path)?.[1];
-  if (ticket) return { href: `/tickets/${ticket}`, label: decodeURIComponent(ticket) };
+  if (ticket) return { href: `/tickets/${encodeURIComponent(decoded(ticket))}`, label: decoded(ticket) };
   const item = /\/api\/review\/items\/([^/]+)/.exec(path)?.[1];
-  if (item) return { href: `/review/${item}`, label: "the review item" };
+  if (item) return { href: `/review/${encodeURIComponent(decoded(item))}`, label: "the review item" };
   return null;
 }
 
@@ -46,7 +54,7 @@ export default function AgentPanel() {
   };
 
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+    <DialogPrimitive.Root open={open} onOpenChange={setOpen} modal={false}>
       <DialogPrimitive.Trigger asChild>
         <Button size="sm" aria-label="Open the assistant" className="fixed right-4 bottom-4 z-30 shadow-float">
           <Bot aria-hidden />
@@ -86,8 +94,10 @@ export default function AgentPanel() {
                   pending={agent.pending}
                   busyAction={agent.busyAction}
                   actionError={agent.actionError}
+                  results={agent.results}
                   onConfirm={agent.confirm}
                   onDismiss={agent.dismiss}
+                  onRetry={agent.retry}
                 />
               ))
             )}
@@ -108,7 +118,7 @@ export default function AgentPanel() {
                   submit();
                 }
               }}
-              maxLength={4000}
+              maxLength={AGENT_MESSAGE_MAX}
               rows={2}
               aria-label="Message to the assistant"
               placeholder="e.g. Which items in my review queue look straightforward?"
@@ -130,16 +140,27 @@ function Turn({
   pending,
   busyAction,
   actionError,
+  results,
   onConfirm,
   onDismiss,
+  onRetry,
 }: {
   row: AgentRow;
   pending: AgentActionOut[];
   busyAction: string | null;
   actionError: Record<string, string>;
+  results: Record<string, ActionResult>;
   onConfirm: (a: AgentActionOut) => void;
   onDismiss: (a: AgentActionOut) => void;
+  onRetry: (key: string) => void;
 }) {
+  if (row.kind === "ended") {
+    return (
+      <p role="status" className="border-t border-border pt-3 text-center text-xs text-muted-foreground">
+        That conversation ended, so this starts a new one.
+      </p>
+    );
+  }
   const asked = row.kind === "server" ? row.turn.message_masked : row.text;
   return (
     <div className="flex flex-col gap-2">
@@ -149,9 +170,14 @@ function Turn({
           Working on it…
         </p>
       ) : row.kind === "failed" ? (
-        <p role="alert" className="text-danger">
-          {row.error}
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p role="alert" className="text-danger">
+            {row.error}
+          </p>
+          <Button size="sm" variant="ghost" onClick={() => onRetry(row.key)}>
+            Retry
+          </Button>
+        </div>
       ) : (
         <div className="flex flex-col gap-2">
           <p className="whitespace-pre-wrap">{row.turn.reply}</p>
@@ -162,15 +188,18 @@ function Turn({
             <ul aria-label="What the assistant did" className="flex flex-col gap-1.5 border-t border-border pt-2">
               {row.turn.receipts.map((r, i) => {
                 const page = pageOf(r.path);
+                const result = r.action_id ? results[r.action_id] : undefined;
+                const badge = result ? { label: result.label, variant: result.tone } : OUTCOME[r.outcome];
                 return (
                   <li key={i} className="flex flex-wrap items-center gap-2">
-                    <Badge variant={OUTCOME[r.outcome].variant}>{OUTCOME[r.outcome].label}</Badge>
+                    <Badge variant={badge.variant}>{badge.label}</Badge>
                     <span>{TOOL_LABEL[r.tool] ?? r.tool}</span>
                     {page && (
                       <Link href={page.href} className="text-primary hover:underline">
                         {page.label}
                       </Link>
                     )}
+                    {result && <span className="w-full text-muted-foreground">{result.text}</span>}
                   </li>
                 );
               })}
@@ -221,6 +250,12 @@ function ConfirmCard({
       </p>
       {typeof payload.body === "string" && (
         <blockquote className="whitespace-pre-wrap rounded-md bg-muted px-3 py-2">{payload.body}</blockquote>
+      )}
+      {(payload.visibility === "public" || payload.visibility === "internal") && (
+        <p className="text-xs text-muted-foreground">
+          {payload.visibility === "public" ? "Public: the requester sees it." : "Internal: staff only."}
+          {payload.move_to_waiting === true && " Moves the ticket to waiting on the requester."}
+        </p>
       )}
       {error && (
         <p role="alert" className="text-danger">

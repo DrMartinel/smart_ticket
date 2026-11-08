@@ -39,16 +39,30 @@ export const agentApi = {
 };
 
 export type AgentRow =
+  | { kind: "ended"; key: string }
   | { kind: "sending"; key: string; text: string }
   | { kind: "failed"; key: string; text: string; error: string }
   | { kind: "server"; key: string; turn: AgentTurnOut };
+
+/** What became of a confirmation the person answered, shown in place of its card. */
+export type ActionResult = { label: string; tone: "ok" | "info" | "warn"; text: string };
+
+// Mirror AgentTurnIn.message in core-api (apps/agent/request_schema.py).
+export const AGENT_MESSAGE_MAX = 4_000;
+
+// Refusals after which the action is no longer pending: its card gives way to the message.
+const FINAL_REFUSALS: Record<string, string> = {
+  agent_action_expired: "This has expired. Ask the assistant again if you still want it.",
+  agent_action_not_pending: "This can no longer be applied. Ask the assistant again if you still want it.",
+  not_pending: "This can no longer be applied. Ask the assistant again if you still want it.",
+};
 
 function sendError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "agent_off") return "The assistant is switched off.";
     if (err.code === "turn_running") return "The assistant is still working on your last message.";
     if (err.code === "permission_missing") return "The assistant needs ticket access you don't have.";
-    if (err.status === 422) return "Messages are up to 4,000 characters.";
+    if (err.status === 422) return `Messages are up to ${AGENT_MESSAGE_MAX.toLocaleString()} characters.`;
   }
   return "Couldn't send that. Try again.";
 }
@@ -59,6 +73,10 @@ export function useAgentConversation(enabled: boolean) {
   const [pending, setPending] = useState<AgentActionOut[]>([]);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<Record<string, string>>({});
+  const [results, setResults] = useState<Record<string, ActionResult>>({});
+  // Bumped after each poll, so the next one is scheduled whether or not anything changed.
+  const [tick, setTick] = useState(0);
+  const polling = useRef(false);
   const conversationRef = useRef<string | null>(null);
 
   const replace = useCallback((key: string, next: AgentRow) => {
@@ -77,6 +95,8 @@ export function useAgentConversation(enabled: boolean) {
     const waiting = rows.filter((r) => r.kind === "server" && UNFINISHED.has(r.turn.state));
     if (waiting.length === 0) return;
     const timer = window.setTimeout(async () => {
+      if (polling.current) return;
+      polling.current = true;
       for (const r of waiting) {
         if (r.kind !== "server") continue;
         try {
@@ -86,13 +106,14 @@ export function useAgentConversation(enabled: boolean) {
             if (fresh.state === "awaiting_confirmation") loadPending();
           }
         } catch {
-          // transient: the next tick tries again
+          // the next tick tries again
         }
       }
-      setRows((prev) => [...prev]);
+      polling.current = false;
+      setTick((n) => n + 1);
     }, POLL_MS);
     return () => window.clearTimeout(timer);
-  }, [enabled, rows, replace, loadPending]);
+  }, [enabled, rows, replace, loadPending, tick]);
 
   const send = useCallback(
     (text: string) => {
@@ -103,7 +124,11 @@ export function useAgentConversation(enabled: boolean) {
         .catch((err) => {
           if (!(err instanceof ApiError && err.code === "conversation_ended")) throw err;
           conversationRef.current = null;
-          setRows((prev) => prev.filter((r) => r.key === key));
+          setRows((prev) => {
+            const earlier = prev.filter((r) => r.key !== key);
+            const mine = prev.filter((r) => r.key === key);
+            return earlier.length > 0 ? [...earlier, { kind: "ended", key: `ended-${key}` }, ...mine] : mine;
+          });
           return post();
         })
         .then((turn) => {
@@ -115,19 +140,49 @@ export function useAgentConversation(enabled: boolean) {
     [replace],
   );
 
+  const retry = useCallback(
+    (key: string) => {
+      const row = rows.find((r) => r.key === key);
+      if (!row || row.kind !== "failed") return;
+      setRows((prev) => prev.filter((r) => r.key !== key));
+      send(row.text);
+    },
+    [rows, send],
+  );
+
+  /** Applies or cancels a confirmation; once it is no longer pending, its result replaces the card. */
   const resolve = useCallback(
     async (action: AgentActionOut, run: boolean) => {
-      setBusyAction(action.action_id);
-      setActionError((prev) => ({ ...prev, [action.action_id]: "" }));
+      const id = action.action_id;
+      setBusyAction(id);
+      setActionError((prev) => ({ ...prev, [id]: "" }));
       try {
-        await (run ? agentApi.apply(action) : agentApi.dismiss(action.action_id));
-        setPending((prev) => prev.filter((a) => a.action_id !== action.action_id));
-      } catch (err) {
-        setActionError((prev) => ({
+        await (run ? agentApi.apply(action) : agentApi.dismiss(id));
+        setResults((prev) => ({
           ...prev,
-          [action.action_id]: err instanceof ApiError ? err.message : "That didn't go through. Try again.",
+          [id]: run
+            ? { label: "Done", tone: "ok", text: "Applied." }
+            : { label: "Cancelled", tone: "info", text: "Nothing was applied." },
         }));
-        loadPending();
+        setPending((prev) => prev.filter((a) => a.action_id !== id));
+      } catch (err) {
+        const final =
+          err instanceof ApiError
+            ? err.code
+              ? FINAL_REFUSALS[err.code]
+              : undefined
+            : "Couldn't tell whether that was applied. Check the ticket before trying again.";
+        if (final) {
+          const label = err instanceof ApiError ? "Not applied" : "Not sure";
+          setResults((prev) => ({ ...prev, [id]: { label, tone: "warn", text: final } }));
+          setPending((prev) => prev.filter((a) => a.action_id !== id));
+        } else {
+          setActionError((prev) => ({
+            ...prev,
+            [id]: err instanceof ApiError ? err.message : "That didn't go through. Try again.",
+          }));
+          loadPending();
+        }
       } finally {
         setBusyAction(null);
       }
@@ -147,7 +202,9 @@ export function useAgentConversation(enabled: boolean) {
     pending,
     busyAction,
     actionError,
+    results,
     send,
+    retry,
     confirm: (a: AgentActionOut) => resolve(a, true),
     dismiss: (a: AgentActionOut) => resolve(a, false),
     startNew,

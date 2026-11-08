@@ -9,12 +9,14 @@ import { humanize, relativeTime } from "@/lib/format";
 import type { AgentActionOut } from "@/lib/types/generated";
 import { Button } from "@/components/ui/button";
 
-/** The draft is a review decision, which opens in the review form instead of applying as is. */
-export const isDecisionDraft = (a: AgentActionOut) => /\/api\/review\/items\/[^/]+\/decide$/.test(a.path);
+// Payload fields whose values are codes, shown in words; other values are shown as written.
+const CODED = new Set(["action_taken", "kb_verdict", "category_verdict", "corrected_category", "priority", "decision"]);
+const HIDDEN = new Set(["time_spent_sec", "expected_version"]);
 
 export default function AgentDrafts({
   drafts,
   busy,
+  version,
   canDecide,
   onUse,
   onApply,
@@ -22,8 +24,10 @@ export default function AgentDrafts({
 }: {
   drafts: AgentActionOut[];
   busy: boolean;
-  // Whether the review form is open to this person (they hold the claim).
-  canDecide: boolean;
+  // The ticket's version now; a draft made at another one would be refused.
+  version: number;
+  // Whether this decision draft's review form is open to this person (they hold the claim).
+  canDecide: (draft: AgentActionOut) => boolean;
   onUse: (draft: AgentActionOut) => void;
   onApply: (draft: AgentActionOut) => void;
   onDismiss: (draft: AgentActionOut) => void;
@@ -33,7 +37,9 @@ export default function AgentDrafts({
     <div className="flex flex-col gap-3">
       {drafts.map((d) => {
         const payload = (d.arguments.payload ?? {}) as Record<string, unknown>;
-        const fields = Object.entries(payload).filter(([k, v]) => v !== null && v !== "" && k !== "time_spent_sec");
+        const fields = Object.entries(payload).filter(([k, v]) => v !== null && v !== "" && !HIDDEN.has(k));
+        const stale = typeof payload.expected_version === "number" && payload.expected_version !== version;
+        const decision = d.tool === "draft_review_decision";
         return (
           <section
             key={d.action_id}
@@ -42,7 +48,7 @@ export default function AgentDrafts({
           >
             <p className="flex items-center gap-2 font-medium">
               <Bot className="size-4" aria-hidden />
-              Draft from the assistant: {TOOL_LABEL[d.tool] ?? humanize(d.tool)}
+              Draft from the assistant: {TOOL_LABEL[d.tool] ?? d.tool}
               <span className="font-normal text-muted-foreground">· {relativeTime(d.created_at)}</span>
             </p>
             {fields.length > 0 && (
@@ -50,7 +56,9 @@ export default function AgentDrafts({
                 {fields.map(([k, v]) => (
                   <div key={k} className="contents">
                     <dt className="text-muted-foreground">{humanize(k)}</dt>
-                    <dd className="whitespace-pre-wrap">{typeof v === "string" ? humanize(v) : JSON.stringify(v)}</dd>
+                    <dd className="whitespace-pre-wrap">
+                      {typeof v === "string" ? (CODED.has(k) ? humanize(v) : v) : JSON.stringify(v)}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -58,13 +66,18 @@ export default function AgentDrafts({
             <p className="text-xs text-muted-foreground">
               Nothing has changed. Check the evidence on this page; the decision is yours.
             </p>
+            {stale && (
+              <p className="text-xs text-warn">
+                The ticket changed since this was drafted, so it can&apos;t be applied. Dismiss it or ask again.
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
-              {isDecisionDraft(d) ? (
-                <Button size="sm" variant="outline" disabled={busy || !canDecide} onClick={() => onUse(d)}>
-                  {canDecide ? "Open in the review form" : "Claim the review to use it"}
+              {decision ? (
+                <Button size="sm" variant="outline" disabled={busy || !canDecide(d)} onClick={() => onUse(d)}>
+                  {canDecide(d) ? "Open in the review form" : "Claim the review to use it"}
                 </Button>
               ) : (
-                <Button size="sm" variant="outline" disabled={busy} onClick={() => onApply(d)}>
+                <Button size="sm" variant="outline" disabled={busy || stale} onClick={() => onApply(d)}>
                   Apply
                 </Button>
               )}
