@@ -971,7 +971,8 @@ Each departure is the smaller choice; none lets an agent do more.
     above the review. A decision draft opens in the review form, pre-filled
     and editable, and is applied with the form's answers and
     `X-Agent-Action`; once it is no longer pending the form saves without
-    it. Other drafts (reassign, priority, comment decision) apply as drafted
+    it. A drafted `corrected_kb_id` shows on the banner but is not carried
+    into the form, which has no page picker. Other drafts (reassign, priority, comment decision) apply as drafted
     or are dismissed; one drafted at an older ticket version says so and
     cannot be applied (no `superseded` state yet, TODO 23).
 43. The ticket detail carries `agent_handoff_reason`; the page names it above

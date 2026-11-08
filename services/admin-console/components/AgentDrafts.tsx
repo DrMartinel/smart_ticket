@@ -18,6 +18,7 @@ export default function AgentDrafts({
   busy,
   version,
   canDecide,
+  openReview,
   onUse,
   onApply,
   onDismiss,
@@ -28,6 +29,8 @@ export default function AgentDrafts({
   version: number;
   // Whether this decision draft's review form is open to this person (they hold the claim).
   canDecide: (draft: AgentActionOut) => boolean;
+  // Whether this decision draft's review item is the ticket's open review.
+  openReview: (draft: AgentActionOut) => boolean;
   onUse: (draft: AgentActionOut) => void;
   onApply: (draft: AgentActionOut) => void;
   onDismiss: (draft: AgentActionOut) => void;
@@ -74,7 +77,7 @@ export default function AgentDrafts({
             <div className="flex flex-wrap gap-2">
               {decision ? (
                 <Button size="sm" variant="outline" disabled={busy || !canDecide(d)} onClick={() => onUse(d)}>
-                  {canDecide(d) ? "Open in the review form" : "Claim the review to use it"}
+                  {canDecide(d) ? "Open in the review form" : openReview(d) ? "Claim the review to use it" : "This review is closed"}
                 </Button>
               ) : (
                 <Button size="sm" variant="outline" disabled={busy || stale} onClick={() => onApply(d)}>

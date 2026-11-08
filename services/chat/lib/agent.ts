@@ -68,6 +68,7 @@ export function useAgentConversation(enabled: boolean) {
   const [results, setResults] = useState<Record<string, ActionResult>>({});
   const [creating, setCreating] = useState<string | null>(null);
   const [createError, setCreateError] = useState<Record<string, string>>({});
+  // Counts finished polls.
   const [turnTick, setTurnTick] = useState(0);
   const [handoffTick, setHandoffTick] = useState(0);
   const handoffTried = useRef(new Set<string>());

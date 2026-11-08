@@ -318,6 +318,7 @@ export default function TicketPage() {
             busy={busy}
             version={detail.version}
             canDecide={(d) => d.target_ref === detail.review?.id && detail.review?.state !== "pending"}
+            openReview={(d) => d.target_ref === detail.review?.id}
             onUse={(d) => {
               setFormDraft(d);
               setUsingDraft(d);
@@ -366,10 +367,12 @@ export default function TicketPage() {
                           await agentApi.apply(usingDraft, payload);
                         } catch (err) {
                           if (err instanceof ApiError && DRAFT_GONE.has(err.code ?? "")) {
+                            const gone = usingDraft.action_id;
                             setUsingDraft(null);
+                            setDrafts((prev) => prev.filter((a) => a.action_id !== gone));
                             throw new ApiError(
                               err.status,
-                              "the draft is no longer pending; save again to decide without it",
+                              "the draft is no longer pending; reload to check whether it was saved before saving again",
                               err.code,
                             );
                           }

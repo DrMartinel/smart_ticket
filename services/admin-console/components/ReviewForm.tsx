@@ -91,7 +91,7 @@ export default function ReviewForm({
       kb_verdict: hasAutoReplyProposal ? kbVerdict : null,
       category_verdict: categoryVerdict,
       corrected_category: categoryVerdict === "wrong" ? correctedCategory || null : null,
-      corrected_kb_id: initial.corrected_kb_id ?? null,
+      corrected_kb_id: null,
       override_reason: requiresReason ? overrideReason.trim() : null,
       time_spent_sec: Math.round((Date.now() - startedAt.current) / 1000),
     });

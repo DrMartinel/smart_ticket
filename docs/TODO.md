@@ -641,6 +641,12 @@ each file is clean.
 - **The regex tier misses a VN phone written with spaces** (`0912 345 678`,
   the spec's own example); only NER catches it. Seen while testing PR 6.
 
+- **`POST /api/review/items/{id}/decide` does not refuse a resolved item.**
+  A second save (another tab, a lost response, a draft applied elsewhere)
+  writes a second `ReviewDecision` and `EvalCandidate` and hands off again.
+  Refuse a non-open item with a coded 409. Predates F15; seen in the PR 8
+  review, where the console's draft link can lead to it.
+
 - **A `critical` ticket still reaches triage's models.** ai-engine's
   `mask_guard` short-circuits only `mask_failed`, so a ticket at `critical`
   (any form or chat ticket, and now an agent hand-off at
