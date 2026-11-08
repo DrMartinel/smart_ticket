@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import Field
 
 from ai_engine.agent.tools.chat import nothing
-from ai_engine.agent.tools.projection import WITHHELD, person, untrusted
+from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, person, untrusted
 from ai_engine.agent.tools.tool import Context, Tier, Tool, ToolInput
 
 StaffView = Literal["review", "mine", "open", "resolved", "all"]
@@ -19,8 +19,8 @@ ReassignReason = Literal[
 
 
 def masked(text: str | None, pii_level: str | None) -> dict[str, str] | str | None:
-    """A ticket's text, withheld when its masking failed."""
-    return WITHHELD if pii_level == "mask_failed" else untrusted(text)
+    """A ticket's text, withheld unless its masking succeeded."""
+    return untrusted(text) if pii_level in MASKED_LEVELS else WITHHELD
 
 
 def ticket_row(row: Any, context: Context) -> dict[str, Any]:
@@ -77,7 +77,7 @@ def comments(body: Any, context: Context) -> list[dict[str, Any]]:
         held = (
             comment.get("hidden_for_review")
             or comment.get("discarded")
-            or comment.get("pii_level") == "mask_failed"
+            or comment.get("pii_level") not in MASKED_LEVELS
         )
         rows.append(
             {

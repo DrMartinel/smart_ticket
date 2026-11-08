@@ -12,6 +12,7 @@ from ai_engine.graph.nodes.injection_patterns import matches
 
 WITHHELD = "[withheld]"
 UNTRUSTED = "untrusted_text"
+MASKED_LEVELS = frozenset({"routine", "sensitive", "critical"})
 
 
 def untrusted(text: str | None) -> dict[str, str] | None:

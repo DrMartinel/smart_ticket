@@ -11,7 +11,7 @@ from pydantic import Field
 
 from ai_engine.agent.tools import client
 from ai_engine.agent.tools.client import Reply, ToolFailed
-from ai_engine.agent.tools.projection import WITHHELD, untrusted
+from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, untrusted
 from ai_engine.agent.tools.tool import Context, Tier, Tool, ToolInput
 from ai_engine.core.config import settings
 
@@ -79,8 +79,8 @@ _ROW_FIELDS = (
 
 
 def own_text(text: str | None, pii_level: str | None) -> str | None:
-    """The employee's own ticket text, withheld when its masking failed."""
-    return WITHHELD if pii_level == "mask_failed" else text
+    """The employee's own ticket text, withheld unless its masking succeeded."""
+    return text if pii_level in MASKED_LEVELS else WITHHELD
 
 
 def my_ticket_row(row: Any) -> dict[str, Any]:

@@ -74,7 +74,7 @@ _AGENT_MEMORY_READERS = {
 
 
 def test_only_the_draft_the_proposal_and_the_agent_read_earlier_turns():
-    """Earlier turns are context for the draft and the proposal, never a signal or a score."""
+    """Only the draft, the proposal and the agent's choose_action read earlier turns."""
     readers = {
         str(path.relative_to(_SRC))
         for path in _SRC.rglob("*.py")

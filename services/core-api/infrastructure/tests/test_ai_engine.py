@@ -12,14 +12,18 @@ left stuck or a submit request 500s.
 """
 
 import json
+from uuid import uuid4
 
 import httpx
 import pytest
 from asgiref.sync import async_to_sync
+from pydantic import SecretStr
 
 from apps.tickets.utils.patterns import PIILevel
 from infrastructure.dtos import (
     EMBED_DIM,
+    AgentLimits,
+    AgentTurnRequest,
     AIRunResponse,
     ClassificationSignals,
     EngineSignals,
@@ -209,12 +213,6 @@ def test_model_calls_get_the_model_read_budget_and_a_short_connect(serve_ai_engi
 
 
 def test_an_agent_turn_sends_the_token_itself_not_its_mask():
-    from uuid import uuid4
-
-    from pydantic import SecretStr
-
-    from infrastructure.dtos import AgentLimits, AgentTurnRequest
-
     request = AgentTurnRequest(
         turn_id=uuid4(),
         surface="chat",
