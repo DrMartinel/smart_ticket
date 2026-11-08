@@ -119,10 +119,13 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
         )
 
     def pii_map_of(self, conversation_id: uuid.UUID) -> dict[str, str]:
-        """Every placeholder the conversation's turns masked, with its quarantine ref."""
+        """Every placeholder the conversation's turns masked, with its quarantine ref; a later
+        turn's ref wins a placeholder two turns share."""
         merged: dict[str, str] = {}
-        for pii_map in self.filter(conversation_id=conversation_id).values_list(
-            "pii_map", flat=True
+        for pii_map in (
+            self.filter(conversation_id=conversation_id)
+            .order_by("seq")
+            .values_list("pii_map", flat=True)
         ):
             merged |= pii_map
         return merged

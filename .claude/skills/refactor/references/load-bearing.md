@@ -498,13 +498,16 @@ guard and that comment is later trimmed, the entry is the record.
   `test_a_token_naming_someone_else_s_turn_is_refused`.*
 - **`AgentTurns.start` handing off a `mask_failed` or `critical` message before
   it queues the turn.** Queuing it would send text whose PII is unknown, or a
-  password, to the agent's model (BR-F15-08). *`test_a_message_whose_masking_failed_reaches_no_model_and_hands_off`,
-  `test_a_message_with_critical_pii_reaches_no_model_and_hands_off`.*
+  password, to the agent's model (BR-F15-08). `earlier_turns` leaves out the
+  same levels: a `critical` message skipped NER, so its names are still raw.
+  *`test_a_message_whose_masking_failed_reaches_no_model_and_hands_off`,
+  `test_a_message_with_critical_pii_reaches_no_model_and_hands_off`,
+  `test_a_critical_turn_is_never_an_earlier_turn`.*
 - **`AgentTurns._hand_off` opening the ticket in the transaction that marks the
   turn `handed_off`.** Opened after it, a failure leaves a handed-off turn with
   no ticket that nothing retries, and a poll between the two writes sees no
   ticket and stops polling. Inside it, a failure rolls the turn back to
-  `running` and the sweep tries again. *`test_a_hand_off_whose_ticket_fails_leaves_the_turn_running`,
+  `running` and the sweep hands it off again, as `agent_engine_unavailable`. *`test_a_hand_off_whose_ticket_fails_leaves_the_turn_running`,
   `test_a_short_message_s_hand_off_opens_a_ticket`.*
 - **`TicketIntake` queuing `process_ticket` only after the ticket's
   transaction commits.** Queued inside it, a fast worker looks the ticket up
