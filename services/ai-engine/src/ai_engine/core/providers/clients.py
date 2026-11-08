@@ -408,3 +408,5 @@ jev = JevClient(
 # The proposal's model (InferNode) and the drafted answer's (DraftAnswerNode, ADR-0021).
 chat = ChatClient.for_provider(settings.chat_client_provider)
 draft = ChatClient.for_provider(settings.draft_client_provider)
+# The F15 agent's model (ChooseActionNode).
+agent = ChatClient.for_provider(settings.agent_client_provider)
