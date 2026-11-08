@@ -21,6 +21,7 @@ const OUTCOME: Record<AgentReceiptOut["outcome"], { label: string; variant: "ok"
   draft_waiting: { label: "Draft waiting", variant: "info" },
   refused: { label: "Not allowed", variant: "warn" },
   failed: { label: "Failed", variant: "danger" },
+  unknown: { label: "Not sure it went through", variant: "warn" },
 };
 
 /** The page a call's path is about: a ticket, or a review item (which opens its ticket). */
