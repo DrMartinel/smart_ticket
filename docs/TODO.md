@@ -632,10 +632,14 @@ each file is clean.
   production picks `AGENT_CLIENT_PROVIDER`.
 - **Rerun the injection suite** after the patterns moved to
   `graph/nodes/injection_patterns.py` (expected 1.00, triage unchanged).
-- **A turn has no deadline of its own in ai-engine.** Until core-api's
-  "turn is running" token check (FR-F15-003, PR 6) refuses later calls, a turn
-  of several `ask_helpdesk` calls can outlive core-api's read timeout. PR 6
-  needs a test of that check.
+- **A turn has no deadline of its own in ai-engine.** core-api's running-turn
+  token check (FR-F15-003) now refuses its calls once `agent.sweep` hands the
+  turn off, but ai-engine keeps polling until its own limits stop it.
+- **`superseded` actions.** `agent.sweep` does not yet mark a pending action
+  `superseded` when its ticket or review item changes (§c); applying one
+  still goes through the route's own checks.
+- **The regex tier misses a VN phone written with spaces** (`0912 345 678`,
+  the spec's own example); only NER catches it. Seen while testing PR 6.
 
 - **A hand-off whose triage run degrades** (embedding, budget, ai-engine)
   records the degraded reason in its routing decision; the agent's reason is
