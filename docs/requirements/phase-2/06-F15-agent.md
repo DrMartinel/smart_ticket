@@ -902,3 +902,34 @@ Each departure is the smaller choice; none lets an agent do more.
     opens no ticket. `agent_mask_failed` is never held for the employee,
     whatever the ticket's PII level.
 22. `tickets.agent_turn` arrives with `agent_turns` in PR 6.
+
+**PR 6 (core-api agent app).**
+23. `agent_turns` keeps `session_family`, the sign-in its token is minted
+    from, instead of `token_jti`. No token is stored or tracked by id:
+    `SessionAuth` refuses a token once its turn stops running.
+24. `agent_steps` has no `duration_ms`; ai-engine's `AgentStep` does not
+    carry one.
+25. `agent_actions` keeps PR 2's shape (`arguments`, `arguments_sha256`,
+    `target_kind`/`target_ref`, `user` as the only person) rather than
+    `body_masked`, `target_ticket`, `target_review_item` and `for_user`.
+    Its `conversation` and `turn` become foreign keys. The migration deletes
+    any action rows written before them, which only tests wrote.
+26. The agent answers only while its surface is live: `SHADOW_MODE` off and
+    the `agent_chat` or `agent_console` flag on (OQ-F15-06 (a)). Otherwise
+    `POST /api/agent/turns` answers 403 `agent_off`.
+27. `agent.sweep` also hands off a turn still `queued` after
+    `token_ttl_seconds` (no worker took it), as `agent_engine_unavailable`.
+28. `agent.sweep` does not yet mark an action `superseded` when its target
+    changes (§c); see TODO 23.
+29. A chat hand-off ticket joins the employee's open F3 chat conversation, if
+    any. The agent conversation records the chat conversation its last turn
+    ran under.
+30. A receipt holds the tool, outcome, method, path and action id of each
+    write step; the chat and console build its label (PR 7, PR 8). Reads
+    have no receipt.
+31. The hand-off message says why the turn stopped, in vi or en, and is the
+    same on both surfaces; the chat shows the hand-off ticket beside it.
+32. A ticket the agent asks for (`/api/chat/ask` with an agent token) copies
+    only the turn's placeholders that its own masking didn't also produce.
+    If the model wrote a raw value that masks to a placeholder the turn
+    already used, the ticket's own value wins that placeholder.
