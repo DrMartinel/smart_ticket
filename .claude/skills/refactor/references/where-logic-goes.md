@@ -49,7 +49,6 @@ Code that predates these rules:
   `set_risk_tier` (write `KbAuthorityLog`), `ReviewItem.decide` (writes
   `ReviewDecision`, `EvalCandidate`).
 - Manager methods that write, which rule 1 puts in service classes:
-  `Ticket.objects.submit` (writes `AuditLog`, queues a task),
   `KbArticle.objects.create_and_ingest` / `upsert_from_source`,
   `Incident.objects.get_or_create_for_mass_incident`,
   `AuditLog.objects.record`.

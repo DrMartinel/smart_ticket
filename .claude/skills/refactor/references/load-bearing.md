@@ -496,9 +496,19 @@ guard and that comment is later trimmed, the entry is the record.
   (FR-F15-003). *`test_a_token_of_a_turn_that_is_not_running_is_refused`,
   `test_a_token_of_an_ended_conversation_is_refused`,
   `test_a_token_naming_someone_else_s_turn_is_refused`.*
-- **`AgentTurns.start` handing off a `mask_failed` message before it queues
-  the turn.** Queuing it would send text whose PII is unknown to the agent's
-  model (BR-F15-08). *`test_a_message_whose_masking_failed_reaches_no_model_and_hands_off`.*
+- **`AgentTurns.start` handing off a `mask_failed` or `critical` message before
+  it queues the turn.** Queuing it would send text whose PII is unknown, or a
+  password, to the agent's model (BR-F15-08). *`test_a_message_whose_masking_failed_reaches_no_model_and_hands_off`,
+  `test_a_message_with_critical_pii_reaches_no_model_and_hands_off`.*
+- **`AgentTurns._hand_off` opening the ticket in the transaction that marks the
+  turn `handed_off`.** Opened after it, a failure leaves a handed-off turn with
+  no ticket that nothing retries, and a poll between the two writes sees no
+  ticket and stops polling. Inside it, a failure rolls the turn back to
+  `running` and the sweep tries again. *`test_a_hand_off_whose_ticket_fails_leaves_the_turn_running`,
+  `test_a_short_message_s_hand_off_opens_a_ticket`.*
+- **`TicketIntake` queuing `process_ticket` only after the ticket's
+  transaction commits.** Queued inside it, a fast worker looks the ticket up
+  before it exists and leaves it at `new` with no routing decision.
 - **`AgentTurns._record` and `_hand_off` locking the turn and acting only while
   it is `running`.** The sweep hands off a turn that ran too long; a late
   answer from ai-engine must not overwrite that, or a person's ticket and a

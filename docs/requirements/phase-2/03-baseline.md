@@ -35,7 +35,7 @@ flowchart LR
 
 | Step | Today | Where |
 |---|---|---|
-| Submit | `Ticket.objects.submit` masks, stores masked text, encrypts raw PII into `pii_quarantine` (72 h TTL), starts the lifecycle, audits, queues `process_ticket` | `apps/tickets/models.py` |
+| Submit | `ticket_intake.submit` masks, stores masked text, encrypts raw PII into `pii_quarantine` (72 h TTL), starts the lifecycle, audits, queues `process_ticket` | `apps/tickets/utils/intake.py` |
 | Route | Pure `Router(th).route(...)`; branches `auto_reply`, `auto_route`, `hitl`, `block`, `escalate`, `clarify` | `apps/tickets/utils/router.py` (ADR-0001, ADR-0016) |
 | Execute | `auto_route` sets `assigned_team = category` (a string). `hitl`/`clarify`/`block`/`escalate` create a `ReviewItem` with a queue and priority 1–3. Shadow mode sends everything to a person | `pipeline.py` lines 331–400 |
 | Chat hold | A live chat ticket's `hitl`/`auto_route`/`clarify` decision waits in `awaiting_requester` until the requester asks for a ticket (`release_to_support`) | `pipeline.py` lines 249–328 |

@@ -66,6 +66,10 @@ runserver: ## Dev server on :8000
 worker: ## Celery worker
 	uv run celery -A config worker -l info
 
+.PHONY: worker-agent
+worker-agent: ## Celery worker for agent turns (F15)
+	uv run celery -A config worker -l info -Q agent
+
 .PHONY: beat
 beat: ## Celery beat (quarantine expiry, weekly drift check)
 	uv run celery -A config beat -l info

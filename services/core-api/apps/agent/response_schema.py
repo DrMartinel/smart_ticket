@@ -24,7 +24,9 @@ class AgentReceiptOut(Schema):
     """What one of the turn's write calls did, from its HTTP result (BR-F15-12)."""
 
     tool: str
-    outcome: Literal["done", "awaiting_confirmation", "draft_waiting", "refused", "failed"]
+    outcome: Literal[
+        "done", "awaiting_confirmation", "draft_waiting", "refused", "failed", "unknown"
+    ]
     method: str
     path: str
     action_id: uuid.UUID | None

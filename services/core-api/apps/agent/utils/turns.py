@@ -6,7 +6,7 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
@@ -15,12 +15,14 @@ from django.db.models import Max
 from django.utils import timezone
 from pydantic import SecretStr
 
-from apps.accounts.models import Language, User
+from apps.accounts.models import User
 from apps.accounts.permissions import Caller
 from apps.accounts.utils import SessionRefused, sessions
 from apps.accounts.utils.catalog import Permission
 from apps.agent.models import (
+    METHOD_MAX_LENGTH,
     PATH_MAX_LENGTH,
+    TOOL_MAX_LENGTH,
     AgentAction,
     AgentActionState,
     AgentConversation,
@@ -42,8 +44,11 @@ from apps.audit.models import AuditLog
 from apps.chat.utils.conversations import conversations
 from apps.rollout.utils.rollout import rollout
 from apps.rollout.utils.vocabulary import FlagBranch
-from apps.tickets.models import PiiQuarantine, Ticket
+from apps.security.utils.alerts import security_alerts
+from apps.security.utils.vocabulary import AlertKind
+from apps.tickets.models import PiiQuarantine
 from apps.tickets.utils.crypto import build_quarantine_entries
+from apps.tickets.utils.intake import ticket_intake
 from apps.tickets.utils.masking import mask_reply
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.router import ReasonCode
@@ -64,7 +69,12 @@ _RECEIPTS = {
     "drafted": "draft_waiting",
     "refused": "refused",
     "failed": "failed",
-    "unknown": "failed",
+    "unknown": "unknown",
+}
+# A message at these levels goes to no model (BR-F15-08).
+_UNREAD = {
+    PIILevel.MASK_FAILED: ReasonCode.AGENT_MASK_FAILED,
+    PIILevel.CRITICAL: ReasonCode.AGENT_PII_CRITICAL,
 }
 # Reasons that end the conversation with the turn.
 _ENDS_CONVERSATION = {
@@ -93,7 +103,7 @@ class AgentTurns:
         conversation_id: uuid.UUID | None,
     ) -> AgentTurn:
         """Masks `message`, stores it as the conversation's next turn and queues the turn; a
-        message whose masking failed hands off at once (BR-F15-08)."""
+        message whose masking failed or that holds critical PII hands off at once (BR-F15-08)."""
         if not rollout.is_live(_FLAGS[surface]):
             raise AgentError(403, AgentRefusal.AGENT_OFF, "the assistant is off")
         if surface is AgentSurface.CONSOLE:
@@ -101,10 +111,12 @@ class AgentTurns:
         user = caller.user
         if caller.session_family is None:
             raise AgentError(403, AgentRefusal.AGENT_OFF, "this sign-in cannot run the assistant")
+        taken: list[str] = []
         if conversation_id is not None:
             self._open_conversation(user, surface, conversation_id, lock=False)
+            taken = list(AgentTurn.objects.pii_map_of(conversation_id))
         masked = async_to_sync(mask_reply)(
-            message, settings.THRESHOLDS.masking.ner_max_share, taken=[]
+            message, settings.THRESHOLDS.masking.ner_max_share, taken=taken
         )
         entries = build_quarantine_entries(masked.placeholder_map)
         now = timezone.now()
@@ -129,7 +141,8 @@ class AgentTurns:
             PiiQuarantine.objects.store_for_turn(turn, entries)
             conversation.last_activity_at = now
             conversation.save(update_fields=["last_activity_at"])
-            if masked.pii_level is not PIILevel.MASK_FAILED:
+            reason = _UNREAD.get(masked.pii_level)
+            if reason is None:
                 # Imported here: tasks imports this module.
                 from apps.agent import tasks
 
@@ -138,7 +151,7 @@ class AgentTurns:
             AgentTurn.objects.filter(id=turn.id).update(
                 state=AgentTurnState.RUNNING.value, started_at=now
             )
-        self._hand_off(turn.id, ReasonCode.AGENT_MASK_FAILED)
+        self._hand_off(turn.id, reason)
         turn.refresh_from_db()
         return turn
 
@@ -146,8 +159,8 @@ class AgentTurns:
         self, user: User, surface: AgentSurface, conversation_id: uuid.UUID, *, lock: bool
     ) -> AgentConversation:
         """The user's active conversation on `surface`; one idle too long is ended first."""
-        rows = AgentConversation.objects.filter(
-            id=conversation_id, user=user, surface=surface.value
+        rows = AgentConversation.objects.of_user(user).filter(
+            id=conversation_id, surface=surface.value
         )
         conversation = (rows.select_for_update() if lock else rows).first()
         if conversation is None:
@@ -193,7 +206,7 @@ class AgentTurns:
         request = AgentTurnRequest(
             turn_id=turn.id,
             surface=cast(Any, conversation.surface),
-            language=_language(user),
+            language=user.preferred_language().value,
             message_masked=turn.message_masked,
             earlier_turns=self.earlier_turns(turn),
             limits=AgentLimits(
@@ -247,9 +260,9 @@ class AgentTurns:
                 AgentStep(
                     turn=locked,
                     seq=step.seq,
-                    tool=step.tool[:40],
+                    tool=step.tool[:TOOL_MAX_LENGTH],
                     arguments_masked=step.arguments,
-                    method=step.method[:8],
+                    method=step.method[:METHOD_MAX_LENGTH],
                     path=step.path[:PATH_MAX_LENGTH],
                     status_code=step.status_code,
                     outcome=step.outcome,
@@ -319,34 +332,42 @@ class AgentTurns:
             user = conversation.user
             turn.state = AgentTurnState.HANDED_OFF.value
             turn.stop_reason = reason.value
-            turn.reply_text = HANDOFF_TEXT[reason][Language(_language(user))]
+            turn.reply_text = HANDOFF_TEXT[reason][user.preferred_language()]
             turn.finished_at = timezone.now()
             turn.save(update_fields=["state", "stop_reason", "reply_text", "finished_at"])
             if reason in _ENDS_CONVERSATION:
                 self.end(conversation, _ENDS_CONVERSATION[reason])
-        ticket = None
-        if (
-            conversation.surface == AgentSurface.CHAT.value
-            and reason is not ReasonCode.AGENT_TOKEN_REFUSED
-        ):
-            ticket = Ticket.objects.submit_for_agent(
-                turn,
-                cast(AgentHandoffReason, reason.value),
-                conversations.current(user),
-                AgentOrigin(conversation.id, turn.id, "").audit_fields(),
+            origin = AgentOrigin(conversation.id, turn.id, "").audit_fields()
+            ticket = None
+            if (
+                conversation.surface == AgentSurface.CHAT.value
+                and reason is not ReasonCode.AGENT_TOKEN_REFUSED
+            ):
+                ticket = ticket_intake.open_for_agent(
+                    turn,
+                    cast(AgentHandoffReason, reason.value),
+                    conversations.current(user),
+                    origin,
+                )
+                turn.handoff_ticket = ticket
+                turn.save(update_fields=["handoff_ticket"])
+                conversations.after_submit(ticket)
+            elif reason is ReasonCode.AGENT_PII_CRITICAL:
+                security_alerts.raise_(
+                    AlertKind.PII_CRITICAL, subject_user=user, reason=reason.value, payload=origin
+                )
+            AuditLog.objects.record(
+                "agent_turn_handed_off",
+                actor_type="system",
+                ticket_id=ticket.id if ticket else None,
+                payload={
+                    "reason": reason.value,
+                    "ticket_public_id": ticket.public_id if ticket else None,
+                    **origin,
+                },
             )
-            AgentTurn.objects.filter(id=turn.id).update(handoff_ticket=ticket)
-            conversations.after_submit(ticket)
-        AuditLog.objects.record(
-            "agent_turn_handed_off",
-            actor_type="system",
-            ticket_id=ticket.id if ticket else None,
-            payload={
-                "reason": reason.value,
-                "ticket_public_id": ticket.public_id if ticket else None,
-                **AgentOrigin(conversation.id, turn.id, "").audit_fields(),
-            },
-        )
+        if ticket is not None:
+            ticket_intake.queue(ticket)
 
     # ── ending ──
 
@@ -361,14 +382,14 @@ class AgentTurns:
         return True
 
     def end_by_user(self, user: User, conversation_id: uuid.UUID) -> None:
-        conversation = AgentConversation.objects.filter(id=conversation_id, user=user).first()
+        conversation = AgentConversation.objects.of_user(user).filter(id=conversation_id).first()
         if conversation is None:
             raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such conversation")
         self.end(conversation, AgentConversationEnd.USER)
 
     def dismiss(self, user: User, action_id: uuid.UUID) -> None:
         """The user dismisses a pending action of theirs."""
-        action = AgentAction.objects.filter(id=action_id, user=user).first()
+        action = AgentAction.objects.of_user(user).filter(id=action_id).first()
         if action is None:
             raise AgentError(404, AgentRefusal.NOT_PENDING, "no such action")
         if not AgentAction.objects.filter(
@@ -412,10 +433,6 @@ class AgentTurns:
         for turn_id in stuck:
             self._hand_off(turn_id, ReasonCode.AGENT_ENGINE_UNAVAILABLE)
         return SweepResult(expired, ended_count, len(stuck))
-
-
-def _language(user: User) -> Literal["vi", "en"]:
-    return "en" if user.language == Language.EN.value else "vi"
 
 
 agent_turns = AgentTurns()

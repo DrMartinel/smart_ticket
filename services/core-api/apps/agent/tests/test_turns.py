@@ -25,11 +25,13 @@ from apps.agent.models import (
     AgentTurn,
     AgentTurnState,
 )
+from apps.agent.utils.actions import AGENT_ACTION_HEADER
 from apps.agent.utils.turns import agent_turns
 from apps.audit.models import AuditLog
 from apps.core.testing import api_client_with
 from apps.rollout.models import RolloutFlag
 from apps.rollout.testing import all_live
+from apps.security.models import SecurityAlert
 from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.utils.router import AGENT_HANDOFF_REASONS, ReasonCode
 
@@ -167,6 +169,48 @@ def test_a_message_whose_masking_failed_reaches_no_model_and_hands_off(
 
 
 @pytest.mark.django_db
+def test_a_message_with_critical_pii_reaches_no_model_and_hands_off(
+    employee_user, api_as, live, engine, queued
+):
+    turn = _start(api_as(employee_user), "My VPN fails, password: hunter2xyz")
+
+    turn.refresh_from_db()
+    assert engine.turn_bodies == [] and queued == []
+    assert (turn.state, turn.stop_reason) == ("handed_off", "agent_pii_critical")
+    assert "hunter2xyz" not in turn.message_masked
+    ticket = _ticket(turn)
+    assert (ticket.pii_level, ticket.agent_handoff_reason) == ("critical", "agent_pii_critical")
+
+
+@pytest.mark.django_db
+def test_a_console_message_with_critical_pii_raises_a_security_alert(
+    technician_user, api_as, live, engine, queued
+):
+    turn = _start(api_as(technician_user), "token: abc123secret", surface="console")
+
+    turn.refresh_from_db()
+    assert (turn.state, turn.stop_reason) == ("handed_off", "agent_pii_critical")
+    assert engine.turn_bodies == []
+    alert = SecurityAlert.objects.get()
+    assert (alert.kind, alert.subject_user_id) == ("pii_critical", technician_user.id)
+
+
+@pytest.mark.django_db
+def test_placeholders_number_on_across_a_conversation_s_turns(
+    employee_user, api_as, live, engine, queued
+):
+    client = api_as(employee_user)
+    first = _start(client, f"Call me on {PHONE}")
+    agent_turns.run(first.id)
+
+    second = _start(client, "Or on 0987654321", conversation=str(first.conversation_id))
+
+    first.refresh_from_db()
+    assert first.pii_map.keys().isdisjoint(second.pii_map.keys())
+    assert len(AgentTurn.objects.pii_map_of(first.conversation_id)) == 2
+
+
+@pytest.mark.django_db
 def test_the_agent_is_off_while_its_flag_is_off(employee_user, api_as, settings, engine, queued):
     all_live(settings)
     RolloutFlag.objects.filter(branch="agent_chat").update(state="off")
@@ -277,6 +321,37 @@ def test_an_unreachable_ai_engine_hands_off_as_a_chat_ticket(
     assert (turn.state, turn.stop_reason) == ("handed_off", "agent_engine_unavailable")
     assert _ticket(turn).agent_handoff_reason == "agent_engine_unavailable"
     assert _ticket(turn).body_masked == turn.message_masked
+
+
+@pytest.mark.django_db
+def test_a_short_message_s_hand_off_opens_a_ticket(employee_user, api_as, live, engine, queued):
+    engine.reply = httpx.ConnectError("down")
+    turn = _start(api_as(employee_user), "help")
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    ticket = _ticket(turn)
+    assert (ticket.subject_masked, ticket.body_masked) == ("help", "help")
+
+
+@pytest.mark.django_db
+def test_a_hand_off_whose_ticket_fails_leaves_the_turn_running(
+    employee_user, api_as, live, engine, queued, monkeypatch
+):
+    engine.reply = httpx.ConnectError("down")
+    turn = _start(api_as(employee_user))
+
+    def fail(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr("apps.agent.utils.turns.ticket_intake.open_for_agent", fail)
+    with pytest.raises(RuntimeError):
+        agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert (turn.state, turn.handoff_ticket_id) == ("running", None)
+    assert not AuditLog.objects.filter(event="agent_turn_handed_off").exists()
 
 
 @pytest.mark.django_db
@@ -436,6 +511,30 @@ def test_a_replied_turn_records_its_steps_receipts_and_usage(
         "ok",
         "refused",
     ]
+
+
+@pytest.mark.django_db
+def test_a_write_whose_outcome_is_unknown_is_never_shown_as_failed(
+    employee_user, api_as, live, engine, queued
+):
+    turn = _start(api_as(employee_user))
+    engine.reply = _replied("Not sure it went through.", [_step(1, "POST", "unknown")])
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert [r["outcome"] for r in turn.receipts] == ["unknown"]
+
+
+def test_the_frontends_may_send_the_agent_action_header(settings):
+    response = Client().options(
+        "/api/agent/actions",
+        HTTP_ORIGIN=settings.CORS_ALLOWED_ORIGINS[0],
+        HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+        HTTP_ACCESS_CONTROL_REQUEST_HEADERS=AGENT_ACTION_HEADER.lower(),
+    )
+
+    assert AGENT_ACTION_HEADER.lower() in response["access-control-allow-headers"]
 
 
 @pytest.mark.django_db

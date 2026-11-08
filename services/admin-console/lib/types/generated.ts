@@ -57,7 +57,7 @@ export type TargetRule = "reporter" | "any";
 
 export type RunbookRisk = "low" | "high";
 
-export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_low_confidence" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "embedding_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed" | "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_token_refused" | "agent_mask_failed" | "agent_engine_unavailable";
+export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_low_confidence" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "embedding_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed" | "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_token_refused" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable";
 
 export type AgentSurface = "chat" | "console";
 
@@ -142,7 +142,7 @@ export interface PolicySignals {
   injection_detected: boolean;
   mass_incident: boolean;
   clarifications_asked?: number;
-  agent_handoff_reason?: "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_mask_failed" | "agent_engine_unavailable" | null;
+  agent_handoff_reason?: "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable" | null;
 }
 
 export interface ClassificationSignals {
