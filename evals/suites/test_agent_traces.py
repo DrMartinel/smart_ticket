@@ -1,8 +1,7 @@
 """
 The F15 agent's acceptance traces (spec F15 §j, AC-F15-01..05), run end to end in one process:
 core-api takes the message and runs the turn, ai-engine's agent graph answers it with a scripted
-model, and every tool call goes back into core-api with the turn's agent token. No model, no
-network: ai-engine's HTTP edges are swapped for in-process calls, so both wire schemas run.
+model, and every tool call goes back into core-api with the turn's agent token.
 """
 
 from __future__ import annotations
@@ -24,7 +23,7 @@ from ai_engine.core.providers.clients import LLMResult
 from ai_engine.main import agent_turn as engine_agent_turn
 from ai_engine.schemas import AgentTurnRequest as EngineTurnRequest
 from apps.accounts.models import User
-from apps.accounts.permissions import AgentTier, gate_of
+from apps.accounts.permissions import gate_of
 from apps.accounts.testing import agent_token_for, api_client_for
 from apps.agent.models import AgentAction, AgentTurn
 from apps.agent.testing import runbook_item
@@ -71,7 +70,7 @@ class ScriptedModel:
 class InProcessCoreApi:
     """ai-engine's tool client, answered by core-api's own views through Django's test client."""
 
-    def __init__(self, on_wait: Callable[[], None]) -> None:
+    def __init__(self, on_wait: Callable[[], bool]) -> None:
         self.client = Client()
         self.on_wait = on_wait
         self.calls: list[tuple[str, str, int]] = []
@@ -99,7 +98,8 @@ class InProcessCoreApi:
         return Reply(response.status_code, response.json() if response.content else None)
 
     def wait(self, seconds):
-        self.on_wait()
+        if not self.on_wait():
+            raise AssertionError("ask_helpdesk is waiting on a ticket no pipeline will decide")
 
 
 class Stack:
@@ -132,6 +132,8 @@ class Stack:
         )
 
         def handle(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/v1/embed":
+                return httpx.Response(200, json={"vector": [1.0] + [0.0] * 1023, "model": "trace"})
             if request.url.path == "/v1/pii/detect":
                 return httpx.Response(200, json={"spans": []})
             if request.url.path == "/v1/agent/turn":
@@ -159,10 +161,12 @@ class Stack:
         self.monkeypatch.setattr(clients, "agent", self.model)
         return self.model
 
-    def run_pipelines(self) -> None:
-        """Runs each ticket pipeline queued so far, as the Celery worker would."""
+    def run_pipelines(self) -> bool:
+        """Runs each ticket pipeline queued so far, as the Celery worker would; False when none was."""
+        ran = bool(self.queued_tickets)
         while self.queued_tickets:
-            self._real_process.apply(args=(self.queued_tickets.pop(0),))
+            self._real_process.apply(args=(self.queued_tickets.pop(0),), throw=True)
+        return ran
 
     def send(self, user: User, message: str, surface: str = "chat") -> AgentTurn:
         """The person's message to the agent, through core-api's own route, then the turn's run."""
@@ -251,7 +255,7 @@ def test_ac_f15_01_an_employee_s_ticket_is_opened_through_the_router(stack, linh
     ]
     assert ticket.public_id in turn.receipts[1]["path"]
     decision = ticket.routing_decisions.get()
-    assert decision.branch == "hitl"
+    assert (decision.branch, decision.reason_code) == ("hitl", "retrieval_below_floor")
     assert ticket.held_decision is None
     assert all(PHONE not in prompt for prompt in model.prompts)
     asked = AuditLog.objects.get(event="requester_asked_for_ticket", ticket_id=ticket.id)
@@ -315,7 +319,6 @@ def test_ac_f15_04_every_gated_route_declares_an_agent_tier():
                     )
 
     assert undeclared == []
-    assert AgentTier.NONE.value == "none"
 
 
 # ── AC-F15-05: step limit ──
@@ -324,7 +327,6 @@ def test_ac_f15_04_every_gated_route_declares_an_agent_tier():
 @pytest.mark.django_db
 def test_ac_f15_05_a_turn_at_the_step_limit_hands_off_to_the_router(stack, linh, monkeypatch):
     limits = django_settings.THRESHOLDS.agent
-    # More tool calls than steps, so the step limit is the one reached.
     roomy = limits.model_copy(update={"max_tool_calls_per_turn": limits.max_steps + 1})
     monkeypatch.setattr(
         django_settings,
