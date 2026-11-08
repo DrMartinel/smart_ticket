@@ -9,12 +9,13 @@ from typing import Any
 
 from pydantic import Field
 
-from ai_engine.agent.tools.client import CoreApi, Reply
+from ai_engine.agent.tools import client
+from ai_engine.agent.tools.client import Reply, ToolFailed
 from ai_engine.agent.tools.projection import WITHHELD, untrusted
 from ai_engine.agent.tools.tool import Context, Tier, Tool, ToolInput
 from ai_engine.core.config import settings
 
-# What each chat state means for the employee, so the model need not guess.
+# What each chat state means for the employee.
 _MEANING = {
     "thinking": "The helpdesk is still looking at this. Check again with get_chat_turn.",
     "answered": "The helpdesk answered from a knowledge-base page.",
@@ -48,7 +49,7 @@ def chat_turn(body: Any, context: Context) -> dict[str, Any]:
         else None,
         "status_name": body.get("status_name"),
         "resolved": body.get("resolved", False),
-        "incident": incident.get("title"),
+        "incident": untrusted(incident.get("title")),
     }
 
 
@@ -77,9 +78,16 @@ _ROW_FIELDS = (
 )
 
 
+def own_text(text: str | None, pii_level: str | None) -> str | None:
+    """The employee's own ticket text, withheld when its masking failed."""
+    return WITHHELD if pii_level == "mask_failed" else text
+
+
 def my_ticket_row(row: Any) -> dict[str, Any]:
     """One of the employee's tickets, as a list row."""
-    return {name: row.get(name) for name in _ROW_FIELDS}
+    projected = {name: row.get(name) for name in _ROW_FIELDS}
+    projected["subject_masked"] = own_text(row.get("subject_masked"), row.get("pii_level"))
+    return projected
 
 
 def my_tickets(body: Any, context: Context) -> dict[str, Any]:
@@ -97,19 +105,23 @@ def my_ticket(body: Any, context: Context) -> dict[str, Any]:
     for comment in body.get("thread", []):
         text = comment.get("body_masked")
         if comment.get("state") != "shown":
-            text = WITHHELD
+            shown: Any = WITHHELD
+        elif comment.get("mine"):
+            shown = text
+        else:
+            shown = untrusted(text)
         thread.append(
             {
                 "author_kind": comment.get("author_kind"),
                 "mine": comment.get("mine", False),
                 "state": comment.get("state"),
-                "body_masked": text if comment.get("mine") else untrusted(text),
+                "body_masked": shown,
                 "created_at": comment.get("created_at"),
             }
         )
     return {
         **my_ticket_row(body),
-        "body_masked": body.get("body_masked"),
+        "body_masked": own_text(body.get("body_masked"), body.get("pii_level")),
         "thread": thread,
         "can_reply": body.get("can_reply"),
         "can_rate": body.get("can_rate"),
@@ -151,23 +163,27 @@ class ReopenIn(PublicIdIn):
 class AskHelpdesk(Tool):
     """`POST /api/chat/ask`, then the turn is polled until it leaves `thinking`."""
 
-    def run(self, api: CoreApi, args: ToolInput, context: Context) -> tuple[str, Reply]:
+    def run(self, args: ToolInput, context: Context) -> tuple[str, Reply]:
         assert isinstance(args, AskIn)
         conversation = context.chat_conversation_id
         body = {
             "message": args.message,
             "conversation_id": str(conversation) if conversation else None,
         }
-        reply = api.send("POST", self.path, context.token, json=body)
+        api = client.core_api
+        reply = api.send("POST", self.path, context.token, self.name, json=body)
         if reply.status != 200 or not isinstance(reply.body, dict):
             return self.path, reply
         deadline = time.monotonic() + settings.agent_ask_wait_sec
         turn = f"/api/chat/tickets/{reply.body['public_id']}"
         while reply.body.get("state") == "thinking" and time.monotonic() < deadline:
             api.wait(settings.agent_ask_poll_interval_sec)
-            polled = api.send("GET", turn, context.token)
+            try:
+                polled = api.send("GET", turn, context.token, self.name)
+            except ToolFailed:
+                break
             if polled.status != 200 or not isinstance(polled.body, dict):
-                return self.path, polled
+                break
             reply = polled
         return self.path, reply
 

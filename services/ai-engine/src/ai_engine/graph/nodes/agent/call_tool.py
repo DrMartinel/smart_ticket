@@ -11,7 +11,6 @@ from typing import Any
 from uuid import UUID
 
 from ai_engine.agent.tools import TOOLS
-from ai_engine.agent.tools import client as tool_client
 from ai_engine.agent.tools.client import OutcomeUnknown, Reply, ToolFailed
 from ai_engine.agent.tools.projection import flagged, refusal
 from ai_engine.agent.tools.tool import Context, Tier, Tool
@@ -56,7 +55,7 @@ class CallToolNode(BaseNode[AgentState]):
         step = {"seq": len(state.steps) + 1, "tool": tool.name, "arguments": arguments}
         step["method"], step["path"] = tool.method, tool.path_for(arguments)
         try:
-            step["path"], reply = tool.run(tool_client.core_api, args, context)
+            step["path"], reply = tool.run(args, context)
         except ToolFailed:
             return self.stop(state, step, AgentStopReason.TOOL_FAILED, "failed")
         except OutcomeUnknown:

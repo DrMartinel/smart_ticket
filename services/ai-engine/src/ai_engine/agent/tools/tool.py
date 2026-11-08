@@ -15,7 +15,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, SecretStr
 
-from ai_engine.agent.tools.client import CoreApi, Reply
+from ai_engine.agent.tools import client
+from ai_engine.agent.tools.client import Reply
 
 
 class Tier(StrEnum):
@@ -45,9 +46,7 @@ class Context:
 
 @dataclass(frozen=True)
 class Tool:
-    """One route. Path fields come from the arguments of the same name; `query`
-    names the arguments sent as query parameters; the rest is the JSON body,
-    with `fixed` added."""
+    """One core-api route the agent may call, at its tier."""
 
     name: str
     surface: Literal["chat", "console"]
@@ -70,7 +69,7 @@ class Tool:
         names = [name for _, name, _, _ in Formatter().parse(self.path) if name]
         return self.path.format(**{name: quote(str(values[name]), safe="") for name in names})
 
-    def run(self, api: CoreApi, args: ToolInput, context: Context) -> tuple[str, Reply]:
+    def run(self, args: ToolInput, context: Context) -> tuple[str, Reply]:
         """Calls the route once; the path sent and core-api's reply."""
         values = args.model_dump(mode="json", exclude_none=True)
         path = self.path_for(values)
@@ -78,7 +77,10 @@ class Tool:
         params = {k: v for k, v in values.items() if k in self.query}
         body = {k: v for k, v in values.items() if k not in in_path and k not in self.query}
         json = None if self.method == "GET" else {**body, **self.fixed}
-        return path, api.send(self.method, path, context.token, params=params or None, json=json)
+        reply = client.core_api.send(
+            self.method, path, context.token, self.name, params=params or None, json=json
+        )
+        return path, reply
 
     def describe(self) -> dict[str, Any]:
         """The tool as the prompt lists it."""
