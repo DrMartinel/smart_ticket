@@ -39,8 +39,9 @@ def start_turn(request: AuthedRequest, payload: AgentTurnIn) -> Status[AgentTurn
 @require(Permission.AGENT_USE, agent=AgentTier.NONE)
 def turn(request: AuthedRequest, turn_id: uuid.UUID) -> AgentTurnOut:
     found = (
-        AgentTurn.objects.select_related("handoff_ticket")
-        .filter(id=turn_id, conversation__user=request.auth.user)
+        AgentTurn.objects.of_user(request.auth.user)
+        .select_related("handoff_ticket")
+        .filter(id=turn_id)
         .first()
     )
     if found is None:
@@ -51,7 +52,7 @@ def turn(request: AuthedRequest, turn_id: uuid.UUID) -> AgentTurnOut:
 @router.get("/conversations/{conversation_id}", auth=SessionAuth(), response=AgentConversationOut)
 @require(Permission.AGENT_USE, agent=AgentTier.NONE)
 def conversation(request: AuthedRequest, conversation_id: uuid.UUID) -> AgentConversationOut:
-    found = AgentConversation.objects.filter(id=conversation_id, user=request.auth.user).first()
+    found = AgentConversation.objects.of_user(request.auth.user).filter(id=conversation_id).first()
     if found is None:
         raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such conversation")
     return AgentConversationOut.of(found)
@@ -74,16 +75,8 @@ def actions(
     review_item: uuid.UUID | None = None,
 ) -> list[AgentActionOut]:
     """The user's actions, newest first, narrowed to a state, kind, ticket or review item."""
-    rows = AgentAction.objects.filter(user=request.auth.user)
-    if state is not None:
-        rows = rows.filter(state=state.value)
-    if kind is not None:
-        rows = rows.filter(kind=kind.value)
-    if ticket is not None:
-        rows = rows.filter(target_kind="ticket", target_ref=ticket)
-    if review_item is not None:
-        rows = rows.filter(target_kind="review_item", target_ref=str(review_item))
-    return [AgentActionOut.of(a) for a in rows.order_by("-created_at")]
+    rows = AgentAction.objects.of_user(request.auth.user).narrowed(state, kind, ticket, review_item)
+    return [AgentActionOut.of(a) for a in rows]
 
 
 @router.post("/actions/{action_id}/dismiss", auth=SessionAuth(), response={204: None})

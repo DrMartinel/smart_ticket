@@ -24,10 +24,14 @@ from infrastructure.dtos import AutoReplyProposal
 _SUBJECT_CHARS = 120
 
 
-def ticket_in_from_message(message: str) -> TicketIn:
+def subject_of(message: str) -> str:
+    """The message on one line, cut to a ticket subject's length."""
     words = " ".join(message.split())
-    subject = words if len(words) <= _SUBJECT_CHARS else words[: _SUBJECT_CHARS - 1] + "…"
-    return TicketIn(subject=subject, body=message)
+    return words if len(words) <= _SUBJECT_CHARS else words[: _SUBJECT_CHARS - 1] + "…"
+
+
+def ticket_in_from_message(message: str) -> TicketIn:
+    return TicketIn(subject=subject_of(message), body=message)
 
 
 def chat_turn(ticket: Ticket) -> ChatTurnOut:

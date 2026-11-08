@@ -240,7 +240,7 @@ CELERY_BEAT_SCHEDULE = {
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS").split(",")
 # The refresh cookie travels on the frontends' credentialed requests (ADR-0029).
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS = (*default_cors_headers, "x-auth-client")
+CORS_ALLOW_HEADERS = (*default_cors_headers, "x-auth-client", "x-agent-action")
 
 # ── Sign-in sessions (ADR-0029); `.env.example` explains each value ──────
 NINJA_JWT = {

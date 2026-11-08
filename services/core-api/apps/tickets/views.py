@@ -1,7 +1,7 @@
 """
 Ticket endpoints. `submit_ticket` is the one HTTP-facing place masking runs
 inline and synchronously (spec §5); the contract for what is written before
-it returns lives in `TicketManager.submit` (models.py).
+it returns lives in `TicketIntake.submit` (utils/intake.py).
 """
 
 import uuid
@@ -14,6 +14,7 @@ from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
 
+from apps.tickets.utils.intake import ticket_intake
 from apps.tickets.models import (
     CommentVisibility,
     PiiAccessLog,
@@ -58,7 +59,7 @@ pii_router = Router(tags=["pii"])
 def submit_ticket(request: AuthedRequest, payload: TicketIn) -> Ticket:
     # Ninja validates `payload` against TicketIn's limits and answers 422
     # itself, so an invalid submission never reaches masking.
-    return Ticket.objects.submit(
+    return ticket_intake.submit(
         reporter=request.auth.user, ticket_in=payload, trace_id=getattr(request, "trace_id", None)
     )
 

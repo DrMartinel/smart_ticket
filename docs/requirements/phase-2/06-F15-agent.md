@@ -198,7 +198,7 @@ called, and so through `lifecycle` exactly as a click would.
 | BR-F15-15 | Every `audit_log` row written during a request made with an agent token carries `via=agent`, `agent_conversation_id`, `agent_turn_id`, `agent_tool`; an applied confirm also carries `agent_action_id` and `confirmed_by`. A refused agent call writes `agent_call_refused` or `agent_draft_created`; a stored confirm writes `agent_action_proposed`; applying any action writes `agent_action_applied` | BR-X-03; ADR-0046 §14 | `AuditLog.objects.record` reading the request's agent context |
 | BR-F15-16 | ai-engine gets the surface's fixed tool set (`chat` or `console`), never the user's permissions | ADR-0045 §9 | `AgentTurnRequest` has no permission field; `test_agent_request_carries_no_access` |
 | BR-F15-17 | The agent remembers at most `agent.max_earlier_turns` earlier turns of the same agent conversation: the masked message and the code-built reply with its receipts. Earlier tool results are not replayed | ADR-0034's shape; tool results go stale | `AgentConversations.earlier_turns()` |
-| BR-F15-18 | A hand-off or chat ticket created by the agent copies the turn's quarantine entries for every placeholder its text contains, so a reveal still works | Spec §5; F5 | `Ticket.objects.submit` with `agent_turn` |
+| BR-F15-18 | A hand-off or chat ticket created by the agent copies the turn's quarantine entries for every placeholder its text contains, so a reveal still works | Spec §5; F5 | `ticket_intake.submit` with `agent_turn`, `ticket_intake.open_for_agent` |
 | BR-F15-19 | `RunbookProposal` handling is unchanged: no tier, flag or threshold lets an agent approve or execute one | ADR-0006 | Tier table; `test_runbook_routes_are_human_only` |
 
 ## f. Functional requirements
@@ -571,6 +571,7 @@ not the tier. A route moves out of `none` only with a reason in this table.
 | `agent_schema_invalid` | `SCHEMA_INVALID` | hand-off |
 | `agent_token_refused` | `TOKEN_REFUSED` (401: sign-in ended mid-turn) | turn ends; no ticket (the person signed out) |
 | `agent_mask_failed` | core-api, masking the message | hand-off; ticket at `mask_failed`, never held; conversation ends |
+| `agent_pii_critical` | core-api, masking the message (a password, token or key) | hand-off; chat ticket at `critical`, blocked with a security alert by the router; on the console a `pii_critical` alert |
 | `agent_engine_unavailable` | core-api, ai-engine unreachable or 5xx | hand-off |
 
 Each needs a dashboard label (F10) and a review-queue chip. The router's new
@@ -930,6 +931,13 @@ Each departure is the smaller choice; none lets an agent do more.
 31. The hand-off message says why the turn stopped, in vi or en, and is the
     same on both surfaces; the chat shows the hand-off ticket beside it.
 32. A ticket the agent asks for (`/api/chat/ask` with an agent token) copies
-    only the turn's placeholders that its own masking didn't also produce.
+    only the conversation's placeholders that its own masking didn't also produce.
     If the model wrote a raw value that masks to a placeholder the turn
     already used, the ticket's own value wins that placeholder.
+33. A message masked at `critical` hands off at once as `agent_pii_critical`,
+    a reason §h.4 does not list, and goes to no model. A chat hand-off ticket
+    meets the router's `pii_critical` gate (blocked, security alert); the
+    console raises the `pii_critical` alert itself. The conversation goes on.
+34. Placeholders number on across a conversation's turns, so `[EMAIL_1]`
+    names one value in the whole conversation; a hand-off or asked-for ticket
+    copies the conversation's entries its text names, not only the turn's.

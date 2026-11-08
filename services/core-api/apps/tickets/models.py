@@ -12,12 +12,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
-from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
-from asgiref.sync import async_to_sync
 from django.conf import settings
-from django.db import connection, models, transaction
+from django.db import connection, models
 from django.db.models import F, QuerySet, Window
 from django.db.models import Max
 from django.db.models.functions import Coalesce, Greatest, RowNumber
@@ -28,18 +26,14 @@ from apps.core.models import BaseModel
 from apps.tickets.utils.patterns import PIILevel
 from apps.tickets.utils.router import AGENT_HANDOFF_REASONS
 from infrastructure.dtos import TicketCategory
-from apps.tickets.request_schema import RevealReason, TicketIn
+from apps.tickets.request_schema import RevealReason
 
 from apps.accounts.models import User
-from apps.audit.models import AuditLog
-from apps.tickets.utils.crypto import QuarantineEntry, build_quarantine_entries
+from apps.tickets.utils.crypto import QuarantineEntry
 
 if TYPE_CHECKING:
     from apps.agent.models import AgentTurn
-    from infrastructure.dtos import AgentHandoffReason
-    from apps.chat.models import Conversation
     from apps.lifecycle.models import WorkflowStatus
-from apps.tickets.utils.masking import mask
 
 
 class IncidentStatus(StrEnum):
@@ -366,133 +360,6 @@ class TicketManager(models.Manager["Ticket"]):
         # to be a precise statistical model.
         std = mean**0.5
         return mean, std
-
-    def submit(
-        self,
-        *,
-        reporter: User,
-        ticket_in: TicketIn,
-        trace_id: str | None,
-        source: TicketSource = TicketSource.FORM,
-        conversation: Conversation | None = None,
-        reopened_from: Ticket | None = None,
-        agent_turn: AgentTurn | None = None,
-    ) -> Ticket:
-        """Ticket submission — spec §5. Masks, persists and enqueues one
-        validated submission.
-
-        Masking runs INLINE and synchronously, inside the submit request: by
-        the time this returns, the committed `tickets` row contains ONLY
-        masked content, `pii_quarantine` holds the encrypted raw values, and
-        the AI pipeline has been handed off to Celery for everything
-        downstream (retrieval, LLM, routing).
-
-        A masking failure does not raise: the ticket is stored with whatever
-        regex could mask, at `PIILevel.MASK_FAILED`, which the router sends to a
-        human. Callers must never retry or drop a MASK_FAILED ticket.
-        """
-        result = async_to_sync(mask)(ticket_in, settings.THRESHOLDS.masking.ner_max_share)
-        quarantine_entries = build_quarantine_entries(result.placeholder_map)
-
-        def store(ticket: Ticket) -> dict[str, str]:
-            PiiQuarantine.objects.store(ticket, quarantine_entries)
-            own = {ph: str(entry.ref) for ph, entry in quarantine_entries.items()}
-            if agent_turn is None:
-                return own
-            inherited = {ph: ref for ph, ref in agent_turn.pii_map.items() if ph not in own}
-            text = f"{result.subject_masked}\n{result.body_masked}"
-            return own | PiiQuarantine.objects.copy_to(ticket, inherited, text)
-
-        return self._open(
-            reporter=reporter,
-            trace_id=trace_id,
-            store=store,
-            audit={},
-            subject_masked=result.subject_masked,
-            body_masked=result.body_masked,
-            pii_level=result.pii_level.value,
-            source=source.value,
-            conversation=conversation,
-            reopened_from=reopened_from,
-            agent_turn=agent_turn,
-        )
-
-    def submit_for_agent(
-        self,
-        turn: AgentTurn,
-        reason: AgentHandoffReason,
-        conversation: Conversation | None,
-        audit: dict[str, str],
-    ) -> Ticket:
-        """Opens the chat ticket an agent turn hands to a person: the turn's masked message, its
-        quarantine entries and the agent's reason (BR-F15-14, BR-F15-18)."""
-        from apps.chat.utils.turns import ticket_in_from_message
-
-        ticket_in = ticket_in_from_message(turn.message_masked)
-        return self._open(
-            reporter=turn.conversation.user,
-            trace_id=None,
-            store=lambda ticket: PiiQuarantine.objects.copy_to(
-                ticket, turn.pii_map, turn.message_masked
-            ),
-            audit=audit,
-            subject_masked=ticket_in.subject,
-            body_masked=ticket_in.body,
-            pii_level=turn.pii_level,
-            source=TicketSource.CHAT.value,
-            conversation=conversation,
-            agent_turn=turn,
-            agent_handoff_reason=reason,
-        )
-
-    def _open(
-        self,
-        *,
-        reporter: User,
-        trace_id: str | None,
-        store: Callable[[Ticket], dict[str, str]],
-        audit: dict[str, str],
-        **fields: Any,
-    ) -> Ticket:
-        """Creates a masked ticket, stores its quarantine entries, starts its workflow, audits
-        it and queues its pipeline run."""
-        with transaction.atomic():
-            ticket = self.create(
-                public_id=self.next_public_id(),
-                reporter=reporter,
-                requester_department_id=reporter.department_id,
-                **fields,
-            )
-            ticket.pii_map = store(ticket)
-            ticket.save(update_fields=["pii_map"])
-            # Imported here: the lifecycle engine imports this module.
-            from apps.lifecycle.utils.engine import lifecycle
-
-            lifecycle.start(ticket)
-            AuditLog.objects.record(
-                "ticket_submitted",
-                actor_type="human",
-                actor_id=reporter.id,
-                ticket_id=ticket.id,
-                payload={
-                    "ticket_public_id": ticket.public_id,
-                    "pii_level": ticket.pii_level,
-                    "source": ticket.source,
-                    "trace_id": trace_id,
-                    **audit,
-                },
-                trace_id=trace_id,
-            )
-
-        # Outside the atomic block on purpose: enqueued before commit, a fast
-        # worker can look the ticket up, get DoesNotExist, and leave it stuck at
-        # status="new" with no routing decision.
-        # Imported here: tasks imports the pipeline, which imports this module.
-        from apps.tickets import tasks
-
-        # As a string: task arguments go through Celery's JSON serializer.
-        tasks.process_ticket.delay(str(ticket.id))
-        return ticket
 
 
 class Ticket(BaseModel):

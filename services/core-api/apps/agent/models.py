@@ -5,12 +5,16 @@ from __future__ import annotations
 
 import uuid
 from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.db import models
 from django.db.models import F
 
 from apps.core.models import BaseModel
+
+if TYPE_CHECKING:
+    from apps.accounts.models import User
 
 
 def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
@@ -19,6 +23,8 @@ def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
 
 # The longest concrete path an agent action can hold.
 PATH_MAX_LENGTH = 300
+TOOL_MAX_LENGTH = 40
+METHOD_MAX_LENGTH = 8
 
 
 class AgentSurface(StrEnum):
@@ -59,6 +65,9 @@ class AgentConversationQuerySet(models.QuerySet["AgentConversation"]):
     def active(self) -> AgentConversationQuerySet:
         return self.filter(state=AgentConversationState.ACTIVE.value)
 
+    def of_user(self, user: User) -> AgentConversationQuerySet:
+        return self.filter(user=user)
+
 
 class AgentConversation(BaseModel):
     """One person's exchange with the agent on one surface."""
@@ -97,6 +106,9 @@ class AgentConversation(BaseModel):
 
 
 class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
+    def of_user(self, user: User) -> AgentTurnQuerySet:
+        return self.filter(conversation__user=user)
+
     def unfinished(self) -> AgentTurnQuerySet:
         return self.filter(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
 
@@ -105,6 +117,15 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
         return bool(
             self.filter(id=turn_id, write_calls__lt=cap).update(write_calls=F("write_calls") + 1)
         )
+
+    def pii_map_of(self, conversation_id: uuid.UUID) -> dict[str, str]:
+        """Every placeholder the conversation's turns masked, with its quarantine ref."""
+        merged: dict[str, str] = {}
+        for pii_map in self.filter(conversation_id=conversation_id).values_list(
+            "pii_map", flat=True
+        ):
+            merged |= pii_map
+        return merged
 
 
 class AgentTurn(BaseModel):
@@ -157,9 +178,9 @@ class AgentStep(BaseModel):
 
     turn = models.ForeignKey(AgentTurn, on_delete=models.CASCADE, related_name="steps")
     seq = models.PositiveIntegerField()
-    tool = models.CharField(max_length=40)
+    tool = models.CharField(max_length=TOOL_MAX_LENGTH)
     arguments_masked = models.JSONField()
-    method = models.CharField(max_length=8)
+    method = models.CharField(max_length=METHOD_MAX_LENGTH)
     path = models.CharField(max_length=PATH_MAX_LENGTH)
     status_code = models.PositiveSmallIntegerField(null=True, blank=True)
     outcome = models.CharField(max_length=24, choices=_choices(AgentStepOutcome))
@@ -188,6 +209,30 @@ class AgentActionState(StrEnum):
     SUPERSEDED = "superseded"
 
 
+class AgentActionQuerySet(models.QuerySet["AgentAction"]):
+    def of_user(self, user: User) -> AgentActionQuerySet:
+        return self.filter(user=user)
+
+    def narrowed(
+        self,
+        state: AgentActionState | None,
+        kind: AgentActionKind | None,
+        ticket: str | None,
+        review_item: uuid.UUID | None,
+    ) -> AgentActionQuerySet:
+        """The actions in `state`, of `kind`, on `ticket` or on `review_item`, newest first."""
+        rows = self
+        if state is not None:
+            rows = rows.filter(state=state.value)
+        if kind is not None:
+            rows = rows.filter(kind=kind.value)
+        if ticket is not None:
+            rows = rows.filter(target_kind="ticket", target_ref=ticket)
+        if review_item is not None:
+            rows = rows.filter(target_kind="review_item", target_ref=str(review_item))
+        return rows.order_by("-created_at")
+
+
 class AgentAction(BaseModel):
     """One route call an agent made on a `confirm` or `human_only` route, held for a person."""
 
@@ -199,8 +244,8 @@ class AgentAction(BaseModel):
         AgentConversation, on_delete=models.CASCADE, related_name="actions"
     )
     turn = models.ForeignKey(AgentTurn, on_delete=models.CASCADE, related_name="actions")
-    tool = models.CharField(max_length=40, blank=True, default="")
-    method = models.CharField(max_length=8)
+    tool = models.CharField(max_length=TOOL_MAX_LENGTH, blank=True, default="")
+    method = models.CharField(max_length=METHOD_MAX_LENGTH)
     route = models.CharField(max_length=200)
     path = models.CharField(max_length=PATH_MAX_LENGTH)
     arguments = models.JSONField()
@@ -220,6 +265,8 @@ class AgentAction(BaseModel):
         blank=True,
         related_name="+",
     )
+
+    objects = AgentActionQuerySet.as_manager()
 
     class Meta(BaseModel.Meta):
         db_table = "agent_actions"

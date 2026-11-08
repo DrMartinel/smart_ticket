@@ -110,6 +110,7 @@ class ReasonCode(StrEnum):
     AGENT_SCHEMA_INVALID = "agent_schema_invalid"
     AGENT_TOKEN_REFUSED = "agent_token_refused"
     AGENT_MASK_FAILED = "agent_mask_failed"
+    AGENT_PII_CRITICAL = "agent_pii_critical"
     AGENT_ENGINE_UNAVAILABLE = "agent_engine_unavailable"
 
 
@@ -125,6 +126,7 @@ AGENT_HANDOFF_REASONS = frozenset(
         ReasonCode.AGENT_MODEL_UNAVAILABLE,
         ReasonCode.AGENT_SCHEMA_INVALID,
         ReasonCode.AGENT_MASK_FAILED,
+        ReasonCode.AGENT_PII_CRITICAL,
         ReasonCode.AGENT_ENGINE_UNAVAILABLE,
     }
 )

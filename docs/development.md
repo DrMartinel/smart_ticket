@@ -24,6 +24,7 @@ Point at the Dockerized Postgres and Redis so you only run what you're editing. 
 cd services/core-api
 make runserver   # :8000
 make worker      # celery worker (and `make beat`)
+make worker-agent  # agent turns (F15), on their own queue
 
 # from the repo root
 uv run --project services/ai-engine uvicorn ai_engine.main:app \

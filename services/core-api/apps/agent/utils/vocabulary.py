@@ -97,6 +97,16 @@ HANDOFF_TEXT: dict[ReasonCode, dict[Language, str]] = {
             "Cuộc trò chuyện đã kết thúc."
         ),
     },
+    ReasonCode.AGENT_PII_CRITICAL: {
+        Language.EN: (
+            "Your message looks like it holds a password or other secret, so I haven't read it. "
+            "Please don't send secrets here; the security team has been told."
+        ),
+        Language.VI: (
+            "Tin nhắn có vẻ chứa mật khẩu hoặc thông tin bí mật nên em chưa đọc. "
+            "Vui lòng không gửi thông tin bí mật ở đây; đội bảo mật đã được thông báo."
+        ),
+    },
     ReasonCode.AGENT_ENGINE_UNAVAILABLE: {
         Language.EN: "The assistant isn't available right now.",
         Language.VI: "Trợ lý hiện không khả dụng.",

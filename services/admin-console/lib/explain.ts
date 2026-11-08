@@ -48,6 +48,7 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   agent_schema_invalid: "The assistant's answer was malformed, so nothing it chose was used.",
   agent_token_refused: "The person's sign-in ended while the assistant was working.",
   agent_mask_failed: "Personal data could not be removed reliably, so the assistant did not read the message.",
+  agent_pii_critical: "The message held a password or other secret, so the assistant did not read it.",
   agent_engine_unavailable: "The assistant was unavailable, so the request went to a person.",
 };
 
