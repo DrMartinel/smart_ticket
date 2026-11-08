@@ -73,7 +73,7 @@ _AGENT_MEMORY_READERS = {
 }
 
 
-def test_only_the_draft_and_the_proposal_read_earlier_turns():
+def test_only_the_draft_the_proposal_and_the_agent_read_earlier_turns():
     """Earlier turns are context for the draft and the proposal, never a signal or a score."""
     readers = {
         str(path.relative_to(_SRC))

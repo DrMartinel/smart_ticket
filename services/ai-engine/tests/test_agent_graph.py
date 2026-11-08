@@ -11,13 +11,14 @@ import logging
 from typing import Any
 from uuid import UUID, uuid4
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from ai_engine.agent.tools import TOOLS, for_surface
 from ai_engine.agent.tools import client as tool_client
-from ai_engine.agent.tools.client import OutcomeUnknown, Reply, ToolFailed
+from ai_engine.agent.tools.client import CoreApi, OutcomeUnknown, Reply, ToolFailed
 from ai_engine.agent.tools.projection import UNTRUSTED, WITHHELD
 from ai_engine.agent.tools.tool import Context, Tier
 from ai_engine.core.providers import clients
@@ -58,9 +59,16 @@ class FakeCoreApi:
         self.calls: list[dict[str, Any]] = []
         self.waits: list[float] = []
 
-    def send(self, method, path, token, *, params=None, json=None):
+    def send(self, method, path, token, tool, *, params=None, json=None):
         self.calls.append(
-            {"method": method, "path": path, "token": token, "params": params, "json": json}
+            {
+                "method": method,
+                "path": path,
+                "token": token,
+                "tool": tool,
+                "params": params,
+                "json": json,
+            }
         )
         if not self.replies:
             raise AssertionError(f"core-api was called more often than scripted: {method} {path}")
@@ -292,7 +300,7 @@ def test_a_refusal_is_shown_to_the_model_as_its_code(model, core_api):
 
 
 def test_write_after_injection_hit_hands_off(model, core_api):
-    """BR-F15-10: once a result trips the screen, a write is never sent."""
+    """BR-F15-11: once a result trips the screen, a write is never sent."""
 
     thread = [{"author_kind": "agent", "mine": False, "state": "shown", "body_masked": _INJECTED}]
     llm = model(
@@ -377,7 +385,7 @@ def test_every_tool_input_rejects_unknown_fields():
         assert tool.Input.model_config.get("extra") == "forbid", tool.name
 
 
-def test_the_call_carries_the_turn_token_and_no_other_header(model, core_api):
+def test_the_call_carries_the_turn_token_and_names_its_tool(model, core_api):
     model(call("get_my_ticket", public_id="TK 1/x"), reply())
     api = core_api(Reply(200, {"public_id": "TK 1/x", "thread": []}))
 
@@ -385,39 +393,44 @@ def test_the_call_carries_the_turn_token_and_no_other_header(model, core_api):
 
     sent = api.calls[0]
     assert sent["token"].get_secret_value() == _TOKEN
+    assert sent["tool"] == "get_my_ticket"
     assert sent["path"] == "/api/requester/tickets/TK%201%2Fx"
     assert sent["json"] is None
 
 
-def test_ask_helpdesk_polls_while_the_helpdesk_is_thinking():
+def test_ask_helpdesk_polls_while_the_helpdesk_is_thinking(core_api):
     conversation = uuid4()
     context = Context(SecretStr(_TOKEN), _ME, "alice", conversation)
-    api = FakeCoreApi(
+    api = core_api(
         Reply(200, {"public_id": "CH-1", "state": "thinking"}),
         Reply(200, {"public_id": "CH-1", "state": "thinking"}),
         Reply(200, {"public_id": "CH-1", "state": "answered", "answer": {"text": "Restart it."}}),
     )
     tool = TOOLS["ask_helpdesk"]
 
-    _, got = tool.run(api, tool.Input.model_validate({"message": "VPN drops all day"}), context)
+    _, got = tool.run(tool.Input.model_validate({"message": "VPN drops all day"}), context)
 
     assert got.body["state"] == "answered"
     assert api.calls[0]["json"]["conversation_id"] == str(conversation)
     assert [c["path"] for c in api.calls[1:]] == ["/api/chat/tickets/CH-1"] * 2
+    assert {c["tool"] for c in api.calls} == {"ask_helpdesk"}
     assert len(api.waits) == 2
 
 
-def test_ask_helpdesk_stops_polling_on_a_failed_poll():
+@pytest.mark.parametrize(
+    "poll", [Reply(404, {"code": "not_found", "message": ""}), ToolFailed("HTTP 502")]
+)
+def test_a_failed_poll_still_reports_the_question_as_asked(core_api, poll):
+    """The question was submitted; a failed poll must not read as "nothing changed"."""
+
     context = Context(SecretStr(_TOKEN), _ME, "alice", None)
-    api = FakeCoreApi(
-        Reply(200, {"public_id": "CH-1", "state": "thinking"}),
-        Reply(404, {"code": "not_found", "message": ""}),
-    )
+    api = core_api(Reply(200, {"public_id": "CH-1", "state": "thinking"}), poll)
     tool = TOOLS["ask_helpdesk"]
 
-    _, got = tool.run(api, tool.Input.model_validate({"message": "VPN drops all day"}), context)
+    _, got = tool.run(tool.Input.model_validate({"message": "VPN drops all day"}), context)
 
-    assert got.status == 404
+    assert got.status == 200
+    assert got.body == {"public_id": "CH-1", "state": "thinking"}
     assert api.calls[0]["json"]["conversation_id"] is None
 
 
@@ -456,7 +469,50 @@ def test_untrusted_fields_are_wrapped():
 
     assert thread[0]["body_masked"] == {UNTRUSTED: "theirs"}
     assert thread[1]["body_masked"] == "mine"
-    assert thread[2]["body_masked"] == {UNTRUSTED: WITHHELD}
+    assert thread[2]["body_masked"] == WITHHELD
+
+
+def test_mask_failed_text_is_withheld_on_every_surface():
+    """BR-F15-09: text whose masking failed reaches no model, whoever wrote it."""
+
+    context = Context(SecretStr(_TOKEN), _ME, "alice", None)
+    leaked = "raw-text-masking-failed-on"
+    row = {"public_id": "TK-1", "subject_masked": leaked, "pii_level": "mask_failed"}
+    review = {
+        **row,
+        "body_masked": leaked,
+        "queue": "mask_failed",
+        "comment": {"body_masked": leaked},
+        "routing_decisions": [],
+    }
+    comments = [
+        {"body_masked": leaked, "hidden_for_review": True},
+        {"body_masked": leaked, "discarded": True},
+        {"body_masked": leaked, "pii_level": "mask_failed"},
+    ]
+    bodies = {
+        "list_tickets": {"items": [row]},
+        "get_ticket_detail": {**row, "body_masked": leaked},
+        "list_comments": comments,
+        "list_review_queue": [review],
+        "get_review_item": review,
+        "list_my_tickets": {"open": [row], "recent": [row]},
+        "get_my_ticket": {**row, "body_masked": leaked, "thread": []},
+    }
+
+    for name, body in bodies.items():
+        projected = json.dumps(TOOLS[name].project(body, context), default=str)
+        assert leaked not in projected, name
+        assert WITHHELD in projected, name
+
+
+def test_a_review_comment_is_always_withheld():
+    context = Context(SecretStr(_TOKEN), _ME, "alice", None)
+    body = {"id": "r1", "pii_level": "masked", "comment": {"body_masked": "regex tier only"}}
+
+    projected = TOOLS["get_review_item"].project(body, context)
+
+    assert projected["comment"] == WITHHELD
 
 
 # --- the endpoint -------------------------------------------------------------
@@ -518,3 +574,71 @@ def test_an_awaiting_confirmation_turn_says_so(model, core_api):
     body = resp.json()
     assert body["outcome"] == "awaiting_confirmation"
     assert UUID(body["steps"][0]["action_id"]) == action
+
+
+# --- the HTTP client ----------------------------------------------------------
+
+
+def _core_api(monkeypatch, handler) -> CoreApi:
+    api = CoreApi(base_url="http://core-api.test")
+    monkeypatch.setattr(
+        api, "_http", httpx.Client(base_url=api.base_url, transport=httpx.MockTransport(handler))
+    )
+    return api
+
+
+def _raise(error: type[httpx.TransportError]):
+    def handler(request):
+        raise error("boom", request=request)
+
+    return handler
+
+
+@pytest.mark.parametrize("method", ["POST", "PATCH"])
+def test_a_write_whose_answer_was_lost_is_outcome_unknown(monkeypatch, method):
+    api = _core_api(monkeypatch, _raise(httpx.ReadTimeout))
+
+    with pytest.raises(OutcomeUnknown):
+        api.send(method, "/x", SecretStr(_TOKEN), "t", json={})
+
+
+@pytest.mark.parametrize("method", ["POST", "PATCH"])
+def test_a_write_answered_with_a_5xx_is_outcome_unknown(monkeypatch, method):
+    api = _core_api(monkeypatch, lambda request: httpx.Response(500))
+
+    with pytest.raises(OutcomeUnknown):
+        api.send(method, "/x", SecretStr(_TOKEN), "t", json={})
+
+
+@pytest.mark.parametrize(
+    ("method", "handler"),
+    [
+        ("GET", _raise(httpx.ReadTimeout)),
+        ("GET", lambda request: httpx.Response(503)),
+        ("GET", lambda request: httpx.Response(200, content=b"not json")),
+        ("POST", _raise(httpx.ConnectError)),
+        ("POST", _raise(httpx.ConnectTimeout)),
+        ("POST", lambda request: httpx.Response(200, content=b"not json")),
+    ],
+)
+def test_a_read_failure_or_an_unsent_write_is_tool_failed(monkeypatch, method, handler):
+    api = _core_api(monkeypatch, handler)
+
+    with pytest.raises(ToolFailed):
+        api.send(method, "/x", SecretStr(_TOKEN), "t", json=None if method == "GET" else {})
+
+
+def test_a_call_sends_the_token_and_the_tool_name(monkeypatch):
+    seen: list[httpx.Request] = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"ok": True})
+
+    api = _core_api(monkeypatch, handler)
+
+    got = api.send("GET", "/x", SecretStr(_TOKEN), "get_sla", params={"a": "1"})
+
+    assert got == Reply(200, {"ok": True})
+    assert seen[0].headers["Authorization"] == f"Bearer {_TOKEN}"
+    assert seen[0].headers["X-Agent-Tool"] == "get_sla"

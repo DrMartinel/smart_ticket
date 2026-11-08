@@ -17,11 +17,11 @@ from ai_engine.core.config import settings
 
 
 class ToolFailed(Exception):
-    """The call failed with nothing changed: unreachable, a 5xx, or an unparseable reply."""
+    """A read failed, or a write was never sent."""
 
 
 class OutcomeUnknown(Exception):
-    """A write was sent and its answer never came back."""
+    """A write was sent and whether it landed is not known."""
 
 
 @dataclass(frozen=True)
@@ -43,18 +43,22 @@ class CoreApi:
         method: str,
         path: str,
         token: SecretStr,
+        tool: str,
         *,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
     ) -> Reply:
-        """One request. Raises `ToolFailed` or, for a write whose answer was lost, `OutcomeUnknown`."""
+        """One request on behalf of `tool`. Raises `ToolFailed` or, for a write, `OutcomeUnknown`."""
         try:
             response = self._http.request(
                 method,
                 path,
                 params=params,
                 json=json,
-                headers={"Authorization": f"Bearer {token.get_secret_value()}"},
+                headers={
+                    "Authorization": f"Bearer {token.get_secret_value()}",
+                    "X-Agent-Tool": tool,
+                },
             )
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as e:
             raise ToolFailed(type(e).__name__) from None
@@ -63,7 +67,9 @@ class CoreApi:
                 raise ToolFailed(type(e).__name__) from None
             raise OutcomeUnknown(type(e).__name__) from None
         if response.status_code >= 500:
-            raise ToolFailed(f"HTTP {response.status_code}")
+            if method == "GET":
+                raise ToolFailed(f"HTTP {response.status_code}")
+            raise OutcomeUnknown(f"HTTP {response.status_code}")
         try:
             body = response.json() if response.content else None
         except ValueError:

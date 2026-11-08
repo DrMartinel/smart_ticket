@@ -16,7 +16,7 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, RootModel, SecretStr, field_serializer
 
 from apps.tickets.utils.patterns import PIILevel
 
@@ -342,6 +342,11 @@ class AgentTurnRequest(BaseModel):
     actor_id: UUID | None = None
     actor_username: str = ""
     token: SecretStr
+
+    @field_serializer("token", when_used="json")
+    def reveal_token(self, token: SecretStr) -> str:
+        """The token itself, in the body sent to ai-engine."""
+        return token.get_secret_value()
 
 
 class AgentTurnResponse(BaseModel):

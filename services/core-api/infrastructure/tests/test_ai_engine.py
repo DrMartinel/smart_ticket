@@ -206,3 +206,23 @@ def test_model_calls_get_the_model_read_budget_and_a_short_connect(serve_ai_engi
     [timeout] = calls.timeouts
     assert timeout.connect == settings.MODEL_CONNECT_TIMEOUT_SEC == 3.0
     assert timeout.read == 45.0
+
+
+def test_an_agent_turn_sends_the_token_itself_not_its_mask():
+    from uuid import uuid4
+
+    from pydantic import SecretStr
+
+    from infrastructure.dtos import AgentLimits, AgentTurnRequest
+
+    request = AgentTurnRequest(
+        turn_id=uuid4(),
+        surface="chat",
+        language="en",
+        message_masked="VPN drops",
+        limits=AgentLimits(max_steps=6, max_tool_calls=4, max_model_tokens=1000),
+        token=SecretStr("the-agent-token"),
+    )
+
+    assert request.model_dump(mode="json")["token"] == "the-agent-token"
+    assert "the-agent-token" not in repr(request)

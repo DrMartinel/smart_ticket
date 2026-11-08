@@ -131,8 +131,8 @@ def review_item(item: Any, context: Context) -> dict[str, Any]:
     return {
         "id": item.get("id"),
         "ticket_public_id": item.get("ticket_public_id"),
-        "subject_masked": untrusted(item.get("subject_masked")),
-        "body_masked": untrusted(item.get("body_masked")),
+        "subject_masked": masked(item.get("subject_masked"), item.get("pii_level")),
+        "body_masked": masked(item.get("body_masked"), item.get("pii_level")),
         "queue": item.get("queue"),
         "priority": item.get("priority"),
         "state": item.get("state"),
@@ -149,15 +149,14 @@ def review_queue(body: Any, context: Context) -> list[dict[str, Any]]:
 
 
 def review_item_detail(body: Any, context: Context) -> dict[str, Any]:
-    """One review item with its routing decisions and the comment it holds."""
-    comment = body.get("comment") or {}
+    """One review item with its routing decisions; the comment it holds is withheld."""
     return {
         **review_item(body, context),
         "routing_decisions": [
             {"branch": d.get("branch"), "reason_code": d.get("reason_code")}
             for d in body.get("routing_decisions", [])
         ],
-        "comment": untrusted(comment.get("body_masked")) if comment else None,
+        "comment": WITHHELD if body.get("comment") else None,
     }
 
 
