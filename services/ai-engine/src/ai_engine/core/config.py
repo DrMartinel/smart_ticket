@@ -108,5 +108,15 @@ class Settings(BaseSettings):
     category_question_version: str
     clarify_option_question_version: str
 
+    # --- Agent (F15, ADR-0046) ---
+    # Where the agent's tools call core-api, as the signed-in user.
+    core_api_url: str
+    agent_client_provider: Literal["vllm", "openai", "deepseek"]
+    agent_prompt_version: str
+    agent_tool_connect_timeout_sec: float = Field(gt=0)
+    agent_tool_read_timeout_sec: float = Field(gt=0)
+    agent_ask_poll_interval_sec: float = Field(gt=0)
+    agent_ask_wait_sec: float = Field(ge=0)
+
 
 settings = Settings()  # type: ignore[call-arg]  # every value comes from .env or the env
