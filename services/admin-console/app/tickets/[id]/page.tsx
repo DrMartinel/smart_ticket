@@ -67,6 +67,8 @@ interface ReviewItemDetail {
 }
 
 const TRIAGE = new Set(["new", "awaiting_requester"]);
+// Refusals after which a decision draft can no longer be applied.
+const DRAFT_GONE = new Set(["agent_action_expired", "agent_action_not_pending"]);
 
 export default function TicketPage() {
   const user = useRequireAuth();
@@ -82,7 +84,9 @@ export default function TicketPage() {
   const [busy, setBusy] = useState(false);
   const [priorityOpen, setPriorityOpen] = useState(false);
   const [drafts, setDrafts] = useState<AgentActionOut[]>([]);
-  // The decision draft open in the review form, applied with the form's answers.
+  const [draftsFailed, setDraftsFailed] = useState(false);
+  // The decision draft open in the review form, and the one its answers apply (while pending).
+  const [formDraft, setFormDraft] = useState<AgentActionOut | null>(null);
   const [usingDraft, setUsingDraft] = useState<AgentActionOut | null>(null);
   const usesAgent = can(user, P.agentUse);
 
@@ -92,12 +96,18 @@ export default function TicketPage() {
       setDetail(d);
       setReviewItem(d.review ? await api.get<ReviewItemDetail>(`/api/review/items/${d.review.id}`) : null);
       if (usesAgent) {
-        const pending = "state=pending&kind=draft";
-        const [onTicket, onItem] = await Promise.all([
-          agentApi.actions(`${pending}&ticket=${encodeURIComponent(d.public_id)}`),
-          d.review ? agentApi.actions(`${pending}&review_item=${d.review.id}`) : Promise.resolve([]),
-        ]).catch(() => [[], []] as AgentActionOut[][]);
-        setDrafts([...onItem, ...onTicket]);
+        const items = new Set(d.reviews.map((r) => r.id));
+        try {
+          const all = await agentApi.actions("state=pending&kind=draft");
+          const mine = all.filter((a) =>
+            a.target_kind === "ticket" ? a.target_ref === d.public_id : items.has(a.target_ref),
+          );
+          setDrafts(mine);
+          setDraftsFailed(false);
+          setUsingDraft((open) => (open && mine.some((a) => a.action_id === open.action_id) ? open : null));
+        } catch {
+          setDraftsFailed(true);
+        }
       }
     } catch {
       setError("Couldn't load this ticket.");
@@ -302,13 +312,21 @@ export default function TicketPage() {
             )}
           </Section>
 
+          {draftsFailed && <p className="text-sm text-muted-foreground">Couldn&apos;t load the assistant&apos;s drafts.</p>}
           <AgentDrafts
             drafts={drafts}
             busy={busy}
-            canDecide={detail.review?.state !== "pending"}
-            onUse={(d) => setUsingDraft(d)}
+            version={detail.version}
+            canDecide={(d) => d.target_ref === detail.review?.id && detail.review?.state !== "pending"}
+            onUse={(d) => {
+              setFormDraft(d);
+              setUsingDraft(d);
+            }}
             onApply={(d) => act(() => agentApi.apply(d), "Applied the assistant's draft.")}
-            onDismiss={(d) => act(() => agentApi.dismiss(d.action_id), "Draft dismissed.")}
+            onDismiss={(d) => {
+              if (usingDraft?.action_id === d.action_id) setUsingDraft(null);
+              void act(() => agentApi.dismiss(d.action_id), "Draft dismissed.");
+            }}
           />
 
           {detail.review && (
@@ -335,17 +353,31 @@ export default function TicketPage() {
                 </div>
               ) : (
                 <ReviewForm
-                  key={usingDraft?.action_id ?? "own"}
+                  key={formDraft?.action_id ?? "own"}
                   hasAutoReplyProposal={detail.ai?.proposed_intent === "auto_reply"}
                   aiCategory={detail.ai?.category ?? null}
                   submitting={busy}
-                  initial={(usingDraft?.arguments.payload ?? {}) as Partial<ReviewDecisionPayload>}
+                  initial={(formDraft?.arguments.payload ?? {}) as Partial<ReviewDecisionPayload>}
                   onSubmit={(payload: ReviewDecisionPayload) =>
                     act(async () => {
                       const path = `/api/review/items/${detail.review!.id}/decide`;
-                      if (usingDraft && usingDraft.path === path) await agentApi.apply(usingDraft, payload);
-                      else await api.post(path, payload);
+                      if (usingDraft && usingDraft.path === path) {
+                        try {
+                          await agentApi.apply(usingDraft, payload);
+                        } catch (err) {
+                          if (err instanceof ApiError && DRAFT_GONE.has(err.code ?? "")) {
+                            setUsingDraft(null);
+                            throw new ApiError(
+                              err.status,
+                              "the draft is no longer pending; save again to decide without it",
+                              err.code,
+                            );
+                          }
+                          throw err;
+                        }
+                      } else await api.post(path, payload);
                       setUsingDraft(null);
+                      setFormDraft(null);
                     }, "Review saved.")
                   }
                 />

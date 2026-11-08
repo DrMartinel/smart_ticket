@@ -63,7 +63,9 @@ export default function ReviewForm({
     initial.category_verdict ?? null,
   );
   const [correctedCategory, setCorrectedCategory] = useState(initial.corrected_category ?? "");
-  const [action, setAction] = useState<ReviewDecisionPayload["action_taken"]>(initial.action_taken ?? "approve");
+  const [action, setAction] = useState<ReviewDecisionPayload["action_taken"]>(
+    ACTIONS.some((a) => a.value === initial.action_taken) ? initial.action_taken! : "approve",
+  );
   const [overrideReason, setOverrideReason] = useState(initial.override_reason ?? "");
   const [error, setError] = useState<string | null>(null);
 
@@ -89,7 +91,7 @@ export default function ReviewForm({
       kb_verdict: hasAutoReplyProposal ? kbVerdict : null,
       category_verdict: categoryVerdict,
       corrected_category: categoryVerdict === "wrong" ? correctedCategory || null : null,
-      corrected_kb_id: null,
+      corrected_kb_id: initial.corrected_kb_id ?? null,
       override_reason: requiresReason ? overrideReason.trim() : null,
       time_spent_sec: Math.round((Date.now() - startedAt.current) / 1000),
     });
