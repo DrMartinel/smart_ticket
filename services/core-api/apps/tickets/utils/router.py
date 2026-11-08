@@ -98,6 +98,37 @@ class ReasonCode(StrEnum):
     CIRCUIT_OPEN = "circuit_open"
     # ok
     ALL_CHECKS_PASSED = "all_checks_passed"
+    # The agent handed the person's request to a human (F15 §h.4)
+    AGENT_STEP_LIMIT = "agent_step_limit"
+    AGENT_TOOL_LIMIT = "agent_tool_limit"
+    AGENT_BUDGET_EXCEEDED = "agent_budget_exceeded"
+    AGENT_TOOL_FAILED = "agent_tool_failed"
+    AGENT_TOOL_OUTCOME_UNKNOWN = "agent_tool_outcome_unknown"
+    AGENT_INJECTION_DETECTED = "agent_injection_detected"
+    AGENT_INJECTION_IN_RESULT = "agent_injection_in_result"
+    AGENT_MODEL_UNAVAILABLE = "agent_model_unavailable"
+    AGENT_SCHEMA_INVALID = "agent_schema_invalid"
+    AGENT_TOKEN_REFUSED = "agent_token_refused"
+    AGENT_MASK_FAILED = "agent_mask_failed"
+    AGENT_ENGINE_UNAVAILABLE = "agent_engine_unavailable"
+
+
+AGENT_HANDOFF_REASONS = frozenset(
+    {
+        ReasonCode.AGENT_STEP_LIMIT,
+        ReasonCode.AGENT_TOOL_LIMIT,
+        ReasonCode.AGENT_BUDGET_EXCEEDED,
+        ReasonCode.AGENT_TOOL_FAILED,
+        ReasonCode.AGENT_TOOL_OUTCOME_UNKNOWN,
+        ReasonCode.AGENT_INJECTION_DETECTED,
+        ReasonCode.AGENT_INJECTION_IN_RESULT,
+        ReasonCode.AGENT_MODEL_UNAVAILABLE,
+        ReasonCode.AGENT_SCHEMA_INVALID,
+        ReasonCode.AGENT_MASK_FAILED,
+        ReasonCode.AGENT_ENGINE_UNAVAILABLE,
+    }
+)
+"""The reasons a ticket the agent handed off may carry."""
 
 
 class ReviewQueue(StrEnum):
@@ -221,6 +252,13 @@ class Router:
         if p.pii_level is PIILevel.MASK_FAILED:
             return RoutingDecision.hitl(
                 ReasonCode.PII_MASK_FAILED, queue=ReviewQueue.MASK_FAILED.value, priority=1
+            )
+
+        if p.agent_handoff_reason is not None:
+            return RoutingDecision.hitl(
+                ReasonCode(p.agent_handoff_reason),
+                queue=ReviewQueue.LOW_CONFIDENCE.value,
+                priority=2,
             )
 
         # Retrieval floor is checked BEFORE the schema gate, because when the

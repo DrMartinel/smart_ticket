@@ -65,6 +65,10 @@ guard and that comment is later trimmed, the entry is the record.
   `test_router.py::test_runbook_always_hitl_even_with_perfect_signals`.*
 - **Hard-gate order in `router.py`.** `mass_incident` comes before the duplicate and
   mask checks. *`test_router.py::test_mass_incident_escalates_before_mask_failed_check`.*
+  The agent hand-off gate (F15, FR-F15-017) sits right after the mask check and before
+  the retrieval floor, so a hand-off keeps its reason whatever triage proposed.
+  *`test_each_earlier_gate_still_wins_over_an_agent_handoff`,
+  `test_an_agent_handoff_wins_over_every_later_check`.*
 - **Refuse-before-LLM reports `retrieval_below_floor`, not `schema_invalid`.**
   *`test_router.py::test_refuse_before_llm_reports_retrieval_floor_not_schema_invalid`.*
 - **The KB governance path for `auto_reply_allowed`**: manager role, a non-empty

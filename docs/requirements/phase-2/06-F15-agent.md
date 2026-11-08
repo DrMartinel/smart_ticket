@@ -886,3 +886,19 @@ Each departure is the smaller choice; none lets an agent do more.
 18. `ask_helpdesk` reports the question as asked once `POST /api/chat/ask`
     succeeds, even if a later poll fails; the model sees the last state it
     read (`thinking`).
+
+**PR 5 (router hand-off gate).**
+19. The gate sits right after the `pii_mask_failed` gate, so `mass_incident`,
+    which already comes before that gate, also wins over an agent hand-off:
+    the ticket is escalated with the incident. FR-F15-017 says "before every
+    other check"; moving `mass_incident` would have changed triage.
+20. A hand-off ticket still runs the triage graph. If that run degrades
+    (embedding, budget, ai-engine, the LLM), its routing decision carries the
+    degraded reason, which is decided before the router; the agent's reason
+    stays on `tickets.agent_handoff_reason`.
+21. The gate's queue is `low_confidence`, priority 2, as for the other
+    degraded reasons. A DB check and `PolicySignals`' type keep
+    `agent_handoff_reason` to eleven agent reasons: `agent_token_refused`
+    opens no ticket. `agent_mask_failed` is never held for the employee,
+    whatever the ticket's PII level.
+22. `tickets.agent_turn` arrives with `agent_turns` in PR 6.
