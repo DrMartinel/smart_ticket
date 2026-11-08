@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from django.utils import timezone
 
+from apps.tickets.utils.intake import ticket_intake
 from apps.lifecycle.models import Workflow
 from apps.lifecycle.request_schema import FieldIn, RuleIn, TransitionPatch
 from apps.lifecycle.tests.conftest import put_in
@@ -76,7 +77,7 @@ def test_every_action_code_has_a_handler():
 def test_a_submitted_ticket_enters_the_default_workflow(monkeypatch, employee_user):
     monkeypatch.setattr("apps.tickets.tasks.process_ticket.delay", lambda ticket_id: None)
 
-    ticket = Ticket.objects.submit(
+    ticket = ticket_intake.submit(
         reporter=employee_user,
         ticket_in=TicketIn(subject="VPN keeps dropping", body="It drops every hour since Monday."),
         trace_id=None,

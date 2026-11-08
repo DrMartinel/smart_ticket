@@ -12,6 +12,7 @@ holdable.
 
 import pytest
 
+from apps.tickets.utils.intake import ticket_intake
 from apps.rollout.testing import all_live
 
 from apps.audit.models import AuditLog
@@ -110,7 +111,7 @@ def no_celery(monkeypatch):
 def _submit(user, source: TicketSource) -> Ticket:
     from apps.tickets.request_schema import TicketIn
 
-    return Ticket.objects.submit(
+    return ticket_intake.submit(
         reporter=user,
         ticket_in=TicketIn(
             subject="Cannot reach the VPN", body="Since this morning the VPN times out."

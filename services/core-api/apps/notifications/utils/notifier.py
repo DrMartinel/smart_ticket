@@ -323,7 +323,7 @@ class Emission:
     def person_message(self, delivery: Delivery, channel: Channel) -> Message:
         """The notice for one user on one channel, in their language, failed on a template error."""
         user = delivery.user
-        language = Language.EN if user.language == Language.EN.value else Language.VI
+        language = user.preferred_language()
         link = self.notice.link or self.link(delivery.kind)
         edited = self.templates.get((channel.value, language.value))
         subject_template, body_template = (
