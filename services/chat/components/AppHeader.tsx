@@ -1,12 +1,12 @@
 "use client";
 
-// The bar above every chat page: the app, Ask and My tickets, the bell and the account.
+// The bar above every chat page: the app, Ask, the assistant and My tickets, the bell and the account.
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Building2, LogOut, MessageSquare, Ticket } from "lucide-react";
+import { BookOpen, Bot, Building2, LogOut, MessageSquare, Ticket } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { DEPARTMENT_READ } from "@/lib/session";
+import { AGENT_USE, DEPARTMENT_READ } from "@/lib/session";
 import NotificationBell from "./NotificationBell";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,8 +18,17 @@ export default function AppHeader() {
   const onGuides = path.startsWith("/guides");
   const onDepartment = path.startsWith("/department");
   const onProfile = path.startsWith("/profile");
+  const onAssistant = path.startsWith("/assistant");
   const tabs = [
-    { href: "/", label: "Ask", icon: MessageSquare, active: !onTickets && !onGuides && !onDepartment && !onProfile },
+    {
+      href: "/",
+      label: "Ask",
+      icon: MessageSquare,
+      active: !onTickets && !onGuides && !onDepartment && !onProfile && !onAssistant,
+    },
+    ...(user?.permissions?.includes(AGENT_USE)
+      ? [{ href: "/assistant", label: "Assistant", icon: Bot, active: onAssistant }]
+      : []),
     { href: "/tickets", label: "My tickets", icon: Ticket, active: onTickets },
     ...(user?.permissions?.includes(DEPARTMENT_READ)
       ? [{ href: "/department", label: "Department", icon: Building2, active: onDepartment }]

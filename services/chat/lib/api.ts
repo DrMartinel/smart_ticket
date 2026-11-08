@@ -8,6 +8,10 @@
  */
 
 import type {
+  AgentActionOut,
+  AgentConversationOut,
+  AgentSurface,
+  AgentTurnOut,
   ChatTurnOut,
   DepartmentTicketOut,
   InboxOut,
@@ -79,6 +83,28 @@ export const chatApi = {
     request<ChatTurnOut>(`/api/chat/tickets/${encodeURIComponent(publicId)}/clarify`, {
       method: "POST",
       body: JSON.stringify({ answer }),
+    }),
+};
+
+/** The assistant (F15): a message, its turn, and the actions it left for the user to confirm. */
+export const agentApi = {
+  send: (message: string, conversationId: string | null, surface: AgentSurface = "chat") =>
+    request<AgentTurnOut>("/api/agent/turns", {
+      method: "POST",
+      body: JSON.stringify({ message, surface, ...(conversationId ? { conversation_id: conversationId } : {}) }),
+    }),
+  turn: (id: string) => request<AgentTurnOut>(`/api/agent/turns/${encodeURIComponent(id)}`),
+  conversation: (id: string) => request<AgentConversationOut>(`/api/agent/conversations/${encodeURIComponent(id)}`),
+  endConversation: (id: string) =>
+    request<void>(`/api/agent/conversations/${encodeURIComponent(id)}/end`, { method: "POST" }),
+  pending: () => request<AgentActionOut[]>("/api/agent/actions?state=pending&kind=confirm"),
+  dismiss: (id: string) => request<void>(`/api/agent/actions/${encodeURIComponent(id)}/dismiss`, { method: "POST" }),
+  /** Sends the call the assistant proposed, unchanged, with the user's own session. */
+  confirm: (action: AgentActionOut) =>
+    request<unknown>(action.path, {
+      method: action.method,
+      headers: { "X-Agent-Action": action.action_id },
+      ...("payload" in action.arguments ? { body: JSON.stringify(action.arguments.payload) } : {}),
     }),
 };
 
