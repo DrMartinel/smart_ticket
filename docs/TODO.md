@@ -627,9 +627,12 @@ each file is clean.
 
 **Priority:** High before the `agent_chat` or `agent_console` flag goes on · **Spec:** [06-F15-agent.md](requirements/phase-2/06-F15-agent.md) · ADR-0046
 
-- **No eval has run on `agent.v1`.** The scripted trace suite and the live
-  agent eval (OQ-F15-07), with an injection-in-result case per surface, before
-  production picks `AGENT_CLIENT_PROVIDER`.
+- **No eval has run on `agent.v1`.** The scripted trace suite
+  (`evals/suites/test_agent_traces.py`, in the offline gate) was written in
+  PR 9 and has not been run; run it first. Then the live agent eval
+  (OQ-F15-07), with an injection-in-result case per surface, before
+  production picks `AGENT_CLIENT_PROVIDER`, reported ungated until a
+  baseline is reviewed by someone other than its author (OQ-F15-08).
 - **Rerun the injection suite** after the patterns moved to
   `graph/nodes/injection_patterns.py` (expected 1.00, triage unchanged).
 - **A turn has no deadline of its own in ai-engine.** core-api's running-turn

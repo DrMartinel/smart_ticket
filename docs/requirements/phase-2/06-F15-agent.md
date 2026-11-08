@@ -980,3 +980,16 @@ Each departure is the smaller choice; none lets an agent do more.
 44. The console's panel, draft banner and hand-off line are English only,
     like the rest of the console (FR-F15-021 asks for vi and en; TODO 23).
     The panel is non-modal, so the page beside it stays usable.
+
+**PR 9 (trace suite).**
+45. `test_agent_traces.py` runs the traces in one process: core-api's views
+    through Django's test client, ai-engine's `/v1/agent/turn` handler called
+    in place, and its tools calling back into core-api. Triage is stubbed to
+    find nothing, so AC-F15-01's router decision is the `hitl` it chooses
+    from empty signals, not `rerank_low_confidence`; the trace still holds
+    the ticket for Linh and opens it on `request_ticket`.
+46. AC-F15-03 and AC-F15-04 also live in core-api's unit tests
+    (`test_an_agent_token_is_refused_where_its_user_is_refused`,
+    `test_every_gated_route_declares_an_agent_tier`); the suite repeats them
+    so the five traces sit in one place. AC-F15-05 raises the tool-call cap
+    above `max_steps` so the step limit is the one reached.

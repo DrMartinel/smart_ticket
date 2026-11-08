@@ -26,7 +26,7 @@ Pass pytest arguments to core-api's target with `ARGS=`: `make test ARGS="-k rou
 
 core-api's tests run with `config.settings.test` (from its `pytest.ini`): the stub embedder, whatever the environment says, and a fast password hasher. Its database tests still need `DATABASE_URL`; `make test` exports it, pointing at the Dockerized Postgres on port 5434. Running pytest directly, export it yourself.
 
-Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn't reachable, so unit tests stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies at all; `test_history_data` checks that every `evals/HISTORY.md` entry has its recorded data, and `test_analyze_masking` checks the harness masks tickets as production does, both offline.
+Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn't reachable, so unit tests stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies at all; `test_agent_traces` runs the F15 acceptance traces in-process against the test database, with a scripted agent model and no ai-engine server; `test_history_data` checks that every `evals/HISTORY.md` entry has its recorded data, and `test_analyze_masking` checks the harness masks tickets as production does, both offline.
 
 Coverage on the two modules where it is contractual:
 
@@ -175,6 +175,6 @@ The last full run (2026-10-04 (8), `propose.v8`) fails one gate: auto-reply prec
 
 Two more workflows sit alongside it. `lint.yml` runs `ruff check` and `ruff format --check` with no services attached, so it answers fast. `publish-images.yml` builds the three container images and pushes them to GHCR on merge to `main`; it runs its own unit-test job rather than chaining behind the eval gate, so that publishing an image is not hostage to a model-quality gate that may be red for documented reasons ([`evals/HISTORY.md`](../evals/HISTORY.md)).
 
-The eval gate has two jobs. `offline-suites` runs on every PR with no models: unit tests, the router and masking coverage, and the in-process suites (injection, quote validation). `live-pipeline-suites` runs the full set (`EVAL_FULL_RUN=1`) with vLLM and Jev, and only where a self-hosted GPU runner exists (`vars.HAS_GPU_RUNNER`); until one does, full runs happen by hand and are recorded in `evals/HISTORY.md`.
+The eval gate has two jobs. `offline-suites` runs on every PR with no models: unit tests, the router and masking coverage, and the in-process suites (injection, quote validation, agent traces). `live-pipeline-suites` runs the full set (`EVAL_FULL_RUN=1`) with vLLM and Jev, and only where a self-hosted GPU runner exists (`vars.HAS_GPU_RUNNER`); until one does, full runs happen by hand and are recorded in `evals/HISTORY.md`.
 
 Note that the ruff binary is pinned in the workflows and the rule selection is pinned in `pyproject.toml`. Ruff's implicit default is not stable across releases — this repo is clean under the historical default but ruff 0.16 reports 104 findings on unchanged code. Bump the two pins together.
