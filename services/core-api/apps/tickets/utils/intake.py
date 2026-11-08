@@ -17,6 +17,7 @@ from apps.tickets.models import PiiQuarantine, Ticket, TicketSource
 from apps.tickets.request_schema import TicketIn
 from apps.tickets.utils.crypto import build_quarantine_entries
 from apps.tickets.utils.masking import mask
+from apps.tickets.utils.patterns import PIILevel
 
 if TYPE_CHECKING:
     from apps.agent.models import AgentTurn
@@ -31,12 +32,12 @@ class MaskedTicket:
     reporter: User
     subject_masked: str
     body_masked: str
-    pii_level: str
+    pii_level: PIILevel
     source: TicketSource
     conversation: Conversation | None = None
     reopened_from: Ticket | None = None
     agent_turn: AgentTurn | None = None
-    agent_handoff_reason: str | None = None
+    agent_handoff_reason: AgentHandoffReason | None = None
 
 
 class TicketIntake:
@@ -68,7 +69,8 @@ class TicketIntake:
             from apps.agent.models import AgentTurn
 
             conversation_map = AgentTurn.objects.pii_map_of(agent_turn.conversation_id)
-            inherited = {ph: ref for ph, ref in conversation_map.items() if ph not in own}
+            known = conversation_map | agent_turn.pii_map
+            inherited = {ph: ref for ph, ref in known.items() if ph not in own}
             text = f"{result.subject_masked}\n{result.body_masked}"
             return own | PiiQuarantine.objects.copy_to(ticket, inherited, text)
 
@@ -77,7 +79,7 @@ class TicketIntake:
                 reporter=reporter,
                 subject_masked=result.subject_masked,
                 body_masked=result.body_masked,
-                pii_level=result.pii_level.value,
+                pii_level=result.pii_level,
                 source=source,
                 conversation=conversation,
                 reopened_from=reopened_from,
@@ -103,21 +105,19 @@ class TicketIntake:
         from apps.agent.models import AgentTurn
         from apps.chat.utils.turns import subject_of
 
-        conversation_map = AgentTurn.objects.pii_map_of(turn.conversation_id)
+        known = AgentTurn.objects.pii_map_of(turn.conversation_id) | turn.pii_map
         return self._open(
             MaskedTicket(
                 reporter=turn.conversation.user,
                 subject_masked=subject_of(turn.message_masked),
                 body_masked=turn.message_masked,
-                pii_level=turn.pii_level,
+                pii_level=PIILevel(turn.pii_level),
                 source=TicketSource.CHAT,
                 conversation=conversation,
                 agent_turn=turn,
                 agent_handoff_reason=reason,
             ),
-            lambda ticket: PiiQuarantine.objects.copy_to(
-                ticket, conversation_map, turn.message_masked
-            ),
+            lambda ticket: PiiQuarantine.objects.copy_to(ticket, known, turn.message_masked),
             trace_id=None,
             audit=audit,
         )
@@ -148,7 +148,7 @@ class TicketIntake:
                 requester_department_id=masked.reporter.department_id,
                 subject_masked=masked.subject_masked,
                 body_masked=masked.body_masked,
-                pii_level=masked.pii_level,
+                pii_level=masked.pii_level.value,
                 source=masked.source.value,
                 conversation=masked.conversation,
                 reopened_from=masked.reopened_from,

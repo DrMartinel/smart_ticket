@@ -641,6 +641,13 @@ each file is clean.
 - **The regex tier misses a VN phone written with spaces** (`0912 345 678`,
   the spec's own example); only NER catches it. Seen while testing PR 6.
 
+- **A `critical` ticket still reaches triage's models.** ai-engine's
+  `mask_guard` short-circuits only `mask_failed`, so a ticket at `critical`
+  (any form or chat ticket, and now an agent hand-off at
+  `agent_pii_critical`) is drafted and reranked on its regex-only masking
+  before the router blocks it. Treat `critical` like `mask_failed` there, or
+  skip `analyze` in the pipeline. Predates F15; seen in the PR 6 review.
+
 - **A hand-off whose triage run degrades** (embedding, budget, ai-engine)
   records the degraded reason in its routing decision; the agent's reason is
   only on `tickets.agent_handoff_reason`. The console's review item and ticket

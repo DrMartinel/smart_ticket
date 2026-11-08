@@ -231,7 +231,7 @@ class AgentTurns:
         earlier = (
             AgentTurn.objects.filter(conversation_id=turn.conversation_id, seq__lt=turn.seq)
             .exclude(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
-            .exclude(pii_level=PIILevel.MASK_FAILED.value)
+            .exclude(pii_level__in=[level.value for level in _UNREAD])
             .order_by("-seq")[: settings.THRESHOLDS.agent.max_earlier_turns]
         )
         return [
@@ -352,9 +352,13 @@ class AgentTurns:
                 turn.handoff_ticket = ticket
                 turn.save(update_fields=["handoff_ticket"])
                 conversations.after_submit(ticket)
-            elif reason is ReasonCode.AGENT_PII_CRITICAL:
+            if reason is ReasonCode.AGENT_PII_CRITICAL:
                 security_alerts.raise_(
-                    AlertKind.PII_CRITICAL, subject_user=user, reason=reason.value, payload=origin
+                    AlertKind.PII_CRITICAL,
+                    ticket=ticket,
+                    subject_user=user,
+                    reason=reason.value,
+                    payload=origin,
                 )
             AuditLog.objects.record(
                 "agent_turn_handed_off",

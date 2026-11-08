@@ -180,6 +180,37 @@ def test_a_message_with_critical_pii_reaches_no_model_and_hands_off(
     assert "hunter2xyz" not in turn.message_masked
     ticket = _ticket(turn)
     assert (ticket.pii_level, ticket.agent_handoff_reason) == ("critical", "agent_pii_critical")
+    assert SecurityAlert.objects.get().kind == "pii_critical"
+
+
+@pytest.mark.django_db
+def test_a_critical_turn_is_never_an_earlier_turn(employee_user, api_as, live, engine, queued):
+    client = api_as(employee_user)
+    critical = _start(client, "I am Nguyen Van A, password: hunter2xyz")
+    later = _start(client, "My VPN drops", conversation=str(critical.conversation_id))
+
+    assert agent_turns.earlier_turns(later) == []
+
+
+@pytest.mark.django_db
+def test_a_hand_off_ticket_can_reveal_an_earlier_turn_s_placeholder(
+    employee_user, api_as, live, engine, queued
+):
+    client = api_as(employee_user)
+    first = _start(client, f"Call me on {PHONE}")
+    agent_turns.run(first.id)
+    (placeholder,) = first.pii_map
+    engine.reply = _handed_off("step_limit")
+    second = _start(
+        client, f"Still down, same number {placeholder}", conversation=str(first.conversation_id)
+    )
+
+    agent_turns.run(second.id)
+
+    ticket = _ticket(AgentTurn.objects.get(id=second.id))
+    copy = PiiQuarantine.objects.get(ref=ticket.pii_map[placeholder])
+    original = PiiQuarantine.objects.get(ref=first.pii_map[placeholder])
+    assert (copy.ticket_id, copy.ciphertext) == (ticket.id, original.ciphertext)
 
 
 @pytest.mark.django_db

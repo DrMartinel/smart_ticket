@@ -935,9 +935,10 @@ Each departure is the smaller choice; none lets an agent do more.
     If the model wrote a raw value that masks to a placeholder the turn
     already used, the ticket's own value wins that placeholder.
 33. A message masked at `critical` hands off at once as `agent_pii_critical`,
-    a reason §h.4 does not list, and goes to no model. A chat hand-off ticket
-    meets the router's `pii_critical` gate (blocked, security alert); the
-    console raises the `pii_critical` alert itself. The conversation goes on.
+    a reason §h.4 does not list, and goes to no agent model. The hand-off
+    raises a `pii_critical` security alert on both surfaces (on the chat
+    ticket, which the router's `pii_critical` gate then blocks). The
+    conversation goes on, but a critical turn is never an earlier turn.
 34. Placeholders number on across a conversation's turns, so `[EMAIL_1]`
     names one value in the whole conversation; a hand-off or asked-for ticket
     copies the conversation's entries its text names, not only the turn's.

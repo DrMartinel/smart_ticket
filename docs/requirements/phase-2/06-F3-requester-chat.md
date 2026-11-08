@@ -37,7 +37,7 @@ flowchart TB
     NC --> ASK[POST /api/chat/ask]
     PT --> ASK
   end
-  ASK --> SUB[Ticket.objects.submit — masked inline, REUSED]
+  ASK --> SUB[ticket_intake.submit — masked inline, REUSED]
   SUB --> PIPE[Pipeline → ai-engine<br/>TicketMasked.prior_turns NEW]
   PIPE --> ROUTER[router.py decides — unchanged]
   ROUTER -- auto_reply --> ANS[Answer shown + 'Đã giải quyết?' buttons]
