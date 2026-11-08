@@ -74,6 +74,9 @@ const send =
 
 export const api = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
+  /** A call with extra headers, e.g. `X-Agent-Action` to apply an assistant's action. */
+  call: <T>(method: string, path: string, body: unknown, headers: Record<string, string>) =>
+    request<T>(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined }),
   post: send("POST"),
   patch: send("PATCH"),
   put: send("PUT"),

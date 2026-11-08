@@ -167,3 +167,18 @@ def test_the_detail_loads_its_lists_in_a_fixed_number_of_queries(
 
     with django_assert_max_num_queries(12):
         assert client.get(f"/api/tickets/{ticket.public_id}/detail").status_code == 200
+
+
+def test_the_detail_says_which_agent_reason_handed_the_ticket_over(
+    api_as, employee_user, technician_user
+):
+    ticket = make_ticket(employee_user)
+    Ticket.objects.filter(pk=ticket.pk).update(agent_handoff_reason="agent_tool_failed")
+    plain = make_ticket(employee_user)
+    client = api_as(technician_user)
+
+    handed = client.get(f"/api/tickets/{ticket.public_id}/detail").json()
+    not_handed = client.get(f"/api/tickets/{plain.public_id}/detail").json()
+
+    assert handed["agent_handoff_reason"] == "agent_tool_failed"
+    assert not_handed["agent_handoff_reason"] is None
