@@ -54,8 +54,8 @@ simplifying:** they record what breaks without it. Code comments don't (see
    module that uses it (the ADR has the table). The ai-engine wire shapes exist
    in both services — core-api `infrastructure/dtos.py`; in ai-engine,
    `schemas.py` for the HTTP bodies and the graph's own `graph/ticket.py`,
-   `graph/nodes/infer/proposals.py` and `graph/nodes/emit_signals/signals.py`
-   for what they carry — so change **both in the same PR**; until the cross-service
+   `graph/nodes/infer/proposals.py`, `graph/nodes/emit_signals/signals.py`
+   and the agent's `graph/agent_state.py` for what they carry — so change **both in the same PR**; until the cross-service
    integration tests exist, nothing else catches drift. Never define routing or
    scoring types (`Branch`, `ReasonCode`, `TrustScore`, …) in ai-engine, and
    never put a type `router.py` needs in a Django `models.py`. After a core-api
@@ -161,7 +161,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Operational settings and their defaults (URLs, models, timeouts, top-k), for both services and compose | [.env.example](.env.example) |
 | The Docker stack | [docker-compose.yml](docker-compose.yml) (repo root; DB image and raw SQL in [infra/](infra/)) |
-| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [schemas.py](services/ai-engine/src/ai_engine/schemas.py) (HTTP bodies), [ticket.py](services/ai-engine/src/ai_engine/graph/ticket.py), [proposals.py](services/ai-engine/src/ai_engine/graph/nodes/infer/proposals.py), [signals.py](services/ai-engine/src/ai_engine/graph/nodes/emit_signals/signals.py) |
+| ai-engine wire schema (`AIRunRequest`/`AIRunResponse`, proposals, signals, embed/NER bodies) | core-api [dtos.py](services/core-api/infrastructure/dtos.py) · ai-engine [schemas.py](services/ai-engine/src/ai_engine/schemas.py) (HTTP bodies), [ticket.py](services/ai-engine/src/ai_engine/graph/ticket.py), [proposals.py](services/ai-engine/src/ai_engine/graph/nodes/infer/proposals.py), [signals.py](services/ai-engine/src/ai_engine/graph/nodes/emit_signals/signals.py), [agent_state.py](services/ai-engine/src/ai_engine/graph/agent_state.py) |
 | The AI pipeline (LangGraph) | [graph/triage.py](services/ai-engine/src/ai_engine/graph/triage.py) |
 | Prompts and Jev's questions (versioned `.md` / `.json`, eval-gated like code) | [core/prompts/](services/ai-engine/src/ai_engine/core/prompts/) |
 | Reviewer-facing explanation | [TrustSignalsPanel.tsx](services/admin-console/components/TrustSignalsPanel.tsx) |

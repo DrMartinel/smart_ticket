@@ -260,7 +260,7 @@ The topology doesn't change for a chat follow-up (ADR-0034): the ticket's
 `prior_turns` are read by `draft_answer` and `infer` only, through
 `TicketMasked.earlier_turns()`. Injection detection, retrieval's ticket
 vector, the cross-encoder, Jev and the signals see the new ticket alone
-(`tests/test_boundary.py::test_only_the_draft_and_the_proposal_read_earlier_turns`).
+(`tests/test_boundary.py::test_only_the_draft_the_proposal_and_the_agent_read_earlier_turns`).
 
 `main.py` only imports and invokes `triage_graph`.
 
