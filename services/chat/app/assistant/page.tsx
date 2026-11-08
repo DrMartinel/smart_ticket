@@ -7,7 +7,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Bot, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useAgentConversation } from "@/lib/agent";
+import { AGENT_MESSAGE_MAX, AGENT_MESSAGE_MIN, useAgentConversation } from "@/lib/agent";
 import { AGENT_USE } from "@/lib/session";
 import AppHeader from "@/components/AppHeader";
 import AgentTurnView from "@/components/AgentTurnView";
@@ -90,7 +90,13 @@ export default function AssistantPage() {
       {allowed && (
         <footer className="border-t border-border bg-card/60">
           <div className="mx-auto max-w-3xl px-4 py-3 md:px-6">
-            <Composer onSend={agent.send} disabled={agent.busy} autoFocus />
+            <Composer
+              onSend={agent.send}
+              disabled={agent.busy}
+              autoFocus
+              minChars={AGENT_MESSAGE_MIN}
+              maxChars={AGENT_MESSAGE_MAX}
+            />
             <p className="mt-2 text-xs text-muted-foreground">
               The assistant acts only as you, and only after you choose Send. Anything it can&apos;t finish goes to a person.
             </p>
