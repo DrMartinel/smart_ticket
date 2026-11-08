@@ -67,14 +67,29 @@ def test_a_live_handoff_waits_for_the_employee(employee_user, engine_proposes_a_
     assert not ticket.clarifications.exists()
 
 
-def test_an_agent_mask_failed_handoff_never_waits():
+@pytest.mark.django_db
+def test_an_agent_mask_failed_handoff_never_waits(
+    employee_user, engine_proposes_a_question, settings
+):
+    """§h.4: it goes to support without waiting for the employee."""
+    all_live(settings)
+    ticket = _handed_off(employee_user, "agent_mask_failed")
+    Ticket.objects.filter(id=ticket.id).update(pii_level=PIILevel.MASK_FAILED.value)
+
+    ticket_process(str(ticket.id))
+
+    ticket.refresh_from_db()
+    assert ticket.status != "awaiting_requester"
+    assert ticket.routing_decisions.get().reason_code == "pii_mask_failed"
+
+
+def test_an_agent_mask_failed_decision_never_waits_whatever_the_pii_level():
     decision = RoutingDecision(
         branch=Branch.HITL,
-        reason_code=ReasonCode.PII_MASK_FAILED,
-        queue=ReviewQueue.MASK_FAILED,
-        priority=1,
+        reason_code=ReasonCode.AGENT_MASK_FAILED,
+        queue=ReviewQueue.LOW_CONFIDENCE,
     )
-    assert waits_for_requester(decision, False, PIILevel.MASK_FAILED) is False
+    assert waits_for_requester(decision, False, PIILevel.ROUTINE) is False
 
 
 @pytest.mark.django_db

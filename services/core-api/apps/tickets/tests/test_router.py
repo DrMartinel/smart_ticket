@@ -4,11 +4,12 @@ this function is testable end to end without DB/LLM/network. These tests
 hold that promise: no django_db marker needed anywhere in this file.
 """
 
-from typing import Any
+from typing import Any, get_args
 
 from uuid import UUID
 
 import pytest
+from pydantic import ValidationError
 
 from apps.tickets.utils.router import (
     AGENT_HANDOFF_REASONS,
@@ -45,6 +46,7 @@ from config.settings.base import (
 )
 from apps.tickets.utils.patterns import PIILevel
 from infrastructure.dtos import (
+    AgentHandoffReason,
     AutoReplyProposal,
     ClassificationSignals,
     GenerationSignals,
@@ -324,9 +326,18 @@ def test_router_decision_unchanged_without_agent_handoff():
 
 
 def test_every_agent_handoff_reason_is_an_agent_reason_code():
-    assert {r.value for r in AGENT_HANDOFF_REASONS} == {
-        r.value for r in ReasonCode if r.value.startswith("agent_")
-    }
+    """The router's set, the signals' Literal and the agent codes agree; a turn whose token was
+    refused opens no ticket."""
+    agent_codes = {r.value for r in ReasonCode if r.value.startswith("agent_")}
+    assert {r.value for r in AGENT_HANDOFF_REASONS} == agent_codes - {"agent_token_refused"}
+    assert set(get_args(AgentHandoffReason)) == {r.value for r in AGENT_HANDOFF_REASONS}
+
+
+def test_an_unknown_handoff_reason_is_refused_when_the_signals_are_built():
+    with pytest.raises(ValidationError):
+        good_signals().policy.model_validate(
+            {**good_signals().policy.model_dump(), "agent_handoff_reason": "all_checks_passed"}
+        )
 
 
 def test_no_proposal_is_schema_invalid():

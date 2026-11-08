@@ -171,6 +171,22 @@ class GenerationSignals(BaseModel):
     cited_is_rerank_choice: bool = False
 
 
+# The reasons a ticket the agent handed off may carry: router.py's AGENT_HANDOFF_REASONS.
+AgentHandoffReason = Literal[
+    "agent_step_limit",
+    "agent_tool_limit",
+    "agent_budget_exceeded",
+    "agent_tool_failed",
+    "agent_tool_outcome_unknown",
+    "agent_injection_detected",
+    "agent_injection_in_result",
+    "agent_model_unavailable",
+    "agent_schema_invalid",
+    "agent_mask_failed",
+    "agent_engine_unavailable",
+]
+
+
 class PolicySignals(BaseModel):
     """Hard gates. Boolean logic — deliberately NOT part of the trust score."""
 
@@ -182,8 +198,8 @@ class PolicySignals(BaseModel):
     # Questions this ticket has already asked its requester, counted by
     # core-api (ADR-0023).
     clarifications_asked: int = Field(default=0, ge=0)
-    # The agent's reason for handing this ticket to a person (F15), a `ReasonCode` value.
-    agent_handoff_reason: str | None = None
+    # The agent's reason for handing this ticket to a person (F15).
+    agent_handoff_reason: AgentHandoffReason | None = None
 
 
 class ClassificationSignals(BaseModel):

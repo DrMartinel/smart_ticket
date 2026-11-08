@@ -106,7 +106,11 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
             kb_meta = _kb_meta_for(proposal_dict)
         # Golden tickets are single-turn: none has asked its requester anything.
         signals = trust_signals(
-            EngineSignals(**result["signals"]), pii_level, kb_meta, clarifications_asked=0
+            EngineSignals(**result["signals"]),
+            pii_level,
+            kb_meta,
+            clarifications_asked=0,
+            agent_handoff_reason=None,
         )
         decision = router.route(signals, proposal, kb_meta)
 
