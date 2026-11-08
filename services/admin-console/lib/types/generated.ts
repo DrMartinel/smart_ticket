@@ -59,6 +59,16 @@ export type RunbookRisk = "low" | "high";
 
 export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_low_confidence" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "embedding_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed" | "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_token_refused" | "agent_mask_failed" | "agent_engine_unavailable";
 
+export type AgentSurface = "chat" | "console";
+
+export type AgentTurnState = "queued" | "running" | "replied" | "awaiting_confirmation" | "handed_off";
+
+export type AgentConversationState = "active" | "ended";
+
+export type AgentActionKind = "confirm" | "draft";
+
+export type AgentActionState = "pending" | "applied" | "dismissed" | "expired" | "superseded";
+
 export interface TicketIn {
   subject: string;
   body: string;
@@ -239,6 +249,57 @@ export interface ChatTurnOut {
   resolved?: boolean;
   conversation_id?: string | null;
   incident?: IncidentBannerOut | null;
+}
+
+export interface AgentTurnIn {
+  message: string;
+  surface: AgentSurface;
+  conversation_id?: string | null;
+}
+
+export interface AgentReceiptOut {
+  tool: string;
+  outcome: "done" | "awaiting_confirmation" | "draft_waiting" | "refused" | "failed";
+  method: string;
+  path: string;
+  action_id: string | null;
+}
+
+export interface AgentTurnOut {
+  turn_id: string;
+  conversation_id: string;
+  seq: number;
+  message_masked: string;
+  state: AgentTurnState;
+  reply: string;
+  receipts: AgentReceiptOut[];
+  stop_reason: string | null;
+  handoff_ticket: string | null;
+  queued_at: string;
+  finished_at: string | null;
+}
+
+export interface AgentConversationOut {
+  conversation_id: string;
+  surface: AgentSurface;
+  state: AgentConversationState;
+  end_reason: string;
+  turns: AgentTurnOut[];
+}
+
+export interface AgentActionOut {
+  action_id: string;
+  kind: AgentActionKind;
+  state: AgentActionState;
+  tool: string;
+  method: string;
+  route: string;
+  path: string;
+  arguments: Record<string, unknown>;
+  target_kind: string;
+  target_ref: string;
+  created_at: string;
+  expires_at: string;
 }
 
 export interface PersonOut {

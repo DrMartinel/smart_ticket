@@ -155,7 +155,16 @@ def make_thresholds(**overrides) -> Thresholds:
             review_reminder_days=3,
             import_max_rows=2000,
         ),
-        agent=AgentThresholds(token_ttl_seconds=300, confirm_ttl_minutes=30, draft_ttl_hours=72),
+        agent=AgentThresholds(
+            max_steps=8,
+            max_tool_calls_per_turn=6,
+            max_model_tokens_per_turn=16000,
+            token_ttl_seconds=300,
+            confirm_ttl_minutes=30,
+            draft_ttl_hours=72,
+            max_earlier_turns=6,
+            conversation_idle_minutes=30,
+        ),
     )
     base.update(overrides)
     return Thresholds(**base)

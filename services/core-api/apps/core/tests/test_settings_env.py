@@ -141,7 +141,7 @@ def _compose_env(service: str) -> set[str]:
 _COMPOSE_ONLY = {"DJANGO_SETTINGS_MODULE", "REDIS_URL"}
 
 
-@pytest.mark.parametrize("service", ["core-api", "worker", "beat"])
+@pytest.mark.parametrize("service", ["core-api", "worker", "worker-agent", "beat"])
 def test_compose_gives_core_api_exactly_what_it_reads(service):
     """A setting missing from the container's allowlist fails its boot; an
     extra one is another service's value it has no business holding."""
