@@ -860,3 +860,19 @@ Each departure is the smaller choice; none lets an agent do more.
 9. Only the user the agent acted for may apply its confirm or draft, where
    BR-F15-07 says "a person". A draft can't be handed to someone the turn
    never acted for, such as a lead; widening this needs an owner's decision.
+
+**PR 4 (agent wire, graph).**
+10. `AgentTurnRequest` also carries `actor_id` and `actor_username`, so a
+    projection can show the acting person as `you`. Neither reaches the model,
+    and neither grants anything: every call is still checked by core-api
+    against the token.
+11. The tools live in one module per surface (`agent/tools/chat.py`,
+    `agent/tools/console.py`), not one per tool.
+12. `recursion_limit` is `2 × max_steps + 5`, not `+ 3`: the hand-off and the
+    builder's `terminal` node count as steps too.
+13. The tool-call cap is checked when the model names a tool, so the call
+    that would exceed it is never made.
+14. A confirm route's 202 ends the turn. UC-F15-05's two cards in one turn
+    don't happen: the second change is proposed in the next turn.
+15. Untrusted text reaches the model as `{"untrusted_text": …}`, not as a
+    tagged string, so the screen can find every such field in a result.
