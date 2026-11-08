@@ -532,3 +532,39 @@ To look at it:
 uv run --package ai-engine python -c \
   "from ai_engine.graph.build import triage_graph; print(triage_graph.get_graph().draw_mermaid())"
 ```
+
+## 11. The agent graph — `graph/agent.py` (F15)
+
+The second graph, built with `Cycles.BOUNDED` (ADR-0046, spec F15 §h.6). Its
+state is `AgentState` (`graph/agent_state.py`); its nodes are in
+`graph/nodes/agent/`; the tools it calls are in `agent/tools/`, one module
+per surface.
+
+```
+screen_message ─INJECTION_DETECTED→ hand_off
+screen_message ─CLEAR→ choose_action
+choose_action ─CALL_TOOL→ call_tool ─RESULT | DRAFTED→ choose_action
+choose_action ─REPLY→ finish
+choose_action ─LIMIT_REACHED | MODEL_FAILED | SCHEMA_INVALID→ hand_off
+call_tool ─AWAITING_CONFIRMATION→ finish
+call_tool ─FAILED | OUTCOME_UNKNOWN→ hand_off
+finish, hand_off → terminal
+```
+
+- `choose_action` checks the step cap and the token budget before it calls
+  the model, and the tool-call cap once the model names a tool; each sets a
+  `stop_reason` and leaves through `LIMIT_REACHED`, the outcome that makes the
+  loop bounded.
+- `call_tool` makes one HTTP call to core-api as the person, with the turn's
+  agent token, and never retries it. A write whose answer was lost is
+  `tool_outcome_unknown`.
+- Once a tool result's untrusted text trips the injection screen, only reading
+  tools are offered, and a write the model still names hands off as
+  `injection_in_result` with no call made.
+- `stop_reason` is an `AgentStopReason`. core-api maps it to a `ReasonCode`;
+  ai-engine defines no routing type.
+- LangGraph's `recursion_limit` (`recursion_limit()` in `graph/agent.py`) is a
+  backstop above `max_steps`, never the cap a turn reaches.
+
+`tests/test_agent_graph.py::test_agent_graph_topology` pins the edges, and
+the hand-off tests beside it pin which outcome takes each one.
