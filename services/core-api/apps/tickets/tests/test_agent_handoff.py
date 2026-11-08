@@ -74,6 +74,20 @@ def test_an_agent_mask_failed_handoff_never_waits(
     """§h.4: it goes to support without waiting for the employee."""
     all_live(settings)
     ticket = _handed_off(employee_user, "agent_mask_failed")
+
+    ticket_process(str(ticket.id))
+
+    ticket.refresh_from_db()
+    assert ticket.status != "awaiting_requester"
+    assert ticket.routing_decisions.get().reason_code == "agent_mask_failed"
+
+
+@pytest.mark.django_db
+def test_a_mask_failed_ticket_wins_over_its_agent_handoff_reason(
+    employee_user, engine_proposes_a_question, settings
+):
+    all_live(settings)
+    ticket = _handed_off(employee_user, "agent_mask_failed")
     Ticket.objects.filter(id=ticket.id).update(pii_level=PIILevel.MASK_FAILED.value)
 
     ticket_process(str(ticket.id))

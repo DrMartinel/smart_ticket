@@ -132,7 +132,7 @@ export interface PolicySignals {
   injection_detected: boolean;
   mass_incident: boolean;
   clarifications_asked?: number;
-  agent_handoff_reason?: string | null;
+  agent_handoff_reason?: "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_mask_failed" | "agent_engine_unavailable" | null;
 }
 
 export interface ClassificationSignals {
