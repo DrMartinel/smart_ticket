@@ -171,7 +171,7 @@ function ClarifyCard({
   );
 }
 
-function Question({
+export function Question({
   text,
   masked = false,
   at,
@@ -197,7 +197,7 @@ function Question({
   );
 }
 
-function Reply({ children }: { children: React.ReactNode }) {
+export function Reply({ children }: { children: React.ReactNode }) {
   return (
     <article className="flex flex-col gap-1.5">
       <Byline who="IT Help" />
@@ -224,7 +224,7 @@ function formatTime(iso: string): string {
     : date.toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-function Working({ label, slow = false }: { label: string; slow?: boolean }) {
+export function Working({ label, slow = false }: { label: string; slow?: boolean }) {
   return (
     <div role="status" className="flex flex-col gap-2">
       <p className="text-muted-foreground">{label}…</p>

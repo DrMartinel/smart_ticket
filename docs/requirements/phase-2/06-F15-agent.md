@@ -942,3 +942,15 @@ Each departure is the smaller choice; none lets an agent do more.
 34. Placeholders number on across a conversation's turns, so `[EMAIL_1]`
     names one value in the whole conversation; a hand-off or asked-for ticket
     copies the conversation's entries its text names, not only the turn's.
+
+**PR 7 (chat UI).**
+35. The assistant is its own chat page, `/assistant`, with a header tab for
+    anyone holding `agent:use`. The F3 Ask page is unchanged.
+36. An assistant conversation lives on the page: a reload starts a new one.
+    Earlier ones stay readable through `GET /api/agent/conversations/{id}`.
+37. A confirm card shows the text the call would send (a reply's body, a
+    reopen's reason). Send resends the stored method, path and `payload`
+    with `X-Agent-Action`; Cancel dismisses it.
+38. A hand-off shows its ticket. While the ticket's decision waits for the
+    employee, the card offers the chat's own "Open a ticket" (OQ-F15-04 (a));
+    after that it shows the ticket's id.
