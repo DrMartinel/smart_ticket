@@ -641,6 +641,12 @@ each file is clean.
 - **The regex tier misses a VN phone written with spaces** (`0912 345 678`,
   the spec's own example); only NER catches it. Seen while testing PR 6.
 
+- **`POST /api/review/items/{id}/decide` does not refuse a resolved item.**
+  A second save (another tab, a lost response, a draft applied elsewhere)
+  writes a second `ReviewDecision` and `EvalCandidate` and hands off again.
+  Refuse a non-open item with a coded 409. Predates F15; seen in the PR 8
+  review, where the console's draft link can lead to it.
+
 - **A `critical` ticket still reaches triage's models.** ai-engine's
   `mask_guard` short-circuits only `mask_failed`, so a ticket at `critical`
   (any form or chat ticket, and now an agent hand-off at
@@ -648,16 +654,17 @@ each file is clean.
   before the router blocks it. Treat `critical` like `mask_failed` there, or
   skip `analyze` in the pipeline. Predates F15; seen in the PR 6 review.
 
-- **The chat's assistant page is English only** (FR-F15-021 asks for vi
-  and en, following `accounts_user.language`); the hand-off reply already
-  comes from core-api in the user's language, so a vi user sees both. The
-  rest of the chat outside the guides is English too. The chat's in-app
-  guides have no assistant guide yet.
+- **The chat's assistant page and the console's panel and draft banner are
+  English only** (FR-F15-021 asks for vi and en, following
+  `accounts_user.language`); the hand-off reply already comes from core-api
+  in the user's language, so a vi user sees both. The rest of both apps
+  outside the guides is English too. Neither app's in-app guides has an
+  assistant guide yet.
 
 - **A hand-off whose triage run degrades** (embedding, budget, ai-engine)
   records the degraded reason in its routing decision; the agent's reason is
-  only on `tickets.agent_handoff_reason`. The console's review item and ticket
-  pages (PR 8) need to show that column.
+  only on `tickets.agent_handoff_reason`, which the console's ticket page
+  now shows.
 
 ### Done when
 

@@ -176,6 +176,8 @@ class StaffTicketDetail(StaffTicketRow):
     ai: AiSummaryOut | None
     reviews: list[OpenReviewOut]
     clarifications: list[ClarificationOut]
+    # The agent's reason when an agent turn handed this ticket to a person (F15).
+    agent_handoff_reason: str | None = None
 
     @staticmethod
     def resolve_reporter_person(ticket: Ticket) -> PersonOut:

@@ -16,7 +16,9 @@ import StatusChip from "@/components/StatusChip";
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
 import RunbookPanel from "@/components/RunbookPanel";
 import TrustSignalsPanel, { type TrustSignalsPanelProps } from "@/components/TrustSignalsPanel";
-import type { StaffTicketDetail } from "@/lib/types/generated";
+import AgentDrafts from "@/components/AgentDrafts";
+import { agentApi } from "@/lib/agent";
+import type { AgentActionOut, StaffTicketDetail } from "@/lib/types/generated";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -65,6 +67,8 @@ interface ReviewItemDetail {
 }
 
 const TRIAGE = new Set(["new", "awaiting_requester"]);
+// Refusals after which a decision draft can no longer be applied.
+const DRAFT_GONE = new Set(["agent_action_expired", "agent_action_not_pending"]);
 
 export default function TicketPage() {
   const user = useRequireAuth();
@@ -79,12 +83,32 @@ export default function TicketPage() {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   const [priorityOpen, setPriorityOpen] = useState(false);
+  const [drafts, setDrafts] = useState<AgentActionOut[]>([]);
+  const [draftsFailed, setDraftsFailed] = useState(false);
+  // The decision draft open in the review form, and the one its answers apply (while pending).
+  const [formDraft, setFormDraft] = useState<AgentActionOut | null>(null);
+  const [usingDraft, setUsingDraft] = useState<AgentActionOut | null>(null);
+  const usesAgent = can(user, P.agentUse);
 
   const load = useCallback(async () => {
     try {
       const d = await api.get<Detail>(`/api/tickets/${id}/detail`);
       setDetail(d);
       setReviewItem(d.review ? await api.get<ReviewItemDetail>(`/api/review/items/${d.review.id}`) : null);
+      if (usesAgent) {
+        const items = new Set(d.reviews.map((r) => r.id));
+        try {
+          const all = await agentApi.actions("state=pending&kind=draft");
+          const mine = all.filter((a) =>
+            a.target_kind === "ticket" ? a.target_ref === d.public_id : items.has(a.target_ref),
+          );
+          setDrafts(mine);
+          setDraftsFailed(false);
+          setUsingDraft((open) => (open && mine.some((a) => a.action_id === open.action_id) ? open : null));
+        } catch {
+          setDraftsFailed(true);
+        }
+      }
     } catch {
       setError("Couldn't load this ticket.");
       return;
@@ -103,7 +127,7 @@ export default function TicketPage() {
       if (err instanceof ApiError && err.status === 403) setLifecycleRefused(true);
       else setError("Couldn't load this ticket.");
     }
-  }, [id]);
+  }, [id, usesAgent]);
 
   useEffect(() => {
     if (user) void load();
@@ -212,6 +236,11 @@ export default function TicketPage() {
               <p className="text-sm text-muted-foreground">The triage pipeline hasn&apos;t finished with this ticket yet.</p>
             ) : (
               <div className="flex flex-col gap-4 text-sm">
+                {detail.agent_handoff_reason && (
+                  <p className="text-muted-foreground">
+                    The assistant handed this to a person: {reasonText(detail.agent_handoff_reason)}
+                  </p>
+                )}
                 {latest && (
                   <Decision label={latest.shadow_mode && latest.branch !== "hitl" ? "Routing decision · shadow mode" : "Routing decision"}>
                     <p className="text-[15px] font-medium">{BRANCH_LABEL[latest.branch] ?? humanize(latest.branch)}</p>
@@ -283,6 +312,24 @@ export default function TicketPage() {
             )}
           </Section>
 
+          {draftsFailed && <p className="text-sm text-muted-foreground">Couldn&apos;t load the assistant&apos;s drafts.</p>}
+          <AgentDrafts
+            drafts={drafts}
+            busy={busy}
+            version={detail.version}
+            canDecide={(d) => d.target_ref === detail.review?.id && detail.review?.state !== "pending"}
+            openReview={(d) => d.target_ref === detail.review?.id}
+            onUse={(d) => {
+              setFormDraft(d);
+              setUsingDraft(d);
+            }}
+            onApply={(d) => act(() => agentApi.apply(d), "Applied the assistant's draft.")}
+            onDismiss={(d) => {
+              if (usingDraft?.action_id === d.action_id) setUsingDraft(null);
+              void act(() => agentApi.dismiss(d.action_id), "Draft dismissed.");
+            }}
+          />
+
           {detail.review && (
             <Section
               title="Review"
@@ -307,11 +354,34 @@ export default function TicketPage() {
                 </div>
               ) : (
                 <ReviewForm
+                  key={formDraft?.action_id ?? "own"}
                   hasAutoReplyProposal={detail.ai?.proposed_intent === "auto_reply"}
                   aiCategory={detail.ai?.category ?? null}
                   submitting={busy}
+                  initial={(formDraft?.arguments.payload ?? {}) as Partial<ReviewDecisionPayload>}
                   onSubmit={(payload: ReviewDecisionPayload) =>
-                    act(() => api.post(`/api/review/items/${detail.review!.id}/decide`, payload), "Review saved.")
+                    act(async () => {
+                      const path = `/api/review/items/${detail.review!.id}/decide`;
+                      if (usingDraft && usingDraft.path === path) {
+                        try {
+                          await agentApi.apply(usingDraft, payload);
+                        } catch (err) {
+                          if (err instanceof ApiError && DRAFT_GONE.has(err.code ?? "")) {
+                            const gone = usingDraft.action_id;
+                            setUsingDraft(null);
+                            setDrafts((prev) => prev.filter((a) => a.action_id !== gone));
+                            throw new ApiError(
+                              err.status,
+                              "the draft is no longer pending; reload to check whether it was saved before saving again",
+                              err.code,
+                            );
+                          }
+                          throw err;
+                        }
+                      } else await api.post(path, payload);
+                      setUsingDraft(null);
+                      setFormDraft(null);
+                    }, "Review saved.")
                   }
                 />
               )}

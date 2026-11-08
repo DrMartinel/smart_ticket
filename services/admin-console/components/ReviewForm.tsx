@@ -48,18 +48,25 @@ export default function ReviewForm({
   aiCategory,
   submitting,
   onSubmit,
+  initial = {},
 }: {
   hasAutoReplyProposal: boolean;
   aiCategory: string | null;
   submitting: boolean;
   onSubmit: (payload: ReviewDecisionPayload) => void;
+  // A draft's answers to start from (F15); the person may change any of them.
+  initial?: Partial<ReviewDecisionPayload>;
 }) {
   const startedAt = useRef(Date.now());
-  const [kbVerdict, setKbVerdict] = useState<ReviewDecisionPayload["kb_verdict"]>(null);
-  const [categoryVerdict, setCategoryVerdict] = useState<ReviewDecisionPayload["category_verdict"]>(null);
-  const [correctedCategory, setCorrectedCategory] = useState("");
-  const [action, setAction] = useState<ReviewDecisionPayload["action_taken"]>("approve");
-  const [overrideReason, setOverrideReason] = useState("");
+  const [kbVerdict, setKbVerdict] = useState<ReviewDecisionPayload["kb_verdict"]>(initial.kb_verdict ?? null);
+  const [categoryVerdict, setCategoryVerdict] = useState<ReviewDecisionPayload["category_verdict"]>(
+    initial.category_verdict ?? null,
+  );
+  const [correctedCategory, setCorrectedCategory] = useState(initial.corrected_category ?? "");
+  const [action, setAction] = useState<ReviewDecisionPayload["action_taken"]>(
+    ACTIONS.some((a) => a.value === initial.action_taken) ? initial.action_taken! : "approve",
+  );
+  const [overrideReason, setOverrideReason] = useState(initial.override_reason ?? "");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

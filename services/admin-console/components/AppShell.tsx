@@ -32,6 +32,7 @@ import { adminGroups, areaOf, isActive } from "@/lib/areas";
 import { P, can } from "@/lib/permissions";
 import { VIEWS, useViewCounts } from "@/lib/views";
 import { cn } from "@/lib/utils";
+import AgentPanel from "./AgentPanel";
 import NotificationBell from "./NotificationBell";
 
 const VIEW_ICON: Record<string, LucideIcon> = {
@@ -111,6 +112,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       <main id="main" tabIndex={-1} className="min-w-0 flex-1 px-4 py-5 outline-none sm:px-6 sm:py-6 lg:px-8 lg:py-7">
         {children}
       </main>
+      {area !== "admin" && can(user, P.agentUse) && can(user, P.ticketsRead) && <AgentPanel />}
     </div>
   );
 }
