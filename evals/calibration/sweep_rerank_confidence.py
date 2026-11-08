@@ -149,7 +149,11 @@ def decide(router: Router, row: dict):
     )
     proposal = LLMProposalEnvelope(root=row["proposal"]) if row["proposal"] else None
     signals = trust_signals(
-        EngineSignals(**row["signals"]), PIILevel(row["pii_level"]), meta, clarifications_asked=0
+        EngineSignals(**row["signals"]),
+        PIILevel(row["pii_level"]),
+        meta,
+        clarifications_asked=0,
+        agent_handoff_reason=None,
     )
     return router.route(signals, proposal, meta)
 

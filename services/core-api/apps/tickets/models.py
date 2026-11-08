@@ -533,7 +533,9 @@ class Ticket(BaseModel):
         constraints = [
             models.CheckConstraint(
                 condition=models.Q(agent_handoff_reason__isnull=True)
-                | models.Q(agent_handoff_reason__in=sorted(AGENT_HANDOFF_REASONS)),
+                | models.Q(
+                    agent_handoff_reason__in=[r.value for r in sorted(AGENT_HANDOFF_REASONS)]
+                ),
                 name="tickets_agent_handoff_reason_known",
             )
         ]

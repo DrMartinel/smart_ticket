@@ -637,6 +637,11 @@ each file is clean.
   of several `ask_helpdesk` calls can outlive core-api's read timeout. PR 6
   needs a test of that check.
 
+- **A hand-off whose triage run degrades** (embedding, budget, ai-engine)
+  records the degraded reason in its routing decision; the agent's reason is
+  only on `tickets.agent_handoff_reason`. The console's review item and ticket
+  pages (PR 8) need to show that column.
+
 ### Done when
 
 - The trace suite passes in CI, the live agent eval is recorded in

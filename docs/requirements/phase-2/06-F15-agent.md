@@ -897,6 +897,8 @@ Each departure is the smaller choice; none lets an agent do more.
     degraded reason, which is decided before the router; the agent's reason
     stays on `tickets.agent_handoff_reason`.
 21. The gate's queue is `low_confidence`, priority 2, as for the other
-    degraded reasons. A DB check keeps `agent_handoff_reason` to the twelve
-    agent reasons.
+    degraded reasons. A DB check and `PolicySignals`' type keep
+    `agent_handoff_reason` to eleven agent reasons: `agent_token_refused`
+    opens no ticket. `agent_mask_failed` is never held for the employee,
+    whatever the ticket's PII level.
 22. `tickets.agent_turn` arrives with `agent_turns` in PR 6.

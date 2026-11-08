@@ -124,7 +124,6 @@ AGENT_HANDOFF_REASONS = frozenset(
         ReasonCode.AGENT_INJECTION_IN_RESULT,
         ReasonCode.AGENT_MODEL_UNAVAILABLE,
         ReasonCode.AGENT_SCHEMA_INVALID,
-        ReasonCode.AGENT_TOKEN_REFUSED,
         ReasonCode.AGENT_MASK_FAILED,
         ReasonCode.AGENT_ENGINE_UNAVAILABLE,
     }

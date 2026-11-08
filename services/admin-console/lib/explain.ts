@@ -1,6 +1,8 @@
 // What the triage pipeline's decisions mean, in a reviewer's words. The codes
 // are core-api's `Branch` and `ReasonCode` (apps/tickets/utils/router.py).
 
+import type { ReasonCode } from "@/lib/types/generated";
+
 export const BRANCH_LABEL: Record<string, string> = {
   auto_reply: "Answered automatically",
   auto_route: "Routed automatically",
@@ -10,7 +12,7 @@ export const BRANCH_LABEL: Record<string, string> = {
   block: "Blocked",
 };
 
-export const REASON_TEXT: Record<string, string> = {
+export const REASON_TEXT: Record<ReasonCode, string> = {
   injection_detected: "The message tries to give the assistant instructions (prompt injection), so it was not processed.",
   pii_critical: "It contains highly sensitive personal data, so only a person may handle it.",
   pii_mask_failed: "Personal data could not be removed reliably, so only a person may read it.",
@@ -67,5 +69,5 @@ export const QUEUE_LABEL: Record<string, string> = {
 };
 
 export function reasonText(code: string): string {
-  return REASON_TEXT[code] ?? code.replaceAll("_", " ");
+  return REASON_TEXT[code as ReasonCode] ?? code.replaceAll("_", " ");
 }
