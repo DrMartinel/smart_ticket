@@ -105,8 +105,9 @@ class InProcessCoreApi:
 class Stack:
     """core-api and ai-engine in one process: the agent's model, its tool client, the queues."""
 
-    def __init__(self, monkeypatch) -> None:
+    def __init__(self, monkeypatch, capture_on_commit) -> None:
         self.monkeypatch = monkeypatch
+        self.capture_on_commit = capture_on_commit
         self.queued_tickets: list[str] = []
         self.queued_turns: list[str] = []
         self.model: ScriptedModel | None = None
@@ -165,11 +166,12 @@ class Stack:
 
     def send(self, user: User, message: str, surface: str = "chat") -> AgentTurn:
         """The person's message to the agent, through core-api's own route, then the turn's run."""
-        response = api_client_for(user).post(
-            "/api/agent/turns",
-            {"message": message, "surface": surface},
-            content_type="application/json",
-        )
+        with self.capture_on_commit(execute=True):
+            response = api_client_for(user).post(
+                "/api/agent/turns",
+                {"message": message, "surface": surface},
+                content_type="application/json",
+            )
         assert response.status_code == 202, response.content
         turn_id = response.json()["turn_id"]
         assert self.queued_turns == [turn_id]
@@ -205,9 +207,9 @@ def reply(text: str) -> dict[str, Any]:
 
 
 @pytest.fixture
-def stack(settings, monkeypatch, db) -> Iterator[Stack]:
+def stack(settings, monkeypatch, db, django_capture_on_commit_callbacks) -> Iterator[Stack]:
     all_live(settings)
-    built = Stack(monkeypatch)
+    built = Stack(monkeypatch, django_capture_on_commit_callbacks)
     built.install()
     yield built
 
