@@ -195,7 +195,7 @@ called, and so through `lifecycle` exactly as a click would.
 | BR-F15-12 | What changed is shown from receipts built by code from HTTP results: `done`, `awaiting_confirmation`, `draft_waiting`, `refused`, `failed`. The model's reply never stands in for a receipt | ADR-0046 §11 | `finish` / `hand_off` nodes; chat and console UI |
 | BR-F15-13 | The turn stops and hands off on: step limit, tool-call limit, model token budget, tool 5xx / unreachable / unparseable, a write's timeout after sending, model failure, invalid model reply, injection on the message, a write after an injection hit in a result, a 401 on the token, masking failure, ai-engine unreachable. Each has its own `ReasonCode` (§h.4). No call is retried; no write is ever retried | CLAUDE.md rule 3; ADR-0007 | Agent graph; `agent.run_turn` |
 | BR-F15-14 | An employee's hand-off submits the turn's masked message as a chat ticket with `agent_handoff_reason`. The router's hard gate sends it to HITL with that reason; whether it waits for the employee follows `waits_for_requester` (OQ-F15-04) | Degrade toward humans; the router decides | `Router.route()`; pipeline |
-| BR-F15-15 | Every `audit_log` row written during a request made with an agent token carries `via=agent`, `agent_conversation_id`, `agent_turn_id`, `agent_tool`; an applied confirm also carries `agent_action_id` and `confirmed_by`. A refused agent call writes `agent_call_refused` or `agent_draft_created` | BR-X-03; ADR-0046 §14 | `AuditLog.objects.record` reading the request's agent context |
+| BR-F15-15 | Every `audit_log` row written during a request made with an agent token carries `via=agent`, `agent_conversation_id`, `agent_turn_id`, `agent_tool`; an applied confirm also carries `agent_action_id` and `confirmed_by`. A refused agent call writes `agent_call_refused` or `agent_draft_created`; a stored confirm writes `agent_action_proposed`; applying any action writes `agent_action_applied` | BR-X-03; ADR-0046 §14 | `AuditLog.objects.record` reading the request's agent context |
 | BR-F15-16 | ai-engine gets the surface's fixed tool set (`chat` or `console`), never the user's permissions | ADR-0045 §9 | `AgentTurnRequest` has no permission field; `test_agent_request_carries_no_access` |
 | BR-F15-17 | The agent remembers at most `agent.max_earlier_turns` earlier turns of the same agent conversation: the masked message and the code-built reply with its receipts. Earlier tool results are not replayed | ADR-0034's shape; tool results go stale | `AgentConversations.earlier_turns()` |
 | BR-F15-18 | A hand-off or chat ticket created by the agent copies the turn's quarantine entries for every placeholder its text contains, so a reveal still works | Spec §5; F5 | `Ticket.objects.submit` with `agent_turn` |
@@ -508,7 +508,7 @@ projection replaces person names and usernames (BR-F15-09).
 | `take_ticket` | `POST /api/tickets/{public_id}/take` | `urn:smart-ticket:perm:tickets:take` | confirm | `{public_id, expected_version: int}` | 202: `action_id`, `state` |
 | `add_comment` | `POST /api/tickets/{public_id}/comments` | `urn:smart-ticket:perm:tickets:comment` | confirm | `{public_id, body, visibility: public\|internal, move_to_waiting: bool = false, expected_version?: int}` | 202: `action_id`, `state` |
 | `list_review_queue` | `GET /api/review/queue?queue=&state=` | `urn:smart-ticket:perm:review:queue:work` | read | `{queue?: ReviewQueue, state = "pending"}` | per item: `id`, `ticket_public_id`, `subject_masked`, `body_masked` (both untrusted), `queue`, `priority`, `state`, `claimed_by` (`you` / `someone else` / `none`), `created_at`, `proposal` (code-rendered one line from `proposed_draft`, e.g. "runbook: add_to_group(vpn-admins)"), last `reason_code`. Trust score and contributions dropped |
-| `get_review_item` | `GET /api/review/items/{item_id}` | `review:queue:work` | read | `{item_id: UUID}` | as a queue row + `routing_decisions[]` (`branch`, `reason_code`), `comment.body_masked` (untrusted) |
+| `get_review_item` | `GET /api/review/items/{item_id}` | `review:queue:work` | read | `{item_id: UUID}` | as a queue row + `routing_decisions[]` (`branch`, `reason_code`), `comment` (always `[withheld]`: its masking failed) |
 | `claim_review_item` *(added)* | `POST /api/review/items/{item_id}/claim` | `review:queue:work` | confirm | `{item_id}` | 202. Reason: it changes who works an item others can see; easy to undo by a lead, not by the agent |
 | `draft_review_decision` | `POST /api/review/items/{item_id}/decide` | `review:queue:work` (+ `runbooks:execute` checked in the handler for `runbook_approval`) | human_only | `DecisionIn`: `{item_id, action_taken, kb_verdict?, category_verdict?, corrected_category?, corrected_kb_id?, override_reason?}` (`time_spent_sec` set to 0 by the tool) | 403: `draft_id` |
 | `draft_comment_decision` *(added)* | `POST /api/review/items/{item_id}/comment-decision` | `review:queue:work` | human_only | `{item_id, choice: show\|discard}` | 403: `draft_id`. Reason: named `human_only` in ADR-0046 §6; the agent can prepare it |
@@ -819,3 +819,70 @@ All eleven are **decided: the recommendation**, by the owner on 2026-11-07.
 | BR-X-07 | An agent failure never changes a routing decision and never blocks the pipeline; it hands off with its own code |
 | BR-X-08 | Refusals (`agent_not_allowed`, `human_only_action`, `agent_action_mismatch`, …) use the coded error shape |
 | BR-X-09 | Action expiry and conversation idleness are UTC |
+
+## Where the code differs (build, 2026-11-07)
+
+Each departure is the smaller choice; none lets an agent do more.
+
+**PR 1 (agent token).**
+1. The token's lifetime is capped at the end of the sign-in it was minted
+   from, as well as at `agent.token_ttl_seconds`.
+2. The check that the token's turn is running and its conversation active
+   (FR-F15-003) arrives with the turn table in PR 6. Until then nothing but
+   tests mints a token.
+
+**PR 2 (tiers, actions).**
+3. `agent_actions` holds `conversation_id` and `turn_id` as plain UUIDs; they
+   become foreign keys when `agent_conversations` and `agent_turns` exist (PR 6).
+4. What an action is about is `target_kind` (`review_item`, `ticket`,
+   `runbook_execution`) and `target_ref` (its id or public id), read from the
+   route's path parameter, instead of one foreign key per kind.
+5. An action stores its validated `arguments` as the agent sent them, not
+   masked again. They are written by the model from masked text, not typed
+   by a person (BR-X-06), and the route masks them when the action is applied.
+6. Applying an action claims it (`applied`) in a short transaction of its
+   own, then runs the route outside it, so the refusal and alert rows a route
+   writes before it raises are kept. A route that raises puts the action back
+   to `pending`; a failure after the route succeeded, writing the audit row
+   included, leaves it `applied`, so a done action never runs twice. A route
+   that succeeds is followed by one `agent_action_applied` audit row (a confirm's carries `via=agent` and
+   `confirmed_by`, a draft's `agent_draft_id` only), because some routes the
+   agent reaches, review `decide` and `claim` among them, write no audit row
+   of their own. That row is written after the route's own transaction, not
+   inside it.
+7. A failed apply leaves the action `pending` until it expires; `superseded`
+   is set by the sweep in PR 6, not by the apply. A worker that dies between
+   the claim and the route's end leaves the action `applied` with no
+   `agent_action_applied` row, whether or not the route ran; the PR 6 sweep
+   flags those for a person.
+8. An agent call names its tool in an `X-Agent-Tool` header, which every
+   stamped audit row and every action records.
+9. Only the user the agent acted for may apply its confirm or draft, where
+   BR-F15-07 says "a person". A draft can't be handed to someone the turn
+   never acted for, such as a lead; widening this needs an owner's decision.
+
+**PR 4 (agent wire, graph).**
+10. `AgentTurnRequest` also carries `actor_id` and `actor_username`, so a
+    projection can show the acting person as `you`. Neither reaches the model,
+    and neither grants anything: every call is still checked by core-api
+    against the token.
+11. The tools live in one module per surface (`agent/tools/chat.py`,
+    `agent/tools/console.py`), not one per tool.
+12. `recursion_limit` is `2 × max_steps + 5`, not `+ 3`: the hand-off and the
+    builder's `terminal` node count as steps too.
+13. The tool-call cap is checked when the model names a tool, so the call
+    that would exceed it is never made.
+14. A confirm route's 202 ends the turn. UC-F15-05's two cards in one turn
+    don't happen: the second change is proposed in the next turn.
+15. Untrusted text reaches the model as `{"untrusted_text": …}`, not as a
+    tagged string, so the screen can find every such field in a result.
+16. A 5xx answer to a write is `tool_outcome_unknown`, not `tool_failed`
+    (§h.4): core-api may have committed before it failed, so the write is
+    neither retried nor reported as not made.
+17. The review item and the requester's ticket rows now carry the ticket's
+    `pii_level`, so a `mask_failed` ticket's subject and body reach the model
+    as `[withheld]` (BR-F15-09). A review item's held comment is always
+    withheld.
+18. `ask_helpdesk` reports the question as asked once `POST /api/chat/ask`
+    succeeds, even if a later poll fails; the model sees the last state it
+    read (`thinking`).

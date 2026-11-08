@@ -1,6 +1,7 @@
 """
 The wire schema core-api speaks to ai-engine (spec §6, ADR-0012): request
-and response bodies of `/v1/analyze`, `/v1/embed` and `/v1/pii/detect`.
+and response bodies of `/v1/analyze`, `/v1/embed`, `/v1/pii/detect` and
+`/v1/agent/turn` (F15).
 `AIEngineClient` in `infrastructure/ai_engine.py` sends and parses these;
 the router, trust scorer and pipeline read them.
 
@@ -13,8 +14,9 @@ from __future__ import annotations
 
 from enum import StrEnum
 from typing import Annotated, Any, Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel
+from pydantic import BaseModel, ConfigDict, Field, RootModel, SecretStr, field_serializer
 
 from apps.tickets.utils.patterns import PIILevel
 
@@ -276,3 +278,84 @@ class PiiDetectRequest(BaseModel):
 
 class PiiDetectResponse(BaseModel):
     spans: list[str]
+
+
+# --- Wire schema of POST /v1/agent/turn (F15, ADR-0046) ---------------------
+#
+# ai-engine defines the same shapes in ai_engine/schemas.py and
+# graph/agent_state.py. `AgentStopReason` is ai-engine's vocabulary; core-api
+# maps each to a `ReasonCode` in router.py, never the other way round.
+
+
+class AgentLimits(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    max_steps: int = Field(ge=1)
+    max_tool_calls: int = Field(ge=0)
+    max_model_tokens: int = Field(ge=1)
+
+
+class AgentEarlierTurn(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    message_masked: str
+    reply: str
+
+
+class AgentStopReason(StrEnum):
+    STEP_LIMIT = "step_limit"
+    TOOL_LIMIT = "tool_limit"
+    BUDGET = "budget"
+    TOOL_FAILED = "tool_failed"
+    TOOL_OUTCOME_UNKNOWN = "tool_outcome_unknown"
+    INJECTION = "injection"
+    INJECTION_IN_RESULT = "injection_in_result"
+    MODEL_UNAVAILABLE = "model_unavailable"
+    SCHEMA_INVALID = "schema_invalid"
+    TOKEN_REFUSED = "token_refused"
+
+
+class AgentStep(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    seq: int
+    tool: str
+    arguments: dict[str, Any]
+    method: str
+    path: str
+    status_code: int | None
+    outcome: Literal["ok", "refused", "confirmation_required", "drafted", "failed", "unknown"]
+    action_id: UUID | None = None
+    injection_flagged: bool = False
+
+
+class AgentTurnRequest(BaseModel):
+    """The surface's tools, never the person's access (BR-F15-16)."""
+
+    turn_id: UUID
+    surface: Literal["chat", "console"]
+    language: Literal["vi", "en"]
+    message_masked: str
+    earlier_turns: list[AgentEarlierTurn] = Field(default_factory=list)
+    limits: AgentLimits
+    chat_conversation_id: UUID | None = None
+    actor_id: UUID | None = None
+    actor_username: str = ""
+    token: SecretStr
+
+    @field_serializer("token", when_used="json")
+    def reveal_token(self, token: SecretStr) -> str:
+        """The token itself, in the body sent to ai-engine."""
+        return token.get_secret_value()
+
+
+class AgentTurnResponse(BaseModel):
+    outcome: Literal["replied", "awaiting_confirmation", "handed_off"]
+    reply: str = ""
+    stop_reason: AgentStopReason | None = None
+    steps: list[AgentStep] = Field(default_factory=list)
+    model: str
+    prompt_version: str
+    tokens_in: int = 0
+    tokens_out: int = 0
+    cost_usd: float = 0.0

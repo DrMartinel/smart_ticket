@@ -257,6 +257,14 @@ services:
       RERANK_PROMPT_VERSION: ${RERANK_PROMPT_VERSION:?see .env.example}
       CATEGORY_QUESTION_VERSION: ${CATEGORY_QUESTION_VERSION:?see .env.example}
       CLARIFY_OPTION_QUESTION_VERSION: ${CLARIFY_OPTION_QUESTION_VERSION:?see .env.example}
+      # The agent's tools call core-api inside the network (F15).
+      CORE_API_URL: http://core-api:8000
+      AGENT_CLIENT_PROVIDER: ${AGENT_CLIENT_PROVIDER:?see .env.example}
+      AGENT_PROMPT_VERSION: ${AGENT_PROMPT_VERSION:?see .env.example}
+      AGENT_TOOL_CONNECT_TIMEOUT_SEC: ${AGENT_TOOL_CONNECT_TIMEOUT_SEC:?see .env.example}
+      AGENT_TOOL_READ_TIMEOUT_SEC: ${AGENT_TOOL_READ_TIMEOUT_SEC:?see .env.example}
+      AGENT_ASK_POLL_INTERVAL_SEC: ${AGENT_ASK_POLL_INTERVAL_SEC:?see .env.example}
+      AGENT_ASK_WAIT_SEC: ${AGENT_ASK_WAIT_SEC:?see .env.example}
     ports:
       - "8001:8001"
     depends_on:

@@ -25,6 +25,7 @@ _FORBIDDEN = {
     "core": ("ai_engine.graph", "ai_engine.schemas", "ai_engine.main"),
     "schemas.py": ("ai_engine.main", "ai_engine.core"),
     "graph": ("ai_engine.main", "ai_engine.schemas"),
+    "agent": ("ai_engine.main", "ai_engine.schemas"),
 }
 
 
@@ -63,11 +64,20 @@ _PRIOR_TURN_READERS = {
 }
 
 
-def test_only_the_draft_and_the_proposal_read_earlier_turns():
-    """Earlier turns are context for the draft and the proposal, never a signal or a score."""
+# The agent's own memory of its conversation (BR-F15-17): the wire, its
+# state, and the one prompt that reads it.
+_AGENT_MEMORY_READERS = {
+    "schemas.py",
+    "graph/agent_state.py",
+    "graph/nodes/agent/choose.py",
+}
+
+
+def test_only_the_draft_the_proposal_and_the_agent_read_earlier_turns():
+    """Only the draft, the proposal and the agent's choose_action read earlier turns."""
     readers = {
         str(path.relative_to(_SRC))
         for path in _SRC.rglob("*.py")
         if "prior_turns" in path.read_text() or "earlier_turns" in path.read_text()
     }
-    assert readers == _PRIOR_TURN_READERS
+    assert readers == _PRIOR_TURN_READERS | _AGENT_MEMORY_READERS

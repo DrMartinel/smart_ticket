@@ -6,7 +6,7 @@ from django.db.models import Q
 from ninja import Query, Router, Status
 
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require
+from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.incidents.request_schema import (
     BroadcastIn,
     ConfirmIn,
@@ -40,7 +40,7 @@ def _detail(public_id: str) -> IncidentDetailOut:
 
 
 @router.get("", auth=SessionAuth(), response=list[IncidentRowOut])
-@require(Permission.INCIDENTS_READ)
+@require(Permission.INCIDENTS_READ, agent=AgentTier.NONE)
 def list_incidents(request: AuthedRequest, filters: Query[IncidentFilter]) -> list[IncidentRowOut]:
     rows = Incident.objects.order_by("-created_at")
     if filters.status:
@@ -51,13 +51,13 @@ def list_incidents(request: AuthedRequest, filters: Query[IncidentFilter]) -> li
 
 
 @router.get("/{public_id}", auth=SessionAuth(), response=IncidentDetailOut)
-@require(Permission.INCIDENTS_READ)
+@require(Permission.INCIDENTS_READ, agent=AgentTier.NONE)
 def get_incident(request: AuthedRequest, public_id: str) -> IncidentDetailOut:
     return _detail(public_id)
 
 
 @router.post("", auth=SessionAuth(), response={201: IncidentDetailOut})
-@require(Permission.INCIDENTS_MANAGE)
+@require(Permission.INCIDENTS_MANAGE, agent=AgentTier.NONE)
 def declare(request: AuthedRequest, body: DeclareIn) -> Status[IncidentDetailOut]:
     incident = incidents.declare(
         request.auth.user,
@@ -71,49 +71,49 @@ def declare(request: AuthedRequest, body: DeclareIn) -> Status[IncidentDetailOut
 
 
 @router.post("/{public_id}/confirm", auth=SessionAuth(), response=IncidentDetailOut)
-@require(Permission.INCIDENTS_MANAGE)
+@require(Permission.INCIDENTS_MANAGE, agent=AgentTier.NONE)
 def confirm(request: AuthedRequest, public_id: str, body: ConfirmIn) -> IncidentDetailOut:
     incidents.confirm(public_id, request.auth.user, body.title, body.category, body.service)
     return _detail(public_id)
 
 
 @router.post("/{public_id}/dismiss", auth=SessionAuth(), response=IncidentDetailOut)
-@require(Permission.INCIDENTS_MANAGE)
+@require(Permission.INCIDENTS_MANAGE, agent=AgentTier.NONE)
 def dismiss(request: AuthedRequest, public_id: str, body: ReasonIn) -> IncidentDetailOut:
     incidents.dismiss(public_id, request.auth.user, body.reason)
     return _detail(public_id)
 
 
 @router.post("/{public_id}/broadcasts", auth=SessionAuth(), response={201: BroadcastOut})
-@require(Permission.INCIDENTS_MANAGE)
+@require(Permission.INCIDENTS_MANAGE, agent=AgentTier.NONE)
 def broadcast(request: AuthedRequest, public_id: str, body: BroadcastIn) -> Status[BroadcastOut]:
     sent = incidents.broadcast(public_id, request.auth.user, **body.model_dump())
     return Status(201, BroadcastOut.of(sent))
 
 
 @router.post("/{public_id}/resolve", auth=SessionAuth(), response=CloseResultOut)
-@require(Permission.INCIDENTS_MANAGE)
+@require(Permission.INCIDENTS_MANAGE, agent=AgentTier.NONE)
 def resolve(request: AuthedRequest, public_id: str, body: ResolveIn) -> CloseResultOut:
     result = incidents.resolve(public_id, request.auth.user, body.resolution_note, body.close_all)
     return CloseResultOut(closed=result.closed, failed=result.failed)
 
 
 @router.post("/{public_id}/reopen", auth=SessionAuth(), response=IncidentDetailOut)
-@require(Permission.INCIDENTS_MANAGE)
+@require(Permission.INCIDENTS_MANAGE, agent=AgentTier.NONE)
 def reopen(request: AuthedRequest, public_id: str, body: ReasonIn) -> IncidentDetailOut:
     incidents.reopen(public_id, request.auth.user, body.reason)
     return _detail(public_id)
 
 
 @router.post("/{public_id}/links", auth=SessionAuth(), response=IncidentDetailOut)
-@require(Permission.INCIDENTS_MANAGE)
+@require(Permission.INCIDENTS_MANAGE, agent=AgentTier.NONE)
 def add_links(request: AuthedRequest, public_id: str, body: LinksIn) -> IncidentDetailOut:
     incidents.add_links(public_id, request.auth.user, body.ticket_ids)
     return _detail(public_id)
 
 
 @router.delete("/{public_id}/links/{ticket}", auth=SessionAuth(), response={204: None})
-@require(Permission.INCIDENTS_UNLINK)
+@require(Permission.INCIDENTS_UNLINK, agent=AgentTier.NONE)
 def unlink(request: AuthedRequest, public_id: str, ticket: str, body: ReasonIn) -> Status[None]:
     incidents.unlink(public_id, ticket, request.auth.user, body.reason)
     return Status(204, None)

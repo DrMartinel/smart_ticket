@@ -75,6 +75,18 @@ class TestMyTickets:
         assert body["recent"][0]["status_label"] == "Đã giải quyết"
         assert body["recent"][0]["can_reopen_until"] is not None
 
+    def test_a_mask_failed_ticket_says_so_in_its_row_and_detail(self, desk, api_as):
+        """BR-F15-09: the agent withholds text by this field."""
+        lan = desk.people["lan"]
+        ticket = with_support(lan, pii_level="mask_failed")
+        client = api_as(lan)
+
+        [row] = client.get("/api/requester/tickets").json()["open"]
+        detail = client.get(f"/api/requester/tickets/{ticket.public_id}").json()
+
+        assert row["pii_level"] == "mask_failed"
+        assert detail["pii_level"] == "mask_failed"
+
     def test_a_ticket_completed_before_the_list_window_is_left_for_xem_them(
         self, desk, clock, api_as
     ):

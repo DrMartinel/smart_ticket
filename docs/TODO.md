@@ -622,3 +622,22 @@ each move; no sweep across apps in one change.
 No `.state` / `.kind` comparison of a row outside its own model in the files
 above, each named filter is a queryset method, and the checklist pass on
 each file is clean.
+
+## 23. Agent (F15) follow-ups
+
+**Priority:** High before the `agent_chat` or `agent_console` flag goes on · **Spec:** [06-F15-agent.md](requirements/phase-2/06-F15-agent.md) · ADR-0046
+
+- **No eval has run on `agent.v1`.** The scripted trace suite and the live
+  agent eval (OQ-F15-07), with an injection-in-result case per surface, before
+  production picks `AGENT_CLIENT_PROVIDER`.
+- **Rerun the injection suite** after the patterns moved to
+  `graph/nodes/injection_patterns.py` (expected 1.00, triage unchanged).
+- **A turn has no deadline of its own in ai-engine.** Until core-api's
+  "turn is running" token check (FR-F15-003, PR 6) refuses later calls, a turn
+  of several `ask_helpdesk` calls can outlive core-api's read timeout. PR 6
+  needs a test of that check.
+
+### Done when
+
+- The trace suite passes in CI, the live agent eval is recorded in
+  `evals/HISTORY.md`, and the injection suite still reads 1.00.

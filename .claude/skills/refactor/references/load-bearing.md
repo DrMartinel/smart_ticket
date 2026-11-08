@@ -284,8 +284,10 @@ guard and that comment is later trimmed, the entry is the record.
   context is an extra; a failure building it must never keep the ticket from
   a decision (ADR-0034, BR-X-07). *`test_a_failure_building_context_analyses_the_ticket_alone`.*
 - **Only `draft_answer`, `infer` and `graph/ticket.py` read `prior_turns` in
-  ai-engine.** Anywhere else it could become a signal or a score.
-  *ai-engine `test_only_the_draft_and_the_proposal_read_earlier_turns`.*
+  ai-engine, and only the agent's request, state and `choose_action` read
+  `earlier_turns` (BR-F15-17).** Anywhere else they could become a signal or a
+  score.
+  *ai-engine `test_only_the_draft_the_proposal_and_the_agent_read_earlier_turns`.*
 - **`hidden_for_review` and the comment's review item.** A comment whose NER
   failed carries only the regex tier's masking; staff must not read it until a
   person checks it, exactly as a `mask_failed` ticket. *`test_reply_mask_failed_hidden_and_queued`.*
@@ -460,6 +462,29 @@ guard and that comment is later trimmed, the entry is the record.
 - **`select_for_update(of=("self",))`** in `Grants.locked` and
   `People.release_tickets`: Postgres refuses a row lock across the nullable
   joins `select_related` adds.
+- **`runbooks.approval_of` refusing a decision whose `decided_via` isn't
+  `human`.** The `review_decision_decided_by_a_person` CHECK already forces
+  `human`, so the check looks dead. It is ADR-0046 §7's second check, so a
+  later write path that bypasses the constraint still can't run a runbook on
+  an agent's approval (ADR-0006).
+  *`test_a_runbook_refuses_an_approval_not_made_by_a_person`.*
+- **`require` returning or raising in its agent branch before it reads
+  `X-Agent-Action`, and `AgentActions.applying` filtering on `user=user`.**
+  Either change lets an agent apply its own confirm or draft, or one person
+  apply another's. *`test_an_agent_cannot_apply_an_action`,
+  `test_someone_elses_action_is_not_theirs_to_apply`.*
+- **`AgentActions.applying` claiming the action in its own short transaction,
+  not wrapping the handler in one.** Routes write refusal rows on purpose and
+  then raise (`access_denied`, `pii_reveal_refused`, security alerts). An
+  outer transaction would roll those rows back, and a failed draft could be
+  retried without the reveal rate limit counting it. Only the route's own
+  failure puts the action back to `pending`: the `agent_action_applied` write
+  sits outside that `try`, or a lost audit row would let a done action run
+  again.
+  *`test_a_refused_apply_keeps_its_access_denied_row`,
+  `test_a_rate_limited_reveal_through_a_draft_is_recorded_and_alerted`,
+  `test_an_applied_action_cannot_be_applied_again`,
+  `test_a_failed_applied_audit_row_does_not_reopen_a_done_action`.*
 
 ## ai-engine
 

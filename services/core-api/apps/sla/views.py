@@ -11,7 +11,7 @@ from ninja import Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
 from apps.accounts.utils.catalog import Permission
-from apps.accounts.permissions import AuthedRequest, SessionAuth, require
+from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.sla.models import Calendar, Clock, Holiday, Policy
 from apps.sla.request_schema import (
     CalendarIn,
@@ -33,19 +33,19 @@ router = Router(tags=["sla"])
 
 
 @router.get("/policies", auth=SessionAuth(), response=list[PolicyOut])
-@require(Permission.SLA_READ)
+@require(Permission.SLA_READ, agent=AgentTier.NONE)
 def policies(request: AuthedRequest) -> QuerySet[Policy]:
     return Policy.objects.select_related("calendar", "created_by", "approved_by")
 
 
 @router.post("/policies", auth=SessionAuth(), response={201: PolicyOut})
-@require(Permission.SLA_MANAGE)
+@require(Permission.SLA_MANAGE, agent=AgentTier.NONE)
 def draft_policy(request: AuthedRequest, payload: PolicyIn) -> Status:
     return Status(201, sla_config.draft(request.auth.user, payload.model_dump(mode="json")))
 
 
 @router.patch("/policies/{policy_id}", auth=SessionAuth(), response=PolicyOut)
-@require(Permission.SLA_MANAGE)
+@require(Permission.SLA_MANAGE, agent=AgentTier.NONE)
 def edit_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: PolicyPatch) -> Policy:
     return sla_config.edit(
         request.auth.user, policy_id, payload.model_dump(mode="json", exclude_unset=True)
@@ -53,13 +53,13 @@ def edit_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: PolicyPat
 
 
 @router.post("/policies/{policy_id}/activate", auth=SessionAuth(), response=PolicyOut)
-@require(Permission.SLA_POLICIES_ACTIVATE)
+@require(Permission.SLA_POLICIES_ACTIVATE, agent=AgentTier.NONE)
 def activate_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
     return sla_config.activate(request.auth.user, policy_id, payload.reason)
 
 
 @router.post("/policies/{policy_id}/retire", auth=SessionAuth(), response=PolicyOut)
-@require(Permission.SLA_POLICIES_ACTIVATE)
+@require(Permission.SLA_POLICIES_ACTIVATE, agent=AgentTier.NONE)
 def retire_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonIn) -> Policy:
     return sla_config.retire(request.auth.user, policy_id, payload.reason)
 
@@ -68,19 +68,19 @@ def retire_policy(request: AuthedRequest, policy_id: uuid.UUID, payload: ReasonI
 
 
 @router.get("/calendars", auth=SessionAuth(), response=list[CalendarOut])
-@require(Permission.SLA_READ)
+@require(Permission.SLA_READ, agent=AgentTier.NONE)
 def calendars(request: AuthedRequest) -> QuerySet[Calendar]:
     return Calendar.objects.all()
 
 
 @router.post("/calendars", auth=SessionAuth(), response={201: CalendarOut})
-@require(Permission.SLA_MANAGE)
+@require(Permission.SLA_MANAGE, agent=AgentTier.NONE)
 def create_calendar(request: AuthedRequest, payload: CalendarIn) -> Status:
     return Status(201, sla_config.save_calendar(request.auth.user, payload.model_dump()))
 
 
 @router.patch("/calendars/{calendar_id}", auth=SessionAuth(), response=CalendarOut)
-@require(Permission.SLA_MANAGE)
+@require(Permission.SLA_MANAGE, agent=AgentTier.NONE)
 def edit_calendar(
     request: AuthedRequest, calendar_id: uuid.UUID, payload: CalendarPatch
 ) -> Calendar:
@@ -90,7 +90,7 @@ def edit_calendar(
 
 
 @router.get("/calendars/{calendar_id}/holidays", auth=SessionAuth(), response=list[HolidayOut])
-@require(Permission.SLA_READ)
+@require(Permission.SLA_READ, agent=AgentTier.NONE)
 def holidays(request: AuthedRequest, calendar_id: uuid.UUID) -> QuerySet[Holiday]:
     return Holiday.objects.filter(calendar_id=calendar_id)
 
@@ -98,7 +98,7 @@ def holidays(request: AuthedRequest, calendar_id: uuid.UUID) -> QuerySet[Holiday
 @router.post(
     "/calendars/{calendar_id}/holidays", auth=SessionAuth(), response={201: list[HolidayOut]}
 )
-@require(Permission.SLA_MANAGE)
+@require(Permission.SLA_MANAGE, agent=AgentTier.NONE)
 def add_holidays(request: AuthedRequest, calendar_id: uuid.UUID, payload: HolidayIn) -> Status:
     start = payload.date or payload.from_date
     end = payload.date or payload.to_date or start
@@ -112,7 +112,7 @@ def add_holidays(request: AuthedRequest, calendar_id: uuid.UUID, payload: Holida
 @router.delete(
     "/calendars/{calendar_id}/holidays/{holiday_id}", auth=SessionAuth(), response={204: None}
 )
-@require(Permission.SLA_MANAGE)
+@require(Permission.SLA_MANAGE, agent=AgentTier.NONE)
 def remove_holiday(request: AuthedRequest, calendar_id: uuid.UUID, holiday_id: uuid.UUID) -> Status:
     sla_config.remove_holiday(request.auth.user, calendar_id, holiday_id)
     return Status(204, None)
@@ -122,7 +122,7 @@ def remove_holiday(request: AuthedRequest, calendar_id: uuid.UUID, holiday_id: u
 
 
 @router.post("/preview", auth=SessionAuth(), response=PreviewOut)
-@require(Permission.SLA_READ)
+@require(Permission.SLA_READ, agent=AgentTier.NONE)
 def preview(request: AuthedRequest, payload: PreviewIn) -> Preview:
     return sla_clocks.preview(
         payload.category.value if payload.category else None, payload.priority, payload.start_at
@@ -131,7 +131,7 @@ def preview(request: AuthedRequest, payload: PreviewIn) -> Preview:
 
 @router.get("/breaches", auth=SessionAuth(), response=list[BreachOut])
 @paginate(LimitOffsetPagination)
-@require(Permission.SLA_READ)
+@require(Permission.SLA_READ, agent=AgentTier.NONE)
 def breaches(
     request: AuthedRequest, team: str | None = None, state: str | None = None
 ) -> QuerySet[Clock]:
