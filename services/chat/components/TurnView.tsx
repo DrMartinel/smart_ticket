@@ -16,7 +16,7 @@ import { ErrorState } from "@/components/ui/states";
 import { ArrowRight } from "lucide-react";
 
 // The masking placeholders core-api writes in place of PII, e.g. [EMAIL_1].
-const PLACEHOLDER = /\[[A-Z]+(?:_[A-Z]+)*_\d+\]/;
+export const PLACEHOLDER = /\[[A-Z]+(?:_[A-Z]+)*_\d+\]/;
 
 export default function TurnView({
   turn,

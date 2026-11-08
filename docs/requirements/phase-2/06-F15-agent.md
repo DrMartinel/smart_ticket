@@ -954,3 +954,10 @@ Each departure is the smaller choice; none lets an agent do more.
 38. A hand-off shows its ticket. While the ticket's decision waits for the
     employee, the card offers the chat's own "Open a ticket" (OQ-F15-04 (a));
     after that it shows the ticket's id.
+39. A confirmation the employee answered gives way to its result: "Sent",
+    "Reopened" (or the new ticket a reopen outside the window opened),
+    "Cancelled", or why it can no longer be sent (expired, already dealt
+    with). A conversation that ended keeps its turns on screen above a
+    divider; the next message starts a new one.
+40. The assistant page is English only, like the rest of the chat outside its
+    guides (FR-F15-021 asks for vi and en; TODO 23).

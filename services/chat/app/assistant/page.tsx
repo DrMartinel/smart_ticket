@@ -73,6 +73,9 @@ export default function AssistantPage() {
                   handoff={row.kind === "server" && row.turn.handoff_ticket ? agent.handoffs[row.turn.handoff_ticket] : undefined}
                   busyAction={agent.busyAction}
                   actionError={agent.actionError}
+                  results={agent.results}
+                  creating={agent.creating}
+                  createError={agent.createError}
                   onConfirm={agent.confirm}
                   onDismiss={agent.dismiss}
                   onCreateTicket={(id) => void agent.createTicket(id)}
