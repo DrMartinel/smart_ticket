@@ -29,6 +29,7 @@ class Permission(StrEnum):
     ACCESS_REVIEW_MANAGE = "urn:smart-ticket:perm:access:review:manage"
     ACCESS_REVIEW_RESPOND = "urn:smart-ticket:perm:access:review:respond"
     ACCESS_ROLES_MANAGE = "urn:smart-ticket:perm:access:roles:manage"
+    AGENT_USE = "urn:smart-ticket:perm:agent:use"
     INCIDENTS_MANAGE = "urn:smart-ticket:perm:incidents:manage"
     INCIDENTS_READ = "urn:smart-ticket:perm:incidents:read"
     INCIDENTS_UNLINK = "urn:smart-ticket:perm:incidents:unlink"
@@ -153,6 +154,7 @@ PERMISSIONS: dict[Permission, PermissionSpec] = {
     P.ACCESS_REVIEW_MANAGE: _spec("Open and close access reviews", locked=True),
     P.ACCESS_REVIEW_RESPOND: _spec("Answer the access reviews assigned to you"),
     P.ACCESS_ROLES_MANAGE: _spec("Create, change and retire custom roles", locked=True),
+    P.AGENT_USE: _spec("Use the assistant", staff_only=False),
     P.INCIDENTS_MANAGE: _spec("Declare, confirm, broadcast, resolve and link incidents"),
     P.INCIDENTS_READ: _spec("Read incidents"),
     P.INCIDENTS_UNLINK: _spec("Unlink a ticket from an incident"),
@@ -290,6 +292,7 @@ STRUCTURAL_ROLES = frozenset({SystemRole.TEAM_LEAD, SystemRole.DEPARTMENT_HEAD})
 SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     SystemRole.EMPLOYEE: frozenset(
         {
+            P.AGENT_USE,
             P.KB_PAGES_READ,
             P.REQUESTER_CHAT,
             P.REQUESTER_SUBMIT,
@@ -302,6 +305,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     ),
     SystemRole.TECHNICIAN: frozenset(
         {
+            P.AGENT_USE,
             P.TICKETS_ALL_CATEGORIES,
             P.ACCESS_REVIEW_RESPOND,
             P.INCIDENTS_READ,
@@ -342,6 +346,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     ),
     SystemRole.MANAGER: frozenset(
         {
+            P.AGENT_USE,
             P.KB_DRAFTS_WITHDRAW_ANY,
             P.REPORTS_REVIEWERS_ALL,
             P.TEAMS_SUPERVISE,
@@ -421,6 +426,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     ),
     SystemRole.SECURITY: frozenset(
         {
+            P.AGENT_USE,
             P.PII_REVEAL_ANY,
             P.REPORTS_SECURITY_DETAIL,
             P.ACCESS_READ,

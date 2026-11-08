@@ -18,7 +18,7 @@ from apps.rollout.response_schema import (
     GateOut,
     RolloutOut,
 )
-from apps.rollout.utils.gates import AGREEMENT_BRANCH, rollout_metrics
+from apps.rollout.utils.gates import AGREEMENT_BRANCH, Agreement, rollout_metrics
 from apps.rollout.utils.rollout import rollout
 from apps.rollout.utils.vocabulary import FlagBranch
 
@@ -39,7 +39,9 @@ def _rollout() -> RolloutOut:
                 rollout_metrics.snapshot(branch, rollout.entered_on(flag)),
                 rollout_metrics.shadow_agreement(
                     AGREEMENT_BRANCH[branch], settings.THRESHOLDS.reports.rollout_days
-                ),
+                )
+                if branch in AGREEMENT_BRANCH
+                else Agreement(decided=0, agreed=0, rerouted=0),
             )
         )
     return RolloutOut(

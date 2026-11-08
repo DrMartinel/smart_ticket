@@ -21,6 +21,8 @@ from pydantic import BaseModel
 
 from infrastructure.dtos import (
     EMBED_DIM,
+    AgentTurnRequest,
+    AgentTurnResponse,
     AIRunRequest,
     AIRunResponse,
     EmbedRequest,
@@ -97,6 +99,19 @@ class AIEngineClient:
             "/v1/pii/detect", PiiDetectRequest(text=text), read_timeout=settings.MODEL_TIMEOUT_SEC
         )
         return PiiDetectResponse.model_validate(body).spans
+
+    def agent_turn(self, request: AgentTurnRequest) -> AgentTurnResponse:
+        """Runs one agent turn (F15). Raises `AIEngineUnavailable` on any failure."""
+        try:
+            return AgentTurnResponse.model_validate(
+                self._post(
+                    "/v1/agent/turn",
+                    request,
+                    read_timeout=settings.AI_ENGINE_AGENT_READ_TIMEOUT_SEC,
+                )
+            )
+        except (httpx.HTTPError, ValueError) as e:
+            raise AIEngineUnavailable(str(e)) from e
 
     def _post(self, path: str, body: BaseModel, *, read_timeout: float) -> Any:
         with httpx.Client(

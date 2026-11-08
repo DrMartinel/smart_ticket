@@ -12,7 +12,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
-from typing import TYPE_CHECKING, Literal, cast
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
@@ -34,6 +35,8 @@ from apps.audit.models import AuditLog
 from apps.tickets.utils.crypto import QuarantineEntry, build_quarantine_entries
 
 if TYPE_CHECKING:
+    from apps.agent.models import AgentTurn
+    from infrastructure.dtos import AgentHandoffReason
     from apps.chat.models import Conversation
     from apps.lifecycle.models import WorkflowStatus
 from apps.tickets.utils.masking import mask
@@ -373,6 +376,7 @@ class TicketManager(models.Manager["Ticket"]):
         source: TicketSource = TicketSource.FORM,
         conversation: Conversation | None = None,
         reopened_from: Ticket | None = None,
+        agent_turn: AgentTurn | None = None,
     ) -> Ticket:
         """Ticket submission — spec §5. Masks, persists and enqueues one
         validated submission.
@@ -390,20 +394,77 @@ class TicketManager(models.Manager["Ticket"]):
         result = async_to_sync(mask)(ticket_in, settings.THRESHOLDS.masking.ner_max_share)
         quarantine_entries = build_quarantine_entries(result.placeholder_map)
 
+        def store(ticket: Ticket) -> dict[str, str]:
+            PiiQuarantine.objects.store(ticket, quarantine_entries)
+            own = {ph: str(entry.ref) for ph, entry in quarantine_entries.items()}
+            if agent_turn is None:
+                return own
+            inherited = {ph: ref for ph, ref in agent_turn.pii_map.items() if ph not in own}
+            text = f"{result.subject_masked}\n{result.body_masked}"
+            return own | PiiQuarantine.objects.copy_to(ticket, inherited, text)
+
+        return self._open(
+            reporter=reporter,
+            trace_id=trace_id,
+            store=store,
+            audit={},
+            subject_masked=result.subject_masked,
+            body_masked=result.body_masked,
+            pii_level=result.pii_level.value,
+            source=source.value,
+            conversation=conversation,
+            reopened_from=reopened_from,
+            agent_turn=agent_turn,
+        )
+
+    def submit_for_agent(
+        self,
+        turn: AgentTurn,
+        reason: AgentHandoffReason,
+        conversation: Conversation | None,
+        audit: dict[str, str],
+    ) -> Ticket:
+        """Opens the chat ticket an agent turn hands to a person: the turn's masked message, its
+        quarantine entries and the agent's reason (BR-F15-14, BR-F15-18)."""
+        from apps.chat.utils.turns import ticket_in_from_message
+
+        ticket_in = ticket_in_from_message(turn.message_masked)
+        return self._open(
+            reporter=turn.conversation.user,
+            trace_id=None,
+            store=lambda ticket: PiiQuarantine.objects.copy_to(
+                ticket, turn.pii_map, turn.message_masked
+            ),
+            audit=audit,
+            subject_masked=ticket_in.subject,
+            body_masked=ticket_in.body,
+            pii_level=turn.pii_level,
+            source=TicketSource.CHAT.value,
+            conversation=conversation,
+            agent_turn=turn,
+            agent_handoff_reason=reason,
+        )
+
+    def _open(
+        self,
+        *,
+        reporter: User,
+        trace_id: str | None,
+        store: Callable[[Ticket], dict[str, str]],
+        audit: dict[str, str],
+        **fields: Any,
+    ) -> Ticket:
+        """Creates a masked ticket, stores its quarantine entries, starts its workflow, audits
+        it and queues its pipeline run."""
         with transaction.atomic():
             ticket = self.create(
                 public_id=self.next_public_id(),
                 reporter=reporter,
                 requester_department_id=reporter.department_id,
-                subject_masked=result.subject_masked,
-                body_masked=result.body_masked,
-                pii_level=result.pii_level.value,
-                pii_map={ph: str(entry.ref) for ph, entry in quarantine_entries.items()},
-                source=source.value,
-                conversation=conversation,
-                reopened_from=reopened_from,
+                **fields,
             )
-            PiiQuarantine.objects.store(ticket, quarantine_entries)
+            ticket.pii_map = store(ticket)
+            ticket.save(update_fields=["pii_map"])
             # Imported here: the lifecycle engine imports this module.
             from apps.lifecycle.utils.engine import lifecycle
 
@@ -418,6 +479,7 @@ class TicketManager(models.Manager["Ticket"]):
                     "pii_level": ticket.pii_level,
                     "source": ticket.source,
                     "trace_id": trace_id,
+                    **audit,
                 },
                 trace_id=trace_id,
             )
@@ -520,6 +582,10 @@ class Ticket(BaseModel):
     )
     waiting_transform = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=0)
+    # The agent turn that opened this ticket (F15).
+    agent_turn = models.ForeignKey(
+        "agent.AgentTurn", on_delete=models.SET_NULL, null=True, blank=True, related_name="tickets"
+    )
     # Why the agent handed this ticket to a person (F15); the router's gate reads it.
     agent_handoff_reason = models.CharField(
         max_length=40,
@@ -614,13 +680,53 @@ class PiiQuarantineManager(models.Manager["PiiQuarantine"]):
             ]
         )
 
+    def store_for_turn(self, turn: AgentTurn, entries: dict[str, QuarantineEntry]) -> None:
+        """One encrypted row per placeholder of an agent turn's message (F15)."""
+        self.bulk_create(
+            [
+                PiiQuarantine(
+                    ref=entry.ref,
+                    agent_turn=turn,
+                    ciphertext=entry.ciphertext,
+                    nonce=entry.nonce,
+                    expires_at=entry.expires_at,
+                )
+                for entry in entries.values()
+            ]
+        )
+
+    def copy_to(self, ticket: Ticket, pii_map: dict[str, str], text: str) -> dict[str, str]:
+        """Copies the entries `pii_map` names for each placeholder in `text` to `ticket`; the
+        ticket's placeholders and their new refs (BR-F15-18)."""
+        wanted = {ph: ref for ph, ref in pii_map.items() if ph in text}
+        rows = {str(row.ref): row for row in self.filter(ref__in=list(wanted.values()))}
+        copies = {
+            ph: PiiQuarantine(
+                ref=uuid.uuid4(),
+                ticket=ticket,
+                ciphertext=rows[ref].ciphertext,
+                nonce=rows[ref].nonce,
+                expires_at=rows[ref].expires_at,
+            )
+            for ph, ref in wanted.items()
+            if ref in rows
+        }
+        self.bulk_create(copies.values())
+        return {ph: str(row.ref) for ph, row in copies.items()}
+
 
 class PiiQuarantine(models.Model):
     """§3.1. Raw PII, encrypted at the application layer (AES-GCM, key
     outside the DB — see utils/crypto.py), with a hard TTL."""
 
     ref = models.UUIDField(primary_key=True, editable=False)
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="quarantine_entries")
+    ticket = models.ForeignKey(
+        Ticket, on_delete=models.CASCADE, null=True, related_name="quarantine_entries"
+    )
+    # The agent turn whose message held the value (F15); a row has one owner.
+    agent_turn = models.ForeignKey(
+        "agent.AgentTurn", on_delete=models.CASCADE, null=True, related_name="quarantine_entries"
+    )
     ciphertext = models.BinaryField()
     nonce = models.BinaryField()
     expires_at = models.DateTimeField()
@@ -628,6 +734,13 @@ class PiiQuarantine(models.Model):
 
     class Meta:
         db_table = "pii_quarantine"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(ticket__isnull=False, agent_turn__isnull=True)
+                | models.Q(ticket__isnull=True, agent_turn__isnull=False),
+                name="pii_quarantine_one_owner",
+            )
+        ]
 
     objects = PiiQuarantineManager()
 
