@@ -74,6 +74,18 @@ def test_the_questions_already_asked_reach_the_router():
     assert policy.clarifications_asked == 1
 
 
+def test_the_agents_handoff_reason_reaches_the_router():
+    policy = trust_signals(
+        _engine(),
+        PIILevel.ROUTINE,
+        None,
+        clarifications_asked=0,
+        agent_handoff_reason="agent_step_limit",
+    ).policy
+
+    assert policy.agent_handoff_reason == "agent_step_limit"
+
+
 # --- behaviour ------------------------------------------------------------------
 
 

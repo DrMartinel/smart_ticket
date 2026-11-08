@@ -35,6 +35,18 @@ export const REASON_TEXT: Record<string, string> = {
   all_llm_down: "The language model was unavailable, so it went straight to a person.",
   circuit_open: "The AI service was paused after repeated failures.",
   all_checks_passed: "Every check passed.",
+  agent_step_limit: "The assistant used all its steps without finishing, so it handed the request to a person.",
+  agent_tool_limit: "The assistant reached its limit of actions, so it handed the request to a person.",
+  agent_budget_exceeded: "The assistant's budget for this request ran out, so it handed it to a person.",
+  agent_tool_failed: "A system the assistant needed did not answer, so it handed the request to a person.",
+  agent_tool_outcome_unknown: "The assistant could not tell whether a change it sent went through; check before trying again.",
+  agent_injection_detected: "The message tries to give the assistant instructions (prompt injection), so it was handed to a person.",
+  agent_injection_in_result: "Something the assistant read tried to give it instructions, so it stopped before changing anything.",
+  agent_model_unavailable: "The assistant's language model was unavailable, so the request went to a person.",
+  agent_schema_invalid: "The assistant's answer was malformed, so nothing it chose was used.",
+  agent_token_refused: "The person's sign-in ended while the assistant was working.",
+  agent_mask_failed: "Personal data could not be removed reliably, so the assistant did not read the message.",
+  agent_engine_unavailable: "The assistant was unavailable, so the request went to a person.",
 };
 
 export const INTENT_LABEL: Record<string, string> = {

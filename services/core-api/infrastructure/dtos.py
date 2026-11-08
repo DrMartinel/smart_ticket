@@ -182,6 +182,8 @@ class PolicySignals(BaseModel):
     # Questions this ticket has already asked its requester, counted by
     # core-api (ADR-0023).
     clarifications_asked: int = Field(default=0, ge=0)
+    # The agent's reason for handing this ticket to a person (F15), a `ReasonCode` value.
+    agent_handoff_reason: str | None = None
 
 
 class ClassificationSignals(BaseModel):
