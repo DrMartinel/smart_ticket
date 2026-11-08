@@ -74,7 +74,7 @@ export function useAgentConversation(enabled: boolean) {
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [actionError, setActionError] = useState<Record<string, string>>({});
   const [results, setResults] = useState<Record<string, ActionResult>>({});
-  // Bumped after each poll, so the next one is scheduled whether or not anything changed.
+  // Counts finished polls.
   const [tick, setTick] = useState(0);
   const polling = useRef(false);
   const conversationRef = useRef<string | null>(null);
