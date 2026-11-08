@@ -15,16 +15,20 @@ export default function Composer({
   onSend,
   disabled,
   autoFocus,
+  minChars = MIN_CHARS,
+  maxChars = MAX_CHARS,
 }: {
   onSend: (text: string) => void;
   disabled?: boolean;
   autoFocus?: boolean;
+  minChars?: number;
+  maxChars?: number;
 }) {
   const [text, setText] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
   const trimmed = text.trim();
-  const tooShort = trimmed.length > 0 && trimmed.length < MIN_CHARS;
-  const canSend = !disabled && trimmed.length >= MIN_CHARS;
+  const tooShort = trimmed.length > 0 && trimmed.length < minChars;
+  const canSend = !disabled && trimmed.length >= minChars;
 
   // Grow with the text, up to a cap; scroll past that.
   useEffect(() => {
@@ -50,7 +54,7 @@ export default function Composer({
         ref={ref}
         rows={2}
         value={text}
-        maxLength={MAX_CHARS}
+        maxLength={maxChars}
         autoFocus={autoFocus}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
@@ -64,7 +68,7 @@ export default function Composer({
       />
       <div className="flex items-center justify-between gap-3 border-t border-border px-3.5 py-2">
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          {tooShort ? `Add a little more detail (${MIN_CHARS}+ characters).` : (
+          {tooShort ? `Add a little more detail (${minChars}+ characters).` : (
             <>
               <span className="hidden sm:inline">Enter to send, Shift+Enter for a new line</span>
               <span className="sm:hidden">Describe it in a sentence or two</span>

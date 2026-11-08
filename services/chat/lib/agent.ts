@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { agentApi, ApiError, chatApi } from "./api";
 import type { AgentActionOut, AgentTurnOut, ChatTurnOut } from "./types/generated";
 
+// Mirror AgentTurnIn.message in core-api (apps/agent/request_schema.py).
+export const AGENT_MESSAGE_MIN = 1;
+export const AGENT_MESSAGE_MAX = 4_000;
+
 // How often an unfinished turn, and a hand-off ticket still being triaged, is checked.
 const POLL_MS = 1500;
 
@@ -22,8 +26,8 @@ export type ActionResult = { label: string; tone: "ok" | "info" | "warn"; text: 
 // Refusals after which the action is no longer pending: its card gives way to the message.
 const FINAL_REFUSALS: Record<string, string> = {
   agent_action_expired: "This has expired. Ask the assistant again if you still want it.",
-  agent_action_not_pending: "This was already dealt with.",
-  not_pending: "This was already dealt with.",
+  agent_action_not_pending: "This can no longer be sent. Ask the assistant again if you still want it.",
+  not_pending: "This can no longer be sent. Ask the assistant again if you still want it.",
 };
 
 function confirmedResult(action: AgentActionOut, response: unknown): ActionResult {
@@ -43,7 +47,7 @@ function sendError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "agent_off") return "The assistant is switched off right now. You can still ask on the Ask page.";
     if (err.code === "turn_running") return "The assistant is still working on your last message.";
-    if (err.status === 422) return err.message;
+    if (err.status === 422) return `Please type a message of up to ${AGENT_MESSAGE_MAX.toLocaleString()} characters.`;
   }
   return "I couldn't send that. Check your connection and try again.";
 }
@@ -63,6 +67,7 @@ export function useAgentConversation(enabled: boolean) {
   const [turnTick, setTurnTick] = useState(0);
   const [handoffTick, setHandoffTick] = useState(0);
   const handoffTried = useRef(new Set<string>());
+  const polling = useRef(false);
   const conversationRef = useRef<string | null>(null);
 
   const replace = useCallback((key: string, next: AgentRow) => {
@@ -82,6 +87,8 @@ export function useAgentConversation(enabled: boolean) {
     const waiting = rows.filter((r) => r.kind === "server" && UNFINISHED.has(r.turn.state));
     if (waiting.length === 0) return;
     const timer = window.setTimeout(async () => {
+      if (polling.current) return;
+      polling.current = true;
       for (const r of waiting) {
         if (r.kind !== "server") continue;
         try {
@@ -94,6 +101,7 @@ export function useAgentConversation(enabled: boolean) {
           // transient: the next tick tries again
         }
       }
+      polling.current = false;
       setTurnTick((n) => n + 1);
     }, POLL_MS);
     return () => window.clearTimeout(timer);
@@ -175,9 +183,15 @@ export function useAgentConversation(enabled: boolean) {
         }));
         setPending((prev) => prev.filter((a) => a.action_id !== id));
       } catch (err) {
-        const final = err instanceof ApiError && err.code ? FINAL_REFUSALS[err.code] : undefined;
+        const final =
+          err instanceof ApiError
+            ? err.code
+              ? FINAL_REFUSALS[err.code]
+              : undefined
+            : "I couldn't tell whether that went through. Check your ticket before trying again.";
         if (final) {
-          setResults((prev) => ({ ...prev, [id]: { label: "Not sent", tone: "warn", text: final } }));
+          const label = err instanceof ApiError ? "Not sent" : "Not sure";
+          setResults((prev) => ({ ...prev, [id]: { label, tone: "warn", text: final } }));
           setPending((prev) => prev.filter((a) => a.action_id !== id));
         } else {
           setActionError((prev) => ({
@@ -197,8 +211,12 @@ export function useAgentConversation(enabled: boolean) {
     setCreating(publicId);
     setCreateError((prev) => ({ ...prev, [publicId]: "" }));
     try {
-      const fresh = await chatApi.createTicket(publicId).catch(() => chatApi.turn(publicId));
+      const fresh = await chatApi.createTicket(publicId).catch((err) => {
+        if (err instanceof ApiError && err.status === 409) return chatApi.turn(publicId);
+        throw err;
+      });
       setHandoffs((prev) => ({ ...prev, [fresh.public_id]: fresh }));
+      if (fresh.state === "suggest_ticket") throw new Error("still waiting");
     } catch {
       setCreateError((prev) => ({ ...prev, [publicId]: "I couldn't open the ticket. Try again." }));
     } finally {
