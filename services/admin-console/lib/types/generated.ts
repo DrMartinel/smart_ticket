@@ -259,7 +259,7 @@ export interface AgentTurnIn {
 
 export interface AgentReceiptOut {
   tool: string;
-  outcome: "done" | "awaiting_confirmation" | "draft_waiting" | "refused" | "failed";
+  outcome: "done" | "awaiting_confirmation" | "draft_waiting" | "refused" | "failed" | "unknown";
   method: string;
   path: string;
   action_id: string | null;
