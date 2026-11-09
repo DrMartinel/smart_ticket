@@ -496,6 +496,11 @@ guard and that comment is later trimmed, the entry is the record.
 - **Outcome membership checked by identity (`is`), not `in`** (`BaseNode.produces`). A `StrEnum` from
   another node with the same value compares equal.
   *`test_compiler.py::test_equal_valued_outcome_from_another_enum_raises`.*
+- **The triage graph is built with `Cycles.REJECT`, the `GraphBuilder` default.** Every node
+  runs at most once per ticket, so a proposal that fails validation reaches a person
+  instead of the model again. `Cycles.BOUNDED` is for the F15 agent graph only.
+  *`test_build.py::test_the_triage_graph_has_no_cycle`,
+  `test_compiler.py::test_the_default_still_rejects_a_cycle_a_limit_bounds`.*
 - **`mask_guard` between the injection guard and `draft_answer`.** A
   `mask_failed` ticket's text was masked by the regex tier only, so it may
   still hold free-form PII; the guard sends it straight to `emit_signals`,

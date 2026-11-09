@@ -591,7 +591,7 @@ ticket meets the `pii_mask_failed` gate first, so its routing reason is
 |---|---|
 | `POST /v1/agent/turn` | NEW, `AgentTurnRequest` → `AgentTurnResponse`. The token is never logged; a 422 drops pydantic's `input` echo, as `/v1/pii/detect` does |
 | `graph/agent.py` | NEW route list: `screen_message`, `choose_action`, `call_tool`, `finish`, `hand_off` |
-| `graph/build/` | CHANGED: `GraphBuilder(entry, cycles=Cycles.BOUNDED)`. In a bounded graph every cycle must contain a node whose `Outcome` has a limit member routed out of the cycle, checked at `compile()`. `Cycles.REJECT` stays the default, so the triage graph's acyclic check is unchanged. `BaseNode` becomes generic over its state |
+| `graph/build/` | CHANGED: `GraphBuilder(entry, cycles=Cycles.BOUNDED)`. In a bounded graph every cycle must contain a node with a limit outcome (named in its `limits`, members of its `Outcome`) routed out of the cycle, checked at `compile()`. `Cycles.REJECT` stays the default, so the triage graph's acyclic check is unchanged. `BaseNode` becomes generic over its state |
 | `graph/nodes/injection.py` | REUSED: `PATTERNS` moves to `graph/nodes/injection_patterns.py` (no behaviour change) so `screen_message` and `call_tool` share it |
 | `core/prompts/agent.v1.md` | NEW |
 | `agent/tools/` | NEW: one module per tool (input model, method, path, projection, tier) and the HTTP client (one attempt) |

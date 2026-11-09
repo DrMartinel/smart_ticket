@@ -86,8 +86,9 @@ chat LLM, go through `clients.chat`. `use_llm` already patches that.
 - Route **every** outcome. An unrouted outcome raises in `compile()` at import.
 - If a route encodes a safety property, give it an inline comment, as in
   `# refuse-before-LLM`.
-- Keep the graph acyclic, and keep every path ending at `emit_signals`, then
-  `_triage.end`.
+- Keep the triage graph acyclic, and keep every path ending at `emit_signals`,
+  then `_triage.end`. Only a `Cycles.BOUNDED` graph (the agent graph) may loop,
+  and every loop must pass a node whose `limits` outcome leaves it.
 - An early-exit branch, such as a guard that finds something, goes **straight to
   `emit_signals`** and skips the remaining cost. See how `injection` does it.
 - Check the result:

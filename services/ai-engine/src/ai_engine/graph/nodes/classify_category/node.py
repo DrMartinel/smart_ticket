@@ -29,7 +29,7 @@ class ClassifyCategoryOutcome(StrEnum):
     EVIDENCE_BELOW_FLOOR = "EvidenceBelowFloor"
 
 
-class ClassifyCategoryNode(BaseNode):
+class ClassifyCategoryNode(BaseNode[TriageState]):
     """Below the floor goes to `emit_signals` (refuse-before-LLM); above it,
     to the LLM. A Jev failure raises: the LLM's category is not a fallback,
     a silent switch of classifier would hide the outage (ADR-0017)."""
