@@ -15,7 +15,7 @@ and never override them.
 | **`/review`** | check a branch before you open a PR, against the checklist of each service it touches | `/review` (base defaults to `main`) or `/review HEAD~3` | a report sorted into Regression / Convention / Nit, with `file:line` links and fixes. It doesn't edit anything |
 | **`/refactor`** | clean up Python in any service (ai-engine, core-api, evals) without changing what it does, or check changes against the checklist | `/refactor services/core-api/apps/tickets/utils/pipeline.py`, or `/refactor check my changes against the checklist` | an audit table of proposed moves (applied one at a time once you pick them), or a pass/fail table per checklist item |
 | **`/checklist-add`** | add a rule to the checklist `/refactor` enforces | `/checklist-add docstrings never name the return value` | the new numbered item, with how to check it, a real example from the repo, and where it came from |
-| **`/create-mr`** | open a merge request (GitHub PR) for the current branch | `/create-mr`, or `/create-mr main this is F15 PR 3` | a review by the `mr-reviewer` subagent (`/code-review` plus the repo's rules), then a drafted title and a body with **Summary**, **Rationale** and **Test plan** (checked, none empty) for you to approve; then the push and the PR link |
+| **`/create-mr`** | open a merge request (GitHub PR) for the current branch | `/create-mr`, or `/create-mr main this is F15 PR 3` | a review by the `mr-reviewer` subagent (`/code-review` plus the repo's rules), then a drafted title and a body with **Summary**, **Rationale**, **Test plan** and **How to review** (checked, none empty) for you to approve; then the push and the PR link |
 
 ## How to invoke
 

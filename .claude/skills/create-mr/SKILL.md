@@ -1,6 +1,6 @@
 ---
 name: create-mr
-description: Open a merge request (a GitHub pull request on DrMartinel/smart_ticket) for the current branch, with a description that always has three filled sections - Summary, Rationale and Test plan. Reads the branch's commits and diff, has the mr-reviewer subagent run /code-review plus the repo's own rules (best practice, readability, hard rules, tests, docs), runs the checks the change calls for, drafts the title and body, validates that no section is missing or empty, shows the draft and waits for approval, then pushes and opens the PR with gh. Use this whenever the user says "open an MR", "create a PR", "make a merge request", "ship this branch", "raise a PR for this", or asks for a PR/MR description, even if they don't name the skill.
+description: Open a merge request (a GitHub pull request on DrMartinel/smart_ticket) for the current branch, with a description that always has four filled sections - Summary, Rationale, Test plan and How to review. Reads the branch's commits and diff, has the mr-reviewer subagent run /code-review plus the repo's own rules (best practice, readability, hard rules, tests, docs), runs the checks the change calls for, drafts the title and body, validates that no section is missing or empty, shows the draft and waits for approval, then pushes and opens the PR with gh. Use this whenever the user says "open an MR", "create a PR", "make a merge request", "ship this branch", "raise a PR for this", or asks for a PR/MR description, even if they don't name the skill.
 argument-hint: [base branch, default main] [extra context for the description]
 ---
 
@@ -12,7 +12,7 @@ else is context for the description. The base defaults to `main`.
 "MR" and "PR" mean the same thing here: the repo is on GitHub
 (`DrMartinel/smart_ticket`), so the result is a pull request opened with `gh`.
 
-Every description has exactly these three sections, in this order, each with
+Every description has exactly these four sections, in this order, each with
 real content:
 
 | Section | Answers | Never |
@@ -20,6 +20,7 @@ real content:
 | `## Summary` | What changes, as bullets a reviewer can check against the diff | A file-by-file changelog, or restating the title |
 | `## Rationale` | Why this change, why this way: the spec, ADR, bug or decision behind it, and the alternative not taken when there was one | "To improve the code"; a why that no reviewer could disagree with |
 | `## Test plan` | What was run and what it showed, and what was not run and why | A check claimed but not run; "tests pass" without saying which |
+| `## How to review` | Where to start, the order to read the change in, where to look hardest and why, what can be skimmed, and how to try it by hand | "Review the diff"; repeating the Summary; a reading order for a one-file change |
 
 ## 1. Check the branch
 
@@ -54,6 +55,12 @@ Commit bodies carry the why in this repo, so they are the first source for
   plain words and links the ADR it argues against (CLAUDE.md, *Before opening a PR*).
 - For one PR of a series (F15 is nine), which number it is, what came before and
   what comes next.
+- For **How to review**: the file or commit a reader should open first (usually
+  where the behaviour starts: a route, a service method, a graph node); whether
+  the commits read well one at a time; which hunks carry the risk (load-bearing
+  code from `load-bearing.md`, a hard rule, a permission or agent tier, a
+  migration, a failure path); and which files are mechanical (regenerated TS
+  types, migrations Django wrote, renames, fixtures, docs).
 
 ## 3. Start the review
 
@@ -135,20 +142,35 @@ not taken; any guardrail deliberately relaxed, named as such>
 - <what was not run, and why> (e.g. "No eval run; triage is untouched.")
 - [ ] <anything the reviewer must still do by hand>
 
+## How to review
+- **Start at** <file:line or commit>: <what it is, in one line>
+- **Read in this order:** <commits one at a time, or files in dependency order>
+- **Look hardest at** <file:line>: <the risk, e.g. "the only place a turn hands off; a missed reason code here reaches no one">
+- **Skim:** <mechanical files, e.g. regenerated `generated.ts`, migrations Django wrote>
+- **Decide:** <questions left to the reviewer, e.g. review findings accepted unfixed, an open choice in the spec>
+- **Try it:** <commands or clicks to see the change locally, or "nothing to run: docs only">
+
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 Write it the way the docs here are written: plain sentences, concrete names,
 numbers from the actual run. Keep it short; a reviewer reads the diff too.
 
-Then validate it. All three headings must exist, in order, each followed by
+**How to review** names real files and lines from this diff, never a generic
+checklist. Its "Look hardest at" points to where a mistake would not fail
+loudly, and draws on the reviewer's findings from step 5, the hard rules from
+step 2 and anything accepted unfixed. For a small change, two bullets (start
+here, look hardest there) are enough; leave out any bullet that has nothing to
+say rather than filling it.
+
+Then validate it. All four headings must exist, in order, each followed by
 non-empty text before the next heading:
 
 ```bash
 python3 - "<scratchpad>/mr-body.md" <<'EOF'
 import re, sys
 body = open(sys.argv[1]).read()
-want = ["Summary", "Rationale", "Test plan"]
+want = ["Summary", "Rationale", "Test plan", "How to review"]
 found = re.findall(r"^## (.+?)\s*$", body, re.M)
 assert [h for h in found if h in want] == want, f"sections out of order or missing: {found}"
 for name in want:
@@ -180,4 +202,4 @@ auto-merge unless asked.
 
 Report the PR link (`https://github.com/DrMartinel/smart_ticket/pull/<n>`) and
 anything left open: failed or skipped checks, review findings accepted unfixed, evals still needed, unchecked items
-in the Test plan.
+in the Test plan, and the questions **How to review** leaves to the reviewer.
