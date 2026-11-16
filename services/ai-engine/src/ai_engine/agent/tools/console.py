@@ -9,7 +9,7 @@ from pydantic import Field
 
 from ai_engine.agent.tools.chat import nothing
 from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, person, untrusted
-from ai_engine.agent.tools.tool import Context, Tier, Tool, ToolInput
+from ai_engine.agent.tools.tool import Context, PublicIdIn, Tier, Tool, ToolInput
 
 StaffView = Literal["review", "mine", "open", "resolved", "all"]
 Category = Literal["hardware", "software", "network", "access", "security", "other"]
@@ -158,10 +158,6 @@ def review_item_detail(body: Any, context: Context) -> dict[str, Any]:
         ],
         "comment": WITHHELD if body.get("comment") else None,
     }
-
-
-class PublicIdIn(ToolInput):
-    public_id: str = Field(min_length=1, max_length=40)
 
 
 class ListTicketsIn(ToolInput):

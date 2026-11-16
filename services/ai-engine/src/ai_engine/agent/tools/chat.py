@@ -12,7 +12,7 @@ from pydantic import Field
 from ai_engine.agent.tools import client
 from ai_engine.agent.tools.client import Reply, ToolFailed
 from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, untrusted
-from ai_engine.agent.tools.tool import Context, Tier, Tool, ToolInput
+from ai_engine.agent.tools.tool import Context, PublicIdIn, Tier, Tool, ToolInput
 from ai_engine.core.config import settings
 
 # What each chat state means for the employee.
@@ -137,10 +137,6 @@ def nothing(body: Any, context: Context) -> dict[str, Any]:
 
 class AskIn(ToolInput):
     message: str = Field(min_length=10, max_length=10_000)
-
-
-class PublicIdIn(ToolInput):
-    public_id: str = Field(min_length=1, max_length=40)
 
 
 class ClarifyIn(PublicIdIn):

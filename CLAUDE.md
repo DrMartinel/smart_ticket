@@ -187,8 +187,9 @@ Services: `core-api` (Django + Ninja) owns **every decision and every write
 but one** (the `entity_graph` association rows, written by ai-engine's
 offline build, which also closes the rebuild requests it answers, ADR-0025,
 ADR-0037) · `ai-engine` (FastAPI + LangGraph) has **no
-authority**, returns signals and a proposal only, writes nothing while
-triaging, and is the **only vLLM client** (ADR-0012: core-api's embeddings
+authority**: while triaging it returns signals and a proposal only and writes
+nothing, and its agent graph (F15, ADR-0046) acts only by calling core-api
+routes as the person, never by writing the database. It is the **only vLLM client** (ADR-0012: core-api's embeddings
 and PII NER go through its `/v1/embed` and `/v1/pii/detect`) · `web` (Next.js) is a thin client with no business logic.
 
 **If you are adding a feature that decides something, it belongs in core-api.**

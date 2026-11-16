@@ -57,37 +57,59 @@ class CallToolNode(BaseNode[AgentState]):
         try:
             step["path"], reply = tool.run(args, context)
         except ToolFailed:
-            return self.stop(state, step, AgentStopReason.TOOL_FAILED, "failed")
+            return self.stop(state, step, reason=AgentStopReason.TOOL_FAILED, outcome="failed")
         except OutcomeUnknown:
-            return self.stop(state, step, AgentStopReason.TOOL_OUTCOME_UNKNOWN, "unknown")
+            return self.stop(
+                state, step, reason=AgentStopReason.TOOL_OUTCOME_UNKNOWN, outcome="unknown"
+            )
         step["status_code"] = reply.status
 
         if reply.status == 401:
-            return self.stop(state, step, AgentStopReason.TOKEN_REFUSED, "failed")
+            return self.stop(state, step, reason=AgentStopReason.TOKEN_REFUSED, outcome="failed")
         if reply.status == 429:
-            return self.stop(state, step, AgentStopReason.TOOL_LIMIT, "refused")
+            return self.stop(state, step, reason=AgentStopReason.TOOL_LIMIT, outcome="refused")
         if tool.tier is Tier.CONFIRM and reply.status == 202:
             if (action := self.action_id(reply.body, "action_id")) is None:
-                return self.stop(state, step, AgentStopReason.TOOL_FAILED, "failed")
+                return self.stop(state, step, reason=AgentStopReason.TOOL_FAILED, outcome="failed")
             result = {"action_id": str(action), "state": "awaiting_confirmation"}
             return {
-                **self.record(state, step, "confirmation_required", tool, reply, result, action),
+                **self.record(
+                    state,
+                    step,
+                    outcome="confirmation_required",
+                    tool=tool,
+                    reply=reply,
+                    result=result,
+                    action=action,
+                ),
                 "awaiting_confirmation": True,
             }
         if tool.tier is Tier.HUMAN_ONLY and self.is_draft(reply):
             details = reply.body.get("details") or {}
             if (draft := self.action_id(details, "draft_id")) is None:
-                return self.stop(state, step, AgentStopReason.TOOL_FAILED, "failed")
+                return self.stop(state, step, reason=AgentStopReason.TOOL_FAILED, outcome="failed")
             result = {
                 "draft_id": str(draft),
                 "state": "draft_waiting",
                 "meaning": "Nothing changed. A draft waits for the person to apply on the item's page.",
             }
-            return self.record(state, step, "drafted", tool, reply, result, draft)
+            return self.record(
+                state, step, outcome="drafted", tool=tool, reply=reply, result=result, action=draft
+            )
         if 200 <= reply.status < 300:
             projected = tool.project(reply.body, context)
-            return self.record(state, step, "ok", tool, reply, projected, None)
-        return self.record(state, step, "refused", tool, reply, refusal(reply.body), None)
+            return self.record(
+                state, step, outcome="ok", tool=tool, reply=reply, result=projected, action=None
+            )
+        return self.record(
+            state,
+            step,
+            outcome="refused",
+            tool=tool,
+            reply=reply,
+            result=refusal(reply.body),
+            action=None,
+        )
 
     def decide(self, state: AgentState) -> CallOutcome:
         if state.stop_reason is AgentStopReason.TOOL_OUTCOME_UNKNOWN:
@@ -104,6 +126,7 @@ class CallToolNode(BaseNode[AgentState]):
         self,
         state: AgentState,
         step: dict[str, Any],
+        *,
         outcome: StepOutcome,
         tool: Tool,
         reply: Reply,
@@ -128,6 +151,7 @@ class CallToolNode(BaseNode[AgentState]):
         self,
         state: AgentState,
         step: dict[str, Any],
+        *,
         reason: AgentStopReason,
         outcome: StepOutcome,
     ) -> dict[str, Any]:

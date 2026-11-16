@@ -13,7 +13,7 @@ from typing import Any, Literal
 from urllib.parse import quote
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from ai_engine.agent.tools import client
 from ai_engine.agent.tools.client import Reply
@@ -32,6 +32,12 @@ class ToolInput(BaseModel):
     """A tool's arguments. Unknown keys are refused."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class PublicIdIn(ToolInput):
+    """A tool's arguments naming one ticket by its public id."""
+
+    public_id: str = Field(min_length=1, max_length=40, pattern=r"^[A-Za-z0-9][A-Za-z0-9-]*$")
 
 
 @dataclass(frozen=True)
@@ -67,7 +73,10 @@ class Tool:
     def path_for(self, values: Mapping[str, Any]) -> str:
         """The route's path with `values` filled in."""
         names = [name for _, name, _, _ in Formatter().parse(self.path) if name]
-        return self.path.format(**{name: quote(str(values[name]), safe="") for name in names})
+        parts = {name: quote(str(values[name]), safe="") for name in names}
+        if any(part in {".", ".."} for part in parts.values()):
+            raise ValueError("a path segment may not be . or ..")
+        return self.path.format(**parts)
 
     def run(self, args: ToolInput, context: Context) -> tuple[str, Reply]:
         """Calls the route once; the path sent and core-api's reply."""

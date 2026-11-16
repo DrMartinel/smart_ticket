@@ -386,15 +386,15 @@ def test_every_tool_input_rejects_unknown_fields():
 
 
 def test_the_call_carries_the_turn_token_and_names_its_tool(model, core_api):
-    model(call("get_my_ticket", public_id="TK 1/x"), reply())
-    api = core_api(Reply(200, {"public_id": "TK 1/x", "thread": []}))
+    model(call("get_my_ticket", public_id="TK-1"), reply())
+    api = core_api(Reply(200, {"public_id": "TK-1", "thread": []}))
 
     run(turn())
 
     sent = api.calls[0]
     assert sent["token"].get_secret_value() == _TOKEN
     assert sent["tool"] == "get_my_ticket"
-    assert sent["path"] == "/api/requester/tickets/TK%201%2Fx"
+    assert sent["path"] == "/api/requester/tickets/TK-1"
     assert sent["json"] is None
 
 
@@ -645,3 +645,15 @@ def test_a_call_sends_the_token_and_the_tool_name(monkeypatch):
     assert got == Reply(200, {"ok": True})
     assert seen[0].headers["Authorization"] == f"Bearer {_TOKEN}"
     assert seen[0].headers["X-Agent-Tool"] == "get_sla"
+
+
+@pytest.mark.parametrize("public_id", [".", "..", "../x", "a/b", "a b", "-x"])
+def test_a_public_id_that_could_change_the_route_is_refused(public_id):
+    with pytest.raises(ValueError):
+        TOOLS["get_my_ticket"].Input.model_validate({"public_id": public_id})
+
+
+@pytest.mark.parametrize("segment", [".", ".."])
+def test_a_dot_segment_never_reaches_the_path(segment):
+    with pytest.raises(ValueError):
+        TOOLS["get_my_ticket"].path_for({"public_id": segment})
