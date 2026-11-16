@@ -25,6 +25,7 @@ from pgvector.django import CosineDistance, VectorField
 
 from apps.core.models import BaseModel
 from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.utils.router import AGENT_HANDOFF_REASONS
 from infrastructure.dtos import TicketCategory
 from apps.tickets.request_schema import RevealReason, TicketIn
 
@@ -519,9 +520,25 @@ class Ticket(BaseModel):
     )
     waiting_transform = models.BooleanField(default=False)
     version = models.PositiveIntegerField(default=0)
+    # Why the agent handed this ticket to a person (F15); the router's gate reads it.
+    agent_handoff_reason = models.CharField(
+        max_length=40,
+        null=True,
+        blank=True,
+        choices=[(r.value, r.value) for r in sorted(AGENT_HANDOFF_REASONS)],
+    )
 
     class Meta(BaseModel.Meta):
         db_table = "tickets"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(agent_handoff_reason__isnull=True)
+                | models.Q(
+                    agent_handoff_reason__in=[r.value for r in sorted(AGENT_HANDOFF_REASONS)]
+                ),
+                name="tickets_agent_handoff_reason_known",
+            )
+        ]
 
     objects = TicketManager()
 

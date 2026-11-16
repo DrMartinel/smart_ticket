@@ -104,6 +104,7 @@ def test_multi_turn_auto_reply_precision(ai_engine_client, django_db_blocker):
             PIILevel(result["pii_level"]),
             kb_meta,
             clarifications_asked=0,
+            agent_handoff_reason=None,
         )
         decision = router.route(signals, proposal, kb_meta)
         expected = case["truth"]["expected_branch"]

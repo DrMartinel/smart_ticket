@@ -267,6 +267,8 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
      pii_level = critical ──► BLOCK    + alert security
      mass_incident        ──► ESCALATE   (before any duplicate logic)
      pii_level = mask_fail──► HITL       (queue: mask_failed, priority 1)
+     agent_handoff_reason ──► HITL       (the agent's reason, F15; queue:
+                                          low_confidence, priority 2)
      retrieval < floor    ──► HITL       (before the schema gate: no LLM ran,
                                           so "no proposal" is a consequence,
                                           not the cause)

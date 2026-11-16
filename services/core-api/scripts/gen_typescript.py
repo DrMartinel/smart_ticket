@@ -304,31 +304,6 @@ ENUMS = {
     "RunbookRisk": ["low", "high"],
 }
 
-REASON_CODES = [
-    "injection_detected",
-    "pii_critical",
-    "pii_mask_failed",
-    "schema_invalid",
-    "mass_incident",
-    "retrieval_below_floor",
-    "kb_not_authorized",
-    "quote_invalid",
-    "quote_source_not_in_topk",
-    "negation_mismatch",
-    "rerank_disagrees",
-    "rerank_low_confidence",
-    "trust_below_auto_threshold",
-    "trust_below_route_threshold",
-    "clarify_security",
-    "clarify_options_not_shown",
-    "clarify_round_cap",
-    "ai_engine_unavailable",
-    "budget_exceeded",
-    "all_llm_down",
-    "circuit_open",
-    "all_checks_passed",
-]
-
 
 def emit_enum(name: str, values: list[str]) -> str:
     members = " | ".join(f'"{v}"' for v in values)
@@ -482,7 +457,9 @@ def main() -> None:
     for name, values in ENUMS.items():
         chunks.append(emit_enum(name, values))
 
-    chunks.append(emit_enum("ReasonCode", REASON_CODES))
+    from apps.tickets.utils.router import ReasonCode
+
+    chunks.append(emit_enum("ReasonCode", [code.value for code in ReasonCode]))
 
     for model_name in MODELS:
         chunks.append(emit_json_schema(model_name))
