@@ -76,6 +76,14 @@ _UNREAD = {
     PIILevel.MASK_FAILED: ReasonCode.AGENT_MASK_FAILED,
     PIILevel.CRITICAL: ReasonCode.AGENT_PII_CRITICAL,
 }
+# Reasons that open no ticket: nothing was done for the person.
+_NO_TICKET = frozenset(
+    {
+        ReasonCode.AGENT_TOKEN_REFUSED,
+        ReasonCode.AGENT_OFF,
+        ReasonCode.AGENT_CONVERSATION_ENDED,
+    }
+)
 # Reasons that end the conversation with the turn.
 _ENDS_CONVERSATION = {
     ReasonCode.AGENT_INJECTION_DETECTED: AgentConversationEnd.INJECTION,
@@ -186,8 +194,11 @@ class AgentTurns:
         turn = AgentTurn.objects.select_related("conversation__user").get(id=turn_id)
         conversation = turn.conversation
         user = conversation.user
+        if not rollout.is_live(_FLAGS[AgentSurface(conversation.surface)]):
+            self._hand_off(turn.id, ReasonCode.AGENT_OFF)
+            return
         if not conversation.is_active():
-            self._hand_off(turn.id, ReasonCode.AGENT_TOKEN_REFUSED)
+            self._hand_off(turn.id, ReasonCode.AGENT_CONVERSATION_ENDED)
             return
         try:
             token = sessions.issue_for_agent(
@@ -339,10 +350,7 @@ class AgentTurns:
                 self.end(conversation, _ENDS_CONVERSATION[reason])
             origin = AgentOrigin(conversation.id, turn.id, "").audit_fields()
             ticket = None
-            if (
-                conversation.surface == AgentSurface.CHAT.value
-                and reason is not ReasonCode.AGENT_TOKEN_REFUSED
-            ):
+            if conversation.surface == AgentSurface.CHAT.value and reason not in _NO_TICKET:
                 ticket = ticket_intake.open_for_agent(
                     turn,
                     cast(AgentHandoffReason, reason.value),
@@ -375,12 +383,25 @@ class AgentTurns:
 
     # ── ending ──
 
-    def end(self, conversation: AgentConversation, reason: AgentConversationEnd) -> bool:
-        """Ends an active conversation; False when it had already ended."""
+    def end(
+        self,
+        conversation: AgentConversation,
+        reason: AgentConversationEnd,
+        idle_before: datetime | None = None,
+    ) -> bool:
+        """Ends an active conversation; False when it had already ended, or when `idle_before`
+        is given and it has had a message or a turn in flight since."""
         now = timezone.now()
-        if not AgentConversation.objects.filter(
+        candidates = AgentConversation.objects.filter(
             id=conversation.id, state=AgentConversationState.ACTIVE.value
-        ).update(state=AgentConversationState.ENDED.value, ended_at=now, end_reason=reason.value):
+        )
+        if idle_before is not None:
+            candidates = candidates.filter(last_activity_at__lte=idle_before).exclude(
+                turns__state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value)
+            )
+        if not candidates.update(
+            state=AgentConversationState.ENDED.value, ended_at=now, end_reason=reason.value
+        ):
             return False
         conversation.refresh_from_db(fields=["state", "ended_at", "end_reason"])
         return True
@@ -413,14 +434,17 @@ class AgentTurns:
         expired = AgentAction.objects.filter(
             state=AgentActionState.PENDING.value, expires_at__lte=now
         ).update(state=AgentActionState.EXPIRED.value, resolved_at=now)
+        idle_before = now - timedelta(minutes=th.conversation_idle_minutes)
         ended = (
             AgentConversation.objects.active()
-            .filter(last_activity_at__lte=now - timedelta(minutes=th.conversation_idle_minutes))
+            .filter(last_activity_at__lte=idle_before)
             .exclude(turns__state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
         )
         ended_count = 0
         for conversation in ended:
-            ended_count += self.end(conversation, AgentConversationEnd.IDLE)
+            ended_count += self.end(
+                conversation, AgentConversationEnd.IDLE, idle_before=idle_before
+            )
         cutoff = now - timedelta(seconds=th.token_ttl_seconds)
         stuck = [
             turn_id
@@ -434,8 +458,12 @@ class AgentTurns:
         stuck += AgentTurn.objects.filter(
             state=AgentTurnState.RUNNING.value, started_at__lte=cutoff
         ).values_list("id", flat=True)
-        for turn_id in stuck:
-            self._hand_off(turn_id, ReasonCode.AGENT_ENGINE_UNAVAILABLE)
+        for turn_id, pii_level in AgentTurn.objects.filter(id__in=stuck).values_list(
+            "id", "pii_level"
+        ):
+            self._hand_off(
+                turn_id, _UNREAD.get(PIILevel(pii_level), ReasonCode.AGENT_ENGINE_UNAVAILABLE)
+            )
         return SweepResult(expired, ended_count, len(stuck))
 
 

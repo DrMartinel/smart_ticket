@@ -87,6 +87,14 @@ HANDOFF_TEXT: dict[ReasonCode, dict[Language, str]] = {
         Language.EN: "Your sign-in ended, so I stopped. Nothing more was done.",
         Language.VI: "Phiên đăng nhập đã kết thúc nên em đã dừng. Không có thao tác nào thêm.",
     },
+    ReasonCode.AGENT_OFF: {
+        Language.EN: "The assistant has been switched off, so I stopped. Nothing more was done.",
+        Language.VI: "Trợ lý đã bị tắt nên em đã dừng. Không có thao tác nào thêm.",
+    },
+    ReasonCode.AGENT_CONVERSATION_ENDED: {
+        Language.EN: "This conversation had already ended, so I stopped. Nothing more was done.",
+        Language.VI: "Cuộc trò chuyện đã kết thúc nên em đã dừng. Không có thao tác nào thêm.",
+    },
     ReasonCode.AGENT_MASK_FAILED: {
         Language.EN: (
             "I couldn't check this message for personal data, so I haven't read it. "

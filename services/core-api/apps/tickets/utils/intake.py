@@ -57,7 +57,15 @@ class TicketIntake:
         """Masks `ticket_in` inline, stores it with its quarantine entries and queues its
         pipeline run. A masking failure stores the ticket at `mask_failed`; it never raises.
         A ticket an agent turn asks for also gets the conversation's entries its text names."""
-        result = async_to_sync(mask)(ticket_in, settings.THRESHOLDS.masking.ner_max_share)
+        known: dict[str, str] = {}
+        if agent_turn is not None:
+            # Imported here: the agent app imports this module.
+            from apps.agent.models import AgentTurn
+
+            known = AgentTurn.objects.pii_map_of(agent_turn.conversation_id) | agent_turn.pii_map
+        result = async_to_sync(mask)(
+            ticket_in, settings.THRESHOLDS.masking.ner_max_share, list(known)
+        )
         entries = build_quarantine_entries(result.placeholder_map)
 
         def store(ticket: Ticket) -> dict[str, str]:
@@ -65,11 +73,6 @@ class TicketIntake:
             own = {ph: str(entry.ref) for ph, entry in entries.items()}
             if agent_turn is None:
                 return own
-            # Imported here: the agent app imports this module.
-            from apps.agent.models import AgentTurn
-
-            conversation_map = AgentTurn.objects.pii_map_of(agent_turn.conversation_id)
-            known = conversation_map | agent_turn.pii_map
             inherited = {ph: ref for ph, ref in known.items() if ph not in own}
             text = f"{result.subject_masked}\n{result.body_masked}"
             return own | PiiQuarantine.objects.copy_to(ticket, inherited, text)

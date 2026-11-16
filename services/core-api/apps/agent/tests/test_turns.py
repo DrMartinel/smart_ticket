@@ -472,6 +472,34 @@ def test_a_signed_out_user_s_turn_never_reaches_ai_engine(
 
 
 @pytest.mark.django_db
+def test_a_queued_turn_is_never_run_after_its_flag_goes_off(
+    employee_user, api_as, live, engine, queued
+):
+    turn = _start(api_as(employee_user))
+    RolloutFlag.objects.filter(branch="agent_chat").update(state="off")
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert engine.turn_bodies == []
+    assert (turn.stop_reason, turn.handoff_ticket) == ("agent_off", None)
+
+
+@pytest.mark.django_db
+def test_a_turn_queued_in_an_ended_conversation_says_so_and_opens_no_ticket(
+    employee_user, api_as, live, engine, queued
+):
+    turn = _start(api_as(employee_user))
+    agent_turns.end(turn.conversation, AgentConversationEnd.USER)
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert engine.turn_bodies == []
+    assert (turn.stop_reason, turn.handoff_ticket) == ("agent_conversation_ended", None)
+
+
+@pytest.mark.django_db
 def test_an_injected_message_ends_the_conversation(employee_user, api_as, live, engine, queued):
     engine.reply = _handed_off("injection")
     turn = _start(api_as(employee_user))
@@ -682,7 +710,11 @@ def test_a_hand_off_ticket_is_audited_as_the_agent_s(employee_user, api_as, live
 def test_every_hand_off_reason_has_a_message_in_both_languages():
     from apps.agent.utils.vocabulary import HANDOFF_TEXT
 
-    assert set(HANDOFF_TEXT) == AGENT_HANDOFF_REASONS | {ReasonCode.AGENT_TOKEN_REFUSED}
+    assert set(HANDOFF_TEXT) == AGENT_HANDOFF_REASONS | {
+        ReasonCode.AGENT_TOKEN_REFUSED,
+        ReasonCode.AGENT_OFF,
+        ReasonCode.AGENT_CONVERSATION_ENDED,
+    }
     assert all(set(texts) == {"vi", "en"} for texts in HANDOFF_TEXT.values())
 
 
@@ -799,6 +831,47 @@ def test_the_sweep_expires_actions_and_ends_idle_conversations(
     action.refresh_from_db()
     assert action.state == "expired"
     assert AgentConversation.objects.get().end_reason == "idle"
+
+
+@pytest.mark.django_db
+def test_the_sweep_does_not_end_a_conversation_that_has_a_turn_in_flight(
+    employee_user, api_as, live, engine, queued, settings
+):
+    turn = _start(api_as(employee_user))
+    idle = settings.THRESHOLDS.agent.conversation_idle_minutes
+    stale = timezone.now() - timedelta(minutes=idle + 1)
+    AgentConversation.objects.update(last_activity_at=stale)
+
+    assert not agent_turns.end(turn.conversation, AgentConversationEnd.IDLE, idle_before=stale)
+    assert AgentConversation.objects.get().state == "active"
+
+
+@pytest.mark.django_db
+def test_the_sweep_does_not_end_a_conversation_used_since_it_was_listed(
+    employee_user, api_as, live, engine, queued, settings
+):
+    turn = _start(api_as(employee_user))
+    agent_turns.run(turn.id)
+    idle = settings.THRESHOLDS.agent.conversation_idle_minutes
+    listed_at = timezone.now() - timedelta(minutes=idle + 1)
+
+    assert not agent_turns.end(turn.conversation, AgentConversationEnd.IDLE, idle_before=listed_at)
+
+
+@pytest.mark.django_db
+def test_the_sweep_hands_off_a_stuck_unread_turn_with_its_own_reason(
+    employee_user, api_as, live, engine, queued, settings
+):
+    turn = _start(api_as(employee_user))
+    stale = timezone.now() - timedelta(seconds=settings.THRESHOLDS.agent.token_ttl_seconds + 1)
+    AgentTurn.objects.filter(id=turn.id).update(
+        state="running", started_at=stale, pii_level="mask_failed"
+    )
+
+    agent_turns.sweep()
+
+    assert AgentTurn.objects.get(id=turn.id).stop_reason == "agent_mask_failed"
+    assert AgentConversation.objects.get().end_reason == "mask_failed"
 
 
 # ── the routes (§h.2) ──

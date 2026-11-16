@@ -338,7 +338,11 @@ def test_every_agent_handoff_reason_is_an_agent_reason_code():
     """The router's set, the signals' Literal and the agent codes agree; a turn whose token was
     refused opens no ticket."""
     agent_codes = {r.value for r in ReasonCode if r.value.startswith("agent_")}
-    assert {r.value for r in AGENT_HANDOFF_REASONS} == agent_codes - {"agent_token_refused"}
+    assert {r.value for r in AGENT_HANDOFF_REASONS} == agent_codes - {
+        "agent_token_refused",
+        "agent_off",
+        "agent_conversation_ended",
+    }
     assert set(get_args(AgentHandoffReason)) == {r.value for r in AGENT_HANDOFF_REASONS}
 
 
