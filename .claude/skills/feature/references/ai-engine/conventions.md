@@ -185,4 +185,4 @@ gets no signals at all.
 - Write to any database on the request path (ADR-0004). The offline
   entity-graph build's `db.write` is the one exception (ADR-0025).
 - Feed `llm_self_confidence` into anything but the log-only field (ADR-0003).
-- Retry a model call, fall back to another provider, or cycle the graph.
+- Retry a model call, fall back to another provider, or cycle the triage graph.

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 from ai_engine.graph.build.node import BaseNode
 
@@ -15,9 +16,9 @@ class Edge:
     """Valid on its own: a source can only be routed on an outcome its class
     produces. Rules that need the other edges live on `Graph`."""
 
-    source: BaseNode
+    source: BaseNode[Any]
     outcome: StrEnum
-    target: BaseNode
+    target: BaseNode[Any]
 
     def __post_init__(self) -> None:
         if not self.source.produces(self.outcome):

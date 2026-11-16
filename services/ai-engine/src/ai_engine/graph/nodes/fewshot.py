@@ -17,7 +17,7 @@ from ai_engine.graph.build.node import BaseNode
 from ai_engine.graph.state import TriageState
 
 
-class SelectFewshotsNode(BaseNode):
+class SelectFewshotsNode(BaseNode[TriageState]):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         # The embedding HybridRetrieveNode made of the same ticket text: one
         # embed call per ticket, not two.

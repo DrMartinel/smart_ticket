@@ -23,7 +23,7 @@ _DRAFT_SCHEMA = {
 }
 
 
-class DraftAnswerNode(BaseNode):
+class DraftAnswerNode(BaseNode[TriageState]):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         ticket = state.ticket
         earlier = ticket.earlier_turns()

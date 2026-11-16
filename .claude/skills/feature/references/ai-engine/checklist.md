@@ -24,7 +24,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [regression] Every new dependency failure ends at HITL. Either it raises (500 → `ai_engine_unavailable`) or it sets `degraded_reason` to an existing `ReasonCode` value.
 - [regression] No infrastructure failure turns into an empty or "clean" result (`[]`, a zero vector, checks marked passed).
 - [regression] `emit_signals` still can't raise. Any new lookup in it is inside a `try` and denies by default.
-- [regression] No retries, no provider fallback, no graph cycle.
+- [regression] No retries, no provider fallback, no cycle in the triage graph. A `Cycles.BOUNDED` graph loops only through a limit outcome.
 - [convention] Each broad `except` has a `# noqa: BLE001 — <why>` comment and returns the *safe* value.
 
 ## Node contract
@@ -46,7 +46,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 ## Wiring (`graph/triage.py`)
 
 - [regression] Every outcome is routed and the graph compiles on import.
-- [regression] Every path still ends at `emit_signals`, then the builder's end. The graph stays acyclic.
+- [regression] Every path still ends at `emit_signals`, then the builder's end. The triage graph stays acyclic (`Cycles.REJECT`).
 - [convention] Routes that carry a safety property have an inline comment.
 - [convention] `tests/test_build.py` literal node and edge sets are updated. `test_safety_critical_routes` is extended if the change calls for it.
 

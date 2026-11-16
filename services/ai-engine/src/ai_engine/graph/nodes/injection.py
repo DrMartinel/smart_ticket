@@ -44,7 +44,7 @@ class InjectionOutcome(StrEnum):
     INJECTION_CLEAR = "InjectionClear"
 
 
-class InjectionNode(BaseNode):
+class InjectionNode(BaseNode[TriageState]):
     """Prompt-injection screen. A hit routes straight to `EmitSignalsNode`,
     spending no further tokens.
     """

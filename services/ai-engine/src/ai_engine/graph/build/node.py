@@ -16,8 +16,6 @@ from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any, ClassVar, Self
 
-from ai_engine.graph.state import TriageState
-
 
 class SingleExit(StrEnum):
     """The outcome of every node with one exit."""
@@ -25,8 +23,8 @@ class SingleExit(StrEnum):
     DONE = "Done"
 
 
-class BaseNode(ABC):
-    """One unit of work in the triage graph.
+class BaseNode[S](ABC):
+    """One unit of work in a graph whose state is `S`.
 
     Read-only after __init__: one instance is shared across FastAPI's
     threadpool, so `__call__` must never write to `self`. All per-call data
@@ -40,6 +38,9 @@ class BaseNode(ABC):
     name: ClassVar[str]
 
     Outcome: ClassVar[type[StrEnum]] = SingleExit
+
+    # The outcomes this node takes when a loop through it has reached its cap.
+    limits: ClassVar[frozenset[StrEnum]] = frozenset()
 
     _instantiated: ClassVar[bool] = False
 
@@ -64,6 +65,10 @@ class BaseNode(ABC):
             raise TypeError(
                 f"{cls.__qualname__} defines its own Outcome but does not override decide()"
             )
+        if strays := [limit for limit in cls.limits if not cls.produces(limit)]:
+            raise TypeError(
+                f"{cls.__qualname__}: limits name outcomes it cannot produce {strays!r}"
+            )
 
     @classmethod
     def produces(cls, outcome: StrEnum) -> bool:
@@ -71,16 +76,16 @@ class BaseNode(ABC):
         return any(outcome is member for member in cls.Outcome)
 
     @abstractmethod
-    def __call__(self, state: TriageState) -> dict[str, Any]:
+    def __call__(self, state: S) -> dict[str, Any]:
         """Do the work. Return only the state keys that changed."""
 
-    def decide(self, state: TriageState) -> StrEnum:
+    def decide(self, state: S) -> StrEnum:
         """Which outcome did this run reach? Runs after __call__'s update is
         merged, so it sees fresh state. Default: single exit."""
         return SingleExit.DONE
 
 
-class Terminal(BaseNode):
+class Terminal(BaseNode[Any]):
     """The node every path ends on. Its one instance, `terminal`, is shared by
     every `GraphBuilder` as `builder.end`: the builder recognises it by
     identity and gives it the only edge to END, keeping END out of app code.
@@ -88,11 +93,11 @@ class Terminal(BaseNode):
     into another.
 
     It returns no update: LangGraph silently drops keys outside
-    TriageState, so returning END would look like it worked while doing
+    the state schema, so returning END would look like it worked while doing
     nothing.
     """
 
-    def __call__(self, state: TriageState) -> dict[str, Any]:
+    def __call__(self, state: Any) -> dict[str, Any]:
         return {}
 
 

@@ -45,7 +45,7 @@ def _by_score(chunks: list[RankedChunk]) -> list[RankedChunk]:
     return sorted(chunks, key=lambda r: r.shortlist_score, reverse=True)
 
 
-class CandidatePoolNode(BaseNode):
+class CandidatePoolNode(BaseNode[TriageState]):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         candidates = state.candidates
         if not candidates:

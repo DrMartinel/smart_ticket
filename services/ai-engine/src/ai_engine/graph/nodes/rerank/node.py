@@ -26,7 +26,7 @@ from ai_engine.graph.nodes.candidate_pool.links import article_titles
 from ai_engine.graph.state import RankedChunk, TriageState
 
 
-class RerankNode(BaseNode):
+class RerankNode(BaseNode[TriageState]):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         shortlist = state.pool[: settings.rerank_pool]
         if not shortlist:

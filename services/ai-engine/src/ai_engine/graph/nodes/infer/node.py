@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 _PROPOSAL_SCHEMA = LLMProposalEnvelope.model_json_schema()
 
 
-class InferNode(BaseNode):
+class InferNode(BaseNode[TriageState]):
     def __call__(self, state: TriageState) -> dict[str, Any]:
         ticket = state.ticket
         excerpts = "\n\n".join(

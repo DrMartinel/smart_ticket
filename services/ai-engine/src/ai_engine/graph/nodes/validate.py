@@ -117,7 +117,7 @@ def _clarify_options_shown(state: TriageState) -> bool:
     return len(options) >= 2 and options <= {c.article_slug for c in state.reranked}
 
 
-class ValidateNode(BaseNode):
+class ValidateNode(BaseNode[TriageState]):
     """Every exit returns all six checks. A check left out would not fail
     loudly: it reads as its "failed" state default, so a deliberate pass
     (negation on a route proposal) would silently lower trust.
