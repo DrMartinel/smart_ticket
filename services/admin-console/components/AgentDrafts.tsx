@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 // Payload fields whose values are codes, shown in words; other values are shown as written.
 const CODED = new Set(["action_taken", "kb_verdict", "category_verdict", "corrected_category", "priority", "decision"]);
 const HIDDEN = new Set(["time_spent_sec", "expected_version"]);
+// A decision draft's page id is never carried into the review form.
+const NOT_CARRIED = new Set(["corrected_kb_id"]);
 
 export default function AgentDrafts({
   drafts,
@@ -40,9 +42,11 @@ export default function AgentDrafts({
     <div className="flex flex-col gap-3">
       {drafts.map((d) => {
         const payload = (d.arguments.payload ?? {}) as Record<string, unknown>;
-        const fields = Object.entries(payload).filter(([k, v]) => v !== null && v !== "" && !HIDDEN.has(k));
-        const stale = typeof payload.expected_version === "number" && payload.expected_version !== version;
         const decision = d.tool === "draft_review_decision";
+        const fields = Object.entries(payload).filter(
+          ([k, v]) => v !== null && v !== "" && !HIDDEN.has(k) && !(decision && NOT_CARRIED.has(k)),
+        );
+        const stale = typeof payload.expected_version === "number" && payload.expected_version !== version;
         return (
           <section
             key={d.action_id}

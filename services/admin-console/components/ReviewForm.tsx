@@ -29,6 +29,8 @@ const ACTIONS: { value: ReviewDecisionPayload["action_taken"]; label: string; hi
   { value: "reject", label: "Reject", hint: "The proposal is wrong; handle it manually." },
 ];
 
+const CATEGORY_VERDICTS = ["correct", "wrong"];
+
 const KB_VERDICTS: { value: NonNullable<ReviewDecisionPayload["kb_verdict"]>; label: string }[] = [
   { value: "correct", label: "Yes" },
   { value: "partial", label: "Partly" },
@@ -58,11 +60,15 @@ export default function ReviewForm({
   initial?: Partial<ReviewDecisionPayload>;
 }) {
   const startedAt = useRef(Date.now());
-  const [kbVerdict, setKbVerdict] = useState<ReviewDecisionPayload["kb_verdict"]>(initial.kb_verdict ?? null);
-  const [categoryVerdict, setCategoryVerdict] = useState<ReviewDecisionPayload["category_verdict"]>(
-    initial.category_verdict ?? null,
+  const [kbVerdict, setKbVerdict] = useState<ReviewDecisionPayload["kb_verdict"]>(
+    KB_VERDICTS.some((v) => v.value === initial.kb_verdict) ? initial.kb_verdict! : null,
   );
-  const [correctedCategory, setCorrectedCategory] = useState(initial.corrected_category ?? "");
+  const [categoryVerdict, setCategoryVerdict] = useState<ReviewDecisionPayload["category_verdict"]>(
+    CATEGORY_VERDICTS.includes(initial.category_verdict ?? "") ? initial.category_verdict! : null,
+  );
+  const [correctedCategory, setCorrectedCategory] = useState(
+    CATEGORIES.includes(initial.corrected_category ?? "") ? initial.corrected_category! : "",
+  );
   const [action, setAction] = useState<ReviewDecisionPayload["action_taken"]>(
     ACTIONS.some((a) => a.value === initial.action_taken) ? initial.action_taken! : "approve",
   );

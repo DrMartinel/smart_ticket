@@ -166,14 +166,28 @@ export function useAgentConversation(enabled: boolean) {
         }));
         setPending((prev) => prev.filter((a) => a.action_id !== id));
       } catch (err) {
-        const final =
-          err instanceof ApiError
-            ? err.code
-              ? FINAL_REFUSALS[err.code]
-              : undefined
-            : "Couldn't tell whether that was applied. Check the ticket before trying again.";
+        let final = err instanceof ApiError && err.code ? FINAL_REFUSALS[err.code] : undefined;
+        let label = "Not applied";
+        if (!(err instanceof ApiError)) {
+          // No answer came back: the server's own list says whether the draft is still waiting.
+          try {
+            const list = await agentApi.actions("state=pending&kind=confirm");
+            setPending(list);
+            if (!list.some((a) => a.action_id === id)) {
+              label = "Not sure";
+              final = run
+                ? "Couldn't tell whether that was applied. Check the ticket before trying again."
+                : "Couldn't tell whether that was cancelled. It is no longer waiting for you.";
+            }
+          } catch {
+            // the list is unreachable too: the card stays, with a retry
+          }
+          if (!final) {
+            setActionError((prev) => ({ ...prev, [id]: "Couldn't reach the server. Try again." }));
+            return;
+          }
+        }
         if (final) {
-          const label = err instanceof ApiError ? "Not applied" : "Not sure";
           setResults((prev) => ({ ...prev, [id]: { label, tone: "warn", text: final } }));
           setPending((prev) => prev.filter((a) => a.action_id !== id));
         } else {

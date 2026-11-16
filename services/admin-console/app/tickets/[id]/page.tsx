@@ -68,7 +68,7 @@ interface ReviewItemDetail {
 
 const TRIAGE = new Set(["new", "awaiting_requester"]);
 // Refusals after which a decision draft can no longer be applied.
-const DRAFT_GONE = new Set(["agent_action_expired", "agent_action_not_pending"]);
+const DRAFT_GONE = new Set(["agent_action_expired", "agent_action_not_pending", "not_pending"]);
 
 export default function TicketPage() {
   const user = useRequireAuth();
@@ -168,6 +168,18 @@ export default function TicketPage() {
       toast.error(err instanceof ApiError ? `Not done: ${err.message}` : "Not done: something went wrong. Try again.");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const dropIfGone = async (draft: AgentActionOut, call: () => Promise<unknown>) => {
+    try {
+      await call();
+    } catch (err) {
+      if (err instanceof ApiError && DRAFT_GONE.has(err.code ?? "")) {
+        setDrafts((prev) => prev.filter((a) => a.action_id !== draft.action_id));
+        if (formDraft?.action_id === draft.action_id) setFormDraft(null);
+      }
+      throw err;
     }
   };
 
@@ -323,10 +335,11 @@ export default function TicketPage() {
               setFormDraft(d);
               setUsingDraft(d);
             }}
-            onApply={(d) => act(() => agentApi.apply(d), "Applied the assistant's draft.")}
+            onApply={(d) => act(() => dropIfGone(d, () => agentApi.apply(d)), "Applied the assistant's draft.")}
             onDismiss={(d) => {
               if (usingDraft?.action_id === d.action_id) setUsingDraft(null);
-              void act(() => agentApi.dismiss(d.action_id), "Draft dismissed.");
+              if (formDraft?.action_id === d.action_id) setFormDraft(null);
+              void act(() => dropIfGone(d, () => agentApi.dismiss(d.action_id)), "Draft dismissed.");
             }}
           />
 
