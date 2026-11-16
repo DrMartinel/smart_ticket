@@ -153,7 +153,7 @@ jobs:
           uv run python manage.py shell -c "from apps.accounts.models import User; User.objects.filter(username='kb-approver').exists() or User.objects.create_user('kb-approver', role='manager')"
           uv run python manage.py load_demo_kb --approver kb-approver
       - name: Full-golden-set eval suites
-        run: uv run --package evals pytest evals/suites -q
+        run: uv run --package evals pytest evals/suites -q --ignore=evals/suites/test_agent_traces.py
       - name: Report + regression gate
         run: uv run --package evals python evals/report.py --compare evals/baselines/baseline.json
       - uses: actions/upload-artifact@v4

@@ -26,7 +26,7 @@ Pass pytest arguments to core-api's target with `ARGS=`: `make test ARGS="-k rou
 
 core-api's tests run with `config.settings.test` (from its `pytest.ini`): the stub embedder, whatever the environment says, and a fast password hasher. Its database tests still need `DATABASE_URL`; `make test` exports it, pointing at the Dockerized Postgres on port 5434. Running pytest directly, export it yourself.
 
-Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn't reachable, so unit tests stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies at all; `test_history_data` checks that every `evals/HISTORY.md` entry has its recorded data, and `test_analyze_masking` checks the harness masks tickets as production does, both offline.
+Eval suites needing a live pipeline **skip** automatically when `ai-engine` isn't reachable, so unit tests stay runnable offline. `test_injection` and `test_quote_validation` run fully in-process with no dependencies at all; `test_agent_traces` runs the F15 acceptance traces in-process against the test database, with a scripted agent model and no ai-engine server; `test_history_data` checks that every `evals/HISTORY.md` entry has its recorded data, and `test_analyze_masking` checks the harness masks tickets as production does, both offline.
 
 Coverage on the two modules where it is contractual:
 
