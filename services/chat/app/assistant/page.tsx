@@ -59,7 +59,7 @@ export default function AssistantPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => void agent.startNew()}
-                  disabled={agent.busy}
+                  disabled={agent.rows.some((r) => r.kind === "sending")}
                   className="-mr-2 text-primary"
                 >
                   <Plus aria-hidden /> New conversation
@@ -82,6 +82,11 @@ export default function AssistantPage() {
                   onRetry={agent.retry}
                 />
               ))}
+              {agent.pendingError && (
+                <p role="alert" className="text-sm text-muted-foreground">
+                  I couldn't load the confirmation waiting for you. Retrying…
+                </p>
+              )}
             </>
           )}
           <div ref={endRef} />

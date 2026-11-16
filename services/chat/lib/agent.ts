@@ -43,6 +43,11 @@ function confirmedResult(action: AgentActionOut, response: unknown): ActionResul
   return { label: "Done", tone: "ok", text: action.tool === "reopen_my_ticket" ? "Reopened." : "Sent." };
 }
 
+function lostTurnError(err: ApiError): string {
+  if (err.status === 401) return "Your sign-in ended. Sign in again to keep talking to the assistant.";
+  return "I lost track of that message. You can send it again.";
+}
+
 function sendError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "agent_off") return "The assistant is switched off right now. You can still ask on the Ask page.";
@@ -63,10 +68,13 @@ export function useAgentConversation(enabled: boolean) {
   const [results, setResults] = useState<Record<string, ActionResult>>({});
   const [creating, setCreating] = useState<string | null>(null);
   const [createError, setCreateError] = useState<Record<string, string>>({});
-  // Bumped after each poll, so the next one is scheduled whether or not anything changed.
   const [turnTick, setTurnTick] = useState(0);
   const [handoffTick, setHandoffTick] = useState(0);
   const handoffTried = useRef(new Set<string>());
+  // Confirmations a finished turn named that the pending list has been asked about.
+  const pendingChecked = useRef(new Set<string>());
+  const [pendingTick, setPendingTick] = useState(0);
+  const [pendingError, setPendingError] = useState(false);
   const polling = useRef(false);
   const conversationRef = useRef<string | null>(null);
 
@@ -80,6 +88,40 @@ export function useAgentConversation(enabled: boolean) {
       .then(setPending)
       .catch(() => undefined);
   }, []);
+
+  // A finished turn can have asked for a confirmation whichever way it stopped; load the cards it
+  // names until each is either listed or known not to be.
+  useEffect(() => {
+    if (!enabled) return;
+    const listed = new Set(pending.map((a) => a.action_id));
+    const missing = rows.flatMap((r) =>
+      r.kind === "server" && !UNFINISHED.has(r.turn.state)
+        ? r.turn.receipts.flatMap((x) =>
+            x.outcome === "awaiting_confirmation" && x.action_id && !listed.has(x.action_id) && !results[x.action_id]
+              ? [x.action_id]
+              : [],
+          )
+        : [],
+    ).filter((id) => !pendingChecked.current.has(id));
+    if (missing.length === 0) return;
+    const timer = window.setTimeout(
+      () => {
+        agentApi
+          .pending()
+          .then((list) => {
+            missing.forEach((id) => pendingChecked.current.add(id));
+            setPendingError(false);
+            setPending(list);
+          })
+          .catch(() => {
+            setPendingError(true);
+            setPendingTick((n) => n + 1);
+          });
+      },
+      pendingTick === 0 ? 0 : POLL_MS,
+    );
+    return () => window.clearTimeout(timer);
+  }, [enabled, rows, pending, results, pendingTick]);
 
   // Poll each unfinished turn until it has an outcome.
   useEffect(() => {
@@ -95,17 +137,18 @@ export function useAgentConversation(enabled: boolean) {
           const fresh = await agentApi.turn(r.turn.turn_id);
           if (fresh.state !== r.turn.state) {
             replace(r.key, { ...r, turn: fresh });
-            if (fresh.state === "awaiting_confirmation") loadPending();
           }
-        } catch {
-          // transient: the next tick tries again
+        } catch (err) {
+          if (err instanceof ApiError && [401, 403, 404].includes(err.status)) {
+            replace(r.key, { kind: "failed", key: r.key, text: r.turn.message_masked, error: lostTurnError(err) });
+          }
         }
       }
       polling.current = false;
       setTurnTick((n) => n + 1);
     }, POLL_MS);
     return () => window.clearTimeout(timer);
-  }, [enabled, rows, replace, loadPending, turnTick]);
+  }, [enabled, rows, replace, turnTick]);
 
   // Load each hand-off ticket, and poll it while the helpdesk is still deciding.
   useEffect(() => {
@@ -183,14 +226,28 @@ export function useAgentConversation(enabled: boolean) {
         }));
         setPending((prev) => prev.filter((a) => a.action_id !== id));
       } catch (err) {
-        const final =
-          err instanceof ApiError
-            ? err.code
-              ? FINAL_REFUSALS[err.code]
-              : undefined
-            : "I couldn't tell whether that went through. Check your ticket before trying again.";
+        let final = err instanceof ApiError && err.code ? FINAL_REFUSALS[err.code] : undefined;
+        let label = "Not sent";
+        if (!(err instanceof ApiError)) {
+          // No answer came back: the server's own list says whether the action is still waiting.
+          try {
+            const list = await agentApi.pending();
+            setPending(list);
+            if (!list.some((a) => a.action_id === id)) {
+              label = "Not sure";
+              final = run
+                ? "I couldn't tell whether that went through. Check your ticket before trying again."
+                : "I couldn't tell whether that was cancelled. It is no longer waiting for you.";
+            }
+          } catch {
+            // the list is unreachable too: the card stays, with a retry
+          }
+          if (!final) {
+            setActionError((prev) => ({ ...prev, [id]: "I couldn't reach the server. Try again." }));
+            return;
+          }
+        }
         if (final) {
-          const label = err instanceof ApiError ? "Not sent" : "Not sure";
           setResults((prev) => ({ ...prev, [id]: { label, tone: "warn", text: final } }));
           setPending((prev) => prev.filter((a) => a.action_id !== id));
         } else {
@@ -241,6 +298,7 @@ export function useAgentConversation(enabled: boolean) {
     results,
     creating,
     createError,
+    pendingError,
     send,
     retry,
     confirm: (a: AgentActionOut) => resolve(a, true),
