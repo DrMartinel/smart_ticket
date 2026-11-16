@@ -410,6 +410,7 @@ export interface StaffTicketDetail {
   ai: AiSummaryOut | null;
   reviews: OpenReviewOut[];
   clarifications: ClarificationOut[];
+  agent_handoff_reason?: string | null;
 }
 
 export interface RevealOut {
