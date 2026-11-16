@@ -648,6 +648,12 @@ each file is clean.
   before the router blocks it. Treat `critical` like `mask_failed` there, or
   skip `analyze` in the pipeline. Predates F15; seen in the PR 6 review.
 
+- **The chat's assistant page is English only** (FR-F15-021 asks for vi
+  and en, following `accounts_user.language`); the hand-off reply already
+  comes from core-api in the user's language, so a vi user sees both. The
+  rest of the chat outside the guides is English too. The chat's in-app
+  guides have no assistant guide yet.
+
 - **A hand-off whose triage run degrades** (embedding, budget, ai-engine)
   records the degraded reason in its routing decision; the agent's reason is
   only on `tickets.agent_handoff_reason`. The console's review item and ticket
