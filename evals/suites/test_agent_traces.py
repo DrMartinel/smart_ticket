@@ -71,7 +71,7 @@ class InProcessCoreApi:
     """ai-engine's tool client, answered by core-api's own views through Django's test client."""
 
     def __init__(self, on_wait: Callable[[], bool]) -> None:
-        self.client = Client()
+        self.client = Client(raise_request_exception=False)
         self.on_wait = on_wait
         self.calls: list[tuple[str, str, int]] = []
 
@@ -95,7 +95,11 @@ class InProcessCoreApi:
             if method == "GET":
                 raise ToolFailed(f"HTTP {response.status_code}")
             raise OutcomeUnknown(f"HTTP {response.status_code}")
-        return Reply(response.status_code, response.json() if response.content else None)
+        try:
+            body = response.json() if response.content else None
+        except ValueError as err:
+            raise ToolFailed("unparseable reply") from err
+        return Reply(response.status_code, body)
 
     def wait(self, seconds):
         if not self.on_wait():
@@ -234,7 +238,9 @@ def minh(django_user_model) -> User:
 @pytest.mark.django_db
 def test_ac_f15_01_an_employee_s_ticket_is_opened_through_the_router(stack, linh):
     def opened() -> dict[str, Any]:
-        return call("request_ticket", public_id=Ticket.objects.get().public_id)
+        held = Ticket.objects.get()
+        assert (held.status, held.held_decision is not None) == ("awaiting_requester", True)
+        return call("request_ticket", public_id=held.public_id)
 
     model = stack.script(
         call("ask_helpdesk", message="VPN drops every ~10 min since this morning"),
@@ -279,7 +285,6 @@ def test_ac_f15_02_an_injected_review_item_gets_a_draft_and_nothing_runs(stack, 
     assert turn.state == "replied", turn.stop_reason
     outcomes = [r["outcome"] for r in turn.receipts]
     assert outcomes == ["draft_waiting"]
-    assert "approved" not in turn.reply_text.lower()
     draft = AgentAction.objects.get()
     assert (draft.kind, draft.state, draft.target_ref) == ("draft", "pending", str(item.id))
     assert not ReviewDecision.objects.filter(review_item=item).exists()

@@ -126,7 +126,7 @@ Whole workspace, from the repo root:
 ```bash
 uv run pytest                              # everything (unit + eval)
 uv run pytest services/ai-engine/tests -q
-uv run pytest evals/suites -q              # 10 files; live ones skip if ai-engine is down
+uv run pytest evals/suites -q              # 11 files; live ones skip if ai-engine is down
 uv run mypy                                # all three packages
 ```
 
