@@ -155,7 +155,16 @@ def make_thresholds(**overrides) -> Thresholds:
             review_reminder_days=3,
             import_max_rows=2000,
         ),
-        agent=AgentThresholds(token_ttl_seconds=300, confirm_ttl_minutes=30, draft_ttl_hours=72),
+        agent=AgentThresholds(
+            max_steps=8,
+            max_tool_calls_per_turn=6,
+            max_model_tokens_per_turn=16000,
+            token_ttl_seconds=300,
+            confirm_ttl_minutes=30,
+            draft_ttl_hours=72,
+            max_earlier_turns=6,
+            conversation_idle_minutes=30,
+        ),
     )
     base.update(overrides)
     return Thresholds(**base)
@@ -329,7 +338,11 @@ def test_every_agent_handoff_reason_is_an_agent_reason_code():
     """The router's set, the signals' Literal and the agent codes agree; a turn whose token was
     refused opens no ticket."""
     agent_codes = {r.value for r in ReasonCode if r.value.startswith("agent_")}
-    assert {r.value for r in AGENT_HANDOFF_REASONS} == agent_codes - {"agent_token_refused"}
+    assert {r.value for r in AGENT_HANDOFF_REASONS} == agent_codes - {
+        "agent_token_refused",
+        "agent_off",
+        "agent_conversation_ended",
+    }
     assert set(get_args(AgentHandoffReason)) == {r.value for r in AGENT_HANDOFF_REASONS}
 
 

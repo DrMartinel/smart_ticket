@@ -136,6 +136,10 @@ class User(AbstractUser, BaseModel):
     def __str__(self) -> str:
         return f"{self.username} ({self.role})"
 
+    def preferred_language(self) -> Language:
+        """The language the user reads notices and the assistant in; Vietnamese unless English."""
+        return Language.EN if self.language == Language.EN.value else Language.VI
+
     def capability_set(self) -> frozenset[str]:
         """The add-on roles the user holds everywhere, named as capabilities (ADR-0031)."""
         from apps.accounts.utils.catalog import ADD_ON_ROLES

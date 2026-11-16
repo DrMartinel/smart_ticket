@@ -15,6 +15,7 @@ from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
+from apps.tickets.utils.intake import ticket_intake
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.chat.utils.conversations import conversations
@@ -224,7 +225,7 @@ class RequesterTickets:
         if until is None:
             raise RequesterError(409, RequesterRefusal.NOT_RESOLVED, "the ticket is still open")
         if timezone.now() > until:
-            linked = Ticket.objects.submit(
+            linked = ticket_intake.submit(
                 reporter=requester,
                 ticket_in=TicketIn(
                     subject=f"{RELATED_TO} {ticket.public_id}",

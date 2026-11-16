@@ -34,7 +34,6 @@ from apps.requester.utils.tickets import requester_tickets
 from apps.review.models import ReviewDecision
 from apps.rollout.utils.gates import AGREEMENT_BRANCH, Agreement, GateValue, rollout_metrics
 from apps.rollout.utils.rollout import rollout
-from apps.rollout.utils.vocabulary import FlagBranch
 from apps.security.models import SecurityAlert
 from apps.security.utils.vocabulary import AlertKind, Resolution
 from apps.sla.models import Clock, ClockState
@@ -928,9 +927,8 @@ class Reports:
             .values_list("branch", "n")
         )
         branches = []
-        for branch in FlagBranch:
+        for branch, decision_branch in AGREEMENT_BRANCH.items():
             flag = rollout.flag(branch.value)
-            decision_branch = AGREEMENT_BRANCH[branch]
             branches.append(
                 BranchReadiness(
                     branch=branch.value,

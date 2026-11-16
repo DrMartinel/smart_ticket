@@ -514,6 +514,13 @@ class TestMaskReply:
         assert r.placeholder_map == {"[EMAIL_3]": "b.tran@company.com"}
         assert r.pii_level is PIILevel.ROUTINE
 
+    def test_a_ticket_numbers_past_the_placeholders_already_taken(self, ner_finds):
+        ner_finds([])
+        r = async_to_sync(mask)(
+            TicketIn(subject="VPN", body="use b.tran@company.com"), NER_MAX_SHARE, ["[EMAIL_1]"]
+        )
+        assert r.body_masked == "use [EMAIL_2]"
+
     def test_a_label_the_ticket_never_used_starts_at_one(self, ner_finds):
         ner_finds([])
         r = run_mask_reply("call 0912345678", ["[EMAIL_1]"])

@@ -28,7 +28,12 @@ from apps.accounts.models import RefreshSession, RefusedCall, User
 from apps.accounts.utils import AGENT_ACT
 from apps.accounts.utils.access import Access
 from apps.accounts.utils.catalog import Permission
-from apps.agent.models import AgentActionKind
+from apps.agent.models import (
+    AgentActionKind,
+    AgentConversationState,
+    AgentTurn,
+    AgentTurnState,
+)
 from apps.agent.utils.actions import (
     AGENT_ACTION_HEADER,
     AgentActionPending,
@@ -36,6 +41,7 @@ from apps.agent.utils.actions import (
     AgentOrigin,
     agent_actions,
 )
+from apps.agent.utils.vocabulary import AgentError, AgentRefusal
 from apps.audit.context import audit_context
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
@@ -76,6 +82,14 @@ class SessionAuth(JWTAuth):
                 conversation, turn = uuid.UUID(validated["agc"]), uuid.UUID(validated["agt"])
             except (KeyError, TypeError, ValueError) as e:
                 raise AuthenticationFailed("this token's actor is not one core-api issues") from e
+            if not AgentTurn.objects.filter(
+                id=turn,
+                conversation_id=conversation,
+                state=AgentTurnState.RUNNING.value,
+                conversation__user=user,
+                conversation__state=AgentConversationState.ACTIVE.value,
+            ).exists():
+                raise AuthenticationFailed("the agent turn this token belongs to is not running")
             tool = request.headers.get(AGENT_TOOL_HEADER, "")
             agent = AgentOrigin(conversation, turn, tool if TOOL_NAME.match(tool) else "")
         match = getattr(request, "resolver_match", None)
@@ -85,6 +99,7 @@ class SessionAuth(JWTAuth):
             method=request.method or "",
             trace_id=getattr(request, "trace_id", None),
             agent=agent,
+            session_family=uuid.UUID(family),
         )
 
 
@@ -123,6 +138,7 @@ class Caller:
     method: str
     trace_id: str | None = None
     agent: AgentOrigin | None = None
+    session_family: uuid.UUID | None = None
 
     def holds(self, permission: Permission) -> bool:
         return Access.of(self.user).holds(permission)
@@ -228,6 +244,12 @@ def require(permission: Permission, *, agent: AgentTier | None = None):
                 raise HttpError(401, "authentication required")
             caller.admit(gate)
             if caller.agent is not None:
+                if gate.agent_tier is not AgentTier.READ and not AgentTurn.objects.count_write(
+                    caller.agent.turn, settings.THRESHOLDS.agent.max_tool_calls_per_turn
+                ):
+                    raise AgentError(
+                        429, AgentRefusal.TOOL_LIMIT, "this turn has made all its write calls"
+                    )
                 match gate.agent_tier:
                     case AgentTier.READ | AgentTier.SELF:
                         with audit_context(caller.agent.audit_fields()):

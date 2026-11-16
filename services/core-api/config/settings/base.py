@@ -240,7 +240,7 @@ CELERY_BEAT_SCHEDULE = {
 CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS").split(",")
 # The refresh cookie travels on the frontends' credentialed requests (ADR-0029).
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_HEADERS = (*default_cors_headers, "x-auth-client")
+CORS_ALLOW_HEADERS = (*default_cors_headers, "x-auth-client", "x-agent-action")
 
 # ── Sign-in sessions (ADR-0029); `.env.example` explains each value ──────
 NINJA_JWT = {
@@ -288,6 +288,8 @@ AI_ENGINE_URL = env("AI_ENGINE_URL")
 MODEL_TIMEOUT_SEC = float(env("MODEL_TIMEOUT_SEC"))
 MODEL_CONNECT_TIMEOUT_SEC = float(env("MODEL_CONNECT_TIMEOUT_SEC"))
 AI_ENGINE_ANALYZE_GRACE_SEC = float(env("AI_ENGINE_ANALYZE_GRACE_SEC"))
+AI_ENGINE_AGENT_READ_TIMEOUT_SEC = float(env("AI_ENGINE_AGENT_READ_TIMEOUT_SEC"))
+AGENT_SWEEP_INTERVAL_SEC = float(env("AGENT_SWEEP_INTERVAL_SEC"))
 PII_ENCRYPTION_KEY = env("PII_ENCRYPTION_KEY")
 PII_QUARANTINE_TTL_HOURS = int(env("PII_QUARANTINE_TTL_HOURS"))
 AI_ENGINE_RO_PASSWORD = env("POSTGRES_AI_RO_PASSWORD")
@@ -519,11 +521,18 @@ class AccessThresholds(BaseModel):
 
 
 class AgentThresholds(BaseModel):
+    # Model calls, tool calls and model tokens (in + out) one turn may use (FR-F15-015).
+    max_steps: int = Field(ge=1)
+    max_tool_calls_per_turn: int = Field(ge=0)
+    max_model_tokens_per_turn: int = Field(ge=1)
     # Lifetime of an agent turn's access token (F15, BR-F15-02).
     token_ttl_seconds: int = Field(ge=1)
     # Lifetimes of a pending confirm and a human-only draft (BR-F15-06, BR-F15-07).
     confirm_ttl_minutes: int = Field(ge=1)
     draft_ttl_hours: int = Field(ge=1)
+    # Earlier turns a new one carries (BR-F15-17), and minutes before an idle conversation ends.
+    max_earlier_turns: int = Field(ge=0)
+    conversation_idle_minutes: int = Field(ge=1)
 
 
 class Thresholds(BaseModel):
@@ -593,11 +602,20 @@ def load_thresholds() -> Thresholds:
 
 
 THRESHOLDS = load_thresholds()
+if THRESHOLDS.agent.token_ttl_seconds < AI_ENGINE_AGENT_READ_TIMEOUT_SEC:
+    raise ImproperlyConfigured(
+        "agent.token_ttl_seconds must be at least AI_ENGINE_AGENT_READ_TIMEOUT_SEC"
+    )
 
 CELERY_BEAT_SCHEDULE["identity-sync"] = {
     "task": "apps.accounts.tasks.identity_sync",
     "schedule": THRESHOLDS.identity.sync_interval_minutes * 60.0,
 }
+CELERY_BEAT_SCHEDULE["agent-sweep"] = {
+    "task": "agent.sweep",
+    "schedule": AGENT_SWEEP_INTERVAL_SEC,
+}
+CELERY_TASK_ROUTES = {"agent.run_turn": {"queue": "agent"}}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

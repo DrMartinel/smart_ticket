@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-006"
+version: "CR-2026-007"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -276,6 +276,12 @@ access:
   import_max_rows: 2000
 
 agent:
+  # Model calls, tool calls and model tokens (in + out) one turn may use; core-api
+  # also refuses a turn's write calls beyond max_tool_calls_per_turn
+  # (FR-F15-015). 🔧 assumptions, not measured.
+  max_steps: 8
+  max_tool_calls_per_turn: 6
+  max_model_tokens_per_turn: 16000
   # Seconds an agent turn's token lives (F15, BR-F15-02); it also dies with
   # the turn and with the sign-in it was minted from. 🔧 assumption, not measured.
   token_ttl_seconds: 300
@@ -284,3 +290,7 @@ agent:
   # BR-F15-07). 🔧 assumptions, not measured.
   confirm_ttl_minutes: 30
   draft_ttl_hours: 72
+  # Earlier turns of the same agent conversation a new turn carries
+  # (BR-F15-17), and minutes after which an idle conversation ends. 🔧
+  max_earlier_turns: 6
+  conversation_idle_minutes: 30

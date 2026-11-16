@@ -11,6 +11,7 @@ from ninja_extra import NinjaExtraAPI
 from apps.accounts.permissions import gate_authentication
 from apps.accounts.views import access_router, auth_router, org_router
 from apps.agent.utils.actions import AgentActionPending
+from apps.agent.views import router as agent_router
 from apps.core.errors import CodedError
 from apps.accounts.views import router as accounts_router
 from apps.tickets.views import pii_router
@@ -58,6 +59,7 @@ api.add_router("/security", security_router)
 api.add_router("/incidents", incidents_router)
 api.add_router("/rollout", rollout_router)
 api.add_router("/thresholds", thresholds_router)
+api.add_router("/agent", agent_router)
 gate_authentication(api._routers)
 
 

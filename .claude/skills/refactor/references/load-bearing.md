@@ -489,6 +489,34 @@ guard and that comment is later trimmed, the entry is the record.
   `test_a_rate_limited_reveal_through_a_draft_is_recorded_and_alerted`,
   `test_an_applied_action_cannot_be_applied_again`,
   `test_a_failed_applied_audit_row_does_not_reopen_a_done_action`.*
+- **`SessionAuth` looking up the agent turn on every agent call** (running,
+  conversation active, both the token's user's). The token's own `exp` is
+  longer than most turns; without the lookup a finished turn's token, or one
+  for an ended conversation, keeps acting as the user until it expires
+  (FR-F15-003). *`test_a_token_of_a_turn_that_is_not_running_is_refused`,
+  `test_a_token_of_an_ended_conversation_is_refused`,
+  `test_a_token_naming_someone_else_s_turn_is_refused`.*
+- **`AgentTurns.start` handing off a `mask_failed` or `critical` message before
+  it queues the turn.** Queuing it would send text whose PII is unknown, or a
+  password, to the agent's model (BR-F15-08). `earlier_turns` leaves out the
+  same levels: a `critical` message skipped NER, so its names are still raw.
+  *`test_a_message_whose_masking_failed_reaches_no_model_and_hands_off`,
+  `test_a_message_with_critical_pii_reaches_no_model_and_hands_off`,
+  `test_a_critical_turn_is_never_an_earlier_turn`.*
+- **`AgentTurns._hand_off` opening the ticket in the transaction that marks the
+  turn `handed_off`.** Opened after it, a failure leaves a handed-off turn with
+  no ticket that nothing retries, and a poll between the two writes sees no
+  ticket and stops polling. Inside it, a failure rolls the turn back to
+  `running` and the sweep hands it off again, as `agent_engine_unavailable`. *`test_a_hand_off_whose_ticket_fails_leaves_the_turn_running`,
+  `test_a_short_message_s_hand_off_opens_a_ticket`.*
+- **`TicketIntake` queuing `process_ticket` only after the ticket's
+  transaction commits.** Queued inside it, a fast worker looks the ticket up
+  before it exists and leaves it at `new` with no routing decision.
+- **`AgentTurns._record` and `_hand_off` locking the turn and acting only while
+  it is `running`.** The sweep hands off a turn that ran too long; a late
+  answer from ai-engine must not overwrite that, or a person's ticket and a
+  "done" reply would both stand. *`test_a_late_answer_for_a_turn_already_handed_off_is_dropped`,
+  `test_a_turn_runs_once_however_often_it_is_delivered`.*
 
 ## ai-engine
 

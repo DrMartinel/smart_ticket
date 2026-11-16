@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import httpx
@@ -198,15 +199,25 @@ class MaskResult:
     ner_share: float = 0.0
 
 
-async def mask(raw: TicketIn, ner_max_share: float) -> MaskResult:
+def _counters_past(taken: Sequence[str]) -> dict[str, int]:
+    """The per-label counters that number new placeholders past `taken`."""
+    counters: dict[str, int] = {}
+    for placeholder in taken:
+        label, _, number = placeholder.strip("[]").rpartition("_")
+        counters[label] = max(counters.get(label, 0), int(number))
+    return counters
+
+
+async def mask(raw: TicketIn, ner_max_share: float, taken: Sequence[str] = ()) -> MaskResult:
     """Returns the masked ticket plus the placeholder -> real value map to
     hand to the quarantine store. Attachments are never inspected here —
     they are treated as fully untrusted (spec §5.2) and are not masked or
     quoted anywhere in the pipeline; ai-engine's injection detector treats
-    them as the most likely indirect-injection vector.
+    them as the most likely indirect-injection vector. Placeholders number on
+    past `taken`.
     """
     (subject_masked, body_masked), level, placeholder_map, share = await _mask_texts(
-        [raw.subject, raw.body], ner_max_share, counters={}
+        [raw.subject, raw.body], ner_max_share, _counters_past(taken)
     )
     return MaskResult(subject_masked, body_masked, level, placeholder_map, share)
 
@@ -221,11 +232,9 @@ class MaskedReply:
 async def mask_reply(text: str, ner_max_share: float, taken: list[str]) -> MaskedReply:
     """Masks a requester's answer to a clarifying question (ADR-0023) as a
     ticket is masked, numbering placeholders on past the ticket's `taken`."""
-    counters: dict[str, int] = {}
-    for placeholder in taken:
-        label, _, number = placeholder.strip("[]").rpartition("_")
-        counters[label] = max(counters.get(label, 0), int(number))
-    (text_masked,), level, placeholder_map, _ = await _mask_texts([text], ner_max_share, counters)
+    (text_masked,), level, placeholder_map, _ = await _mask_texts(
+        [text], ner_max_share, _counters_past(taken)
+    )
     return MaskedReply(text_masked, level, placeholder_map)
 
 

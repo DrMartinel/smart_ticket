@@ -16,8 +16,10 @@ from django.db.models import QuerySet
 from ninja import Router, Status
 from ninja.errors import HttpError
 
+from apps.tickets.utils.intake import ticket_intake
 from apps.accounts.utils.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
+from apps.agent.models import AgentTurn
 from apps.chat.request_schema import ChatAskIn, ChatClarifyIn
 from apps.chat.response_schema import ChatTurnOut
 from apps.chat.utils.conversations import conversations
@@ -47,12 +49,14 @@ def _own_chat_ticket(request: AuthedRequest, public_id: str) -> Ticket:
 @require(Permission.REQUESTER_CHAT, agent=AgentTier.SELF)
 def ask(request: AuthedRequest, payload: ChatAskIn) -> ChatTurnOut:
     conversation = conversations.for_turn(request.auth.user, payload.conversation_id)
-    ticket = Ticket.objects.submit(
+    agent = request.auth.agent
+    ticket = ticket_intake.submit(
         reporter=request.auth.user,
         ticket_in=ticket_in_from_message(payload.message),
         trace_id=getattr(request, "trace_id", None),
         source=TicketSource.CHAT,
         conversation=conversation,
+        agent_turn=AgentTurn.objects.get(id=agent.turn) if agent is not None else None,
     )
     conversations.after_submit(ticket)
     return chat_turn(ticket)

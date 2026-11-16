@@ -45,6 +45,11 @@ MODELS = [
     "ChatClarifyIn",
     "ChatClarificationOut",
     "ChatTurnOut",
+    "AgentTurnIn",
+    "AgentReceiptOut",
+    "AgentTurnOut",
+    "AgentConversationOut",
+    "AgentActionOut",
     "PersonOut",
     "StatusOut",
     "OpenReviewOut",
@@ -333,6 +338,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as accounts_request,
         response_schema as accounts_response,
     )
+    from apps.agent import request_schema as agent_request, response_schema as agent_response
     from apps.chat import request_schema as chat_request, response_schema as chat_response
     from apps.incidents import (
         request_schema as incidents_request,
@@ -370,6 +376,8 @@ def _models() -> dict[str, type[BaseModel]]:
         dtos,
         chat_request,
         chat_response,
+        agent_request,
+        agent_response,
         tickets_response,
         notifications_request,
         notifications_response,
@@ -460,6 +468,17 @@ def main() -> None:
     from apps.tickets.utils.router import ReasonCode
 
     chunks.append(emit_enum("ReasonCode", [code.value for code in ReasonCode]))
+
+    from apps.agent import models as agent_models
+
+    for enum in (
+        agent_models.AgentSurface,
+        agent_models.AgentTurnState,
+        agent_models.AgentConversationState,
+        agent_models.AgentActionKind,
+        agent_models.AgentActionState,
+    ):
+        chunks.append(emit_enum(enum.__name__, [member.value for member in enum]))
 
     for model_name in MODELS:
         chunks.append(emit_json_schema(model_name))

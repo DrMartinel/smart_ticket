@@ -34,7 +34,10 @@ def agent_token_for(
     turn: uuid.UUID | None = None,
     family_hours: float = 1,
 ) -> str:
-    """An agent turn's token for `user`, minted from a real chat sign-in (ADR-0046)."""
+    """An agent turn's token for `user`, minted from a real chat sign-in (ADR-0046), for a running
+    turn: the one named if it exists, else a new one with the ids given."""
+    from apps.agent.models import AgentConversation, AgentTurn, AgentTurnState
+
     now = timezone.now()
     family = uuid.uuid4()
     sessions.new_token(
@@ -45,8 +48,22 @@ def agent_token_for(
         family_ends=now + timedelta(hours=family_hours),
         requester=Requester(user_agent="tests", ip_address=None),
     )
+    existing = AgentTurn.objects.filter(id=turn).first() if turn is not None else None
+    if existing is None:
+        chat = AgentConversation.objects.create(
+            id=conversation or uuid.uuid4(), user=user, surface="chat"
+        )
+        existing = AgentTurn.objects.create(
+            id=turn or uuid.uuid4(),
+            conversation=chat,
+            seq=1,
+            message_masked="Help me with my ticket.",
+            pii_level="routine",
+            session_family=family,
+            state=AgentTurnState.RUNNING.value,
+        )
     return sessions.issue_for_agent(
-        user, family, conversation=conversation or uuid.uuid4(), turn=turn or uuid.uuid4()
+        user, family, conversation=existing.conversation_id, turn=existing.id
     )
 
 

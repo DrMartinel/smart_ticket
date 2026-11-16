@@ -183,6 +183,7 @@ AgentHandoffReason = Literal[
     "agent_model_unavailable",
     "agent_schema_invalid",
     "agent_mask_failed",
+    "agent_pii_critical",
     "agent_engine_unavailable",
 ]
 

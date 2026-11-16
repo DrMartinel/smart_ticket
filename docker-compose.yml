@@ -39,6 +39,8 @@ x-core-api-env: &core-api-env
   MODEL_TIMEOUT_SEC: ${MODEL_TIMEOUT_SEC:?see .env.example}
   MODEL_CONNECT_TIMEOUT_SEC: ${MODEL_CONNECT_TIMEOUT_SEC:?see .env.example}
   AI_ENGINE_ANALYZE_GRACE_SEC: ${AI_ENGINE_ANALYZE_GRACE_SEC:?see .env.example}
+  AI_ENGINE_AGENT_READ_TIMEOUT_SEC: ${AI_ENGINE_AGENT_READ_TIMEOUT_SEC:?see .env.example}
+  AGENT_SWEEP_INTERVAL_SEC: ${AGENT_SWEEP_INTERVAL_SEC:?see .env.example}
   PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?see .env.example}
   PII_QUARANTINE_TTL_HOURS: ${PII_QUARANTINE_TTL_HOURS:?see .env.example}
   POSTGRES_AI_RO_PASSWORD: ${POSTGRES_AI_RO_PASSWORD:?see .env.example}
@@ -167,6 +169,34 @@ services:
       context: .
       dockerfile: services/core-api/Dockerfile
     command: ["celery", "-A", "config", "worker", "-l", "info", "--concurrency=2"]
+    environment:
+      <<: *core-api-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [smart-triage]
+
+  # Agent turns (F15) on their own queue, so web workers are never held by one.
+  worker-agent:
+    build:
+      context: .
+      dockerfile: services/core-api/Dockerfile
+    command:
+      - celery
+      - -A
+      - config
+      - worker
+      - -Q
+      - agent
+      - -l
+      - info
+      - --concurrency=${AGENT_WORKER_CONCURRENCY:?see .env.example}
     environment:
       <<: *core-api-env
     depends_on:
