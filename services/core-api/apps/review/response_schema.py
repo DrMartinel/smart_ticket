@@ -46,6 +46,7 @@ class ReviewItemOut(Schema):
     ticket_public_id: str = Field(alias="ticket.public_id")
     subject_masked: str = Field(alias="ticket.subject_masked")
     body_masked: str = Field(alias="ticket.body_masked")
+    pii_level: str = Field(alias="ticket.pii_level")
     queue: str
     priority: int
     state: str

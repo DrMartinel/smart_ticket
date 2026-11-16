@@ -21,6 +21,7 @@ ITEM_KEYS = {
     "ticket_public_id",
     "subject_masked",
     "body_masked",
+    "pii_level",
     "queue",
     "priority",
     "state",

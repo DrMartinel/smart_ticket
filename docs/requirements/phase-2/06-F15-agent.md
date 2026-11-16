@@ -508,7 +508,7 @@ projection replaces person names and usernames (BR-F15-09).
 | `take_ticket` | `POST /api/tickets/{public_id}/take` | `urn:smart-ticket:perm:tickets:take` | confirm | `{public_id, expected_version: int}` | 202: `action_id`, `state` |
 | `add_comment` | `POST /api/tickets/{public_id}/comments` | `urn:smart-ticket:perm:tickets:comment` | confirm | `{public_id, body, visibility: public\|internal, move_to_waiting: bool = false, expected_version?: int}` | 202: `action_id`, `state` |
 | `list_review_queue` | `GET /api/review/queue?queue=&state=` | `urn:smart-ticket:perm:review:queue:work` | read | `{queue?: ReviewQueue, state = "pending"}` | per item: `id`, `ticket_public_id`, `subject_masked`, `body_masked` (both untrusted), `queue`, `priority`, `state`, `claimed_by` (`you` / `someone else` / `none`), `created_at`, `proposal` (code-rendered one line from `proposed_draft`, e.g. "runbook: add_to_group(vpn-admins)"), last `reason_code`. Trust score and contributions dropped |
-| `get_review_item` | `GET /api/review/items/{item_id}` | `review:queue:work` | read | `{item_id: UUID}` | as a queue row + `routing_decisions[]` (`branch`, `reason_code`), `comment.body_masked` (untrusted) |
+| `get_review_item` | `GET /api/review/items/{item_id}` | `review:queue:work` | read | `{item_id: UUID}` | as a queue row + `routing_decisions[]` (`branch`, `reason_code`), `comment` (always `[withheld]`: its masking failed) |
 | `claim_review_item` *(added)* | `POST /api/review/items/{item_id}/claim` | `review:queue:work` | confirm | `{item_id}` | 202. Reason: it changes who works an item others can see; easy to undo by a lead, not by the agent |
 | `draft_review_decision` | `POST /api/review/items/{item_id}/decide` | `review:queue:work` (+ `runbooks:execute` checked in the handler for `runbook_approval`) | human_only | `DecisionIn`: `{item_id, action_taken, kb_verdict?, category_verdict?, corrected_category?, corrected_kb_id?, override_reason?}` (`time_spent_sec` set to 0 by the tool) | 403: `draft_id` |
 | `draft_comment_decision` *(added)* | `POST /api/review/items/{item_id}/comment-decision` | `review:queue:work` | human_only | `{item_id, choice: show\|discard}` | 403: `draft_id`. Reason: named `human_only` in ADR-0046 §6; the agent can prepare it |
@@ -860,3 +860,29 @@ Each departure is the smaller choice; none lets an agent do more.
 9. Only the user the agent acted for may apply its confirm or draft, where
    BR-F15-07 says "a person". A draft can't be handed to someone the turn
    never acted for, such as a lead; widening this needs an owner's decision.
+
+**PR 4 (agent wire, graph).**
+10. `AgentTurnRequest` also carries `actor_id` and `actor_username`, so a
+    projection can show the acting person as `you`. Neither reaches the model,
+    and neither grants anything: every call is still checked by core-api
+    against the token.
+11. The tools live in one module per surface (`agent/tools/chat.py`,
+    `agent/tools/console.py`), not one per tool.
+12. `recursion_limit` is `2 × max_steps + 5`, not `+ 3`: the hand-off and the
+    builder's `terminal` node count as steps too.
+13. The tool-call cap is checked when the model names a tool, so the call
+    that would exceed it is never made.
+14. A confirm route's 202 ends the turn. UC-F15-05's two cards in one turn
+    don't happen: the second change is proposed in the next turn.
+15. Untrusted text reaches the model as `{"untrusted_text": …}`, not as a
+    tagged string, so the screen can find every such field in a result.
+16. A 5xx answer to a write is `tool_outcome_unknown`, not `tool_failed`
+    (§h.4): core-api may have committed before it failed, so the write is
+    neither retried nor reported as not made.
+17. The review item and the requester's ticket rows now carry the ticket's
+    `pii_level`, so a `mask_failed` ticket's subject and body reach the model
+    as `[withheld]` (BR-F15-09). A review item's held comment is always
+    withheld.
+18. `ask_helpdesk` reports the question as asked once `POST /api/chat/ask`
+    succeeds, even if a later poll fails; the model sees the last state it
+    read (`thinking`).

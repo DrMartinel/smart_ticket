@@ -1,6 +1,7 @@
 """
-ai-engine's HTTP surface. core-api is the only caller (spec §1): this
-service never calls back into core-api and holds no credentials to write
+ai-engine's HTTP surface. core-api is the only caller (spec §1). The one
+call back into core-api is the agent's tools, as the signed-in person with
+the turn's agent token (ADR-0046); ai-engine holds no credentials to write
 any business table (ADR-0004).
 
 - `POST /v1/analyze`: the triage graph, on masked text.
@@ -8,6 +9,8 @@ any business table (ADR-0004).
   client, so core-api's embeddings and PII NER come through here (ADR-0012).
   `/v1/pii/detect` is the one endpoint that receives RAW text: nothing here
   may log it, echo it or put the model's reply in an error.
+- `POST /v1/agent/turn`: the agent graph (F15). Its agent token is never
+  logged or echoed.
 """
 
 from __future__ import annotations
@@ -19,8 +22,12 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from langchain_core.runnables import RunnableConfig
 
 from ai_engine.schemas import (
+    AgentOutcome,
+    AgentTurnRequest,
+    AgentTurnResponse,
     AIRunRequest,
     AIRunResponse,
     EmbedRequest,
@@ -28,6 +35,8 @@ from ai_engine.schemas import (
     PiiDetectRequest,
     PiiDetectResponse,
 )
+from ai_engine.graph.agent import agent_graph, recursion_limit
+from ai_engine.graph.agent_state import AgentState
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.config import settings
@@ -129,3 +138,30 @@ def detect_pii(req: PiiDetectRequest) -> PiiDetectResponse:
         logger.warning("PII NER failed: %s", type(e).__name__)
         raise HTTPException(status_code=502, detail="PII NER failed") from e
     return PiiDetectResponse(spans=spans)
+
+
+@app.post("/v1/agent/turn", response_model=AgentTurnResponse)
+def agent_turn(req: AgentTurnRequest) -> AgentTurnResponse:
+    """Runs one agent turn. A failure inside the graph is a 500: core-api
+    hands the turn off as `agent_engine_unavailable`."""
+
+    initial_state = AgentState.model_validate(req.model_dump())
+    config = RunnableConfig(recursion_limit=recursion_limit(req.limits.max_steps))
+    final_state = AgentState.model_validate(agent_graph.invoke(initial_state, config=config))
+
+    outcome: AgentOutcome = "replied"
+    if final_state.stop_reason is not None:
+        outcome = "handed_off"
+    elif final_state.awaiting_confirmation:
+        outcome = "awaiting_confirmation"
+    return AgentTurnResponse(
+        outcome=outcome,
+        reply="" if outcome == "handed_off" else final_state.reply,
+        stop_reason=final_state.stop_reason,
+        steps=final_state.steps,
+        model=final_state.model_used or "n/a",
+        prompt_version=settings.agent_prompt_version,
+        tokens_in=final_state.tokens_in,
+        tokens_out=final_state.tokens_out,
+        cost_usd=final_state.cost_usd,
+    )
