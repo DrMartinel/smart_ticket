@@ -32,7 +32,7 @@ GRANT_VPN = {"target_username": "lan.nt", "group": "/apps/vpn-users"}
 RESTART = {"service_name": "vpn-gateway", "host": "vpn01"}
 
 
-def refused(item, executor, payload, code: str, match: str = "") -> RunbookError:
+def refused(item, executor, payload, code: str, match: str | None = None) -> RunbookError:
     with pytest.raises(RunbookError, match=match) as raised:
         runbooks.execute(item.id, executor, payload)
     assert raised.value.code == code
