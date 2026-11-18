@@ -680,3 +680,22 @@ each file is clean.
 
 - The trace suite passes in CI, the live agent eval is recorded in
   `evals/HISTORY.md`, and the injection suite still reads 1.00.
+
+## 24. Agent capabilities, wave 2 (F16)
+
+**Priority:** After item 23 is done · **Spec:** [06-F16-agent-capabilities.md](requirements/phase-2/06-F16-agent-capabilities.md) · [ADR-0047](adr/0047-agent-arguments-and-grouped-actions.md) (Proposed)
+
+- **Spec drafted 2026-11-18, not decided.** The owner answers OQ-F16-01..08
+  and accepts or rejects ADR-0047 before any build.
+- **The build waits for F15's entry condition** (F16 §a.1): the trace suite
+  in the gate, a reviewed live agent eval baseline, `superseded` actions,
+  `decide` refusing a resolved item, and a reachable `agent_step_limit`.
+- **Action targets are read from the path parameter's name**
+  (`_TARGETS` in `apps/agent/utils/actions.py`), so an incident route's
+  `{public_id}` would be filed as a ticket. No incident route is reachable by
+  the agent today, so nothing is wrong yet; F16 PR 1 fixes it before any is.
+
+### Done when
+
+- F16's nine PRs are merged, AC-F16-01..08 pass in the trace suite, and the
+  live agent eval on `agent.v2` is recorded in `evals/HISTORY.md`.
