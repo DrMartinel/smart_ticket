@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { AgentActionOut, AgentReceiptOut, ChatTurnOut } from "@/lib/types/generated";
 import type { ActionResult, AgentRow } from "@/lib/agent";
+import AnswerText from "./AnswerText";
 import { PLACEHOLDER, Question, Reply, Working } from "./TurnView";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,7 +107,7 @@ export default function AgentTurnView({
           <Working label="The assistant is working on it" />
         ) : (
           <div className="flex flex-col gap-3">
-            <p className="whitespace-pre-wrap">{t.reply}</p>
+            <AnswerText text={t.reply} />
             {t.receipts.length > 0 && (
               <ul aria-label="What the assistant did" className="flex flex-col gap-1.5 border-t border-border pt-3">
                 {t.receipts.map((r, i) => (
