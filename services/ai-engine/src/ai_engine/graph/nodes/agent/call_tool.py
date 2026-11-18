@@ -135,7 +135,16 @@ class CallToolNode(BaseNode[AgentState]):
     ) -> dict[str, Any]:
         """The step and the exchange for a call core-api answered."""
         flag = outcome == "ok" and flagged(result)
-        done = AgentStep(**step, outcome=outcome, action_id=action, injection_flagged=flag)
+        ref = (
+            reply.body.get(tool.ref_key) if tool.ref_key and isinstance(reply.body, dict) else None
+        )
+        done = AgentStep(
+            **step,
+            outcome=outcome,
+            action_id=action,
+            injection_flagged=flag,
+            result_ref=str(ref) if ref else None,
+        )
         exchange = Exchange(
             tool=tool.name, arguments=step["arguments"], status=reply.status, result=result
         )

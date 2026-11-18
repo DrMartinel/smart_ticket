@@ -30,6 +30,7 @@ class AgentReceiptOut(Schema):
     method: str
     path: str
     action_id: uuid.UUID | None
+    chat_turn: str | None = None
 
 
 class AgentTurnOut(Schema):
@@ -59,6 +60,28 @@ class AgentTurnOut(Schema):
             handoff_ticket=turn.handoff_ticket.public_id if turn.handoff_ticket else None,
             queued_at=turn.queued_at,
             finished_at=turn.finished_at,
+        )
+
+
+class AgentConversationSummaryOut(Schema):
+    """One line of a person's conversation history."""
+
+    conversation_id: uuid.UUID
+    state: AgentConversationState
+    end_reason: str
+    first_message: str
+    turns: int
+    last_activity_at: datetime
+
+    @classmethod
+    def of(cls, conversation: AgentConversation) -> AgentConversationSummaryOut:
+        return cls(
+            conversation_id=conversation.id,
+            state=AgentConversationState(conversation.state),
+            end_reason=conversation.end_reason,
+            first_message=getattr(conversation, "first_message", "") or "",
+            turns=getattr(conversation, "turn_count", 0),
+            last_activity_at=conversation.last_activity_at,
         )
 
 

@@ -7,7 +7,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SearchX } from "lucide-react";
-import AppHeader from "@/components/AppHeader";
 import IncidentBanner from "@/components/IncidentBanner";
 import Rating, { day } from "@/components/Rating";
 import ReopenBox from "@/components/ReopenBox";
@@ -119,8 +118,7 @@ export default function TicketPage() {
     : [];
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <AppHeader />
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <main id="main" className="flex-1">
         <Page width="form" className="flex flex-col gap-5 px-4 py-6 sm:px-6">
           {missing && (

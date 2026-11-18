@@ -289,6 +289,7 @@ class AgentTurns:
                     "method": step.method,
                     "path": step.path,
                     "action_id": str(step.action_id) if step.action_id in actions else None,
+                    "chat_turn": step.result_ref,
                 }
                 for step in response.steps
                 if step.method != "GET"

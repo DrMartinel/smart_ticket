@@ -49,6 +49,7 @@ MODELS = [
     "AgentReceiptOut",
     "AgentTurnOut",
     "AgentConversationOut",
+    "AgentConversationSummaryOut",
     "AgentActionOut",
     "PersonOut",
     "StatusOut",

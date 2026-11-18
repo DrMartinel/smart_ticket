@@ -533,6 +533,8 @@ class AgentThresholds(BaseModel):
     # Earlier turns a new one carries (BR-F15-17), and minutes before an idle conversation ends.
     max_earlier_turns: int = Field(ge=0)
     conversation_idle_minutes: int = Field(ge=1)
+    # Conversations the history list returns, newest first (F15).
+    history_limit: int = Field(ge=1)
 
 
 class Thresholds(BaseModel):

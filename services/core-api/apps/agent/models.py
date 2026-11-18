@@ -68,6 +68,14 @@ class AgentConversationQuerySet(models.QuerySet["AgentConversation"]):
     def of_user(self, user: User) -> AgentConversationQuerySet:
         return self.filter(user=user)
 
+    def summarised(self) -> AgentConversationQuerySet:
+        """Each conversation with its turn count and first masked message."""
+        first = AgentTurn.objects.filter(conversation=models.OuterRef("pk")).order_by("seq")
+        return self.annotate(
+            turn_count=models.Count("turns"),
+            first_message=models.Subquery(first.values("message_masked")[:1]),
+        )
+
 
 class AgentConversation(BaseModel):
     """One person's exchange with the agent on one surface."""

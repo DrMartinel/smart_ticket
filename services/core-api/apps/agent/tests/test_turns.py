@@ -956,3 +956,60 @@ def test_a_ticket_the_agent_asks_for_carries_the_turns_quarantine_entries(
     copy = PiiQuarantine.objects.get(ref=ticket.pii_map[placeholder])
     assert copy.ticket_id == ticket.id
     assert copy.ciphertext == PiiQuarantine.objects.get(ref=turn.pii_map[placeholder]).ciphertext
+
+
+# ── history (F15) ──
+
+
+@pytest.mark.django_db
+def test_the_history_lists_only_the_users_own_conversations_newest_first(
+    employee_user, technician_user, api_as, live, engine, queued
+):
+    older = _start(api_as(employee_user), "First question about the VPN")
+    newer = _start(api_as(employee_user), "Second question about backups")
+    _start(api_as(technician_user), "Somebody else's question")
+    AgentConversation.objects.filter(id=older.conversation_id).update(
+        last_activity_at=timezone.now() - timedelta(hours=1)
+    )
+
+    rows = api_as(employee_user).get("/api/agent/conversations").json()
+
+    assert [r["conversation_id"] for r in rows] == [
+        str(newer.conversation_id),
+        str(older.conversation_id),
+    ]
+    assert rows[0]["first_message"] == "Second question about backups"
+    assert rows[0]["turns"] == 1
+
+
+@pytest.mark.django_db
+def test_the_history_is_capped_at_the_threshold(
+    employee_user, api_as, live, engine, queued, settings
+):
+    limit = settings.THRESHOLDS.agent.history_limit
+    for _ in range(limit + 2):
+        AgentConversation.objects.create(user=employee_user, surface="chat")
+
+    assert len(api_as(employee_user).get("/api/agent/conversations").json()) == limit
+
+
+@pytest.mark.django_db
+def test_an_ask_helpdesk_receipt_carries_the_chat_turn(employee_user, api_as, live, engine, queued):
+    turn = _start(api_as(employee_user))
+    engine.reply = _replied(
+        "Here you go.",
+        [
+            _step(
+                1,
+                "POST",
+                tool="ask_helpdesk",
+                path="/api/chat/ask",
+                result_ref="TKT-2026-000123",
+            )
+        ],
+    )
+
+    agent_turns.run(turn.id)
+
+    receipt = api_as(employee_user).get(f"/api/agent/turns/{turn.id}").json()["receipts"][0]
+    assert receipt["chat_turn"] == "TKT-2026-000123"

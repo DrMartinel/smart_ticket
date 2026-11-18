@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { agentApi, ApiError, chatApi } from "./api";
-import type { AgentActionOut, AgentTurnOut, ChatTurnOut } from "./types/generated";
+import type { AgentActionOut, AgentConversationSummaryOut, AgentTurnOut, ChatTurnOut } from "./types/generated";
 
 // Mirror AgentTurnIn.message in core-api (apps/agent/request_schema.py).
 export const AGENT_MESSAGE_MIN = 1;
@@ -50,7 +50,7 @@ function lostTurnError(err: ApiError): string {
 
 function sendError(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.code === "agent_off") return "The assistant is switched off right now. You can still ask on the Ask page.";
+    if (err.code === "agent_off") return "The assistant is switched off right now. Ask someone on the support team.";
     if (err.code === "turn_running") return "The assistant is still working on your last message.";
     if (err.status === 422) return `Please type a message of up to ${AGENT_MESSAGE_MAX.toLocaleString()} characters.`;
   }
@@ -68,6 +68,11 @@ export function useAgentConversation(enabled: boolean) {
   const [results, setResults] = useState<Record<string, ActionResult>>({});
   const [creating, setCreating] = useState<string | null>(null);
   const [createError, setCreateError] = useState<Record<string, string>>({});
+  const [history, setHistory] = useState<AgentConversationSummaryOut[]>([]);
+  const [historyError, setHistoryError] = useState(false);
+  // An ended conversation opened from the history: it can be read, not added to.
+  const [viewingEnded, setViewingEnded] = useState(false);
+  const resumed = useRef(false);
   // Counts finished polls.
   const [turnTick, setTurnTick] = useState(0);
   const [handoffTick, setHandoffTick] = useState(0);
@@ -78,6 +83,44 @@ export function useAgentConversation(enabled: boolean) {
   const [pendingError, setPendingError] = useState(false);
   const polling = useRef(false);
   const conversationRef = useRef<string | null>(null);
+
+  const loadHistory = useCallback(
+    () =>
+      agentApi
+        .conversations()
+        .then((list) => {
+          setHistoryError(false);
+          setHistory(list);
+          return list;
+        })
+        .catch(() => {
+          setHistoryError(true);
+          return [] as AgentConversationSummaryOut[];
+        }),
+    [],
+  );
+
+  /** Shows a conversation from the history; an active one is continued, an ended one is read-only. */
+  const open = useCallback(async (id: string) => {
+    try {
+      const conversation = await agentApi.conversation(id);
+      const active = conversation.state === "active";
+      conversationRef.current = active ? id : null;
+      setViewingEnded(!active);
+      setRows(conversation.turns.map((t) => ({ kind: "server" as const, key: t.turn_id, turn: t })));
+    } catch {
+      setHistoryError(true);
+    }
+  }, []);
+
+  // The latest conversation, if it is still active, is where the person left it.
+  useEffect(() => {
+    if (!enabled || resumed.current) return;
+    resumed.current = true;
+    void loadHistory().then((list) => {
+      if (list[0]?.state === "active") void open(list[0].conversation_id);
+    });
+  }, [enabled, loadHistory, open]);
 
   const replace = useCallback((key: string, next: AgentRow) => {
     setRows((prev) => prev.map((r) => (r.key === key ? next : r)));
@@ -197,10 +240,11 @@ export function useAgentConversation(enabled: boolean) {
         .then((turn) => {
           conversationRef.current = turn.conversation_id;
           replace(key, { kind: "server", key, turn });
+          void loadHistory();
         })
         .catch((err) => replace(key, { kind: "failed", key, text, error: sendError(err) }));
     },
-    [replace],
+    [replace, loadHistory],
   );
 
   const retry = useCallback(
@@ -287,8 +331,10 @@ export function useAgentConversation(enabled: boolean) {
     const current = conversationRef.current;
     conversationRef.current = null;
     setRows([]);
+    setViewingEnded(false);
     if (current) await agentApi.endConversation(current).catch(() => undefined);
-  }, []);
+    void loadHistory();
+  }, [loadHistory]);
 
   return {
     rows,
@@ -300,6 +346,10 @@ export function useAgentConversation(enabled: boolean) {
     creating,
     createError,
     pendingError,
+    history,
+    historyError,
+    viewingEnded,
+    open,
     send,
     retry,
     confirm: (a: AgentActionOut) => resolve(a, true),

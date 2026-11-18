@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { ChatClarificationOut, ChatTurnOut } from "@/lib/types/generated";
-import { SLOW_AFTER_MS, type Turn } from "@/lib/conversation";
 import AnswerText, { InlineText } from "./AnswerText";
 import { ArrowUpRightIcon, CheckIcon } from "./icons";
 import IncidentBanner from "./IncidentBanner";
@@ -15,82 +14,18 @@ import { Input } from "@/components/ui/input";
 import { ErrorState } from "@/components/ui/states";
 import { ArrowRight } from "lucide-react";
 
+// After this long, the thinking bubble says it is taking longer than usual.
+// A cold model load alone takes 15-20s (docs: MODEL_TIMEOUT_SEC).
+const SLOW_AFTER_MS = 25_000;
+
 // The masking placeholders core-api writes in place of PII, e.g. [EMAIL_1].
 export const PLACEHOLDER = /\[[A-Z]+(?:_[A-Z]+)*_\d+\]/;
-
-export default function TurnView({
-  turn,
-  onCreateTicket,
-  creating,
-  onRetry,
-  onAnswer,
-  answering,
-}: {
-  turn: Turn;
-  onCreateTicket: (publicId: string) => void;
-  creating: boolean;
-  onRetry: (key: string) => void;
-  onAnswer: (publicId: string, answer: string) => void;
-  answering: boolean;
-}) {
-  if (turn.kind === "sending") {
-    return (
-      <>
-        <Question text={turn.text} />
-        <Reply>
-          <Working label="Reading your question" />
-        </Reply>
-      </>
-    );
-  }
-  if (turn.kind === "failed") {
-    return (
-      <>
-        <Question text={turn.text} />
-        <Reply>
-          <ErrorState compact title={turn.error} onRetry={() => onRetry(turn.key)} />
-        </Reply>
-      </>
-    );
-  }
-
-  const t = turn.turn;
-  const asked = t.state === "clarify" ? null : t.clarification;
-  return (
-    <>
-      <Question text={t.question_masked} masked={PLACEHOLDER.test(t.question_masked)} at={t.created_at} ticket={t.public_id} />
-      {asked && (
-        // A question asked earlier: answered, or closed unanswered. Shown
-        // as the exchange it was, before what came of it.
-        <>
-          <Reply>
-            <p>{asked.question}</p>
-          </Reply>
-          {asked.answer_masked && <Question text={asked.answer_masked} masked={PLACEHOLDER.test(asked.answer_masked)} />}
-        </>
-      )}
-      <Reply>
-        {t.state === "clarify" && t.clarification ? (
-          <ClarifyCard
-            clarification={t.clarification}
-            onAnswer={(text) => onAnswer(t.public_id, text)}
-            answering={answering}
-            onCreateTicket={() => onCreateTicket(t.public_id)}
-            creating={creating}
-          />
-        ) : (
-          <Outcome turn={t} startedAt={turn.startedAt} onCreateTicket={onCreateTicket} creating={creating} />
-        )}
-      </Reply>
-    </>
-  );
-}
 
 // The router chose to ask which page the requester means (ADR-0023). The
 // pages are core-api's, from Jev's ranking; picking one answers with its
 // title. "None of these" opens a box to say it in their own words, and
 // asking for a person carries out the held decision.
-function ClarifyCard({
+export function ClarifyCard({
   clarification,
   onAnswer,
   answering,
@@ -238,7 +173,7 @@ export function Working({ label, slow = false }: { label: string; slow?: boolean
   );
 }
 
-function Outcome({
+export function Outcome({
   turn,
   startedAt,
   onCreateTicket,

@@ -4,7 +4,6 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import AppHeader from "@/components/AppHeader";
 import { Card } from "@/components/ui/card";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { ErrorState, LoadingState } from "@/components/ui/states";
@@ -39,8 +38,7 @@ export default function ProfilePage() {
       ]
     : [];
   return (
-    <div className="flex min-h-dvh flex-col">
-      <AppHeader />
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <main id="main" className="flex-1">
         <Page width="form" className="flex flex-col gap-6 px-4 py-6 sm:px-6">
           <PageHeader eyebrow="Account" title="My profile" description="Your company directory record. Ask IT to change anything that's wrong." />

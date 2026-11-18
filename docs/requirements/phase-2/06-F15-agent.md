@@ -944,10 +944,16 @@ Each departure is the smaller choice; none lets an agent do more.
     copies the conversation's entries its text names, not only the turn's.
 
 **PR 7 (chat UI).**
-35. The assistant is its own chat page, `/assistant`, with a header tab for
-    anyone holding `agent:use`. The F3 Ask page is unchanged.
-36. An assistant conversation lives on the page: a reload starts a new one.
-    Earlier ones stay readable through `GET /api/agent/conversations/{id}`.
+35. The assistant is the chat: `/` is its page and `/assistant` redirects there.
+    The F3 Ask page is gone; a question is `ask_helpdesk`, and the helpdesk's own
+    validated answer (the page's text, its source and quote, the clarify choices)
+    shows as a card under the assistant's reply, from the receipt's `chat_turn`.
+36. The chat's navigation is a left sidebar (new chat, recent conversations, My tickets,
+    Department, Guides, the account) that becomes a drawer on a narrow screen; the
+    conversation is held above the pages, so it survives a visit to another page.
+    The latest active conversation is resumed on load. `GET /api/agent/conversations`
+    lists the person's own, newest first, up to `agent.history_limit`; an ended one
+    opens read-only with a button to start a new one.
 37. A confirm card shows the text the call would send (a reply's body, a
     reopen's reason). Send resends the stored method, path and `payload`
     with `X-Agent-Action`; Cancel dismisses it.

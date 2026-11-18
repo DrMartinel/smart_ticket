@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 
+from django.conf import settings
 from ninja import Router, Status
 
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
@@ -19,7 +20,12 @@ from apps.agent.models import (
     AgentTurn,
 )
 from apps.agent.request_schema import AgentTurnIn
-from apps.agent.response_schema import AgentActionOut, AgentConversationOut, AgentTurnOut
+from apps.agent.response_schema import (
+    AgentActionOut,
+    AgentConversationOut,
+    AgentConversationSummaryOut,
+    AgentTurnOut,
+)
 from apps.agent.utils.turns import agent_turns
 from apps.agent.utils.vocabulary import AgentError, AgentRefusal
 
@@ -47,6 +53,18 @@ def turn(request: AuthedRequest, turn_id: uuid.UUID) -> AgentTurnOut:
     if found is None:
         raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such turn")
     return AgentTurnOut.of(found)
+
+
+@router.get("/conversations", auth=SessionAuth(), response=list[AgentConversationSummaryOut])
+@require(Permission.AGENT_USE, agent=AgentTier.NONE)
+def conversations(request: AuthedRequest) -> list[AgentConversationSummaryOut]:
+    """The user's own conversations, newest first."""
+    rows = (
+        AgentConversation.objects.of_user(request.auth.user)
+        .summarised()
+        .order_by("-last_activity_at")[: settings.THRESHOLDS.agent.history_limit]
+    )
+    return [AgentConversationSummaryOut.of(c) for c in rows]
 
 
 @router.get("/conversations/{conversation_id}", auth=SessionAuth(), response=AgentConversationOut)

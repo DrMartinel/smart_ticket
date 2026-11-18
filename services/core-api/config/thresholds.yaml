@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-007"
+version: "CR-2026-008"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -294,3 +294,5 @@ agent:
   # (BR-F15-17), and minutes after which an idle conversation ends. 🔧
   max_earlier_turns: 6
   conversation_idle_minutes: 30
+  # Conversations the history list returns, newest first. 🔧
+  history_limit: 20

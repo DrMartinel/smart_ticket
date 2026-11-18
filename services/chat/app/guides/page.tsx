@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import AppHeader from "@/components/AppHeader";
 import { useTours } from "@/components/tour/TourProvider";
 import { useAuth } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +22,7 @@ export default function GuidesPage() {
   if (!user) return null;
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <AppHeader />
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <main id="main" className="flex-1">
         <Page width="form" className="flex flex-col gap-5 px-4 py-6 sm:px-6">
           <PageHeader

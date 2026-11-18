@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { AgentActionOut, AgentReceiptOut, ChatTurnOut } from "@/lib/types/generated";
 import type { ActionResult, AgentRow } from "@/lib/agent";
 import AnswerText from "./AnswerText";
+import HelpdeskCard from "./HelpdeskCard";
 import { PLACEHOLDER, Question, Reply, Working } from "./TurnView";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ export default function AgentTurnView({
   onDismiss,
   onCreateTicket,
   onRetry,
+  onAsk,
 }: {
   row: AgentRow;
   pending: AgentActionOut[];
@@ -66,6 +68,7 @@ export default function AgentTurnView({
   onDismiss: (action: AgentActionOut) => void;
   onCreateTicket: (publicId: string) => void;
   onRetry: (key: string) => void;
+  onAsk: (text: string) => void;
 }) {
   if (row.kind === "ended") {
     return (
@@ -98,6 +101,8 @@ export default function AgentTurnView({
   const t = row.turn;
   const asked = t.receipts.filter((r) => r.outcome === "awaiting_confirmation" && r.action_id);
   const cards = asked.flatMap((r) => pending.filter((a) => a.action_id === r.action_id));
+  const helpdesk = t.receipts.flatMap((r) => (r.chat_turn ? [r.chat_turn] : []));
+  const acts = t.receipts.filter((r) => !r.chat_turn);
   const answered = asked.flatMap((r) => (r.action_id && results[r.action_id] ? [results[r.action_id]] : []));
   return (
     <>
@@ -108,9 +113,12 @@ export default function AgentTurnView({
         ) : (
           <div className="flex flex-col gap-3">
             <AnswerText text={t.reply} />
-            {t.receipts.length > 0 && (
+            {helpdesk.map((id) => (
+              <HelpdeskCard key={id} publicId={id} onAnswer={onAsk} />
+            ))}
+            {acts.length > 0 && (
               <ul aria-label="What the assistant did" className="flex flex-col gap-1.5 border-t border-border pt-3">
-                {t.receipts.map((r, i) => (
+                {acts.map((r, i) => (
                   <Receipt key={i} receipt={r} result={r.action_id ? results[r.action_id] : undefined} />
                 ))}
               </ul>

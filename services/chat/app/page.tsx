@@ -1,26 +1,29 @@
 "use client";
 
-// The chat: one conversation at a time (F3 FR-F3-004). Each question becomes a ticket; the
-// assistant sees the conversation's earlier masked turns, and older ones live in My tickets.
+// The assistant (F15) is the chat: it answers questions from the approved help pages, opens
+// tickets, and looks up and acts on the employee's own tickets. Every change it proposes waits
+// for the employee's Send; a turn it can't finish goes to a person.
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Bot, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { useConversation } from "@/lib/conversation";
-import AppHeader from "@/components/AppHeader";
+import { AGENT_MESSAGE_MAX, AGENT_MESSAGE_MIN } from "@/lib/agent";
+import { AGENT_USE } from "@/lib/session";
+import { useAssistant } from "@/components/AssistantProvider";
+import AgentTurnView from "@/components/AgentTurnView";
 import Composer from "@/components/Composer";
-import TurnView from "@/components/TurnView";
 import Welcome from "@/components/Welcome";
-import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/states";
 
-export default function ChatPage() {
+export default function AssistantPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { turns, ask, createTicket, creating, answer, answering, retry, startNew, startedAt } =
-    useConversation(!!user);
+  const allowed = !!user?.permissions?.includes(AGENT_USE);
+  const agent = useAssistant();
   const endRef = useRef<HTMLDivElement>(null);
-  const last = turns.at(-1);
+  const last = agent.rows.at(-1);
   const lastState = last?.kind === "server" ? last.turn.state : last?.kind;
 
   useEffect(() => {
@@ -29,59 +32,79 @@ export default function ChatPage() {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [turns.length, lastState]);
+  }, [agent.rows.length, lastState, agent.pending.length]);
 
   if (!user) return null;
 
-  const busy = turns.some((t) => t.kind === "sending");
-
   return (
-    <div className="flex h-dvh flex-col">
-      <AppHeader />
+    <div className="flex min-h-0 flex-1 flex-col">
       <main id="main" className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-4 px-4 py-6 md:px-6">
-          {turns.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border pb-3">
-              <p className="text-xs text-muted-foreground">
-                <span className="eyebrow mr-2">Conversation</span>
-                {startedAt ? <>Started <span className="num">{clock(startedAt)}</span> · </> : ""}the assistant remembers the
-                last 6 turns · ends after 30 min idle
-              </p>
-              <Button variant="ghost" size="sm" onClick={() => void startNew()} disabled={busy} className="-mr-2 text-primary">
-                <Plus aria-hidden /> New conversation
-              </Button>
-            </div>
-          )}
-          {turns.length === 0 ? (
-            <Welcome name={user.username} onPick={ask} />
+          {!allowed ? (
+            <EmptyState icon={Bot} title="The assistant isn't available to you">
+              Ask someone on the support team to turn it on for your account.
+            </EmptyState>
+          ) : agent.rows.length === 0 ? (
+            <Welcome name={user.username} onPick={agent.send} />
           ) : (
-            turns.map((t) => (
-              <TurnView
-                key={t.key}
-                turn={t}
-                onCreateTicket={createTicket}
-                creating={t.kind === "server" && creating === t.turn.public_id}
-                onAnswer={answer}
-                answering={t.kind === "server" && answering === t.turn.public_id}
-                onRetry={retry}
-              />
-            ))
+            <>
+              <p className="border-b border-border pb-3 text-xs text-muted-foreground">
+                <span className="eyebrow mr-2">Assistant</span>
+                Personal details are removed before the assistant reads your message.
+              </p>
+              {agent.rows.map((row) => (
+                <AgentTurnView
+                  key={row.key}
+                  row={row}
+                  pending={agent.pending}
+                  handoff={row.kind === "server" && row.turn.handoff_ticket ? agent.handoffs[row.turn.handoff_ticket] : undefined}
+                  busyAction={agent.busyAction}
+                  actionError={agent.actionError}
+                  results={agent.results}
+                  creating={agent.creating}
+                  createError={agent.createError}
+                  onConfirm={agent.confirm}
+                  onDismiss={agent.dismiss}
+                  onCreateTicket={(id) => void agent.createTicket(id)}
+                  onRetry={agent.retry}
+                  onAsk={agent.send}
+                />
+              ))}
+              {agent.pendingError && (
+                <p role="alert" className="text-sm text-muted-foreground">
+                  I couldn&apos;t load the confirmation waiting for you. Retrying…
+                </p>
+              )}
+              {agent.viewingEnded && (
+                <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted px-4 py-3 text-sm">
+                  This conversation has ended, so it can be read but not added to.
+                  <Button size="sm" onClick={() => void agent.startNew()}>
+                    <Plus aria-hidden /> Start a new one
+                  </Button>
+                </div>
+              )}
+            </>
           )}
           <div ref={endRef} />
         </div>
       </main>
-      <footer className="border-t border-border bg-card/60">
-        <div className="mx-auto max-w-3xl px-4 py-3 md:px-6">
-          <Composer onSend={ask} disabled={busy} autoFocus />
-          <p className="mt-2 text-xs text-muted-foreground">
-            Every question is logged as a ticket. A person reviews anything the assistant isn&apos;t sure about.
-          </p>
-        </div>
-      </footer>
+      {allowed && (
+        <footer className="border-t border-border bg-card/60">
+          <div className="mx-auto max-w-3xl px-4 py-3 md:px-6">
+            <Composer
+              onSend={agent.send}
+              disabled={agent.busy || agent.viewingEnded}
+              autoFocus
+              minChars={AGENT_MESSAGE_MIN}
+              maxChars={AGENT_MESSAGE_MAX}
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Answers come from approved help pages. The assistant acts only as you, and only after you choose Send.
+              Anything it can&apos;t finish goes to a person.
+            </p>
+          </div>
+        </footer>
+      )}
     </div>
   );
-}
-
-function clock(ms: number): string {
-  return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }

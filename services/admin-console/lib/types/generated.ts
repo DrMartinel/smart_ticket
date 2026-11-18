@@ -263,6 +263,7 @@ export interface AgentReceiptOut {
   method: string;
   path: string;
   action_id: string | null;
+  chat_turn?: string | null;
 }
 
 export interface AgentTurnOut {
@@ -285,6 +286,15 @@ export interface AgentConversationOut {
   state: AgentConversationState;
   end_reason: string;
   turns: AgentTurnOut[];
+}
+
+export interface AgentConversationSummaryOut {
+  conversation_id: string;
+  state: AgentConversationState;
+  end_reason: string;
+  first_message: string;
+  turns: number;
+  last_activity_at: string;
 }
 
 export interface AgentActionOut {

@@ -346,6 +346,7 @@ class AgentStep(BaseModel):
     outcome: Literal["ok", "refused", "confirmation_required", "drafted", "failed", "unknown"]
     action_id: UUID | None = None
     injection_flagged: bool = False
+    result_ref: str | None = None
 
 
 class AgentTurnRequest(BaseModel):

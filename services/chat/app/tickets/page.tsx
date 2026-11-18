@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, Inbox, MessageSquare } from "lucide-react";
-import AppHeader from "@/components/AppHeader";
 import { day } from "@/components/Rating";
 import { StatusChip } from "@/components/StatusChip";
 import { requesterApi } from "@/lib/api";
@@ -64,8 +63,7 @@ export default function MyTicketsPage() {
   const nothing = open?.length === 0 && recent?.length === 0;
 
   return (
-    <div className="flex min-h-dvh flex-col">
-      <AppHeader />
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <main id="main" className="flex-1">
         <Page width="form" className="flex flex-col gap-6 px-4 py-6 sm:px-6">
           <PageHeader

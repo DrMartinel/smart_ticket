@@ -10,6 +10,7 @@
 import type {
   AgentActionOut,
   AgentConversationOut,
+  AgentConversationSummaryOut,
   AgentSurface,
   AgentTurnOut,
   ChatTurnOut,
@@ -94,6 +95,7 @@ export const agentApi = {
       body: JSON.stringify({ message, surface, ...(conversationId ? { conversation_id: conversationId } : {}) }),
     }),
   turn: (id: string) => request<AgentTurnOut>(`/api/agent/turns/${encodeURIComponent(id)}`),
+  conversations: () => request<AgentConversationSummaryOut[]>("/api/agent/conversations"),
   conversation: (id: string) => request<AgentConversationOut>(`/api/agent/conversations/${encodeURIComponent(id)}`),
   endConversation: (id: string) =>
     request<void>(`/api/agent/conversations/${encodeURIComponent(id)}/end`, { method: "POST" }),

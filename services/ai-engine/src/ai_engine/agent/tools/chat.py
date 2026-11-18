@@ -194,6 +194,7 @@ TOOLS = (
         Input=AskIn,
         description="Ask the helpdesk a question for the employee. The helpdesk may answer, ask which option is meant, or suggest a ticket.",
         project=chat_turn,
+        ref_key="public_id",
     ),
     Tool(
         name="get_chat_turn",

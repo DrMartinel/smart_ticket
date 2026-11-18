@@ -657,3 +657,21 @@ def test_a_public_id_that_could_change_the_route_is_refused(public_id):
 def test_a_dot_segment_never_reaches_the_path(segment):
     with pytest.raises(ValueError):
         TOOLS["get_my_ticket"].path_for({"public_id": segment})
+
+
+def test_ask_helpdesk_records_the_turn_it_opened(model, core_api):
+    model(call("ask_helpdesk", message="My VPN keeps dropping since this morning."), reply())
+    core_api(Reply(200, {"public_id": "TKT-2026-000123", "state": "answered", "answer": {}}))
+
+    final = run(turn())
+
+    assert [s.result_ref for s in final.steps] == ["TKT-2026-000123"]
+
+
+def test_a_tool_that_opens_nothing_records_no_reference(model, core_api):
+    model(call("list_my_tickets"), reply())
+    core_api(Reply(200, {"items": []}))
+
+    final = run(turn())
+
+    assert [s.result_ref for s in final.steps] == [None]

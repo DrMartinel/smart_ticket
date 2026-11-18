@@ -65,6 +65,7 @@ class AgentStep(BaseModel):
     outcome: StepOutcome
     action_id: UUID | None = None
     injection_flagged: bool = False
+    result_ref: str | None = None
 
 
 class Exchange(BaseModel):

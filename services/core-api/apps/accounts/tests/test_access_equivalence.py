@@ -49,6 +49,7 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/requester/department-tickets": Permission.REQUESTER_DEPARTMENT_READ,
     "POST /api/agent/turns": Permission.AGENT_USE,
     "GET /api/agent/turns/{turn_id}": Permission.AGENT_USE,
+    "GET /api/agent/conversations": Permission.AGENT_USE,
     "GET /api/agent/conversations/{conversation_id}": Permission.AGENT_USE,
     "POST /api/agent/conversations/{conversation_id}/end": Permission.AGENT_USE,
     "GET /api/agent/actions": Permission.AGENT_USE,

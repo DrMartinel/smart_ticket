@@ -164,6 +164,7 @@ def make_thresholds(**overrides) -> Thresholds:
             draft_ttl_hours=72,
             max_earlier_turns=6,
             conversation_idle_minutes=30,
+            history_limit=20,
         ),
     )
     base.update(overrides)

@@ -64,6 +64,7 @@ class Tool:
     project: Callable[[Any, Context], Any]
     query: tuple[str, ...] = ()
     fixed: Mapping[str, Any] = field(default_factory=dict)
+    ref_key: str | None = None
 
     @property
     def writes(self) -> bool:

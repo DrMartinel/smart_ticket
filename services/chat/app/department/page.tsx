@@ -5,7 +5,6 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
-import AppHeader from "@/components/AppHeader";
 import { day } from "@/components/Rating";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -44,8 +43,7 @@ export default function DepartmentTicketsPage() {
 
   if (!user) return null;
   return (
-    <div className="flex min-h-dvh flex-col">
-      <AppHeader />
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <main id="main" className="flex-1">
         <Page width="form" className="flex flex-col gap-6 px-4 py-6 sm:px-6">
           <PageHeader

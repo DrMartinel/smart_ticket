@@ -3,6 +3,8 @@ import { IBM_Plex_Mono, IBM_Plex_Sans, IBM_Plex_Serif } from "next/font/google";
 import "./globals.css";
 import { Suspense } from "react";
 import { AuthProvider } from "@/lib/auth";
+import AppShell from "@/components/AppShell";
+import { AssistantProvider } from "@/components/AssistantProvider";
 import { TourProvider } from "@/components/tour/TourProvider";
 import { Toaster } from "@/components/ui/toast";
 
@@ -27,7 +29,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <AuthProvider>
           <Suspense>
             <Toaster>
-              <TourProvider>{children}</TourProvider>
+              <AssistantProvider>
+                <AppShell>
+                  <TourProvider>{children}</TourProvider>
+                </AppShell>
+              </AssistantProvider>
             </Toaster>
           </Suspense>
         </AuthProvider>
