@@ -9,6 +9,7 @@ dependencies = []
 members = [
     "services/core-api",
     "services/ai-engine",
+    "services/cloud-sim",
     "evals",
 ]
 
@@ -50,6 +51,7 @@ testpaths = [
     "services/core-api/apps",
     "services/core-api/infrastructure",
     "services/ai-engine/tests",
+    "services/cloud-sim/tests",
     "evals/suites",
 ]
 # The suites share module names — two different test_injection.py files in
@@ -74,13 +76,13 @@ addopts = "--import-mode=importlib"
 # Run from the repo root as `uv run mypy` (see lint.yml). mypy runs from the
 # workspace venv rather than `uvx`, because the django-stubs plugin must import
 # Django and the project's settings; the version is pinned by uv.lock.
-files = ["services/ai-engine/src", "services/core-api", "evals", "demo_kb"]
+files = ["services/ai-engine/src", "services/cloud-sim/src", "services/core-api", "evals", "demo_kb"]
 # Django's generated migrations are not hand-written code.
 exclude = ['/migrations/', '/node_modules/']
 python_version = "3.13"
 # The import roots each service runs from: ai-engine's src layout, core-api's
 # `apps.*` / `config.*`, and evals' `suites.*`.
-mypy_path = ["services/ai-engine/src", "services/core-api", "evals"]
+mypy_path = ["services/ai-engine/src", "services/cloud-sim/src", "services/core-api", "evals"]
 explicit_package_bases = true
 # Test packages are named `tests` in more than one service (the same clash
 # pytest's --import-mode=importlib handles); namespace them by path.

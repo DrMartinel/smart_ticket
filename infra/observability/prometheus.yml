@@ -1,0 +1,19 @@
+# Prometheus for the `infra` profile (F17): scrapes cloud-sim, evaluates the
+# simulated cloud's alert rules, and sends alerts to Alertmanager. core-api
+# queries it only through prom-label-proxy (ADR-0048 §3).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: cloud-sim
+    static_configs:
+      - targets: ["cloud-sim:8090"]

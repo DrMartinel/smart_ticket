@@ -1,0 +1,289 @@
+{
+  "region": "sim-1",
+  "domains": [
+    {
+      "id": "default",
+      "name": "Default"
+    },
+    {
+      "id": "8fed0033-eaa7-5729-9e9c-824134fb7ac2",
+      "name": "Sao Mai Logistics"
+    },
+    {
+      "id": "52c86fa9-0f2c-52f7-882e-15b1696ab041",
+      "name": "Hoa Binh Retail"
+    }
+  ],
+  "projects": [
+    {
+      "id": "b055a8f1-d1f5-5d62-837c-15bf88fbcaa9",
+      "name": "saomai-prod",
+      "domain": "Sao Mai Logistics",
+      "environment": "prod"
+    },
+    {
+      "id": "cd7c7011-ce9c-5cba-9719-4d0d623762ee",
+      "name": "saomai-staging",
+      "domain": "Sao Mai Logistics",
+      "environment": "staging"
+    },
+    {
+      "id": "44eee881-c3d7-51f1-a36d-cb4cb480d7c7",
+      "name": "hbr-web",
+      "domain": "Hoa Binh Retail",
+      "environment": "prod"
+    }
+  ],
+  "users": [
+    {
+      "id": "228ef86d-26bd-5874-bdbd-b1dc980e0ecc",
+      "name": "lan.nt",
+      "domain": "Sao Mai Logistics",
+      "subject": "0b6f8f2e-3c3a-4a51-9d1e-6a1f3c2b7e41",
+      "member_of": [
+        "saomai-prod",
+        "saomai-staging"
+      ]
+    },
+    {
+      "id": "8c5c7c69-928a-5b61-9729-634180d7c971",
+      "name": "minh.hbr",
+      "domain": "Hoa Binh Retail",
+      "subject": "5d2c9a77-8e14-4b0f-a6c3-2f9e1d0b4c88",
+      "member_of": [
+        "hbr-web"
+      ]
+    }
+  ],
+  "networks": [
+    {
+      "id": "8caf1a65-e10e-5e62-91a8-b850c7bb5632",
+      "name": "saomai-prod-net",
+      "project": "saomai-prod",
+      "cidr": "10.10.0.0/24"
+    },
+    {
+      "id": "bfd5fd39-b287-505d-aae3-328369589feb",
+      "name": "saomai-staging-net",
+      "project": "saomai-staging",
+      "cidr": "10.11.0.0/24"
+    },
+    {
+      "id": "e6a8c2cc-cc44-531a-ba3b-01ca5c5edde2",
+      "name": "hbr-web-net",
+      "project": "hbr-web",
+      "cidr": "10.20.0.0/24"
+    }
+  ],
+  "security_groups": [
+    {
+      "id": "9c587727-0eaf-5def-81b9-27d17b551915",
+      "name": "db",
+      "project": "saomai-prod",
+      "rules": [
+        {
+          "id": "35298681-9ad3-5420-8b79-ea3fdebbfe4b",
+          "direction": "ingress",
+          "protocol": "tcp",
+          "port_min": 5432,
+          "port_max": 5432,
+          "remote_ip_prefix": "10.10.0.0/24"
+        }
+      ]
+    },
+    {
+      "id": "7eed4241-2044-5db1-94b1-e6be42cd6199",
+      "name": "app",
+      "project": "saomai-prod",
+      "rules": [
+        {
+          "id": "4c2b691e-ff0d-55b9-af0b-88c744b44968",
+          "direction": "ingress",
+          "protocol": "tcp",
+          "port_min": 8080,
+          "port_max": 8080,
+          "remote_ip_prefix": "10.10.0.0/24"
+        }
+      ]
+    },
+    {
+      "id": "eab8f3a6-8143-55a7-a940-38e4b019eb85",
+      "name": "app",
+      "project": "saomai-staging",
+      "rules": [
+        {
+          "id": "0ec786f5-59a5-5f8b-ad4a-741831ffca58",
+          "direction": "ingress",
+          "protocol": "tcp",
+          "port_min": 8080,
+          "port_max": 8080,
+          "remote_ip_prefix": "10.11.0.0/24"
+        }
+      ]
+    },
+    {
+      "id": "59255403-feb7-5b34-9f55-4651c5de0204",
+      "name": "web",
+      "project": "hbr-web",
+      "rules": [
+        {
+          "id": "d1fb7e0d-3b1d-51c8-aa9f-1f69249b9672",
+          "direction": "ingress",
+          "protocol": "tcp",
+          "port_min": 443,
+          "port_max": 443,
+          "remote_ip_prefix": "0.0.0.0/0"
+        },
+        {
+          "id": "0b33340c-2db9-5be6-9a7e-507128706312",
+          "direction": "ingress",
+          "protocol": "tcp",
+          "port_min": 22,
+          "port_max": 22,
+          "remote_ip_prefix": "0.0.0.0/0"
+        }
+      ]
+    }
+  ],
+  "servers": [
+    {
+      "id": "1df109c8-1575-5cb0-bd48-18a577e6f7c7",
+      "name": "db-01",
+      "project": "saomai-prod",
+      "host": "compute-01",
+      "flavor": "m1.large",
+      "workload": "postgres",
+      "security_groups": [
+        "db"
+      ],
+      "ip": "10.10.0.11"
+    },
+    {
+      "id": "3b18855e-3f9a-592b-ae33-5fecd4b35c23",
+      "name": "app-01",
+      "project": "saomai-prod",
+      "host": "compute-02",
+      "flavor": "m1.medium",
+      "workload": "orders-api",
+      "security_groups": [
+        "app"
+      ],
+      "ip": "10.10.0.21",
+      "calls": "db-01"
+    },
+    {
+      "id": "f5c1129c-26d0-5bbf-a5d8-5794163a8601",
+      "name": "app-02",
+      "project": "saomai-prod",
+      "host": "compute-03",
+      "flavor": "m1.medium",
+      "workload": "orders-api",
+      "security_groups": [
+        "app"
+      ],
+      "ip": "10.10.0.22",
+      "calls": "db-01"
+    },
+    {
+      "id": "375b1693-c33d-5a6c-90fb-9b1fa885a0f0",
+      "name": "stg-app-01",
+      "project": "saomai-staging",
+      "host": "compute-03",
+      "flavor": "m1.small",
+      "workload": "orders-api",
+      "security_groups": [
+        "app"
+      ],
+      "ip": "10.11.0.21"
+    },
+    {
+      "id": "4bdda4be-a570-56e4-aea3-40e6c3bde599",
+      "name": "web-03",
+      "project": "hbr-web",
+      "host": "compute-01",
+      "flavor": "m1.medium",
+      "workload": "nginx",
+      "security_groups": [
+        "web"
+      ],
+      "ip": "10.20.0.13",
+      "calls": "cache-01"
+    },
+    {
+      "id": "ace8e2f9-2994-51a8-8f10-2d3eed662e80",
+      "name": "web-04",
+      "project": "hbr-web",
+      "host": "compute-02",
+      "flavor": "m1.medium",
+      "workload": "nginx",
+      "security_groups": [
+        "web"
+      ],
+      "ip": "10.20.0.14",
+      "calls": "cache-01"
+    },
+    {
+      "id": "15af41bf-7725-5b3c-b679-cf442e258894",
+      "name": "cache-01",
+      "project": "hbr-web",
+      "host": "compute-03",
+      "flavor": "m1.small",
+      "workload": "redis",
+      "security_groups": [
+        "web"
+      ],
+      "ip": "10.20.0.31"
+    }
+  ],
+  "volumes": [
+    {
+      "id": "6fedb8f6-1c2e-559e-b6aa-833efd4bfad4",
+      "name": "vol-db-01",
+      "project": "saomai-prod",
+      "size_gb": 200,
+      "iops_quota": 3000,
+      "attached_to": "db-01"
+    },
+    {
+      "id": "811b0337-935d-543b-9749-b721bcbb2a07",
+      "name": "vol-app-01",
+      "project": "saomai-prod",
+      "size_gb": 50,
+      "iops_quota": 1000,
+      "attached_to": "app-01"
+    },
+    {
+      "id": "4ea608ca-9e23-5387-bfc0-876d3a72c036",
+      "name": "vol-backup-01",
+      "project": "saomai-prod",
+      "size_gb": 500,
+      "iops_quota": 500,
+      "attached_to": null
+    },
+    {
+      "id": "d8bfede8-2905-5b93-a2b6-7df34a223527",
+      "name": "vol-web-03",
+      "project": "hbr-web",
+      "size_gb": 40,
+      "iops_quota": 1000,
+      "attached_to": "web-03"
+    }
+  ],
+  "flavors": {
+    "m1.small": {
+      "vcpus": 1,
+      "ram_mb": 2048,
+      "disk_gb": 20
+    },
+    "m1.medium": {
+      "vcpus": 2,
+      "ram_mb": 4096,
+      "disk_gb": 40
+    },
+    "m1.large": {
+      "vcpus": 4,
+      "ram_mb": 8192,
+      "disk_gb": 80
+    }
+  }
+}

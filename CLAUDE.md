@@ -127,7 +127,7 @@ Whole workspace, from the repo root:
 uv run pytest                              # everything (unit + eval)
 uv run pytest services/ai-engine/tests -q
 uv run pytest evals/suites -q              # 11 files; live ones skip if ai-engine is down
-uv run mypy                                # all three packages
+uv run mypy                                # all four packages
 ```
 
 Full stack (7 containers + the `vllm` profile for models). Migrations run automatically on `core-api` start:
@@ -184,6 +184,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | What happens to an agent turn: masking, queueing, the run task, the sweep, hand-off, ending (F15, ADR-0046) | [apps/agent/](services/core-api/apps/agent/), the service in [turns.py](services/core-api/apps/agent/utils/turns.py); the reasons and their texts in [vocabulary.py](services/core-api/apps/agent/utils/vocabulary.py) |
 | Opening a ticket: masking, storing, quarantine entries, queueing the pipeline (also for the agent) | [intake.py](services/core-api/apps/tickets/utils/intake.py) (`ticket_intake`), never `Ticket.objects.create` with raw text |
 | Runbooks: the catalog, execution, Keycloak and n8n executors (F12, ADR-0038) | [apps/itsm_mock/](services/core-api/apps/itsm_mock/), the service in [runbooks.py](services/core-api/apps/itsm_mock/utils/runbooks.py), the executors in [executors.py](services/core-api/apps/itsm_mock/utils/executors.py) |
+| A simulated OpenStack with metrics, logs, traces and faults (F17, ADR-0048; dev and test only), and the `infra` compose profile around it | [services/cloud-sim/](services/cloud-sim/) ([README](services/cloud-sim/README.md)); Prometheus, Alertmanager and APM config in [infra/observability/](infra/observability/) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
 but one** (the `entity_graph` association rows, written by ai-engine's

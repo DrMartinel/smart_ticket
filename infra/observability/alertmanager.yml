@@ -1,0 +1,7 @@
+# Alertmanager for the `infra` profile (F17): it only holds alerts for
+# core-api to read; nothing is sent anywhere.
+route:
+  receiver: hold
+  group_by: [alertname, project]
+receivers:
+  - name: hold

@@ -1,0 +1,42 @@
+# The simulated cloud's alert rules (F17). They are the cloud's own
+# monitoring, not Smart Ticket's tunables: every alert keeps the series'
+# `project` label, so core-api can scope alerts the way it scopes metrics.
+groups:
+  - name: cloud
+    rules:
+      - alert: CloudServerDown
+        expr: cloud_server_up == 0 and on(server_id) cloud_server_status{status="ACTIVE"} == 1
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.server }} is ACTIVE but its guest does not answer"
+      - alert: CloudServerError
+        expr: cloud_server_status{status="ERROR"} == 1
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "{{ $labels.server }} is in ERROR"
+      - alert: CloudDiskAlmostFull
+        expr: cloud_server_disk_used_ratio > 0.9
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.server }} root disk is {{ $value | humanizePercentage }} full"
+      - alert: CloudVolumeLatencyHigh
+        expr: cloud_volume_read_latency_seconds > 0.05
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.volume }} reads take {{ $value | humanizeDuration }}"
+      - alert: CloudVolumeIopsAtQuota
+        expr: rate(cloud_volume_iops_total[5m]) / cloud_volume_iops_quota > 0.95
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.volume }} is at its IOPS quota"
+      - alert: CloudPacketLoss
+        expr: rate(cloud_port_rx_dropped_total[5m]) / rate(cloud_port_rx_packets_total[5m]) > 0.01
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "{{ $labels.server }} drops {{ $value | humanizePercentage }} of its packets"

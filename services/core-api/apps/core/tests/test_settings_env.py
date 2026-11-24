@@ -50,6 +50,12 @@ def _read_by_ai_engine() -> set[str]:
     return (names - {n.upper() for n in aliased}) | set(aliases)
 
 
+def _read_by_cloud_sim() -> set[str]:
+    """cloud-sim's Settings fields, by their aliases."""
+    source = (base.REPO_ROOT / "services/cloud-sim/src/cloud_sim/config.py").read_text()
+    return set(re.findall(r'validation_alias="([A-Z_0-9]+)"', source))
+
+
 def _read_by_compose() -> set[str]:
     return set(re.findall(r"\$\{([A-Z_0-9]+)", (base.REPO_ROOT / "docker-compose.yml").read_text()))
 
@@ -63,7 +69,7 @@ def test_every_template_key_has_a_reader():
     """One `.env` serves core-api, ai-engine and compose. A key none of them
     reads is a typo or a leftover, and would look configured."""
 
-    readers = _read_by_core_api() | _read_by_ai_engine() | _read_by_compose()
+    readers = _read_by_core_api() | _read_by_ai_engine() | _read_by_cloud_sim() | _read_by_compose()
 
     assert set(_TEMPLATE) - readers == set()
 
@@ -161,3 +167,9 @@ def test_compose_gives_ai_engine_exactly_what_it_reads(service):
     assert env.isdisjoint(
         {"DATABASE_URL", "POSTGRES_APP_PASSWORD", "SECRET_KEY", "PII_ENCRYPTION_KEY"}
     )
+
+
+def test_compose_gives_cloud_sim_exactly_what_it_reads():
+    """cloud-sim holds its own settings only, none of core-api's or ai-engine's."""
+
+    assert _compose_env("cloud-sim") == _read_by_cloud_sim()

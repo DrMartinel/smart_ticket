@@ -80,6 +80,9 @@ jobs:
       - name: ai-engine unit tests
         run: uv run pytest services/ai-engine/tests -q
 
+      - name: cloud-sim unit tests
+        run: uv run pytest services/cloud-sim/tests -q
+
       # Graph-structure tests live in services/ai-engine/tests/test_build.py and
       # run in the ai-engine step above — this step previously also listed
       # evals/suites/test_build.py, which does not exist, so pytest exited 4.

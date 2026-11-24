@@ -79,6 +79,9 @@ jobs:
       - name: ai-engine unit tests
         run: uv run pytest services/ai-engine/tests -q
 
+      - name: cloud-sim unit tests
+        run: uv run pytest services/cloud-sim/tests -q
+
       - name: Offline eval suites
         run: |
           uv run --package evals pytest \
