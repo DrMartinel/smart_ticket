@@ -13,7 +13,6 @@ from cloud_sim.cloud import Cloud, Conflict, Invalid, NotFound, Server, ServerSt
 router = APIRouter(prefix="/compute/v2.1")
 
 _POWER = {ServerStatus.ACTIVE: 1, ServerStatus.ERROR: 1, ServerStatus.SHUTOFF: 4}
-_TASK = {ServerStatus.REBOOT: "rebooting", ServerStatus.HARD_REBOOT: "rebooting_hard"}
 
 
 @router.get("/servers/detail")
@@ -116,7 +115,7 @@ def server_view(cloud: Cloud, server: Server) -> dict[str, Any]:
         "updated": (server.updated or server.created).isoformat(),
         "OS-EXT-SRV-ATTR:host": server.host,
         "OS-EXT-STS:vm_state": {"SHUTOFF": "stopped", "ERROR": "error"}.get(status.value, "active"),
-        "OS-EXT-STS:task_state": _TASK.get(server.status),
+        "OS-EXT-STS:task_state": server.task_state,
         "OS-EXT-STS:power_state": _POWER.get(status, 1),
         "flavor": {
             "original_name": server.flavor.name,

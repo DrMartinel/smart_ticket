@@ -101,12 +101,12 @@ def list_rules(request: Request, _: Admin, security_group_id: str | None = None)
     cloud = cloud_of(request)
     with cloud.reading():
         rules = [
-            (g, r)
+            rule_view(r)
             for g in cloud.security_groups.values()
             for r in g.rules
             if security_group_id is None or g.id == security_group_id
         ]
-        return {"security_group_rules": [rule_view(g, r) for g, r in rules]}
+        return {"security_group_rules": rules}
 
 
 @router.post("/security-group-rules", status_code=201)
@@ -122,8 +122,7 @@ def add_rule(request: Request, body: dict[str, Any], _: Admin) -> dict[str, Any]
         raise neutron_error(400, "SecurityGroupRuleInvalid", str(e)) from None
     except Conflict as e:
         raise neutron_error(409, "SecurityGroupRuleExists", str(e)) from None
-    with cloud.reading():
-        return {"security_group_rule": rule_view(cloud.security_groups[group_id], rule)}
+    return {"security_group_rule": rule_view(rule)}
 
 
 @router.delete("/security-group-rules/{rule_id}", status_code=204)
@@ -186,15 +185,15 @@ def group_view(group: SecurityGroup) -> dict[str, Any]:
         "id": group.id,
         "name": group.name,
         "project_id": group.project_id,
-        "security_group_rules": [rule_view(group, r) for r in group.rules],
+        "security_group_rules": [rule_view(r) for r in group.rules],
     }
 
 
-def rule_view(group: SecurityGroup, rule: Rule) -> dict[str, Any]:
+def rule_view(rule: Rule) -> dict[str, Any]:
     return {
         "id": rule.id,
-        "security_group_id": group.id,
-        "project_id": group.project_id,
+        "security_group_id": rule.group_id,
+        "project_id": rule.project_id,
         "direction": rule.direction,
         "ethertype": rule.ethertype,
         "protocol": rule.protocol,

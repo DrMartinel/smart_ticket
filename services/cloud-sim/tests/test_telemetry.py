@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from opentelemetry.trace import SpanKind
+
 from cloud_sim.testing import Sim
 
 from cloud_sim.cloud import Cloud
@@ -165,6 +167,17 @@ def test_exported_signals_carry_their_server_and_project(sim: Sim) -> None:
     )
     assert root.resource.attributes[PROJECT_ATTRIBUTE] == sim.id_of("project", "saomai-prod")
     assert child.resource.attributes["host.name"] == "db-01"
+    assert child.kind is SpanKind.SERVER
     assert child.context.trace_id == root.context.trace_id
     assert records
     assert all(PROJECT_ATTRIBUTE in r.resource.attributes for r in records)
+
+
+def test_shutdown_sends_what_is_still_batched(sim: Sim) -> None:
+    exporter = sim.client.app.state.exporter  # type: ignore[attr-defined]
+
+    exporter.send(plan(sim.cloud, 5, sim.cloud.now()))
+    exporter.shutdown()
+
+    assert sim.spans.get_finished_spans()
+    assert sim.logs.get_finished_logs()

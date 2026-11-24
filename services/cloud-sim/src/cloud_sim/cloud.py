@@ -17,6 +17,11 @@ from cloud_sim.seed import Seed
 
 Clock = Callable[[], datetime]
 
+_RULE_DIRECTIONS = frozenset({"ingress", "egress"})
+_RULE_ETHERTYPES = frozenset({"IPv4", "IPv6"})
+_RULE_PROTOCOLS = frozenset({"tcp", "udp", "icmp"})
+_DEVICE_LETTERS = "bcdefghijklmnopqrstuvwxyz"
+
 
 class ServerStatus(StrEnum):
     ACTIVE = "ACTIVE"
@@ -100,6 +105,17 @@ class Server:
     settles_at: datetime | None = None
     updated: datetime | None = None
 
+    @property
+    def task_state(self) -> str | None:
+        """The action in progress, as Nova names it."""
+        if self.settles_at is None:
+            return None
+        if self.status is ServerStatus.REBOOT:
+            return "rebooting"
+        if self.status is ServerStatus.HARD_REBOOT:
+            return "rebooting_hard"
+        return "powering-off" if self.settles_to is ServerStatus.SHUTOFF else "powering-on"
+
 
 @dataclass
 class Volume:
@@ -128,12 +144,36 @@ class Network:
 class Rule:
     id: str
     group_id: str
+    project_id: str
     direction: str
     protocol: str | None
     port_min: int | None
     port_max: int | None
     remote_ip_prefix: str | None
     ethertype: str = "IPv4"
+
+    def check(self) -> None:
+        """Refuses a rule Neutron would refuse."""
+        if self.direction not in _RULE_DIRECTIONS:
+            raise Invalid(f"Invalid direction {self.direction!r}")
+        if self.ethertype not in _RULE_ETHERTYPES:
+            raise Invalid(f"Invalid ethertype {self.ethertype!r}")
+        if self.protocol is not None and self.protocol not in _RULE_PROTOCOLS:
+            raise Invalid(f"Protocol {self.protocol!r} is not supported")
+        for port in (self.port_min, self.port_max):
+            if port is not None and (not _is_int(port) or not 1 <= port <= 65535):
+                raise Invalid(f"Invalid port {port!r}")
+        if (
+            self.port_min is not None
+            and self.port_max is not None
+            and self.port_min > self.port_max
+        ):
+            raise Invalid("port_range_min must be <= port_range_max")
+        if self.remote_ip_prefix is not None:
+            try:
+                ipaddress.ip_network(str(self.remote_ip_prefix))
+            except ValueError:
+                raise Invalid(f"Invalid remote_ip_prefix {self.remote_ip_prefix!r}") from None
 
     def same_as(self, other: Rule) -> bool:
         """Whether both rules allow the same traffic."""
@@ -160,10 +200,6 @@ class SecurityGroup:
     name: str
     project_id: str
     rules: list[Rule] = field(default_factory=list)
-
-
-_RULE_DIRECTIONS = {"ingress", "egress"}
-_RULE_PROTOCOLS = {None, "tcp", "udp", "icmp"}
 
 
 class Cloud:
@@ -244,12 +280,14 @@ class Cloud:
         return next(n for n in self.networks.values() if n.project_id == server.project_id)
 
     def has_fault(self, kind: FaultKind, target_id: str | None) -> bool:
-        return any(f.kind is kind and f.target_id == target_id for f in self.faults.values())
+        return self.fault_on(kind, target_id) is not None
 
     def fault_on(self, kind: FaultKind, target_id: str | None) -> Fault | None:
-        return next(
-            (f for f in self.faults.values() if f.kind is kind and f.target_id == target_id), None
-        )
+        with self._lock:
+            return next(
+                (f for f in self.faults.values() if f.kind is kind and f.target_id == target_id),
+                None,
+            )
 
     def memberships(self, user_id: str) -> list[Project]:
         """The projects the user is a member of."""
@@ -267,10 +305,11 @@ class Cloud:
     def reboot(self, server_id: str, *, hard: bool) -> None:
         with self.reading():
             server = self.server(server_id)
+            kind = "reboot" if not hard else "hard reboot"
+            _require_idle(server, kind)
             status = self.status_of(server)
             allowed = {ServerStatus.ACTIVE, ServerStatus.ERROR} if hard else {ServerStatus.ACTIVE}
             if status not in allowed:
-                kind = "reboot" if not hard else "hard reboot"
                 raise Conflict(f"Cannot '{kind}' instance {server_id} while it is in {status}")
             self._begin(
                 server,
@@ -283,6 +322,7 @@ class Cloud:
     def start(self, server_id: str) -> None:
         with self.reading():
             server = self.server(server_id)
+            _require_idle(server, "start")
             if server.status is not ServerStatus.SHUTOFF:
                 raise Conflict(
                     f"Cannot 'start' instance {server_id} while it is in {server.status}"
@@ -293,6 +333,7 @@ class Cloud:
     def stop(self, server_id: str) -> None:
         with self.reading():
             server = self.server(server_id)
+            _require_idle(server, "stop")
             status = self.status_of(server)
             if status not in {ServerStatus.ACTIVE, ServerStatus.ERROR}:
                 raise Conflict(f"Cannot 'stop' instance {server_id} while it is in {status}")
@@ -305,12 +346,18 @@ class Cloud:
                 raise Invalid("The volume and the server are in different projects")
             if volume.status is not VolumeStatus.AVAILABLE:
                 raise Conflict(f"Volume {volume_id} status must be available, is {volume.status}")
+            _require_idle(server, "attach_volume")
             if server.status not in {ServerStatus.ACTIVE, ServerStatus.SHUTOFF}:
                 raise Conflict(
                     f"Cannot attach to instance {server_id} while it is in {server.status}"
                 )
-            volume.server_id, volume.status = server.id, VolumeStatus.IN_USE
-            volume.device = f"/dev/vd{chr(ord('b') + len(self.volumes_of(server)) - 1)}"
+            taken = {v.device for v in self.volumes_of(server)}
+            free = next(
+                (f"/dev/vd{c}" for c in _DEVICE_LETTERS if f"/dev/vd{c}" not in taken), None
+            )
+            if free is None:
+                raise Conflict(f"Instance {server_id} has no free device name")
+            volume.server_id, volume.status, volume.device = server.id, VolumeStatus.IN_USE, free
             return volume
 
     def detach(self, volume_id: str, server_id: str) -> None:
@@ -329,6 +376,7 @@ class Cloud:
             rule = Rule(
                 id=str(uuid.uuid4()),
                 group_id=group.id,
+                project_id=group.project_id,
                 direction=values.get("direction", ""),
                 protocol=values.get("protocol"),
                 port_min=values.get("port_range_min"),
@@ -336,7 +384,7 @@ class Cloud:
                 remote_ip_prefix=values.get("remote_ip_prefix"),
                 ethertype=values.get("ethertype", "IPv4"),
             )
-            _check_rule(rule)
+            rule.check()
             if any(rule.same_as(r) for r in group.rules):
                 raise Conflict(f"Security group rule already exists in group {group.id}")
             group.rules.append(rule)
@@ -362,8 +410,14 @@ class Cloud:
                     Target.NETWORK: self.network,
                 }
                 finders[target](target_id)
-            if kind is FaultKind.API_SLOW and not isinstance(params.get("delay_sec"), int | float):
-                raise Invalid("api_slow needs a numeric delay_sec")
+            if kind is FaultKind.API_SLOW and not _is_number(params.get("delay_sec"), low=0):
+                raise Invalid("api_slow needs a delay_sec of 0 or more")
+            if (
+                kind is FaultKind.PACKET_LOSS
+                and "ratio" in params
+                and not _is_number(params["ratio"], low=0, high=1)
+            ):
+                raise Invalid("packet_loss's ratio must be a number from 0 to 1")
             fault = Fault(str(uuid.uuid4()), kind, target_id, self.now(), dict(params))
             self.faults[fault.id] = fault
             return fault
@@ -462,6 +516,7 @@ class Cloud:
                     Rule(
                         r.id,
                         g.id,
+                        project_by_name[g.project],
                         r.direction,
                         r.protocol,
                         r.port_min,
@@ -502,18 +557,19 @@ class Cloud:
         self.faults: dict[str, Fault] = {}
 
 
-def _check_rule(rule: Rule) -> None:
-    if rule.direction not in _RULE_DIRECTIONS:
-        raise Invalid(f"Invalid direction {rule.direction!r}")
-    if rule.protocol not in _RULE_PROTOCOLS:
-        raise Invalid(f"Protocol {rule.protocol!r} is not supported")
-    for port in (rule.port_min, rule.port_max):
-        if port is not None and not 1 <= port <= 65535:
-            raise Invalid(f"Invalid port {port}")
-    if rule.port_min is not None and rule.port_max is not None and rule.port_min > rule.port_max:
-        raise Invalid("port_range_min must be <= port_range_max")
-    if rule.remote_ip_prefix is not None:
-        try:
-            ipaddress.ip_network(rule.remote_ip_prefix)
-        except ValueError:
-            raise Invalid(f"Invalid remote_ip_prefix {rule.remote_ip_prefix!r}") from None
+def _require_idle(server: Server, action: str) -> None:
+    """Refuses an action while another one is still running on the server."""
+    if server.task_state is not None:
+        raise Conflict(
+            f"Cannot '{action}' instance {server.id} while it is in task_state {server.task_state}"
+        )
+
+
+def _is_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _is_number(value: object, *, low: float, high: float | None = None) -> bool:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        return False
+    return low <= value and (high is None or value <= high)

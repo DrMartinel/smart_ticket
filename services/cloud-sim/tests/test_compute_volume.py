@@ -162,3 +162,63 @@ def test_volumes_list_by_project_for_an_admin(sim: Sim) -> None:
         "vol-app-01",
         "vol-backup-01",
     }
+
+
+def _task_state(sim: Sim, server: str) -> str | None:
+    reply = sim.client.get(
+        f"/compute/v2.1/servers/{sim.id_of('server', server)}", headers=sim.headers
+    )
+    task: str | None = reply.json()["server"]["OS-EXT-STS:task_state"]
+    return task
+
+
+def test_an_action_during_a_transition_is_409(sim: Sim) -> None:
+    volume = sim.id_of("volume", "vol-backup-01")
+    path = f"/compute/v2.1/servers/{sim.id_of('server', 'db-01')}/os-volume_attachments"
+    assert _action(sim, "db-01", {"os-stop": None}) == 202
+
+    assert _task_state(sim, "db-01") == "powering-off"
+    assert _action(sim, "db-01", {"os-stop": None}) == 409
+    assert _action(sim, "db-01", {"reboot": {"type": "SOFT"}}) == 409
+    assert _action(sim, "db-01", {"reboot": {"type": "HARD"}}) == 409
+    attach = {"volumeAttachment": {"volumeId": volume}}
+    assert sim.client.post(path, json=attach, headers=sim.headers).status_code == 409
+
+    sim.clock.advance(TRANSITION_SEC)
+
+    assert _status(sim, "db-01") == "SHUTOFF"
+    assert _task_state(sim, "db-01") is None
+
+
+def test_a_start_shows_powering_on_until_it_settles(sim: Sim) -> None:
+    _action(sim, "db-01", {"os-stop": None})
+    sim.clock.advance(TRANSITION_SEC)
+
+    assert _action(sim, "db-01", {"os-start": None}) == 202
+    assert _task_state(sim, "db-01") == "powering-on"
+    assert _action(sim, "db-01", {"os-start": None}) == 409
+
+    sim.clock.advance(TRANSITION_SEC)
+
+    assert _status(sim, "db-01") == "ACTIVE"
+
+
+def test_a_reattached_volume_takes_a_free_device_name(sim: Sim) -> None:
+    server = sim.id_of("server", "db-01")
+    data, backup = sim.id_of("volume", "vol-db-01"), sim.id_of("volume", "vol-backup-01")
+    path = f"/compute/v2.1/servers/{server}/os-volume_attachments"
+
+    def attach(volume: str) -> str:
+        reply = sim.client.post(
+            path, json={"volumeAttachment": {"volumeId": volume}}, headers=sim.headers
+        )
+        device: str = reply.json()["volumeAttachment"]["device"]
+        return device
+
+    second = attach(backup)
+    sim.client.delete(f"{path}/{data}", headers=sim.headers)
+    sim.clock.advance(TRANSITION_SEC)
+    again = attach(data)
+
+    assert second == "/dev/vdc"
+    assert again == "/dev/vdb"

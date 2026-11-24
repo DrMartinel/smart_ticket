@@ -204,7 +204,7 @@ def _request(cloud: Cloud, server: Server, tick: int, now: datetime) -> SpanPlan
                 now + timedelta(milliseconds=own_ms / 2),
                 child_ms,
                 error,
-                {"peer.service": callee.workload},
+                {},
             )
         )
     total = own_ms + sum(c.duration_ms for c in children)

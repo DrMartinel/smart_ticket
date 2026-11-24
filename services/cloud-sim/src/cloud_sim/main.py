@@ -88,7 +88,9 @@ def create_app(
             if cloud.fault_on(FaultKind.API_UNAVAILABLE, None) is not None:
                 return JSONResponse({"message": "Service Unavailable"}, status_code=503)
             if (slow := cloud.fault_on(FaultKind.API_SLOW, None)) is not None:
+                response = await call_next(request)
                 await asyncio.sleep(float(slow.params["delay_sec"]))
+                return response
         return await call_next(request)
 
     @app.get("/metrics")

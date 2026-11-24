@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any
+
+from cloud_sim import main
 
 from cloud_sim.testing import Sim
 
@@ -39,6 +42,7 @@ def test_a_rule_is_added_and_removed(sim: Sim) -> None:
     )
 
     assert added.status_code == 201
+    assert added.json()["security_group_rule"]["project_id"] == sim.id_of("project", "saomai-prod")
     assert removed.status_code == 204
     assert (
         sim.client.delete(
@@ -67,6 +71,10 @@ def test_an_invalid_rule_is_400(sim: Sim) -> None:
         {"direction": "sideways"},
         {"remote_ip_prefix": "not-an-ip"},
         {"port_range_min": 30, "port_range_max": 20},
+        {"port_range_min": "22"},
+        {"port_range_max": True},
+        {"ethertype": "IPv5"},
+        {"protocol": "gre"},
     ):
         reply = sim.client.post(
             "/network/v2.0/security-group-rules", json=_rule(group, **bad), headers=sim.headers
@@ -102,6 +110,42 @@ def test_a_fault_on_the_wrong_kind_of_resource_is_404(sim: Sim) -> None:
 
 def test_api_slow_needs_a_delay(sim: Sim) -> None:
     assert sim.client.post("/sim/faults", json={"kind": "api_slow"}).status_code == 400
+    assert (
+        sim.client.post(
+            "/sim/faults", json={"kind": "api_slow", "params": {"delay_sec": -1}}
+        ).status_code
+        == 400
+    )
+
+
+def test_a_packet_loss_ratio_outside_0_to_1_is_400(sim: Sim) -> None:
+    network = sim.id_of("network", "saomai-prod-net")
+    for ratio in (1.5, -0.1, "high", True):
+        reply = sim.client.post(
+            "/sim/faults",
+            json={"kind": "packet_loss", "target_id": network, "params": {"ratio": ratio}},
+        )
+        assert reply.status_code == 400, ratio
+    assert sim.client.get("/metrics").status_code == 200
+
+
+def test_a_slow_api_still_acts_before_it_answers(sim: Sim, monkeypatch: Any) -> None:
+    server = sim.id_of("server", "db-01")
+    seen: list[str | None] = []
+
+    async def sleep(seconds: float) -> None:
+        seen.append(sim.cloud.servers[server].task_state)
+
+    monkeypatch.setattr(main, "asyncio", SimpleNamespace(sleep=sleep))
+    sim.client.post("/sim/faults", json={"kind": "api_slow", "params": {"delay_sec": 5}})
+
+    sim.client.get("/sim/health")
+    reply = sim.client.post(
+        f"/compute/v2.1/servers/{server}/action", json={"os-stop": None}, headers=sim.headers
+    )
+
+    assert reply.status_code == 202
+    assert seen == ["powering-off"]
 
 
 def test_an_unavailable_api_answers_503_but_the_simulator_still_answers(sim: Sim) -> None:

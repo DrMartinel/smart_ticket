@@ -83,18 +83,21 @@ class Exporter:
             logger.force_flush()
 
     def shutdown(self) -> None:
-        for provider in self._tracers.values():
-            provider.shutdown()
-        for logger in self._loggers.values():
-            logger.shutdown()
+        """Sends what is batched, then closes the two exporters every provider shares."""
+        self.flush()
+        self._spans.shutdown()
+        self._logs.shutdown()
 
     def _span(self, plan: SpanPlan, parent: trace.Span | None) -> None:
         tracer = self._tracer(plan.server_id).get_tracer("cloud-sim")
         context = trace.set_span_in_context(parent) if parent is not None else None
-        kind = trace.SpanKind.SERVER if parent is None else trace.SpanKind.CLIENT
         start = _ns(plan.start)
         span = tracer.start_span(
-            plan.name, context=context, kind=kind, start_time=start, attributes=plan.attributes
+            plan.name,
+            context=context,
+            kind=trace.SpanKind.SERVER,
+            start_time=start,
+            attributes=plan.attributes,
         )
         if plan.error:
             span.set_status(Status(StatusCode.ERROR))
