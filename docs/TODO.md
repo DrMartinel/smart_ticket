@@ -699,3 +699,20 @@ each file is clean.
 
 - F16's nine PRs are merged, AC-F16-01..08 pass in the trace suite, and the
   live agent eval on `agent.v2` is recorded in `evals/HISTORY.md`.
+
+## 25. Infrastructure for the agent (F17)
+
+**Priority:** Owner's choice, ahead of item 23 (F17 §a.1) · **Spec:** [06-F17-infra.md](requirements/phase-2/06-F17-infra.md) · [ADR-0048](adr/0048-agent-reaches-infrastructure.md) (Accepted)
+
+- **Spec and ADR-0048 accepted 2026-11-24**, every open question decided
+  (§k). Next: PR 1, `cloud-sim` and the `infra` compose profile (§n).
+- **Built ahead of F15's evals by the owner's choice.** F17 adds write tools
+  to an agent whose prompt has never run against a model; both agent flags
+  stay off until item 23 and F17's trace cases are done.
+- **Elasticsearch scope rests on core-api alone** (no paid licence for
+  document-level security): raw DSL stays out, and the builder's project
+  filter is pinned by a mutation-checked test.
+
+### Done when
+
+- F17's nine PRs are merged and AC-F17-01..09 pass in the trace suite.
