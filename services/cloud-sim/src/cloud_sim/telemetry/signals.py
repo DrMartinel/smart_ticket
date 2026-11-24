@@ -189,25 +189,26 @@ def _request(cloud: Cloud, server: Server, tick: int, now: datetime) -> SpanPlan
     )
     own_ms = 18.0 + 4.0 * noise(server.id + "span", tick)
     children: list[SpanPlan] = []
-    error = False
+    error, waited_ms = False, 0.0
     if callee is not None:
-        if not cloud.is_up(callee):
-            child_ms, error = _TIMEOUT_MS, True
-        elif _lossy(cloud, server) and noise(server.id + "loss", tick) > 0.4:
-            child_ms, error = _TIMEOUT_MS, True
+        unreachable = not cloud.is_up(callee) or (
+            _lossy(cloud, server) and noise(server.id + "loss", tick) > 0.4
+        )
+        if unreachable:
+            error, waited_ms = True, _TIMEOUT_MS
         else:
             child_ms = _db_delay_ms(cloud, callee) * (1.0 + 0.2 * noise(callee.id, tick))
-        children.append(
-            SpanPlan(
-                callee.id,
-                child_name,
-                now + timedelta(milliseconds=own_ms / 2),
-                child_ms,
-                error,
-                {},
+            children.append(
+                SpanPlan(
+                    callee.id,
+                    child_name,
+                    now + timedelta(milliseconds=own_ms / 2),
+                    child_ms,
+                    False,
+                    {},
+                )
             )
-        )
-    total = own_ms + sum(c.duration_ms for c in children)
+    total = own_ms + waited_ms + sum(c.duration_ms for c in children)
     attributes: dict[str, str | int | float] = {
         "http.request.method": "GET",
         "http.response.status_code": 504 if error else 200,

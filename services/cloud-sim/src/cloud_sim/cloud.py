@@ -154,11 +154,13 @@ class Rule:
 
     def check(self) -> None:
         """Refuses a rule Neutron would refuse."""
-        if self.direction not in _RULE_DIRECTIONS:
+        if not isinstance(self.direction, str) or self.direction not in _RULE_DIRECTIONS:
             raise Invalid(f"Invalid direction {self.direction!r}")
-        if self.ethertype not in _RULE_ETHERTYPES:
+        if not isinstance(self.ethertype, str) or self.ethertype not in _RULE_ETHERTYPES:
             raise Invalid(f"Invalid ethertype {self.ethertype!r}")
-        if self.protocol is not None and self.protocol not in _RULE_PROTOCOLS:
+        if self.protocol is not None and (
+            not isinstance(self.protocol, str) or self.protocol not in _RULE_PROTOCOLS
+        ):
             raise Invalid(f"Protocol {self.protocol!r} is not supported")
         for port in (self.port_min, self.port_max):
             if port is not None and (not _is_int(port) or not 1 <= port <= 65535):
@@ -306,9 +308,15 @@ class Cloud:
         with self.reading():
             server = self.server(server_id)
             kind = "reboot" if not hard else "hard reboot"
-            _require_idle(server, kind)
+            rebooting = {ServerStatus.REBOOT, ServerStatus.HARD_REBOOT}
+            if not (hard and server.status in rebooting):
+                _require_idle(server, kind)
             status = self.status_of(server)
-            allowed = {ServerStatus.ACTIVE, ServerStatus.ERROR} if hard else {ServerStatus.ACTIVE}
+            allowed = (
+                {ServerStatus.ACTIVE, ServerStatus.ERROR, *rebooting}
+                if hard
+                else {ServerStatus.ACTIVE}
+            )
             if status not in allowed:
                 raise Conflict(f"Cannot '{kind}' instance {server_id} while it is in {status}")
             self._begin(
@@ -363,11 +371,12 @@ class Cloud:
     def detach(self, volume_id: str, server_id: str) -> None:
         with self.reading():
             volume = self.volume(volume_id)
-            self.server(server_id)
+            server = self.server(server_id)
             if volume.server_id != server_id:
                 raise NotFound("Volume attachment", volume_id)
             if volume.status is not VolumeStatus.IN_USE:
                 raise Conflict(f"Volume {volume_id} status must be in-use, is {volume.status}")
+            _require_idle(server, "detach_volume")
             volume.status, volume.settles_at = VolumeStatus.DETACHING, self.now() + self._transition
 
     def add_rule(self, group_id: str, values: dict[str, Any]) -> Rule:

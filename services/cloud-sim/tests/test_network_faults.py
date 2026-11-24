@@ -75,6 +75,9 @@ def test_an_invalid_rule_is_400(sim: Sim) -> None:
         {"port_range_max": True},
         {"ethertype": "IPv5"},
         {"protocol": "gre"},
+        {"ethertype": ["IPv4"]},
+        {"direction": []},
+        {"protocol": {}},
     ):
         reply = sim.client.post(
             "/network/v2.0/security-group-rules", json=_rule(group, **bad), headers=sim.headers

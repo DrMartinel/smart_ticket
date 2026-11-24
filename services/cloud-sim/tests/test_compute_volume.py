@@ -183,6 +183,8 @@ def test_an_action_during_a_transition_is_409(sim: Sim) -> None:
     assert _action(sim, "db-01", {"reboot": {"type": "HARD"}}) == 409
     attach = {"volumeAttachment": {"volumeId": volume}}
     assert sim.client.post(path, json=attach, headers=sim.headers).status_code == 409
+    data = sim.id_of("volume", "vol-db-01")
+    assert sim.client.delete(f"{path}/{data}", headers=sim.headers).status_code == 409
 
     sim.clock.advance(TRANSITION_SEC)
 
@@ -222,3 +224,11 @@ def test_a_reattached_volume_takes_a_free_device_name(sim: Sim) -> None:
 
     assert second == "/dev/vdc"
     assert again == "/dev/vdb"
+
+
+def test_a_hard_reboot_may_follow_a_soft_one(sim: Sim) -> None:
+    assert _action(sim, "db-01", {"reboot": {"type": "SOFT"}}) == 202
+    assert _action(sim, "db-01", {"reboot": {"type": "HARD"}}) == 202
+
+    assert _task_state(sim, "db-01") == "rebooting_hard"
+    assert _action(sim, "db-01", {"reboot": {"type": "SOFT"}}) == 409

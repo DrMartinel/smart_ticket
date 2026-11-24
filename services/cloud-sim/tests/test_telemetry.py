@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 
 from opentelemetry.trace import SpanKind
 
@@ -12,12 +13,18 @@ from cloud_sim.cloud import Cloud
 from cloud_sim.faults import FaultKind
 from cloud_sim.telemetry.export import PROJECT_ATTRIBUTE
 from cloud_sim.telemetry.metrics import Telemetry
-from cloud_sim.telemetry.signals import Severity, plan
+from cloud_sim.telemetry.signals import Severity, SpanPlan, plan
 
 
 def _id(cloud: Cloud, table: str, name: str) -> str:
     rows = getattr(cloud, table)
     return next(i for i, row in rows.items() if row.name == name)
+
+
+def _walk(span: SpanPlan) -> Iterator[SpanPlan]:
+    yield span
+    for child in span.children:
+        yield from _walk(child)
 
 
 def _sample(text: str, metric: str, **labels: str) -> float:
@@ -125,18 +132,16 @@ def test_a_slow_volume_shows_in_the_database_and_its_callers(cloud: Cloud) -> No
     assert trace.children[0].duration_ms > 50
 
 
-def test_a_down_database_fails_its_callers_traces(cloud: Cloud) -> None:
-    cloud.add_fault(FaultKind.SERVER_HUNG, _id(cloud, "servers", "db-01"), {})
+def test_a_down_database_fails_its_callers_traces_and_serves_none(cloud: Cloud) -> None:
+    db = _id(cloud, "servers", "db-01")
+    cloud.add_fault(FaultKind.SERVER_HUNG, db, {})
 
-    trace = next(
-        t
-        for t in plan(cloud, 1, cloud.now()).traces
-        if t.server_id == _id(cloud, "servers", "app-01")
-    )
+    traces = plan(cloud, 1, cloud.now()).traces
+    trace = next(t for t in traces if t.server_id == _id(cloud, "servers", "app-01"))
 
     assert trace.error
-    assert trace.children[0].error
-    assert trace.children[0].server_id == _id(cloud, "servers", "db-01")
+    assert trace.attributes["http.response.status_code"] == 504
+    assert db not in {s.server_id for root in traces for s in _walk(root)}
 
 
 def test_the_api_logs_a_sign_in_with_an_email_now_and_then(cloud: Cloud) -> None:
@@ -176,8 +181,11 @@ def test_exported_signals_carry_their_server_and_project(sim: Sim) -> None:
 def test_shutdown_sends_what_is_still_batched(sim: Sim) -> None:
     exporter = sim.client.app.state.exporter  # type: ignore[attr-defined]
 
-    exporter.send(plan(sim.cloud, 5, sim.cloud.now()))
+    emission = plan(sim.cloud, 5, sim.cloud.now())
+    exporter.send(emission)
     exporter.shutdown()
 
-    assert sim.spans.get_finished_spans()
-    assert sim.logs.get_finished_logs()
+    planned = [s for root in emission.traces for s in _walk(root)]
+    assert len({s.server_id for s in planned}) > 1
+    assert len(sim.spans.get_finished_spans()) == len(planned)
+    assert len(sim.logs.get_finished_logs()) == len(emission.logs)
