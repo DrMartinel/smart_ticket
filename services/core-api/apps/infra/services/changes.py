@@ -1,7 +1,7 @@
 """A caller's changes to the cloud's servers, volumes and security groups (F17 §h.1,
 BR-F17-08..11): each within the caller's scope and, on a staff route, for an open ticket the
 caller works on; sent to the cloud once; audited; and noted on that ticket, whose requester is
-told of a change made."""
+told of a change made to their company's resource."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from apps.infra.domain.changes import (
     InfraResource,
     RuleSpec,
 )
-from apps.infra.domain.resources import Rule, Server, Volume
+from apps.infra.domain.resources import Project, Rule, Server, Volume
 from apps.infra.domain.vocabulary import InfraError, InfraOutcomeUnknown, InfraRefusal
 from apps.infra.models import InfraBackend
 from apps.infra.services.recording import UNREADABLE, QueryLog
@@ -193,7 +193,11 @@ class InfraChanges:
             "a change names an open ticket you work on",
             {"public_id": public_id},
         )
-        ticket = Ticket.objects.select_related("reporter").filter(public_id=public_id).first()
+        ticket = (
+            Ticket.objects.select_related("reporter", "customer")
+            .filter(public_id=public_id)
+            .first()
+        )
         if (
             ticket is None
             or ticket.resolved_at is not None
@@ -294,7 +298,8 @@ class InfraChanges:
 
     def record(self, ticket: Ticket | None, change: Change, outcome: ChangeOutcome) -> None:
         """Audits a change the cloud may have made, notes it on its ticket, and tells the
-        ticket's requester of one made; a failure here never reaches the caller."""
+        ticket's requester of one made when their company owns the resource; a failure here
+        never reaches the caller."""
         user = self.caller.user
         try:
             AuditLog.objects.record(
@@ -325,14 +330,22 @@ class InfraChanges:
             )
         except Exception:  # noqa: BLE001 — the change is already sent
             logger.exception("infra: noting %s on %s failed", change.kind.value, ticket.public_id)
-        if outcome is ChangeOutcome.DONE:
-            notifier.emit(
-                NotificationEvent.INFRA_CHANGE_ON_YOUR_RESOURCE,
-                ticket,
-                Notice(
-                    actor=user.username,
-                    message=change.target.name or change.target.id,
-                    detail=change.kind.value,
-                    data=change.details(),
-                ),
+        if outcome is not ChangeOutcome.DONE or ticket.customer is None:
+            return
+        try:
+            owner = Project.of(
+                self.cloud.get("identity", f"/projects/{change.target.project_id}")["project"]
             )
+            if owner.domain_id == ticket.customer.keystone_domain_id:
+                notifier.emit(
+                    NotificationEvent.INFRA_CHANGE_ON_YOUR_RESOURCE,
+                    ticket,
+                    Notice(
+                        actor=user.username,
+                        message=change.target.name or change.target.id,
+                        detail=change.kind.value,
+                        data=change.details(),
+                    ),
+                )
+        except Exception:  # noqa: BLE001 — the change is already sent
+            logger.exception("infra: telling the owner of %s failed", change.kind.value)

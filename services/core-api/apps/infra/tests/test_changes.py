@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import timedelta
 from typing import Any
 
+import httpx
 import pytest
 from cloud_sim.cloud import ServerStatus, VolumeStatus
 from django.test import Client
@@ -18,6 +19,8 @@ from apps.agent.models import AgentAction, AgentActionKind, AgentActionState
 from apps.agent.testing import as_agent
 from apps.audit.models import AuditLog
 from apps.categories.models import Category
+from apps.infra.models import Customer, CustomerLookup
+from apps.infra.services import changes as changes_module
 from apps.infra.tests.conftest import LAN_SUBJECT, CloudSim
 from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.lifecycle.tests.conftest import make_ticket
@@ -28,6 +31,8 @@ from apps.tickets.models import CommentVisibility, Ticket, TicketComment
 pytestmark = pytest.mark.django_db
 
 JSON = "application/json"
+SAO_MAI = "8fed0033-eaa7-5729-9e9c-824134fb7ac2"
+HOA_BINH = "52c86fa9-0f2c-52f7-882e-15b1696ab041"
 
 
 @pytest.fixture(autouse=True)
@@ -89,12 +94,29 @@ def notes(ticket: Ticket) -> list[TicketComment]:
     )
 
 
+def owned_by(ticket: Ticket, domain_id: str, manager: User) -> Ticket:
+    """`ticket`, stamped with the customer whose Keystone domain is `domain_id`."""
+    customer = Customer.objects.create(
+        name=domain_id, keystone_domain_id=domain_id, tier="standard", created_by=manager
+    )
+    Ticket.objects.filter(pk=ticket.pk).update(
+        customer=customer, customer_lookup=CustomerLookup.FOUND.value
+    )
+    ticket.refresh_from_db()
+    return ticket
+
+
+def told() -> list[Message]:
+    return list(Message.objects.filter(event=NotificationEvent.INFRA_CHANGE_ON_YOUR_RESOURCE.value))
+
+
 # ── a lost answer ──
 
 
 def test_a_confirmed_reboot_whose_answer_is_lost_is_sent_once_and_never_again(
-    api_as, technician_user, ticket, cloud_sim: CloudSim
+    api_as, technician_user, manager_user, ticket, cloud_sim: CloudSim
 ):
+    owned_by(ticket, SAO_MAI, manager_user)
     server = cloud_sim.id_of("servers", "db-01")
     path = f"/api/infra/servers/{server}/reboot"
     body = {"public_id": ticket.public_id}
@@ -122,7 +144,7 @@ def test_a_confirmed_reboot_whose_answer_is_lost_is_sent_once_and_never_again(
     assert not AuditLog.objects.filter(event="agent_action_applied").exists()
     (note,) = notes(ticket)
     assert "answer was lost" in note.body_masked
-    assert not Message.objects.filter(event=NotificationEvent.INFRA_CHANGE_ON_YOUR_RESOURCE.value)
+    assert told() == []
 
 
 def test_a_persons_change_whose_answer_is_lost_answers_502_after_one_call(
@@ -548,9 +570,10 @@ def test_a_missing_server_is_not_found(api_as, technician_user, ticket, cloud_si
 # ── a change made ──
 
 
-def test_a_staff_change_notes_the_ticket_audits_and_tells_the_requester(
-    api_as, technician_user, employee_user, ticket, cloud_sim: CloudSim
+def test_a_staff_change_notes_the_ticket_audits_and_tells_the_owning_requester(
+    api_as, technician_user, employee_user, manager_user, ticket, cloud_sim: CloudSim
 ):
+    owned_by(ticket, SAO_MAI, manager_user)
     volume = cloud_sim.id_of("volumes", "vol-backup-01")
     server = cloud_sim.id_of("servers", "app-01")
 
@@ -577,8 +600,73 @@ def test_a_staff_change_notes_the_ticket_audits_and_tells_the_requester(
     assert row.ticket_id == ticket.id
     assert row.payload["outcome"] == "done"
     assert row.payload["ticket_public_id"] == ticket.public_id
-    told = Message.objects.filter(event=NotificationEvent.INFRA_CHANGE_ON_YOUR_RESOURCE.value)
-    assert {m.user for m in told} == {employee_user}
+    assert {m.user for m in told()} == {employee_user}
+
+
+@pytest.mark.parametrize("domain", [HOA_BINH, None])
+def test_a_change_to_a_resource_the_tickets_company_does_not_own_tells_no_one(
+    api_as, technician_user, manager_user, ticket, cloud_sim: CloudSim, domain
+):
+    if domain is not None:
+        owned_by(ticket, domain, manager_user)
+    server = cloud_sim.id_of("servers", "db-01")
+
+    response = post(
+        api_as(technician_user),
+        f"/api/infra/servers/{server}/reboot",
+        {"public_id": ticket.public_id},
+    )
+
+    assert response.status_code == 200, response.content
+    assert len(notes(ticket)) == 1
+    assert told() == []
+
+
+def test_a_project_lookup_that_fails_tells_no_one_and_keeps_the_change(
+    api_as, technician_user, manager_user, ticket, cloud_sim: CloudSim
+):
+    owned_by(ticket, SAO_MAI, manager_user)
+    server = cloud_sim.id_of("servers", "db-01")
+
+    def refuse(request: httpx.Request) -> None:
+        if "/identity/v3/projects/" in request.url.path:
+            raise httpx.ConnectError("refused", request=request)
+
+    cloud_sim.client.event_hooks["request"].insert(0, refuse)
+
+    response = post(
+        api_as(technician_user),
+        f"/api/infra/servers/{server}/reboot",
+        {"public_id": ticket.public_id},
+    )
+
+    assert response.status_code == 200, response.content
+    assert cloud_sim.cloud.servers[server].status is ServerStatus.REBOOT
+    assert told() == []
+
+
+def test_a_change_made_whose_notice_fails_stays_applied_and_is_never_confirmed_again(
+    api_as, technician_user, manager_user, ticket, cloud_sim: CloudSim, monkeypatch
+):
+    owned_by(ticket, SAO_MAI, manager_user)
+
+    def fail(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("the notice and its fallback failed")
+
+    monkeypatch.setattr(changes_module.notifier, "emit", fail)
+    server = cloud_sim.id_of("servers", "db-01")
+    path = f"/api/infra/servers/{server}/reboot"
+    body = {"public_id": ticket.public_id}
+    action = proposed(post(as_agent(technician_user, "reboot_server"), path, body))
+
+    first = apply(api_as(technician_user), path, action, body)
+    again = apply(api_as(technician_user), path, action, body)
+
+    assert first.status_code == 200, first.content
+    assert again.status_code == 409
+    assert cloud_sim.changes() == [f"POST /compute/v2.1/servers/{server}/action"]
+    action.refresh_from_db()
+    assert action.state == AgentActionState.APPLIED.value
 
 
 def test_a_rule_is_added_and_removed_on_its_group(
