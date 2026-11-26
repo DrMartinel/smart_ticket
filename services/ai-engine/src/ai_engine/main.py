@@ -75,6 +75,7 @@ def analyze(req: AIRunRequest) -> AIRunResponse:
         ticket=req.ticket,
         request_id=req.request_id,
         retrieval_floor=req.retrieval_floor,
+        categories=req.categories,
     )
 
     final_state = TriageState.model_validate(triage_graph.invoke(initial_state))

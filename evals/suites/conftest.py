@@ -8,8 +8,9 @@ running core-api HTTP server. ai-engine's pure nodes (injection detector,
 validator, RRF fusion) are imported the same way. Anything that needs
 real retrieval/LLM output goes over HTTP to a live ai-engine instance at
 AI_ENGINE_URL and is skipped — not failed — when that's unreachable, so
-`pytest evals/suites` stays runnable in environments without vLLM. The agent
-trace suite is the exception: it needs Postgres through pytest-django.
+`pytest evals/suites` stays runnable in environments without vLLM. Every live
+suite also reads the category set from core-api's database once per run, so it
+needs Postgres too; the agent trace suite needs Postgres through pytest-django.
 """
 
 from __future__ import annotations
@@ -24,12 +25,25 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
 os.environ.setdefault("EMBEDDING_PROVIDER", "stub")
 django.setup()
 
-from suites.golden_utils import AI_ENGINE_URL, load_golden  # noqa: E402
+from apps.tickets.domain.router import CategorySet  # noqa: E402
+from suites.golden_utils import AI_ENGINE_URL, load_golden, record_metric  # noqa: E402
 
 
 @pytest.fixture(scope="session")
 def golden_cases() -> list[dict]:
     return load_golden()
+
+
+@pytest.fixture(scope="session")
+def categories(ai_engine_client, django_db_blocker) -> CategorySet:
+    """The category set the pipeline would send, read once from core-api's database and
+    recorded with the run's results (ADR-0049)."""
+    from apps.tickets.services.pipeline import category_set
+
+    with django_db_blocker.unblock():
+        found = category_set()
+    record_metric("category_set", float(len(found.categories)), categories=found.as_used())
+    return found
 
 
 @pytest.fixture(scope="session")

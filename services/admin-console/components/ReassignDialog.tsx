@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import { ApiError, api } from "@/lib/api";
 import { useCategories } from "@/lib/categories";
-import type { AssignedTicketOut, ReassignIn, ReassignReason, TeamDetailOut, TeamOut, TicketCategory } from "@/lib/types/generated";
+import type { AssignedTicketOut, ReassignIn, ReassignReason, TeamDetailOut, TeamOut } from "@/lib/types/generated";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
@@ -105,7 +105,7 @@ export default function ReassignDialog({
     const body: ReassignIn = {
       to_team: moving ? toTeam : null,
       to_user: toUser || null,
-      to_category: categoryChoices.length > 1 && toCategory ? (toCategory as TicketCategory) : null,
+      to_category: categoryChoices.length > 1 && toCategory ? toCategory : null,
       reason_code: reason,
       note,
       expected_version: ticket.version,

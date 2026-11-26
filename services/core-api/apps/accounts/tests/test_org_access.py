@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import dataclasses
 import json
 import re
 from datetime import timedelta
@@ -25,6 +26,7 @@ from apps.accounts.models import (
 )
 from apps.accounts.testing import grant_capability
 from apps.accounts.domain.access import Access
+from apps.accounts.permissions import Caller
 from apps.accounts.domain.catalog import (
     SYSTEM_ROLE_PERMISSIONS,
     Permission,
@@ -661,7 +663,7 @@ def test_a_team_scoped_supervisor_sees_only_that_teams_queue(boss):
 SERVICES = Path(__file__).resolve().parents[2]
 ROLE_NAME_CHECK = re.compile(
     r"\.role\s*(==|!=)\s*UserRole\.|\.role not in \(UserRole|Capability\.\w+\.value in"
-    r"|\.is_manager\b|\.is_security\b|may_run_runbooks"
+    r"|\.is_manager\b|may_run_runbooks"
 )
 BASE_ROLE_FILES = {
     "accounts/services/rights.py",
@@ -682,6 +684,17 @@ def test_services_check_permissions_not_role_names():
         if ROLE_NAME_CHECK.search(line)
     ]
     assert found == []
+
+
+@pytest.mark.parametrize("holder", [User, Caller, Access])
+def test_a_person_has_no_role_name_properties(holder):
+    """A person's types have no `is_security` or `is_manager` attribute or field."""
+    names = (
+        {f.name for f in dataclasses.fields(holder)} if dataclasses.is_dataclass(holder) else set()
+    )
+    for name in ("is_security", "is_manager"):
+        assert not hasattr(holder, name)
+        assert name not in names
 
 
 def test_an_employee_head_gets_no_staff_only_permission(boss, finance):

@@ -12,7 +12,8 @@ By default it reads the suites' evals/.results.json. A probe passes its own
 numbers with --metrics (a JSON list of {"metric", "value", "n"?, "labels"?,
 "cases"?}). The configuration (commit, dirty files, golden and KB snapshot
 hashes, prompt and graph versions, thresholds, models from the stack's
-compose env file, --env-file, default .env) is collected here; --set key=value adds or overrides an entry, e.g. the KB
+compose env file, --env-file, default .env, and the category set the suites
+read) is collected here; --set key=value adds or overrides an entry, e.g. the KB
 counts, which need the database. --dry-run prints the rows instead.
 """
 
@@ -62,7 +63,8 @@ ENV_KEYS = (
 def metrics_from_results(results: dict[str, Any], run_id: str) -> list[Metric]:
     """The suites' .results.json shapes, as tidy rows. Each suite records
     {"value", "n"?, ...extras}; the extras that are numbers of their own
-    (MRR, gold_use, per-category F1) become rows of their own."""
+    (MRR, gold_use, per-category F1) become rows of their own. The category set is
+    configuration (categories_config), not a row."""
 
     rows: list[Metric] = []
 
@@ -92,6 +94,8 @@ def metrics_from_results(results: dict[str, Any], run_id: str) -> list[Metric]:
             for stat in ("median", "max"):
                 if f"pool_size_{stat}" in entry:
                     add("pool_size", entry[f"pool_size_{stat}"], n, stat=stat)
+        elif name == "category_set":
+            continue
         elif name == "per_category_f1":
             # The suite's headline "value" is the minimum; recording it as
             # its own row would invite averaging-style charts (rule 9).
@@ -109,6 +113,21 @@ def metrics_from_file(path: Path, run_id: str) -> list[Metric]:
         )
         for m in json.loads(path.read_text(encoding="utf-8"))
     ]
+
+
+def categories_config(results: dict[str, Any]) -> dict[str, str | int | float | bool | None]:
+    """The category set the suites ran against: its slugs, and a hash of what each decision
+    records of it (ADR-0049)."""
+    entry = results.get("category_set")
+    if not isinstance(entry, dict) or "categories" not in entry:
+        return {}
+    used = entry["categories"]
+    return {
+        "categories": ",".join(c["slug"] for c in used),
+        "categories_sha": hashlib.sha256(json.dumps(used, sort_keys=True).encode()).hexdigest()[
+            :12
+        ],
+    }
 
 
 def collect_config(env: Path) -> dict[str, str | int | float | bool | None]:
@@ -182,11 +201,13 @@ def main() -> None:
     a = p.parse_args()
 
     metrics: list[Metric] = []
+    results: dict[str, Any] = {}
     if a.metrics:
         metrics += metrics_from_file(a.metrics, a.id)
     if a.results or not a.metrics:
         path = a.results or RESULTS
-        metrics += metrics_from_results(json.loads(path.read_text()), a.id)
+        results = json.loads(path.read_text())
+        metrics += metrics_from_results(results, a.id)
 
     run = Run(
         id=a.id,
@@ -195,7 +216,7 @@ def main() -> None:
         title=a.title,
         history_entry=a.entry,
         source="recorder",
-        config=collect_config(a.env_file) | parse_set(a.set),
+        config=collect_config(a.env_file) | categories_config(results) | parse_set(a.set),
         duration_s=a.duration,
         notes=a.notes,
     )

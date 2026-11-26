@@ -31,7 +31,7 @@ src/ai_engine/
     prompts/       <name>.v<N>.md; __init__.py loads each at import (PROPOSE_PROMPT, ...)
   graph/           the triage pipeline. Never imports main.py or schemas.py
     state.py       TriageState + the value types stored in it (Candidate, RankedChunk)
-    ticket.py      TicketMasked, PIILevel, TicketCategory: the ticket as it enters
+    ticket.py      TicketMasked, PIILevel, CategoryOption: the ticket as it enters
     build/         generic, triage-agnostic graph machinery:
       node.py      BaseNode, SingleExit, Terminal
       edge.py      Edge: one route (source, outcome, target)

@@ -10,11 +10,11 @@ from django.conf import settings
 from django.db import IntegrityError, connection, transaction
 
 from apps.accounts.models import User, UserRole
+from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.categories.models import Category
 from apps.tickets.models import Ticket
-from infrastructure.dtos import TicketCategory
 
 JSON = "application/json"
 CATEGORY_QUESTION = (
@@ -83,6 +83,13 @@ def test_a_ticket_with_an_unknown_category_is_refused_by_the_database():
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("description", ["", "   "])
+def test_a_blank_description_is_refused_by_the_database(description):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Category.objects.filter(slug="network").update(description=description)
+
+
+@pytest.mark.django_db
 def test_a_category_in_use_cannot_be_deleted():
     Category.objects.create(slug="billing", name="Billing", description="Invoices.")
     Ticket.objects.create(
@@ -104,8 +111,15 @@ def test_a_category_in_use_cannot_be_deleted():
 
 
 @pytest.mark.django_db
-def test_the_seeded_slugs_are_the_wire_enum():
-    assert set(Category.objects.values_list("slug", flat=True)) == {c.value for c in TicketCategory}
+def test_the_seeded_slugs_are_the_six_categories():
+    assert set(Category.objects.values_list("slug", flat=True)) == {
+        "hardware",
+        "software",
+        "network",
+        "access",
+        "security",
+        "other",
+    }
 
 
 @pytest.mark.django_db
@@ -197,14 +211,12 @@ def test_an_unknown_category_is_not_found(api_as):
 @pytest.mark.parametrize(
     "field, value",
     [
-        ("description", "anything"),
         ("is_security", False),
-        ("is_routable", False),
         ("is_active", False),
         ("slug", "sec"),
     ],
 )
-def test_an_edit_of_the_description_or_a_flag_is_refused(api_as, field, value):
+def test_an_edit_of_the_slug_or_a_locked_flag_is_refused(api_as, field, value):
     before = Category.objects.get(slug="security")
 
     response = patch(
@@ -258,8 +270,10 @@ def test_a_rename_bumps_the_version_and_is_audited(api_as):
     assert (response.json()["name"], response.json()["version"]) == ("Networking", 2)
     (audit,) = AuditLog.objects.filter(event="category_changed")
     assert audit.actor_id == manager.id
-    assert audit.payload["before"] == {"name": "Network", "sort_order": 3, "version": 1}
-    assert audit.payload["after"] == {"name": "Networking", "sort_order": 9, "version": 2}
+    assert audit.payload["before"]["name"] == "Network"
+    assert audit.payload["after"]["name"] == "Networking"
+    assert (audit.payload["before"]["sort_order"], audit.payload["after"]["sort_order"]) == (3, 9)
+    assert (audit.payload["before"]["version"], audit.payload["after"]["version"]) == (1, 2)
 
 
 @pytest.mark.django_db
@@ -271,3 +285,102 @@ def test_an_edit_that_changes_nothing_is_not_audited(api_as):
     assert response.status_code == 200
     assert response.json()["version"] == 1
     assert not AuditLog.objects.filter(event="category_changed").exists()
+
+
+# ── a manager's description and routing (open questions 1 and 2) ──
+
+
+@pytest.mark.django_db
+def test_a_managers_description_change_keeps_both_texts_in_the_audit(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    before = Category.objects.get(slug="network").description
+
+    response = patch(
+        api_as(manager),
+        "network",
+        {"description": "  Connectivity, now with Direct Connect.  ", "reason": "new service"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["description"] == "Connectivity, now with Direct Connect."
+    assert response.json()["version"] == 2
+    (audit,) = AuditLog.objects.filter(event="category_changed")
+    assert audit.payload["before"]["description"] == before
+    assert audit.payload["after"]["description"] == "Connectivity, now with Direct Connect."
+    assert audit.payload["reason"] == "new service"
+
+
+@pytest.mark.django_db
+def test_a_manager_turns_routing_off_with_a_reason(api_as):
+    response = patch(
+        api_as(person("huy.pq", UserRole.MANAGER)),
+        "network",
+        {"is_routable": False, "reason": "per-category F1 below the floor"},
+    )
+
+    assert response.status_code == 200
+    assert Category.objects.get(slug="network").is_routable is False
+    (audit,) = AuditLog.objects.filter(event="category_changed")
+    assert (audit.payload["before"]["is_routable"], audit.payload["after"]["is_routable"]) == (
+        True,
+        False,
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("field, value", [("description", "Connectivity."), ("is_routable", False)])
+def test_a_workflow_admin_renames_but_cannot_change_what_a_category_means(api_as, field, value):
+    admin = person("tu.dv", UserRole.TECHNICIAN)
+    grant_capability(admin, "workflow_admin")
+    before = Category.objects.get(slug="network")
+
+    response = patch(api_as(admin), "network", {"name": "Net", field: value, "reason": "x"})
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "not_allowed"
+    after = Category.objects.get(slug="network")
+    assert (after.name, after.description, after.is_routable, after.version) == (
+        "Network",
+        before.description,
+        True,
+        1,
+    )
+    assert not AuditLog.objects.filter(event="category_changed").exists()
+
+
+@pytest.mark.django_db
+def test_a_workflow_admin_still_renames_a_category(api_as):
+    admin = person("tu.dv", UserRole.TECHNICIAN)
+    grant_capability(admin, "workflow_admin")
+
+    response = patch(api_as(admin), "network", {"name": "Networking", "reason": "x"})
+
+    assert response.status_code == 200
+    assert Category.objects.get(slug="network").name == "Networking"
+
+
+@pytest.mark.django_db
+def test_a_blank_description_is_refused(api_as):
+    response = patch(
+        api_as(person("huy.pq", UserRole.MANAGER)), "network", {"description": "  ", "reason": "x"}
+    )
+
+    assert response.status_code == 422
+    assert Category.objects.get(slug="network").version == 1
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "slug, expected", [("security", True), ("network", False), (None, False), ("billing", False)]
+)
+def test_security_is_the_flag_not_the_slug(slug, expected):
+    assert Category.objects.is_security(slug) is expected
+
+
+@pytest.mark.django_db
+def test_a_security_category_by_another_slug_counts_as_security():
+    Category.objects.filter(slug="security").update(is_security=False)
+    Category.objects.create(slug="secops", name="SecOps", description="d", is_security=True)
+
+    assert Category.objects.is_security("secops")
+    assert not Category.objects.is_security("security")

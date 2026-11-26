@@ -25,7 +25,7 @@ from apps.notifications.models import Message
 from apps.review.models import ReviewDecision, ReviewItem
 from apps.tickets.models import RoutingDecision, Ticket
 from apps.tickets.tests.test_router import TH, auto_reply_proposal, good_signals
-from apps.tickets.services.pipeline import _kb_meta
+from apps.tickets.services.pipeline import _kb_meta, category_set
 from apps.tickets.domain.router import ReasonCode, Router
 
 pytestmark = pytest.mark.django_db
@@ -375,7 +375,9 @@ class TestAuthority:
         meta = _kb_meta(auto_reply_proposal(kb_slug=SLUG))
         assert meta is not None and meta.auto_reply_allowed is False
         signals = good_signals(**{"policy.kb_auto_reply_allowed": meta.auto_reply_allowed})
-        decision = Router(TH).route(signals, auto_reply_proposal(kb_slug=SLUG), meta)
+        decision = Router(TH).route(
+            signals, auto_reply_proposal(kb_slug=SLUG), meta, category_set()
+        )
         assert decision.reason_code is ReasonCode.KB_NOT_AUTHORIZED
         assert [i.article.slug for i in kb_authority.queue()] == [SLUG]
 

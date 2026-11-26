@@ -18,7 +18,6 @@ from pgvector.django import VectorField
 
 from apps.core.models import BaseModel
 from apps.tickets.domain.router import RiskTier
-from infrastructure.dtos import TicketCategory
 
 from apps.accounts.models import User
 from apps.kb.utils.chunking import chunk_sections
@@ -145,7 +144,7 @@ class KbArticle(BaseModel):
     slug = models.CharField(max_length=128, unique=True)
     title = models.CharField(max_length=255)
     body = models.TextField()
-    category = models.CharField(max_length=20, choices=[(c.value, c.value) for c in TicketCategory])
+    category = models.CharField(max_length=20)
     # Where the text came from, for articles ingested from external docs.
     # AWS documentation is CC BY-SA 4.0: attribution travels with the text.
     source_url = models.URLField(max_length=500, blank=True, default="")
@@ -482,7 +481,7 @@ class KbDraft(BaseModel):
     slug = models.CharField(max_length=128)
     title = models.CharField(max_length=255)
     body = models.TextField()
-    category = models.CharField(max_length=20, choices=[(c.value, c.value) for c in TicketCategory])
+    category = models.CharField(max_length=20)
     proposed_risk_tier = models.CharField(
         max_length=10, choices=[(r.value, r.value) for r in RiskTier], default=RiskTier.HIGH.value
     )

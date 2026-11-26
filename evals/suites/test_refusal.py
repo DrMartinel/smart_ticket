@@ -26,7 +26,7 @@ def _correctly_refused(result: dict) -> bool:
     )
 
 
-def test_refusal_rate_on_out_of_kb_cases(ai_engine_client):
+def test_refusal_rate_on_out_of_kb_cases(ai_engine_client, categories):
     cases = sample(load_golden("out_of_kb"))
     correct = 0
     wrong = []
@@ -35,7 +35,13 @@ def test_refusal_rate_on_out_of_kb_cases(ai_engine_client):
         # never_refuse=True (floor 0.0) so we see the model's actual behavior
         # end-to-end rather than the graph refusing before the LLM is
         # even called — we're testing refusal judgment, not the floor gate.
-        result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
+        result = analyze(
+            ai_engine_client,
+            case["subject"],
+            case["body"],
+            categories=categories,
+            never_refuse=True,
+        )
         if _correctly_refused(result):
             correct += 1
         else:

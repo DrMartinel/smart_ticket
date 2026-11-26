@@ -22,7 +22,7 @@ def engine_proposes_a_question(monkeypatch):
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
     monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
     monkeypatch.setattr(
-        ai_engine, "analyze", lambda masked, request_id: _clarify_response(request_id)
+        ai_engine, "analyze", lambda masked, request_id, categories: _clarify_response(request_id)
     )
 
 

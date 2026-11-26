@@ -34,7 +34,7 @@ import httpx
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.domain.router import Branch, KBArticleMeta, RiskTier
 from apps.tickets.services.pipeline import router, trust_signals
-from infrastructure.dtos import EngineSignals, TicketCategory
+from infrastructure.dtos import EngineSignals
 
 from apps.kb.models import KbArticle
 from suites.golden_utils import analyze, load_golden, record_metric, right_pages, sample
@@ -51,13 +51,13 @@ def _kb_meta_for(proposal: dict | None) -> KBArticleMeta | None:
     return KBArticleMeta(
         id=kb.id,
         slug=kb.slug,
-        category=TicketCategory(kb.category),
+        category=kb.category,
         auto_reply_allowed=kb.auto_reply_allowed,
         risk_tier=RiskTier(kb.risk_tier),
     )
 
 
-def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_blocker):
+def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_blocker, categories):
     # pytest-django installs a global guard that blocks ANY Django DB
     # access unless explicitly allowed — it fires regardless of whether a
     # test requests the `db` fixture, whenever pytest-django is merely
@@ -82,7 +82,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
 
     for case in cases:
         try:
-            result = analyze(ai_engine_client, case["subject"], case["body"])
+            result = analyze(ai_engine_client, case["subject"], case["body"], categories=categories)
         except httpx.HTTPStatusError as e:
             if e.response.status_code < 500:
                 raise
@@ -112,7 +112,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
             clarifications_asked=0,
             agent_handoff_reason=None,
         )
-        decision = router.route(signals, proposal, kb_meta)
+        decision = router.route(signals, proposal, kb_meta, categories)
 
         expected_branch = case["truth"].get("expected_branch")
         if expected_branch is not None:

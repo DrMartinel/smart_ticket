@@ -1,8 +1,8 @@
 """
 Switch Router — spec §8. The only module allowed to decide `Branch`
 (ADR-0001). `Router` is pure: a frozen object built from the thresholds, with
-no I/O, no side effects and no imported globals — `thresholds` and `kb` are
-always passed in, which is what makes 100% branch coverage possible with plain
+no I/O, no side effects and no imported globals — `thresholds`, `kb` and the
+category set are always passed in, which is what makes 100% branch coverage possible with plain
 unit tests.
 
 Hard gates run in a specific order (spec §8, table §8.1) and that order is
@@ -20,18 +20,18 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.domain.trust_scorer import score as compute_trust
 from infrastructure.dtos import (
     AutoReplyProposal,
+    CategoryOption,
     ClarificationProposal,
     InsufficientContext,
     LLMProposalEnvelope,
     RouteProposal,
     RunbookProposal,
-    TicketCategory,
     TrustSignals,
 )
 
@@ -82,6 +82,11 @@ class ReasonCode(StrEnum):
     TRUST_BELOW_ROUTE = "trust_below_route_threshold"
     # Jev chose no category, or one it was unsure of (ADR-0017)
     CATEGORY_LOW_CONFIDENCE = "category_low_confidence"
+    # The category set has no category, or no security category, or Jev chose
+    # one outside it (ADR-0049)
+    CATEGORY_SET_INVALID = "category_set_invalid"
+    # Jev's category is one a manager hasn't made routable (ADR-0049)
+    CATEGORY_NOT_ROUTABLE = "category_not_routable"
     # clarify (ADR-0016)
     CLARIFY_SECURITY = "clarify_security"
     CLARIFY_OPTIONS_NOT_SHOWN = "clarify_options_not_shown"
@@ -156,9 +161,47 @@ class KBArticleMeta(BaseModel):
 
     id: uuid.UUID
     slug: str
-    category: TicketCategory
+    category: str
     auto_reply_allowed: bool
     risk_tier: RiskTier
+
+
+class CategoryMeta(BaseModel):
+    """The slice of a `ticket_categories` row triage needs (ADR-0049)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    slug: str
+    description: str
+    is_security: bool
+    is_routable: bool
+    version: int
+
+
+class CategorySet(BaseModel):
+    """The active categories a ticket is triaged against (ADR-0049)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    categories: tuple[CategoryMeta, ...]
+
+    def get(self, slug: str | None) -> CategoryMeta | None:
+        """The category `slug`, if it is in the set."""
+        return next((c for c in self.categories if c.slug == slug), None)
+
+    def is_usable(self) -> bool:
+        """Whether the set has a security category and every category says what it covers."""
+        return any(c.is_security for c in self.categories) and all(
+            c.description.strip() for c in self.categories
+        )
+
+    def options(self) -> list[CategoryOption]:
+        """The categories as ai-engine offers them to Jev."""
+        return [CategoryOption(slug=c.slug, description=c.description) for c in self.categories]
+
+    def as_used(self) -> list[dict[str, Any]]:
+        """What a routing decision records of the set: each category's slug, version and flags."""
+        return [c.model_dump(exclude={"description"}) for c in self.categories]
 
 
 class RoutingDecision(BaseModel):
@@ -167,7 +210,7 @@ class RoutingDecision(BaseModel):
     reason_detail: str = ""
     gate_failed: str | None = None
     trust: float | None = None
-    category: TicketCategory | None = None
+    category: str | None = None
     kb_slug: str | None = None
     queue: ReviewQueue | None = None
     priority: int = 3
@@ -234,8 +277,9 @@ class Router:
         signals: TrustSignals,
         proposal: LLMProposalEnvelope | None,
         kb: KBArticleMeta | None,
+        categories: CategorySet,
     ) -> RoutingDecision:
-        """Chooses the branch for one ticket."""
+        """Chooses the branch for one ticket, against the active `categories`."""
 
         th = self.thresholds
 
@@ -263,6 +307,14 @@ class Router:
                 ReasonCode(p.agent_handoff_reason),
                 queue=ReviewQueue.LOW_CONFIDENCE.value,
                 priority=2,
+            )
+
+        # A set with no security category or a blank description, or Jev's choice outside it
+        # (ADR-0049).
+        chosen = signals.classification.category_choice
+        if not categories.is_usable() or (chosen is not None and categories.get(chosen) is None):
+            return RoutingDecision.hitl(
+                ReasonCode.CATEGORY_SET_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=2
             )
 
         # Retrieval floor is checked BEFORE the schema gate, because when the
@@ -304,7 +356,8 @@ class Router:
         # Before trust on purpose: a question grants nothing and changes no
         # system, and the trust score prices the risk of an automatic action.
         if isinstance(proposal.root, ClarificationProposal):
-            if signals.classification.category_choice is TicketCategory.SECURITY:
+            chosen_meta = categories.get(chosen)
+            if chosen_meta is not None and chosen_meta.is_security:
                 # Something may already be wrong. A human gets it now; it never
                 # waits on a requester's answer. A rule, not a threshold: Jev's
                 # confidence doesn't matter, a human gets it either way.
@@ -395,6 +448,11 @@ class Router:
                 return RoutingDecision.hitl(
                     ReasonCode.CATEGORY_LOW_CONFIDENCE, queue=ReviewQueue.LOW_CONFIDENCE.value
                 )
+            route_meta = categories.get(category)
+            if route_meta is None or not route_meta.is_routable:
+                return RoutingDecision.hitl(
+                    ReasonCode.CATEGORY_NOT_ROUTABLE, queue=ReviewQueue.LOW_CONFIDENCE.value
+                )
             if trust < th.t_route:
                 return RoutingDecision.hitl(
                     ReasonCode.TRUST_BELOW_ROUTE, queue=ReviewQueue.LOW_CONFIDENCE.value
@@ -412,7 +470,7 @@ class Router:
             ReasonCode.SCHEMA_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value
         )
 
-    def _confident_category(self, signals: TrustSignals) -> TicketCategory | None:
+    def _confident_category(self, signals: TrustSignals) -> str | None:
         """Jev's category, when it chose one with at least
         `classification.min_confidence` (ADR-0017). The LLM's
         `proposed_category` is never a fallback: it is log-only, and a silent

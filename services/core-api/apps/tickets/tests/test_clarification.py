@@ -32,7 +32,6 @@ from infrastructure.dtos import (
     GenerationSignals,
     LLMProposalEnvelope,
     RetrievalSignals,
-    TicketCategory,
 )
 
 VPN = "client-vpn-user.windows-troubleshooting"
@@ -76,7 +75,7 @@ def _clarify_response(request_id: str, top5=CLOSE_TOP5) -> AIRunResponse:
                 clarify_options_in_topk=True,
             ),
             classification=ClassificationSignals(
-                category_choice=TicketCategory.SOFTWARE, category_confidence=0.9
+                category_choice="software", category_confidence=0.9
             ),
             injection_detected=False,
         ),
@@ -99,7 +98,7 @@ def engine_always_clarifies(monkeypatch):
     are kept, so a test can check the answer reached the second run."""
     sent: list[str] = []
 
-    def analyze(masked, request_id):
+    def analyze(masked, request_id, categories):
         sent.append(masked.body_masked)
         return _clarify_response(request_id)
 
@@ -180,7 +179,9 @@ class TestAsking:
         monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
         far = [{"kb_slug": VPN, "option_score": 0.95}, {"kb_slug": WORKSPACES, "option_score": 0.5}]
         monkeypatch.setattr(
-            ai_engine, "analyze", lambda masked, request_id: _clarify_response(request_id, far)
+            ai_engine,
+            "analyze",
+            lambda masked, request_id, categories: _clarify_response(request_id, far),
         )
         ticket = _chat_ticket(employee_user)
 

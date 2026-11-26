@@ -74,6 +74,20 @@ def test_security_is_p2_and_an_open_incident_is_p1(clock, people):
     assert Ticket.objects.get(pk=outage.pk).priority == "P1"
 
 
+def test_p2_follows_the_security_flag_not_the_slug(clock, people):
+    """ADR-0049: a security category by another slug is P2; `security` unflagged is not."""
+    from apps.categories.models import Category
+
+    Category.objects.filter(slug="security").update(is_security=False)
+    Category.objects.filter(slug="access").update(is_security=True)
+
+    flagged = handed_off(people["lan"], category="access")
+    unflagged = handed_off(people["lan"], category="security")
+
+    assert Ticket.objects.get(pk=flagged.pk).priority == "P2"
+    assert Ticket.objects.get(pk=unflagged.pk).priority == "P3"
+
+
 def test_p1_counts_around_the_clock(clock, people):
     """AC-F1-05: handed off Sat 22:00 (+07), resolution due Sun 02:00."""
     incident = Incident.objects.create(

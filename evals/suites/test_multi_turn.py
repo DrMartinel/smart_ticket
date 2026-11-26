@@ -78,7 +78,7 @@ def test_a_still_failing_case_never_expects_an_auto_reply():
             assert case["truth"]["expected_branch"] != "auto_reply", case["id"]
 
 
-def test_multi_turn_auto_reply_precision(ai_engine_client, django_db_blocker):
+def test_multi_turn_auto_reply_precision(ai_engine_client, django_db_blocker, categories):
     cases = load_multi_turn(reviewed_only=True)
     if not cases:
         pytest.skip("no multi-turn case has been approved by a reviewer yet (rule 9)")
@@ -88,7 +88,11 @@ def test_multi_turn_auto_reply_precision(ai_engine_client, django_db_blocker):
     for case in cases:
         try:
             result = analyze(
-                ai_engine_client, case["subject"], case["body"], prior_turns=case["prior_turns"]
+                ai_engine_client,
+                case["subject"],
+                case["body"],
+                categories=categories,
+                prior_turns=case["prior_turns"],
             )
         except httpx.HTTPStatusError as e:
             if e.response.status_code < 500:
@@ -106,7 +110,7 @@ def test_multi_turn_auto_reply_precision(ai_engine_client, django_db_blocker):
             clarifications_asked=0,
             agent_handoff_reason=None,
         )
-        decision = router.route(signals, proposal, kb_meta)
+        decision = router.route(signals, proposal, kb_meta, categories)
         expected = case["truth"]["expected_branch"]
         if decision.branch.value == expected:
             correct += 1

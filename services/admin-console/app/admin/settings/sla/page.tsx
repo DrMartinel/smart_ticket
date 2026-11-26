@@ -11,7 +11,7 @@ import Modal from "@/components/Modal";
 import { PriorityChip } from "@/components/SlaBadge";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
-import type { CalendarOut, PolicyIn, PolicyOut, PreviewIn, PreviewOut, Priority, TicketCategory } from "@/lib/types/generated";
+import type { CalendarOut, PolicyIn, PolicyOut, PreviewIn, PreviewOut, Priority } from "@/lib/types/generated";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -184,7 +184,7 @@ export default function SlaPoliciesPage() {
                         setDraft({
                           name: `${p.name} (new)`,
                           order: p.order,
-                          category: p.category as TicketCategory | null,
+                          category: p.category,
                           priority: p.priority as Priority | null,
                           response_minutes: p.response_minutes,
                           resolution_minutes: p.resolution_minutes,
@@ -224,7 +224,7 @@ export default function SlaPoliciesPage() {
               <CategorySelect
                 value={preview.input.category}
                 blank="none"
-                onChange={(e) => setPreview({ ...preview, input: { ...preview.input, category: (e.target.value || null) as TicketCategory | null } })}
+                onChange={(e) => setPreview({ ...preview, input: { ...preview.input, category: e.target.value || null } })}
               />
             </label>
             <label className="flex flex-col gap-1">
@@ -320,7 +320,7 @@ export default function SlaPoliciesPage() {
               <CategorySelect
                 value={draft.category}
                 blank="any"
-                onChange={(e) => setDraft({ ...draft, category: (e.target.value || null) as TicketCategory | null })}
+                onChange={(e) => setDraft({ ...draft, category: e.target.value || null })}
               />
             </label>
             <label className="flex flex-col gap-1">

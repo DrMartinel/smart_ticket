@@ -20,6 +20,7 @@ from apps.accounts.models import User, UserRole
 from apps.accounts.domain.access import Access
 from apps.accounts.domain.catalog import Permission
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.core.errors import CodedError
 from apps.notifications.services.notifier import Notice, notifier
 from apps.notifications.domain.vocabulary import NotificationEvent
@@ -115,7 +116,7 @@ def initial_priority(ticket: Ticket) -> Priority:
     incident = ticket.incident if ticket.incident_id is not None else None
     if incident is not None and incident.is_open:
         return Priority.P1
-    if ticket.category == "security":
+    if Category.objects.is_security(ticket.category):
         return Priority.P2
     return Priority.P3
 
@@ -758,6 +759,8 @@ class SlaClocks:
 
     def preview(self, category: str | None, priority: Priority, start_at: datetime) -> Preview:
         """Due times a new clock would get, without creating one (FR-F1-014)."""
+        if category is not None:
+            Category.objects.require(category)
         policy = Policy.objects.matching(category, priority.value)
         if policy is None:
             raise SlaError(409, SlaRefusal.NO_POLICY, "no active SLA policy matches")

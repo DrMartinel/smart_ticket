@@ -112,7 +112,7 @@ class TestLlmFailureKeepsItsReasonCode:
         monkeypatch.setattr(
             ai_engine,
             "analyze",
-            lambda masked, request_id: _llm_failed_response(reason.value, request_id),
+            lambda masked, request_id, categories: _llm_failed_response(reason.value, request_id),
         )
 
         result = process_ticket.apply(args=(ticket.id,)).get()
@@ -130,7 +130,7 @@ class TestLlmFailureKeepsItsReasonCode:
 def _clarify_response(request_id: str):
     """ai-engine proposing a question whose options it was shown."""
 
-    from infrastructure.dtos import AIRunResponse, LLMProposalEnvelope, TicketCategory
+    from infrastructure.dtos import AIRunResponse, LLMProposalEnvelope
 
     signals = _no_findings()
     signals.retrieval.rerank_top1 = 0.9
@@ -138,7 +138,7 @@ def _clarify_response(request_id: str):
     signals.generation.clarify_options_in_topk = True
     # Jev's category, confident: without it the router sends the ticket to a
     # human as category_low_confidence (ADR-0017).
-    signals.classification.category_choice = TicketCategory.SOFTWARE
+    signals.classification.category_choice = "software"
     signals.classification.category_confidence = 0.9
     return AIRunResponse(
         request_id=request_id,
@@ -174,7 +174,7 @@ def test_clarify_reaches_a_person_in_the_clarification_queue(
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
     monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
     monkeypatch.setattr(
-        ai_engine, "analyze", lambda masked, request_id: _clarify_response(request_id)
+        ai_engine, "analyze", lambda masked, request_id, categories: _clarify_response(request_id)
     )
 
     result = process_ticket.apply(args=(ticket.id,)).get()
@@ -183,3 +183,101 @@ def test_clarify_reaches_a_person_in_the_clarification_queue(
     ticket.refresh_from_db()
     assert ticket.status == "pending_review"
     assert list(ticket.review_items.values_list("queue", flat=True)) == ["clarification"]
+
+
+@pytest.mark.django_db
+class TestCategorySet:
+    """Triage reads the active categories at every run (ADR-0049)."""
+
+    @pytest.fixture
+    def sent(self, monkeypatch):
+        from apps.tickets.models import IncidentVerdict
+
+        offered: list = []
+        monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
+        monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
+
+        def analyze(masked, request_id, categories):
+            offered.append(categories)
+            return _llm_failed_response(ReasonCode.ALL_LLM_DOWN.value, request_id)
+
+        monkeypatch.setattr(ai_engine, "analyze", analyze)
+        return offered
+
+    def test_ai_engine_is_offered_the_active_categories_in_slug_order(self, employee_user, sent):
+        from apps.categories.models import Category
+
+        Category.objects.filter(slug="other").update(is_active=False)
+
+        process_ticket.apply(args=(make_ticket(employee_user).id,)).get()
+
+        [offered] = sent
+        assert [c.slug for c in offered] == [
+            "access",
+            "hardware",
+            "network",
+            "security",
+            "software",
+        ]
+        network = Category.objects.get(slug="network")
+        assert offered[2].description == network.description
+
+    def test_a_set_with_no_security_category_reaches_a_person_without_ai_engine(
+        self, employee_user, sent
+    ):
+        from apps.categories.models import Category
+
+        Category.objects.update(is_security=False)
+        ticket = make_ticket(employee_user)
+
+        result = process_ticket.apply(args=(ticket.id,)).get()
+
+        assert sent == []
+        assert result["branch"] == Branch.HITL.value
+        decision = ticket.routing_decisions.get()
+        assert decision.reason_code == ReasonCode.CATEGORY_SET_INVALID.value
+        assert ticket.ai_runs.get().degraded_reason == "category_set_invalid"
+        assert ticket.review_items.exists(), "must land in a review queue"
+
+    @pytest.mark.parametrize(
+        "fields, branch, reason",
+        [
+            ({"pii_level": PIILevel.CRITICAL.value}, Branch.BLOCK, ReasonCode.PII_CRITICAL),
+            ({"pii_level": PIILevel.MASK_FAILED.value}, Branch.HITL, ReasonCode.PII_MASK_FAILED),
+            (
+                {"agent_handoff_reason": ReasonCode.AGENT_STEP_LIMIT.value},
+                Branch.HITL,
+                ReasonCode.AGENT_STEP_LIMIT,
+            ),
+        ],
+    )
+    def test_an_unusable_set_still_lets_the_earlier_gates_decide(
+        self, employee_user, sent, fields, branch, reason
+    ):
+        from apps.categories.models import Category
+
+        Category.objects.update(is_security=False)
+        ticket = make_ticket(employee_user)
+        Ticket.objects.filter(pk=ticket.pk).update(**fields)
+
+        result = process_ticket.apply(args=(ticket.id,)).get()
+
+        assert sent == []
+        assert result["branch"] == branch.value
+        assert ticket.routing_decisions.get().reason_code == reason.value
+
+    def test_a_decision_records_the_categories_it_ran_against(self, employee_user, sent):
+        ticket = make_ticket(employee_user)
+
+        process_ticket.apply(args=(ticket.id,)).get()
+
+        used = ticket.routing_decisions.get().categories_used
+        assert [c["slug"] for c in used] == [
+            "access",
+            "hardware",
+            "network",
+            "other",
+            "security",
+            "software",
+        ]
+        assert {"slug": "security", "is_security": True, "is_routable": True, "version": 1} in used

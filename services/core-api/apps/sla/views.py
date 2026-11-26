@@ -124,9 +124,7 @@ def remove_holiday(request: AuthedRequest, calendar_id: uuid.UUID, holiday_id: u
 @router.post("/preview", auth=SessionAuth(), response=PreviewOut)
 @require(Permission.SLA_READ, agent=AgentTier.NONE)
 def preview(request: AuthedRequest, payload: PreviewIn) -> Preview:
-    return sla_clocks.preview(
-        payload.category.value if payload.category else None, payload.priority, payload.start_at
-    )
+    return sla_clocks.preview(payload.category, payload.priority, payload.start_at)
 
 
 @router.get("/breaches", auth=SessionAuth(), response=list[BreachOut])

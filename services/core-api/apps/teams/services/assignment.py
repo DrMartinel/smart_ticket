@@ -29,7 +29,6 @@ from apps.teams.domain.vocabulary import (
     ReassignReason,
     TeamRefusal,
 )
-from infrastructure.dtos import TicketCategory
 
 if TYPE_CHECKING:
     from apps.tickets.models import Ticket
@@ -438,10 +437,9 @@ class Assignment:
 
     def check_category_scope(self, actor: User, ticket: Ticket) -> None:
         """Security staff act only on security tickets (BR-F2-04)."""
-        if (
-            not Access.of(actor).holds(Permission.TICKETS_ALL_CATEGORIES)
-            and ticket.category != TicketCategory.SECURITY
-        ):
+        if not Access.of(actor).holds(
+            Permission.TICKETS_ALL_CATEGORIES
+        ) and not Category.objects.is_security(ticket.category):
             raise TeamError(403, TeamRefusal.NOT_ALLOWED, "security works security tickets only")
 
     def category_for(

@@ -132,7 +132,7 @@ class Stack:
         self.monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
         self.monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
         self.monkeypatch.setattr(
-            ai_engine, "analyze", lambda masked, request_id: _no_proposal(request_id)
+            ai_engine, "analyze", lambda masked, request_id, categories: _no_proposal(request_id)
         )
 
         def handle(request: httpx.Request) -> httpx.Response:

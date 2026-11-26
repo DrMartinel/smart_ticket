@@ -22,10 +22,9 @@ from apps.rollout.models import FlagRequest, RolloutFlag, RolloutGate
 from apps.rollout.services.rollout import rollout
 from apps.rollout.domain.vocabulary import FlagBranch
 from apps.tickets.models import AiRun, RoutingDecision
-from apps.tickets.services.pipeline import _finalize
+from apps.tickets.services.pipeline import _finalize, category_set
 from apps.tickets.domain.router import Branch, KBArticleMeta, ReasonCode, RiskTier
 from apps.tickets.domain.router import RoutingDecision as Decision
-from infrastructure.dtos import TicketCategory
 
 pytestmark = pytest.mark.django_db
 
@@ -80,7 +79,7 @@ def decide(reporter: User, branch: Branch) -> RoutingDecision:
         kb = KBArticleMeta(
             id=uuid.uuid4(),
             slug="p",
-            category=TicketCategory.ACCESS,
+            category="access",
             auto_reply_allowed=True,
             risk_tier=RiskTier.LOW,
         )
@@ -88,9 +87,9 @@ def decide(reporter: User, branch: Branch) -> RoutingDecision:
         decision = Decision(
             branch=branch,
             reason_code=ReasonCode.ALL_CHECKS_PASSED,
-            category=TicketCategory.NETWORK,
+            category="network",
         )
-    _finalize(ticket, run, decision, "trace", kb=kb)
+    _finalize(ticket, run, decision, "trace", category_set(), kb=kb)
     return RoutingDecision.objects.select_related("ticket").get(ticket=ticket)
 
 

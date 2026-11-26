@@ -15,7 +15,21 @@ import json
 import httpx
 import pytest
 
+from apps.tickets.domain.router import CategoryMeta, CategorySet
 from suites.golden_utils import analyze
+
+CATEGORIES = CategorySet(
+    categories=tuple(
+        CategoryMeta(
+            slug=slug,
+            description=f"{slug} tickets",
+            is_security=slug == "security",
+            is_routable=True,
+            version=1,
+        )
+        for slug in ("access", "hardware", "network", "other", "security", "software")
+    )
+)
 
 
 def _capturing_client() -> tuple[httpx.Client, list[dict]]:
@@ -46,7 +60,12 @@ def test_raw_password_reaches_ai_engine_masked_and_critical(monkeypatch):
     monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", ner_must_not_run)
     client, sent = _capturing_client()
 
-    analyze(client, "Can't sign in", "password: Summer2024! doesn't work on the access portal")
+    analyze(
+        client,
+        "Can't sign in",
+        "password: Summer2024! doesn't work on the access portal",
+        categories=CATEGORIES,
+    )
 
     ticket = sent[0]["ticket"]
     assert ticket["pii_level"] == "critical"
@@ -58,7 +77,12 @@ def test_routine_pii_is_masked_before_ai_engine_sees_it(monkeypatch):
     monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", _fake_ner(["anh Tuan"]))
     client, sent = _capturing_client()
 
-    analyze(client, "Reset please", "I am anh Tuan, mail me at an.nguyen@example.com")
+    analyze(
+        client,
+        "Reset please",
+        "I am anh Tuan, mail me at an.nguyen@example.com",
+        categories=CATEGORIES,
+    )
 
     ticket = sent[0]["ticket"]
     assert ticket["pii_level"] == "routine"
@@ -78,6 +102,17 @@ def test_ner_failure_is_sent_as_mask_failed_not_routine(monkeypatch, error):
     monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", failing)
     client, sent = _capturing_client()
 
-    analyze(client, "Printer jam", "The printer on floor 3 jams every morning")
+    analyze(
+        client, "Printer jam", "The printer on floor 3 jams every morning", categories=CATEGORIES
+    )
 
     assert sent[0]["ticket"]["pii_level"] == "mask_failed"
+
+
+def test_the_category_set_reaches_ai_engine(monkeypatch):
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", _fake_ner([]))
+    client, sent = _capturing_client()
+
+    analyze(client, "Printer jam", "The printer jams", categories=CATEGORIES)
+
+    assert [c["slug"] for c in sent[0]["categories"]] == [c.slug for c in CATEGORIES.categories]

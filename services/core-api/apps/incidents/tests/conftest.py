@@ -16,7 +16,13 @@ from apps.sla.tests.conftest import clock, submitted  # noqa: F401 — the fixtu
 from apps.tickets.models import Ticket
 from apps.tickets.services.pipeline import _degraded_signals, ticket_process
 from infrastructure.ai_engine import ai_engine
-from infrastructure.dtos import AIRunResponse, EmbedResponse, EngineSignals, TicketMasked
+from infrastructure.dtos import (
+    AIRunResponse,
+    CategoryOption,
+    EmbedResponse,
+    EngineSignals,
+    TicketMasked,
+)
 
 _wobble = itertools.count(1)
 
@@ -55,7 +61,9 @@ def engine(monkeypatch) -> Engine:
         ai_engine, "embed", lambda text: EmbedResponse(vector=fake.vector, model="test")
     )
 
-    def analyze(masked: TicketMasked, request_id: str) -> AIRunResponse:
+    def analyze(
+        masked: TicketMasked, request_id: str, categories: list[CategoryOption]
+    ) -> AIRunResponse:
         fake.analysed.append(masked.ticket_public_id)
         d = _degraded_signals()
         return AIRunResponse(

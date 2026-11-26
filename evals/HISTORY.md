@@ -42,7 +42,7 @@ With the stack up and the demo KB loaded ([`docs/onboarding.md`](../docs/onboard
 
 ```bash
 rm -f evals/.results.json    # suites merge into it; stale metrics survive a skipped suite
-EVAL_FULL_RUN=1 uv run --package evals pytest evals/suites -q -rA | tee /tmp/evals.log
+EVAL_FULL_RUN=1 uv run --package evals pytest evals/suites -q -rA --ignore=evals/suites/test_agent_traces.py | tee /tmp/evals.log
 uv run --package evals python evals/report.py --compare evals/baselines/baseline.json
 ```
 

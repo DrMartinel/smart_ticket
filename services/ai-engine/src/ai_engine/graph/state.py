@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ai_engine.graph.nodes.emit_signals.signals import EngineSignals
 from ai_engine.graph.nodes.infer.proposals import LLMProposalEnvelope
-from ai_engine.graph.ticket import TicketCategory, TicketMasked
+from ai_engine.graph.ticket import CategoryOption, TicketMasked
 
 
 class Candidate(BaseModel):
@@ -70,6 +70,7 @@ class TriageState(BaseModel):
     ticket: TicketMasked
     request_id: str
     retrieval_floor: float
+    categories: list[CategoryOption]
 
     # InjectionNode
     injection_detected: bool = False
@@ -92,7 +93,7 @@ class TriageState(BaseModel):
     rerank_total: float = 0.0  # Jev's probability that some passage fixes it; 0.0: not run
 
     # ClassifyCategoryNode
-    category_choice: TicketCategory | None = None
+    category_choice: str | None = None  # a slug of `categories`
     category_confidence: float = 0.0
 
     # SelectFewshotsNode

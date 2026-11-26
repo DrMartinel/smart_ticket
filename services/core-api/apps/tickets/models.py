@@ -25,7 +25,6 @@ from pgvector.django import CosineDistance, VectorField
 from apps.core.models import BaseModel
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.domain.router import AGENT_HANDOFF_REASONS
-from infrastructure.dtos import TicketCategory
 from apps.tickets.request_schema import RevealReason
 
 from apps.accounts.models import User
@@ -89,9 +88,7 @@ class Incident(BaseModel):
     public_id = models.CharField(max_length=32, unique=True)  # INC-2026-0007
     title = models.CharField(max_length=255)
     # Unknown when the detector proposes it (routing hasn't run); set at confirm.
-    category = models.CharField(
-        max_length=20, choices=[(c.value, c.value) for c in TicketCategory], null=True, blank=True
-    )
+    category = models.CharField(max_length=20, null=True, blank=True)
     service = models.CharField(max_length=120, blank=True, default="")
     severity = models.CharField(max_length=20)
     detected_by = models.CharField(max_length=30)  # density_detector|human
@@ -394,9 +391,7 @@ class Ticket(BaseModel):
     held_decision = models.JSONField(null=True, blank=True)
     # Set by router.py, a person's recorded reroute or a reviewer's confirmation of Jev's choice,
     # never from a proposal (ADR-0001, BR-F2-06).
-    category = models.CharField(
-        max_length=20, choices=[(c.value, c.value) for c in TicketCategory], null=True, blank=True
-    )
+    category = models.CharField(max_length=20, null=True, blank=True)
     # The team's slug, kept equal to `team` for existing readers (FR-F2-013).
     assigned_team = models.CharField(max_length=50, null=True, blank=True)
     team = models.ForeignKey(
@@ -732,6 +727,8 @@ class RoutingDecision(BaseModel):
     reason_detail = models.TextField()
     gate_failed = models.CharField(max_length=100, null=True, blank=True)
     thresholds_used = models.JSONField()
+    # Each active category's slug, version and flags when the decision ran (ADR-0049).
+    categories_used = models.JSONField(default=list, blank=True)
     shadow_mode = models.BooleanField(default=True)
     # The flags, env switch and thresholds version the decision ran under (F9, BR-F9-09).
     rollout_snapshot = models.JSONField(default=dict, blank=True)

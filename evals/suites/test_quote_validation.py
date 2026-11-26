@@ -142,6 +142,7 @@ def _state(proposal: LLMProposalEnvelope, reranked: list[RankedChunk]) -> Triage
         ),
         request_id="eval",
         retrieval_floor=0.0,
+        categories=[],
         proposal=proposal,
         reranked=reranked,
     )

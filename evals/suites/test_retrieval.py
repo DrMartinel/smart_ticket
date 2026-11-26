@@ -40,7 +40,7 @@ def _gold_use(result: dict, truth_slug: str) -> str:
     return "other"
 
 
-def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
+def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client, categories):
     cases = sample(load_golden("kb_covered"))
     hits = 0
     strict_hits = 0
@@ -54,7 +54,13 @@ def test_recall_and_mrr_on_kb_covered_cases(ai_engine_client):
 
     for case in cases:
         try:
-            result = analyze(ai_engine_client, case["subject"], case["body"], never_refuse=True)
+            result = analyze(
+                ai_engine_client,
+                case["subject"],
+                case["body"],
+                categories=categories,
+                never_refuse=True,
+            )
         except httpx.HTTPStatusError as e:
             if e.response.status_code < 500:
                 raise

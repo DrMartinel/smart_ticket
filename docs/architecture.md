@@ -72,13 +72,13 @@ There is no shared schema package (ADR-0010). Each type is defined in the module
 | Types | core-api | ai-engine |
 |---|---|---|
 | `TicketIn` (`extra="forbid"`) | `apps/tickets/request_schema.py` | — |
-| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / clarification / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `ClassificationSignals`, `EngineSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies only); the ticket types in `graph/ticket.py`, the proposals in `graph/nodes/infer/proposals.py`, the signals in `graph/nodes/emit_signals/signals.py` |
-| `PIILevel` | `apps/tickets/utils/patterns.py` | `graph/ticket.py` |
+| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / clarification / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `ClassificationSignals`, `EngineSignals`, `AIRunRequest` (with the `CategoryOption`s Jev chooses among, ADR-0049), `AIRunResponse`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies only); the ticket types in `graph/ticket.py`, the proposals in `graph/nodes/infer/proposals.py`, the signals in `graph/nodes/emit_signals/signals.py` |
+| `PIILevel` | `apps/tickets/domain/patterns.py` | `graph/ticket.py` |
 | `AgentTurnRequest`, `AgentTurnResponse`, `AgentLimits`, `AgentEarlierTurn`, `AgentStep`, `AgentStopReason` (F15) | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies); the rest in `graph/agent_state.py` |
-| `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `RoutingDecision` | `apps/tickets/utils/router.py` | — |
+| `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `CategoryMeta`, `CategorySet`, `RoutingDecision` | `apps/tickets/domain/router.py` | — |
 | `PolicySignals`, `TrustSignals` (ai-engine's findings plus core-api's policy; what the router and trust scorer read) | `infrastructure/dtos.py` | — |
 | `Thresholds` | `config/settings/base.py` | — |
-| `TrustScore` | `apps/tickets/utils/trust_scorer.py` | — |
+| `TrustScore` | `apps/tickets/domain/trust_scorer.py` | — |
 | `ReviewAction`, `Verdict` · `UserRole` | `apps/review/models.py` · `apps/accounts/models.py` | — |
 
 Two details worth understanding rather than just accepting:
@@ -169,8 +169,10 @@ injection ──► InjectionDetected ──► emit_signals   (zero tokens spen
                      cross-encoder's order. Also its choice and confidence.
                      each chunk keeps both: shortlist_score, rerank_score
        ▼
-   classify_category Jev chooses the category (ADR-0017): masked ticket +
-                     the top page's title if above the floor, else no page
+   classify_category Jev chooses the category (ADR-0017) among the active
+                     categories core-api sends, each with its description
+                     (ADR-0049): masked ticket + the top page's title if
+                     above the floor, else no page
        │
        ├─ EvidenceBelowFloor (Jev chose none, or its passages' total < retrieval.floor) ──► emit_signals   ← REFUSE BEFORE LLM
        │ EvidenceAboveFloor
@@ -260,7 +262,7 @@ EngineSignals (from ai-engine)
 TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
                         │                     (so the LLM can't score itself)
                         ▼
-              Router(thresholds).route(signals, proposal, kb)   ← pure
+              Router(thresholds).route(signals, proposal, kb, categories)   ← pure
 
    HARD GATES, in this order — the order is load-bearing
      injection            ──► BLOCK    + alert security
@@ -269,6 +271,11 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
      pii_level = mask_fail──► HITL       (queue: mask_failed, priority 1)
      agent_handoff_reason ──► HITL       (the agent's reason, F15; queue:
                                           low_confidence, priority 2)
+     category set unusable,
+     or Jev's choice not in it
+                          ──► HITL       (category_set_invalid, ADR-0049: no
+                                          security category, a blank
+                                          description, or a slug no row has)
      retrieval < floor    ──► HITL       (before the schema gate: no LLM ran,
                                           so "no proposal" is a consequence,
                                           not the cause)
@@ -281,7 +288,7 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
 
    CLARIFY (ADR-0016), before trust: a question grants nothing
      ClarificationProposal:
-        Jev's category = security?      yes ──► HITL / clarify_security
+        Jev's category is_security?     yes ──► HITL / clarify_security
         Jev's confidence ≥ min?         no  ──► HITL / category_low_confidence
         clarify_options_in_topk?        no  ──► HITL / clarify_options_not_shown
         clarifications_asked ≥ max?     yes ──► HITL / clarify_round_cap
@@ -312,6 +319,7 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
      RunbookProposal:                   ──► HITL, always. No exceptions.
 
      RouteProposal:
+        Jev's category is_routable? no ──► HITL / category_not_routable
         Jev's confidence ≥ min?     no ──► HITL / category_low_confidence
         trust ≥ t_route?            no ──► HITL / trust_below_route
                                     yes ──► AUTO_ROUTE (to Jev's category)
@@ -402,6 +410,7 @@ Every degradation resolves toward a human. A user waiting longer is acceptable; 
 | ai-engine down | Tickets still accepted; all to HITL — **fail open toward people** |
 | Worker dies mid-task | `acks_late` + idempotency key; redelivery cannot double-send |
 | Daily cost ceiling exceeded (core-api) | AI off for the day; everything to HITL |
+| The active categories are unusable (no security category, or a blank description) | ai-engine is not called; the router's earlier gates still decide, else HITL `category_set_invalid` (ADR-0049) |
 
 Two timeout budgets exist per model call, and the distinction matters: **connect** is short (3s) because an unreachable provider is knowable immediately, while **read** is long (120s) because a cold model load legitimately takes 15–20s. Collapsing them means an unreachable provider burns the full read budget — which, since masking is inline, is a user watching a spinner.
 
@@ -415,9 +424,9 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What the model is asked | `ai-engine/core/prompts/*.md` — versioned, and eval-gated like code |
 | What Jev is asked | `ai-engine/core/prompts/*.json` (`rerank_choice.v*`, `category.v*`) — versioned and eval-gated the same way |
-| What counts as PII | `tickets/utils/patterns.py` (regex) or ai-engine's NER prompt `core/prompts/pii_ner.v*.md` |
+| What counts as PII | `apps/tickets/domain/patterns.py` (regex) or ai-engine's NER prompt `core/prompts/pii_ner.v*.md` |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
-| How the category is chosen | ai-engine `graph/nodes/classify_category/` (Jev's question), `classification.min_confidence` in `thresholds.yaml` |
+| How the category is chosen | ai-engine `graph/nodes/classify_category/` (Jev's question, `category.v3` instructions), the categories' descriptions in `ticket_categories` (ADR-0049), `classification.min_confidence` in `thresholds.yaml` |
 | What a reviewer sees | `TrustSignalsPanel.tsx`, `ReviewForm.tsx` |
 | Any tunable number | `thresholds.yaml`, nowhere else |
 
