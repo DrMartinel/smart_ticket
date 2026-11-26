@@ -83,6 +83,8 @@ export type ResourceKind = "server" | "volume" | "network";
 
 export type ResourceSource = "picked" | "named" | "attached" | "every_server" | "linked";
 
+export type AlertResource = "server" | "volume" | "network";
+
 export type InfraBackend = "prometheus" | "elasticsearch" | "alertmanager" | "cloud";
 
 export type InfraQueryKind = "structured" | "promql" | "resource";
@@ -1931,6 +1933,8 @@ export interface AlertOut {
   summary: string;
   description: string;
   starts_at: string;
+  resource_kind?: AlertResource | null;
+  resource_id?: string | null;
 }
 
 export interface MatcherOut {
