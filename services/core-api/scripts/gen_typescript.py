@@ -241,6 +241,13 @@ MODELS = [
     "MetricQueryIn",
     "LogSearchIn",
     "TraceSearchIn",
+    "StaffChangeIn",
+    "SoftRebootIn",
+    "MySoftRebootIn",
+    "AttachVolumeIn",
+    "SecurityRuleIn",
+    "SecurityRuleRemoveIn",
+    "InfraChangeOut",
     "CustomerIn",
     "CustomerPatch",
     "CustomerOut",
@@ -526,10 +533,11 @@ def main() -> None:
     ):
         chunks.append(emit_enum(enum.__name__, [member.value for member in enum]))
 
+    from apps.infra.domain.changes import InfraChange, InfraResource
     from apps.infra.models import CustomerLookup, CustomerTier
 
-    for customer_enum in (CustomerTier, CustomerLookup):
-        chunks.append(emit_enum(customer_enum.__name__, [m.value for m in customer_enum]))
+    for infra_enum in (CustomerTier, CustomerLookup, InfraChange, InfraResource):
+        chunks.append(emit_enum(infra_enum.__name__, [m.value for m in infra_enum]))
 
     for model_name in MODELS:
         chunks.append(emit_json_schema(model_name))
