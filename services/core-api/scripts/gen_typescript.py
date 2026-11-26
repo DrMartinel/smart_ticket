@@ -268,6 +268,8 @@ MODELS = [
     "TicketResourceOut",
     "CueRunOut",
     "TicketCuesOut",
+    "ResourcePickIn",
+    "ResourcePickOut",
     "BranchReadinessOut",
     "AutomationOut",
     "RolloutReportOut",
