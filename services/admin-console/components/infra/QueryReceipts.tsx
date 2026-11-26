@@ -39,6 +39,7 @@ function QueryReceipt({ query }: { query: InfraQueryReceiptOut }) {
   if (query.outcome === "ok") notes.push(`${query.rows} ${query.rows === 1 ? "result" : "results"}`);
   if (query.truncated) notes.push("cut to the size limit, so some results are missing");
   if (query.withheld > 0) notes.push(`${query.withheld} ${query.withheld === 1 ? "text" : "texts"} withheld`);
+  if (query.outcome === "backend_unavailable") notes.push(`${BACKEND_LABEL[query.failed_backend ?? query.backend]} didn't answer`);
   return (
     <li className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
