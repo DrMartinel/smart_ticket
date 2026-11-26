@@ -248,6 +248,14 @@ class WorkflowConfig:
         self.check_unreferenced(
             self.actions_naming_workflow(workflow), FailureCode.WORKFLOW_IN_USE, "deleted"
         )
+        categories = list(workflow.categories.values_list("slug", flat=True))
+        if categories:
+            raise LifecycleError(
+                409,
+                FailureCode.WORKFLOW_IN_USE,
+                "categories move their tickets into this workflow",
+                details={"categories": categories},
+            )
         self.audit("workflow_deleted", workflow, actor)
         workflow.delete()
 

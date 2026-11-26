@@ -13,6 +13,7 @@ from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.categories.models import Category
+from apps.lifecycle.models import Workflow
 
 _DISPLAY = ("name", "sort_order")
 # What Jev is told a category means, and whether the router may route into it (ADR-0049).
@@ -20,7 +21,8 @@ _DEFINITION = ("description", "is_routable")
 
 
 class CategoryConfig:
-    """Edits a category's display fields, and for a manager its description and `is_routable`."""
+    """Edits a category's display fields and workflow, and for a manager its description and
+    `is_routable`."""
 
     def edit(self, actor: User, slug: str, data: dict[str, Any]) -> Category:
         """Applies the given fields, bumps the version and audits the change."""
@@ -41,6 +43,10 @@ class CategoryConfig:
                 for name in (*_DISPLAY, *_DEFINITION)
                 if data.get(name) is not None and data[name] != getattr(category, name)
             }
+            if "workflow" in data:
+                workflow = self.workflow(data["workflow"])
+                if workflow != category.workflow:
+                    changed["workflow"] = workflow
             if not changed:
                 return category
             if set(changed) & set(_DEFINITION) and not Access.of(actor).holds(
@@ -70,7 +76,20 @@ class CategoryConfig:
         return category
 
     def snapshot(self, category: Category) -> dict[str, Any]:
-        return {name: getattr(category, name) for name in (*_DISPLAY, *_DEFINITION, "version")}
+        fields = {name: getattr(category, name) for name in (*_DISPLAY, *_DEFINITION, "version")}
+        workflow = category.workflow
+        return {**fields, "workflow": str(workflow.id) if workflow is not None else None}
+
+    def workflow(self, workflow_id: str | None) -> Workflow | None:
+        """The workflow `workflow_id` names; refuses one that doesn't exist."""
+        if workflow_id is None:
+            return None
+        found = Workflow.objects.filter(pk=workflow_id).first()
+        if found is None:
+            raise CategoryError(
+                422, CategoryRefusal.WORKFLOW_NOT_FOUND, f"no workflow {workflow_id!r}"
+            )
+        return found
 
 
 category_config = CategoryConfig()

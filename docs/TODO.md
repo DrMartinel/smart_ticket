@@ -738,12 +738,12 @@ each file is clean.
 
 **Priority:** Medium · **Spec:** ADR-0049
 
-Part 1 (the `ticket_categories` table, its foreign keys, the read and rename routes, the console pickers) is built. Part 2 (the category set on the wire) is built and waits on its eval run.
+Part 1 (the `ticket_categories` table, its foreign keys, the read and rename routes, the console pickers) is built. Part 2 (the category set on the wire) is built and waits on its eval run. Part 3 (a workflow per category) is built as open question 3 proposes and waits on the owner's answer.
 
 ### Work
 
 1. ~~**Part 2, the category set on the wire.**~~ Built 2026-11-26, but **the eval run is still owed**: `test_classification` and `test_end_to_end` on `category.v3`, to show no movement against `category.v2` (the options reach Jev in slug order now, not v2's order). What was built: `AIRunRequest.categories` (slug, description) in core-api `dtos.py` and ai-engine `schemas.py` in one PR; ai-engine builds Jev's question from them and `category.v3.json`; category fields become `str`; `Router.route` takes the snapshot and records `categories_used`; `is_security` replaces the `security` slug in the router, `check_category_scope` and the SLA clocks' P2 priority. New reason codes `category_set_invalid`, `category_not_routable`. Needs an eval run that shows no movement against `category.v2`. With it or after it, a manager may edit a category's description and `is_routable` with a reason (open questions 1 and 2): the PATCH accepts them from managers only, and the audit row keeps the old and new text.
-2. **Part 3, a workflow per category.** A nullable `workflow` on the category; the ticket moves into it at handoff.
+2. ~~**Part 3, a workflow per category.**~~ Built 2026-11-26 as open question 3 proposes: a nullable `workflow` on the category, set on the Categories page with a reason (`categories:manage`); at an automatic route and at a review handoff the ticket moves into it at the status with the same key, carrying same-named field values, and a ticket that can't move is audited `category_workflow_skipped`. A reviewer's correction decides the workflow; a reopen or a reassign doesn't move the ticket. Still owed: the owner's answer to open question 3, and whether a reopen or a reassign to another category should move it.
 3. **Part 4, the agent.** `GET /api/categories` at `AgentTier.READ`, read only (open question 4); decide whether employees, whom the agent serves, get `categories:read`.
 4. Settle what ADR-0049 still leaves open (1, 2 and 4 answered 2026-11-26): how the per-category F1 floor covers a category a manager makes routable, how workflows move (3), and employees' read access.
 5. **Before anything can deactivate a category** (no route does in part 1), fix what an inactive category breaks:

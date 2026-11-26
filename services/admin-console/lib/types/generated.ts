@@ -571,6 +571,7 @@ export interface CategoryOut {
   is_routable: boolean;
   sort_order: number;
   version: number;
+  workflow_id: string | null;
 }
 
 export interface CategoryPatch {
@@ -578,6 +579,7 @@ export interface CategoryPatch {
   sort_order?: number | null;
   description?: string | null;
   is_routable?: boolean | null;
+  workflow?: string | null;
   reason?: string;
 }
 

@@ -22,6 +22,7 @@ from django.utils.crypto import constant_time_compare
 
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.lifecycle.models import (
     ActionRun,
     CustomField,
@@ -782,6 +783,52 @@ class Lifecycle:
                 extra={"workflow": target.workflow.name, "dropped_fields": dropped},
             )
         return ticket
+
+    def enter_category_workflow(
+        self, ticket: Ticket, category: str | None, *, actor: User | None
+    ) -> None:
+        """Moves a handed-off ticket into `category`'s workflow at the status with the same key,
+        carrying its field values over, and updates the caller's instance (ADR-0049 part 3)."""
+        workflow = Category.objects.workflow_of(category)
+        if workflow is None:
+            return
+        with transaction.atomic():
+            locked = Ticket.objects.select_for_update().get(pk=ticket.pk)
+            current = WorkflowStatus.objects.of_ticket(locked)
+            if current is None or current.workflow_id == workflow.id:
+                return
+            target: WorkflowStatus | None
+            if current.is_pipeline:
+                target = self.pipeline_status(workflow, PipelineStatus(current.key))
+            else:
+                target = workflow.statuses.filter(key=current.key).first()
+            if target is None or locked.waiting_transform or locked.transfers.open().exists():
+                AuditLog.objects.record(
+                    "category_workflow_skipped",
+                    actor_type="human" if actor else "system",
+                    actor_id=actor.id if actor else None,
+                    ticket_id=locked.id,
+                    payload={
+                        "category": category,
+                        "workflow": workflow.name,
+                        "status": current.key,
+                        "reason": "no_status_with_the_same_key"
+                        if target is None
+                        else "a_move_is_running",
+                    },
+                )
+                return
+            dropped = field_values.carry_over(locked, workflow)
+            self.record_system_transfer(
+                locked,
+                current,
+                target,
+                trigger=Trigger.SYSTEM,
+                actor=actor,
+                extra={"workflow": workflow.name, "category": category, "dropped_fields": dropped},
+            )
+        for name in _MOVED_FIELDS:
+            setattr(ticket, name, getattr(locked, name))
 
     def adopt_tickets(
         self,
