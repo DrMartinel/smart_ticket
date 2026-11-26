@@ -1260,6 +1260,26 @@ def test_a_needs_staff_hand_off_missing_its_text_or_summary_is_schema_invalid(
 
 
 @pytest.mark.django_db
+def test_a_needs_staff_hand_off_after_a_flagged_result_is_injection_in_result(
+    employee_user, api_as, engine, queued
+):
+    engine.reply = _needs_staff(steps=[_step(1, "GET", injection_flagged=True)])
+    client = api_as(employee_user)
+    turn = _start(client, FOLDER)
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert (turn.stop_reason, turn.proposed_handoff_summary) == ("agent_injection_in_result", None)
+    assert FOLDER_TEXT not in turn.reply_text
+    ticket = _ask(client, turn)
+    assert (ticket.agent_handoff_reason, ticket.proposed_handoff_summary) == (
+        "agent_injection_in_result",
+        None,
+    )
+
+
+@pytest.mark.django_db
 def test_console_surface_has_no_hand_off(technician_user, api_as, engine, queued):
     engine.reply = _needs_staff()
     turn = _start(api_as(technician_user), FOLDER, surface="console")

@@ -60,6 +60,7 @@ class ChooseOutcome(StrEnum):
     CALL_TOOL = "CallTool"
     REPLY = "Reply"
     HAND_OFF = "HandOff"
+    RESULT_FLAGGED = "ResultFlagged"
     LIMIT_REACHED = "LimitReached"
     MODEL_FAILED = "ModelFailed"
     SCHEMA_INVALID = "SchemaInvalid"
@@ -116,6 +117,8 @@ class ChooseActionNode(BaseNode[AgentState]):
 
         if isinstance(choice, _Invalid):
             return {**update, "stop_reason": AgentStopReason.SCHEMA_INVALID}
+        if isinstance(choice, HandOff) and state.result_flagged:
+            return {**update, "stop_reason": AgentStopReason.INJECTION_IN_RESULT}
         if isinstance(choice, HandOff):
             return {
                 **update,
@@ -207,6 +210,8 @@ class ChooseActionNode(BaseNode[AgentState]):
             return ChooseOutcome.SCHEMA_INVALID
         if reason is AgentStopReason.NEEDS_STAFF:
             return ChooseOutcome.HAND_OFF
+        if reason is AgentStopReason.INJECTION_IN_RESULT:
+            return ChooseOutcome.RESULT_FLAGGED
         if reason is not None:
             raise ValueError(f"choose_action cannot stop on {reason}")
         if state.pending_call is not None:

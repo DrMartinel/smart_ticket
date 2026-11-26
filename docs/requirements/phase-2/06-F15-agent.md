@@ -1295,3 +1295,8 @@ Numbered on from the first build's list. None lets the agent do more.
     there is no separate chip.
 54. EC-F15-09's scripted trace pins only the wiring (the chat reaches
     `ask_helpdesk`); whether a model chooses it is TODO 23's live eval.
+55. A `hand_off` chosen after a result tripped the injection screen ends
+    the turn as `agent_injection_in_result`, with that reason's fixed text
+    and no summary, in ai-engine and again in core-api. The amendment does
+    not say; BR-F15-11 makes the rest of a flagged turn read-only, and a
+    hand-off would carry the model's summary onto a ticket.

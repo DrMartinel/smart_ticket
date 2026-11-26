@@ -323,7 +323,11 @@ class AgentTurns:
                 else ReasonCode.AGENT_SCHEMA_INVALID
             )
             summary = response.proposed_handoff_summary or ""
-            if reason is ReasonCode.AGENT_NEEDS_STAFF and not (
+            if reason is ReasonCode.AGENT_NEEDS_STAFF and any(
+                step.injection_flagged for step in response.steps
+            ):
+                reason = ReasonCode.AGENT_INJECTION_IN_RESULT
+            elif reason is ReasonCode.AGENT_NEEDS_STAFF and not (
                 turn.conversation.surface == AgentSurface.CHAT.value
                 and response.reply.strip()
                 and summary.strip()

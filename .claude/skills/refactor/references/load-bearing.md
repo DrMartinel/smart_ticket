@@ -571,6 +571,12 @@ guard and that comment is later trimmed, the entry is the record.
   console or store an empty or oversized summary (BR-F15-23).
   *`test_a_needs_staff_hand_off_missing_its_text_or_summary_is_schema_invalid`,
   `test_console_surface_has_no_hand_off`.*
+- **`AgentTurns._record` storing a `needs_staff` hand-off whose steps include
+  an `injection_flagged` one as `agent_injection_in_result`.** The rest of a
+  flagged turn is read-only (BR-F15-11); without this, text that steered the
+  model reaches staff as the assistant's summary on the ticket. ai-engine
+  ends such a turn the same way; this is the second check.
+  *`test_a_needs_staff_hand_off_after_a_flagged_result_is_injection_in_result`.*
 - **`proposed_handoff_summary` stored only in its own `tickets` column,
   never in the subject, the body or `TicketMasked`.** It is model text; in
   the subject it would reach triage's prompts as if the person wrote it
@@ -780,6 +786,11 @@ guard and that comment is later trimmed, the entry is the record.
   (BR-F15-23); a console `hand_off` is an invalid reply, asked again once.
   *`test_agent_graph.py::test_console_surface_has_no_hand_off`,
   `::test_the_console_is_never_offered_the_hand_off_shape`.*
+- **`choose_action` ending a `hand_off` chosen after `result_flagged` as
+  `INJECTION_IN_RESULT`, through `hand_off`, not `finish`.** A hand-off
+  opens a ticket that carries the model's summary to staff; after a result
+  tripped the screen that summary may be the injected text's (BR-F15-11).
+  *`test_agent_graph.py::test_a_hand_off_after_an_injection_hit_drops_its_text_and_summary`.*
 - **`TICKET_AT_ONCE` in `apps/agent/models.py`, and `agent_handoff` in
   `waits_for_requester`.** Every other hand-off opens its ticket only on the
   employee's click; a mask-failed or critical-PII turn must reach a person

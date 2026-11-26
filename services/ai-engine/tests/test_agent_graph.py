@@ -452,6 +452,18 @@ def test_write_after_injection_hit_hands_off(model, core_api):
     assert '"reply_to_my_ticket"' not in llm.prompts[1]
 
 
+def test_a_hand_off_after_an_injection_hit_drops_its_text_and_summary(model, core_api):
+    thread = [{"author_kind": "agent", "mine": False, "state": "shown", "body_masked": _INJECTED}]
+    llm = model(call("get_my_ticket", public_id="TK-1"), hand_off())
+    api = core_api(Reply(200, {"public_id": "TK-1", "thread": thread}))
+
+    final = run(turn())
+
+    assert final.stop_reason is AgentStopReason.INJECTION_IN_RESULT
+    assert (final.reply, final.handoff_summary) == ("", None)
+    assert len(api.calls) == 1 and len(llm.prompts) == 2
+
+
 # --- confirm and draft --------------------------------------------------------
 
 
