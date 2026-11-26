@@ -157,8 +157,11 @@ def alert(name: str, project: str | None, summary: str, **labels: str) -> dict[s
 
 @dataclass
 class FakePrometheus:
-    """prom-label-proxy answering range queries with `series`, or `status` and `error`; keeps
-    the query and the `project` values of every request."""
+    """prom-label-proxy answering range queries with `series`, or `status` and `error`, and
+    Prometheus itself answering `parse_query` with `tree` (a JSON text is sent as it is), or
+    `parse_status` and `parse_error`, or raising `parse_raises`. Keeps the query and the
+    `project` values of every range query and the text of every parse; any other host or path
+    answers 404."""
 
     series: list[dict[str, Any]] = field(default_factory=list)
     status: int = 200
@@ -166,11 +169,21 @@ class FakePrometheus:
     raises: Exception | None = None
     queries: list[str] = field(default_factory=list)
     projects: list[list[str]] = field(default_factory=list)
+    tree: dict[str, Any] | str | None = None
+    parse_status: int = 200
+    parse_error: str = ""
+    parse_raises: Exception | None = None
+    parsed: list[str] = field(default_factory=list)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         if self.raises is not None:
             raise self.raises
         form = parse_qs(request.content.decode())
+        where = (request.url.host, request.url.path)
+        if where == ("prometheus", "/api/v1/parse_query"):
+            return self.parse(form["query"][0])
+        if where != ("prom-label-proxy", "/api/v1/query_range"):
+            return httpx.Response(404)
         self.queries.append(form["query"][0])
         self.projects.append(request.url.params.get_list("project"))
         if self.status != 200:
@@ -180,11 +193,28 @@ class FakePrometheus:
         body = {"status": "success", "data": {"resultType": "matrix", "result": self.series}}
         return httpx.Response(200, json=body)
 
+    def parse(self, text: str) -> httpx.Response:
+        if self.parse_raises is not None:
+            raise self.parse_raises
+        self.parsed.append(text)
+        if self.parse_status != 200:
+            return httpx.Response(
+                self.parse_status,
+                json={"status": "error", "errorType": "bad_data", "error": self.parse_error},
+            )
+        if isinstance(self.tree, str):
+            content = '{"status": "success", "data": ' + self.tree + "}"
+            return httpx.Response(
+                200, content=content, headers={"content-type": "application/json"}
+            )
+        return httpx.Response(200, json={"status": "success", "data": self.tree})
+
 
 @pytest.fixture
 def prom(settings: Any, monkeypatch: pytest.MonkeyPatch) -> FakePrometheus:
     fake = FakePrometheus()
     settings.PROMETHEUS_URL = "http://prom-label-proxy"
+    settings.PROMETHEUS_PARSE_URL = "http://prometheus"
     http = mock_http(fake.handle)
     monkeypatch.setattr(observability, "prometheus", lambda: Prometheus(http))
     return fake

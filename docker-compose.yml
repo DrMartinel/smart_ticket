@@ -103,6 +103,7 @@ x-core-api-env: &core-api-env
   OPENSTACK_AUTH_URL: http://cloud-sim:8090/identity/v3
   ALERTMANAGER_URL: http://alertmanager:9093
   PROMETHEUS_URL: http://prom-label-proxy:8080
+  PROMETHEUS_PARSE_URL: http://prometheus:9090
   ELASTICSEARCH_URL: http://elasticsearch:9200
   OPENSTACK_SERVICE_DOMAIN: ${OPENSTACK_SERVICE_DOMAIN:?see .env.example}
   OPENSTACK_SERVICE_USER: ${OPENSTACK_SERVICE_USER:?see .env.example}
