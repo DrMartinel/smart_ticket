@@ -96,7 +96,7 @@ export default function CustomersPage() {
         className="mb-2"
         eyebrow="Admin / Settings"
         title="Customers"
-        description="Each customer is a company's domain in the cloud. Its tier raises the starting priority of its people's tickets (enterprise starts at P2); it never lowers one, and tickets already handed off keep theirs."
+        description="Each customer is a company's domain in the cloud. Its tier can raise the starting priority of its people's tickets; it never lowers one, and tickets already handed off keep theirs."
       />
 
       {error && <ErrorState title={error} onRetry={() => { setError(null); void load(); }} />}
@@ -195,7 +195,7 @@ export default function CustomersPage() {
             <Labeled label="Name" required>
               <Input value={draft.name} maxLength={120} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             </Labeled>
-            <Labeled label="Tier" required hint="Enterprise tickets start at P2 or higher; the others at the rule's priority.">
+            <Labeled label="Tier" required hint="A tier can raise the starting priority of its tickets, never lower it.">
               <NativeSelect value={draft.tier} onChange={(e) => setDraft({ ...draft, tier: e.target.value as CustomerTier })}>
                 {TIERS.map((t) => (
                   <option key={t} value={t}>
