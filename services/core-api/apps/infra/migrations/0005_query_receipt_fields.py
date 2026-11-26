@@ -11,6 +11,21 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddField(
             model_name="infraquery",
+            name="failed_backend",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("prometheus", "prometheus"),
+                    ("elasticsearch", "elasticsearch"),
+                    ("alertmanager", "alertmanager"),
+                    ("cloud", "cloud"),
+                ],
+                max_length=16,
+                null=True,
+            ),
+        ),
+        migrations.AddField(
+            model_name="infraquery",
             name="refusal_reason",
             field=models.CharField(blank=True, max_length=24, null=True),
         ),

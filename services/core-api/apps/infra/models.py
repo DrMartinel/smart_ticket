@@ -68,6 +68,10 @@ class InfraQuery(BaseModel):
         "tickets.Ticket", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     backend = models.CharField(max_length=16, choices=_choices(InfraBackend))
+    # The backend that did not answer, which may not be the one the read was aimed at.
+    failed_backend = models.CharField(
+        max_length=16, choices=_choices(InfraBackend), null=True, blank=True
+    )
     kind = models.CharField(max_length=16, choices=_choices(InfraQueryKind))
     compiled = models.TextField()
     projects = ArrayField(models.CharField(max_length=64), default=list)

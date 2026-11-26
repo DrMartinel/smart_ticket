@@ -120,7 +120,11 @@ class QueryLog:
         failed = Read(InfraBackend.CLOUD, InfraQueryKind.RESOURCE, [])
         failed.calls.append("GET identity /role_assignments")
         return self.record(
-            failed, InfraOutcome.SCOPE_UNAVAILABLE, InfraRefusal.SCOPE_UNAVAILABLE, started
+            failed,
+            InfraOutcome.SCOPE_UNAVAILABLE,
+            InfraRefusal.SCOPE_UNAVAILABLE,
+            started,
+            failed_backend=InfraBackend.CLOUD,
         )
 
     @contextmanager
@@ -143,7 +147,11 @@ class QueryLog:
             failed = e.backend if isinstance(e, BackendUnavailable) else backend
             logger.warning("infra: %s read failed: %s", failed.value, e)
             self.record(
-                read, InfraOutcome.BACKEND_UNAVAILABLE, InfraRefusal.BACKEND_UNAVAILABLE, started
+                read,
+                InfraOutcome.BACKEND_UNAVAILABLE,
+                InfraRefusal.BACKEND_UNAVAILABLE,
+                started,
+                failed_backend=failed,
             )
             raise InfraError(
                 InfraRefusal.BACKEND_UNAVAILABLE,
@@ -160,6 +168,7 @@ class QueryLog:
         refusal: InfraRefusal | None,
         started: float,
         reason: QueryCheck | None = None,
+        failed_backend: InfraBackend | None = None,
     ) -> InfraQuery:
         row = InfraQuery.objects.create(
             actor=self.actor,
@@ -167,6 +176,7 @@ class QueryLog:
             agent_turn_id=self.agent_turn,
             ticket=self.ticket,
             backend=read.backend.value,
+            failed_backend=failed_backend.value if failed_backend else None,
             kind=read.kind.value,
             compiled="\n".join(read.calls),
             projects=read.projects,
@@ -226,5 +236,6 @@ def missing_sources(queries: Iterable[InfraQuery], language: Language) -> list[s
         if query.outcome == InfraOutcome.SCOPE_UNAVAILABLE.value:
             said[_SCOPE_UNREAD[language]] = None
         elif query.outcome == InfraOutcome.BACKEND_UNAVAILABLE.value:
-            said[_UNREACHABLE[InfraBackend(query.backend)][language]] = None
+            failed = InfraBackend(query.failed_backend or query.backend)
+            said[_UNREACHABLE[failed][language]] = None
     return list(said)

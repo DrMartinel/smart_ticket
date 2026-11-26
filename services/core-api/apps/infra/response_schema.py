@@ -253,6 +253,7 @@ class InfraQueryReceiptOut(Schema):
     id: uuid.UUID
     created_at: datetime
     backend: InfraBackend
+    failed_backend: InfraBackend | None = None
     kind: InfraQueryKind
     outcome: InfraOutcome
     refusal: InfraRefusal | None
