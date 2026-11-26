@@ -65,6 +65,7 @@ from apps.infra.services.observability import (
 )
 from apps.infra.domain.resources import (
     Alert,
+    AlertResource,
     Network,
     Project,
     SecurityGroup,
@@ -132,8 +133,13 @@ def get_security_group(request: AuthedRequest, group_id: str) -> SecurityGroup:
 
 @router.get("/alerts", auth=SessionAuth(), response=list[AlertOut])
 @require(Permission.INFRA_READ, agent=AgentTier.READ)
-def list_alerts(request: AuthedRequest, project_id: str | None = None) -> list[Alert]:
-    return Inventory.for_all(request.auth).alerts(project_id)
+def list_alerts(
+    request: AuthedRequest,
+    project_id: str | None = None,
+    resource_kind: AlertResource | None = None,
+    resource_id: str | None = None,
+) -> list[Alert]:
+    return Inventory.for_all(request.auth).alerts(project_id, resource_kind, resource_id)
 
 
 @router.get("/alerts/silences", auth=SessionAuth(), response=list[SilenceOut])

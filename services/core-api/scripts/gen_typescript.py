@@ -546,6 +546,7 @@ def main() -> None:
         chunks.append(emit_enum(enum.__name__, [member.value for member in enum]))
 
     from apps.infra.domain.changes import InfraChange, InfraResource
+    from apps.infra.domain.resources import AlertResource
     from apps.infra.domain.vocabulary import (
         CueRunOutcome,
         CueStatus,
@@ -571,6 +572,7 @@ def main() -> None:
         CueStatus,
         ResourceKind,
         ResourceSource,
+        AlertResource,
         InfraBackend,
         InfraQueryKind,
         InfraOutcome,

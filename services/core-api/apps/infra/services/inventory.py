@@ -18,7 +18,8 @@ from apps.infra.clients.backends import (
     alertmanager,
     openstack,
 )
-from apps.infra.domain.resources import Alert, Network, Port, Project, SecurityGroup, Server
+from apps.infra.domain.resources import Alert, AlertResource, Network, Port, Project
+from apps.infra.domain.resources import SecurityGroup, Server
 from apps.infra.domain.resources import Silence, Subnet, Volume
 from apps.infra.models import InfraBackend, InfraQueryKind
 from apps.infra.services.recording import QueryLog, Read
@@ -132,12 +133,25 @@ class Inventory:
 
     # ── alerts ──
 
-    def alerts(self, project_id: str | None) -> list[Alert]:
+    def alerts(
+        self,
+        project_id: str | None,
+        resource_kind: AlertResource | None = None,
+        resource_id: str | None = None,
+    ) -> list[Alert]:
+        """The alerts in scope, narrowed to the resource `resource_kind` and `resource_id`
+        name, each when given."""
         wanted = self.scope.narrowed_to(project_id)
         with self.read(InfraBackend.ALERTMANAGER, wanted) as read:
             read.calls.append("GET /api/v2/alerts")
             found = [Alert.of(a) for a in self.alertmanager.get("/alerts")]
-            return read.shown([a for a in found if self.covers(wanted, a.project_id)])
+            return read.shown(
+                [
+                    a
+                    for a in found
+                    if self.covers(wanted, a.project_id) and a.is_about(resource_kind, resource_id)
+                ]
+            )
 
     def silences(self, project_id: str | None) -> list[Silence]:
         wanted = self.scope.narrowed_to(project_id)

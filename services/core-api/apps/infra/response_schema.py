@@ -11,6 +11,7 @@ from typing import Any
 from ninja import Schema
 
 from apps.infra.domain.changes import InfraChange, InfraResource
+from apps.infra.domain.resources import AlertResource
 from apps.infra.domain.vocabulary import (
     CueRunOutcome,
     CueStatus,
@@ -146,6 +147,8 @@ class AlertOut(Schema):
     summary: str
     description: str
     starts_at: str
+    resource_kind: AlertResource | None = None
+    resource_id: str | None = None
 
 
 class MatcherOut(Schema):

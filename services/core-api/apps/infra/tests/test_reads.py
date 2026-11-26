@@ -266,6 +266,40 @@ def test_a_customer_sees_only_their_projects_alerts(
     assert [a["project_id"] for a in mine.json()] == [prod]
 
 
+def test_an_alert_s_resource_is_its_most_specific_label(
+    api_as, technician_user, cloud_sim, alertmanager: FakeAlertmanager, ner
+):
+    alertmanager.alerts = [
+        alert("CloudServerDown", "p1", "db-01 down", server_id="srv-1"),
+        alert("CloudVolumeLatencyHigh", "p1", "slow", volume_id="vol-1", server_id="srv-1"),
+        alert("CloudPacketLoss", "p1", "drops", network_id="net-1", server_id="srv-1"),
+        alert("HypervisorDown", None, "compute-02 down"),
+    ]
+
+    reply = api_as(technician_user).get("/api/infra/alerts")
+
+    assert [(a["resource_kind"], a["resource_id"]) for a in reply.json()] == [
+        ("server", "srv-1"),
+        ("volume", "vol-1"),
+        ("network", "net-1"),
+        (None, None),
+    ]
+
+
+def test_the_alerts_of_one_resource_leave_out_those_of_what_is_attached_to_it(
+    api_as, technician_user, cloud_sim, alertmanager: FakeAlertmanager, ner
+):
+    alertmanager.alerts = [
+        alert("CloudServerDown", "p1", "db-01 down", server_id="srv-1"),
+        alert("CloudVolumeLatencyHigh", "p1", "slow", volume_id="vol-1", server_id="srv-1"),
+        alert("CloudServerDown", "p1", "db-02 down", server_id="srv-2"),
+    ]
+
+    reply = api_as(technician_user).get("/api/infra/alerts?resource_kind=server&resource_id=srv-1")
+
+    assert [a["summary"] for a in reply.json()] == ["db-01 down"]
+
+
 def test_staff_see_alerts_tied_to_no_project(
     api_as, technician_user, cloud_sim, alertmanager: FakeAlertmanager, ner
 ):
