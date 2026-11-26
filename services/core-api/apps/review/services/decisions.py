@@ -37,9 +37,10 @@ class ReviewDecisions:
     ) -> ReviewDecision:
         """Records the decision and resolves the item. Any action other than a clean approve
         becomes an `EvalCandidate` with the reviewer's correction and stated reason; one that
-        changes the category is a `reroute` label (BR-F2-06). Approving a blocked ticket's item
-        agrees with the block and hands nothing off (F8); `handoff=False` records agreement only, as
-        an incident's confirmation does (F7)."""
+        changes the category is a `reroute` label (BR-F2-06). A handoff saves the category it
+        assigns by on the ticket, unless the ticket has one the reviewer did not correct. Approving
+        a blocked ticket's item agrees with the block and hands nothing off (F8); `handoff=False`
+        records agreement only, as an incident's confirmation does (F7)."""
         action = choice.action_taken
         if action != ReviewAction.APPROVE.value and not (
             choice.override_reason and choice.override_reason.strip()
@@ -80,8 +81,8 @@ class ReviewDecisions:
             )
         if handoff and action in _HANDOFF and item.queue not in SECURITY_QUEUES:
             category = self.category_for(item, choice)
-            if rerouted:
-                ticket.category = corrected
+            if category != before:
+                ticket.category = category
                 ticket.save(update_fields=["category"])
             lifecycle.enter_category_workflow(ticket, category, actor=reviewer)
             assignment.assign_after_handoff(
