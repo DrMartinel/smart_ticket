@@ -249,15 +249,16 @@ export function useAgentConversation(enabled: boolean) {
   }, [rows, handoffs, handoffTick]);
 
   /** Sends a message, unless a turn is running or an ended conversation is on screen; a
-   * conversation that ended on the server is replaced by a new one. */
+   * conversation that ended on the server is replaced by a new one. Resolves to the turn that
+   * took it, or null when it wasn't sent. */
   const send = useCallback(
-    (text: string) => {
-      if (blocked.current) return;
+    (text: string): Promise<AgentTurnOut | null> => {
+      if (blocked.current) return Promise.resolve(null);
       blocked.current = true;
       const key = `local-${Date.now()}`;
       setRows((prev) => [...prev, { kind: "sending", key, text }]);
       const post = () => agentApi.send(text, conversationRef.current);
-      void post()
+      return post()
         .catch((err) => {
           if (!(err instanceof ApiError && err.code === "conversation_ended")) throw err;
           conversationRef.current = null;
@@ -272,22 +273,28 @@ export function useAgentConversation(enabled: boolean) {
           conversationRef.current = turn.conversation_id;
           replace(key, { kind: "server", key, turn });
           void loadHistory();
+          return turn;
         })
-        .catch((err) => replace(key, { kind: "failed", key, text, error: sendError(err) }));
+        .catch((err) => {
+          replace(key, { kind: "failed", key, text, error: sendError(err) });
+          return null;
+        });
     },
     [replace, loadHistory],
   );
 
-  /** Sends a pressed choice's label as the next message; a server, volume or network is also
-   * posted as the person's pick. */
+  /** Sends a pressed choice's label as the next message; once it is sent, a server, volume or
+   * network is also posted as the person's pick, on the conversation that took the message. */
   const choose = useCallback(
-    (choice: AgentChoiceOut, conversationId: string) => {
-      if (blocked.current) return;
+    (choice: AgentChoiceOut) => {
       const { kind, id } = choice;
-      if (id && namesAResource(kind)) {
-        void infraApi.pick({ conversation_id: conversationId, kind, resource_id: id }).catch(() => undefined);
-      }
-      send(choice.label);
+      void send(choice.label).then((turn) => {
+        if (turn && id && namesAResource(kind)) {
+          void infraApi
+            .pick({ conversation_id: turn.conversation_id, kind, resource_id: id })
+            .catch(() => undefined);
+        }
+      });
     },
     [send],
   );
@@ -297,7 +304,7 @@ export function useAgentConversation(enabled: boolean) {
       const row = rows.find((r) => r.key === key);
       if (!row || row.kind !== "failed" || blocked.current) return;
       setRows((prev) => prev.filter((r) => r.key !== key));
-      send(row.text);
+      void send(row.text);
     },
     [rows, send],
   );

@@ -83,7 +83,7 @@ export default function AgentTurnView({
   onOpenTicket: (turnId: string) => void;
   onRetry: (key: string) => void;
   onAsk: (text: string) => void;
-  onChoose: (choice: AgentChoiceOut, conversationId: string) => void;
+  onChoose: (choice: AgentChoiceOut) => void;
   busy: boolean;
   viewingEnded: boolean;
 }) {
@@ -135,7 +135,7 @@ export default function AgentTurnView({
               <ChoiceCard
                 choices={t.choices ?? []}
                 disabled={busy || viewingEnded}
-                onPick={(choice) => onChoose(choice, t.conversation_id)}
+                onPick={onChoose}
               />
             )}
             {helpdesk.map((id) => (
