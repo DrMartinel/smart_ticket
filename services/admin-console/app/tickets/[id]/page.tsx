@@ -1,6 +1,7 @@
 "use client";
 
 import CommentsPanel from "@/components/CommentsPanel";
+import CuesPanel from "@/components/CuesPanel";
 import PriorityDialog from "@/components/PriorityDialog";
 import SlaBadge, { PriorityChip } from "@/components/SlaBadge";
 import ReassignDialog from "@/components/ReassignDialog";
@@ -406,6 +407,12 @@ export default function TicketPage() {
           {runbookItem && can(user, P.runbooksExecute) && (
             <Section title="Runbook">
               <RunbookPanel key={`${runbookItem.id}:${runbookItem.state}`} itemId={runbookItem.id} onChanged={() => void load()} />
+            </Section>
+          )}
+
+          {can(user, P.infraRead) && (
+            <Section title="Cues">
+              <CuesPanel publicId={detail.public_id} customer={detail.customer?.name ?? null} />
             </Section>
           )}
 
