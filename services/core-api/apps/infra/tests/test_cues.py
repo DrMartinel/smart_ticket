@@ -275,6 +275,29 @@ def test_only_the_conversation_that_opened_the_ticket_lends_it_picks(lan, backen
     assert linked(run_of(from_chat)) == linked(run_of(from_form)) == named
 
 
+def test_two_tickets_from_one_conversation_each_take_only_their_own_picks(
+    lan, backends, queued
+):
+    first_turn = chat_turn(lan)
+    picked(first_turn, ResourceKind.SERVER, backends.id_of("servers", "app-02"))
+    first = opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=first_turn)
+    second_turn = AgentTurn.objects.create(
+        conversation=first_turn.conversation,
+        seq=2,
+        message_masked="Một máy khác cũng chậm",
+        pii_level=PIILevel.ROUTINE.value,
+        session_family=uuid.uuid4(),
+    )
+    picked(second_turn, ResourceKind.SERVER, backends.id_of("servers", "db-01"))
+    second = opened(lan, "Một máy khác cũng chậm", agent_turn=second_turn)
+
+    assert linked(run_of(hand_off(first))) == [("app-02", ResourceSource.PICKED, None)]
+    assert linked(run_of(hand_off(second))) == [
+        ("db-01", ResourceSource.PICKED, None),
+        ("vol-db-01", ResourceSource.ATTACHED, None),
+    ]
+
+
 def test_a_ticket_whose_masking_failed_still_takes_its_picks(lan, backends, queued):
     turn = chat_turn(lan)
     picked(turn, ResourceKind.VOLUME, backends.id_of("volumes", "vol-db-01"))

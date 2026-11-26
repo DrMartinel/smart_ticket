@@ -234,13 +234,27 @@ class TicketCue(BaseModel):
 
 class ResourcePickQuerySet(models.QuerySet["ResourcePick"]):
     def of_ticket(self, ticket: Ticket) -> Self:
-        """The picks the ticket's reporter made in the agent conversation that opened it, in the
-        order they were made; none for a ticket no agent turn opened."""
+        """The picks the ticket's reporter made in the agent conversation that opened it, after
+        the conversation's previous ticket opened and no later than this one, in the order they
+        were made; none for a ticket no agent turn opened."""
         if ticket.agent_turn_id is None:
             return self.none()
-        return self.filter(
-            conversation__turns=ticket.agent_turn_id, person_id=ticket.reporter_id
-        ).order_by("picked_at")
+        previous = (
+            type(ticket)
+            .objects.filter(
+                agent_turn__conversation__turns=ticket.agent_turn_id,
+                created_at__lt=ticket.created_at,
+            )
+            .aggregate(at=models.Max("created_at"))["at"]
+        )
+        picks = self.filter(
+            conversation__turns=ticket.agent_turn_id,
+            person_id=ticket.reporter_id,
+            picked_at__lte=ticket.created_at,
+        )
+        if previous is not None:
+            picks = picks.filter(picked_at__gt=previous)
+        return picks.order_by("picked_at")
 
 
 class ResourcePick(BaseModel):
