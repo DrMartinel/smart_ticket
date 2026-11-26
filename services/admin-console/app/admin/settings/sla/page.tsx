@@ -22,7 +22,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { SectionTabs } from "@/components/TabNav";
 import { P, can } from "@/lib/permissions";
 import { CategorySelect } from "@/components/CategorySelect";
-import { useFirstCategoryWhenEmpty } from "@/lib/categories";
 
 const PRIORITIES: Priority[] = ["P1", "P2", "P3", "P4"];
 
@@ -74,11 +73,6 @@ export default function SlaPoliciesPage() {
     input: { category: null, priority: "P3", start_at: "", local: "2026-10-23T15:30" },
     out: null,
   });
-  const setPreviewCategory = useCallback(
-    (slug: string) => setPreview((p) => ({ ...p, input: { ...p.input, category: slug as TicketCategory } })),
-    [],
-  );
-  useFirstCategoryWhenEmpty(preview.input.category, setPreviewCategory);
 
   const load = useCallback(async () => {
     try {
@@ -229,6 +223,7 @@ export default function SlaPoliciesPage() {
               <span className="text-xs font-medium text-foreground/80">Category</span>
               <CategorySelect
                 value={preview.input.category}
+                blank="none"
                 onChange={(e) => setPreview({ ...preview, input: { ...preview.input, category: (e.target.value || null) as TicketCategory | null } })}
               />
             </label>

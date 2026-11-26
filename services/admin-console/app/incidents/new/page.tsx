@@ -21,14 +21,12 @@ import { EmptyState, ErrorState } from "@/components/ui/states";
 import { ShieldOff } from "lucide-react";
 import { P, can } from "@/lib/permissions";
 import { CategorySelect } from "@/components/CategorySelect";
-import { useFirstCategoryWhenEmpty } from "@/lib/categories";
 
 export default function DeclareIncidentPage() {
   const user = useRequireAuth();
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
-  useFirstCategoryWhenEmpty(category, setCategory);
   const [service, setService] = useState("");
   const [tickets, setTickets] = useState("");
   const [stage, setStage] = useState("investigating");
@@ -53,10 +51,11 @@ export default function DeclareIncidentPage() {
   }
 
   const titleError = tried && title.trim().length < 3 ? "Give the incident a name of at least 3 characters." : null;
+  const categoryError = tried && !category ? "Choose a category." : null;
 
   async function declare() {
     setTried(true);
-    if (title.trim().length < 3) return;
+    if (title.trim().length < 3 || !category) return;
     setBusy(true);
     setError(null);
     try {
@@ -100,8 +99,13 @@ export default function DeclareIncidentPage() {
               <Input value={title} aria-invalid={!!titleError} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. VPN down for the Hanoi office" />
             </Labeled>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <Labeled label="Category">
-                <CategorySelect value={category} onChange={(e) => setCategory(e.target.value)} />
+              <Labeled label="Category" required error={categoryError}>
+                <CategorySelect
+                  value={category}
+                  blank="Choose a category…"
+                  aria-invalid={!!categoryError}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
               </Labeled>
               <Labeled label="Affected service">
                 <Input value={service} onChange={(e) => setService(e.target.value)} placeholder="e.g. GlobalProtect VPN" />

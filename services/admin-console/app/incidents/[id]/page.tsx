@@ -29,7 +29,6 @@ import { useToast } from "@/components/ui/toast";
 import { Link2, Megaphone } from "lucide-react";
 import { P, can } from "@/lib/permissions";
 import { CategorySelect } from "@/components/CategorySelect";
-import { useFirstCategoryWhenEmpty } from "@/lib/categories";
 
 function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
   return (
@@ -60,7 +59,6 @@ export default function IncidentPage() {
   // Confirm
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
-  useFirstCategoryWhenEmpty(category, setCategory);
   const [service, setService] = useState("");
   // Dismiss, reopen, unlink, resolve
   const [reason, setReason] = useState("");
@@ -81,6 +79,7 @@ export default function IncidentPage() {
       .then((i) => {
         setIncident(i);
         setTitle((t) => t || i.title.replace(/^Proposed: /, ""));
+        setCategory((c) => c || i.category || "");
         setStage((s) => (i.stage && i.stage !== "resolved" ? i.stage : s));
         setError(null);
       })
@@ -393,7 +392,7 @@ export default function IncidentPage() {
           <>
           <Button variant="outline" onClick={() => setDialog(null)}>Cancel</Button>
           <Button
-            disabled={busy || title.trim().length < 3}
+            disabled={busy || title.trim().length < 3 || !category}
             onClick={() => act(() => api.post(`/api/incidents/${incident.public_id}/confirm`, { title, category, service }))}
           >
             Confirm incident
@@ -405,8 +404,8 @@ export default function IncidentPage() {
           <Labeled label="Incident name" required hint="At least 3 characters.">
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </Labeled>
-          <Labeled label="Category">
-            <CategorySelect value={category} onChange={(e) => setCategory(e.target.value)} />
+          <Labeled label="Category" required>
+            <CategorySelect value={category} blank="Choose a category…" onChange={(e) => setCategory(e.target.value)} />
           </Labeled>
           <Labeled label="Affected service">
             <Input value={service} onChange={(e) => setService(e.target.value)} />

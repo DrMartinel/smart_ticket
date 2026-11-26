@@ -16,7 +16,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CategorySelect } from "@/components/CategorySelect";
-import { useFirstCategoryWhenEmpty } from "@/lib/categories";
 
 export default function NewDraftPage() {
   const user = useRequireAuth();
@@ -26,7 +25,6 @@ export default function NewDraftPage() {
   const [slug, setSlug] = useState(search.get("slug") ?? "");
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
-  useFirstCategoryWhenEmpty(category, setCategory);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -70,7 +68,7 @@ export default function NewDraftPage() {
           onSubmit={(e) => {
             e.preventDefault();
             setTried(true);
-            if (!slug.trim() || (kind === "create" && !title.trim()) || (kind === "retire" && !note.trim())) return;
+            if (!slug.trim() || (kind === "create" && (!title.trim() || !category)) || (kind === "retire" && !note.trim())) return;
             void start();
           }}
         >
@@ -87,8 +85,13 @@ export default function NewDraftPage() {
               <Labeled label="Title" required error={tried && !title.trim() ? "Give the page a title." : null}>
                 <Input value={title} aria-invalid={tried && !title.trim()} onChange={(e) => setTitle(e.target.value)} />
               </Labeled>
-              <Labeled label="Category">
-                <CategorySelect value={category} onChange={(e) => setCategory(e.target.value)} />
+              <Labeled label="Category" required error={tried && !category ? "Choose a category." : null}>
+                <CategorySelect
+                  value={category}
+                  blank="Choose a category…"
+                  aria-invalid={tried && !category}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
               </Labeled>
             </>
           )}

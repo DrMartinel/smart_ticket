@@ -58,11 +58,3 @@ export function useCategories(): Categories {
   }, [attempt]);
   return { categories, error, retry: () => setAttempt((n) => n + 1) };
 }
-
-/** Sets an empty `value` to the first active category once the categories load. */
-export function useFirstCategoryWhenEmpty(value: string | null | undefined, setValue: (slug: string) => void): void {
-  const { categories } = useCategories();
-  useEffect(() => {
-    if (!value && categories.length > 0) setValue(categories[0].slug);
-  }, [value, categories, setValue]);
-}

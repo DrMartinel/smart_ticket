@@ -744,6 +744,11 @@ Part 1 (the `ticket_categories` table, its foreign keys, the read and rename rou
 2. **Part 3, a workflow per category.** A nullable `workflow` on the category; the ticket moves into it at handoff.
 3. **Part 4, the agent.** A route the F15 tier table names.
 4. Answer ADR-0049's open questions first: who edits a description and how, who turns `is_routable` on, how workflows move, what the agent needs.
+5. **Before anything can deactivate a category** (no route does in part 1), fix what an inactive category breaks:
+   - `SlaConfig.draft` / `edit` and `KbDrafts.update` refuse a policy's or draft's own category even when it isn't changing, so a policy can't be replaced and a draft's title and body can't be saved. Check only a changed category, as `TeamConfig.set_categories` does.
+   - `Assignment.category_for` refuses a team that owns no active category with `category_required` and an empty list, which the reassign dialog can't act on. Give it its own refusal.
+   - `TeamForm` builds its "(inactive)" options from the form's draft, so an unticked one disappears until a reload. Build them from the saved team.
+   - Publishing a draft copies its category without checking that it is still active.
 
 ### Done when
 
