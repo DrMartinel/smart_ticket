@@ -240,6 +240,10 @@ class ScopedPromQL:
         matching = node["matching"]
         if matching is not None:
             self.expect(matching, MATCHING_KEYS, "a vector matching")
+            if PROJECT_LABEL in matching["include"]:
+                raise QueryRefused(
+                    QueryCheck.FIELD, "group_left and group_right may not copy the project"
+                )
             labels = self.labels(matching["labels"])
             card = matching["card"]
             if matching["on"]:

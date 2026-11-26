@@ -471,6 +471,18 @@ def test_a_match_everything_selector_is_refused_ac_f17_03(
         (vs("cloud_server_up", m("server", "!~", "x{0}")), "match_all"),
         (vs("", m("__name__", "=~", ".*"), m("server", "=", "db-01")), "match_all"),
         (vs("cloud_server_up", m("server", "=~", "a{1001}")), "unsupported"),
+        (
+            binary(
+                "*", CPU, CPU, card="many-to-one", on=True, labels=("server",), include=("project",)
+            ),
+            "field",
+        ),
+        (
+            binary(
+                "*", CPU, CPU, card="one-to-many", labels=("host",), include=("server", "project")
+            ),
+            "field",
+        ),
     ],
 )
 def test_a_raw_query_outside_the_checks_is_refused_and_never_run(
