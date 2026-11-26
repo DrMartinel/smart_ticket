@@ -11,7 +11,6 @@ from apps.accounts.permissions import gate_of
 from apps.accounts.utils.catalog import (
     ADD_ON_ROLES,
     BASE_ROLES,
-    PERMISSIONS,
     SYSTEM_ROLE_PERMISSIONS,
     Permission,
 )
@@ -164,7 +163,7 @@ def test_every_permission_urn_is_well_formed_and_unique():
     values = [p.value for p in Permission]
     assert len(values) == len(set(values))
     assert all(is_permission_urn(v) for v in values)
-    assert set(PERMISSIONS) == set(Permission)
+    assert all(p.label for p in Permission)
 
 
 def test_system_role_urns_are_well_formed():
@@ -177,6 +176,4 @@ def test_system_role_urns_are_well_formed():
 def test_an_employee_role_holds_no_staff_only_permission():
     from apps.accounts.utils.catalog import SystemRole
 
-    assert not [
-        p for p in SYSTEM_ROLE_PERMISSIONS[SystemRole.EMPLOYEE] if PERMISSIONS[p].staff_only
-    ]
+    assert not [p for p in SYSTEM_ROLE_PERMISSIONS[SystemRole.EMPLOYEE] if p.staff_only]

@@ -26,7 +26,6 @@ from apps.accounts.models import (
 from apps.accounts.testing import grant_capability
 from apps.accounts.utils.access import Access
 from apps.accounts.utils.catalog import (
-    PERMISSIONS,
     SYSTEM_ROLE_PERMISSIONS,
     Permission,
     ScopeKind,
@@ -107,8 +106,8 @@ def test_custom_role_cannot_hold_a_locked_permission(boss):
 
 
 def test_every_locked_permission_is_refused_on_a_custom_role(boss):
-    for permission, spec in PERMISSIONS.items():
-        if not spec.locked:
+    for permission in Permission:
+        if not permission.locked:
             continue
         with refused(OrgRefusal.PERMISSION_LOCKED):
             roles.create(boss, RoleDraft("Leaky", "", [permission.value], reason="try"))

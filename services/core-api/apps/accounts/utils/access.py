@@ -12,7 +12,6 @@ from django.utils import timezone
 from apps.accounts.models import Assignment, Department, Role, RolePermission, User, UserRole
 from apps.accounts.utils.catalog import (
     BASE_ROLES,
-    PERMISSIONS,
     SYSTEM_ROLE_NAMES,
     SYSTEM_ROLE_PERMISSIONS,
     Permission,
@@ -123,10 +122,9 @@ class Access:
                 else custom.get(row.role_id, frozenset())
             )
             for permission in held:
-                spec = PERMISSIONS[permission]
-                if spec.staff_only and not staff:
+                if permission.staff_only and not staff:
                     continue
-                if ScopeKind(row.scope_kind) not in spec.scopes:
+                if ScopeKind(row.scope_kind) not in permission.scopes:
                     continue
                 access.add(permission, scope, source)
         return access
@@ -283,7 +281,7 @@ def role_permissions(role: Role) -> frozenset[Permission]:
 
 def role_scopes(permissions: frozenset[Permission]) -> list[ScopeKind]:
     """The scopes a role holding `permissions` may be granted at: those every one allows."""
-    return [s for s in ScopeKind if all(s in PERMISSIONS[p].scopes for p in permissions)]
+    return [s for s in ScopeKind if all(s in p.scopes for p in permissions)]
 
 
 def scope_names(scope: Scope) -> dict[str, Any]:

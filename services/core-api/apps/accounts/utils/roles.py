@@ -10,7 +10,6 @@ from django.utils import timezone
 from apps.accounts.models import Assignment, Role, RolePermission, User
 from apps.accounts.utils.access import Access, role_permissions
 from apps.accounts.utils.catalog import (
-    PERMISSIONS,
     ROLE_URN,
     Permission,
     custom_role_urn,
@@ -116,7 +115,7 @@ class Roles:
         permissions = frozenset(known[u] for u in wanted)
         if not permissions:
             raise OrgError(422, OrgRefusal.PERMISSIONS_REQUIRED, "a role holds a permission")
-        locked = sorted(p.value for p in permissions if PERMISSIONS[p].locked)
+        locked = sorted(p.value for p in permissions if p.locked)
         if locked:
             raise OrgError(
                 422,

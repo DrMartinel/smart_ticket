@@ -24,7 +24,6 @@ from apps.accounts.utils import sessions
 from apps.accounts.utils.access import Access, holders, role_permissions, role_scopes
 from apps.accounts.utils.catalog import (
     BASE_ROLES,
-    PERMISSIONS,
     STRUCTURAL_ROLES,
     Permission,
     ScopeKind,
@@ -187,9 +186,7 @@ class Grants:
         if not ending:
             if not user.is_active:
                 raise OrgError(409, OrgRefusal.USER_INACTIVE, f"{user.username} is not active")
-            if user.role == UserRole.EMPLOYEE.value and any(
-                PERMISSIONS[p].staff_only for p in permissions
-            ):
+            if user.role == UserRole.EMPLOYEE.value and any(p.staff_only for p in permissions):
                 raise OrgError(
                     422, OrgRefusal.STAFF_ONLY, "an employee holds no staff role (BR-F14-06)"
                 )
