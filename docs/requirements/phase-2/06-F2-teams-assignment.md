@@ -52,7 +52,7 @@ No new ticket statuses. New ticket fields change:
 |---|---|---|
 | `team` | Assignment service, a person | Handoff; reassign |
 | `assigned_to` | Assignment service, a person, lifecycle `assign_user` | Handoff; take; reassign |
-| `category` | Router (today) **or** a reviewer's reroute (CHANGED, see BR-F2-06) | Routing; review decision |
+| `category` | Router (today), a reviewer's reroute (CHANGED, see BR-F2-06), **or** a reviewer's confirmation of the category shown, on a ticket with none (implementation note 6) | Routing; review decision |
 
 Membership state: `is_available` true/false; leave dates.
 
@@ -319,8 +319,10 @@ Code wins (README §0.4 item 5). Each change and its reason:
    router's category, else the category the reviewer was shown and marked
    correct (Jev's choice in the run's signals, never a `proposed_*` field). With
    none, the fallback team gets the ticket and `assignment_failed` says
-   `no_category`. `ReviewItem.decide` moved to `ReviewDecisions` (CLAUDE.md
-   "Where logic goes").
+   `no_category`. The approval saves that category on a ticket that has none; a
+   confirmation never replaces a category the ticket has, and it is not a
+   `reroute` label (the review decision records it). `ReviewItem.decide` moved
+   to `ReviewDecisions` (CLAUDE.md "Where logic goes").
 7. **More refusals:** `category_required` (the target team owns several
    categories and none was named, `to_category`), `user_not_in_team`,
    `ticket_completed`, `team_not_found`, `not_allowed` (security staff on a
