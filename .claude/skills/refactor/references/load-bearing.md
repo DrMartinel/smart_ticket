@@ -83,12 +83,20 @@ guard and that comment is later trimmed, the entry is the record.
 - **The deny-by-default `_degraded_signals(ticket)` in `apps/tickets/services/pipeline.py`**: every
   check failed, `kb_auto_reply_allowed=False`, `kb_risk_tier="high"`, built through
   `trust_signals()` with the ticket's own PII level and agent hand-off reason. Every run that
-  skips ai-engine's proposal (embedding outage, mass incident, budget stop, ai-engine
-  unavailable, all LLMs down) meets `Router.hard_gate` before its own reason code. With
-  `PIILevel.ROUTINE` hard-coded there, a critical-PII ticket escalated with no security
-  alert, a mask-failed one sat in `low_confidence` as an outage, a hand-off lost its reason,
-  and `ai_runs.trust_signals` recorded `routine`.
-  *`test_process_ticket.py::TestShortCircuitsMeetTheHardGates`.*
+  skips ai-engine's proposal (embedding outage, mass incident, budget stop, an unusable
+  category set, ai-engine unavailable, all LLMs down) meets the router's hard gates
+  (`Router.degraded`, or `route` for the mass-incident and category-set paths) before its own
+  reason code. With `PIILevel.ROUTINE` hard-coded there, a critical-PII ticket escalated with
+  no security alert, a mask-failed one sat in `low_confidence` as an outage, a hand-off lost
+  its reason, and `ai_runs.trust_signals` recorded `routine`.
+  *`test_process_ticket.py::TestShortCircuitsMeetTheHardGates`,
+  `test_router.py::test_a_degraded_run_does_not_hide_a_hard_gate`,
+  `test_trust_signals.py::test_no_kb_page_denies_auto_reply`.*
+- **`_NEVER_HELD_PII` in `waits_for_requester`**: a chat ticket at `mask_failed` or `critical`
+  is never held, whatever its decision. Every path meets the hard gates now, so the reason
+  code alone already keeps such a ticket from waiting; the PII check is the backstop for a
+  future path that decides without them.
+  *`test_requester_hold.py::test_an_unchecked_pii_ticket_never_waits_whatever_its_decision`.*
 - **A chunk's titles go into its embedding input, never into `content`**
   (`ArticleIndexer.ingest`). A chunk from the middle of a page means nothing
   to the embedder without them, while `content` must stay the exact text the
@@ -352,6 +360,12 @@ guard and that comment is later trimmed, the entry is the record.
   the router; a hand-off would assign forty tickets to a team, and an
   eval candidate would teach the eval set from agreement.
   *`test_confirm_approves_without_eval_candidates`.*
+- **`Incidents.agree` leaving security and `mask_failed` items open.** A ticket can be linked
+  to an incident while it is blocked or its masking failed: the matcher links before the
+  router blocks it, and the detector sweeps in earlier tickets. Approving their item in the
+  manager's name would close a PII or injection review nobody did.
+  *`test_confirm_leaves_a_linked_critical_pii_review_open`,
+  `test_confirm_leaves_a_swept_in_mask_failed_review_open`.*
 - **`attach` skipping the review item only when not in shadow mode.** In shadow
   mode a person still sees every ticket.
   *`test_in_shadow_mode_a_late_joiner_still_reaches_a_reviewer`.*

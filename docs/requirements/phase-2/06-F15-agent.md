@@ -894,9 +894,10 @@ Each departure is the smaller choice; none lets an agent do more.
     the ticket is escalated with the incident. FR-F15-017 says "before every
     other check"; moving `mass_incident` would have changed triage.
 20. A hand-off ticket still runs the triage graph. If that run degrades
-    (embedding, budget, ai-engine, the LLM), its routing decision carries the
-    degraded reason, which is decided before the router; the agent's reason
-    stays on `tickets.agent_handoff_reason`.
+    (embedding, budget, ai-engine, the LLM), the router's hard gates still
+    decide first (`Router.degraded`), so its routing decision carries the
+    agent's reason (amended 2026-11-27; it used to carry the degraded reason,
+    decided before the router).
 21. The gate's queue is `low_confidence`, priority 2, as for the other
     degraded reasons. A DB check and `PolicySignals`' type keep
     `agent_handoff_reason` to eleven agent reasons: `agent_token_refused`
