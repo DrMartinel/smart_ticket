@@ -651,6 +651,13 @@ guard and that comment is later trimmed, the entry is the record.
   steps they averaged over instead.
   *`test_a_spike_between_two_samples_is_still_a_gauge_cues_peak`,
   `test_a_rate_cue_says_the_steps_it_averaged_over`.*
+- **`MaskedTexts.of` re-raising `SoftTimeLimitExceeded` before its broad
+  `except`, and `Cues.finish` saving `failed` again when the limit interrupts
+  its save.** Celery's soft limit is an ordinary `Exception`. Swallowed in
+  masking, it withholds the lines and the run ends `done`; landing in the
+  save, it leaves the run `running` for good (§o.3 says `failed`).
+  *`test_a_run_the_time_limit_stops_is_failed`,
+  `test_a_time_limit_while_saving_the_outcome_still_ends_the_run_failed`.*
 
 ## ai-engine
 

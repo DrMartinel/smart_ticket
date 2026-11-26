@@ -12,8 +12,9 @@ from collections.abc import Callable
 from functools import partial
 from datetime import timedelta
 
+from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
-from django.db import transaction
+from django.db import connection, transaction
 from django.utils import timezone
 
 from apps.accounts.domain.access import Access
@@ -389,14 +390,22 @@ class Cues:
         run.save(update_fields=["window_start", "window_end"])
 
     def finish(self, run: CueRun, work: Callable[[], CueRunOutcome]) -> None:
-        """Runs `work` and records the outcome it gives, or `failed` when it raises."""
+        """Runs `work` and records the outcome it gives, or `failed` when it raises or the time
+        limit stops it, saving the outcome included."""
         try:
             outcome = work()
         except Exception:  # noqa: BLE001 — a run that raised is failed, never left running
             logger.exception("infra: cue run %s failed", run.id)
             outcome = CueRunOutcome.FAILED
         run.outcome, run.finished_at = outcome.value, timezone.now()
-        run.save(update_fields=["outcome", "finished_at"])
+        try:
+            run.save(update_fields=["outcome", "finished_at"])
+        except SoftTimeLimitExceeded:
+            logger.warning("infra: the time limit stopped saving cue run %s", run.id)
+            if not connection.is_usable():
+                connection.close()
+            run.outcome = CueRunOutcome.FAILED.value
+            run.save(update_fields=["outcome", "finished_at"])
 
     # ── the ticket page ──
 

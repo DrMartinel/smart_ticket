@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 import pytest
+from celery.exceptions import SoftTimeLimitExceeded
 from cloud_sim.faults import FaultKind
 from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
@@ -17,6 +18,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.infra import tasks
+from apps.infra.domain import untrusted
 from apps.infra.domain.cues import OVERVIEW, TEMPLATES, CueTemplate
 from apps.infra.domain.untrusted import WITHHELD
 from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
@@ -467,6 +469,53 @@ def test_a_run_that_raises_is_failed_never_left_running(lan, backends, queued, m
     run = run_of(ticket)
     assert run.outcome == CueRunOutcome.FAILED
     assert run.finished_at is not None
+
+
+@pytest.mark.parametrize("during", ["a metric read", "masking"])
+def test_a_run_the_time_limit_stops_is_failed(
+    lan, backends, queued, prom: FakePrometheus, monkeypatch, during
+):
+    if during == "a metric read":
+        prom.raises = SoftTimeLimitExceeded()
+    else:
+
+        async def stopped(texts: list[str]) -> list[str]:
+            raise SoftTimeLimitExceeded()
+
+        monkeypatch.setattr(untrusted, "_mask_all", stopped)
+
+    ticket = hand_off(opened(lan, "db-01 chậm"))
+
+    run = run_of(ticket)
+    assert run.outcome == CueRunOutcome.FAILED
+    assert run.finished_at is not None
+
+
+@pytest.mark.parametrize("usable", [True, False])
+def test_a_time_limit_while_saving_the_outcome_still_ends_the_run_failed(
+    lan, backends, queued, monkeypatch, usable
+):
+    save = CueRun.save
+    stops: list[str] = []
+
+    def save_once_stopped(self: CueRun, *args: Any, **kwargs: Any) -> None:
+        if "outcome" in kwargs.get("update_fields", ()) and not stops:
+            stops.append(self.outcome)
+            raise SoftTimeLimitExceeded()
+        save(self, *args, **kwargs)
+
+    closed: list[bool] = []
+    monkeypatch.setattr(CueRun, "save", save_once_stopped)
+    monkeypatch.setattr(connection, "is_usable", lambda: usable)
+    monkeypatch.setattr(connection, "close", lambda: closed.append(True))
+
+    ticket = hand_off(opened(lan, "db-01 chậm"))
+
+    run = run_of(ticket)
+    assert stops == [CueRunOutcome.DONE]
+    assert run.outcome == CueRunOutcome.FAILED
+    assert run.finished_at is not None
+    assert closed == ([] if usable else [True])
 
 
 def test_cues_never_change_the_decision_priority_assignee_or_clocks(
