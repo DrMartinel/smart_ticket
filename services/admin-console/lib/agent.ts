@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
+import { OUTCOME_UNKNOWN_TEXT } from "./infra";
 import type { AgentActionOut, AgentTurnOut } from "./types/generated";
 
 // How often an unfinished turn is checked.
@@ -20,6 +21,13 @@ export const TOOL_LABEL: Record<string, string> = {
   draft_comment_decision: "Comment decision",
   draft_reassign: "Reassign",
   draft_priority: "Change priority",
+  reboot_server: "Soft reboot",
+  draft_hard_reboot: "Hard reboot",
+  start_server: "Start the server",
+  stop_server: "Stop the server",
+  attach_volume: "Attach a volume",
+  draft_detach_volume: "Detach a volume",
+  draft_security_rule: "Change a security rule",
 };
 
 export const agentApi = {
@@ -55,6 +63,7 @@ const FINAL_REFUSALS: Record<string, string> = {
   agent_action_expired: "This has expired. Ask the assistant again if you still want it.",
   agent_action_not_pending: "This can no longer be applied. Ask the assistant again if you still want it.",
   not_pending: "This can no longer be applied. Ask the assistant again if you still want it.",
+  infra_outcome_unknown: OUTCOME_UNKNOWN_TEXT,
 };
 
 function sendError(err: unknown): string {
@@ -167,7 +176,7 @@ export function useAgentConversation(enabled: boolean) {
         setPending((prev) => prev.filter((a) => a.action_id !== id));
       } catch (err) {
         let final = err instanceof ApiError && err.code ? FINAL_REFUSALS[err.code] : undefined;
-        let label = "Not applied";
+        let label = err instanceof ApiError && err.code === "infra_outcome_unknown" ? "Not sure" : "Not applied";
         if (!(err instanceof ApiError)) {
           // No answer came back: the server's own list says whether the draft is still waiting.
           try {

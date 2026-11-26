@@ -9,11 +9,13 @@ import { Dialog as DialogPrimitive } from "radix-ui";
 import { Bot, Plus, X } from "lucide-react";
 import { AGENT_MESSAGE_MAX, TOOL_LABEL, useAgentConversation, type ActionResult, type AgentRow } from "@/lib/agent";
 import { reasonText } from "@/lib/explain";
+import { CHANGE_LABEL, RESOURCE_LABEL, changeOf, resourceOfPath } from "@/lib/infra";
 import type { AgentActionOut, AgentReceiptOut } from "@/lib/types/generated";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import QueryReceipts from "@/components/infra/QueryReceipts";
 
 const OUTCOME: Record<AgentReceiptOut["outcome"], { label: string; variant: "ok" | "info" | "warn" | "danger" }> = {
   done: { label: "Done", variant: "ok" },
@@ -32,12 +34,14 @@ function decoded(segment: string): string {
   }
 }
 
-/** The page a call's path is about: a ticket, or a review item (which opens its ticket). */
+/** The page a call's path is about: a ticket, a review item (which opens its ticket), or a cloud resource. */
 function pageOf(path: string): { href: string; label: string } | null {
   const ticket = /\/api\/tickets\/([^/]+)/.exec(path)?.[1];
   if (ticket) return { href: `/tickets/${encodeURIComponent(decoded(ticket))}`, label: decoded(ticket) };
   const item = /\/api\/review\/items\/([^/]+)/.exec(path)?.[1];
   if (item) return { href: `/review/${encodeURIComponent(decoded(item))}`, label: "the review item" };
+  const resource = resourceOfPath(path);
+  if (resource) return { href: resource.href, label: `the ${RESOURCE_LABEL[resource.kind]}` };
   return null;
 }
 
@@ -205,6 +209,7 @@ function Turn({
               })}
             </ul>
           )}
+          <QueryReceipts queries={row.turn.queries ?? []} warnings={row.turn.warnings ?? []} />
           {row.turn.receipts.flatMap((r) =>
             r.outcome === "awaiting_confirmation"
               ? pending
@@ -242,12 +247,26 @@ function ConfirmCard({
 }) {
   const payload = (action.arguments.payload ?? {}) as Record<string, unknown>;
   const page = pageOf(action.path);
+  const change = changeOf(action);
   return (
     <Card className="flex flex-col gap-2 border-info/40 px-3 py-2.5" aria-label="Confirm this change">
       <p className="font-medium">
         {TOOL_LABEL[action.tool] ?? action.tool}
         {page && <span className="font-normal text-muted-foreground"> · {page.label}</span>}
       </p>
+      {change && (
+        <p className="text-xs text-muted-foreground">
+          {CHANGE_LABEL[change]} of {RESOURCE_LABEL[action.target_kind as keyof typeof RESOURCE_LABEL] ?? action.target_kind}{" "}
+          <span className="font-mono">{action.target_ref}</span>
+          {typeof payload.server_id === "string" && <> to server <span className="font-mono">{payload.server_id}</span></>}
+          {typeof payload.public_id === "string" && <>, for ticket {payload.public_id}</>}.{" "}
+          {page && (
+            <Link href={page.href} className="text-primary hover:underline">
+              Check its state first
+            </Link>
+          )}
+        </p>
+      )}
       {typeof payload.body === "string" && (
         <blockquote className="whitespace-pre-wrap rounded-md bg-muted px-3 py-2">{payload.body}</blockquote>
       )}
