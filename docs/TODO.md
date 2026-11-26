@@ -698,10 +698,11 @@ each file is clean.
 - **The build waits for F15's entry condition** (F16 §a.1): the trace suite
   in the gate, a reviewed live agent eval baseline, `superseded` actions,
   `decide` refusing a resolved item, and a reachable `agent_step_limit`.
-- **Action targets are read from the path parameter's name**
-  (`_TARGETS` in `apps/agent/utils/actions.py`), so an incident route's
-  `{public_id}` would be filed as a ticket. No incident route is reachable by
-  the agent today, so nothing is wrong yet; F16 PR 1 fixes it before any is.
+- **Action targets come from the route** (F16 BR-F16-05), brought forward
+  by F17 PR 5: each `confirm` and `human_only` route declares its target kind
+  in `require(..., target=...)`, and the value is its one path parameter.
+  F16 PR 1 no longer needs to change this; a new agent-reachable route only
+  declares its kind (`test_tiers.py` fails until it does).
 
 ### Done when
 

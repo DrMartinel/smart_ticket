@@ -616,7 +616,7 @@ guard and that comment is later trimmed, the entry is the record.
 
 ### Infra changes (F17 §h.1, ADR-0048)
 
-- **`OpenStack.send_change` telling "never sent" (a connect failure,
+- **`OpenStack.change` telling "never sent" (a connect failure,
   `infra_backend_unavailable`) from "sent, no answer" (any later transport
   error or a 5xx, `ChangeOutcomeUnknown`), and `InfraChanges.send` calling the
   cloud once.** A reboot or a detach whose answer is lost may have happened;
