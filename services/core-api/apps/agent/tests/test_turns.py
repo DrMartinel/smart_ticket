@@ -1280,6 +1280,19 @@ def test_a_needs_staff_hand_off_after_a_flagged_result_is_injection_in_result(
 
 
 @pytest.mark.django_db
+def test_a_console_hand_off_after_a_flagged_result_is_still_schema_invalid(
+    technician_user, api_as, engine, queued
+):
+    engine.reply = _needs_staff(steps=[_step(1, "GET", injection_flagged=True)])
+    turn = _start(api_as(technician_user), FOLDER, surface="console")
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert (turn.stop_reason, turn.proposed_handoff_summary) == ("agent_schema_invalid", None)
+
+
+@pytest.mark.django_db
 def test_console_surface_has_no_hand_off(technician_user, api_as, engine, queued):
     engine.reply = _needs_staff()
     turn = _start(api_as(technician_user), FOLDER, surface="console")

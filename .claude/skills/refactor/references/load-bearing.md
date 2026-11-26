@@ -580,8 +580,11 @@ guard and that comment is later trimmed, the entry is the record.
   an `injection_flagged` one as `agent_injection_in_result`.** The rest of a
   flagged turn is read-only (BR-F15-11); without this, text that steered the
   model reaches staff as the assistant's summary on the ticket. ai-engine
-  ends such a turn the same way; this is the second check.
-  *`test_a_needs_staff_hand_off_after_a_flagged_result_is_injection_in_result`.*
+  ends such a turn the same way; this is the second check. It runs after
+  the validity check, so a console or malformed hand-off stays
+  `agent_schema_invalid` whether or not a step was flagged.
+  *`test_a_needs_staff_hand_off_after_a_flagged_result_is_injection_in_result`,
+  `test_a_console_hand_off_after_a_flagged_result_is_still_schema_invalid`.*
 - **`proposed_handoff_summary` stored only in its own `tickets` column,
   never in the subject, the body or `TicketMasked`.** It is model text; in
   the subject it would reach triage's prompts as if the person wrote it
