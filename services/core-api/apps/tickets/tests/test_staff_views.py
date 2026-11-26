@@ -3,7 +3,7 @@
 import pytest
 
 from apps.lifecycle.tests.conftest import make_ticket
-from apps.lifecycle.utils.vocabulary import PipelineStatus
+from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.review.models import ReviewItem
 from apps.tickets.models import Ticket
 

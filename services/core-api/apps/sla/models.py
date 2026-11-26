@@ -12,7 +12,7 @@ from django.db import models
 from django.db.models import Q, QuerySet
 
 from apps.core.models import BaseModel
-from apps.sla.utils.business_time import BusinessCalendar, parse_hours
+from apps.sla.domain.business_time import BusinessCalendar, parse_hours
 from infrastructure.dtos import TicketCategory
 
 

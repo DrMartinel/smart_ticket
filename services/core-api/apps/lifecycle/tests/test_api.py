@@ -9,10 +9,10 @@ import pytest
 from apps.lifecycle.models import ActionRun, Workflow
 from apps.lifecycle.request_schema import FieldIn, TransitionPatch
 from apps.lifecycle.tests.conftest import actions, put_in, status_of
-from apps.lifecycle.utils.actions import HANDLERS
-from apps.lifecycle.utils.config import workflow_config
-from apps.lifecycle.utils.rules import FieldType
-from apps.lifecycle.utils.vocabulary import PipelineStatus, RunState
+from apps.lifecycle.services.actions import HANDLERS
+from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.domain.rules import FieldType
+from apps.lifecycle.domain.vocabulary import PipelineStatus, RunState
 
 pytestmark = pytest.mark.django_db
 
@@ -166,8 +166,8 @@ def n8n_run(ticket, strict, celery, webhooks):
         ),
     )
     put_in(ticket, strict.working)
-    from apps.lifecycle.utils.engine import lifecycle
-    from apps.lifecycle.utils.vocabulary import Trigger
+    from apps.lifecycle.services.engine import lifecycle
+    from apps.lifecycle.domain.vocabulary import Trigger
 
     lifecycle.request_move(ticket.id, strict.done.id, actor=None, trigger=Trigger.MANUAL)
     celery.drain()

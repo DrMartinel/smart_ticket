@@ -11,7 +11,7 @@ import pytest
 from apps.audit.models import AuditLog
 from apps.incidents.models import IncidentLink
 from apps.incidents.tests.conftest import PRINTER, VPN, Engine, arrive, near
-from apps.incidents.utils.incidents import IncidentError, incidents
+from apps.incidents.services.incidents import IncidentError, incidents
 from apps.incidents.models import CloseState
 from apps.lifecycle.request_schema import (
     FieldIn,
@@ -21,10 +21,10 @@ from apps.lifecycle.request_schema import (
     TransitionPatch,
 )
 from apps.lifecycle.tests.conftest import StrictFlow, actions, put_in
-from apps.lifecycle.utils.config import workflow_config
-from apps.lifecycle.utils.fields import field_values
-from apps.lifecycle.utils.rules import FieldType, RuleCode
-from apps.lifecycle.utils.vocabulary import StatusKind
+from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.services.fields import field_values
+from apps.lifecycle.domain.rules import FieldType, RuleCode
+from apps.lifecycle.domain.vocabulary import StatusKind
 from apps.notifications.models import Message
 from apps.review.models import EvalCandidate, ReviewDecision, ReviewItem
 from apps.rollout.testing import all_live
@@ -256,14 +256,14 @@ class TestBroadcast:
     def test_a_masking_failure_sends_nothing(self, desk, engine, clock, monkeypatch):
         """BR-F7-05: never toward "no PII found"."""
         from apps.incidents.models import IncidentBroadcast
-        from apps.tickets.utils.masking import NERError
+        from apps.tickets.domain.masking import NERError
 
         incident, _ = confirmed(desk, engine)
 
         async def ner_down(*a, **kw):
             raise NERError("ner down")
 
-        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", ner_down)
+        monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", ner_down)
         with pytest.raises(IncidentError) as refused:
             say(desk, incident)
 

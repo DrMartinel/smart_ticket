@@ -14,7 +14,7 @@ from apps.accounts.testing import grant_capability
 from apps.lifecycle.tests.conftest import celery, strict, webhooks  # noqa: F401 — the fixtures
 from apps.sla.tests.conftest import clock, submitted  # noqa: F401 — the fixture
 from apps.tickets.models import Ticket
-from apps.tickets.utils.pipeline import _degraded_signals, ticket_process
+from apps.tickets.services.pipeline import _degraded_signals, ticket_process
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import AIRunResponse, EmbedResponse, EngineSignals, TicketMasked
 
@@ -37,7 +37,7 @@ def ner_finds_nothing(monkeypatch):
     async def fake_ner(*a, **kw):
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
 
 @dataclass

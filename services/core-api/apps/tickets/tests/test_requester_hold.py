@@ -12,20 +12,20 @@ holdable.
 
 import pytest
 
-from apps.tickets.utils.intake import ticket_intake
+from apps.tickets.services.intake import ticket_intake
 from apps.rollout.testing import all_live
 
 from apps.audit.models import AuditLog
 from apps.review.models import ReviewItem
 from apps.tickets.models import Ticket, TicketSource
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.pipeline import (
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.services.pipeline import (
     NotAwaitingRequester,
     release_to_support,
     ticket_process,
     waits_for_requester,
 )
-from apps.tickets.utils.router import Branch, ReasonCode, ReviewQueue, RoutingDecision
+from apps.tickets.domain.router import Branch, ReasonCode, ReviewQueue, RoutingDecision
 
 
 def _decision(branch: Branch, reason: ReasonCode, **kw) -> RoutingDecision:
@@ -94,7 +94,7 @@ def ner_finds_nothing(monkeypatch):
     async def fake_ner(*a, **kw):
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
 
 @pytest.fixture

@@ -7,11 +7,11 @@ data with no teachable case, and it would still close the item.
 
 import pytest
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 from apps.review.models import EvalCandidate, ReviewAction, ReviewDecision, ReviewError, ReviewItem
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.router import ReviewQueue
 from apps.review.request_schema import DecisionIn
-from apps.review.utils import review_decisions
+from apps.review.services.decisions import review_decisions
 
 from apps.tickets.models import AiRun, Ticket
 

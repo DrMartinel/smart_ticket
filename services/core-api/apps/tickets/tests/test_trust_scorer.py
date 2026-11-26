@@ -4,7 +4,7 @@ matter how the underlying model is recalibrated: llm_self_confidence is
 never part of the feature set.
 """
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 from infrastructure.dtos import (
     ClassificationSignals,
     GenerationSignals,
@@ -18,7 +18,7 @@ import pytest
 from pydantic import ValidationError
 
 from config.settings.base import RetrievalThresholds
-from apps.tickets.utils.trust_scorer import (
+from apps.tickets.domain.trust_scorer import (
     FEATURES,
     QUOTE_FEATURES,
     extract_features,

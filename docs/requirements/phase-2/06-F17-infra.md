@@ -200,7 +200,7 @@ Mock data for this feature (added to §6.0.5's):
 | ID | Requirement |
 |---|---|
 | FR-F17-001 | `apps/infra` holds one client per backend, with connect and read timeouts from `.env.example` |
-| FR-F17-002 | `InfraScope.of(caller)` returns all projects (staff) or the Keystone member projects (customer); the caller's Keystone user is found by their Keycloak subject (OQ-F17-01) |
+| FR-F17-002 | `InfraScope.all()` covers all projects on staff routes and `InfraScope.own(caller)` returns the Keystone member projects on requester routes; the caller's Keystone user is found by their Keycloak subject (OQ-F17-01) |
 | FR-F17-003 | `GET /api/infra/catalog` returns the allowlisted metrics, datasets, labels, fields and PromQL functions, so the model knows what it may ask |
 | FR-F17-004 | The structured metric query compiles to PromQL with the scope matcher on every selector |
 | FR-F17-005 | Raw PromQL is parsed with Prometheus's `/api/v1/parse_query` and refused on: a function not allowlisted, a matcher that matches everything, a range or subquery over the cap, a step under the floor, too many selectors |
@@ -250,27 +250,30 @@ No table holds cloud resources or project membership: both are read live.
 
 Permissions (new, `catalog.py`): `infra:read` and `infra:operate` (staff
 only, technician role); `infra:read:own` and `infra:operate:own` (employee
-role). Every route below accepts the staff or the `:own` permission and
-scopes by BR-F17-02.
+role). Every endpoint carries strictly one permission on separate routers:
+console/staff routes live under `/api/infra/*` (`infra:read` / `infra:operate`,
+every project), and customer/chat routes live under `/api/requester/infra/*`
+(`infra:read:own` / `infra:operate:own`, unconditionally scoped to the
+caller's Keystone projects by BR-F17-02).
 
-| Route | Tier | Console tool | Chat tool |
-|---|---|---|---|
-| `GET /api/infra/catalog` | read | `infra_catalog` | `infra_catalog` |
-| `GET /api/infra/projects` | read | `list_projects` | `list_my_projects` |
-| `GET /api/infra/servers`, `/servers/{server_id}` | read | `list_servers`, `get_server` | `list_my_servers`, `get_my_server` |
-| `GET /api/infra/volumes`, `/volumes/{volume_id}` | read | `list_volumes`, `get_volume` | `list_my_volumes`, `get_my_volume` |
-| `GET /api/infra/networks`, `/networks/{network_id}` | read | `list_networks`, `get_network` | `get_my_network` |
-| `GET /api/infra/alerts`, `/alerts/silences` | read | `list_alerts`, `list_silences` | `list_my_alerts` |
-| `POST /api/infra/metrics/query` | read | `query_metrics` | `query_my_metrics` |
-| `POST /api/infra/metrics/promql` | read | `run_promql` | — (OQ-F17-05) |
-| `POST /api/infra/logs/search` | read | `search_logs` | `search_my_logs` |
-| `POST /api/infra/traces/search`, `GET /traces/{trace_id}` | read | `search_traces`, `get_trace` | `search_my_traces` |
-| `POST /api/infra/servers/{server_id}/reboot` (soft) | confirm | `reboot_server` | `reboot_my_server` |
-| `POST /api/infra/servers/{server_id}/hard-reboot` | human_only | `draft_hard_reboot` | — |
-| `POST /api/infra/servers/{server_id}/start`, `/stop` | confirm | `start_server`, `stop_server` | `start_my_server`, `stop_my_server` |
-| `POST /api/infra/volumes/{volume_id}/attach` | confirm | `attach_volume` | — |
-| `POST /api/infra/volumes/{volume_id}/detach` | human_only | `draft_detach_volume` | — |
-| `POST`/`DELETE /api/infra/security-groups/{group_id}/rules` | human_only | `draft_security_rule` | — |
+| Staff route (`/api/infra/…`) | Customer route (`/api/requester/infra/…`) | Tier | Console tool | Chat tool |
+|---|---|---|---|---|
+| `GET /catalog` | `GET /catalog` | read | `infra_catalog` | `infra_catalog` |
+| `GET /projects` | `GET /projects` | read | `list_projects` | `list_my_projects` |
+| `GET /servers`, `/servers/{server_id}` | `GET /servers`, `/servers/{server_id}` | read | `list_servers`, `get_server` | `list_my_servers`, `get_my_server` |
+| `GET /volumes`, `/volumes/{volume_id}` | `GET /volumes`, `/volumes/{volume_id}` | read | `list_volumes`, `get_volume` | `list_my_volumes`, `get_my_volume` |
+| `GET /networks`, `/networks/{network_id}` | `GET /networks`, `/networks/{network_id}` | read | `list_networks`, `get_network` | `list_my_networks`, `get_my_network` |
+| `GET /alerts`, `/alerts/silences` | `GET /alerts`, `/alerts/silences` | read | `list_alerts`, `list_silences` | `list_my_alerts`, `list_my_silences` |
+| `POST /metrics/query` | `POST /metrics/query` | read | `query_metrics` | `query_my_metrics` |
+| `POST /metrics/promql` | — (OQ-F17-05) | read | `run_promql` | — |
+| `POST /logs/search` | `POST /logs/search` | read | `search_logs` | `search_my_logs` |
+| `POST /traces/search`, `GET /traces/{trace_id}` | `POST /traces/search`, `GET /traces/{trace_id}` | read | `search_traces`, `get_trace` | `search_my_traces` |
+| `POST /servers/{server_id}/reboot` (soft) | `POST /servers/{server_id}/reboot` (soft) | confirm | `reboot_server` | `reboot_my_server` |
+| `POST /servers/{server_id}/hard-reboot` | — | human_only | `draft_hard_reboot` | — |
+| `POST /servers/{server_id}/start`, `/stop` | `POST /servers/{server_id}/start`, `/stop` | confirm | `start_server`, `stop_server` | `start_my_server`, `stop_my_server` |
+| `POST /volumes/{volume_id}/attach` | — | confirm | `attach_volume` | — |
+| `POST /volumes/{volume_id}/detach` | — | human_only | `draft_detach_volume` | — |
+| `POST`/`DELETE /security-groups/{group_id}/rules` | — | human_only | `draft_security_rule` | — |
 
 Hard reboot is its own route, so its tier doesn't depend on an argument and
 F17 doesn't wait on ADR-0047's guards (OQ-F17-06).

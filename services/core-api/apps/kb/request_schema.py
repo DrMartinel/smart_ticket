@@ -13,7 +13,7 @@ from ninja import FilterSchema, Schema
 from pydantic import Field, field_validator
 
 from apps.kb.models import DraftKind, DraftState, OverrideAction
-from apps.tickets.utils.router import RiskTier
+from apps.tickets.domain.router import RiskTier
 from infrastructure.dtos import TicketCategory
 
 

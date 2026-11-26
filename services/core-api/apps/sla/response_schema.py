@@ -11,7 +11,7 @@ from ninja import Schema
 from apps.sla.models import Calendar, Clock, Policy
 
 if TYPE_CHECKING:
-    from apps.sla.utils.clocks import Badge
+    from apps.sla.services.clocks import Badge
 
 
 class PolicyOut(Schema):
@@ -134,7 +134,7 @@ class BreachOut(Schema):
 
     @staticmethod
     def resolve_sla(clock: Clock) -> Badge | None:
-        from apps.sla.utils.clocks import sla_clocks
+        from apps.sla.services.clocks import sla_clocks
 
         return sla_clocks.badge(clock.ticket)
 

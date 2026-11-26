@@ -67,18 +67,18 @@ from apps.accounts.response_schema import (
     StaffOut,
     UserOut,
 )
-from apps.accounts.utils.access import Access, explained, holders, scope_names
-from apps.accounts.utils.catalog import Permission, ScopeKind
-from apps.accounts.utils.departments import DepartmentDraft, departments
-from apps.accounts.utils.grants import GrantRequest, grants
-from apps.accounts.utils.org_import import ImportResult, org_import
-from apps.accounts.utils.people import Profile
-from apps.accounts.utils.people import people as people_service
-from apps.accounts.utils.reviews import CampaignRequest, access_reviews
-from apps.accounts.utils.roles import RoleDraft, roles
-from apps.accounts.utils import IssuedSession, Requester, SessionRefused, sessions
-from apps.accounts.utils.rights import account_rights
-from apps.accounts.utils.oidc import oidc_sign_in
+from apps.accounts.domain.access import Access, explained, holders, scope_names
+from apps.accounts.domain.catalog import Permission, ScopeKind
+from apps.accounts.services.departments import DepartmentDraft, departments
+from apps.accounts.services.grants import GrantRequest, grants
+from apps.accounts.services.org_import import ImportResult, org_import
+from apps.accounts.services.people import Profile
+from apps.accounts.services.people import people as people_service
+from apps.accounts.services.reviews import CampaignRequest, access_reviews
+from apps.accounts.services.roles import RoleDraft, roles
+from apps.accounts.services.sessions import IssuedSession, Requester, SessionRefused, sessions
+from apps.accounts.services.rights import account_rights
+from apps.accounts.clients.oidc import oidc_sign_in
 
 router = Router(tags=["accounts"])
 auth_router = Router(tags=["auth"])

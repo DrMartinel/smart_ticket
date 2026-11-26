@@ -10,7 +10,7 @@ from ninja_extra import NinjaExtraAPI
 
 from apps.accounts.permissions import gate_authentication
 from apps.accounts.views import access_router, auth_router, org_router
-from apps.agent.utils.actions import AgentActionPending
+from apps.agent.services.actions import AgentActionPending
 from apps.agent.views import router as agent_router
 from apps.core.errors import CodedError
 from apps.accounts.views import router as accounts_router
@@ -19,6 +19,8 @@ from apps.tickets.views import router as tickets_router
 from apps.kb.views import router as kb_router
 from apps.review.views import router as review_router
 from apps.fewshot.views import router as fewshot_router
+from apps.infra.views import requester_router as requester_infra_router
+from apps.infra.views import router as infra_router
 from apps.itsm_mock.views import router as itsm_router
 from apps.metrics.views import router as metrics_router
 from apps.reports.views import router as reports_router
@@ -46,6 +48,7 @@ api.add_router("/kb", kb_router)
 api.add_router("/review", review_router)
 api.add_router("/fewshot", fewshot_router)
 api.add_router("/itsm", itsm_router)
+api.add_router("/infra", infra_router)
 api.add_router("/metrics", metrics_router)
 api.add_router("/reports", reports_router)
 api.add_router("/chat", chat_router)
@@ -55,6 +58,7 @@ api.add_router("/teams", teams_router)
 api.add_router("/me", me_router)
 api.add_router("/sla", sla_router)
 api.add_router("/requester", requester_router)
+api.add_router("/requester/infra", requester_infra_router)
 api.add_router("/security", security_router)
 api.add_router("/incidents", incidents_router)
 api.add_router("/rollout", rollout_router)

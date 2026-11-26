@@ -17,8 +17,8 @@ from apps.accounts.models import (
     Role,
     User,
 )
-from apps.accounts.utils.access import Access, Source, role_permissions, role_scopes
-from apps.accounts.utils.catalog import PERMISSIONS, Permission, area_of
+from apps.accounts.domain.access import Access, Source, role_permissions, role_scopes
+from apps.accounts.domain.catalog import Permission, area_of
 
 
 class UserTeamOut(Schema):
@@ -171,14 +171,13 @@ class PermissionOut(Schema):
 
     @classmethod
     def of(cls, permission: Permission) -> PermissionOut:
-        spec = PERMISSIONS[permission]
         return cls(
             urn=permission.value,
             area=area_of(permission),
-            label=spec.label,
-            staff_only=spec.staff_only,
-            locked=spec.locked,
-            scopes=[s.value for s in spec.scopes],
+            label=permission.label,
+            staff_only=permission.staff_only,
+            locked=permission.locked,
+            scopes=[s.value for s in permission.scopes],
         )
 
 

@@ -16,7 +16,7 @@ from django.conf import settings
 from django.db import connection
 from django.utils import timezone
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 
 from apps.audit.models import AuditLog
 from apps.tickets.models import PiiQuarantine, Ticket
@@ -51,7 +51,7 @@ def ner_finds_nothing(monkeypatch):
     async def fake_ner(*a, **kw):
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
 
 def submit(client, subject: str, body: str, trace_id: str = "trace-abc"):
@@ -161,7 +161,7 @@ def test_ner_failure_still_files_the_ticket_as_mask_failed(
     async def raise_timeout(*a, **kw):
         raise TimeoutError("simulated timeout")
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", raise_timeout)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", raise_timeout)
     response = submit(
         api_as(employee_user), f"Loi email {EMAIL}", "Toi can ho tro voi thiet bi cua minh"
     )
@@ -185,7 +185,7 @@ def test_invalid_submission_is_rejected_before_masking(
         called = True
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
     response = submit(api_as(employee_user), "ab", "too short")
 

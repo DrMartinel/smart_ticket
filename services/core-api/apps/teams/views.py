@@ -11,7 +11,7 @@ from ninja import Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
 from apps.accounts.models import User
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.teams.models import Leave, MembershipRole, Team, TeamMembership
 from apps.teams.request_schema import AvailabilityIn, LeaveIn, MemberIn, TeamIn, TeamPatch
@@ -24,10 +24,10 @@ from apps.teams.response_schema import (
     TeamOut,
     WorkloadRowOut,
 )
-from apps.teams.utils.assignment import TeamError, assignment
-from apps.teams.utils.config import team_config
-from apps.teams.utils.people import WorkloadRow, people
-from apps.teams.utils.vocabulary import TeamRefusal
+from apps.teams.services.assignment import TeamError, assignment
+from apps.teams.services.config import team_config
+from apps.teams.services.people import WorkloadRow, people
+from apps.teams.domain.vocabulary import TeamRefusal
 from apps.tickets.models import Ticket
 from apps.tickets.response_schema import StaffTicketRow
 

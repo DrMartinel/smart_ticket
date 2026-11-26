@@ -1,6 +1,6 @@
 """
 Celery entry points for the ticket lifecycle. The work lives in
-`utils/engine.py`.
+`services/engine.py`.
 """
 
 from __future__ import annotations
@@ -9,8 +9,8 @@ import uuid
 
 from celery import shared_task
 
-from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.vocabulary import Phase
+from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.domain.vocabulary import Phase
 
 
 @shared_task

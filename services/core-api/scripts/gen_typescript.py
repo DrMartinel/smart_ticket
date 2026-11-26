@@ -209,6 +209,21 @@ MODELS = [
     "ExecutionResolveIn",
     "RunbookIn",
     "RunbookChangeIn",
+    "ProjectOut",
+    "AddressOut",
+    "AttachmentOut",
+    "ServerOut",
+    "ServerDetailOut",
+    "VolumeOut",
+    "SubnetOut",
+    "PortOut",
+    "RuleOut",
+    "SecurityGroupOut",
+    "NetworkOut",
+    "NetworkDetailOut",
+    "AlertOut",
+    "MatcherOut",
+    "SilenceOut",
     "BranchReadinessOut",
     "AutomationOut",
     "RolloutReportOut",
@@ -345,6 +360,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as incidents_request,
         response_schema as incidents_response,
     )
+    from apps.infra import response_schema as infra_response
     from apps.itsm_mock import request_schema as itsm_request, response_schema as itsm_response
     from apps.kb import request_schema as kb_request, response_schema as kb_response
     from apps.notifications import (
@@ -367,7 +383,7 @@ def _models() -> dict[str, type[BaseModel]]:
     from apps.sla import request_schema as sla_request, response_schema as sla_response
     from apps.teams import request_schema as teams_request, response_schema as teams_response
     from apps.tickets import request_schema, response_schema as tickets_response
-    from apps.tickets.utils import router, trust_scorer
+    from apps.tickets.domain import router, trust_scorer
     from infrastructure import dtos
 
     modules = (
@@ -399,6 +415,7 @@ def _models() -> dict[str, type[BaseModel]]:
         reports_response,
         itsm_request,
         itsm_response,
+        infra_response,
         accounts_request,
         accounts_response,
     )
@@ -466,7 +483,7 @@ def main() -> None:
     for name, values in ENUMS.items():
         chunks.append(emit_enum(name, values))
 
-    from apps.tickets.utils.router import ReasonCode
+    from apps.tickets.domain.router import ReasonCode
 
     chunks.append(emit_enum("ReasonCode", [code.value for code in ReasonCode]))
 

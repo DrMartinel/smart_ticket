@@ -17,8 +17,8 @@ from apps.audit.models import AuditLog
 from apps.itsm_mock.models import Runbook, RunbookExecution
 from apps.review.models import ReviewDecision, ReviewItem
 from apps.tickets.models import AiRun, Ticket
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import ReviewQueue
 from config.urls import api
 
 # Sign-in, refresh, sign-out and the lifecycle callback (BR-PRE1-01).

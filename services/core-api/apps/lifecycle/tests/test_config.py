@@ -18,10 +18,10 @@ from apps.lifecycle.request_schema import (
     WorkflowPatch,
 )
 from apps.lifecycle.tests.conftest import actions, put_in, status_of
-from apps.lifecycle.utils.config import workflow_config
-from apps.lifecycle.utils.errors import LifecycleError
-from apps.lifecycle.utils.rules import FieldType, RuleCode
-from apps.lifecycle.utils.vocabulary import FailureCode, PipelineStatus
+from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.domain.errors import LifecycleError
+from apps.lifecycle.domain.rules import FieldType, RuleCode
+from apps.lifecycle.domain.vocabulary import FailureCode, PipelineStatus
 
 pytestmark = pytest.mark.django_db
 

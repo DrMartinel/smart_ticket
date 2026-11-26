@@ -9,7 +9,7 @@ from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from ninja import Header, Router, Status
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import (
     AgentTier,
     AuthedRequest,
@@ -54,10 +54,10 @@ from apps.lifecycle.response_schema import (
     WorkflowDetailOut,
     WorkflowOut,
 )
-from apps.lifecycle.utils.config import Catalog, workflow_config
-from apps.lifecycle.utils.engine import Adoption, lifecycle
-from apps.lifecycle.utils.fields import FieldCheck, field_values
-from apps.lifecycle.utils.resolver import MoveOption
+from apps.lifecycle.services.config import Catalog, workflow_config
+from apps.lifecycle.services.engine import Adoption, lifecycle
+from apps.lifecycle.services.fields import FieldCheck, field_values
+from apps.lifecycle.domain.resolver import MoveOption
 from apps.tickets.models import Ticket
 
 router = Router(tags=["lifecycle"])

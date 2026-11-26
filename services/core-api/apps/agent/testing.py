@@ -11,8 +11,8 @@ from apps.accounts.testing import agent_token_for
 from apps.core.testing import api_client_with
 from apps.review.models import ReviewItem
 from apps.tickets.models import Ticket
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import ReviewQueue
 
 
 def runbook_item(reporter: User, queue: ReviewQueue = ReviewQueue.RUNBOOK_APPROVAL) -> ReviewItem:

@@ -30,6 +30,24 @@ TIERS = {
         "GET /api/tickets/{public_id}",
         "GET /api/review/queue",
         "GET /api/review/items/{item_id}",
+        "GET /api/infra/projects",
+        "GET /api/infra/servers",
+        "GET /api/infra/servers/{server_id}",
+        "GET /api/infra/volumes",
+        "GET /api/infra/volumes/{volume_id}",
+        "GET /api/infra/networks",
+        "GET /api/infra/networks/{network_id}",
+        "GET /api/infra/alerts",
+        "GET /api/infra/alerts/silences",
+        "GET /api/requester/infra/projects",
+        "GET /api/requester/infra/servers",
+        "GET /api/requester/infra/servers/{server_id}",
+        "GET /api/requester/infra/volumes",
+        "GET /api/requester/infra/volumes/{volume_id}",
+        "GET /api/requester/infra/networks",
+        "GET /api/requester/infra/networks/{network_id}",
+        "GET /api/requester/infra/alerts",
+        "GET /api/requester/infra/alerts/silences",
     },
     AgentTier.SELF: {
         "POST /api/chat/ask",
@@ -92,7 +110,7 @@ def test_a_self_route_runs_and_stamps_its_audit_rows(employee_user, monkeypatch)
     async def ner_finds_nothing(*a, **kw):
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", ner_finds_nothing)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", ner_finds_nothing)
     monkeypatch.setattr(
         "apps.tickets.tasks.process_ticket", type("Fake", (), {"delay": lambda self, i: None})()
     )

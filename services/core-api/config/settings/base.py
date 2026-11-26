@@ -93,6 +93,7 @@ INSTALLED_APPS = [
     "apps.incidents",
     "apps.reports",
     "apps.agent",
+    "apps.infra",
 ]
 
 MIDDLEWARE = [
@@ -276,6 +277,17 @@ ITSM_RUN_STUCK_SEC = int(env("ITSM_RUN_STUCK_SEC"))
 ITSM_GRANTABLE_GROUP_PREFIXES = [
     p.strip() for p in env("ITSM_GRANTABLE_GROUP_PREFIXES").split(",") if p.strip()
 ]
+
+# ── The cloud and its observability (F17, ADR-0048); `.env.example` explains each value ──
+OPENSTACK_AUTH_URL = env("OPENSTACK_AUTH_URL")
+OPENSTACK_SERVICE_DOMAIN = env("OPENSTACK_SERVICE_DOMAIN")
+OPENSTACK_SERVICE_USER = env("OPENSTACK_SERVICE_USER")
+OPENSTACK_SERVICE_PASSWORD = env("OPENSTACK_SERVICE_PASSWORD")
+OPENSTACK_FEDERATION_IDP = env("OPENSTACK_FEDERATION_IDP")
+OPENSTACK_FEDERATION_PROTOCOL = env("OPENSTACK_FEDERATION_PROTOCOL")
+ALERTMANAGER_URL = env("ALERTMANAGER_URL")
+INFRA_CONNECT_TIMEOUT_SEC = float(env("INFRA_CONNECT_TIMEOUT_SEC"))
+INFRA_READ_TIMEOUT_SEC = float(env("INFRA_READ_TIMEOUT_SEC"))
 
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = env_bool("SHADOW_MODE")

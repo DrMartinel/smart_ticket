@@ -11,12 +11,12 @@ from django.utils import timezone
 
 from apps.audit.models import AuditLog
 from apps.chat.models import Conversation
-from apps.chat.utils.conversations import conversations
-from apps.incidents.utils.incidents import incidents
+from apps.chat.services.conversations import conversations
+from apps.incidents.services.incidents import incidents
 from apps.rollout.testing import all_live
 from apps.tickets.models import IncidentVerdict, RoutingDecision, Ticket
-from apps.tickets.utils.masking import NERError
-from apps.tickets.utils.pipeline import _degraded_signals, ticket_process
+from apps.tickets.domain.masking import NERError
+from apps.tickets.services.pipeline import _degraded_signals, ticket_process
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import AIRunResponse, EngineSignals, TicketMasked
 
@@ -49,7 +49,7 @@ def ner_finds_nothing(monkeypatch):
     async def fake_ner(*a, **kw):
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
 
 @pytest.fixture
@@ -185,7 +185,7 @@ class TestPriorTurns:
         async def ner_down(*a, **kw):
             raise NERError("ner down")
 
-        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", ner_down)
+        monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", ner_down)
         first = chat(FIRST, run=False).json()
 
         assert Conversation.objects.get(id=first["conversation_id"]).end_reason == "mask_failed"

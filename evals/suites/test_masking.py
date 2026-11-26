@@ -27,7 +27,7 @@ from asgiref.sync import async_to_sync
 from django.conf import settings
 
 from apps.tickets.request_schema import TicketIn
-from apps.tickets.utils.masking import mask
+from apps.tickets.domain.masking import mask
 from suites.golden_utils import load_golden, record_metric, sample
 
 # NER runs at temperature 0 since pii_ner.v2, so passes should agree; more

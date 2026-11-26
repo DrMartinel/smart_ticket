@@ -9,7 +9,7 @@ recorded alert.
 
 import pytest
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 
 from apps.metrics.tasks import weekly_drift_check
 from apps.tickets.models import AiRun, Ticket

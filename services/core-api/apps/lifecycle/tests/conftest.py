@@ -12,11 +12,11 @@ import pytest
 from apps.lifecycle import tasks
 from apps.lifecycle.models import Workflow, WorkflowStatus
 from apps.lifecycle.request_schema import ActionIn, StatusIn, TransitionIn, WorkflowIn
-from apps.lifecycle.utils.config import workflow_config
-from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.vocabulary import PipelineStatus, StatusKind, TransitionPolicy
+from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.domain.vocabulary import PipelineStatus, StatusKind, TransitionPolicy
 from apps.tickets.models import Ticket
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 from infrastructure.outbound import OutboundHttp, OutboundResponse
 
 _numbers = itertools.count(1)
@@ -85,7 +85,7 @@ class FakeOutbound:
 @pytest.fixture
 def webhooks(monkeypatch) -> FakeOutbound:
     fake = FakeOutbound()
-    monkeypatch.setattr("apps.lifecycle.utils.actions.outbound", fake)
+    monkeypatch.setattr("apps.lifecycle.services.actions.outbound", fake)
     return fake
 
 

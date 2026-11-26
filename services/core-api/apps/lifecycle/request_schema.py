@@ -8,8 +8,8 @@ from typing import Annotated, Any, Literal
 from ninja import Field, Schema
 from pydantic import StringConstraints, field_validator, model_validator
 
-from apps.lifecycle.utils.rules import EventCode, FieldType, RuleCode
-from apps.lifecycle.utils.vocabulary import ActionCode, Position, StatusKind, TransitionPolicy
+from apps.lifecycle.domain.rules import EventCode, FieldType, RuleCode
+from apps.lifecycle.domain.vocabulary import ActionCode, Position, StatusKind, TransitionPolicy
 
 COLOR = r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
 Point = Literal["1", "2", "3", "4", "5", "6", "7", "8"]

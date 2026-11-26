@@ -15,16 +15,16 @@ from apps.accounts.models import Capability, User, UserRole
 from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.lifecycle.tests.conftest import make_ticket
-from apps.lifecycle.utils.vocabulary import PipelineStatus
+from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.notifications.models import Message
 from apps.review.models import ReviewDecision, ReviewItem
 from apps.rollout.models import FlagRequest, RolloutFlag, RolloutGate
-from apps.rollout.utils.rollout import rollout
-from apps.rollout.utils.vocabulary import FlagBranch
+from apps.rollout.services.rollout import rollout
+from apps.rollout.domain.vocabulary import FlagBranch
 from apps.tickets.models import AiRun, RoutingDecision
-from apps.tickets.utils.pipeline import _finalize
-from apps.tickets.utils.router import Branch, KBArticleMeta, ReasonCode, RiskTier
-from apps.tickets.utils.router import RoutingDecision as Decision
+from apps.tickets.services.pipeline import _finalize
+from apps.tickets.domain.router import Branch, KBArticleMeta, ReasonCode, RiskTier
+from apps.tickets.domain.router import RoutingDecision as Decision
 from infrastructure.dtos import TicketCategory
 
 pytestmark = pytest.mark.django_db
@@ -153,7 +153,7 @@ class TestLiveOrShadow:
 
         assert (off.branch, off.reason_code) == (on.branch, on.reason_code)
         assert (off.shadow_mode, on.shadow_mode) == (True, False)
-        source = (CORE_API / "apps/tickets/utils/router.py").read_text()
+        source = (CORE_API / "apps/tickets/domain/router.py").read_text()
         imported = {n.module for n in ast.walk(ast.parse(source)) if isinstance(n, ast.ImportFrom)}
         assert not any(m and "rollout" in m for m in imported)
 

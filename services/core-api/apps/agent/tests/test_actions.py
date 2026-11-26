@@ -16,17 +16,17 @@ from apps.accounts.models import RefusedCall, User
 from apps.accounts.testing import api_client_for
 from apps.agent.models import AgentAction, AgentActionState
 from apps.agent.testing import as_agent, runbook_item
-from apps.agent.utils.actions import AgentCall
+from apps.agent.services.actions import AgentCall
 from apps.audit.context import audit_context
 from apps.audit.models import AuditLog
-from apps.itsm_mock.utils.executors import RunbookError
-from apps.itsm_mock.utils.runbooks import runbooks
+from apps.itsm_mock.clients.executors import RunbookError
+from apps.itsm_mock.services.runbooks import runbooks
 from apps.review.models import DecidedVia, ReviewAction, ReviewDecision
 from apps.security.models import SecurityAlert
 from apps.tickets.models import PiiAccessLog, PiiQuarantine, Ticket
 from apps.tickets.utils.crypto import build_quarantine_entries
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import ReviewQueue
 
 pytestmark = pytest.mark.django_db
 

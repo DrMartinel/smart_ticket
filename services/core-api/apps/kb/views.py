@@ -5,7 +5,7 @@ from django.http import HttpResponse
 from ninja import Query, Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.kb.models import (
     DraftKind,
@@ -46,11 +46,11 @@ from apps.kb.response_schema import (
     GapReportOut,
     ReingestOut,
 )
-from apps.kb.utils.authority import kb_authority
-from apps.kb.utils.drafts import DraftDiff, kb_drafts
-from apps.kb.utils.gaps import kb_gaps
-from apps.kb.utils.graph import GraphEdge, PageGraph, kb_graph
-from apps.kb.utils.indexing import indexer
+from apps.kb.services.authority import kb_authority
+from apps.kb.services.drafts import DraftDiff, kb_drafts
+from apps.kb.services.gaps import kb_gaps
+from apps.kb.services.graph import GraphEdge, PageGraph, kb_graph
+from apps.kb.services.indexing import indexer
 
 router = Router(tags=["kb"])
 

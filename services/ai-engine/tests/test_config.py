@@ -109,3 +109,13 @@ def test_association_source_refuses_anything_else_at_boot(
 
     with pytest.raises(ValidationError, match="association_source"):
         Settings(_env_file=_write_env(tmp_path, {**values, "ASSOCIATION_SOURCE": value}))  # type: ignore[call-arg]
+
+
+def test_ai_engine_has_no_setting_for_an_infra_backend():
+    """ai-engine reaches the cloud and its observability only through core-api's routes
+    (F17 BR-F17-01, ADR-0048 §1)."""
+    backends = ("ELASTIC", "KIBANA", "PROMETHEUS", "ALERTMANAGER", "OPENSTACK", "KEYSTONE", "INFRA")
+
+    found = [n for n in map(_env_name, Settings.model_fields) if n.startswith(backends)]
+
+    assert found == []

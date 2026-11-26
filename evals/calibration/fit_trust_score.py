@@ -41,7 +41,7 @@ django.setup()
 from infrastructure.dtos import TrustSignals  # noqa: E402
 
 from apps.review.models import ReviewDecision  # noqa: E402
-from apps.tickets.utils.trust_scorer import FEATURES, extract_features  # noqa: E402
+from apps.tickets.domain.trust_scorer import FEATURES, extract_features  # noqa: E402
 
 SHADOW_MODE_MIN_N = 500  # spec §7.1 / §14 P1 exit condition
 

@@ -1732,6 +1732,158 @@ export interface RunbookChangeIn {
   is_active?: boolean | null;
 }
 
+export interface ProjectOut {
+  id: string;
+  name: string;
+  domain_id: string;
+}
+
+export interface AddressOut {
+  network: string;
+  ip: string;
+  mac: string;
+}
+
+export interface AttachmentOut {
+  volume_id: string;
+  server_id: string;
+  device: string;
+}
+
+export interface ServerOut {
+  id: string;
+  name: string;
+  project_id: string;
+  status: string;
+  task_state: string | null;
+  host: string;
+  flavor: string;
+  vcpus: number;
+  ram_mb: number;
+  addresses: AddressOut[];
+  volume_ids: string[];
+  security_groups: string[];
+  description: string;
+  metadata: Record<string, string>;
+  created: string;
+  updated: string;
+}
+
+export interface ServerDetailOut {
+  id: string;
+  name: string;
+  project_id: string;
+  status: string;
+  task_state: string | null;
+  host: string;
+  flavor: string;
+  vcpus: number;
+  ram_mb: number;
+  addresses: AddressOut[];
+  volume_ids: string[];
+  security_groups: string[];
+  description: string;
+  metadata: Record<string, string>;
+  created: string;
+  updated: string;
+  attachments: AttachmentOut[];
+}
+
+export interface VolumeOut {
+  id: string;
+  name: string;
+  project_id: string;
+  status: string;
+  size_gb: number;
+  volume_type: string;
+  attachments: AttachmentOut[];
+  description: string;
+  metadata: Record<string, string>;
+  created: string;
+}
+
+export interface SubnetOut {
+  id: string;
+  name: string;
+  cidr: string;
+  ip_version: number;
+}
+
+export interface PortOut {
+  id: string;
+  device_id: string;
+  mac: string;
+  ips: string[];
+  status: string;
+  security_group_ids: string[];
+}
+
+export interface RuleOut {
+  id: string;
+  direction: string;
+  ethertype: string;
+  protocol: string | null;
+  port_min: number | null;
+  port_max: number | null;
+  remote_ip_prefix: string | null;
+}
+
+export interface SecurityGroupOut {
+  id: string;
+  name: string;
+  description: string;
+  rules: RuleOut[];
+}
+
+export interface NetworkOut {
+  id: string;
+  name: string;
+  project_id: string;
+  status: string;
+  description: string;
+}
+
+export interface NetworkDetailOut {
+  id: string;
+  name: string;
+  project_id: string;
+  status: string;
+  description: string;
+  subnets: SubnetOut[];
+  ports: PortOut[];
+  security_groups: SecurityGroupOut[];
+}
+
+export interface AlertOut {
+  name: string;
+  fingerprint: string;
+  state: string;
+  severity: string;
+  project_id: string | null;
+  labels: Record<string, string>;
+  summary: string;
+  description: string;
+  starts_at: string;
+}
+
+export interface MatcherOut {
+  name: string;
+  value: string;
+  is_regex: boolean;
+  is_equal: boolean;
+}
+
+export interface SilenceOut {
+  id: string;
+  state: string;
+  project_id: string | null;
+  matchers: MatcherOut[];
+  created_by: string;
+  comment: string;
+  starts_at: string;
+  ends_at: string;
+}
+
 export interface BranchReadinessOut {
   branch: string;
   decision_branch: string;

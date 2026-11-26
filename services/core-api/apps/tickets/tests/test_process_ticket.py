@@ -11,9 +11,9 @@ queue and dashboard. This is the regression test for that fix.
 import httpx
 import pytest
 
-from apps.incidents.utils.incidents import incidents
-from apps.tickets.utils.router import Branch, ReasonCode
-from apps.tickets.utils.patterns import PIILevel
+from apps.incidents.services.incidents import incidents
+from apps.tickets.domain.router import Branch, ReasonCode
+from apps.tickets.domain.patterns import PIILevel
 
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import process_ticket
@@ -68,7 +68,7 @@ def _no_findings():
 
     from infrastructure.dtos import EngineSignals
 
-    from apps.tickets.utils.pipeline import _degraded_signals
+    from apps.tickets.services.pipeline import _degraded_signals
 
     d = _degraded_signals()
     return EngineSignals(

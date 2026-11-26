@@ -60,7 +60,7 @@ class UserQuerySet(models.QuerySet["User"]):
 
     def with_capability(self, capability: str) -> UserQuerySet:
         """Active people who hold the add-on role for `capability` everywhere."""
-        from apps.accounts.utils.catalog import ADD_ON_ROLES
+        from apps.accounts.domain.catalog import ADD_ON_ROLES
 
         now = timezone.now()
         urn = ADD_ON_ROLES[Capability(capability)].value
@@ -142,7 +142,7 @@ class User(AbstractUser, BaseModel):
 
     def capability_set(self) -> frozenset[str]:
         """The add-on roles the user holds everywhere, named as capabilities (ADR-0031)."""
-        from apps.accounts.utils.catalog import ADD_ON_ROLES
+        from apps.accounts.domain.catalog import ADD_ON_ROLES
 
         by_urn = {urn.value: capability.value for capability, urn in ADD_ON_ROLES.items()}
         now = timezone.now()

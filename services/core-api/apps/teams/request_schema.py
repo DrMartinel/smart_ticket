@@ -9,7 +9,7 @@ from ninja import Schema
 from pydantic import Field
 
 from apps.teams.models import TeamStrategy
-from apps.teams.utils.vocabulary import ReassignReason
+from apps.teams.domain.vocabulary import ReassignReason
 from infrastructure.dtos import TicketCategory
 
 

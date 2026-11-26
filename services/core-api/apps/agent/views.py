@@ -11,7 +11,7 @@ from django.conf import settings
 from ninja import Router, Status
 
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.agent.models import (
     AgentAction,
     AgentActionKind,
@@ -26,8 +26,8 @@ from apps.agent.response_schema import (
     AgentConversationSummaryOut,
     AgentTurnOut,
 )
-from apps.agent.utils.turns import agent_turns
-from apps.agent.utils.vocabulary import AgentError, AgentRefusal
+from apps.agent.services.turns import agent_turns
+from apps.agent.domain.vocabulary import AgentError, AgentRefusal
 
 router = Router(tags=["agent"])
 

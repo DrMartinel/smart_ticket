@@ -17,7 +17,7 @@ from django.utils import timezone
 from pgvector.django import VectorField
 
 from apps.core.models import BaseModel
-from apps.tickets.utils.router import RiskTier
+from apps.tickets.domain.router import RiskTier
 from infrastructure.dtos import TicketCategory
 
 from apps.accounts.models import User
@@ -70,7 +70,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
         Grants no auto-reply authority: `auto_reply_allowed` keeps its False
         default, and only `set_auto_reply_allowed` may change it (ADR-0002).
         """
-        from apps.kb.utils.indexing import indexer
+        from apps.kb.services.indexing import indexer
 
         article = self.create(
             slug=slug, title=title, body=body, category=category, risk_tier=risk_tier
@@ -99,7 +99,7 @@ class KbArticleManager(models.Manager["KbArticle"]):
         so a reload can't quietly undo a manager's decision. Never touches
         `auto_reply_allowed` (ADR-0002).
         """
-        from apps.kb.utils.indexing import indexer
+        from apps.kb.services.indexing import indexer
 
         article = self.filter(slug=slug).first()
         if article is None:
@@ -214,8 +214,8 @@ class KbArticle(BaseModel):
         """The only legitimate way to flip `auto_reply_allowed`. Spec §15 Q3 /
         ADR-0002: manager role required, reason mandatory, logged."""
 
-        from apps.accounts.utils.access import Access
-        from apps.accounts.utils.catalog import Permission
+        from apps.accounts.domain.access import Access
+        from apps.accounts.domain.catalog import Permission
 
         if not Access.of(actor).holds(Permission.KB_AUTHORITY_GRANT):
             raise KBGovernanceError("only manager-role users may change auto_reply_allowed")
@@ -252,8 +252,8 @@ class KbArticle(BaseModel):
 
     @transaction.atomic
     def set_risk_tier(self, *, risk_tier: str, actor: User, reason: str) -> KbArticle:
-        from apps.accounts.utils.access import Access
-        from apps.accounts.utils.catalog import Permission
+        from apps.accounts.domain.access import Access
+        from apps.accounts.domain.catalog import Permission
 
         if not Access.of(actor).holds(Permission.KB_AUTHORITY_RISK_TIER):
             raise KBGovernanceError("only manager-role users may change risk_tier")

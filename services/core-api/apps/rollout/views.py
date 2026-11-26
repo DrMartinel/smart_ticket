@@ -7,7 +7,7 @@ import uuid
 from django.conf import settings
 from ninja import Router
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.rollout.models import RolloutFlag, RolloutGate
 from apps.rollout.request_schema import FlagOnIn, GateChangeIn, ReasonIn
@@ -18,9 +18,9 @@ from apps.rollout.response_schema import (
     GateOut,
     RolloutOut,
 )
-from apps.rollout.utils.gates import AGREEMENT_BRANCH, Agreement, rollout_metrics
-from apps.rollout.utils.rollout import rollout
-from apps.rollout.utils.vocabulary import FlagBranch
+from apps.rollout.services.gates import AGREEMENT_BRANCH, Agreement, rollout_metrics
+from apps.rollout.services.rollout import rollout
+from apps.rollout.domain.vocabulary import FlagBranch
 
 router = Router(tags=["rollout"])
 

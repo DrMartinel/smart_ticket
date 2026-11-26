@@ -13,16 +13,16 @@ from django.apps import apps as django_apps
 
 from apps.accounts.models import RefreshSession, RefusedCall, User, UserRole
 from apps.audit.models import AuditLog
-from apps.incidents.utils.incidents import incidents
+from apps.incidents.services.incidents import incidents
 from apps.lifecycle.tests.conftest import make_ticket
-from apps.lifecycle.utils.vocabulary import PipelineStatus
+from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.notifications.models import Message
 from apps.review.models import EvalCandidate, ReviewDecision, ReviewItem
 from apps.security.models import SecurityAlert
-from apps.security.utils.alerts import security_alerts
-from apps.security.utils.vocabulary import AlertKind
+from apps.security.services.alerts import security_alerts
+from apps.security.domain.vocabulary import AlertKind
 from apps.tickets.models import AiRun, IncidentVerdict, Ticket
-from apps.tickets.utils.pipeline import _degraded_signals, ticket_process
+from apps.tickets.services.pipeline import _degraded_signals, ticket_process
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import AIRunResponse, EngineSignals
 
@@ -80,7 +80,7 @@ def ner_finds_nothing(monkeypatch):
     async def fake_ner(*a, **kw):
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
 
 @pytest.fixture

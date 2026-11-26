@@ -8,10 +8,9 @@ import pytest
 
 from apps.accounts.models import Capability, UserRole
 from apps.accounts.permissions import gate_of
-from apps.accounts.utils.catalog import (
+from apps.accounts.domain.catalog import (
     ADD_ON_ROLES,
     BASE_ROLES,
-    PERMISSIONS,
     SYSTEM_ROLE_PERMISSIONS,
     Permission,
 )
@@ -76,6 +75,24 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "POST /api/org/departments/{code}/move": Permission.ORG_DEPARTMENTS_MANAGE,
     "POST /api/org/import/departments": Permission.ORG_IMPORT,
     "POST /api/org/import/people": Permission.ORG_IMPORT,
+    "GET /api/infra/projects": Permission.INFRA_READ,
+    "GET /api/infra/servers": Permission.INFRA_READ,
+    "GET /api/infra/servers/{server_id}": Permission.INFRA_READ,
+    "GET /api/infra/volumes": Permission.INFRA_READ,
+    "GET /api/infra/volumes/{volume_id}": Permission.INFRA_READ,
+    "GET /api/infra/networks": Permission.INFRA_READ,
+    "GET /api/infra/networks/{network_id}": Permission.INFRA_READ,
+    "GET /api/infra/alerts": Permission.INFRA_READ,
+    "GET /api/infra/alerts/silences": Permission.INFRA_READ,
+    "GET /api/requester/infra/projects": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/servers": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/servers/{server_id}": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/volumes": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/volumes/{volume_id}": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/networks": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/networks/{network_id}": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/alerts": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/alerts/silences": Permission.INFRA_READ_OWN,
 }
 
 
@@ -142,24 +159,22 @@ def test_old_and_new_gates_admit_the_same_people(role):
 
 
 def test_every_permission_urn_is_well_formed_and_unique():
-    from apps.accounts.utils.catalog import is_permission_urn
+    from apps.accounts.domain.catalog import is_permission_urn
 
     values = [p.value for p in Permission]
     assert len(values) == len(set(values))
     assert all(is_permission_urn(v) for v in values)
-    assert set(PERMISSIONS) == set(Permission)
+    assert all(p.label for p in Permission)
 
 
 def test_system_role_urns_are_well_formed():
-    from apps.accounts.utils.catalog import SystemRole, is_role_urn
+    from apps.accounts.domain.catalog import SystemRole, is_role_urn
 
     assert all(is_role_urn(r.value) and ":system:" in r.value for r in SystemRole)
     assert set(SYSTEM_ROLE_PERMISSIONS) == set(SystemRole)
 
 
 def test_an_employee_role_holds_no_staff_only_permission():
-    from apps.accounts.utils.catalog import SystemRole
+    from apps.accounts.domain.catalog import SystemRole
 
-    assert not [
-        p for p in SYSTEM_ROLE_PERMISSIONS[SystemRole.EMPLOYEE] if PERMISSIONS[p].staff_only
-    ]
+    assert not [p for p in SYSTEM_ROLE_PERMISSIONS[SystemRole.EMPLOYEE] if p.staff_only]

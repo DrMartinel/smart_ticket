@@ -6,7 +6,7 @@ on the server. The keys the web reads are pinned here.
 
 import pytest
 
-from apps.accounts.utils.catalog import SYSTEM_ROLE_PERMISSIONS, SystemRole
+from apps.accounts.domain.catalog import SYSTEM_ROLE_PERMISSIONS, SystemRole
 
 
 @pytest.mark.django_db

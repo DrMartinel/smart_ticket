@@ -6,15 +6,15 @@ from django.db.models import QuerySet
 from ninja import Router
 from ninja.errors import HttpError
 
-from apps.accounts.utils.access import Access
+from apps.accounts.domain.access import Access
 from apps.review.models import SECURITY_QUEUES, ReviewDecision, ReviewError, ReviewItem
 from apps.review.request_schema import CommentDecisionIn, DecisionIn
 from apps.review.response_schema import DecisionOut, ReviewItemOut
-from apps.review.utils import review_decisions
-from apps.accounts.utils.catalog import Permission
+from apps.review.services.decisions import review_decisions
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
-from apps.tickets.utils.comments import CommentReviewChoice, comments
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.services.comments import CommentReviewChoice, comments
+from apps.tickets.domain.router import ReviewQueue
 
 router = Router(tags=["review"])
 

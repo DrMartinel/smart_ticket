@@ -9,7 +9,7 @@ from ninja import Schema
 
 from apps.sla.models import ClockKind
 from apps.incidents.models import IncidentBroadcast, IncidentLink
-from apps.incidents.utils.incidents import incidents
+from apps.incidents.services.incidents import incidents
 from apps.tickets.models import Incident, IncidentStatus, Ticket
 
 

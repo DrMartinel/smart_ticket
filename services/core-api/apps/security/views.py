@@ -8,7 +8,7 @@ from django.utils import timezone
 from ninja import Query, Router, Status
 
 from apps.accounts.models import RefreshSession
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.audit.models import AuditLog
 from apps.security.models import SecurityAlert
@@ -22,8 +22,8 @@ from apps.security.response_schema import (
     SummaryCellOut,
     SummaryOut,
 )
-from apps.security.utils.alerts import security_alerts
-from apps.security.utils.vocabulary import Resolution, SecurityError, SecurityRefusal
+from apps.security.services.alerts import security_alerts
+from apps.security.domain.vocabulary import Resolution, SecurityError, SecurityRefusal
 from apps.tickets.models import Ticket
 from apps.tickets.response_schema import TicketOut
 

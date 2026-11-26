@@ -14,7 +14,7 @@ from django.db.models import F
 
 from apps.accounts.models import Language
 from apps.core.models import BaseModel
-from apps.tickets.utils.router import AGENT_HANDOFF_REASONS, ReasonCode
+from apps.tickets.domain.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 if TYPE_CHECKING:
     from apps.accounts.models import User

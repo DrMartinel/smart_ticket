@@ -31,14 +31,14 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from apps.accounts.utils.access import Access
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.access import Access
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle
 from apps.kb.utils.chunking import clean_markdown
-from apps.kb.utils.indexing import indexer
-from apps.tickets.utils.router import RiskTier
+from apps.kb.services.indexing import indexer
+from apps.tickets.domain.router import RiskTier
 from infrastructure.dtos import TicketCategory
 
 SLUG_MAX_LENGTH = KbArticle._meta.get_field("slug").max_length

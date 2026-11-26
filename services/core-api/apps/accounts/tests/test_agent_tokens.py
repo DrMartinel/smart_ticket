@@ -22,8 +22,8 @@ from apps.accounts.permissions import (
     require,
 )
 from apps.accounts.testing import agent_token_for, api_client_for
-from apps.accounts.utils import Requester, SessionRefused, sessions
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.services.sessions import Requester, SessionRefused, sessions
+from apps.accounts.domain.catalog import Permission
 from apps.audit.models import AuditLog
 from apps.core.testing import api_client_with
 from config.urls import api

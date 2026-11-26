@@ -11,7 +11,7 @@ from django.db import models
 from django.db.models import Case, Q, Value, When
 
 from apps.core.models import BaseModel
-from apps.security.utils.vocabulary import (
+from apps.security.domain.vocabulary import (
     OPEN_ALERT_STATES,
     AlertKind,
     AlertState,

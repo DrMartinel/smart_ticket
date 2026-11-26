@@ -1,4 +1,4 @@
-"""Celery entry points for the agent (F15 §h.5); the work is in `utils/turns.py`."""
+"""Celery entry points for the agent (F15 §h.5); the work is in `services/turns.py`."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import uuid
 
 from celery import shared_task
 
-from apps.agent.utils.turns import agent_turns
+from apps.agent.services.turns import agent_turns
 
 
 @shared_task(name="agent.run_turn", max_retries=0)

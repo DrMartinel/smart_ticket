@@ -14,8 +14,8 @@ from django.utils import timezone
 
 from apps.accounts.models import User, UserRole
 from apps.lifecycle.models import Workflow, WorkflowStatus
-from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.vocabulary import PipelineStatus
+from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.tickets.models import Ticket
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
