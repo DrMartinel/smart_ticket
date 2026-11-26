@@ -389,7 +389,8 @@ class Ticket(BaseModel):
     # exactly this decision. Never re-routed on release, so what was decided
     # and what was done cannot drift apart. None once released.
     held_decision = models.JSONField(null=True, blank=True)
-    # Set by router.py or a person's recorded reroute, never from a proposal (ADR-0001, BR-F2-06).
+    # Set by router.py, a person's recorded reroute or a reviewer's confirmation of Jev's choice,
+    # never from a proposal (ADR-0001, BR-F2-06).
     category = models.CharField(max_length=20, null=True, blank=True)
     # The team's slug, kept equal to `team` for existing readers (FR-F2-013).
     assigned_team = models.CharField(max_length=50, null=True, blank=True)
