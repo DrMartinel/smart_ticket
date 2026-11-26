@@ -223,6 +223,7 @@ MODELS = [
     "PortOut",
     "RuleOut",
     "SecurityGroupOut",
+    "SecurityGroupDetailOut",
     "NetworkOut",
     "NetworkDetailOut",
     "AlertOut",

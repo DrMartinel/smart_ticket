@@ -1894,6 +1894,14 @@ export interface SecurityGroupOut {
   rules: RuleOut[];
 }
 
+export interface SecurityGroupDetailOut {
+  id: string;
+  name: string;
+  description: string;
+  rules: RuleOut[];
+  project_id: string;
+}
+
 export interface NetworkOut {
   id: string;
   name: string;
