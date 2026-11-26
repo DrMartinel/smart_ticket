@@ -489,6 +489,8 @@ def test_a_match_everything_selector_is_refused_ac_f17_03(
             ),
             "field",
         ),
+        (binary("*", CPU, CPU, card="many-to-one", include=("project_name",)), "field"),
+        (binary("*", CPU, CPU, card="one-to-many", include=("project_name",)), "field"),
     ],
 )
 def test_a_raw_query_outside_the_checks_is_refused_and_never_run(

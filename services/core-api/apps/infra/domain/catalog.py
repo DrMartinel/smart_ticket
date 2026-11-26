@@ -27,6 +27,8 @@ class MetricKind(StrEnum):
 
 # The label every cloud series carries its project in; core-api sets it, a query never names it.
 PROJECT_LABEL = "project"
+# The label every server, volume and port series carries its project's name in.
+PROJECT_NAME_LABEL = "project_name"
 # The field every log line and span carries its project in, as the APM Server indexes cloud-sim's
 # `openstack.project_id` resource attribute.
 PROJECT_FIELD = "labels.openstack_project_id"
@@ -35,9 +37,9 @@ TIME_FIELD = "@timestamp"
 # The field a log line's text is in.
 MESSAGE_FIELD = "message"
 
-_SERVER = (PROJECT_LABEL, "project_name", "server_id", "server", "host")
-_VOLUME = (PROJECT_LABEL, "project_name", "volume_id", "volume", "server_id")
-_PORT = (PROJECT_LABEL, "project_name", "port_id", "network_id", "server_id", "server")
+_SERVER = (PROJECT_LABEL, PROJECT_NAME_LABEL, "server_id", "server", "host")
+_VOLUME = (PROJECT_LABEL, PROJECT_NAME_LABEL, "volume_id", "volume", "server_id")
+_PORT = (PROJECT_LABEL, PROJECT_NAME_LABEL, "port_id", "network_id", "server_id", "server")
 # Labels naming the provider's own machines: the hypervisor a server runs on.
 _STAFF_ONLY_LABELS = frozenset({"host"})
 

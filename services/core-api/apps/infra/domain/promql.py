@@ -10,7 +10,12 @@ from typing import TYPE_CHECKING, Any
 
 import re2
 
-from apps.infra.domain.catalog import PROJECT_LABEL, PROMQL_AGGREGATIONS, PROMQL_FUNCTIONS
+from apps.infra.domain.catalog import (
+    PROJECT_LABEL,
+    PROJECT_NAME_LABEL,
+    PROMQL_AGGREGATIONS,
+    PROMQL_FUNCTIONS,
+)
 from apps.infra.domain.queries import Window, matcher, promql_string
 from apps.infra.domain.vocabulary import QueryCheck, QueryRefused
 
@@ -27,6 +32,8 @@ BINARY_OPS = frozenset(
 )
 # Label values of every shape; a regex matcher accepting all of them matches everything.
 SAMPLES = ("a", "db-01", "Zz 9.:/_é\n")
+# The labels naming a series' project, which no query may copy onto another series.
+PROJECT_LABELS = (PROJECT_LABEL, PROJECT_NAME_LABEL)
 # The keys `parse_query` gives each node, matcher and vector matching core-api knows.
 SELECTOR_KEYS = frozenset({"type", "name", "offset", "matchers", "timestamp", "startOrEnd"})
 NODE_KEYS = {
@@ -251,7 +258,7 @@ class ScopedPromQL:
         matching = node["matching"]
         if matching is not None:
             self.expect(matching, MATCHING_KEYS, "a vector matching")
-            if PROJECT_LABEL in matching["include"]:
+            if any(label in matching["include"] for label in PROJECT_LABELS):
                 raise QueryRefused(
                     QueryCheck.FIELD, "group_left and group_right may not copy the project"
                 )
