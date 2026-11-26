@@ -204,7 +204,7 @@ class Collector:
     def overview(self, holdings: Holdings, servers_read: InfraQuery | None) -> None:
         """Runs the overview set over every project the reads reach (BR-F17-24)."""
         top = self.caps.overview_top
-        server_ids = {s.name: s.id for s in holdings.servers}
+        names = {s.id: s.name for s in holdings.servers}
         iops_step = step_for(self.window, self.caps.step_seconds, self.caps.overview_points)
         self.store(
             CueTemplate.OVERVIEW_ALERTS,
@@ -220,7 +220,7 @@ class Collector:
 
         def errors() -> Finding:
             answer = self.observability.log_counts(error_counts(self.window, top), None)
-            return most_errors(answer.counts, server_ids)
+            return most_errors(answer.counts, names)
 
         self.store(CueTemplate.OVERVIEW_ERROR_LOGS, None, errors)
         self.store(

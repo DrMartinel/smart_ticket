@@ -337,9 +337,13 @@ def error_lines(server_id: str, window: Window, size: int) -> LogSearch:
 
 
 def error_counts(window: Window, size: int) -> LogCount:
-    """The servers with the most error lines in the scope."""
+    """The servers with the most error lines in the scope, by ID."""
     return LogCount(
-        window=window, dataset=LOG_DATASET, by="server", size=size, filters={"level": [ERROR_LEVEL]}
+        window=window,
+        dataset=LOG_DATASET,
+        by="server_id",
+        size=size,
+        filters={"level": [ERROR_LEVEL]},
     )
 
 
@@ -455,19 +459,18 @@ def not_running(servers: list[Server], top: int, clock: Clock) -> Finding:
     )
 
 
-def most_errors(counts: list[Count], server_ids: dict[str, str]) -> Finding:
+def most_errors(counts: list[Count], names: dict[str, str]) -> Finding:
+    """The servers with the most error lines, counted by ID and named from `names`."""
     if not counts:
         return Finding(CueStatus.EMPTY, "No error lines in these projects", {"servers": []})
+    rows = [(c.value, names.get(c.value, c.value), c.lines) for c in counts]
     return Finding(
         CueStatus.OK,
-        "Most error lines: " + ", ".join(f"{c.value} {c.lines}" for c in counts),
+        "Most error lines: " + ", ".join(f"{name} {lines}" for _, name, lines in rows),
         {
             "servers": [
-                {
-                    **linkable(ResourceKind.SERVER, server_ids.get(c.value), c.value),
-                    "lines": c.lines,
-                }
-                for c in counts
+                {**linkable(ResourceKind.SERVER, server_id, name), "lines": lines}
+                for server_id, name, lines in rows
             ]
         },
     )

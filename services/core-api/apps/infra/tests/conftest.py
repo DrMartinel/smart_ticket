@@ -302,7 +302,7 @@ def backends(
     db01, vol = cloud_sim.id_of("servers", "db-01"), cloud_sim.id_of("volumes", "vol-db-01")
     prom.series = [series(prod, 0.5, server_id=db01, volume_id=vol, volume="vol-db-01")]
     es.docs = [log_doc(prod, "slow query: SELECT 1 took 4.2 s")]
-    es.buckets = [{"key": "db-01", "doc_count": 37}]
+    es.buckets = [{"key": db01, "doc_count": 37}]
     alertmanager.alerts = [
         alert("CloudVolumeIopsAtQuota", prod, "IOPS at quota", volume_id=vol, volume="vol-db-01"),
         alert("CloudServerSlow", prod, "db-01 is slow", server_id=db01, server="db-01"),

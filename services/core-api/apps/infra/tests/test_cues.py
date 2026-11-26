@@ -224,7 +224,7 @@ def test_a_ticket_whose_masking_failed_names_nothing(lan, backends, queued):
     assert not run.resources.exists()
 
 
-def test_nothing_named_runs_the_overview(lan, backends, queued):
+def test_nothing_named_runs_the_overview(lan, backends, queued, es: FakeElasticsearch):
     ticket = hand_off(opened(lan, "Hệ thống chạy chậm từ sáng"))
 
     run = run_of(ticket)
@@ -235,7 +235,13 @@ def test_nothing_named_runs_the_overview(lan, backends, queued):
     assert all(c.resource_id is None for c in cues_)
     by = {c.template: c for c in cues_}
     assert "CloudVolumeIopsAtQuota firing on vol-db-01" in by[CueTemplate.OVERVIEW_ALERTS].summary
-    assert by[CueTemplate.OVERVIEW_ERROR_LOGS].summary == "Most error lines: db-01 37"
+    errors = by[CueTemplate.OVERVIEW_ERROR_LOGS]
+    assert errors.summary == "Most error lines: db-01 37"
+    assert errors.evidence["servers"][0]["resource_id"] == backends.id_of("servers", "db-01")
+    [counted] = [
+        term for b in es.bodies() for agg in b.get("aggs", {}).values() for term in agg.values()
+    ]
+    assert counted["field"] == "host.id"
 
 
 def test_three_servers_or_fewer_are_all_linked(lan, backends, queued, settings):
