@@ -98,7 +98,15 @@ export default function MetricsPanel({ presets, projectId }: { presets: MetricPr
     <Panel
       title="Metrics"
       aside={
-        <NativeSelect aria-label="Time window" value={hours} onChange={(e) => setHours(Number(e.target.value))}>
+        <NativeSelect
+          aria-label="Time window"
+          value={hours}
+          disabled={running}
+          onChange={(e) => {
+            setHours(Number(e.target.value));
+            setOwn(null);
+          }}
+        >
           {WINDOWS.map((w) => (
             <option key={w.hours} value={w.hours}>
               {w.label}
