@@ -92,6 +92,17 @@ ADR-0006 holds only on paper.
     For an employee, the turn's masked message becomes a chat ticket carrying
     that reason, and the router sends it to a person. No write is ever
     retried.
+    *Amended 2026-11-26:* an invalid model reply is asked again once, in the
+    same `choose_action` step, with a sentence written by code saying what
+    was wrong; only a second invalid reply stops the turn. The re-ask comes
+    before any tool call and counts against the turn's step and token caps.
+    A hosted model with JSON mode but no schema-constrained output
+    (DeepSeek, the template's agent model since that day) drops the
+    `call_tool` envelope on some replies, and answers others with only
+    whitespace (a blank reply is invalid, not a model failure: the model
+    answered, so it is asked again too); stopping there sent requests a
+    second ask gets right to a person. Tool calls and writes are still never
+    retried.
 13. **The router decides the hand-off branch.** A ticket that carries an
     agent hand-off reason meets a new hard gate in `Router.route()` and goes
     to HITL with that reason. The agent never chooses a branch.

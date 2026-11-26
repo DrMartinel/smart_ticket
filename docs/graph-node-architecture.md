@@ -556,6 +556,11 @@ finish, hand_off → terminal
   the model, and the tool-call cap once the model names a tool; each sets a
   `stop_reason` and leaves through `LIMIT_REACHED`, the outcome that makes the
   loop bounded.
+- An invalid reply (blank, not the `AgentAction` union, an unknown tool, or
+  arguments the tool's input refuses) is asked again once in the same step,
+  with a sentence written by code saying what was wrong, while the step and
+  token caps leave room. A second invalid reply, or no room, leaves through
+  `SCHEMA_INVALID` (ADR-0046 #12, amended 2026-11-26).
 - `call_tool` makes one HTTP call to core-api as the person, with the turn's
   agent token, and never retries it. A write whose answer was lost is
   `tool_outcome_unknown`.

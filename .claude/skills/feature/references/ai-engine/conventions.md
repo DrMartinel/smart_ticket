@@ -186,3 +186,5 @@ gets no signals at all.
   entity-graph build's `db.write` is the one exception (ADR-0025).
 - Feed `llm_self_confidence` into anything but the log-only field (ADR-0003).
 - Retry a model call, fall back to another provider, or cycle the triage graph.
+  The one re-ask is the agent's `choose_action`: an invalid reply is asked
+  again once, before any tool call (ADR-0046 #12, as amended 2026-11-26).

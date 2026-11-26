@@ -8,7 +8,8 @@ compiled once at import. `tests/test_agent_graph.py` pins its edges.
    and its limit outcome leaves the loop, so the graph is `Cycles.BOUNDED`.
 3. A confirm route's 202 ends the turn: the person confirms the card.
 4. A failure, an unknown write outcome, a refused token or a write after an
-   injection hit in a result hands off. Nothing is retried.
+   injection hit in a result hands off. No tool call is retried; an invalid
+   model reply is asked again once, inside choose_action.
 """
 
 from __future__ import annotations

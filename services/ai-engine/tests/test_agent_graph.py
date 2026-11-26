@@ -22,7 +22,7 @@ from ai_engine.agent.tools.client import CoreApi, OutcomeUnknown, Reply, ToolFai
 from ai_engine.agent.tools.projection import UNTRUSTED, WITHHELD
 from ai_engine.agent.tools.tool import Context, Tier
 from ai_engine.core.providers import clients
-from ai_engine.core.providers.clients import AllLLMDownError, LLMResult
+from ai_engine.core.providers.clients import AllLLMDownError, BlankReplyError, LLMResult
 from ai_engine.graph.agent import agent_graph, recursion_limit
 from ai_engine.graph.agent_state import AgentLimits, AgentState, AgentStopReason
 from ai_engine.main import app
@@ -230,13 +230,143 @@ def test_a_model_failure_hands_off(model, core_api):
     ],
 )
 def test_an_invalid_action_hands_off_with_no_call(model, core_api, action):
-    model(action)
+    llm = model(action, action)
+    api = core_api()
+
+    final = run(turn())
+
+    assert final.stop_reason is AgentStopReason.SCHEMA_INVALID
+    assert len(llm.prompts) == 2
+    assert api.calls == []
+
+
+def test_the_flattened_envelope_is_asked_again_and_the_tool_runs(model, core_api):
+    """DeepSeek's slip: the tool's name in `action`, its arguments beside it."""
+
+    llm = model(
+        {"action": "get_my_ticket", "public_id": "TKT-1"},
+        call("get_my_ticket", public_id="TKT-1"),
+        reply(),
+    )
+    api = core_api(Reply(200, {"public_id": "TKT-1"}))
+
+    final = run(turn())
+
+    assert final.stop_reason is None
+    assert final.reply == "Done."
+    assert len(api.calls) == 1
+    assert len(llm.prompts) == 3
+    assert final.model_calls == 3
+
+
+@pytest.mark.parametrize(
+    ("invalid", "names"),
+    [
+        ("not json at all", '"action": "call_tool"'),
+        (call("delete_everything"), "not among the tools listed"),
+        (call("get_my_ticket", public_id="TK-1", extra="x"), "extra"),
+    ],
+)
+def test_the_retry_prompt_names_the_error(model, core_api, invalid, names):
+    llm = model(invalid, reply())
+    core_api()
+
+    run(turn())
+
+    assert "## Your last reply was invalid" not in llm.prompts[0]
+    assert llm.prompts[1].startswith(llm.prompts[0])
+    assert "## Your last reply was invalid" in llm.prompts[1]
+    assert names in llm.prompts[1].split("## Your last reply was invalid", 1)[1]
+
+
+def test_no_retry_when_no_step_is_left(model, core_api):
+    llm = model("not json at all")
+    core_api()
+
+    final = run(turn(max_steps=1))
+
+    assert final.stop_reason is AgentStopReason.SCHEMA_INVALID
+    assert len(llm.prompts) == 1
+
+
+def test_no_retry_when_the_token_budget_is_spent(model, core_api):
+    llm = model("not json at all")
+    core_api()
+
+    final = run(turn(max_model_tokens=15))
+
+    assert final.stop_reason is AgentStopReason.SCHEMA_INVALID
+    assert len(llm.prompts) == 1
+
+
+def test_a_model_failure_on_the_retry_hands_off_as_model_unavailable(model, core_api):
+    model("not json at all", AllLLMDownError("down"))
+    api = core_api()
+
+    final = run(turn())
+
+    assert final.stop_reason is AgentStopReason.MODEL_UNAVAILABLE
+    assert final.model_calls == 2
+    assert final.tokens_in == 10
+    assert api.calls == []
+
+
+def blank(tokens_out: int = 500) -> BlankReplyError:
+    return BlankReplyError("blank", tokens_in=10, tokens_out=tokens_out, cost_usd=0.01)
+
+
+def test_a_blank_reply_is_asked_again_and_the_tool_runs(model, core_api):
+    """DeepSeek's other slip: a 200 whose content is only whitespace."""
+
+    llm = model(blank(), call("list_my_tickets"), reply())
+    api = core_api(Reply(200, {"open": [], "recent": []}))
+
+    final = run(turn())
+
+    assert final.stop_reason is None
+    assert final.reply == "Done."
+    assert len(api.calls) == 1
+    assert len(llm.prompts) == 3
+    assert "## Your last reply was invalid" in llm.prompts[1]
+
+
+def test_two_blank_replies_hand_off_as_schema_invalid_not_model_unavailable(model, core_api):
+    model(blank(), blank())
     api = core_api()
 
     final = run(turn())
 
     assert final.stop_reason is AgentStopReason.SCHEMA_INVALID
     assert api.calls == []
+
+
+def test_a_blank_reply_counts_its_tokens_against_the_budget(model, core_api):
+    llm = model(blank(tokens_out=500))
+    core_api()
+
+    final = run(turn(max_model_tokens=500))
+
+    assert final.stop_reason is AgentStopReason.SCHEMA_INVALID
+    assert len(llm.prompts) == 1
+    assert (final.tokens_in, final.tokens_out) == (10, 500)
+    assert final.cost_usd == pytest.approx(0.01)
+
+
+def test_a_retry_never_repeats_a_tool_call(model, core_api):
+    """The retry re-asks the model only; the call made before it is not sent again."""
+
+    llm = model(
+        call("list_my_tickets"),
+        "not json at all",
+        reply(),
+    )
+    api = core_api(Reply(200, {"open": [], "recent": []}))
+
+    final = run(turn())
+
+    assert final.reply == "Done."
+    assert len(api.calls) == 1
+    assert len(llm.prompts) == 3
 
 
 def test_writes_are_never_retried(model, core_api):

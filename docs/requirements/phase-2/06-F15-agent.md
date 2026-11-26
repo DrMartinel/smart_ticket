@@ -218,7 +218,7 @@ called, and so through `lifecycle` exactly as a click would.
 | FR-F15-011 | The agent graph shall screen the masked message with the triage injection patterns before any model call |
 | FR-F15-012 | Each tool shall make one HTTP call to core-api with the agent token (`ask_helpdesk` adds bounded polling of `GET /api/chat/tickets/{public_id}`), with connect and read timeouts from settings and no retry |
 | FR-F15-013 | Each tool's result shall be cut to its projection and its untrusted fields wrapped before the model sees it |
-| FR-F15-014 | `choose_action` shall make one model call per step, validated against the closed `AgentAction` union; any other output ends the turn `agent_schema_invalid` |
+| FR-F15-014 | `choose_action` shall make one model call per step, validated against the closed `AgentAction` union and the named tool's input. Other output, a blank reply included, is asked again once in the same step, with a sentence written by code naming what was wrong, if the step and token caps leave room; a second invalid reply, or no room, ends the turn `agent_schema_invalid` |
 | FR-F15-015 | The graph shall stop at `agent.max_steps` model calls or `agent.max_tool_calls_per_turn` tool calls, whichever first, and core-api shall refuse an agent token's write calls beyond `agent.max_tool_calls_per_turn` with 429 `agent_tool_limit` |
 | FR-F15-016 | core-api shall map every `AgentStopReason` to a `ReasonCode` and render the hand-off message in vi and en from the reason code; the model's partial text is dropped |
 | FR-F15-017 | `Router.route()` shall send a ticket with `agent_handoff_reason` to HITL with that reason, after the PII and injection gates and before every other check |

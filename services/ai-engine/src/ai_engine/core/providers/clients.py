@@ -60,6 +60,16 @@ class AllLLMDownError(Exception):
     """The chat call failed, for any reason → HITL as `all_llm_down`."""
 
 
+class BlankReplyError(AllLLMDownError):
+    """The model answered with no text, with what the call used."""
+
+    def __init__(self, message: str, *, tokens_in: int, tokens_out: int, cost_usd: float):
+        super().__init__(message)
+        self.tokens_in = tokens_in
+        self.tokens_out = tokens_out
+        self.cost_usd = cost_usd
+
+
 class LLMResult(BaseModel):
     """Validated, so a malformed reply fails in the client, not in infer."""
 
@@ -271,7 +281,8 @@ class ChatClient:
         temperature: float | None = None,
     ) -> LLMResult:
         """One call, no retry, its reply decoded against `schema` where the
-        server can. Any failure raises `AllLLMDownError`."""
+        server can. Any failure raises `AllLLMDownError`; a blank reply raises
+        its subclass `BlankReplyError`."""
         constrained: dict[str, Any] = {}
         if temperature is not None:
             constrained["temperature"] = temperature
@@ -285,20 +296,28 @@ class ChatClient:
                 [SystemMessage(system_prompt), HumanMessage(user_prompt)], **constrained
             )
             text = message.content
-            if not isinstance(text, str) or not text.strip():
-                raise ValueError(f"LLM returned unusable content: {text!r}")
-
             usage = message.usage_metadata
             tokens_in = usage["input_tokens"] if usage else 0
             tokens_out = usage["output_tokens"] if usage else 0
+            cost_usd = (tokens_in + tokens_out) / 1000 * self.cost_per_1k_tokens
+            if not isinstance(text, str) or not text.strip():
+                raise BlankReplyError(
+                    f"LLM returned unusable content: {text!r}",
+                    tokens_in=tokens_in,
+                    tokens_out=tokens_out,
+                    cost_usd=cost_usd,
+                )
 
             return LLMResult(
                 text=text,
                 tokens_in=tokens_in,
                 tokens_out=tokens_out,
                 model=self.model,
-                cost_usd=(tokens_in + tokens_out) / 1000 * self.cost_per_1k_tokens,
+                cost_usd=cost_usd,
             )
+        except BlankReplyError as e:
+            logger.warning("LLM call failed: %s", e)
+            raise
         except Exception as e:
             logger.warning("LLM call failed: %s", e)
             raise AllLLMDownError(str(e)) from e
