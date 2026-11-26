@@ -9,7 +9,7 @@ from typing import Any
 from ninja import Schema
 
 from apps.lifecycle.models import Transfer, TicketFieldValue
-from apps.lifecycle.utils.resolver import MoveOption
+from apps.lifecycle.domain.resolver import MoveOption
 
 
 class ActionOut(Schema):

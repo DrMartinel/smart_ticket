@@ -12,13 +12,13 @@ from apps.audit.models import AuditLog
 from apps.lifecycle.models import ActionRun, Transfer, Workflow
 from apps.lifecycle.request_schema import FieldIn, RuleIn, StatusPatch, TransitionPatch
 from apps.lifecycle.tests.conftest import actions, make_ticket, put_in, status_of
-from apps.lifecycle.utils.actions import callback_token
-from apps.lifecycle.utils.config import workflow_config
-from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.errors import LifecycleError
-from apps.lifecycle.utils.fields import field_values
-from apps.lifecycle.utils.rules import FieldType, RuleCode
-from apps.lifecycle.utils.vocabulary import (
+from apps.lifecycle.services.actions import callback_token
+from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.domain.errors import LifecycleError
+from apps.lifecycle.services.fields import field_values
+from apps.lifecycle.domain.rules import FieldType, RuleCode
+from apps.lifecycle.domain.vocabulary import (
     FailureCode,
     PipelineStatus,
     RunState,

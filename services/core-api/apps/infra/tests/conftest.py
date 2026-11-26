@@ -17,8 +17,8 @@ from fastapi.testclient import TestClient
 from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from apps.infra.utils import inventory
-from apps.infra.utils.clients import Alertmanager, OpenStack
+from apps.infra.services import inventory
+from apps.infra.clients.backends import Alertmanager, OpenStack
 
 # The real client, captured before the root conftest's ai-engine stub replaces `httpx.Client`.
 _Client = httpx.Client
@@ -126,7 +126,7 @@ def ner(monkeypatch: pytest.MonkeyPatch) -> Callable[[Callable[[str], Any]], Non
         async def detect(text: str) -> Any:
             return fn(text)
 
-        monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", detect)
+        monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", detect)
 
     use(lambda text: [])
     return use

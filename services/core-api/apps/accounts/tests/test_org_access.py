@@ -24,27 +24,27 @@ from apps.accounts.models import (
     User,
 )
 from apps.accounts.testing import grant_capability
-from apps.accounts.utils.access import Access
-from apps.accounts.utils.catalog import (
+from apps.accounts.domain.access import Access
+from apps.accounts.domain.catalog import (
     SYSTEM_ROLE_PERMISSIONS,
     Permission,
     ScopeKind,
     SystemRole,
 )
-from apps.accounts.utils.departments import DepartmentDraft, departments
-from apps.accounts.utils.grants import GrantRequest, grants
-from apps.accounts.utils.org_import import org_import
-from apps.accounts.utils.people import Profile, people
-from apps.accounts.utils.reviews import CampaignRequest, access_reviews
-from apps.accounts.utils.roles import RoleDraft, roles
-from apps.accounts.utils.vocabulary import OrgError, OrgRefusal
+from apps.accounts.services.departments import DepartmentDraft, departments
+from apps.accounts.services.grants import GrantRequest, grants
+from apps.accounts.services.org_import import org_import
+from apps.accounts.services.people import Profile, people
+from apps.accounts.services.reviews import CampaignRequest, access_reviews
+from apps.accounts.services.roles import RoleDraft, roles
+from apps.accounts.domain.vocabulary import OrgError, OrgRefusal
 from apps.lifecycle.tests.conftest import make_ticket
 from apps.teams.models import MembershipRole, Team, TeamMembership
-from apps.teams.utils.config import team_config
+from apps.teams.services.config import team_config
 from apps.tickets.models import Ticket
 
 JSON = "application/json"
-ROUTER = Path(__file__).resolve().parents[2] / "tickets" / "utils" / "router.py"
+ROUTER = Path(__file__).resolve().parents[2] / "tickets" / "domain" / "router.py"
 
 
 def person(username: str, role: str = "technician", **extra) -> User:
@@ -309,7 +309,7 @@ def test_explain_matches_enforcement(boss):
 
 
 def test_a_team_scoped_role_reaches_only_that_team(boss):
-    from apps.reports.utils.reports import ReportError, Reports
+    from apps.reports.services.reports import ReportError, Reports
 
     role = roles.create(
         boss, RoleDraft("Deputy lead", "", [Permission.REPORTS_TEAMS_READ.value], "cover")
@@ -474,7 +474,7 @@ def test_a_break_glass_account_is_not_suspended(boss, glass_user):
 
 
 def test_a_provisioned_person_links_and_activates_on_first_sign_in(boss):
-    from apps.accounts.utils.oidc import Identities
+    from apps.accounts.clients.oidc import Identities
 
     people.provision(
         boss, "new.hire", "New.Hire@example.com", Profile(job_title="Analyst"), "joiner"
@@ -493,7 +493,7 @@ def test_a_provisioned_person_links_and_activates_on_first_sign_in(boss):
 
 
 def test_an_unverified_email_does_not_link_an_invite(boss):
-    from apps.accounts.utils.oidc import Identities
+    from apps.accounts.clients.oidc import Identities
 
     people.provision(boss, "new.hire", "new.hire@example.com", Profile(), "joiner")
     user = Identities().find_or_provision(
@@ -630,7 +630,7 @@ def test_an_empty_review_is_refused(boss):
 
 
 def test_a_custom_role_reaches_the_service_its_route_admits(boss, deputy):
-    from apps.incidents.utils.incidents import incidents
+    from apps.incidents.services.incidents import incidents
 
     give(deputy, "huy.pq", SystemRole.INCIDENT_MANAGER.value)
     role = roles.create(
@@ -643,8 +643,8 @@ def test_a_custom_role_reaches_the_service_its_route_admits(boss, deputy):
 
 
 def test_a_team_scoped_supervisor_sees_only_that_teams_queue(boss):
-    from apps.teams.utils.people import TeamError
-    from apps.teams.utils.people import people as team_people
+    from apps.teams.services.people import TeamError
+    from apps.teams.services.people import people as team_people
 
     role = roles.create(
         boss, RoleDraft("Night supervisor", "", [Permission.TEAMS_SUPERVISE.value], "nights")
@@ -664,9 +664,9 @@ ROLE_NAME_CHECK = re.compile(
     r"|\.is_manager\b|\.is_security\b|may_run_runbooks"
 )
 BASE_ROLE_FILES = {
-    "accounts/utils/rights.py",
-    "accounts/utils/grants.py",
-    "accounts/utils/access.py",
+    "accounts/services/rights.py",
+    "accounts/services/grants.py",
+    "accounts/domain/access.py",
     "accounts/management/commands/set_break_glass.py",
 }
 
@@ -731,8 +731,8 @@ def test_a_head_moves_people_only_within_their_subtree(boss, finance):
 
 
 def test_a_heads_reports_cover_their_subtree_only(boss, finance):
-    from apps.reports.utils.facts import ReportFacts
-    from apps.reports.utils.reports import ReportError, Reports
+    from apps.reports.services.facts import ReportFacts
+    from apps.reports.services.reports import ReportError, Reports
 
     person("tu.dv", "security")
     departments.set_head(boss, finance, "tu.dv")

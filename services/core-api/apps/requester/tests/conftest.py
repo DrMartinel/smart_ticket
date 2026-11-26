@@ -10,13 +10,13 @@ import pytest
 
 from apps.accounts.models import User
 from apps.lifecycle.models import Workflow, WorkflowStatus
-from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.vocabulary import PipelineStatus
+from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.notifications.models import Message
 from apps.sla.tests.conftest import Clock, clock  # noqa: F401 — the fixture
 from apps.teams.tests.conftest import Network, network  # noqa: F401 — the fixture
 from apps.tickets.models import Ticket
-from apps.tickets.utils.masking import NERError
+from apps.tickets.domain.masking import NERError
 
 _numbers = iter(range(1, 10_000))
 
@@ -26,7 +26,7 @@ def ner_finds_nothing(monkeypatch):
     async def fake_ner(*a: Any, **kw: Any) -> list[str]:
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
 
 @pytest.fixture
@@ -34,7 +34,7 @@ def ner_fails(monkeypatch):
     async def fake_ner(*a: Any, **kw: Any) -> list[str]:
         raise NERError("ner down")
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
 
 @pytest.fixture

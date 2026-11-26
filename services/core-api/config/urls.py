@@ -10,7 +10,7 @@ from ninja_extra import NinjaExtraAPI
 
 from apps.accounts.permissions import gate_authentication
 from apps.accounts.views import access_router, auth_router, org_router
-from apps.agent.utils.actions import AgentActionPending
+from apps.agent.services.actions import AgentActionPending
 from apps.agent.views import router as agent_router
 from apps.core.errors import CodedError
 from apps.accounts.views import router as accounts_router

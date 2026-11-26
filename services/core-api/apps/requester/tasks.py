@@ -1,10 +1,10 @@
-"""Celery entry points for the requester's side (F3); the work is in `utils/tickets.py`."""
+"""Celery entry points for the requester's side (F3); the work is in `services/tickets.py`."""
 
 from __future__ import annotations
 
 from celery import shared_task
 
-from apps.requester.utils.tickets import requester_tickets
+from apps.requester.services.tickets import requester_tickets
 
 
 @shared_task

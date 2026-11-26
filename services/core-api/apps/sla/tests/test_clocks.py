@@ -5,16 +5,16 @@ from __future__ import annotations
 import json
 
 from apps.audit.models import AuditLog
-from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.vocabulary import PipelineStatus
+from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.notifications.models import Message
 from apps.review.models import ReviewItem
 from apps.sla.models import Clock, ClockState, Policy, Rebuild
 from apps.sla.tests.conftest import handed_off, move, submitted, vn
-from apps.sla.utils.clocks import SlaClocks, sla_clocks
-from apps.sla.utils.config import sla_config
+from apps.sla.services.clocks import SlaClocks, sla_clocks
+from apps.sla.services.config import sla_config
 from apps.tickets.models import Incident, Ticket
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.router import ReviewQueue
 
 JSON = "application/json"
 

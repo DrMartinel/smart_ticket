@@ -1,6 +1,6 @@
 """
 Celery entry points for notifications. The work lives in
-`utils/dispatcher.py`.
+`services/dispatcher.py`.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ import uuid
 
 from celery import shared_task
 
-from apps.notifications.utils.dispatcher import dispatcher
+from apps.notifications.services.dispatcher import dispatcher
 
 
 @shared_task

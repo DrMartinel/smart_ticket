@@ -10,7 +10,7 @@ from django.conf import settings
 from ninja import Schema
 
 from apps.rollout.models import GateChange, RolloutFlag
-from apps.rollout.utils.gates import Agreement, GateValue
+from apps.rollout.services.gates import Agreement, GateValue
 
 
 class GateValueOut(Schema):

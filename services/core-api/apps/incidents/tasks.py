@@ -1,10 +1,10 @@
-"""Celery entry points for mass incidents (F7); the work is in `utils/incidents.py`."""
+"""Celery entry points for mass incidents (F7); the work is in `services/incidents.py`."""
 
 from __future__ import annotations
 
 from celery import shared_task
 
-from apps.incidents.utils.incidents import incidents
+from apps.incidents.services.incidents import incidents
 
 
 @shared_task

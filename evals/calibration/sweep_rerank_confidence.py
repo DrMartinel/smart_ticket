@@ -34,9 +34,9 @@ django.setup()
 from django.conf import settings  # noqa: E402
 
 from apps.kb.models import KbArticle  # noqa: E402
-from apps.tickets.utils.patterns import PIILevel  # noqa: E402
-from apps.tickets.utils.pipeline import trust_signals  # noqa: E402
-from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier, Router  # noqa: E402
+from apps.tickets.domain.patterns import PIILevel  # noqa: E402
+from apps.tickets.services.pipeline import trust_signals  # noqa: E402
+from apps.tickets.domain.router import Branch, KBArticleMeta, RiskTier, Router  # noqa: E402
 from infrastructure.dtos import EngineSignals, LLMProposalEnvelope, TicketCategory  # noqa: E402
 from suites.golden_utils import AI_ENGINE_URL, analyze, load_golden, right_pages  # noqa: E402
 

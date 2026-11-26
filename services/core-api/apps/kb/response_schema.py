@@ -14,8 +14,8 @@ from pydantic import AliasChoices
 
 if TYPE_CHECKING:
     from apps.kb.models import KbAssociationOverride, KbAuthorityLog, KbGapCluster, KbGapReport
-    from apps.kb.utils.authority import QueueItem
-    from apps.kb.utils.drafts import DraftDiff
+    from apps.kb.services.authority import QueueItem
+    from apps.kb.services.drafts import DraftDiff
 
 
 class ArticleOut(Schema):

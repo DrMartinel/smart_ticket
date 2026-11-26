@@ -16,17 +16,17 @@ from django.db.models import QuerySet
 from ninja import Router, Status
 from ninja.errors import HttpError
 
-from apps.tickets.utils.intake import ticket_intake
-from apps.accounts.utils.catalog import Permission
+from apps.tickets.services.intake import ticket_intake
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.agent.models import AgentTurn
 from apps.chat.request_schema import ChatAskIn, ChatClarifyIn
 from apps.chat.response_schema import ChatTurnOut
-from apps.chat.utils.conversations import conversations
-from apps.chat.utils.turns import chat_turn, ticket_in_from_message
+from apps.chat.services.conversations import conversations
+from apps.chat.services.turns import chat_turn, ticket_in_from_message
 from apps.tickets.models import Ticket, TicketSource
-from apps.tickets.utils.clarification import NotAwaitingAnswer, clarifications
-from apps.tickets.utils.pipeline import NotAwaitingRequester, release_to_support
+from apps.tickets.services.clarification import NotAwaitingAnswer, clarifications
+from apps.tickets.services.pipeline import NotAwaitingRequester, release_to_support
 
 router = Router(tags=["chat"])
 

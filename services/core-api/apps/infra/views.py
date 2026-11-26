@@ -5,7 +5,7 @@ for customers (`infra:read:own`, only their Keystone projects)."""
 from ninja import Router
 
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.infra.response_schema import (
     AlertOut,
     NetworkDetailOut,
@@ -16,8 +16,8 @@ from apps.infra.response_schema import (
     SilenceOut,
     VolumeOut,
 )
-from apps.infra.utils.inventory import Inventory
-from apps.infra.utils.resources import Alert, Network, Project, Server, Silence, Volume
+from apps.infra.services.inventory import Inventory
+from apps.infra.domain.resources import Alert, Network, Project, Server, Silence, Volume
 
 router = Router(tags=["infra"])
 requester_router = Router(tags=["requester-infra"])

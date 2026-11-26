@@ -10,7 +10,7 @@ from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.sla.models import Calendar, Holiday, Policy
 from apps.sla.tests.conftest import handed_off
-from apps.sla.utils.clocks import sla_clocks
+from apps.sla.services.clocks import sla_clocks
 
 JSON = "application/json"
 

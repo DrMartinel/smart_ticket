@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from apps.lifecycle.utils.rules import (
+from apps.lifecycle.domain.rules import (
     EVENTS,
     RULES,
     ConfiguredRule,

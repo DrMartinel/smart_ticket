@@ -6,7 +6,7 @@ from django.conf import settings
 from django.http import HttpResponse
 from ninja import Query, Router
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.reports.request_schema import (
     CsatFilter,
@@ -30,8 +30,8 @@ from apps.reports.response_schema import (
     SlaTicketPageOut,
     TeamReportOut,
 )
-from apps.reports.utils.exports import report_export
-from apps.reports.utils.reports import (
+from apps.reports.services.exports import report_export
+from apps.reports.services.reports import (
     CsatReport,
     IncidentReport,
     KbReport,

@@ -9,7 +9,7 @@ from django.test import Client
 from django.utils import timezone
 
 from apps.accounts.models import AuthClient, User
-from apps.accounts.utils import Requester, sessions
+from apps.accounts.services.sessions import Requester, sessions
 from apps.core.testing import api_client_with
 
 
@@ -70,8 +70,8 @@ def agent_token_for(
 def grant_capability(user: User, capability: str) -> None:
     """Grants `user` the add-on role for `capability` everywhere, as the console would."""
     from apps.accounts.models import Assignment, Capability, Role
-    from apps.accounts.utils.access import Access
-    from apps.accounts.utils.catalog import ADD_ON_ROLES
+    from apps.accounts.domain.access import Access
+    from apps.accounts.domain.catalog import ADD_ON_ROLES
 
     role = Role.objects.get(urn=ADD_ON_ROLES[Capability(capability)].value)
     Assignment.objects.get_or_create(

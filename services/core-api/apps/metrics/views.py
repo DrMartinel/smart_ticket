@@ -3,8 +3,8 @@ from typing import Any
 from ninja import Router
 
 from apps.metrics.response_schema import DashboardOut
-from apps.metrics.utils import dashboard_summary
-from apps.accounts.utils.catalog import Permission
+from apps.metrics.services.dashboard import dashboard_summary
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 
 router = Router(tags=["metrics"])

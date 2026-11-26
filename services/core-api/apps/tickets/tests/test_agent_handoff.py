@@ -7,13 +7,13 @@ proposed for it.
 import pytest
 from django.db import IntegrityError, transaction
 
-from apps.incidents.utils.incidents import incidents
+from apps.incidents.services.incidents import incidents
 from apps.rollout.testing import all_live
 from apps.tickets.models import IncidentVerdict, Ticket, TicketSource
 from apps.tickets.tests.test_clarification import _clarify_response
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.pipeline import ticket_process, waits_for_requester
-from apps.tickets.utils.router import Branch, ReasonCode, ReviewQueue, RoutingDecision
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.services.pipeline import ticket_process, waits_for_requester
+from apps.tickets.domain.router import Branch, ReasonCode, ReviewQueue, RoutingDecision
 from infrastructure.ai_engine import ai_engine
 
 

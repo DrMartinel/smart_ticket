@@ -13,7 +13,7 @@ from django.db.models import Count, Exists, OuterRef, Q, QuerySet, Subquery, Val
 from django.db.models.functions import Coalesce
 
 from apps.core.models import BaseModel
-from apps.lifecycle.utils.vocabulary import StatusKind
+from apps.lifecycle.domain.vocabulary import StatusKind
 from infrastructure.dtos import TicketCategory
 
 if TYPE_CHECKING:

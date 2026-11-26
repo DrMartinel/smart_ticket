@@ -12,7 +12,7 @@ from apps.accounts.models import Capability, User, UserRole
 
 from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
-from apps.incidents.utils.incidents import incidents
+from apps.incidents.services.incidents import incidents
 from apps.kb.models import (
     AssociationSource,
     KbArticle,
@@ -23,12 +23,12 @@ from apps.kb.models import (
     RebuildReason,
     RebuildState,
 )
-from apps.kb.utils.graph import cited_by_expansion, kb_graph
-from apps.kb.utils.indexing import indexer
+from apps.kb.services.graph import cited_by_expansion, kb_graph
+from apps.kb.services.indexing import indexer
 from apps.tickets.models import AiRun, IncidentVerdict, RoutingDecision, Ticket
 from apps.tickets.tasks import process_ticket
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import Branch
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import Branch
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import (
     AIRunResponse,

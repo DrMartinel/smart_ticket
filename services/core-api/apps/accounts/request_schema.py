@@ -7,7 +7,7 @@ from datetime import datetime
 from ninja import Field, Schema
 
 from apps.accounts.models import NoAnswer, ReviewDecisionKind, UserRole
-from apps.accounts.utils.catalog import ScopeKind
+from apps.accounts.domain.catalog import ScopeKind
 
 
 class OidcExchangeIn(Schema):

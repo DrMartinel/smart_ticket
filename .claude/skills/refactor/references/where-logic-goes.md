@@ -17,9 +17,11 @@ in a service class. Endpoints and schemas stay thin.
 | Schema | `request_schema.py` / `response_schema.py` | Shape and field checks; no database access. No handler builds a response dict | `subject: str = Field(min_length=3, max_length=200)` |
 | Model method | `models.py` | Rules about **one row**, from its own fields plus arguments | `article.chunks_are_current()` |
 | QuerySet method | `models.py` | **Which rows** count | `ReviewItem.objects.for_queue(...)`, `FewshotExample.objects.active_for_category(...)` |
-| Service class | `utils.py` or `utils/` (this repo's `services.py`) | Work across several models, transactions, and side effects (ai-engine calls, Celery, email) | the per-ticket run in `pipeline.py` (module functions today, see below) |
-| Pure decision | `utils/` | A decision with no I/O | `router.py` (CLAUDE.md hard rule 1), `trust_scorer.py`, `masking.py` |
-| Task | `tasks.py` | Celery entry points only; the work lives in services | `process_ticket` |
+| Service class | `services/` | Work across several models, transactions, and side effects (ai-engine calls, Celery, email) | the per-ticket run in `services/pipeline.py`, `services/grants.py` |
+| Domain / pure logic | `domain/` | Pure decisions, rules, evaluators, vocabularies, refusal codes, and static system data (no DB writes or external HTTP) | `domain/router.py` (CLAUDE.md hard rule 1), `domain/trust_scorer.py`, `domain/masking.py`, `domain/data.py`, `domain/vocabulary.py` |
+| External client | `clients/` | Transport clients and external executors (only in apps that call external services) | `accounts/clients/oidc.py`, `infra/clients/backends.py`, `itsm_mock/clients/executors.py` |
+| Generic helper | `utils/` | Stateless helpers tied to no use case or model (only when needed) | `tickets/utils/crypto.py`, `kb/utils/chunking.py`, `lifecycle/utils/templates.py`, `notifications/utils/secrets.py` |
+| Task | `tasks.py` | Celery entry points only; the work lives in `services/` | `process_ticket` |
 
 **2. Extract by meaning, not by how often code is used.** Extract a block
 when it is a named business rule, has its own edge cases, or deserves its
@@ -30,9 +32,9 @@ through, the cut is wrong: move the boundary or inline it.
 **3. A private `_helper` is the last resort.** Before writing one, ask in
 order: is it about one row (model method)? About which rows (queryset
 method)? Otherwise, a method on the class that owns the data or the work (in
-core-api, a service class in `utils`), named as a domain action. A module-level
-function only for generic work tied to no use case or model, such as building a
-regex or finding a pattern in a string (`normalize_ws` in `validate.py`).
+core-api, a service class in `services/`), named as a domain action. A module-level
+function in `utils/` only for generic work tied to no use case or model, such as
+encryption, chunking, or template interpolation.
 
 **4. A class has to earn it.** Use one when it holds state or groups several
 behaviours around one thing. A class with a single public method
@@ -53,7 +55,7 @@ Code that predates these rules:
   `Incident.objects.get_or_create_for_mass_incident`,
   `AuditLog.objects.record`.
 
-- `utils/pipeline.py` and the other `utils` modules: use-case module-level
+- `services/pipeline.py` and older service modules: use-case module-level
   functions, which rule 3 puts on a service class.
 
 Move each to a service class when you next change it, keeping every

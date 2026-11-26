@@ -19,7 +19,7 @@ import pytest
 from asgiref.sync import async_to_sync
 from pydantic import SecretStr
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 from infrastructure.dtos import (
     EMBED_DIM,
     AgentLimits,

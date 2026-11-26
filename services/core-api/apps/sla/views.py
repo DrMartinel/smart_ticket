@@ -10,7 +10,7 @@ from django.db.models import QuerySet
 from ninja import Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.sla.models import Calendar, Clock, Holiday, Policy
 from apps.sla.request_schema import (
@@ -23,8 +23,8 @@ from apps.sla.request_schema import (
     ReasonIn,
 )
 from apps.sla.response_schema import BreachOut, CalendarOut, HolidayOut, PolicyOut, PreviewOut
-from apps.sla.utils.clocks import Preview, sla_clocks
-from apps.sla.utils.config import SlaConfigError, SlaConfigRefusal, sla_config
+from apps.sla.services.clocks import Preview, sla_clocks
+from apps.sla.services.config import SlaConfigError, SlaConfigRefusal, sla_config
 
 router = Router(tags=["sla"])
 

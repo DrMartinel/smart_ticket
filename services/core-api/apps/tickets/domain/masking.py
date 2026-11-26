@@ -1,0 +1,327 @@
+"""
+Masking Engine — spec §5. Runs INLINE, before any write to the `tickets`
+table. If masking were async, there would exist a moment where raw PII sat
+in the DB or on the broker; that moment is the vulnerability this design
+avoids entirely.
+
+Two-tier pipeline:
+  Tier 1 — regex: fast, high-confidence, structured patterns. CRITICAL
+           hits (password/token/API key) short-circuit before the LLM is
+           even called.
+  Tier 2 — self-hosted LLM, via ai-engine's `/v1/pii/detect` (ADR-0012):
+           catches free-form PII regex misses, e.g.
+           "anh Tuấn phòng kế toán tầng 3". A timeout or error here becomes
+           PIILevel.MASK_FAILED, never "treat as clean" — uncertainty must
+           cost a human's time, not risk a leak (spec §5.2).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from collections.abc import Sequence
+from dataclasses import dataclass
+
+import httpx
+
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.request_schema import TicketIn
+from infrastructure.ai_engine import ai_engine
+
+from .patterns import ALL_GROUPS, LEVEL_BY_GROUP
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class PIIHit:
+    label: str
+    level: PIILevel
+    start: int
+    end: int
+    value: str
+
+
+@dataclass(frozen=True)
+class ScanResult:
+    hits: list[PIIHit]
+
+    @property
+    def has_critical(self) -> bool:
+        return any(h.level is PIILevel.CRITICAL for h in self.hits)
+
+
+class NERError(Exception):
+    pass
+
+
+def regex_scan(text: str) -> list[PIIHit]:
+    hits = []
+    for group, patterns in ALL_GROUPS.items():
+        level = LEVEL_BY_GROUP[group]
+        for label, pattern in patterns.items():
+            for m in pattern.finditer(text):
+                hits.append(
+                    PIIHit(label=label, level=level, start=m.start(), end=m.end(), value=m.group())
+                )
+    return hits
+
+
+def regex_scan_ticket(raw: TicketIn) -> ScanResult:
+    """Subject and body are scanned independently — each field's hit
+    offsets are only ever used to mask that same field, so there's no need
+    to reconcile them into a single combined offset space."""
+    return ScanResult(hits=regex_scan(raw.subject) + regex_scan(raw.body))
+
+
+async def llm_ner(text: str) -> list[str]:
+    """Tier 2, run by ai-engine on the self-hosted chat model (ADR-0012), which
+    owns the prompt and the reply parsing. Raises NERError/TimeoutError on any
+    failure — callers MUST treat that as MASK_FAILED, never as "no PII found".
+
+    The error message carries the exception class only: an error about the
+    request or the reply can quote the text, which is raw PII, and the
+    caller logs it.
+    """
+
+    try:
+        return await ai_engine.detect_pii(text)
+    except httpx.TimeoutException as e:
+        raise TimeoutError(type(e).__name__) from e
+    except (httpx.HTTPError, ValueError) as e:
+        raise NERError(type(e).__name__) from e
+
+
+_SEVERITY = {PIILevel.ROUTINE: 0, PIILevel.SENSITIVE: 1, PIILevel.CRITICAL: 2}
+
+
+def _merge_overlapping(text: str, hits: list[PIIHit]) -> list[PIIHit]:
+    """One hit per run of overlapping hits, covering all of them.
+
+    Regex and NER find the same PII independently, so their spans overlap
+    routinely: both flag "NV-004521", or NER flags "pham" inside
+    "linh.pham@example.com". Replacing overlapping hits one by one, each at
+    its offset in the original text, cuts into the placeholder the other
+    left, and when the inner span is replaced first, leaves the end of the
+    outer value raw: "[EMAIL_1]mple.com", sent on to ai-engine and Jev.
+
+    The merged hit takes the most severe level, and the label of the most
+    severe hit; on a tie a regex label beats FREEFORM, being more specific,
+    then the longer hit wins.
+    """
+    merged: list[PIIHit] = []
+    group: list[PIIHit] = []
+    for h in sorted(hits, key=lambda h: (h.start, -h.end)):
+        if group and h.start >= max(g.end for g in group):
+            merged.append(_merge_group(text, group))
+            group = []
+        group.append(h)
+    if group:
+        merged.append(_merge_group(text, group))
+    return merged
+
+
+def _merge_group(text: str, group: list[PIIHit]) -> PIIHit:
+    if len(group) == 1:
+        return group[0]
+    start = min(h.start for h in group)
+    end = max(h.end for h in group)
+    lead = max(
+        group,
+        key=lambda h: (_SEVERITY[h.level], h.label != "FREEFORM", h.end - h.start),
+    )
+    return PIIHit(label=lead.label, level=lead.level, start=start, end=end, value=text[start:end])
+
+
+def _mask_field(
+    text: str, hits: list[PIIHit], counters: dict[str, int], placeholder_map: dict[str, str]
+) -> str:
+    """Replace hits with numbered placeholders, right-to-left so earlier
+    offsets stay valid, after merging overlapping hits (right-to-left only
+    keeps offsets valid for hits that don't overlap). Placeholders are
+    numbered per-label so repeated mentions of the same email keep their
+    "same entity" relationship (spec §5.2) — the value is looked up in
+    `placeholder_map` if the exact substring was already seen for that label.
+    """
+    ordered = sorted(_merge_overlapping(text, hits), key=lambda h: h.start, reverse=True)
+    for h in ordered:
+        existing = next(
+            (
+                ph
+                for ph, val in placeholder_map.items()
+                if val == h.value and ph.startswith(f"[{h.label}_")
+            ),
+            None,
+        )
+        if existing:
+            placeholder = existing
+        else:
+            counters[h.label] = counters.get(h.label, 0) + 1
+            placeholder = f"[{h.label}_{counters[h.label]}]"
+            placeholder_map[placeholder] = h.value
+        text = text[: h.start] + placeholder + text[h.end :]
+    return text
+
+
+def _apply(
+    fields: list[tuple[str, list[PIIHit]]], counters: dict[str, int]
+) -> tuple[list[str], dict[str, str], PIILevel]:
+    """Masks each field's hits, numbering placeholders on from `counters`."""
+    placeholder_map: dict[str, str] = {}
+    masked = [_mask_field(text, hits, counters, placeholder_map) for text, hits in fields]
+
+    all_hits = [h for _, hits in fields for h in hits]
+    if any(h.level is PIILevel.SENSITIVE for h in all_hits):
+        level = PIILevel.SENSITIVE
+    else:
+        level = PIILevel.ROUTINE
+
+    return masked, placeholder_map, level
+
+
+def mask_regex_tier(text: str) -> tuple[str, PIILevel]:
+    """Masks `text` with the regex tier alone and returns it with the worst level found."""
+    hits = regex_scan(text)
+    (masked,), _, level = _apply([(text, hits)], {})
+    if any(h.level is PIILevel.CRITICAL for h in hits):
+        level = PIILevel.CRITICAL
+    return masked, level
+
+
+@dataclass(frozen=True)
+class MaskResult:
+    subject_masked: str
+    body_masked: str
+    pii_level: PIILevel
+    placeholder_map: dict[str, str]  # placeholder -> real value, for quarantine
+    # NER's share of the text beyond the regex hits (`ner_share`); 0.0 when
+    # NER didn't run (critical PII, NER failure). For the masking eval.
+    ner_share: float = 0.0
+
+
+def _counters_past(taken: Sequence[str]) -> dict[str, int]:
+    """The per-label counters that number new placeholders past `taken`."""
+    counters: dict[str, int] = {}
+    for placeholder in taken:
+        label, _, number = placeholder.strip("[]").rpartition("_")
+        counters[label] = max(counters.get(label, 0), int(number))
+    return counters
+
+
+async def mask(raw: TicketIn, ner_max_share: float, taken: Sequence[str] = ()) -> MaskResult:
+    """Returns the masked ticket plus the placeholder -> real value map to
+    hand to the quarantine store. Attachments are never inspected here —
+    they are treated as fully untrusted (spec §5.2) and are not masked or
+    quoted anywhere in the pipeline; ai-engine's injection detector treats
+    them as the most likely indirect-injection vector. Placeholders number on
+    past `taken`.
+    """
+    (subject_masked, body_masked), level, placeholder_map, share = await _mask_texts(
+        [raw.subject, raw.body], ner_max_share, _counters_past(taken)
+    )
+    return MaskResult(subject_masked, body_masked, level, placeholder_map, share)
+
+
+@dataclass(frozen=True)
+class MaskedReply:
+    text_masked: str
+    pii_level: PIILevel
+    placeholder_map: dict[str, str]  # placeholder -> real value, for quarantine
+
+
+async def mask_reply(text: str, ner_max_share: float, taken: list[str]) -> MaskedReply:
+    """Masks a requester's answer to a clarifying question (ADR-0023) as a
+    ticket is masked, numbering placeholders on past the ticket's `taken`."""
+    (text_masked,), level, placeholder_map, _ = await _mask_texts(
+        [text], ner_max_share, _counters_past(taken)
+    )
+    return MaskedReply(text_masked, level, placeholder_map)
+
+
+async def _mask_texts(
+    texts: list[str], ner_max_share: float, counters: dict[str, int]
+) -> tuple[list[str], PIILevel, dict[str, str], float]:
+    """Masks `texts` with both tiers, numbering placeholders on from `counters`."""
+
+    regex_hits = [regex_scan(text) for text in texts]
+
+    if any(h.level is PIILevel.CRITICAL for hits in regex_hits for h in hits):
+        # BLOCK path: mask what we found (so nothing raw is ever returned)
+        # but flag CRITICAL so router.py hard-gates this ticket immediately,
+        # before anything — including the LLM — is called again.
+        masked, placeholder_map, _ = _apply(list(zip(texts, regex_hits)), counters)
+        return masked, PIILevel.CRITICAL, placeholder_map, 0.0
+
+    try:
+        # Run the NER calls concurrently. They are independent (each
+        # field's spans only ever mask that same field), and masking is
+        # INLINE in the submit request — sequential calls would make the
+        # worst case two full timeouts deep, which at a 120s per-call
+        # budget would outlast the gunicorn request timeout and turn a
+        # clean MASK_FAILED into a 502.
+        llm_spans = await asyncio.gather(*(llm_ner(text) for text in texts))
+    except (TimeoutError, NERError) as e:
+        logger.warning(
+            "masking: LLM NER failed (%s) — flagging MASK_FAILED, not treating as clean", e
+        )
+        masked, placeholder_map, _ = _apply(list(zip(texts, regex_hits)), counters)
+        return masked, PIILevel.MASK_FAILED, placeholder_map, 0.0
+
+    llm_hits = [_spans_to_hits(text, spans) for text, spans in zip(texts, llm_spans)]
+
+    masked, placeholder_map, level = _apply(
+        [(text, r + n) for text, r, n in zip(texts, regex_hits, llm_hits)], counters
+    )
+    share = ner_share(list(zip(texts, regex_hits, llm_hits)))
+    if share > ner_max_share:
+        # NER masked far more than free-form PII takes: whole sentences, an
+        # injection, the request itself. Everything it flagged stays masked
+        # (dropping a span could leak PII), but a human gets the ticket
+        # instead of retrieval and the injection detector getting text with
+        # its substance removed. The share, never the text, goes in the log.
+        logger.warning(
+            "masking: NER covered %.2f of the text (max %.2f) — flagging MASK_FAILED",
+            share,
+            ner_max_share,
+        )
+        level = PIILevel.MASK_FAILED
+    return masked, level, placeholder_map, share
+
+
+def ner_share(fields: list[tuple[str, list[PIIHit], list[PIIHit]]]) -> float:
+    """The share of the text, over all `(text, regex_hits, ner_hits)`
+    fields, that NER's hits cover beyond the regex hits. Regex-covered
+    characters are left out: an NER span over an email it was told to skip
+    is not over-masking."""
+    total = sum(len(text) for text, _, _ in fields)
+    if total == 0:
+        return 0.0
+    covered = 0
+    for _, regex_hits, ner_hits in fields:
+        by_regex = {i for h in regex_hits for i in range(h.start, h.end)}
+        by_ner = {i for h in ner_hits for i in range(h.start, h.end)}
+        covered += len(by_ner - by_regex)
+    return covered / total
+
+
+def _spans_to_hits(text: str, spans: list[str]) -> list[PIIHit]:
+    """A hit for every occurrence of each span, not only the first: the model
+    names a value once, and a second mention of the same name would
+    otherwise stay raw."""
+    hits = []
+    for span in spans:
+        if not span.strip():
+            continue
+        idx = text.find(span)
+        while idx != -1:
+            hits.append(
+                PIIHit(
+                    label="FREEFORM",
+                    level=PIILevel.ROUTINE,
+                    start=idx,
+                    end=idx + len(span),
+                    value=span,
+                )
+            )
+            idx = text.find(span, idx + len(span))
+    return hits

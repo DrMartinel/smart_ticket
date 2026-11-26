@@ -1,4 +1,4 @@
-"""Celery entry points for runbooks (F12); the work is in `utils/runbooks.py`."""
+"""Celery entry points for runbooks (F12); the work is in `services/runbooks.py`."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import uuid
 
 from celery import shared_task
 
-from apps.itsm_mock.utils.runbooks import runbooks
+from apps.itsm_mock.services.runbooks import runbooks
 
 
 @shared_task

@@ -8,7 +8,7 @@ import pytest
 
 from apps.accounts.models import Capability, UserRole
 from apps.accounts.permissions import gate_of
-from apps.accounts.utils.catalog import (
+from apps.accounts.domain.catalog import (
     ADD_ON_ROLES,
     BASE_ROLES,
     SYSTEM_ROLE_PERMISSIONS,
@@ -159,7 +159,7 @@ def test_old_and_new_gates_admit_the_same_people(role):
 
 
 def test_every_permission_urn_is_well_formed_and_unique():
-    from apps.accounts.utils.catalog import is_permission_urn
+    from apps.accounts.domain.catalog import is_permission_urn
 
     values = [p.value for p in Permission]
     assert len(values) == len(set(values))
@@ -168,13 +168,13 @@ def test_every_permission_urn_is_well_formed_and_unique():
 
 
 def test_system_role_urns_are_well_formed():
-    from apps.accounts.utils.catalog import SystemRole, is_role_urn
+    from apps.accounts.domain.catalog import SystemRole, is_role_urn
 
     assert all(is_role_urn(r.value) and ":system:" in r.value for r in SystemRole)
     assert set(SYSTEM_ROLE_PERMISSIONS) == set(SystemRole)
 
 
 def test_an_employee_role_holds_no_staff_only_permission():
-    from apps.accounts.utils.catalog import SystemRole
+    from apps.accounts.domain.catalog import SystemRole
 
     assert not [p for p in SYSTEM_ROLE_PERMISSIONS[SystemRole.EMPLOYEE] if p.staff_only]

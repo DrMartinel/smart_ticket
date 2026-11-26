@@ -5,7 +5,7 @@ from __future__ import annotations
 from django.db.models import Q
 from ninja import Query, Router, Status
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.incidents.request_schema import (
     BroadcastIn,
@@ -22,7 +22,7 @@ from apps.incidents.response_schema import (
     IncidentDetailOut,
     IncidentRowOut,
 )
-from apps.incidents.utils.incidents import IncidentError, IncidentRefusal, incidents
+from apps.incidents.services.incidents import IncidentError, IncidentRefusal, incidents
 from apps.tickets.models import Incident
 
 router = Router(tags=["incidents"])

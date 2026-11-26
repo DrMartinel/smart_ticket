@@ -1,10 +1,10 @@
-"""Celery entry points for rollout control (F9); the work is in `utils/rollout.py`."""
+"""Celery entry points for rollout control (F9); the work is in `services/rollout.py`."""
 
 from __future__ import annotations
 
 from celery import shared_task
 
-from apps.rollout.utils.rollout import rollout
+from apps.rollout.services.rollout import rollout
 
 
 @shared_task

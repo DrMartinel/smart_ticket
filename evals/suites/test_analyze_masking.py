@@ -43,7 +43,7 @@ def test_raw_password_reaches_ai_engine_masked_and_critical(monkeypatch):
     async def ner_must_not_run(*a, **kw):
         raise AssertionError("NER called on a critical ticket")
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", ner_must_not_run)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", ner_must_not_run)
     client, sent = _capturing_client()
 
     analyze(client, "Can't sign in", "password: Summer2024! doesn't work on the access portal")
@@ -55,7 +55,7 @@ def test_raw_password_reaches_ai_engine_masked_and_critical(monkeypatch):
 
 
 def test_routine_pii_is_masked_before_ai_engine_sees_it(monkeypatch):
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", _fake_ner(["anh Tuan"]))
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", _fake_ner(["anh Tuan"]))
     client, sent = _capturing_client()
 
     analyze(client, "Reset please", "I am anh Tuan, mail me at an.nguyen@example.com")
@@ -70,12 +70,12 @@ def test_routine_pii_is_masked_before_ai_engine_sees_it(monkeypatch):
 def test_ner_failure_is_sent_as_mask_failed_not_routine(monkeypatch, error):
     """A masking failure must reach the router as `mask_failed` (HITL), never
     as the routine level the harness used to assume."""
-    from apps.tickets.utils.masking import NERError
+    from apps.tickets.domain.masking import NERError
 
     async def failing(*a, **kw):
         raise error if isinstance(error, TimeoutError) else NERError(str(error))
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", failing)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", failing)
     client, sent = _capturing_client()
 
     analyze(client, "Printer jam", "The printer on floor 3 jams every morning")

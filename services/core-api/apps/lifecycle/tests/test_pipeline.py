@@ -8,14 +8,14 @@ from pathlib import Path
 import pytest
 from django.utils import timezone
 
-from apps.tickets.utils.intake import ticket_intake
+from apps.tickets.services.intake import ticket_intake
 from apps.lifecycle.models import Workflow
 from apps.lifecycle.request_schema import FieldIn, RuleIn, TransitionPatch
 from apps.lifecycle.tests.conftest import put_in
-from apps.lifecycle.utils.actions import HANDLERS
-from apps.lifecycle.utils.config import workflow_config
-from apps.lifecycle.utils.rules import FieldType, RuleCode
-from apps.lifecycle.utils.vocabulary import ActionCode, Trigger
+from apps.lifecycle.services.actions import HANDLERS
+from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.domain.rules import FieldType, RuleCode
+from apps.lifecycle.domain.vocabulary import ActionCode, Trigger
 from apps.tickets.models import Ticket
 from apps.tickets.request_schema import TicketIn
 from apps.tickets.tasks import process_ticket, reopen_ticket
@@ -92,7 +92,7 @@ def test_a_submitted_ticket_enters_the_default_workflow(monkeypatch, employee_us
 
 @pytest.mark.django_db
 def test_a_degraded_run_reaches_pending_review_through_the_lifecycle(employee_user):
-    from apps.lifecycle.utils.engine import lifecycle
+    from apps.lifecycle.services.engine import lifecycle
 
     ticket = Ticket.objects.create(
         public_id="TKT-LC-PIPE-1",

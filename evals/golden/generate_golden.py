@@ -572,7 +572,7 @@ INJECTION = [
 ]
 
 # (subject, body, pii_level_expected, note, answering_slug). The formats are
-# what apps/tickets/utils/patterns.py detects. answering_slug is the KB page
+# what apps/tickets/domain/patterns.py detects. answering_slug is the KB page
 # that resolves the request once the PII is masked, labeled the same way as the
 # kb_covered tickets for that page, or None when the case is about masking
 # only. Without a label, the end-to-end suite counts any auto-reply on the case
@@ -670,7 +670,7 @@ UNDERSPECIFIED = [
 
 # Routine PII next to a request an approved page answers, so masking and the
 # auto-reply are tested on the same ticket. Every value matches a ROUTINE
-# pattern in apps/tickets/utils/patterns.py; routine PII proceeds, so the
+# pattern in apps/tickets/domain/patterns.py; routine PII proceeds, so the
 # expected branch is the page's own. (subject, body, answering_slug)
 PII_ANSWERABLE = [
     (

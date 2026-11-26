@@ -20,11 +20,11 @@ from apps.itsm_mock.tests.conftest import (
     record_decision,
     runbook_item,
 )
-from apps.itsm_mock.utils.executors import RunbookError
-from apps.itsm_mock.utils.runbooks import runbooks
+from apps.itsm_mock.clients.executors import RunbookError
+from apps.itsm_mock.services.runbooks import runbooks
 from apps.review.models import ReviewAction
 from apps.tickets.models import CommentVisibility, TicketComment
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.router import ReviewQueue
 from infrastructure.outbound import OutboundNoAnswer, OutboundResponse, OutboundUnavailable
 
 LAN_SUB = "3f9b2c41-0000-4000-8000-00000000a012"
@@ -381,7 +381,7 @@ def test_mock_executor_matches_old_behaviour(people):
 
 @pytest.mark.django_db
 def test_a_row_past_queued_is_never_sent_again(people, monkeypatch):
-    from apps.itsm_mock.utils.executors import EXECUTORS, MockExecutor
+    from apps.itsm_mock.clients.executors import EXECUTORS, MockExecutor
 
     mock_runbook("RB-MOCK", people["huy.pq"])
     item = approved_item(people, runbook_id="RB-MOCK")
@@ -402,7 +402,7 @@ def test_a_row_past_queued_is_never_sent_again(people, monkeypatch):
 
 @pytest.mark.django_db
 def test_an_executor_crash_is_unknown_not_retried(people, monkeypatch):
-    from apps.itsm_mock.utils.executors import EXECUTORS
+    from apps.itsm_mock.clients.executors import EXECUTORS
 
     mock_runbook("RB-MOCK", people["huy.pq"])
     item = approved_item(people, runbook_id="RB-MOCK")

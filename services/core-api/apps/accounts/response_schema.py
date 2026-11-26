@@ -17,8 +17,8 @@ from apps.accounts.models import (
     Role,
     User,
 )
-from apps.accounts.utils.access import Access, Source, role_permissions, role_scopes
-from apps.accounts.utils.catalog import Permission, area_of
+from apps.accounts.domain.access import Access, Source, role_permissions, role_scopes
+from apps.accounts.domain.catalog import Permission, area_of
 
 
 class UserTeamOut(Schema):

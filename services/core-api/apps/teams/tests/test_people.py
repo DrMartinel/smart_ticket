@@ -9,7 +9,7 @@ from apps.accounts.models import AuthSource
 from apps.audit.models import AuditLog
 from apps.teams.models import Leave, Team, TeamCategory, TeamMembership
 from apps.teams.tests.conftest import handed_off, person
-from apps.teams.utils.assignment import today
+from apps.teams.services.assignment import today
 from apps.tickets.models import Ticket
 
 JSON = "application/json"

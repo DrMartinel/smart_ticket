@@ -13,8 +13,8 @@ from django.test import Client
 
 from apps.accounts.models import IdentitySyncRun, RefreshSession, User
 from apps.accounts.tests.fake_keycloak import FakeKeycloak, Person, new_key
-from apps.accounts.utils.identity_sync import IdentitySync
-from apps.accounts.utils.oidc import Identities, Keycloak, oidc_sign_in
+from apps.accounts.services.identity_sync import IdentitySync
+from apps.accounts.clients.oidc import Identities, Keycloak, oidc_sign_in
 from apps.audit.models import AuditLog
 from apps.notifications.models import Message
 from apps.core.testing import api_client_with
@@ -75,7 +75,7 @@ def me(access: str):
 
 
 def events(name: str) -> list[AuditLog]:
-    return list(AuditLog.objects.filter(event=name))
+    return list(AuditLog.objects.filter(event=name).order_by("occurred_at"))
 
 
 def sync(realm: FakeKeycloak) -> IdentitySyncRun | None:

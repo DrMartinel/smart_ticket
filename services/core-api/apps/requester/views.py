@@ -7,7 +7,7 @@ from datetime import datetime
 
 from ninja import Query, Router
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.accounts.response_schema import DepartmentTicketOut
 from apps.requester.request_schema import RatingIn, ReopenIn, ReplyIn
@@ -19,8 +19,8 @@ from apps.requester.response_schema import (
     RequesterTicketRow,
     ThreadCommentOut,
 )
-from apps.requester.utils.tickets import requester_tickets
-from apps.requester.utils.vocabulary import status_label
+from apps.requester.services.tickets import requester_tickets
+from apps.requester.domain.vocabulary import status_label
 from apps.tickets.models import Ticket, TicketRating
 
 router = Router(tags=["requester"])

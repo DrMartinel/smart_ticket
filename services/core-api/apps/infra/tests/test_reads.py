@@ -20,10 +20,10 @@ from apps.infra.tests.conftest import (
     alert,
     mock_http,
 )
-from apps.infra.utils import inventory
-from apps.infra.utils.clients import OpenStack
-from apps.infra.utils.untrusted import WITHHELD
-from apps.tickets.utils.masking import NERError
+from apps.infra.services import inventory
+from apps.infra.clients.backends import OpenStack
+from apps.infra.domain.untrusted import WITHHELD
+from apps.tickets.domain.masking import NERError
 
 pytestmark = pytest.mark.django_db
 

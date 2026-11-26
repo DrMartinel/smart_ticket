@@ -15,9 +15,9 @@ from django.utils import timezone
 
 from apps.notifications.tests.conftest import assign_to
 from apps.notifications.models import Message
-from apps.notifications.utils.configuration import config
-from apps.notifications.utils.dispatcher import SIGNATURE_HEADER, dispatcher
-from apps.notifications.utils.vocabulary import MessageState
+from apps.notifications.services.configuration import config
+from apps.notifications.services.dispatcher import SIGNATURE_HEADER, dispatcher
+from apps.notifications.domain.vocabulary import MessageState
 
 DOWN = "apps.notifications.tests.conftest.DownRelay"
 REJECTING = "apps.notifications.tests.conftest.RejectingRelay"
