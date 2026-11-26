@@ -14,6 +14,10 @@ from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.categories.models import Category
+from apps.lifecycle.domain.vocabulary import TransitionPolicy
+from apps.lifecycle.models import Workflow
+from apps.lifecycle.request_schema import StatusIn, TransitionIn, WorkflowIn
+from apps.lifecycle.services.config import workflow_config
 from apps.tickets.models import Ticket
 
 JSON = "application/json"
@@ -43,6 +47,14 @@ def person(username: str, role: UserRole) -> User:
 
 def patch(client, slug: str, body: dict):
     return client.patch(f"/api/categories/{slug}", json.dumps(body), content_type=JSON)
+
+
+def workflow(
+    actor: User, name: str = "Network desk", policy: TransitionPolicy = TransitionPolicy.OPEN
+) -> Workflow:
+    return workflow_config.create_workflow(
+        WorkflowIn(name=name, transition_policy=policy), actor=actor
+    )
 
 
 # ── the database ──
@@ -384,3 +396,147 @@ def test_a_security_category_by_another_slug_counts_as_security():
 
     assert Category.objects.is_security("secops")
     assert not Category.objects.is_security("security")
+
+
+# ── a category's workflow (open question 3) ──
+
+
+@pytest.mark.django_db
+def test_a_workflow_admin_sets_a_categorys_workflow_with_a_reason(api_as):
+    admin = person("tu.dv", UserRole.TECHNICIAN)
+    grant_capability(admin, "workflow_admin")
+    desk = workflow(person("huy.pq", UserRole.MANAGER))
+
+    response = patch(api_as(admin), "network", {"workflow_id": str(desk.id), "reason": "own desk"})
+
+    assert response.status_code == 200
+    assert response.json()["workflow_id"] == str(desk.id)
+    assert Category.objects.get(slug="network").workflow == desk
+    (audit,) = AuditLog.objects.filter(event="category_changed")
+    assert (audit.payload["before"]["workflow"], audit.payload["after"]["workflow"]) == (
+        None,
+        str(desk.id),
+    )
+
+
+@pytest.mark.django_db
+def test_an_edit_that_leaves_the_workflow_out_keeps_it(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    desk = workflow(manager)
+    Category.objects.filter(slug="network").update(workflow=desk)
+
+    response = patch(api_as(manager), "network", {"name": "Networking", "reason": "x"})
+
+    assert response.status_code == 200
+    assert Category.objects.get(slug="network").workflow == desk
+
+
+@pytest.mark.django_db
+def test_null_returns_the_category_to_the_default_workflow(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    Category.objects.filter(slug="network").update(workflow=workflow(manager))
+
+    response = patch(api_as(manager), "network", {"workflow_id": None, "reason": "merge desks"})
+
+    assert response.status_code == 200
+    assert response.json()["workflow_id"] is None
+    assert Category.objects.get(slug="network").workflow is None
+
+
+@pytest.mark.django_db
+def test_an_unknown_workflow_is_refused(api_as):
+    response = patch(
+        api_as(person("huy.pq", UserRole.MANAGER)),
+        "network",
+        {"workflow_id": "00000000-0000-4000-8000-000000000000", "reason": "x"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == CategoryRefusal.WORKFLOW_NOT_FOUND
+    assert Category.objects.get(slug="network").version == 1
+
+
+@pytest.mark.django_db
+def test_a_technician_cannot_set_a_categorys_workflow(api_as):
+    desk = workflow(person("huy.pq", UserRole.MANAGER))
+
+    response = patch(
+        api_as(person("khoa.lv", UserRole.TECHNICIAN)),
+        "network",
+        {"workflow_id": str(desk.id), "reason": "x"},
+    )
+
+    assert response.status_code == 403
+    assert Category.objects.get(slug="network").workflow is None
+
+
+@pytest.mark.django_db
+def test_the_default_workflow_is_refused_as_a_categorys_workflow(api_as):
+    response = patch(
+        api_as(person("huy.pq", UserRole.MANAGER)),
+        "network",
+        {"workflow_id": str(Workflow.objects.default().id), "reason": "x"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == CategoryRefusal.WORKFLOW_IS_DEFAULT
+    assert Category.objects.get(slug="network").workflow is None
+
+
+@pytest.mark.django_db
+def test_a_strict_workflow_a_ticket_could_be_stuck_in_is_refused(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    desk = workflow(manager, policy=TransitionPolicy.STRICT)
+    working = workflow_config.add_status(desk, StatusIn(name="Working"))
+    workflow_config.add_transition(
+        desk,
+        TransitionIn(
+            from_status_id=desk.statuses.get(key="pending_review").id,
+            to_status_id=working.id,
+            name="Pick up",
+        ),
+    )
+
+    response = patch(api_as(manager), "network", {"workflow_id": str(desk.id), "reason": "x"})
+
+    assert response.status_code == 422
+    assert response.json()["code"] == CategoryRefusal.WORKFLOW_HAS_NO_WAY_OUT
+    assert response.json()["details"] == {"statuses": ["auto_routed", "escalated", "reopened"]}
+    assert Category.objects.get(slug="network").workflow is None
+
+
+@pytest.mark.django_db
+def test_a_strict_workflow_with_a_way_out_of_every_handed_off_status_is_accepted(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    desk = workflow(manager, policy=TransitionPolicy.STRICT)
+    working = workflow_config.add_status(desk, StatusIn(name="Working"))
+    for key in ("auto_routed", "pending_review", "escalated", "reopened"):
+        workflow_config.add_transition(
+            desk,
+            TransitionIn(
+                from_status_id=desk.statuses.get(key=key).id,
+                to_status_id=working.id,
+                name=f"Pick up {key}",
+            ),
+        )
+
+    response = patch(api_as(manager), "network", {"workflow_id": str(desk.id), "reason": "x"})
+
+    assert response.status_code == 200
+    assert Category.objects.get(slug="network").workflow == desk
+
+
+@pytest.mark.django_db
+def test_an_edit_that_resends_the_same_workflow_is_not_refused_for_it(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    desk = workflow(manager, policy=TransitionPolicy.STRICT)
+    Category.objects.filter(slug="network").update(workflow=desk)
+
+    response = patch(
+        api_as(manager),
+        "network",
+        {"name": "Networking", "workflow_id": str(desk.id), "reason": "rename"},
+    )
+
+    assert response.status_code == 200
+    assert Category.objects.get(slug="network").name == "Networking"

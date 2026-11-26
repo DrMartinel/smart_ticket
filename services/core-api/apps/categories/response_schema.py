@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from ninja import Schema
 
 
@@ -14,3 +16,4 @@ class CategoryOut(Schema):
     is_routable: bool
     sort_order: int
     version: int
+    workflow_id: uuid.UUID | None

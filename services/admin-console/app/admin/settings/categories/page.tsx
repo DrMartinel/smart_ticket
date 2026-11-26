@@ -1,7 +1,8 @@
 "use client";
 
-// Ticket categories (ADR-0049): each category, what it means, the team that owns it; rename and reorder,
-// and for a manager, what it means and whether it is routed automatically.
+// Ticket categories (ADR-0049): each category, what it means, the team that owns it and the workflow its
+// tickets move into; rename, reorder and choose the workflow, and for a manager, what it means and whether
+// it is routed automatically.
 
 import { useCallback, useEffect, useState } from "react";
 import Modal, { Labeled } from "@/components/Modal";
@@ -10,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import { forgetCategories } from "@/lib/categories";
+import type { Workflow } from "@/lib/lifecycle";
 import { P, can } from "@/lib/permissions";
 import type { CategoryOut, CategoryPatch, TeamOut } from "@/lib/types/generated";
 
@@ -26,6 +29,7 @@ interface Draft {
   sort_order: string;
   description: string;
   is_routable: boolean;
+  workflow: string;
   reason: string;
 }
 
@@ -34,18 +38,21 @@ export default function CategoriesPage() {
   const [categories, setCategories] = useState<CategoryOut[] | null>(null);
   const [owners, setOwners] = useState<Record<string, string>>({});
   const [teamsFailed, setTeamsFailed] = useState(false);
+  const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [all, teams] = await Promise.all([
+      const [all, teams, flows] = await Promise.all([
         api.get<CategoryOut[]>("/api/categories"),
         api.get<TeamOut[]>("/api/teams").catch(() => null),
+        api.get<Workflow[]>("/api/lifecycle/workflows").catch(() => null),
       ]);
       setCategories(all);
       setTeamsFailed(teams === null);
+      setWorkflows(flows);
       setOwners(
         Object.fromEntries((teams ?? []).filter((t) => t.is_active).flatMap((t) => t.categories.map((c) => [c, t.name]))),
       );
@@ -61,6 +68,7 @@ export default function CategoriesPage() {
   if (!user) return null;
   const canEdit = can(user, P.categoriesManage);
   const canDefine = can(user, P.categoriesDefine);
+  const workflowName = (id: string | null | undefined) => workflows?.find((w) => w.id === id)?.name;
 
   const save = async () => {
     if (!draft) return;
@@ -69,6 +77,7 @@ export default function CategoriesPage() {
       name: draft.name.trim(),
       sort_order: Number(draft.sort_order),
       reason: draft.reason.trim(),
+      ...(workflows ? { workflow_id: draft.workflow || null } : {}),
       ...(canDefine ? { description: draft.description.trim(), is_routable: draft.is_routable } : {}),
     };
     try {
@@ -110,11 +119,12 @@ export default function CategoriesPage() {
               <TableHead>Category</TableHead>
               <TableHead>What it covers</TableHead>
               <TableHead>Owning team</TableHead>
+              <TableHead>Workflow</TableHead>
               <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableStatus colSpan={5} rows={categories} error={!!error} empty={<EmptyState compact title="No categories" />} />
+            <TableStatus colSpan={6} rows={categories} error={!!error} empty={<EmptyState compact title="No categories" />} />
             {categories?.map((c) => (
               <TableRow key={c.slug} className={c.is_active ? "" : "text-muted-foreground"}>
                 <TableCell className="align-top tabular-nums">{c.sort_order}</TableCell>
@@ -139,6 +149,13 @@ export default function CategoriesPage() {
                     (owners[c.slug] ?? <span className="text-muted-foreground">—</span>)
                   )}
                 </TableCell>
+                <TableCell className="align-top">
+                  {c.workflow_id === null ? (
+                    <span className="text-muted-foreground">Default</span>
+                  ) : (
+                    (workflowName(c.workflow_id) ?? <span className="text-muted-foreground">?</span>)
+                  )}
+                </TableCell>
                 <TableCell className="align-top text-right">
                   {canEdit && (
                     <Button
@@ -152,6 +169,7 @@ export default function CategoriesPage() {
                           sort_order: String(c.sort_order),
                           description: c.description,
                           is_routable: c.is_routable,
+                          workflow: c.workflow_id ?? "",
                           reason: "",
                         });
                       }}
@@ -194,6 +212,25 @@ export default function CategoriesPage() {
             <Labeled label="Order" hint="Lower comes first in every category list.">
               <Input type="number" min={0} value={draft.sort_order} onChange={(e) => setDraft({ ...draft, sort_order: e.target.value })} />
             </Labeled>
+            {workflows ? (
+              <Labeled
+                label="Workflow"
+                hint="When a ticket in this category is routed, or a reviewer hands it off, it moves into this workflow at the same status. A strict workflow needs a transition out of Auto-routed, Pending review, Escalated and Reopened."
+              >
+                <NativeSelect value={draft.workflow} onChange={(e) => setDraft({ ...draft, workflow: e.target.value })}>
+                  <option value="">Default workflow</option>
+                  {workflows
+                    .filter((w) => !w.is_default)
+                    .map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
+                    ))}
+                </NativeSelect>
+              </Labeled>
+            ) : (
+              <ErrorState compact title="Couldn't load the workflows; the category keeps its workflow." />
+            )}
             {canDefine && (
               <>
                 <Labeled label="What it covers" required hint="The classifier reads this on every ticket.">

@@ -24,6 +24,24 @@ COMPLETED_PIPELINE_STATUSES = frozenset({PipelineStatus.AUTO_REPLIED})
 # Statuses where the pipeline or the requester owns the ticket: no person moves it out.
 TRIAGE_STATUSES = frozenset({PipelineStatus.NEW, PipelineStatus.AWAITING_REQUESTER})
 
+# Pipeline statuses a ticket is handed off at: it moves into its category's workflow only from
+# one of these (ADR-0049).
+HANDOFF_STATUSES = frozenset(
+    {PipelineStatus.AUTO_ROUTED, PipelineStatus.PENDING_REVIEW, PipelineStatus.ESCALATED}
+)
+
+# Pipeline statuses a ticket can be at in its category's workflow: a strict one needs a way out
+# of each (ADR-0049).
+CATEGORY_WORKFLOW_STATUSES = HANDOFF_STATUSES | {PipelineStatus.REOPENED}
+
+
+class CategoryWorkflowSkip(StrEnum):
+    """Why a ticket stayed out of its category's workflow, in `category_workflow_skipped` rows."""
+
+    ALREADY_MOVED_ON = "already_moved_on"
+    A_MOVE_IS_RUNNING = "a_move_is_running"
+    ERROR = "error"
+
 
 class StatusKind(StrEnum):
     """What a workflow status means to the SLA, workload and resolution."""

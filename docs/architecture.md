@@ -347,6 +347,12 @@ The pipeline's statuses (`new`, `pending_review`, `auto_replied`, …) are reser
 in every workflow, and only `lifecycle.system_move` enters them: recorded as a
 transfer, never refused, no rules, no actions. After triage a person moves the
 ticket through the workflow's own statuses (`POST /api/lifecycle/tickets/{id}/move`).
+Every ticket starts in the default workflow. If its category names a workflow
+(ADR-0049 part 3), the ticket moves into it at handoff, after an automatic
+route or a reviewer's decision, at the same pipeline status
+(`lifecycle.enter_category_workflow`, a system move with no rules or actions);
+a category without one returns it to the default workflow, and a handoff with
+no category leaves it where it is.
 A `strict` workflow allows only its transitions. A transition's rules check
 the ticket's custom field values, and its `before` actions (webhook, n8n,
 approval) must succeed before the status changes. Status `enter` actions and

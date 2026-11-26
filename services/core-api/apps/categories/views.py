@@ -1,4 +1,4 @@
-"""Category endpoints: the list every console reads, and renaming or reordering one (ADR-0049)."""
+"""Category endpoints: the list every console reads, and editing one (ADR-0049)."""
 
 from __future__ import annotations
 
@@ -24,4 +24,6 @@ def categories(request: AuthedRequest) -> QuerySet[Category]:
 @router.patch("/{slug}", auth=SessionAuth(), response=CategoryOut)
 @require(Permission.CATEGORIES_MANAGE, agent=AgentTier.NONE)
 def update_category(request: AuthedRequest, slug: str, payload: CategoryPatch) -> Category:
-    return category_config.edit(request.auth.user, slug, payload.model_dump(mode="json"))
+    return category_config.edit(
+        request.auth.user, slug, payload.model_dump(mode="json", exclude_unset=True)
+    )

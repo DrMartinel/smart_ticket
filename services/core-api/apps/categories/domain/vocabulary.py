@@ -12,6 +12,9 @@ class CategoryRefusal(StrEnum):
     NOT_ALLOWED = "not_allowed"
     REASON_REQUIRED = "reason_required"
     UNKNOWN_CATEGORY = "unknown_category"
+    WORKFLOW_HAS_NO_WAY_OUT = "workflow_has_no_way_out"
+    WORKFLOW_IS_DEFAULT = "workflow_is_default"
+    WORKFLOW_NOT_FOUND = "workflow_not_found"
 
 
 class CategoryError(CodedError):

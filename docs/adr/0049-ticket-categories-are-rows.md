@@ -1,6 +1,6 @@
 # ADR-0049: Ticket categories are rows in `ticket_categories`
 
-**Status:** Accepted for parts 1 and 2 (2026-11-26). Part 1 (decisions 1–4) is merged; part 2 (decision 5, the category set on the wire, open questions 1 and 2) is built and waits on its eval run. Parts 3 and 4 are proposed. Open questions 1, 2 and 4 are answered; 3 and parts of 2 and 4 are still open.
+**Status:** Accepted for parts 1 and 2 (2026-11-26). Part 1 (decisions 1–4) is merged; part 2 (decision 5, the category set on the wire, open questions 1 and 2) is built and waits on its eval run. Part 3 (a workflow per category) is built as open question 3 proposes and waits on the owner's answer to it. Part 4 is proposed. Open questions 1, 2 and 4 are answered; 3 and parts of 2 and 4 are still open.
 **Date:** 2026-11-26
 **Builds on:** ADR-0017 (Jev chooses the category), ADR-0031 (teams own categories), ADR-0028 (workflows), ADR-0045 (permissions), ADR-0046 (agent tiers)
 **Will amend:** ADR-0017, once part 2 builds Jev's category question from the rows
@@ -71,7 +71,7 @@ Teams and the categories they own were already data (`team_teams`,
   in both services in one PR (hard rule 4) and needs an eval run.
   As built, see "Part 2 as built" below.
 - **Part 3:** a category may name a workflow; a ticket moves into it at
-  handoff.
+  handoff. As built, see "Part 3 as built" below.
 - **Part 4:** an agent-readable category route, once the F15 tier table
   names it.
 
@@ -113,6 +113,50 @@ Teams and the categories they own were already data (`team_teams`,
 - **No enum.** `TicketCategory` is gone from both services; the request
   schemas take a slug (`CategorySlug`) and each service checks it is active.
 
+### Part 3 as built (2026-11-26)
+
+- **The switch.** `ticket_categories.workflow` is a nullable reference to
+  a workflow; none means the default workflow. Anyone holding
+  `categories:manage` (manager, workflow admin) sets or clears it, with a
+  reason, on the Categories page (`PATCH /api/categories/{slug}` with
+  `workflow_id`; null clears it, leaving it out keeps it). It chooses the
+  path a ticket takes, not what Jev reads, so it does not need
+  `categories:define`. The default workflow can't be named
+  (`workflow_is_default`: none already means it), nor a strict workflow
+  with no transition out of `auto_routed`, `pending_review`, `escalated`
+  or `reopened` (`workflow_has_no_way_out`), where a handed-off or reopened
+  ticket would be stuck. The check runs only when a category's workflow is
+  set or changed: a later edit to the workflow's transitions, a switch from
+  open to strict, or making it the default is not checked again, and an
+  edit that sends the same workflow back is not refused for it. A workflow
+  a category names can't be deleted (409 `workflow_in_use`, naming the
+  categories).
+- **When a ticket moves.** At handoff, before it is assigned: after an
+  automatic route (at `auto_routed`), and after a review decision that
+  hands the ticket off (at `pending_review`). The category is the one the
+  ticket is handed off with: a reviewer's correction moves it into the
+  corrected category's workflow, and a category the reviewer confirmed
+  counts the same, and a category with no workflow returns the ticket to
+  the default one. A handoff with no category leaves the ticket in the
+  workflow it is in. In shadow mode the router's decision moves nothing; the
+  ticket moves when a reviewer hands it off. An approved security-queue
+  item, a reopen and a reassign leave the ticket's workflow as it is.
+- **Where it lands.** Only a ticket at a handoff status (`auto_routed`,
+  `pending_review`, `escalated`) moves, to the same status in the target
+  workflow: every workflow has the pipeline statuses
+  (`Lifecycle.pipeline_status` recreates a missing one). A ticket a person
+  has already moved on stays where it is: a custom status with the same
+  key in another workflow may pause SLA or wait on the requester
+  differently. That, a move running, or a failure leaves the ticket where
+  it is and audits `category_workflow_skipped` with the reason
+  (`already_moved_on`, `a_move_is_running`, `error`). A failure never
+  undoes the routing or review decision it follows.
+- **What moves with it.** Field values of the same name and type, as the
+  "Change workflow" action carries them; the rest are dropped and named in
+  the status-change audit row. The move is a system move: no transition
+  rules, no workflow actions, the same SLA and notice hooks as any status
+  change.
+
 ## Open questions
 
 The owner answered 1, 2 and 4 on 2026-11-26.
@@ -128,15 +172,19 @@ The owner answered 1, 2 and 4 on 2026-11-26.
    or off. Still open: how the per-category F1 floor (hard rule 9) covers a
    category a manager makes routable, since the eval in CI reads the golden
    set and never sees a switch in the database.
-3. **Open.** Per-category workflows: move the ticket into its category's
-   workflow at handoff, at the status with the same key? Does a reviewer's
-   category correction move it again? The owner also asks whether a
-   category can be marked to enter its workflow automatically or not.
-   Today every ticket starts in the default workflow and stays there:
-   workflow rules can't see the category, and the "Change workflow" action
-   runs on a workflow's own events and refuses a ticket still in triage.
-   Proposed: the category's nullable `workflow` is that switch; a category
-   without one leaves its tickets in the default workflow.
+3. **Built as proposed, not yet confirmed.** Per-category workflows: move
+   the ticket into its category's workflow at handoff, at the status with
+   the same key? Does a reviewer's category correction move it again? The
+   owner also asks whether a category can be marked to enter its workflow
+   automatically or not. Before part 3 every ticket started in the default
+   workflow and stayed there: workflow rules can't see the category, and
+   the "Change workflow" action runs on a workflow's own events and refuses
+   a ticket still in triage. Proposed, and built in part 3: the category's
+   nullable `workflow` is that switch; a category without one leaves its
+   tickets in the default workflow; a reviewer's correction is the category
+   the ticket is handed off with, so it decides the workflow. Still open:
+   whether a reopen or a reassign to another category should move the
+   ticket again (part 3 leaves it where it is).
 4. **Answered: read only.** The agent reads the category list
    (`GET /api/categories` at `AgentTier.READ`, part 4) and never changes it.
    A ticket's category is still Jev's choice in triage. Still open: the
@@ -158,3 +206,7 @@ The owner answered 1, 2 and 4 on 2026-11-26.
 - `classification.min_confidence` (0.65) was chosen on six categories; a
   larger set spreads Jev's probability and needs it re-chosen.
 - Per-category F1 (hard rule 9) must cover every routable category.
+- From part 3 a category's workflow decides which statuses, rules and
+  actions its tickets meet after handoff, so a misrouted ticket can start
+  in the wrong workflow. A reviewer's correction moves it; after handoff a
+  person moves it with "Change workflow".

@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.db import models
 from django.db.models import QuerySet
 
 from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.core.models import BaseModel
+
+if TYPE_CHECKING:
+    from apps.lifecycle.models import Workflow
 
 
 class CategoryQuerySet(QuerySet["Category"]):
@@ -21,6 +26,13 @@ class CategoryQuerySet(QuerySet["Category"]):
     def is_security(self, slug: str | None) -> bool:
         """Whether `slug` names a security category, active or not."""
         return slug is not None and self.filter(slug=slug, is_security=True).exists()
+
+    def workflow_of(self, slug: str | None) -> Workflow | None:
+        """The workflow tickets in category `slug` move into at handoff, if it names one."""
+        if slug is None:
+            return None
+        found = self.select_related("workflow").filter(slug=slug).first()
+        return found.workflow if found is not None else None
 
     def require(self, slug: str) -> Category:
         """The active category `slug`; refuses one that is unknown or inactive."""
@@ -43,6 +55,14 @@ class Category(BaseModel):
     is_routable = models.BooleanField(default=True)
     sort_order = models.PositiveSmallIntegerField(default=0)
     version = models.PositiveIntegerField(default=1)
+    # The workflow its tickets move into at handoff; none means the default (ADR-0049).
+    workflow = models.ForeignKey(
+        "lifecycle.Workflow",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="categories",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

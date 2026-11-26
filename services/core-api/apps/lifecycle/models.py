@@ -18,6 +18,7 @@ from apps.lifecycle.domain.vocabulary import (
     OPEN_TRANSFER_STATES,
     ActionCode,
     TRIAGE_STATUSES,
+    HANDOFF_STATUSES,
     Direction,
     FailureCode,
     Phase,
@@ -40,6 +41,7 @@ def _choices(enum: Any) -> list[tuple[str, str]]:
 
 _PIPELINE_KEYS = frozenset(s.value for s in PipelineStatus)
 _TRIAGE_KEYS = frozenset(s.value for s in TRIAGE_STATUSES)
+_HANDOFF_KEYS = frozenset(s.value for s in HANDOFF_STATUSES)
 _POINTS = [(str(i), str(i)) for i in range(1, 9)]
 
 
@@ -146,6 +148,11 @@ class WorkflowStatus(BaseModel):
     def is_triage(self) -> bool:
         """Whether a ticket here belongs to the pipeline or its requester."""
         return self.key in _TRIAGE_KEYS
+
+    @property
+    def is_handoff(self) -> bool:
+        """Whether a ticket here has just been handed off to people."""
+        return self.key in _HANDOFF_KEYS
 
 
 class Transition(BaseModel):

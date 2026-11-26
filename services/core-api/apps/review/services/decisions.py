@@ -10,6 +10,7 @@ from django.db import transaction
 from apps.accounts.models import User
 from apps.agent.services.actions import agent_actions
 from apps.categories.models import Category
+from apps.lifecycle.services.engine import lifecycle
 from apps.review.models import (
     SECURITY_QUEUES,
     EvalCandidate,
@@ -83,6 +84,7 @@ class ReviewDecisions:
             if category != before:
                 ticket.category = category
                 ticket.save(update_fields=["category"])
+            lifecycle.enter_category_workflow(ticket, category, actor=reviewer)
             assignment.assign_after_handoff(
                 ticket, AssignmentTrigger.REVIEW, category=category, actor=reviewer
             )

@@ -254,6 +254,15 @@ guard and that comment is later trimmed, the entry is the record.
   It runs inside the pipeline's transaction right after the status move; an
   exception there would undo the routing outcome (BR-F2-02, BR-X-07).
   *`test_an_assignment_error_keeps_the_status_and_is_audited`.*
+- **`enter_category_workflow` running in its own savepoint and catching every error,
+  and moving only a ticket at a handoff status.** It runs at the same point as
+  assignment, so an exception would undo the routing decision or the reviewer's whole
+  decision (ADR-0049). A ticket a person has already moved on is left alone: matching a
+  custom status by key would land it on a status with other SLA and requester flags.
+  *`test_a_move_that_fails_after_writing_leaves_no_part_of_it_behind` (the
+  savepoint), `test_a_failed_move_never_undoes_the_reviewers_decision`,
+  `test_a_failed_move_never_undoes_an_automatic_route` (the catch),
+  `test_a_ticket_a_person_already_moved_stays_in_its_workflow`.*
 - **Take checking `expected_version` and raising `tickets.version`.** Two people
   clicking Take on the same row both see an unowned ticket; only the version
   makes the second one a 409 `already_assigned`. *`test_two_takes_one_winner`.*

@@ -55,6 +55,7 @@ from apps.lifecycle.utils.templates import VARIABLES, placeholders
 from apps.tickets.models import Ticket
 from apps.lifecycle.domain.vocabulary import (
     COMPLETED_PIPELINE_STATUSES,
+    CATEGORY_WORKFLOW_STATUSES,
     KIND_COLORS,
     ActionCode,
     FailureCode,
@@ -62,6 +63,7 @@ from apps.lifecycle.domain.vocabulary import (
     PipelineStatus,
     Position,
     StatusKind,
+    TransitionPolicy,
 )
 
 
@@ -248,8 +250,23 @@ class WorkflowConfig:
         self.check_unreferenced(
             self.actions_naming_workflow(workflow), FailureCode.WORKFLOW_IN_USE, "deleted"
         )
+        categories = list(workflow.categories.values_list("slug", flat=True))
+        if categories:
+            raise LifecycleError(
+                409,
+                FailureCode.WORKFLOW_IN_USE,
+                "categories move their tickets into this workflow",
+                details={"categories": categories},
+            )
         self.audit("workflow_deleted", workflow, actor)
         workflow.delete()
+
+    def category_dead_ends(self, workflow: Workflow) -> list[str]:
+        """The statuses a ticket can be at in a category's strict workflow with no way out."""
+        if workflow.transition_policy != TransitionPolicy.STRICT.value:
+            return []
+        exits = set(workflow.transitions.values_list("from_status__key", flat=True))
+        return sorted(s.value for s in CATEGORY_WORKFLOW_STATUSES if s.value not in exits)
 
     # ── statuses ──
 

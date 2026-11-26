@@ -456,6 +456,7 @@ def _execute_or_enqueue(
         ticket.category = decision.category or ticket.category
         ticket.save(update_fields=["category"])
         lifecycle.system_move(ticket, PipelineStatus.AUTO_ROUTED)
+        lifecycle.enter_category_workflow(ticket, ticket.category, actor=None)
         assignment.assign_after_handoff(ticket, AssignmentTrigger.AUTO_ROUTE)
 
 
