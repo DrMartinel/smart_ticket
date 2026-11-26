@@ -28,6 +28,9 @@ class QueryCheck(StrEnum):
     FIELD = "field"
     DATASET = "dataset"
     FUNCTION = "function"
+    MATCH_ALL = "match_all"
+    SELECTORS = "selectors"
+    UNSUPPORTED = "unsupported"
     BACKEND_REFUSED = "backend_refused"
 
 

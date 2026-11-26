@@ -89,6 +89,7 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/infra/alerts/silences": Permission.INFRA_READ,
     "GET /api/infra/catalog": Permission.INFRA_READ,
     "POST /api/infra/metrics/query": Permission.INFRA_READ,
+    "POST /api/infra/metrics/promql": Permission.INFRA_READ,
     "POST /api/infra/logs/search": Permission.INFRA_READ,
     "POST /api/infra/traces/search": Permission.INFRA_READ,
     "GET /api/infra/traces/{trace_id}": Permission.INFRA_READ,

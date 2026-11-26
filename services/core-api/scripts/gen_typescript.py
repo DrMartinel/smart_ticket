@@ -239,6 +239,7 @@ MODELS = [
     "SpanOut",
     "TraceAnswerOut",
     "MetricQueryIn",
+    "PromQLIn",
     "LogSearchIn",
     "TraceSearchIn",
     "CustomerIn",

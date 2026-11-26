@@ -292,6 +292,7 @@ ALERTMANAGER_URL = env("ALERTMANAGER_URL")
 INFRA_CONNECT_TIMEOUT_SEC = float(env("INFRA_CONNECT_TIMEOUT_SEC"))
 INFRA_READ_TIMEOUT_SEC = float(env("INFRA_READ_TIMEOUT_SEC"))
 PROMETHEUS_URL = env("PROMETHEUS_URL")
+PROMETHEUS_PARSE_URL = env("PROMETHEUS_PARSE_URL")
 ELASTICSEARCH_URL = env("ELASTICSEARCH_URL")
 ELASTICSEARCH_USERNAME = env("ELASTICSEARCH_USERNAME")
 ELASTICSEARCH_PASSWORD = env("ELASTICSEARCH_PASSWORD")
@@ -570,6 +571,11 @@ class InfraThresholds(BaseModel):
     max_log_docs: int = Field(ge=1)
     max_spans: int = Field(ge=1)
     max_result_bytes: int = Field(ge=1)
+    # The most selectors one raw PromQL query may hold (FR-F17-005).
+    max_selectors: int = Field(ge=1)
+    # RE2's memory for one raw PromQL regex, and the most regex matchers one query may hold.
+    max_regex_kib: int = Field(ge=1)
+    max_regex_matchers: int = Field(ge=1)
 
 
 class Thresholds(BaseModel):

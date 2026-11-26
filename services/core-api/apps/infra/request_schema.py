@@ -1,5 +1,6 @@
 """Request shapes for the infra queries (F17 §h.1), whose catalog and caps are checked when the
-query compiles, and the customer routes' bodies (F17 §o.9)."""
+query compiles, or for raw PromQL when Prometheus has parsed it, and the customer routes' bodies
+(F17 §o.9)."""
 
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ from datetime import datetime
 from ninja import Field, Schema
 from pydantic import ConfigDict
 
+from apps.infra.domain.promql import PromQLQuery
 from apps.infra.domain.queries import LogSearch, MetricQuery, TraceSearch, Window
 from apps.infra.models import CustomerTier
 
@@ -22,7 +24,7 @@ class MetricQueryIn(Schema):
     function_seconds: int | None = Field(default=None, ge=1)
     aggregate: str | None = None
     by: list[str] = []
-    project_id: str | None = None
+    project_id: str | None = Field(None, min_length=1)
 
     def query(self) -> MetricQuery:
         return MetricQuery(
@@ -37,6 +39,19 @@ class MetricQueryIn(Schema):
         )
 
 
+class PromQLIn(Schema):
+    promql: str = Field(min_length=1, max_length=2000)
+    start: datetime
+    end: datetime
+    step_seconds: int = Field(ge=1)
+    project_id: str | None = Field(None, min_length=1)
+
+    def query(self) -> PromQLQuery:
+        return PromQLQuery(
+            text=self.promql, window=Window(self.start, self.end), step_seconds=self.step_seconds
+        )
+
+
 class LogSearchIn(Schema):
     start: datetime
     end: datetime
@@ -44,7 +59,7 @@ class LogSearchIn(Schema):
     text: str | None = Field(default=None, max_length=500)
     filters: dict[str, list[str]] = {}
     size: int | None = Field(default=None, ge=1)
-    project_id: str | None = None
+    project_id: str | None = Field(None, min_length=1)
 
     def query(self) -> LogSearch:
         return LogSearch(
@@ -62,7 +77,7 @@ class TraceSearchIn(Schema):
     filters: dict[str, list[str]] = {}
     min_duration_ms: int | None = Field(default=None, ge=0)
     size: int | None = Field(default=None, ge=1)
-    project_id: str | None = None
+    project_id: str | None = Field(None, min_length=1)
 
     def query(self) -> TraceSearch:
         return TraceSearch(

@@ -1943,6 +1943,8 @@ export interface CatalogOut {
   log_datasets: DatasetEntryOut[];
   log_fields: FieldEntryOut[];
   trace_fields: FieldEntryOut[];
+  promql_functions: string[];
+  promql_aggregations: string[];
   caps: Record<string, number>;
 }
 
@@ -2006,6 +2008,14 @@ export interface MetricQueryIn {
   function_seconds?: number | null;
   aggregate?: string | null;
   by?: string[];
+  project_id?: string | null;
+}
+
+export interface PromQLIn {
+  promql: string;
+  start: string;
+  end: string;
+  step_seconds: number;
   project_id?: string | null;
 }
 

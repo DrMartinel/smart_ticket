@@ -592,6 +592,77 @@ guard and that comment is later trimmed, the entry is the record.
   labels an answer shows.** The hypervisor a server runs on is the provider's,
   and naming it lets a customer map which other tenants share their machine.
   *`test_a_customer_answer_never_shows_the_hypervisor_label`.*
+- **Raw PromQL runs as `ScopedPromQL` writes it back out from Prometheus's
+  parse, never as its author wrote it.** Sending the text would mean trusting
+  that core-api's walk and Prometheus read it alike; writing it out means only
+  checked tokens reach Prometheus, each selector with the project matcher, and
+  the walk holds even if the parser answered a different tree. Every name is
+  refused unless it is a plain identifier and every value goes through
+  `promql_string`, so no value can close a selector's braces and start an
+  unscoped one. *`test_every_selector_is_scoped_however_deep_it_sits`,
+  `test_a_tree_core_api_cannot_check_is_refused_and_never_run`,
+  `test_a_label_value_cannot_break_out_of_its_matcher`.*
+- **`ScopedPromQL.expr` refusing a node, matcher, modifier or matching it
+  doesn't know (`unsupported`), `expect` refusing a key `NODE_KEYS`,
+  `MATCHER_KEYS` or `MATCHING_KEYS` doesn't list, and `Observability.promql`
+  refusing a query that nests too deeply.** A newer Prometheus adds syntax
+  (duration expressions, for one) or a key to a node it already had, and
+  writing an unknown node out as nothing, or dropping a key, could drop a
+  selector's scope or change what runs. A `RecursionError` left alone is a
+  500 with no `infra_queries` row.
+  *`test_a_tree_core_api_cannot_check_is_refused_and_never_run`,
+  `test_a_query_nested_too_deeply_is_refused_and_never_run`.*
+- **`matches_everything` reading a matcher's regex with RE2 (`google-re2`),
+  never Python's `re`.** The regex is the caller's, and the agent can send
+  it: Python's backtracking engine takes hours on one Prometheus accepts
+  (`a|db-01|` then forty `.*` then `Q`), and three such requests hold every
+  gunicorn worker. RE2 runs in linear time, and it is Prometheus's own
+  syntax, so a leading `(?i)` inside `(?s:…)` compiles as it does there.
+  *`test_a_catastrophic_regex_is_checked_in_linear_time`,
+  `test_a_matcher_that_narrows_is_allowed`.*
+- **`ScopedPromQL.regex_options.max_mem` set from `max_regex_kib`, and
+  `max_regex_matchers` counted in `matches_everything`.** Linear time is not
+  cheap: RE2 expands `\pL` into a large UTF-8 automaton, so at its default
+  8 MiB a 2,000-character query holds about 130 matchers like `\pL{300}`,
+  each near the cap, and google-re2 keeps 128 compiled programs per process.
+  That measured 8 s of CPU and 345 MB per request. The two caps bound one
+  regex's compile and the regexes per query; `=` and `!=` aren't counted.
+  *`test_a_regex_over_the_memory_cap_is_refused_and_never_run`,
+  `test_more_regex_matchers_than_the_cap_are_refused`.*
+- **`match_all` is best effort for `=~`.** A regex accepting every sample
+  value is refused, as are `!=""` and a `!~` whose regex matches `""` and no
+  sample (`!~"()"`, `!~"^$"`); a wider regex that misses one sample still
+  runs. What bounds such a query is `max_series`, checked after it runs, and
+  the project matcher, which no regex can widen.
+  *`test_a_raw_query_outside_the_checks_is_refused_and_never_run`.*
+- **`ScopedPromQL.binary` refusing `project` or `project_name`
+  (`PROJECT_LABELS`) in `group_left` or `group_right` (`field`).** Either
+  copies the other side's label onto the result, so a series reads as
+  another project's, as `label_replace` would. `project_name` is on every
+  server, volume and port series.
+  *`test_a_raw_query_outside_the_checks_is_refused_and_never_run`.*
+- **`project_id` with `min_length=1` on the metric, PromQL, log and trace
+  bodies.** `project_id=""` passes `InfraScope.narrowed_to` and scopes every
+  selector to `project=""`, which Prometheus and prom-label-proxy both read
+  as "series with no project label": the provider's own.
+  *`test_an_empty_project_id_is_refused_and_runs_nothing`.*
+- **A parser that fails refusing the query (424, or 422 `backend_refused`),
+  and `PROMETHEUS_PARSE_URL` used only for `parse_query`.** That URL is
+  Prometheus itself, with no proxy in front: falling back to the text as
+  written would run an unchecked query, and a range query sent there would
+  skip prom-label-proxy. *`test_an_unreachable_parser_refuses_the_query_and_never_runs_it`,
+  `test_a_parser_answering_an_error_refuses_the_query_and_never_runs_it`,
+  `test_every_selector_of_a_raw_query_carries_the_callers_project_and_only_the_proxy_runs_it`.*
+- **`PROMQL_FUNCTIONS` leaving out `info`, `label_replace` and `label_join`,
+  and `PROMQL_AGGREGATIONS` leaving out `count_values`.** `info()` selects
+  `target_info` series that are not in the tree, so neither core-api nor
+  prom-label-proxy scopes them; the other three can write a `project` label
+  into an answer, so a series reads as another project's.
+  *`test_a_raw_query_outside_the_checks_is_refused_and_never_run`,
+  `test_the_catalog_lists_raw_promql_functions_for_staff_only`.*
+- **No raw PromQL route on the requester router (OQ-F17-05).** Raw PromQL can
+  name any metric, the provider's own included; customers get structured
+  queries over the catalog only. *`test_customers_have_no_raw_promql`.*
 
 ### Customers (F17 §o, ADR-0048 decision 11)
 

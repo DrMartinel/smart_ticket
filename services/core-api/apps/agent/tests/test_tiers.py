@@ -41,6 +41,7 @@ TIERS = {
         "GET /api/infra/alerts/silences",
         "GET /api/infra/catalog",
         "POST /api/infra/metrics/query",
+        "POST /api/infra/metrics/promql",
         "POST /api/infra/logs/search",
         "POST /api/infra/traces/search",
         "GET /api/infra/traces/{trace_id}",

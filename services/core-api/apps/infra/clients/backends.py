@@ -166,7 +166,8 @@ class Alertmanager:
 
 
 class Prometheus:
-    """Prometheus's range queries, sent through prom-label-proxy with the projects it enforces."""
+    """Prometheus's range queries, sent through prom-label-proxy with the projects it enforces,
+    and its parser, which reads no series."""
 
     def __init__(self, http: httpx.Client) -> None:
         self.http = http
@@ -175,12 +176,31 @@ class Prometheus:
         self, promql: str, start: float, end: float, step: int, projects: frozenset[str]
     ) -> Any:
         """The matrix a range query answers, scoped by the proxy to `projects`."""
+        data = self.post(
+            f"{settings.PROMETHEUS_URL}/api/v1/query_range",
+            {"query": promql, "start": start, "end": end, "step": step},
+            httpx.QueryParams([("project", p) for p in sorted(projects)]),
+        )
         try:
-            response = self.http.post(
-                f"{settings.PROMETHEUS_URL}/api/v1/query_range",
-                params=[("project", p) for p in sorted(projects)],
-                data={"query": promql, "start": start, "end": end, "step": step},
-            )
+            if data["resultType"] != "matrix":
+                raise BackendUnavailable(InfraBackend.PROMETHEUS, "answered no matrix")
+            return data["result"]
+        except (KeyError, TypeError) as e:
+            raise BackendUnavailable(
+                InfraBackend.PROMETHEUS, "answered something unreadable"
+            ) from e
+
+    def parse(self, promql: str) -> Any:
+        """The syntax tree Prometheus's `/api/v1/parse_query` parses `promql` into."""
+        return self.post(f"{settings.PROMETHEUS_PARSE_URL}/api/v1/parse_query", {"query": promql})
+
+    def post(
+        self, url: str, form: dict[str, str | float], params: httpx.QueryParams | None = None
+    ) -> Any:
+        """The `data` of Prometheus's answer; raises `BackendRefused` for a query it rejects and
+        `BackendUnavailable` for any other answer but a 200."""
+        try:
+            response = self.http.post(url, params=params, data=form)
         except httpx.HTTPError as e:
             raise BackendUnavailable(InfraBackend.PROMETHEUS, type(e).__name__) from e
         if response.status_code in (400, 422):
@@ -189,12 +209,11 @@ class Prometheus:
             except (ValueError, KeyError, TypeError):
                 message = f"answered {response.status_code}"
             raise BackendRefused(message)
-        answer = json_of(InfraBackend.PROMETHEUS, response)
+        if response.status_code != 200:
+            raise BackendUnavailable(InfraBackend.PROMETHEUS, f"answered {response.status_code}")
         try:
-            if answer["data"]["resultType"] != "matrix":
-                raise BackendUnavailable(InfraBackend.PROMETHEUS, "answered no matrix")
-            return answer["data"]["result"]
-        except (KeyError, TypeError) as e:
+            return response.json()["data"]
+        except (ValueError, KeyError, TypeError) as e:
             raise BackendUnavailable(
                 InfraBackend.PROMETHEUS, "answered something unreadable"
             ) from e
