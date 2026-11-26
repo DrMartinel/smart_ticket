@@ -17,12 +17,14 @@ from django.utils import timezone
 from apps.accounts.models import User
 from apps.infra import tasks
 from apps.infra.domain.cues import OVERVIEW, TEMPLATES, CueTemplate
+from apps.infra.domain.untrusted import WITHHELD
 from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
 from apps.infra.models import CueRun, InfraQuery, InfraVia
 from apps.infra.services.cues import cues
 from apps.infra.tests.conftest import (
     FakeElasticsearch,
     FakePrometheus,
+    log_doc,
     series,
 )
 from apps.infra.tests.test_customers import insufficient_context_answers
@@ -33,6 +35,7 @@ from apps.notifications import tasks as notification_tasks
 from apps.rollout.domain.vocabulary import FlagBranch
 from apps.rollout.testing import flags_off
 from apps.sla.tests.conftest import status
+from apps.tickets.domain.masking import NERError
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import process_ticket
@@ -453,3 +456,28 @@ def test_cues_never_change_the_decision_priority_assignee_or_clocks(
     assert run_of(with_cues).outcome == CueRunOutcome.DONE
     assert not CueRun.objects.filter(ticket=without).exists()
     assert outcome(with_cues) == outcome(without)
+
+
+# ── what a cue stores (BR-F17-19) ──
+
+
+def test_a_log_cue_stores_the_masked_line(lan, backends, queued, ner, es: FakeElasticsearch):
+    prod = backends.id_of("projects", "saomai-prod")
+    es.docs = [log_doc(prod, "login failed for lan.nt@saomai.vn")]
+
+    ticket = hand_off(opened(lan, "db-01 chậm"))
+
+    logs = run_of(ticket).cues.get(template=CueTemplate.SERVER_ERROR_LOGS)
+    assert [line["message"] for line in logs.evidence["lines"]] == ["login failed for [EMAIL_1]"]
+
+
+def test_ner_down_withholds_a_log_cues_lines(lan, backends, queued, ner):
+    def down(text: str) -> Any:
+        raise NERError("down")
+
+    ner(down)
+
+    ticket = hand_off(opened(lan, "db-01 chậm"))
+
+    logs = run_of(ticket).cues.get(template=CueTemplate.SERVER_ERROR_LOGS)
+    assert [line["message"] for line in logs.evidence["lines"]] == [WITHHELD]
