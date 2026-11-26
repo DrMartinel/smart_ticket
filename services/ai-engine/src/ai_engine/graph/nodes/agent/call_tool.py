@@ -47,14 +47,16 @@ class CallToolNode(BaseNode[AgentState]):
 
         arguments = state.pending_call.arguments
         args = tool.Input.model_validate(arguments)
+        seq = len(state.steps) + 1
         context = Context(
             token=state.token,
             actor_id=state.actor_id,
             actor_username=state.actor_username,
             chat_conversation_id=state.chat_conversation_id,
+            step=seq,
             refs=dict(state.refs),
         )
-        step = {"seq": len(state.steps) + 1, "tool": tool.name, "arguments": arguments}
+        step = {"seq": seq, "tool": tool.name, "arguments": arguments}
         step["method"], step["path"] = tool.method, tool.path_for(arguments)
         try:
             step["path"], reply = tool.run(args, context)

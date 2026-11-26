@@ -60,7 +60,7 @@ class FakeCoreApi:
         self.calls: list[dict[str, Any]] = []
         self.waits: list[float] = []
 
-    def send(self, method, path, token, tool, *, read, params=None, json=None):
+    def send(self, method, path, token, tool, *, read, step, params=None, json=None):
         self.calls.append(
             {
                 "method": method,
@@ -68,6 +68,7 @@ class FakeCoreApi:
                 "token": token,
                 "tool": tool,
                 "read": read,
+                "step": step,
                 "params": params,
                 "json": json,
             }
@@ -876,7 +877,7 @@ def test_a_write_whose_answer_was_lost_is_outcome_unknown(monkeypatch, method):
     api = _core_api(monkeypatch, _raise(httpx.ReadTimeout))
 
     with pytest.raises(OutcomeUnknown):
-        api.send(method, "/x", SecretStr(_TOKEN), "t", read=False, json={})
+        api.send(method, "/x", SecretStr(_TOKEN), "t", read=False, step=1, json={})
 
 
 @pytest.mark.parametrize("method", ["POST", "PATCH", "DELETE"])
@@ -884,7 +885,7 @@ def test_a_write_answered_with_a_5xx_is_outcome_unknown(monkeypatch, method):
     api = _core_api(monkeypatch, lambda request: httpx.Response(500))
 
     with pytest.raises(OutcomeUnknown):
-        api.send(method, "/x", SecretStr(_TOKEN), "t", read=False, json={})
+        api.send(method, "/x", SecretStr(_TOKEN), "t", read=False, step=1, json={})
 
 
 @pytest.mark.parametrize(
@@ -905,11 +906,17 @@ def test_a_read_failure_or_an_unsent_write_is_tool_failed(monkeypatch, method, r
 
     with pytest.raises(ToolFailed):
         api.send(
-            method, "/x", SecretStr(_TOKEN), "t", read=read, json=None if method == "GET" else {}
+            method,
+            "/x",
+            SecretStr(_TOKEN),
+            "t",
+            read=read,
+            step=1,
+            json=None if method == "GET" else {},
         )
 
 
-def test_a_call_sends_the_token_and_the_tool_name(monkeypatch):
+def test_a_call_sends_the_token_the_tool_name_and_the_step(monkeypatch):
     seen: list[httpx.Request] = []
 
     def handler(request):
@@ -918,11 +925,39 @@ def test_a_call_sends_the_token_and_the_tool_name(monkeypatch):
 
     api = _core_api(monkeypatch, handler)
 
-    got = api.send("GET", "/x", SecretStr(_TOKEN), "get_sla", read=True, params={"a": "1"})
+    got = api.send("GET", "/x", SecretStr(_TOKEN), "get_sla", read=True, step=3, params={"a": "1"})
+    api.send("GET", "/x", SecretStr(_TOKEN), "get_sla", read=True, step=None)
 
     assert got == Reply(200, {"ok": True})
     assert seen[0].headers["Authorization"] == f"Bearer {_TOKEN}"
     assert seen[0].headers["X-Agent-Tool"] == "get_sla"
+    assert seen[0].headers["X-Agent-Step"] == "3"
+    assert "X-Agent-Step" not in seen[1].headers
+
+
+def test_every_call_of_a_step_names_that_step_ask_helpdesk_s_polls_included(model, core_api):
+    """F17 FR-F17-011: core-api counts a step once, by its first call."""
+
+    model(
+        call("list_my_tickets"),
+        call("ask_helpdesk", message="VPN drops all day long"),
+        reply(),
+    )
+    api = core_api(
+        Reply(200, _VPN_TICKETS),
+        Reply(200, {"public_id": "CH-1", "state": "thinking"}),
+        Reply(200, {"public_id": "CH-1", "state": "thinking"}),
+        Reply(200, {"public_id": "CH-1", "state": "answered", "answer": {"text": "Restart it."}}),
+    )
+
+    run(turn())
+
+    assert [(c["step"], c["method"]) for c in api.calls] == [
+        (1, "GET"),
+        (2, "POST"),
+        (2, "GET"),
+        (2, "GET"),
+    ]
 
 
 @pytest.mark.parametrize("public_id", [".", "..", "../x", "a/b", "a b", "-x"])

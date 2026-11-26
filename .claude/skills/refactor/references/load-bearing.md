@@ -591,14 +591,22 @@ guard and that comment is later trimmed, the entry is the record.
   (BR-F15-25), and the requester's routes never show it.
   *`test_handoff_summary_never_reaches_triage_or_routing`,
   `test_the_summary_is_shown_to_staff_and_never_to_the_requester`.*
-- **`require` counting an agent call by its gate's tier (`count_read` for
-  `read`, `count_write` for the rest), never by its HTTP method.** The cloud
-  queries are POSTs that only read; counted as writes, a few of them use up
-  the turn's write cap before the change the person asked for (FR-F17-011).
-  With `max_read_calls_per_turn` unset, reads are uncounted, as in F15.
+- **`require` counting an agent call by its gate's tier, never by its HTTP
+  method, and `count_step` counting a step once.** The cloud queries are POSTs
+  that only read; counted as writes, a few of them use up the turn's write cap
+  before the change the person asked for (FR-F17-011). A step is counted by
+  its first call; a read naming the step counted last (`X-Agent-Step`) is
+  free, so `ask_helpdesk`'s polls never use up the read cap while triage
+  thinks. Only reads are ever free: a write counts whatever step it names, so
+  an ai-engine that repeats a step number still can't pass the write cap, and
+  a call naming no step counts on its own. With `max_read_calls_per_turn`
+  unset, reads are counted but never refused, as in F15. `ran_a_read` reads
+  this count, core-api's own, never the steps ai-engine reports.
   *`test_an_agent_s_post_query_counts_as_a_read_never_a_write`,
   `test_a_turn_s_reads_beyond_max_read_calls_are_refused`,
-  `test_without_max_read_calls_core_api_caps_no_read`.*
+  `test_without_max_read_calls_core_api_caps_no_read`,
+  `test_twenty_polls_of_ask_helpdesk_leave_the_turn_able_to_read`,
+  `test_a_write_counts_whatever_step_it_names`.*
 
 ### Infra reads and queries (F17, ADR-0048)
 

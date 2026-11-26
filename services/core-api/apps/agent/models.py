@@ -6,7 +6,7 @@ from __future__ import annotations
 import unicodedata
 import uuid
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.db import models
@@ -125,19 +125,22 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
     def unfinished(self) -> AgentTurnQuerySet:
         return self.filter(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
 
-    def count_write(self, turn_id: uuid.UUID, cap: int) -> bool:
-        """Counts one write call of the turn; False once it has made `cap` (FR-F15-015)."""
-        return bool(
-            self.filter(id=turn_id, write_calls__lt=cap).update(write_calls=F("write_calls") + 1)
-        )
-
-    def count_read(self, turn_id: uuid.UUID, cap: int | None) -> bool:
-        """Counts one read call of the turn; False once it has made `cap`, never with no cap
-        (F17 FR-F17-011)."""
+    def count_step(
+        self, turn_id: uuid.UUID, step: int | None, *, read: bool, cap: int | None
+    ) -> bool:
+        """Counts a call of the turn as a read or a write; False once it has made `cap` of them,
+        never with no cap (FR-F15-015, F17 FR-F17-011). A read in the step counted last is free,
+        and a call that names no step is a step of its own."""
         rows = self.filter(id=turn_id)
+        if read and step is not None and rows.filter(counted_step=step).exists():
+            return True
+        field = "read_calls" if read else "write_calls"
         if cap is not None:
-            rows = rows.filter(read_calls__lt=cap)
-        return bool(rows.update(read_calls=F("read_calls") + 1))
+            rows = rows.filter(**{f"{field}__lt": cap})
+        update: dict[str, Any] = {field: F(field) + 1}
+        if step is not None:
+            update["counted_step"] = step
+        return bool(rows.update(**update))
 
     def pii_map_of(self, conversation_id: uuid.UUID) -> dict[str, str]:
         """Every placeholder the conversation's turns masked, with its quarantine ref; a later
@@ -190,6 +193,8 @@ class AgentTurn(BaseModel):
     tool_calls = models.PositiveIntegerField(default=0)
     write_calls = models.PositiveIntegerField(default=0)
     read_calls = models.PositiveIntegerField(default=0)
+    # The step of the turn core-api counted last, 0 before any (F17 FR-F17-011).
+    counted_step = models.PositiveIntegerField(default=0)
     model = models.CharField(max_length=100, blank=True, default="")
     prompt_version = models.CharField(max_length=50, blank=True, default="")
     tokens_in = models.PositiveIntegerField(default=0)
@@ -234,7 +239,7 @@ class AgentTurn(BaseModel):
 
     def ran_a_read(self) -> bool:
         """Whether the turn read anything before it ended."""
-        return self.read_calls > 0 or self.steps.filter(method="GET").exists()
+        return self.read_calls > 0
 
     def card_of(self, choices: list[AgentChoice]) -> list[dict[str, str | None]] | None:
         """The card a reply with `choices` shows: one button each, then "Something else" in the

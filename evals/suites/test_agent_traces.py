@@ -78,11 +78,13 @@ class InProcessCoreApi:
         self.on_wait = on_wait
         self.calls: list[tuple[str, str, int]] = []
 
-    def send(self, method, path, token, tool, *, read, params=None, json=None):
+    def send(self, method, path, token, tool, *, read, step, params=None, json=None):
         headers = {
             "HTTP_AUTHORIZATION": f"Bearer {token.get_secret_value()}",
             "HTTP_X_AGENT_TOOL": tool,
         }
+        if step is not None:
+            headers["HTTP_X_AGENT_STEP"] = str(step)
         if method == "GET":
             response = self.client.get(path, params or {}, **headers)
         else:

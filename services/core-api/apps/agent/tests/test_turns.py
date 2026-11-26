@@ -68,11 +68,13 @@ def queued(monkeypatch):
 
 
 class Engine:
-    """A stubbed ai-engine: NER finds nothing, and /v1/agent/turn answers `reply` or fails."""
+    """A stubbed ai-engine: NER finds nothing, and /v1/agent/turn reads each of `reads` through
+    core-api as the turn's agent, one step each, then answers `reply` or fails."""
 
     def __init__(self, serve_ai_engine) -> None:
         self.reply: dict[str, Any] | Exception = _replied("Done.")
         self.ner_fails = False
+        self.reads: list[str] = []
         self.turn_bodies: list[dict[str, Any]] = []
         self.calls = serve_ai_engine(self.handle)
 
@@ -82,7 +84,13 @@ class Engine:
                 raise httpx.ConnectError("ner down")
             return httpx.Response(200, json={"spans": []})
         if request.url.path == "/v1/agent/turn":
-            self.turn_bodies.append(json.loads(request.content))
+            body = json.loads(request.content)
+            self.turn_bodies.append(body)
+            for step, path in enumerate(self.reads, start=1):
+                read = api_client_with(body["token"]).get(
+                    path, HTTP_X_AGENT_TOOL="list_my_tickets", HTTP_X_AGENT_STEP=str(step)
+                )
+                assert read.status_code == 200, read.content
             if isinstance(self.reply, Exception):
                 raise self.reply
             return httpx.Response(200, json=self.reply)
@@ -1034,6 +1042,57 @@ def test_without_max_read_calls_core_api_caps_no_read(employee_user, settings):
     assert (turn.read_calls, turn.write_calls) == (4, 0)
 
 
+@pytest.mark.django_db
+def test_twenty_polls_of_ask_helpdesk_leave_the_turn_able_to_read(
+    employee_user, settings, engine, queued
+):
+    _agent_caps(settings, max_read_calls_per_turn=1, max_tool_calls_per_turn=1)
+    client = as_agent(employee_user, tool="ask_helpdesk", step=1)
+
+    asked = client.post(
+        "/api/chat/ask", {"message": "VPN drops every ten minutes"}, content_type="application/json"
+    )
+    polls = [client.get(f"/api/chat/tickets/{asked.json()['public_id']}") for _ in range(20)]
+    only_asked = AgentTurn.objects.get().ran_a_read()
+    client.defaults.update(HTTP_X_AGENT_TOOL="list_my_tickets", HTTP_X_AGENT_STEP="2")
+    read = client.get("/api/requester/tickets")
+
+    assert asked.status_code == 200
+    assert {p.status_code for p in polls} == {200}
+    assert only_asked is False
+    assert read.status_code == 200
+    turn = AgentTurn.objects.get()
+    assert (turn.write_calls, turn.read_calls, turn.ran_a_read()) == (1, 1, True)
+
+
+@pytest.mark.django_db
+def test_a_write_counts_whatever_step_it_names(employee_user, settings, engine, queued):
+    _agent_caps(settings, max_tool_calls_per_turn=1)
+    client = as_agent(employee_user, tool="ask_helpdesk", step=1)
+    ask = {"message": "VPN drops every ten minutes"}
+
+    first = client.post("/api/chat/ask", ask, content_type="application/json")
+    again = client.post("/api/chat/ask", ask, content_type="application/json")
+
+    assert first.status_code == 200
+    assert (again.status_code, again.json()["code"]) == (429, "agent_tool_limit")
+    assert AgentTurn.objects.get().write_calls == 1
+
+
+@pytest.mark.django_db
+def test_a_read_in_a_new_step_counts_against_the_cap(employee_user, settings):
+    _agent_caps(settings, max_read_calls_per_turn=2)
+    client = as_agent(employee_user, tool="list_my_tickets", step=1)
+
+    answers = []
+    for step in (1, 1, 2, 3):
+        client.defaults["HTTP_X_AGENT_STEP"] = str(step)
+        answers.append(client.get("/api/requester/tickets").status_code)
+
+    assert answers == [200, 200, 200, 429]
+    assert AgentTurn.objects.get().read_calls == 2
+
+
 # ── agent.sweep (FR-F15-019) ──
 
 
@@ -1355,6 +1414,7 @@ def test_console_surface_has_no_hand_off(technician_user, api_as, engine, queued
 
 @pytest.mark.django_db
 def test_needs_staff_reply_has_the_code_written_parts(employee_user, api_as, engine, queued):
+    engine.reads = ["/api/requester/tickets"]
     engine.reply = _needs_staff(steps=[_step(1, "GET")])
     client = api_as(employee_user)
     turn = _start(client, FOLDER)

@@ -43,13 +43,14 @@ class PublicIdIn(ToolInput):
 
 @dataclass(frozen=True)
 class Context:
-    """Who the turn acts for, and the items its results offered by ref, as code needs them; none
-    of it reaches the model."""
+    """Who the turn acts for, the step a call belongs to, and the items its results offered by
+    ref, as code needs them; none of it reaches the model."""
 
     token: SecretStr
     actor_id: UUID | None
     actor_username: str
     chat_conversation_id: UUID | None
+    step: int | None = None
     refs: dict[str, AgentChoice] = field(default_factory=dict)
 
 
@@ -96,6 +97,7 @@ class Tool:
             context.token,
             self.name,
             read=not self.writes,
+            step=context.step,
             params=params or None,
             json=json,
         )

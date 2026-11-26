@@ -27,8 +27,13 @@ def runbook_item(reporter: User, queue: ReviewQueue = ReviewQueue.RUNBOOK_APPROV
 
 
 def as_agent(
-    user: User, tool: str = "draft_review_decision", turn: uuid.UUID | None = None
+    user: User,
+    tool: str = "draft_review_decision",
+    turn: uuid.UUID | None = None,
+    step: int | None = None,
 ) -> Client:
     client = api_client_with(agent_token_for(user, turn=turn))
     client.defaults["HTTP_X_AGENT_TOOL"] = tool
+    if step is not None:
+        client.defaults["HTTP_X_AGENT_STEP"] = str(step)
     return client
