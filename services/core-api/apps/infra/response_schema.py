@@ -1,15 +1,17 @@
 """Response shapes for the infra reads (F17 §h.1), where free text is already masked or
-withheld, for the customer routes (F17 §o.9), and for the changes (F17 §h.1)."""
+withheld, for the customer and cue routes (F17 §o.9), and for the changes (F17 §h.1)."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from ninja import Schema
 
 from apps.infra.domain.changes import InfraChange, InfraResource
-from apps.infra.models import Customer, CustomerTier
+from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
+from apps.infra.models import CueRun, Customer, CustomerTier, TicketCue
 
 
 class ProjectOut(Schema):
@@ -256,3 +258,45 @@ class InfraChangeOut(Schema):
     target_name: str
     project_id: str
     ticket: str | None
+
+
+class CueOut(Schema):
+    template: str
+    status: CueStatus
+    summary: str
+    evidence: dict[str, Any]
+    link: str | None
+
+
+class TicketResourceOut(Schema):
+    kind: ResourceKind
+    resource_id: str
+    name: str
+    project_id: str
+    source: ResourceSource
+    token: str | None
+    cues: list[CueOut]
+
+
+class CueRunOut(Schema):
+    id: uuid.UUID
+    outcome: CueRunOutcome
+    started_at: datetime
+    finished_at: datetime | None
+    started_by: str | None
+    window_start: datetime | None
+    window_end: datetime | None
+    resources: list[TicketResourceOut]
+    overview: list[CueOut]
+
+    @staticmethod
+    def resolve_started_by(run: CueRun) -> str | None:
+        return run.started_by.username if run.started_by else None
+
+    @staticmethod
+    def resolve_overview(run: CueRun) -> list[TicketCue]:
+        return [cue for cue in run.cues.all() if cue.resource_id is None]
+
+
+class TicketCuesOut(Schema):
+    runs: list[CueRunOut]

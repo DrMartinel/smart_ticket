@@ -38,6 +38,7 @@ export interface SessionUser {
 
 export const DEPARTMENT_READ = "urn:smart-ticket:perm:requester:department:read";
 export const AGENT_USE = "urn:smart-ticket:perm:agent:use";
+export const INFRA_READ_OWN = "urn:smart-ticket:perm:infra:read:own";
 
 interface SessionOut {
   access: string;

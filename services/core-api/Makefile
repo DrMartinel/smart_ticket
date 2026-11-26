@@ -70,6 +70,10 @@ worker: ## Celery worker
 worker-agent: ## Celery worker for agent turns (F15)
 	uv run celery -A config worker -l info -Q agent
 
+.PHONY: worker-infra
+worker-infra: ## Celery worker for a ticket's cue runs (F17)
+	uv run celery -A config worker -l info -Q infra
+
 .PHONY: beat
 beat: ## Celery beat (quarantine expiry, weekly drift check)
 	uv run celery -A config beat -l info

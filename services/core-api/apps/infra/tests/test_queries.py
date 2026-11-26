@@ -4,6 +4,8 @@ BR-F17-05..07, BR-F17-10, BR-F17-12, AC-F17-01, AC-F17-02, AC-F17-05)."""
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -11,8 +13,10 @@ import pytest
 from cloud_sim.faults import FaultKind
 
 from apps.accounts.models import User
-from apps.infra.domain.catalog import PROJECT_FIELD
+from apps.infra.domain.catalog import PROJECT_FIELD, Catalog, Surface
+from apps.infra.domain.queries import COUNTS, LogCount, Window
 from apps.infra.domain.untrusted import WITHHELD
+from apps.infra.domain.vocabulary import QueryRefused
 from apps.infra.models import InfraQuery
 from apps.infra.tests.conftest import (
     LAN_SUBJECT,
@@ -90,6 +94,30 @@ def test_every_log_search_filters_the_callers_projects(
     first, second = es.bodies()
     assert scope_filter(first) == sorted([prod, cloud_sim.id_of("projects", "saomai-staging")])
     assert scope_filter(second) == [prod]
+
+
+def test_a_log_count_filters_the_callers_projects_and_stays_under_the_cap(settings):
+    caps = settings.THRESHOLDS.infra
+    count = LogCount(
+        window=Window(
+            datetime(2026, 11, 26, 8, tzinfo=UTC), datetime(2026, 11, 26, 10, tzinfo=UTC)
+        ),
+        dataset="instance",
+        by="server",
+        size=3,
+        filters={"level": ["ERROR"]},
+    )
+
+    search = count.search(Catalog(Surface.CUSTOMER), caps, frozenset({"p2", "p1"}))
+
+    assert scope_filter(search.body) == ["p1", "p2"]
+    assert search.body["aggs"] == {COUNTS: {"terms": {"field": "host.name", "size": 3}}}
+    with pytest.raises(ValueError):
+        count.search(Catalog(Surface.CUSTOMER), caps, frozenset())
+    with pytest.raises(QueryRefused):
+        replace(count, size=caps.max_log_docs + 1).search(
+            Catalog(Surface.CUSTOMER), caps, frozenset({"p1"})
+        )
 
 
 def test_every_trace_search_filters_the_callers_projects(

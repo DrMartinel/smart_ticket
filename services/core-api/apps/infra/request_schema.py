@@ -1,6 +1,7 @@
 """Request shapes for the infra queries (F17 §h.1), whose catalog and caps are checked when the
 query compiles, or for raw PromQL when Prometheus has parsed it, the customer routes' bodies
-(F17 §o.9), and the changes' bodies (F17 §h.1)."""
+(F17 §o.9), the changes' bodies (F17 §h.1), and the resource a person links to a ticket's
+cues (F17 §o.9)."""
 
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from pydantic import ConfigDict, IPvAnyNetwork, model_validator
 from apps.infra.domain.changes import RuleSpec
 from apps.infra.domain.promql import PromQLQuery
 from apps.infra.domain.queries import LogSearch, MetricQuery, TraceSearch, Window
+from apps.infra.domain.vocabulary import ResourceKind
 from apps.infra.models import CustomerTier
 
 
@@ -105,6 +107,13 @@ class CustomerPatch(Schema):
     name: str | None = Field(None, min_length=1, max_length=120)
     tier: CustomerTier | None = None
     reason: str = Field("", max_length=500)
+
+
+class CueResourceIn(Schema):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    kind: ResourceKind
+    resource_id: str = Field(min_length=1, max_length=64)
 
 
 # ── changes (F17 §h.1, BR-F17-08, BR-F17-11) ──

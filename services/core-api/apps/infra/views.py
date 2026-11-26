@@ -1,20 +1,23 @@
 """The infra routes (F17 §h.1), split into two routers so every endpoint carries one
 permission: `/api/infra/*` for staff (`infra:read` and `infra:operate`, every project) and
 `/api/requester/infra/*` for customers (`infra:read:own` and `infra:operate:own`, only their
-Keystone projects); and the customer routes (`infra:customers:manage`, F17 §o.9)."""
+Keystone projects); the customer routes (`infra:customers:manage`, F17 §o.9); and a ticket's cue
+routes under `/api/tickets/*` (`infra:read`, for a ticket the caller reaches, F17 §o.9)."""
 
 import uuid
 
 from django.conf import settings
 from ninja import Router, Status
+from ninja.errors import HttpError
 
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.accounts.domain.catalog import Permission
 from apps.agent.models import AgentTargetKind
 from apps.infra.domain.catalog import Catalog, Listing, Surface
-from apps.infra.models import Customer
+from apps.infra.models import CueRun, Customer
 from apps.infra.request_schema import (
     AttachVolumeIn,
+    CueResourceIn,
     CustomerIn,
     CustomerPatch,
     LogSearchIn,
@@ -30,6 +33,7 @@ from apps.infra.request_schema import (
 from apps.infra.response_schema import (
     AlertOut,
     CatalogOut,
+    CueRunOut,
     CustomerListingOut,
     CustomerOut,
     InfraChangeOut,
@@ -41,10 +45,12 @@ from apps.infra.response_schema import (
     ServerDetailOut,
     ServerOut,
     SilenceOut,
+    TicketCuesOut,
     TraceAnswerOut,
     VolumeOut,
 )
 from apps.infra.services.changes import ChangeDone, InfraChanges
+from apps.infra.services.cues import cues
 from apps.infra.services.customers import CustomerListing, customers
 from apps.infra.services.inventory import Inventory
 from apps.infra.services.observability import (
@@ -54,9 +60,11 @@ from apps.infra.services.observability import (
     TraceAnswer,
 )
 from apps.infra.domain.resources import Alert, Network, Project, Server, Silence, Volume
+from apps.tickets.models import Ticket
 
 router = Router(tags=["infra"])
 requester_router = Router(tags=["requester-infra"])
+ticket_router = Router(tags=["infra"])
 
 
 # ── staff / console (`/api/infra/*`) ──
@@ -237,6 +245,33 @@ def change_customer(
     request: AuthedRequest, customer_id: uuid.UUID, payload: CustomerPatch
 ) -> Customer:
     return customers.change(request.auth.user, customer_id, payload.model_dump())
+
+
+# ── a ticket's cues (`/api/tickets/{public_id}/cues`) ──
+
+
+@ticket_router.get("/{public_id}/cues", auth=SessionAuth(), response=TicketCuesOut)
+@require(Permission.INFRA_READ, agent=AgentTier.NONE)
+def get_cues(request: AuthedRequest, public_id: str) -> dict[str, list[CueRun]]:
+    return {"runs": cues.of(_reached_ticket(request, public_id))}
+
+
+@ticket_router.post("/{public_id}/cues/resources", auth=SessionAuth(), response={202: CueRunOut})
+@require(Permission.INFRA_READ, agent=AgentTier.NONE)
+def link_cue_resource(
+    request: AuthedRequest, public_id: str, payload: CueResourceIn
+) -> Status[CueRun]:
+    ticket = _reached_ticket(request, public_id)
+    return Status(202, cues.link(ticket, request.auth, payload.kind, payload.resource_id))
+
+
+def _reached_ticket(request: AuthedRequest, public_id: str) -> Ticket:
+    try:
+        ticket = Ticket.objects.select_related("reporter").get(public_id=public_id)
+    except Ticket.DoesNotExist as e:
+        raise HttpError(404, "ticket not found") from e
+    request.auth.require_covering(Permission.TICKETS_READ, ticket)
+    return ticket
 
 
 # ── customer / chat (`/api/requester/infra/*`) ──

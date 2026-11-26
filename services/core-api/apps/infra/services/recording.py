@@ -1,5 +1,6 @@
-"""A caller's `infra_queries` record (F17 BR-F17-10): one row per read of the cloud or its
-observability, however it ended, and the coded refusal a failed read answers with."""
+"""The `infra_queries` record of a person's, their agent's or a ticket's cue reads (F17
+BR-F17-10, ADR-0048 decision 10): one row per read of the cloud or its observability, however
+it ended, and the coded refusal a failed read answers with."""
 
 from __future__ import annotations
 
@@ -9,7 +10,9 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
+from apps.accounts.models import User
 from apps.accounts.permissions import Caller
 from apps.infra.clients.backends import (
     BackendNotFound,
@@ -26,6 +29,9 @@ from apps.infra.domain.vocabulary import (
 )
 from apps.infra.models import InfraBackend, InfraOutcome, InfraQuery, InfraQueryKind, InfraVia
 from apps.infra.services.scope import InfraScope
+
+if TYPE_CHECKING:
+    from apps.tickets.models import Ticket
 
 logger = logging.getLogger(__name__)
 
@@ -59,27 +65,60 @@ class Read:
 
 
 class QueryLog:
-    """The reads one caller makes, each recorded as it ends."""
+    """The reads one person, their agent or a ticket's cues make, each recorded as it ends, and
+    the rows recorded so far."""
 
-    def __init__(self, caller: Caller) -> None:
-        self.caller = caller
+    def __init__(
+        self,
+        actor: User | None,
+        via: InfraVia,
+        *,
+        agent_turn: uuid.UUID | None = None,
+        ticket: Ticket | None = None,
+    ) -> None:
+        self.actor = actor
+        self.via = via
+        self.agent_turn = agent_turn
+        self.ticket = ticket
+        self.recorded: list[InfraQuery] = []
+
+    @classmethod
+    def of(cls, caller: Caller, ticket: Ticket | None = None) -> QueryLog:
+        """The reads `caller` makes, as their agent's when an agent acts for them."""
+        agent = caller.agent
+        return cls(
+            caller.user,
+            InfraVia.AGENT if agent else InfraVia.HUMAN,
+            agent_turn=agent.turn if agent else None,
+            ticket=ticket,
+        )
+
+    @classmethod
+    def of_cues(cls, ticket: Ticket) -> QueryLog:
+        """A ticket's cue reads: no actor, and the ticket (ADR-0048 decision 10)."""
+        return cls(None, InfraVia.CUE, ticket=ticket)
 
     def own_scope(self, cloud: OpenStack) -> InfraScope:
-        """The caller's Keystone projects; refuses with `infra_scope_unavailable` when Keystone
+        """The actor's Keystone projects; refuses with `infra_scope_unavailable` when Keystone
         can't answer, never widening the scope."""
+        assert self.actor is not None
         started = time.monotonic()
         try:
-            return InfraScope.own(self.caller, cloud)
+            return InfraScope.own(self.actor, cloud)
         except BackendUnavailable as e:
             logger.warning("infra: scope lookup failed: %s", e)
-            failed = Read(InfraBackend.CLOUD, InfraQueryKind.RESOURCE, [])
-            failed.calls.append("GET identity /role_assignments")
-            self.record(
-                failed, InfraOutcome.SCOPE_UNAVAILABLE, InfraRefusal.SCOPE_UNAVAILABLE, started
-            )
+            self.scope_unavailable(started)
             raise InfraError(
                 InfraRefusal.SCOPE_UNAVAILABLE, "the cloud can't say which projects are yours"
             ) from e
+
+    def scope_unavailable(self, started: float) -> InfraQuery:
+        """Records a membership lookup Keystone didn't answer."""
+        failed = Read(InfraBackend.CLOUD, InfraQueryKind.RESOURCE, [])
+        failed.calls.append("GET identity /role_assignments")
+        return self.record(
+            failed, InfraOutcome.SCOPE_UNAVAILABLE, InfraRefusal.SCOPE_UNAVAILABLE, started
+        )
 
     @contextmanager
     def read(
@@ -114,11 +153,11 @@ class QueryLog:
     def record(
         self, read: Read, outcome: InfraOutcome, refusal: InfraRefusal | None, started: float
     ) -> InfraQuery:
-        agent = self.caller.agent
         row = InfraQuery.objects.create(
-            actor=self.caller.user,
-            via=(InfraVia.AGENT if agent else InfraVia.HUMAN).value,
-            agent_turn_id=agent.turn if agent else None,
+            actor=self.actor,
+            via=self.via.value,
+            agent_turn_id=self.agent_turn,
+            ticket=self.ticket,
             backend=read.backend.value,
             kind=read.kind.value,
             compiled="\n".join(read.calls),
@@ -131,4 +170,5 @@ class QueryLog:
             link=read.link,
         )
         read.query_id = row.id
+        self.recorded.append(row)
         return row

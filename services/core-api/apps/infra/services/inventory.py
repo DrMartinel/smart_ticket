@@ -40,12 +40,12 @@ class Inventory:
     @classmethod
     def for_all(cls, caller: Caller) -> Inventory:
         """Staff inventory across every cloud project."""
-        return cls(QueryLog(caller), InfraScope.all(), openstack(), alertmanager())
+        return cls(QueryLog.of(caller), InfraScope.all(), openstack(), alertmanager())
 
     @classmethod
     def for_own(cls, caller: Caller) -> Inventory:
         """Customer inventory narrowed to the caller's Keystone projects."""
-        log, cloud = QueryLog(caller), openstack()
+        log, cloud = QueryLog.of(caller), openstack()
         return cls(log, log.own_scope(cloud), cloud, alertmanager())
 
     # ── projects ──

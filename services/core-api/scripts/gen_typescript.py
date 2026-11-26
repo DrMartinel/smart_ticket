@@ -254,6 +254,11 @@ MODELS = [
     "CustomerOut",
     "DomainOut",
     "CustomerListingOut",
+    "CueResourceIn",
+    "CueOut",
+    "TicketResourceOut",
+    "CueRunOut",
+    "TicketCuesOut",
     "BranchReadinessOut",
     "AutomationOut",
     "RolloutReportOut",
@@ -535,9 +540,19 @@ def main() -> None:
         chunks.append(emit_enum(enum.__name__, [member.value for member in enum]))
 
     from apps.infra.domain.changes import InfraChange, InfraResource
+    from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
     from apps.infra.models import CustomerLookup, CustomerTier
 
-    for infra_enum in (CustomerTier, CustomerLookup, InfraChange, InfraResource):
+    for infra_enum in (
+        CustomerTier,
+        CustomerLookup,
+        InfraChange,
+        InfraResource,
+        CueRunOutcome,
+        CueStatus,
+        ResourceKind,
+        ResourceSource,
+    ):
         chunks.append(emit_enum(infra_enum.__name__, [m.value for m in infra_enum]))
 
     for model_name in MODELS:

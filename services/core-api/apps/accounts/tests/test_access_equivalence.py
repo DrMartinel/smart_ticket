@@ -96,6 +96,8 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/infra/customers": Permission.INFRA_CUSTOMERS_MANAGE,
     "POST /api/infra/customers": Permission.INFRA_CUSTOMERS_MANAGE,
     "PATCH /api/infra/customers/{customer_id}": Permission.INFRA_CUSTOMERS_MANAGE,
+    "GET /api/tickets/{public_id}/cues": Permission.INFRA_READ,
+    "POST /api/tickets/{public_id}/cues/resources": Permission.INFRA_READ,
     "GET /api/requester/infra/projects": Permission.INFRA_READ_OWN,
     "GET /api/requester/infra/servers": Permission.INFRA_READ_OWN,
     "GET /api/requester/infra/servers/{server_id}": Permission.INFRA_READ_OWN,

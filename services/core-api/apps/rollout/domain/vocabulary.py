@@ -8,14 +8,15 @@ from apps.core.errors import CodedError
 
 
 class FlagBranch(StrEnum):
-    """The automated branch families a flag turns live, and the agent on each surface (F15). None
-    exists for runbooks (ADR-0006)."""
+    """The automated branch families a flag turns live, the agent on each surface (F15) and a
+    ticket's cues (F17 §o). None exists for runbooks (ADR-0006)."""
 
     AUTO_ROUTE = "auto_route"
     AUTO_REPLY = "auto_reply"
     REQUESTER_QUESTIONS = "requester_questions"
     AGENT_CHAT = "agent_chat"
     AGENT_CONSOLE = "agent_console"
+    TICKET_CUES = "ticket_cues"
 
 
 class FlagState(StrEnum):
