@@ -1,0 +1,8 @@
+# Elastic APM Server for the `infra` profile (F17): receives cloud-sim's
+# OTLP logs and traces and writes them to Elasticsearch.
+apm-server:
+  host: "0.0.0.0:8200"
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  username: elastic
+  password: "${ELASTIC_PASSWORD}"

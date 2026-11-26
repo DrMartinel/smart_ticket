@@ -705,7 +705,9 @@ each file is clean.
 **Priority:** Owner's choice, ahead of item 23 (F17 §a.1) · **Spec:** [06-F17-infra.md](requirements/phase-2/06-F17-infra.md) · [ADR-0048](adr/0048-agent-reaches-infrastructure.md) (Accepted)
 
 - **Spec and ADR-0048 accepted 2026-11-24**, every open question decided
-  (§k). Next: PR 1, `cloud-sim` and the `infra` compose profile (§n).
+  (§k). PR 1, `cloud-sim` and the `infra` compose profile, is built
+  (`services/cloud-sim/`, `infra/observability/`). Next: PR 2, core-api's
+  `apps/infra` clients and scope (§n).
 - **Built ahead of F15's evals by the owner's choice.** F17 adds write tools
   to an agent whose prompt has never run against a model; both agent flags
   stay off until item 23 and F17's trace cases are done.

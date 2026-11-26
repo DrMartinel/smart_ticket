@@ -32,6 +32,7 @@ on:
     paths: &code_paths
       - "services/core-api/**"
       - "services/ai-engine/**"
+      - "services/cloud-sim/**"
       - "evals/**"
       - "infra/migrations/**"
       - ".github/workflows/eval-gate.yml"
@@ -79,6 +80,9 @@ jobs:
 
       - name: ai-engine unit tests
         run: uv run pytest services/ai-engine/tests -q
+
+      - name: cloud-sim unit tests
+        run: uv run pytest services/cloud-sim/tests -q
 
       # Graph-structure tests live in services/ai-engine/tests/test_build.py and
       # run in the ai-engine step above — this step previously also listed

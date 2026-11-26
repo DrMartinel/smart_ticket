@@ -11,6 +11,7 @@ volumes:
   db_data:
   graph_build:
   keycloak_data:
+  es_data:
 
 # Every value comes from .env beside this file (`cp .env.example .env`, the
 # template that documents each one); nothing here repeats a default, and
@@ -456,4 +457,131 @@ services:
       - "8081:8080"
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    networks: [smart-triage]
+
+  # The simulated cloud and its observability (F17, ADR-0048), off by default:
+  # `docker compose --profile infra up -d`. Host ports sit beside the usual
+  # ones (9201, 5602, 8201, 9091, 9092, 9094, 8090) to avoid collisions.
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    profiles: ["infra"]
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "true"
+      xpack.security.http.ssl.enabled: "false"
+      xpack.license.self_generated.type: basic
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?see .env.example}
+      ES_JAVA_OPTS: -Xms${ELASTICSEARCH_HEAP:?see .env.example} -Xmx${ELASTICSEARCH_HEAP:?see .env.example}
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    ports:
+      - "9201:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsu elastic:$$ELASTIC_PASSWORD http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    networks: [smart-triage]
+
+  # One-shot: gives kibana_system its password, then exits.
+  es-setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    profiles: ["infra"]
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?see .env.example}
+      KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:?see .env.example}
+    command:
+      - sh
+      - -c
+      - >-
+        curl -fsS -u "elastic:$$ELASTIC_PASSWORD" -H "Content-Type: application/json"
+        -X POST http://elasticsearch:9200/_security/user/kibana_system/_password
+        -d "{\"password\": \"$$KIBANA_SYSTEM_PASSWORD\"}"
+    restart: "no"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [smart-triage]
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    profiles: ["infra"]
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:?see .env.example}
+    ports:
+      - "5602:5601"
+    depends_on:
+      es-setup:
+        condition: service_completed_successfully
+    networks: [smart-triage]
+
+  # Receives cloud-sim's OTLP logs and traces (Elastic APM).
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:8.15.3
+    profiles: ["infra"]
+    command: ["--strict.perms=false"]
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?see .env.example}
+    volumes:
+      - ./infra/observability/apm-server.yml:/usr/share/apm-server/apm-server.yml:ro
+    ports:
+      - "8201:8200"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks: [smart-triage]
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    profiles: ["infra"]
+    volumes:
+      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/observability/rules.yml:/etc/prometheus/rules.yml:ro
+    ports:
+      - "9091:9090"
+    networks: [smart-triage]
+
+  # The only way core-api queries Prometheus: adds the caller's `project`
+  # matcher to every query (ADR-0048 §3).
+  prom-label-proxy:
+    image: quay.io/prometheuscommunity/prom-label-proxy:v0.11.0
+    profiles: ["infra"]
+    command:
+      - -label=project
+      - -upstream=http://prometheus:9090
+      - -insecure-listen-address=0.0.0.0:8080
+      - -enable-label-apis
+    ports:
+      - "9092:8080"
+    depends_on: [prometheus]
+    networks: [smart-triage]
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    profiles: ["infra"]
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml"]
+    volumes:
+      - ./infra/observability/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9094:9093"
+    networks: [smart-triage]
+
+  # A simulated OpenStack (F17): Keystone, Nova, Cinder and Neutron, its
+  # metrics for Prometheus, and OTLP logs and traces to the APM Server.
+  cloud-sim:
+    build:
+      context: .
+      dockerfile: services/cloud-sim/Dockerfile
+    profiles: ["infra"]
+    environment:
+      OPENSTACK_SERVICE_USER: ${OPENSTACK_SERVICE_USER:?see .env.example}
+      OPENSTACK_SERVICE_PASSWORD: ${OPENSTACK_SERVICE_PASSWORD:?see .env.example}
+      CLOUD_SIM_OTLP_ENDPOINT: http://apm-server:8200
+      CLOUD_SIM_TICK_SEC: ${CLOUD_SIM_TICK_SEC:?see .env.example}
+      CLOUD_SIM_TRANSITION_SEC: ${CLOUD_SIM_TRANSITION_SEC:?see .env.example}
+      CLOUD_SIM_TOKEN_TTL_SEC: ${CLOUD_SIM_TOKEN_TTL_SEC:?see .env.example}
+    ports:
+      - "8090:8090"
     networks: [smart-triage]
