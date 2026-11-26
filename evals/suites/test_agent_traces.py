@@ -7,6 +7,7 @@ into core-api with the turn's agent token.
 
 from __future__ import annotations
 
+import re
 import uuid
 from json import dumps
 from collections.abc import Callable, Iterator
@@ -17,11 +18,13 @@ import pytest
 from django.conf import settings as django_settings
 from django.test import Client
 
+from ai_engine.agent.tools import TOOLS
 from ai_engine.agent.tools import client as tool_client
 from ai_engine.agent.tools.client import OutcomeUnknown, Reply, ToolFailed
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import LLMResult
 from ai_engine.graph.agent_state import AgentChoice as EngineChoice
+from ai_engine.graph.agent_state import AgentLimits as EngineLimits
 from ai_engine.graph.agent_state import AgentStep as EngineStep
 from ai_engine.graph.agent_state import AgentStopReason as EngineStopReason
 from ai_engine.main import agent_turn as engine_agent_turn
@@ -44,6 +47,7 @@ from config.urls import api
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import (
     AgentChoice,
+    AgentLimits,
     AgentStep,
     AgentStopReason,
     AgentTurnResponse,
@@ -346,6 +350,26 @@ def test_ac_f15_04_every_gated_route_declares_an_agent_tier():
     assert undeclared == []
 
 
+def test_every_tool_s_tier_is_its_route_s():
+    """ADR-0046 §5: ai-engine reads a call's failure by its tool's tier; core-api's gate holds
+    the tier that decides."""
+
+    def shape(path: str) -> str:
+        return re.sub(r"\{[^}]*\}", "{}", path)
+
+    tiers: dict[tuple[str, str], str | None] = {}
+    for prefix, router in api._routers:
+        for path, path_view in router.path_operations.items():
+            for operation in path_view.operations:
+                gate = gate_of(operation.view_func)
+                tier = gate.agent_tier.value if gate and gate.agent_tier else None
+                for method in operation.methods:
+                    tiers[(method, shape(f"/api{prefix.rstrip('/')}{path}"))] = tier
+
+    found = {name: tiers.get((t.method, shape(t.path)), "no route") for name, t in TOOLS.items()}
+    assert {n: f for n, f in found.items() if f != TOOLS[n].tier.value} == {}
+
+
 # ── AC-F15-05: step limit ──
 
 
@@ -534,3 +558,4 @@ def test_the_turn_result_and_its_choices_have_the_same_fields_in_both_services()
     assert set(EngineTurnResponse.model_fields) == set(AgentTurnResponse.model_fields)
     assert set(EngineChoice.model_fields) == set(AgentChoice.model_fields)
     assert set(EngineStep.model_fields) == set(AgentStep.model_fields)
+    assert set(EngineLimits.model_fields) == set(AgentLimits.model_fields)
