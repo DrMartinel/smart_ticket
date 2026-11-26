@@ -818,18 +818,28 @@ guard and that comment is later trimmed, the entry is the record.
   checked against the person's own Keystone projects when pressed (a forged
   request gets `infra_not_found`, UC-F17-14 4x), and the cue run checks it
   against the reporter's projects again, dropping one it doesn't find there.
-  `ResourcePick.objects.of_ticket` takes only the conversation whose turn opened
-  the ticket, and in it only the picks made after its previous ticket opened and
-  no later than this one: a `needs_staff` hand-off leaves the conversation
-  active, so without the bounds a second ticket would put the first problem's
-  resources first and could push its own past `cues.max_resources`. A pick on an
-  ended conversation is refused with `conversation_ended`, and the chat posts a
-  pick only after its message was sent, on the conversation that took it.
+  A pick belongs to the turn its press sent (`ResourcePick.turn`, unique with
+  the resource), and `ResourcePick.objects.of_ticket` takes, by turn `seq`, only
+  the picks on the turns after the one that handed off the conversation's
+  previous ticket (`agent_handoff_reason` set) and up to the ticket's own turn: a
+  `needs_staff` hand-off leaves the conversation active, so without the bounds a
+  second ticket would put the first problem's resources first and could push its
+  own past `cues.max_resources`. Clock time can't stand in for the turn: a
+  resource pressed again for a second ticket would keep its first row and time,
+  an `ask_helpdesk` ticket (which has an agent turn but no hand-off reason) would
+  cut off every earlier pick, and a ticket opened late from an older turn would
+  take later, unrelated picks. A pick on an ended conversation is refused with
+  `conversation_ended`, a turn outside the conversation with
+  `conversation_not_found`, and the chat posts a pick only after its message was
+  sent, naming the turn that took it.
   *`test_no_agent_tool_can_record_a_pick`,
   `test_a_pick_of_another_companys_resource_is_refused_and_records_nothing`,
   `test_a_pick_outside_the_reporters_projects_is_dropped`,
   `test_only_the_conversation_that_opened_the_ticket_lends_it_picks`,
   `test_two_tickets_from_one_conversation_each_take_only_their_own_picks`,
+  `test_a_resource_pressed_again_for_a_second_ticket_is_that_tickets_pick_too`,
+  `test_a_helpdesk_ticket_in_between_takes_no_picks_from_the_next_hand_off`,
+  `test_a_pick_naming_a_turn_of_another_conversation_is_refused`,
   `test_a_pick_on_an_ended_conversation_is_refused`,
   `test_the_cap_keeps_picked_then_named_then_attached`.*
 - **The savepoint (`transaction.atomic()`) around the handoff check in

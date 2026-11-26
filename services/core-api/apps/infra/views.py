@@ -391,7 +391,9 @@ def get_my_trace(request: AuthedRequest, trace_id: str) -> TraceAnswer:
 @requester_router.post("/picks", auth=SessionAuth(), response=ResourcePickOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.NONE)
 def pick_resource(request: AuthedRequest, payload: ResourcePickIn) -> ResourcePick:
-    return cues.pick(request.auth, payload.conversation_id, payload.kind, payload.resource_id)
+    return cues.pick(
+        request.auth, payload.conversation_id, payload.turn_id, payload.kind, payload.resource_id
+    )
 
 
 @requester_router.post("/servers/{server_id}/reboot", auth=SessionAuth(), response=InfraChangeOut)

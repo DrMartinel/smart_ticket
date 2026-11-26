@@ -380,6 +380,7 @@ class ResourcePickOut(Schema):
     """A resource the person picked in the chat, as their projects hold it."""
 
     conversation_id: uuid.UUID
+    turn_id: uuid.UUID
     kind: ResourceKind
     resource_id: str
     name: str

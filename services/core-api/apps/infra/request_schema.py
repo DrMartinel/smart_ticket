@@ -118,11 +118,13 @@ class CueResourceIn(Schema):
 
 
 class ResourcePickIn(Schema):
-    """A resource the person pressed on a choice card, and the conversation the card was in."""
+    """A resource the person pressed on a choice card, the conversation the card was in, and the
+    turn the press sent."""
 
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     conversation_id: uuid.UUID
+    turn_id: uuid.UUID
     kind: ResourceKind
     resource_id: str = Field(min_length=1, max_length=64)
 

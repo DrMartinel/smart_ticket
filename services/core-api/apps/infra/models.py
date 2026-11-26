@@ -234,36 +234,40 @@ class TicketCue(BaseModel):
 
 class ResourcePickQuerySet(models.QuerySet["ResourcePick"]):
     def of_ticket(self, ticket: Ticket) -> Self:
-        """The picks the ticket's reporter made in the agent conversation that opened it, after
-        the conversation's previous ticket opened and no later than this one, in the order they
-        were made; none for a ticket no agent turn opened."""
-        if ticket.agent_turn_id is None:
+        """The picks the ticket's reporter pressed in the agent conversation that opened it, on
+        the turns after the one that handed off the conversation's previous ticket and up to the
+        ticket's own, in the order they were pressed; none for a ticket no agent turn opened."""
+        turn = ticket.agent_turn
+        if turn is None:
             return self.none()
         previous = (
             type(ticket)
             .objects.filter(
-                agent_turn__conversation__turns=ticket.agent_turn_id,
-                created_at__lt=ticket.created_at,
+                agent_turn__conversation_id=turn.conversation_id,
+                agent_turn__seq__lt=turn.seq,
+                agent_handoff_reason__isnull=False,
             )
-            .aggregate(at=models.Max("created_at"))["at"]
+            .aggregate(seq=models.Max("agent_turn__seq"))["seq"]
         )
         picks = self.filter(
-            conversation__turns=ticket.agent_turn_id,
+            turn__conversation_id=turn.conversation_id,
+            turn__seq__lte=turn.seq,
             person_id=ticket.reporter_id,
-            picked_at__lte=ticket.created_at,
         )
         if previous is not None:
-            picks = picks.filter(picked_at__gt=previous)
-        return picks.order_by("picked_at")
+            picks = picks.filter(turn__seq__gt=previous)
+        return picks.order_by("turn__seq", "picked_at")
 
 
 class ResourcePick(BaseModel):
     """A server, volume or network a person pressed on a choice card in their agent
-    conversation, checked against their own projects when it was pressed."""
+    conversation, with the turn the press sent, checked against their own projects when it was
+    pressed."""
 
     conversation = models.ForeignKey(
         "agent.AgentConversation", on_delete=models.CASCADE, related_name="+"
     )
+    turn = models.ForeignKey("agent.AgentTurn", on_delete=models.CASCADE, related_name="+")
     person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
     project_id = models.CharField(max_length=64)
     kind = models.CharField(max_length=8, choices=_choices(ResourceKind))
@@ -276,7 +280,5 @@ class ResourcePick(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "infra_resource_picks"
         constraints = [
-            models.UniqueConstraint(
-                fields=["conversation", "resource_id"], name="uq_resource_pick"
-            ),
+            models.UniqueConstraint(fields=["turn", "resource_id"], name="uq_resource_pick"),
         ]

@@ -387,12 +387,18 @@ class Cues:
     # ── a person picks a resource in the chat (BR-F17-26) ──
 
     def pick(
-        self, caller: Caller, conversation_id: uuid.UUID, kind: ResourceKind, resource_id: str
+        self,
+        caller: Caller,
+        conversation_id: uuid.UUID,
+        turn_id: uuid.UUID,
+        kind: ResourceKind,
+        resource_id: str,
     ) -> ResourcePick:
-        """Records a resource `caller` pressed on a choice card in their chat conversation, once
-        however often it is pressed; refuses another person's conversation with
-        `conversation_not_found`, an ended one with `conversation_ended`, and a resource
-        outside their own projects with `infra_not_found`."""
+        """Records a resource `caller` pressed on a choice card in their chat conversation, on the
+        turn the press sent, once however often it is pressed; refuses another person's
+        conversation, or a turn not in it, with `conversation_not_found`, an ended conversation
+        with `conversation_ended`, and a resource outside their own projects with
+        `infra_not_found`."""
         conversation = (
             AgentConversation.objects.of_user(caller.user)
             .filter(id=conversation_id, surface=AgentSurface.CHAT.value)
@@ -402,11 +408,15 @@ class Cues:
             raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such conversation")
         if not conversation.is_active():
             raise AgentError(409, AgentRefusal.CONVERSATION_ENDED, "the conversation has ended")
+        turn = conversation.turns.filter(id=turn_id).first()
+        if turn is None:
+            raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such turn")
         resource = Inventory.for_own(caller).resource(kind, resource_id)
         pick, _ = ResourcePick.objects.get_or_create(
-            conversation=conversation,
+            turn=turn,
             resource_id=resource.id,
             defaults={
+                "conversation": conversation,
                 "person": caller.user,
                 "project_id": resource.project_id,
                 "kind": kind.value,

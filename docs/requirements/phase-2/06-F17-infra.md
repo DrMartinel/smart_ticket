@@ -733,7 +733,7 @@ Mock data, added to §d's (from `services/cloud-sim/src/cloud_sim/seed.json`):
 | ID | Rule |
 |---|---|
 | BR-F17-13 | Cues are collected once per handoff (BR-F1-01's moment), after the decision has been carried out and committed, and only while the F9 flag `ticket_cues` is on. The flag is checked when the task is queued and again when it runs (OQ-F17-11, OQ-F17-13) |
-| BR-F17-14 | Enrichment looks only among resources in the reporter's own Keystone member projects, never every project, even when the reporter is staff. It takes them in this order: (1) resources the reporter picked in the chat, from the ticket's agent conversation (BR-F17-26), made after that conversation's previous ticket opened and no later than this ticket; (2) names and IDs in the ticket's **masked** subject and body, in the order they appear; (3) volumes attached to a server taken in (1) or (2). `cues.max_resources` keeps the first ones in that order. A ticket whose masking failed skips (2) |
+| BR-F17-14 | Enrichment looks only among resources in the reporter's own Keystone member projects, never every project, even when the reporter is staff. It takes them in this order: (1) resources the reporter picked in the chat, from the ticket's agent conversation (BR-F17-26): those pressed on the turns after the one that handed off that conversation's previous ticket (a helpdesk ticket doesn't count) and up to the ticket's own turn; (2) names and IDs in the ticket's **masked** subject and body, in the order they appear; (3) volumes attached to a server taken in (1) or (2). `cues.max_resources` keeps the first ones in that order. A ticket whose masking failed skips (2) |
 | BR-F17-15 | A Keystone failure links nothing (`scope_unavailable`). It never widens the scope |
 | BR-F17-16 | Cue queries are fixed templates per resource kind (§o.6), compiled by PR 3's structured query builder under its caps. No model writes or chooses them. Each one is a cue read (ADR-0048 decision 10): an `infra_queries` row with `via=cue`, no actor, and its ticket |
 | BR-F17-17 | Cue evidence (log lines, alert annotations) is masked inline as in BR-F17-06; text whose masking fails is `[withheld]`. Summaries are written by code from numbers and names (OQ-F17-10) |
@@ -805,7 +805,7 @@ It shows numbers, not judgements: "highest CPU 12 %" is a fact, not an all-clear
 | `infra_cue_runs` | NEW | `id`, `ticket_id`, `transfer_id` (the handoff's `lifecycle_transfers` row, unique, null for a person's run), `started_by_id` (null for a handoff run), `started_at`, `finished_at` (null), `outcome` |
 | `infra_ticket_resources` | NEW | `id`, `run_id`, `project_id`, `kind` (`server` \| `volume` \| `network`), `resource_id`, `name`, `source` (`picked` \| `named` \| `attached` \| `every_server` \| `linked`), `token` (the text that matched, for `named`; else null). Unique (`run_id`, `resource_id`) |
 | `infra_ticket_cues` | NEW | `id`, `run_id`, `resource_id` (FK `infra_ticket_resources`, null for an overview cue), `template`, `status` (`ok` \| `empty` \| `refused` \| `unavailable` \| `cut`), `summary`, `evidence` (JSON, masked), `query_id` (FK `infra_queries`, null), `link` (null) |
-| `infra_resource_picks` | NEW | `id`, `conversation_id` (FK `agent_conversations`), `person_id`, `project_id`, `kind`, `resource_id`, `name`, `picked_at`. Unique (`conversation_id`, `resource_id`) |
+| `infra_resource_picks` | NEW | `id`, `conversation_id` (FK `agent_conversations`), `turn_id` (FK `agent_turns`, the turn the press sent), `person_id`, `project_id`, `kind`, `resource_id`, `name`, `picked_at`. Unique (`turn_id`, `resource_id`) |
 | `infra_queries` | CHANGED | `actor_id` becomes null; NEW `ticket_id` (null); `via` gains `cue`; CHECK `(via = 'cue') = (actor_id IS NULL)` and `via <> 'cue' OR ticket_id IS NOT NULL` |
 
 No `users` column: a person's company is read from Keystone, never copied
@@ -846,7 +846,7 @@ No `users` column: a person's company is read from Keystone, never copied
 |---|---|---|---|
 | `GET /api/tickets/{public_id}/cues` | `infra:read`, and the caller reaches the ticket (else 403) | none | `Cues.of(ticket)` |
 | `POST /api/tickets/{public_id}/cues/resources` | `infra:read`, and the caller reaches the ticket (else 403) | none | `Cues.link(ticket, caller, kind, resource_id)`: 202 |
-| `POST /api/requester/infra/picks` | `infra:read:own` | none | `ResourcePicks.record(caller, conversation_id, kind, resource_id)` |
+| `POST /api/requester/infra/picks` | `infra:read:own` | none | `Cues.pick(caller, conversation_id, turn_id, kind, resource_id)` |
 | `GET /api/infra/customers` | `infra:customers:manage` | none | `Customers.listing()`: rows, and Keystone's domains with no row |
 | `POST /api/infra/customers` | `infra:customers:manage` | none | `Customers.create(domain_id, name, tier, reason)` |
 | `PATCH /api/infra/customers/{id}` | `infra:customers:manage` | none | `Customers.change(name?, tier?, reason)` |
@@ -950,7 +950,7 @@ nothing, and `infra_queries` records each read (ADR-0048 decision 9).
 | Lifecycle engine | Queues the cue task at handoff | `test_cue_task_is_queued_once_per_handoff`; `test_flag_off_queues_no_cue_task` |
 | `infra_queries` | Nullable actor, `ticket` | `test_only_a_cue_read_may_have_no_actor` (the CHECK) |
 | Access | Six routes, one permission | `test_access_equivalence.py`; the every-route gate test; `test_no_agent_tool_can_record_a_pick` |
-| Enrichment | Picks, then names, then attached volumes; the overview | `test_the_cap_keeps_picked_then_named_then_attached`; `test_a_pick_outside_the_reporters_projects_is_dropped`; `test_two_tickets_from_one_conversation_each_take_only_their_own_picks`; `test_nothing_named_runs_the_overview`; `test_three_servers_or_fewer_are_all_linked` |
+| Enrichment | Picks, then names, then attached volumes; the overview | `test_the_cap_keeps_picked_then_named_then_attached`; `test_a_pick_outside_the_reporters_projects_is_dropped`; `test_two_tickets_from_one_conversation_each_take_only_their_own_picks`; `test_a_resource_pressed_again_for_a_second_ticket_is_that_tickets_pick_too`; `test_a_helpdesk_ticket_in_between_takes_no_picks_from_the_next_hand_off`; `test_nothing_named_runs_the_overview`; `test_three_servers_or_fewer_are_all_linked` |
 | Linking by a person | A run whose reads are the person's | `test_a_linked_resource_is_read_as_the_person` |
 | ai-engine | Refs on the infra projections and the prompt's cloud part (PR 6). No new tool; the wire changes are F15's | F15's eval cases EC-F15-01..08 and 10 (live and scripted) |
 | chat, admin-console | The note, for `infra:read:own` only; posting a pressed resource choice (PR 8). The card itself is F15's | `test_note_shows_only_to_infra_read_own` |

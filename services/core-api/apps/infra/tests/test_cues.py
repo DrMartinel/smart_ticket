@@ -51,6 +51,8 @@ from config.celery import app
 pytestmark = pytest.mark.django_db
 
 _numbers = iter(range(1, 10_000))
+PICKS = "/api/requester/infra/picks"
+NEEDS_STAFF = {"agent_handoff_reason": ReasonCode.AGENT_NEEDS_STAFF.value}
 
 
 def opened(reporter: User, subject: str, body: str = "", **fields: Any) -> Ticket:
@@ -107,10 +109,22 @@ def chat_turn(reporter: User, message: str = "Hệ thống chạy chậm từ s�
     )
 
 
+def next_turn(turn: AgentTurn, message: str) -> AgentTurn:
+    """The turn after `turn` in its conversation."""
+    return AgentTurn.objects.create(
+        conversation=turn.conversation,
+        seq=turn.seq + 1,
+        message_masked=message,
+        pii_level=PIILevel.ROUTINE.value,
+        session_family=uuid.uuid4(),
+    )
+
+
 def picked(turn: AgentTurn, kind: ResourceKind, resource_id: str) -> None:
-    """Records that the turn's person pressed `resource_id` on a choice card."""
+    """Records that the turn's person pressed `resource_id` on a choice card, sending `turn`."""
     ResourcePick.objects.create(
         conversation=turn.conversation,
+        turn=turn,
         person=turn.conversation.user,
         project_id="p",
         kind=kind.value,
@@ -278,19 +292,52 @@ def test_only_the_conversation_that_opened_the_ticket_lends_it_picks(lan, backen
 def test_two_tickets_from_one_conversation_each_take_only_their_own_picks(lan, backends, queued):
     first_turn = chat_turn(lan)
     picked(first_turn, ResourceKind.SERVER, backends.id_of("servers", "app-02"))
-    first = opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=first_turn)
-    second_turn = AgentTurn.objects.create(
-        conversation=first_turn.conversation,
-        seq=2,
-        message_masked="Một máy khác cũng chậm",
-        pii_level=PIILevel.ROUTINE.value,
-        session_family=uuid.uuid4(),
-    )
+    first = opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=first_turn, **NEEDS_STAFF)
+    second_turn = next_turn(first_turn, "Một máy khác cũng chậm")
     picked(second_turn, ResourceKind.SERVER, backends.id_of("servers", "db-01"))
-    second = opened(lan, "Một máy khác cũng chậm", agent_turn=second_turn)
+    second = opened(lan, "Một máy khác cũng chậm", agent_turn=second_turn, **NEEDS_STAFF)
 
     assert linked(run_of(hand_off(first))) == [("app-02", ResourceSource.PICKED, None)]
     assert linked(run_of(hand_off(second))) == [
+        ("db-01", ResourceSource.PICKED, None),
+        ("vol-db-01", ResourceSource.ATTACHED, None),
+    ]
+
+
+def test_a_resource_pressed_again_for_a_second_ticket_is_that_tickets_pick_too(
+    api_as, lan, backends, queued
+):
+    db01 = backends.id_of("servers", "db-01")
+    first_turn = chat_turn(lan, "db-01")
+    second_turn = next_turn(first_turn, "db-01")
+    tickets = []
+    for turn in (first_turn, second_turn):
+        body = {
+            "conversation_id": str(turn.conversation_id),
+            "turn_id": str(turn.id),
+            "kind": "server",
+            "resource_id": db01,
+        }
+        assert api_as(lan).post(PICKS, body, "application/json").status_code == 200
+        tickets.append(opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=turn, **NEEDS_STAFF))
+
+    for ticket in tickets:
+        assert linked(run_of(hand_off(ticket))) == [
+            ("db-01", ResourceSource.PICKED, None),
+            ("vol-db-01", ResourceSource.ATTACHED, None),
+        ]
+
+
+def test_a_helpdesk_ticket_in_between_takes_no_picks_from_the_next_hand_off(lan, backends, queued):
+    pressed = chat_turn(lan, "db-01")
+    picked(pressed, ResourceKind.SERVER, backends.id_of("servers", "db-01"))
+    asked = next_turn(pressed, "Làm sao xem log của máy chủ?")
+    opened(lan, "Làm sao xem log của máy chủ?", agent_turn=asked)
+    handed_off = next_turn(asked, "Vẫn chậm")
+
+    ticket = hand_off(opened(lan, "Vẫn chậm", agent_turn=handed_off, **NEEDS_STAFF))
+
+    assert linked(run_of(ticket)) == [
         ("db-01", ResourceSource.PICKED, None),
         ("vol-db-01", ResourceSource.ATTACHED, None),
     ]
