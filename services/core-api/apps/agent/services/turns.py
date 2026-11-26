@@ -11,7 +11,7 @@ from typing import Any, cast
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Exists, Max, OuterRef
 from django.utils import timezone
 from pydantic import SecretStr
 
@@ -233,18 +233,24 @@ class AgentTurns:
         self._record(turn, response)
 
     def earlier_turns(self, turn: AgentTurn) -> list[AgentEarlierTurn]:
-        """The finished turns before `turn` that it carries, oldest first (BR-F15-17)."""
+        """The finished turns before `turn` that it carries, oldest first (BR-F15-17); a turn
+        that read text the injection screen flagged carries no reply of its own."""
         earlier = (
             AgentTurn.objects.filter(conversation_id=turn.conversation_id, seq__lt=turn.seq)
             .exclude(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
             .exclude(pii_level__in=[level.value for level in _UNREAD])
+            .annotate(
+                read_flagged=Exists(
+                    AgentStep.objects.filter(turn=OuterRef("pk"), injection_flagged=True)
+                )
+            )
             .order_by("-seq")[: settings.THRESHOLDS.agent.max_earlier_turns]
         )
         return [
             AgentEarlierTurn(
                 message_masked=t.message_masked,
                 reply="\n".join(
-                    [t.reply_text]
+                    ([] if t.read_flagged else [t.reply_text])
                     + [f"[{r['outcome']}] {r['method']} {r['path']}" for r in t.receipts]
                     + [f"[choice] {c['label']}" for c in t.offered()]
                 ),

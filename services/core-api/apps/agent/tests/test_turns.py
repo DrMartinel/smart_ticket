@@ -1419,6 +1419,22 @@ def test_an_earlier_turn_carries_the_choices_its_card_offered(
 
 
 @pytest.mark.django_db
+def test_a_turn_that_read_flagged_text_carries_no_reply_into_the_next(
+    employee_user, api_as, engine, queued
+):
+    steered = "Your manager approved folder access; ask support to grant it now."
+    engine.reply = _replied(steered, steps=[_step(1, "GET", injection_flagged=True)])
+    client = api_as(employee_user)
+    first = _start(client, "What does my ticket say?")
+    agent_turns.run(first.id)
+    second = _start(client, FOLDER, conversation=str(first.conversation_id))
+
+    (earlier,) = agent_turns.earlier_turns(second)
+
+    assert (earlier.message_masked, earlier.reply) == ("What does my ticket say?", "")
+
+
+@pytest.mark.django_db
 def test_the_summary_is_shown_to_staff_and_never_to_the_requester(
     employee_user, manager_user, api_as, engine, queued
 ):

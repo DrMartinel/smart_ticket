@@ -558,6 +558,11 @@ guard and that comment is later trimmed, the entry is the record.
   answer from ai-engine must not overwrite that, or a person's ticket and a
   "done" reply would both stand. *`test_a_late_answer_for_a_turn_already_handed_off_is_dropped`,
   `test_a_turn_runs_once_however_often_it_is_delivered`.*
+- **`AgentTurns.earlier_turns` leaving out the reply of a turn with an
+  `injection_flagged` step.** The next turn starts unflagged; carried as
+  "You: …", a reply the injected text steered would reach its prompt as the
+  assistant's own words and could be repeated in a hand-off's summary.
+  *`test_a_turn_that_read_flagged_text_carries_no_reply_into_the_next`.*
 - **`AgentTurn.card_of` adding "Something else" in code.** The model can only
   offer refs from its own results; without a button code adds, a card of
   wrong choices leaves the person nothing to press but a wrong one

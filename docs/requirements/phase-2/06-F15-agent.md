@@ -1300,3 +1300,8 @@ Numbered on from the first build's list. None lets the agent do more.
     and no summary, in ai-engine and again in core-api. The amendment does
     not say; BR-F15-11 makes the rest of a flagged turn read-only, and a
     hand-off would carry the model's summary onto a ticket.
+56. An earlier turn that read text the injection screen flagged is carried
+    into the next turn without its reply (the person's message, receipts and
+    card stay). The next turn starts unflagged, so the steered reply would
+    otherwise reach its prompt as "You: …" and could reappear in a
+    hand-off's summary.
