@@ -1,8 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { agentApi, ApiError, chatApi } from "./api";
-import type { AgentActionOut, AgentConversationSummaryOut, AgentTurnOut, ChatTurnOut } from "./types/generated";
+import { agentApi, ApiError, chatApi, infraApi } from "./api";
+import type {
+  AgentActionOut,
+  AgentChoiceOut,
+  AgentConversationSummaryOut,
+  AgentTurnOut,
+  ChatTurnOut,
+  ResourceKind,
+} from "./types/generated";
 
 // Mirror AgentTurnIn.message in core-api (apps/agent/request_schema.py).
 export const AGENT_MESSAGE_MIN = 1;
@@ -19,6 +26,13 @@ export type AgentRow =
   | { kind: "server"; key: string; turn: AgentTurnOut };
 
 const UNFINISHED = new Set(["queued", "running"]);
+
+// The choice kinds that name a cloud resource, which a press also records as a pick (F17 BR-F17-26).
+const RESOURCE_KINDS: ReadonlySet<string> = new Set<ResourceKind>(["server", "volume", "network"]);
+
+function namesAResource(kind: string): kind is ResourceKind {
+  return RESOURCE_KINDS.has(kind);
+}
 
 /** What became of a confirmation the employee answered, shown in place of its card. */
 export type ActionResult = { label: string; tone: "ok" | "info" | "warn"; text: string; ticket?: string };
@@ -256,6 +270,20 @@ export function useAgentConversation(enabled: boolean) {
     [replace, loadHistory],
   );
 
+  /** Sends a pressed choice's label as the next message; a server, volume or network is also
+   * posted as the person's pick. */
+  const choose = useCallback(
+    (choice: AgentChoiceOut, conversationId: string) => {
+      if (blocked.current) return;
+      const { kind, id } = choice;
+      if (id && namesAResource(kind)) {
+        void infraApi.pick({ conversation_id: conversationId, kind, resource_id: id }).catch(() => undefined);
+      }
+      send(choice.label);
+    },
+    [send],
+  );
+
   const retry = useCallback(
     (key: string) => {
       const row = rows.find((r) => r.key === key);
@@ -376,6 +404,7 @@ export function useAgentConversation(enabled: boolean) {
     viewingEnded,
     open,
     send,
+    choose,
     retry,
     confirm: (a: AgentActionOut) => resolve(a, true),
     dismiss: (a: AgentActionOut) => resolve(a, false),

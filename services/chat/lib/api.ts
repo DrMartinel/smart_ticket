@@ -20,6 +20,9 @@ import type {
   ReopenOut,
   RequesterTicketList,
   RequesterTicketOut,
+  ResourcePickIn,
+  ResourcePickOut,
+  ServerDetailOut,
   ThreadCommentOut,
   UserOut,
 } from "@/lib/types/generated";
@@ -111,6 +114,14 @@ export const agentApi = {
       headers: { "X-Agent-Action": action.action_id },
       ...("payload" in action.arguments ? { body: JSON.stringify(action.arguments.payload) } : {}),
     }),
+};
+
+/** The customer's own cloud resources (F17): one server, and the resource a pressed choice names. */
+export const infraApi = {
+  server: (id: string) => request<ServerDetailOut>(`/api/requester/infra/servers/${encodeURIComponent(id)}`),
+  /** Records a server, volume or network the person pressed on a choice card in `conversation_id`. */
+  pick: (pick: ResourcePickIn) =>
+    request<ResourcePickOut>("/api/requester/infra/picks", { method: "POST", body: JSON.stringify(pick) }),
 };
 
 export const notificationsApi = {
