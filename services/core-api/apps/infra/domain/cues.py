@@ -541,15 +541,21 @@ def highest_cpu(series: list[Series], top: int) -> Finding:
 
 
 def cut_short(template: CueTemplate, finding: Finding) -> Finding:
-    """The cue an answer cut to the result cap leaves: never `ok` or `empty`, and saying the
-    summary covers only part of the answer, or none of it."""
+    """The cue an answer cut to the result cap leaves: never `ok` or `empty`. A log cue keeps its
+    count and says some lines are not shown; any other says its summary covers only part of the
+    answer, or none of it."""
     source, noun = SOURCES[template]
     note = f"the {source} {noun} answer was over the result cap"
-    summary = (
-        f"No summary: {note}; open the query for it"
-        if finding.status is CueStatus.EMPTY
-        else f"{finding.summary}, from part of the answer: {note}; open the query for all of it"
-    )
+    if template is CueTemplate.SERVER_ERROR_LOGS:
+        summary = (
+            f"{finding.summary}; lines over the result cap are not shown: open the query for them"
+        )
+    elif finding.status is CueStatus.EMPTY:
+        summary = f"No summary: {note}; open the query for it"
+    else:
+        summary = (
+            f"{finding.summary}, from part of the answer: {note}; open the query for all of it"
+        )
     return Finding(CueStatus.CUT, summary, {**finding.evidence, "cut": True})
 
 

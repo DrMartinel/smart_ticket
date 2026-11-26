@@ -458,6 +458,24 @@ def test_an_answer_cut_to_the_result_cap_is_never_shown_complete(
     assert cpu.link
 
 
+def test_a_log_cue_whose_lines_were_cut_keeps_its_exact_count(
+    lan, backends, queued, es: FakeElasticsearch
+):
+    prod = backends.id_of("projects", "saomai-prod")
+    es.docs = [log_doc(prod, f"slow query {n}: " + "x" * 10_000) for n in range(3)]
+
+    ticket = hand_off(opened(lan, "db-01 chậm"))
+
+    logs = run_of(ticket).cues.get(template=CueTemplate.SERVER_ERROR_LOGS)
+    assert logs.status == CueStatus.CUT
+    assert logs.summary == (
+        "3 error lines in db-01's logs; lines over the result cap are not shown: "
+        "open the query for them"
+    )
+    assert logs.evidence["total"] == 3 and len(logs.evidence["lines"]) < 3
+    assert logs.link
+
+
 def test_a_run_that_raises_is_failed_never_left_running(lan, backends, queued, monkeypatch):
     def broken(*args: Any) -> None:
         raise RuntimeError("a bug in a template")
