@@ -592,6 +592,41 @@ guard and that comment is later trimmed, the entry is the record.
   labels an answer shows.** The hypervisor a server runs on is the provider's,
   and naming it lets a customer map which other tenants share their machine.
   *`test_a_customer_answer_never_shows_the_hypervisor_label`.*
+- **Raw PromQL runs as `ScopedPromQL` writes it back out from Prometheus's
+  parse, never as its author wrote it.** Sending the text would mean trusting
+  that core-api's walk and Prometheus read it alike; writing it out means only
+  checked tokens reach Prometheus, each selector with the project matcher, and
+  the walk holds even if the parser answered a different tree. Every name is
+  refused unless it is a plain identifier and every value goes through
+  `promql_string`, so no value can close a selector's braces and start an
+  unscoped one. *`test_every_selector_is_scoped_however_deep_it_sits`,
+  `test_a_tree_core_api_cannot_check_is_refused_and_never_run`,
+  `test_a_label_value_cannot_break_out_of_its_matcher`.*
+- **`ScopedPromQL.expr` refusing a node, matcher, modifier or matching it
+  doesn't know (`unsupported`), and `Observability.promql` refusing a query
+  that nests too deeply.** A newer Prometheus adds syntax (duration
+  expressions, for one), and writing an unknown node out as nothing, or
+  skipping it, could drop a selector's scope or change what runs. A
+  `RecursionError` left alone is a 500 with no `infra_queries` row.
+  *`test_a_tree_core_api_cannot_check_is_refused_and_never_run`,
+  `test_a_query_nested_too_deeply_is_refused_and_never_run`.*
+- **A parser that fails refusing the query (424, or 422 `backend_refused`),
+  and `PROMETHEUS_PARSE_URL` used only for `parse_query`.** That URL is
+  Prometheus itself, with no proxy in front: falling back to the text as
+  written would run an unchecked query, and a range query sent there would
+  skip prom-label-proxy. *`test_an_unreachable_parser_refuses_the_query_and_never_runs_it`,
+  `test_a_parser_answering_an_error_refuses_the_query_and_never_runs_it`,
+  `test_every_selector_of_a_raw_query_carries_the_callers_project_and_only_the_proxy_runs_it`.*
+- **`PROMQL_FUNCTIONS` leaving out `info`, `label_replace` and `label_join`,
+  and `PROMQL_AGGREGATIONS` leaving out `count_values`.** `info()` selects
+  `target_info` series that are not in the tree, so neither core-api nor
+  prom-label-proxy scopes them; the other three can write a `project` label
+  into an answer, so a series reads as another project's.
+  *`test_a_raw_query_outside_the_checks_is_refused_and_never_run`,
+  `test_the_catalog_lists_raw_promql_functions_for_staff_only`.*
+- **No raw PromQL route on the requester router (OQ-F17-05).** Raw PromQL can
+  name any metric, the provider's own included; customers get structured
+  queries over the catalog only. *`test_customers_have_no_raw_promql`.*
 
 ### Customers (F17 §o, ADR-0048 decision 11)
 
