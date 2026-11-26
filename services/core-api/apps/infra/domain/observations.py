@@ -133,6 +133,27 @@ def hits_of(answer: dict[str, Any]) -> list[dict[str, Any]]:
     return [hit["_source"] for hit in answer["hits"]["hits"]]
 
 
+@dataclass(frozen=True)
+class Count:
+    """One value of a counted field, and how many lines held it."""
+
+    value: str
+    lines: int
+
+    def free_text(self) -> list[str]:
+        return []
+
+    def with_free_text(self, texts: list[str]) -> Self:
+        return self
+
+
+def counts_of(answer: dict[str, Any], name: str) -> list[Count]:
+    """The buckets of the terms aggregation `name` in an Elasticsearch search answer."""
+    return [
+        Count(str(b["key"]), int(b["doc_count"])) for b in answer["aggregations"][name]["buckets"]
+    ]
+
+
 def total_of(answer: dict[str, Any]) -> int:
     """How many documents an Elasticsearch search matched."""
     total = answer["hits"]["total"]

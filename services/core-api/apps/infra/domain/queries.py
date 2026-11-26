@@ -1,6 +1,7 @@
-"""Structured queries of the cloud's metrics, logs and traces, checked against the catalog and
-the caps and compiled to PromQL or Elasticsearch DSL with the caller's projects in every
-filter (F17 FR-F17-004, FR-F17-006, BR-F17-05). No other code builds Elasticsearch DSL."""
+"""Structured queries of the cloud's metrics, logs and traces, and the count of log lines per
+server a ticket's overview cue reads, checked against the catalog and the caps and compiled to
+PromQL or Elasticsearch DSL with the caller's projects in every filter (F17 FR-F17-004,
+FR-F17-006, BR-F17-05, §o.6). No other code builds Elasticsearch DSL."""
 
 from __future__ import annotations
 
@@ -29,6 +30,9 @@ if TYPE_CHECKING:
     from config.settings.base import InfraThresholds
 
 Filters = dict[str, list[str]]
+
+# The aggregation a `LogCount` search names its counts in.
+COUNTS = "counts"
 
 _RE2_SPECIAL = frozenset("\\.+*?()|[]{}^$")
 
@@ -242,6 +246,38 @@ class LogSearch:
             "sort": [{TIME_FIELD: {"order": "desc"}}],
             "track_total_hits": True,
             "query": {"bool": query},
+        }
+        return Search(dataset.index, body, " and ".join(kql), self.window)
+
+
+@dataclass(frozen=True)
+class LogCount:
+    """How many lines of one dataset in a range each value of a field holds, filtered on
+    fields: the most first."""
+
+    window: Window
+    dataset: str
+    by: str
+    size: int
+    filters: Filters = field(default_factory=dict)
+
+    def search(self, catalog: Catalog, caps: InfraThresholds, projects: frozenset[str]) -> Search:
+        """The Elasticsearch search for this count, scoped to `projects`."""
+        dataset = catalog.dataset(self.dataset)
+        self.window.check(caps)
+        checked_filters(self.filters)
+        size = checked_size(self.size, caps.max_log_docs)
+        by = catalog.field(LOG_FIELDS, self.by).path
+        filters, kql = scoped(projects, self.window), kql_scoped(projects)
+        for name, values in sorted(self.filters.items()):
+            path = catalog.field(LOG_FIELDS, name).path
+            filters.append({"terms": {path: values}})
+            kql.append(kql_values(path, values))
+        body = {
+            "size": 0,
+            "track_total_hits": True,
+            "query": {"bool": {"filter": filters}},
+            "aggs": {COUNTS: {"terms": {"field": by, "size": size}}},
         }
         return Search(dataset.index, body, " and ".join(kql), self.window)
 

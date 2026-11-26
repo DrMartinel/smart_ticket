@@ -21,15 +21,25 @@ from apps.infra.clients.backends import (
 )
 from apps.infra.domain.catalog import Catalog, Surface
 from apps.infra.domain.observations import (
+    Count,
     LogLine,
     Series,
     Span,
+    counts_of,
     cut_to_bytes,
     hits_of,
     total_of,
     unix_time,
 )
-from apps.infra.domain.queries import LogSearch, MetricQuery, Search, TraceSearch, trace_search
+from apps.infra.domain.queries import (
+    COUNTS,
+    LogCount,
+    LogSearch,
+    MetricQuery,
+    Search,
+    TraceSearch,
+    trace_search,
+)
 from apps.infra.domain.vocabulary import QueryCheck, QueryRefused
 from apps.infra.models import InfraBackend, InfraQueryKind
 from apps.infra.services.recording import QueryLog, Read
@@ -50,6 +60,13 @@ class LogAnswer:
     lines: list[LogLine]
     truncated: bool
     withheld: int
+
+
+@dataclass(frozen=True)
+class CountAnswer:
+    query_id: str
+    total: int
+    counts: list[Count]
 
 
 @dataclass(frozen=True)
@@ -152,6 +169,18 @@ class Observability:
                 )
             lines = read.shown(lines)
         return LogAnswer(str(read.query_id), total, lines, truncated, read.withheld)
+
+    def log_counts(self, query: LogCount, project_id: str | None) -> CountAnswer:
+        wanted = self.scope.narrowed_to(project_id)
+        with self.log.read(InfraBackend.ELASTICSEARCH, InfraQueryKind.STRUCTURED, wanted) as read:
+            projects = self.covered(wanted)
+            counts: list[Count] = []
+            total = 0
+            if projects:
+                answer = self.search(read, query.search(self.catalog, self.caps, projects))
+                total, counts = total_of(answer), counts_of(answer, COUNTS)
+            counts = read.shown(counts)
+        return CountAnswer(str(read.query_id), total, counts)
 
     # ── traces ──
 
