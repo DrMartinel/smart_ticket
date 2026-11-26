@@ -10,7 +10,7 @@ import time
 import uuid
 from collections.abc import Callable
 from functools import partial
-from datetime import UTC, timedelta, tzinfo
+from datetime import UTC, timedelta
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -123,7 +123,8 @@ class Collector:
         self.observability = observability
         self.caps = settings.THRESHOLDS.cues
         self.window = Window(run.window_start, run.window_end)
-        self.clock = Clock(display_zone())
+        zone = Calendar.objects.filter(is_default=True).values_list("timezone", flat=True).first()
+        self.clock = Clock(ZoneInfo(zone) if zone else UTC)
         self.seq = 0
 
     def store(
@@ -221,12 +222,6 @@ class Collector:
         )
 
 
-def display_zone() -> tzinfo:
-    """The default calendar's time zone, which summaries write their times in; UTC without one."""
-    found = Calendar.objects.filter(is_default=True).values_list("timezone", flat=True).first()
-    return ZoneInfo(found) if found else UTC
-
-
 class Cues:
     """Queues, collects, links and reads a ticket's cue runs."""
 
@@ -245,7 +240,6 @@ class Cues:
             return
         if not due:
             return
-        # Imported here: tasks imports this module.
         from apps.infra import tasks
 
         ticket_id, transfer_id = str(ticket.id), str(transfer.id)
@@ -319,7 +313,6 @@ class Cues:
                 name=resource.name,
                 source=ResourceSource.LINKED.value,
             )
-            # Imported here: tasks imports this module.
             from apps.infra import tasks
 
             run_id = str(run.id)
