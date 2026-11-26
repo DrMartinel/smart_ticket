@@ -295,8 +295,10 @@ copies that directory — a new SQL file that isn't copied fails at container st
   500 → HITL. Each model job has its own setting: the proposal
   `CHAT_CLIENT_PROVIDER`, the draft `DRAFT_CLIENT_PROVIDER`, PII NER
   `NER_CLIENT_PROVIDER` (raw text leaves only with `deepseek` there,
-  ADR-0019). Production drafts on DeepSeek (ADR-0022; the template ships
-  `vllm` so a copy boots without a key): recall@3 0.866 vs 0.816 on Qwen.
+  ADR-0019), the agent `AGENT_CLIENT_PROVIDER`. The template ships
+  `deepseek` for all four (a copy needs `CLOUD_API_KEY`; vllm-chat can stay
+  stopped, CI pins them to `vllm`). Drafting on DeepSeek (ADR-0022): recall@3
+  0.866 vs 0.816 on Qwen.
 - **The retrieval gate is recall@5** since 2026-10-12, as spec §12.2 names
   it: the proposal is shown Jev's top 5 (`RERANK_TOP_N=5`). Latest, entity
   graph and DeepSeek drafting: recall@5 0.900, recall@3 0.866 (reported,

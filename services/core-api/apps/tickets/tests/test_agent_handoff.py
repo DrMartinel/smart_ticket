@@ -54,17 +54,30 @@ def test_a_handed_off_ticket_reaches_a_person_with_the_agents_reason(
 
 
 @pytest.mark.django_db
-def test_a_live_handoff_waits_for_the_employee(employee_user, engine_proposes_a_question, settings):
-    """OQ-F15-04 (a): the employee decides whether to open the ticket."""
+def test_a_live_handoff_ticket_is_never_held_for_the_employee(
+    employee_user, engine_proposes_a_question, settings
+):
+    """Checks that a live hand-off ticket goes to support without waiting for the employee."""
     all_live(settings)
     ticket = _handed_off(employee_user, "agent_tool_failed")
 
     ticket_process(str(ticket.id))
 
     ticket.refresh_from_db()
-    assert ticket.status == "awaiting_requester"
+    assert ticket.status != "awaiting_requester" and ticket.held_decision is None
     assert ticket.routing_decisions.get().reason_code == "agent_tool_failed"
+    assert list(ticket.review_items.values_list("queue", flat=True)) == ["low_confidence"]
     assert not ticket.clarifications.exists()
+
+
+@pytest.mark.parametrize("reason", [ReasonCode.AGENT_STEP_LIMIT, ReasonCode.AI_ENGINE_UNAVAILABLE])
+def test_an_agent_handoff_ticket_never_waits_whatever_its_decision(reason):
+    decision = RoutingDecision(
+        branch=Branch.HITL, reason_code=reason, queue=ReviewQueue.LOW_CONFIDENCE
+    )
+
+    assert waits_for_requester(decision, False, PIILevel.ROUTINE, agent_handoff=True) is False
+    assert waits_for_requester(decision, False, PIILevel.ROUTINE, agent_handoff=False) is True
 
 
 @pytest.mark.django_db
@@ -103,7 +116,7 @@ def test_an_agent_mask_failed_decision_never_waits_whatever_the_pii_level():
         reason_code=ReasonCode.AGENT_MASK_FAILED,
         queue=ReviewQueue.LOW_CONFIDENCE,
     )
-    assert waits_for_requester(decision, False, PIILevel.ROUTINE) is False
+    assert waits_for_requester(decision, False, PIILevel.ROUTINE, agent_handoff=False) is False
 
 
 @pytest.mark.django_db

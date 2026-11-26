@@ -1,22 +1,24 @@
 """
 ChooseActionNode: one model call per step, which either names one tool call
-or replies (FR-F15-014). The reply is a closed union, validated here; the
-arguments are validated against the named tool's input.
+or replies (FR-F15-014), and one more when that reply is invalid. The reply is
+a closed union, validated here; the arguments are validated against the named
+tool's input.
 """
 
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from ai_engine.agent.tools import for_surface
-from ai_engine.agent.tools.tool import Tool
+from ai_engine.agent.tools.tool import Tool, ToolInput
 from ai_engine.core.prompts import AGENT_PROMPT
 from ai_engine.core.providers import clients
-from ai_engine.core.providers.clients import AllLLMDownError
+from ai_engine.core.providers.clients import AllLLMDownError, BlankReplyError
 from ai_engine.graph.agent_state import AgentState, AgentStopReason, PendingCall
 from ai_engine.graph.build.node import BaseNode
 
@@ -48,6 +50,13 @@ class ChooseOutcome(StrEnum):
 _LIMIT_REASONS = {AgentStopReason.STEP_LIMIT, AgentStopReason.TOOL_LIMIT, AgentStopReason.BUDGET}
 
 
+_WRONG_SHAPE = (
+    'Reply with one JSON object in one of the two shapes: {"action": "call_tool", '
+    '"tool": "<tool name>", "arguments": {...}} or {"action": "reply", "text": "..."}.'
+)
+_UNKNOWN_TOOL = "The tool you named is not among the tools listed. Use only those."
+
+
 class ChooseActionNode(BaseNode[AgentState]):
     """Asks the model for its next action, unless the turn has reached a cap."""
 
@@ -62,48 +71,79 @@ class ChooseActionNode(BaseNode[AgentState]):
             return {"pending_call": None, "stop_reason": AgentStopReason.BUDGET}
 
         tools = for_surface(state.surface)
-        try:
-            result = clients.agent.complete(
-                AGENT_PROMPT,
-                self.prompt(state, tools),
-                schema_name="agent_action",
-                schema=_ACTION_SCHEMA,
-            )
-        except AllLLMDownError:
-            return {
-                "model_calls": state.model_calls + 1,
-                "pending_call": None,
-                "stop_reason": AgentStopReason.MODEL_UNAVAILABLE,
-            }
-
+        prompt = self.prompt(state, tools)
         update: dict[str, Any] = {
-            "model_calls": state.model_calls + 1,
+            "model_calls": state.model_calls,
             "pending_call": None,
-            "tokens_in": state.tokens_in + result.tokens_in,
-            "tokens_out": state.tokens_out + result.tokens_out,
-            "cost_usd": state.cost_usd + result.cost_usd,
-            "model_used": result.model,
+            "tokens_in": state.tokens_in,
+            "tokens_out": state.tokens_out,
+            "cost_usd": state.cost_usd,
         }
         try:
-            action = _ACTION.validate_json(result.text)
-        except ValidationError:
-            return {**update, "stop_reason": AgentStopReason.SCHEMA_INVALID}
-        if isinstance(action, Reply):
-            return {**update, "reply": action.text}
+            choice = self._choice(self._ask(prompt, update), tools)
+            if (
+                isinstance(choice, _Invalid)
+                and update["model_calls"] < caps.max_steps
+                and update["tokens_in"] + update["tokens_out"] < caps.max_model_tokens
+            ):
+                retry = f"{prompt}\n\n## Your last reply was invalid\n{choice.reason}"
+                choice = self._choice(self._ask(retry, update), tools)
+        except AllLLMDownError:
+            return {**update, "stop_reason": AgentStopReason.MODEL_UNAVAILABLE}
 
-        tool = tools.get(action.tool)
-        if tool is None:
+        if isinstance(choice, _Invalid):
             return {**update, "stop_reason": AgentStopReason.SCHEMA_INVALID}
-        try:
-            args = tool.Input.model_validate(action.arguments)
-        except ValidationError:
-            return {**update, "stop_reason": AgentStopReason.SCHEMA_INVALID}
+        if isinstance(choice, Reply):
+            return {**update, "reply": choice.text}
         if len(state.steps) >= caps.max_tool_calls:
             return {**update, "stop_reason": AgentStopReason.TOOL_LIMIT}
+        tool, args = choice
         call = PendingCall(
             tool=tool.name, arguments=args.model_dump(mode="json", exclude_none=True)
         )
         return {**update, "pending_call": call}
+
+    def _ask(self, prompt: str, update: dict[str, Any]) -> str:
+        """One model call, a blank reply read as empty text; adds its usage to `update`."""
+        update["model_calls"] += 1
+        try:
+            result = clients.agent.complete(
+                AGENT_PROMPT, prompt, schema_name="agent_action", schema=_ACTION_SCHEMA
+            )
+        except BlankReplyError as blank:
+            update["tokens_in"] += blank.tokens_in
+            update["tokens_out"] += blank.tokens_out
+            update["cost_usd"] += blank.cost_usd
+            if blank.model:
+                update["model_used"] = blank.model
+            return ""
+        update["tokens_in"] += result.tokens_in
+        update["tokens_out"] += result.tokens_out
+        update["cost_usd"] += result.cost_usd
+        update["model_used"] = result.model
+        return result.text
+
+    def _choice(
+        self, text: str, tools: dict[str, Tool]
+    ) -> Reply | tuple[Tool, ToolInput] | _Invalid:
+        """The model's reply as a reply or a tool call with checked arguments."""
+        try:
+            action = _ACTION.validate_json(text)
+        except ValidationError:
+            return _Invalid(_WRONG_SHAPE)
+        if isinstance(action, Reply):
+            return action
+        tool = tools.get(action.tool)
+        if tool is None:
+            return _Invalid(_UNKNOWN_TOOL)
+        try:
+            return tool, tool.Input.model_validate(action.arguments)
+        except ValidationError as e:
+            fields = "; ".join(
+                f"{'.'.join(str(part) for part in error['loc']) or 'arguments'}: {error['msg']}"
+                for error in e.errors()
+            )
+            return _Invalid(f"The arguments for {tool.name} do not match its schema: {fields}.")
 
     def decide(self, state: AgentState) -> ChooseOutcome:
         reason = state.stop_reason
@@ -142,6 +182,13 @@ class ChooseActionNode(BaseNode[AgentState]):
             parts.append("## What you did this turn\n" + json.dumps(done, ensure_ascii=False))
         parts.append(f"## Steps left\n{state.limits.max_steps - state.model_calls}")
         return "\n\n".join(parts)
+
+
+@dataclass(frozen=True)
+class _Invalid:
+    """A model reply that is not a valid action, with the sentence that says why."""
+
+    reason: str
 
 
 choose_action = ChooseActionNode()

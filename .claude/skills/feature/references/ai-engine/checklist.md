@@ -24,7 +24,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [regression] Every new dependency failure ends at HITL. Either it raises (500 → `ai_engine_unavailable`) or it sets `degraded_reason` to an existing `ReasonCode` value.
 - [regression] No infrastructure failure turns into an empty or "clean" result (`[]`, a zero vector, checks marked passed).
 - [regression] `emit_signals` still can't raise. Any new lookup in it is inside a `try` and denies by default.
-- [regression] No retries, no provider fallback, no cycle in the triage graph. A `Cycles.BOUNDED` graph loops only through a limit outcome.
+- [regression] No retries, no provider fallback, no cycle in the triage graph. A `Cycles.BOUNDED` graph loops only through a limit outcome. The only re-ask is the agent's `choose_action`, once per step on an invalid reply, counted against the step and token caps (ADR-0046 #12, amended).
 - [convention] Each broad `except` has a `# noqa: BLE001 — <why>` comment and returns the *safe* value.
 
 ## Node contract

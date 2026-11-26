@@ -3,6 +3,7 @@ call waiting for the user's confirmation, or a draft a person applies (F15, ADR-
 
 from __future__ import annotations
 
+import unicodedata
 import uuid
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -11,7 +12,9 @@ from django.conf import settings
 from django.db import models
 from django.db.models import F
 
+from apps.accounts.models import Language
 from apps.core.models import BaseModel
+from apps.tickets.utils.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 if TYPE_CHECKING:
     from apps.accounts.models import User
@@ -139,6 +142,16 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
         return merged
 
 
+# The letters Vietnamese is written with and English is not: its extra vowels, đ, and tone marks.
+_VIETNAMESE_LETTERS = frozenset(
+    "ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ"
+)
+# Hand-offs whose ticket opens with the hand-off: masking failed, or the message holds critical PII.
+TICKET_AT_ONCE = frozenset({ReasonCode.AGENT_MASK_FAILED, ReasonCode.AGENT_PII_CRITICAL})
+# Hand-offs whose ticket opens only when the person asks for it.
+TICKET_ON_REQUEST = AGENT_HANDOFF_REASONS - TICKET_AT_ONCE
+
+
 class AgentTurn(BaseModel):
     """One message to the agent and what the agent did with it."""
 
@@ -174,6 +187,11 @@ class AgentTurn(BaseModel):
 
     objects = AgentTurnQuerySet.as_manager()
 
+    def language(self) -> Language:
+        """The language the message is written in: Vietnamese if it has a Vietnamese letter."""
+        letters = set(unicodedata.normalize("NFC", self.message_masked).lower())
+        return Language.VI if letters & _VIETNAMESE_LETTERS else Language.EN
+
     class Meta(BaseModel.Meta):
         db_table = "agent_turns"
         constraints = [
@@ -182,6 +200,16 @@ class AgentTurn(BaseModel):
 
     def is_finished(self) -> bool:
         return self.state not in (AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value)
+
+    def offers_ticket(self) -> bool:
+        """Whether the turn handed off on the chat surface and waits for its person to ask for a
+        ticket."""
+        return (
+            self.state == AgentTurnState.HANDED_OFF.value
+            and self.handoff_ticket_id is None
+            and self.conversation.surface == AgentSurface.CHAT.value
+            and self.stop_reason in TICKET_ON_REQUEST
+        )
 
 
 class AgentStep(BaseModel):

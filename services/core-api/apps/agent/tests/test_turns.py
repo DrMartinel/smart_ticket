@@ -15,7 +15,7 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
-from apps.accounts.models import RefreshSession
+from apps.accounts.models import Language, RefreshSession
 from apps.accounts.testing import agent_token_for
 from apps.agent.models import (
     AgentAction,
@@ -43,11 +43,19 @@ def live(settings, db):
     all_live(settings)
 
 
+class Queued(list[str]):
+    """The turn ids queued to run, with the ticket ids queued for the pipeline."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.tickets: list[str] = []
+
+
 @pytest.fixture
 def queued(monkeypatch):
     """Stands in for the Celery tasks; tests run the turn themselves."""
-    turns: list[str] = []
-    tickets: list[str] = []
+    turns = Queued()
+    tickets = turns.tickets
 
     class FakeRun:
         def delay(self, turn_id: str) -> None:
@@ -145,6 +153,13 @@ def _ticket(turn: AgentTurn) -> Ticket:
     return turn.handoff_ticket
 
 
+def _ask(client: Client, turn: AgentTurn) -> Ticket:
+    """Presses the turn's "Open a ticket" and returns the ticket it opened."""
+    response = client.post(f"/api/agent/turns/{turn.id}/ticket")
+    assert response.status_code == 200, response.content
+    return _ticket(AgentTurn.objects.get(id=turn.id))
+
+
 # ── starting a turn ──
 
 
@@ -166,6 +181,7 @@ def test_a_message_whose_masking_failed_reaches_no_model_and_hands_off(
     assert ticket is not None
     assert (ticket.pii_level, ticket.agent_handoff_reason) == ("mask_failed", "agent_mask_failed")
     assert ticket.agent_turn_id == turn.id
+    assert queued.tickets == [str(ticket.id)] and not turn.offers_ticket()
 
 
 @pytest.mark.django_db
@@ -180,7 +196,8 @@ def test_a_message_with_critical_pii_reaches_no_model_and_hands_off(
     assert "hunter2xyz" not in turn.message_masked
     ticket = _ticket(turn)
     assert (ticket.pii_level, ticket.agent_handoff_reason) == ("critical", "agent_pii_critical")
-    assert SecurityAlert.objects.get().kind == "pii_critical"
+    assert SecurityAlert.objects.get().ticket_id == ticket.id
+    assert queued.tickets == [str(ticket.id)] and not turn.offers_ticket()
 
 
 @pytest.mark.django_db
@@ -207,7 +224,7 @@ def test_a_hand_off_ticket_can_reveal_an_earlier_turn_s_placeholder(
 
     agent_turns.run(second.id)
 
-    ticket = _ticket(AgentTurn.objects.get(id=second.id))
+    ticket = _ask(client, second)
     copy = PiiQuarantine.objects.get(ref=ticket.pii_map[placeholder])
     original = PiiQuarantine.objects.get(ref=first.pii_map[placeholder])
     assert (copy.ticket_id, copy.ciphertext) == (ticket.id, original.ciphertext)
@@ -340,49 +357,71 @@ def test_a_message_is_stored_masked_with_its_quarantine_and_queued(
 
 
 @pytest.mark.django_db
-def test_an_unreachable_ai_engine_hands_off_as_a_chat_ticket(
+def test_an_unreachable_ai_engine_hands_off_and_offers_a_chat_ticket(
     employee_user, api_as, live, engine, queued
 ):
     engine.reply = httpx.ConnectError("down")
-    turn = _start(api_as(employee_user))
+    client = api_as(employee_user)
+    turn = _start(client)
 
     agent_turns.run(turn.id)
 
     turn.refresh_from_db()
     assert (turn.state, turn.stop_reason) == ("handed_off", "agent_engine_unavailable")
-    assert _ticket(turn).agent_handoff_reason == "agent_engine_unavailable"
-    assert _ticket(turn).body_masked == turn.message_masked
+    ticket = _ask(client, turn)
+    assert ticket.agent_handoff_reason == "agent_engine_unavailable"
+    assert ticket.body_masked == turn.message_masked
 
 
 @pytest.mark.django_db
 def test_a_short_message_s_hand_off_opens_a_ticket(employee_user, api_as, live, engine, queued):
     engine.reply = httpx.ConnectError("down")
-    turn = _start(api_as(employee_user), "help")
+    client = api_as(employee_user)
+    turn = _start(client, "help")
 
     agent_turns.run(turn.id)
 
-    turn.refresh_from_db()
-    ticket = _ticket(turn)
+    ticket = _ask(client, turn)
     assert (ticket.subject_masked, ticket.body_masked) == ("help", "help")
 
 
 @pytest.mark.django_db
 def test_a_hand_off_whose_ticket_fails_leaves_the_turn_running(
+    employee_user, api_as, live, engine, monkeypatch, queued
+):
+    def fail(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("db down")
+
+    monkeypatch.setattr("apps.agent.utils.turns.ticket_intake.open_for_agent", fail)
+    with pytest.raises(RuntimeError):
+        _send(api_as(employee_user), "My VPN fails, password: hunter2xyz")
+
+    turn = AgentTurn.objects.get()
+    assert (turn.state, turn.handoff_ticket_id) == ("running", None)
+    assert not Ticket.objects.exists()
+    assert not AuditLog.objects.filter(event="agent_turn_handed_off").exists()
+
+
+@pytest.mark.django_db
+def test_a_ticket_that_fails_to_open_leaves_the_offer_open(
     employee_user, api_as, live, engine, queued, monkeypatch
 ):
     engine.reply = httpx.ConnectError("down")
-    turn = _start(api_as(employee_user))
+    client = api_as(employee_user)
+    turn = _start(client)
+    agent_turns.run(turn.id)
 
     def fail(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("db down")
 
     monkeypatch.setattr("apps.agent.utils.turns.ticket_intake.open_for_agent", fail)
     with pytest.raises(RuntimeError):
-        agent_turns.run(turn.id)
+        client.post(f"/api/agent/turns/{turn.id}/ticket")
 
     turn.refresh_from_db()
-    assert (turn.state, turn.handoff_ticket_id) == ("running", None)
-    assert not AuditLog.objects.filter(event="agent_turn_handed_off").exists()
+    assert turn.handoff_ticket_id is None and turn.offers_ticket()
+    assert queued.tickets == []
+    assert not AuditLog.objects.filter(event="agent_handoff_ticket_requested").exists()
 
 
 @pytest.mark.django_db
@@ -420,14 +459,114 @@ def test_each_stop_hands_off_with_its_reason_and_drops_the_models_text(
     employee_user, api_as, live, engine, queued, stop, reason
 ):
     engine.reply = _handed_off(stop)
-    turn = _start(api_as(employee_user))
+    client = api_as(employee_user)
+    turn = _start(client)
 
     agent_turns.run(turn.id)
 
     turn.refresh_from_db()
     assert (turn.state, turn.stop_reason) == ("handed_off", reason)
     assert "partial model text" not in turn.reply_text and turn.reply_text
-    assert _ticket(turn).agent_handoff_reason == reason
+    assert _ask(client, turn).agent_handoff_reason == reason
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("stop", ["step_limit", "schema_invalid", "model_unavailable", "injection"])
+def test_a_hand_off_opens_no_ticket_until_its_person_asks(
+    employee_user, api_as, live, engine, queued, stop
+):
+    engine.reply = _handed_off(stop)
+    client = api_as(employee_user)
+    turn = _start(client)
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert turn.handoff_ticket_id is None and turn.offers_ticket()
+    assert not Ticket.objects.exists() and queued.tickets == []
+    handed = AuditLog.objects.get(event="agent_turn_handed_off")
+    assert handed.payload["ticket_public_id"] is None
+
+
+@pytest.mark.django_db
+def test_asking_twice_opens_one_ticket(employee_user, api_as, live, engine, queued):
+    engine.reply = _handed_off("tool_failed")
+    client = api_as(employee_user)
+    turn = _start(client)
+    agent_turns.run(turn.id)
+
+    first = _ask(client, turn)
+    second = _ask(client, turn)
+
+    assert first.id == second.id and Ticket.objects.count() == 1
+    assert queued.tickets == [str(first.id)]
+    requested = AuditLog.objects.get(event="agent_handoff_ticket_requested")
+    assert (requested.actor_type, requested.actor_id) == ("human", employee_user.id)
+    assert requested.payload["ticket_public_id"] == first.public_id
+
+
+@pytest.mark.django_db
+def test_someone_elses_hand_off_ticket_is_not_found(
+    employee_user, manager_user, api_as, live, engine, queued
+):
+    engine.reply = _handed_off("tool_failed")
+    turn = _start(api_as(employee_user))
+    agent_turns.run(turn.id)
+
+    response = api_as(manager_user).post(f"/api/agent/turns/{turn.id}/ticket")
+
+    assert (response.status_code, response.json()["code"]) == (404, "conversation_not_found")
+    assert not Ticket.objects.exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("outcome", ["queued", "replied", "token_refused", "conversation_ended"])
+def test_a_turn_that_offers_no_ticket_refuses_to_open_one(
+    employee_user, api_as, live, engine, queued, outcome
+):
+    client = api_as(employee_user)
+    turn = _start(client)
+    if outcome == "replied":
+        agent_turns.run(turn.id)
+    elif outcome == "token_refused":
+        engine.reply = _handed_off("token_refused")
+        agent_turns.run(turn.id)
+    elif outcome == "conversation_ended":
+        agent_turns.end(turn.conversation, AgentConversationEnd.USER)
+        agent_turns.run(turn.id)
+
+    response = client.post(f"/api/agent/turns/{turn.id}/ticket")
+
+    assert (response.status_code, response.json()["code"]) == (409, "no_ticket_offered")
+    assert not Ticket.objects.exists()
+
+
+@pytest.mark.django_db
+def test_a_console_hand_off_offers_no_ticket(technician_user, api_as, live, engine, queued):
+    engine.reply = _handed_off("tool_failed")
+    client = api_as(technician_user)
+    turn = _start(client, surface="console")
+    agent_turns.run(turn.id)
+
+    response = client.post(f"/api/agent/turns/{turn.id}/ticket")
+
+    assert (response.status_code, response.json()["code"]) == (409, "no_ticket_offered")
+    assert not Ticket.objects.exists()
+
+
+@pytest.mark.django_db
+def test_an_injection_hand_off_still_opens_its_ticket_after_the_conversation_ended(
+    employee_user, api_as, live, engine, queued
+):
+    engine.reply = _handed_off("injection")
+    client = api_as(employee_user)
+    turn = _start(client)
+    agent_turns.run(turn.id)
+
+    ticket = _ask(client, turn)
+
+    assert AgentConversation.objects.get(id=turn.conversation_id).state == "ended"
+    assert ticket.agent_handoff_reason == "agent_injection_detected"
 
 
 @pytest.mark.django_db
@@ -652,6 +791,78 @@ def test_ai_engine_gets_the_limits_language_and_no_access(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("profile", "message", "language"),
+    [
+        ("vi", "Reply to TKT-2026-001543 saying I'm still waiting.", "en"),
+        ("en", "Làm sao để đặt lại mật khẩu AWS access portal?", "vi"),
+        ("vi", "TKT-2026-001543?", "en"),
+    ],
+    ids=["english-message-vi-profile", "vietnamese-message-en-profile", "no-letters"],
+)
+def test_the_reply_language_follows_the_message_whatever_the_profile_says(
+    employee_user, api_as, live, engine, queued, profile, message, language
+):
+    employee_user.language = profile
+    employee_user.save(update_fields=["language"])
+    turn = _start(api_as(employee_user), message)
+
+    agent_turns.run(turn.id)
+
+    (body,) = engine.turn_bodies
+    assert body["language"] == language
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("profile", "message", "language"),
+    [
+        ("vi", "My VPN drops every ten minutes.", "en"),
+        ("en", "VPN của tôi bị ngắt mỗi mười phút.", "vi"),
+    ],
+)
+def test_a_handoff_sentence_follows_the_message_language(
+    employee_user, api_as, live, engine, queued, profile, message, language
+):
+    from apps.agent.utils.vocabulary import HANDOFF_TEXT
+
+    employee_user.language = profile
+    employee_user.save(update_fields=["language"])
+    engine.reply = _handed_off("model_unavailable")
+    turn = _start(api_as(employee_user), message)
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert turn.reply_text == HANDOFF_TEXT[ReasonCode.AGENT_MODEL_UNAVAILABLE][language]
+
+
+@pytest.mark.django_db
+def test_a_mask_failed_turn_hands_off_in_the_message_language(
+    employee_user, api_as, live, engine, queued
+):
+    from apps.agent.utils.vocabulary import HANDOFF_TEXT
+
+    employee_user.language = "en"
+    employee_user.save(update_fields=["language"])
+    engine.ner_fails = True
+
+    turn = _start(api_as(employee_user), f"Gọi cho tôi số {PHONE}, VPN bị lỗi")
+
+    turn.refresh_from_db()
+    assert turn.state == "handed_off" and turn.stop_reason is not None
+    assert turn.reply_text == HANDOFF_TEXT[ReasonCode(turn.stop_reason)][Language.VI]
+
+
+def test_a_decomposed_vietnamese_message_is_vietnamese():
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFD", "mật khẩu")
+
+    assert AgentTurn(message_masked=decomposed).language() == "vi"
+
+
+@pytest.mark.django_db
 def test_earlier_turns_are_capped_oldest_first_and_never_unmasked(
     employee_user, api_as, live, engine, queued, settings
 ):
@@ -679,12 +890,13 @@ def test_a_hand_off_ticket_carries_the_turns_quarantine_entries(
     employee_user, api_as, live, engine, queued
 ):
     engine.reply = _handed_off("step_limit")
-    turn = _start(api_as(employee_user), f"Call me on {PHONE}, my VPN is down")
+    client = api_as(employee_user)
+    turn = _start(client, f"Call me on {PHONE}, my VPN is down")
 
     agent_turns.run(turn.id)
 
     turn.refresh_from_db()
-    ticket = _ticket(turn)
+    ticket = _ask(client, turn)
     (placeholder,) = ticket.pii_map
     assert placeholder in ticket.body_masked
     copy = PiiQuarantine.objects.get(ref=ticket.pii_map[placeholder])
@@ -696,9 +908,11 @@ def test_a_hand_off_ticket_carries_the_turns_quarantine_entries(
 @pytest.mark.django_db
 def test_a_hand_off_ticket_is_audited_as_the_agent_s(employee_user, api_as, live, engine, queued):
     engine.reply = _handed_off("tool_failed")
-    turn = _start(api_as(employee_user))
+    client = api_as(employee_user)
+    turn = _start(client)
 
     agent_turns.run(turn.id)
+    _ask(client, turn)
 
     submitted = AuditLog.objects.get(event="ticket_submitted")
     assert submitted.payload["via"] == "agent"
@@ -895,14 +1109,17 @@ def test_a_turn_reads_back_with_its_reply_and_hand_off_ticket(
     turn = _start(client)
     agent_turns.run(turn.id)
 
+    offered = client.get(f"/api/agent/turns/{turn.id}").json()
+    ticket = _ask(client, turn)
     body = client.get(f"/api/agent/turns/{turn.id}").json()
     conversation = client.get(f"/api/agent/conversations/{turn.conversation_id}").json()
 
-    turn.refresh_from_db()
+    assert (offered["handoff_ticket"], offered["ticket_offered"]) == (None, True)
     assert body["state"] == "handed_off"
     assert body["stop_reason"] == "agent_budget_exceeded"
-    assert body["handoff_ticket"] == _ticket(turn).public_id
+    assert (body["handoff_ticket"], body["ticket_offered"]) == (ticket.public_id, False)
     assert [t["turn_id"] for t in conversation["turns"]] == [str(turn.id)]
+    assert conversation["turns"][0]["handoff_ticket"] == ticket.public_id
 
 
 @pytest.mark.django_db
