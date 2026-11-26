@@ -947,10 +947,13 @@ guard and that comment is later trimmed, the entry is the record.
   resent. *`test_agent_graph.py::test_a_failed_post_read_is_tool_failed_not_outcome_unknown`,
   `::test_a_lost_write_is_still_outcome_unknown`.*
 - **`resource_ref` labelling a project, server, volume or network by its name
-  only when the whole name matches `_PLAIN_NAME`, and by its id otherwise.**
-  Whoever runs the project names its resources; a name that is a sentence
-  would go on a button whose press is sent as the person's own message.
-  *`test_agent_graph.py::test_a_resource_label_is_its_name_only_when_that_is_a_plain_name`.*
+  only when the whole name matches `_PLAIN_NAME`, and by its id otherwise,
+  with the start of the id after a name.** Whoever runs the project names its
+  resources; a name that is a sentence would go on a button whose press is
+  sent as the person's own message, and two servers named alike would get
+  two buttons the person can't tell apart.
+  *`test_agent_graph.py::test_a_resource_label_is_its_name_only_when_that_is_a_plain_name`,
+  `::test_two_resources_named_alike_get_distinct_labels`.*
 - **`cloud_text` and `cloud_pairs` wrapping every text the cloud holds**
   (descriptions, metadata, alert texts, log messages, span attributes) as
   `untrusted_text`, and leaving `[withheld]` plain; **`cloud_name` and

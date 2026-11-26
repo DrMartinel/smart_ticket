@@ -61,13 +61,15 @@ def cloud_pairs(mapping: dict[str, Any] | None) -> list[dict[str, str] | str | N
 
 
 def resource_ref(context: Context, kind: str, row: dict[str, Any]) -> dict[str, str]:
-    """The ref of a project, server, volume or network, labelled by its name when that is a
-    plain name and by its id otherwise; none for a row with no id."""
-    item_id, name = row.get("id"), row.get("name") or ""
-    if not item_id:
+    """The ref of a project, server, volume or network, labelled by its name and the start of its
+    id when the name is a plain name, and by its id otherwise; none for a row whose id is not a
+    plain name."""
+    item_id, name = str(row.get("id") or ""), row.get("name")
+    if not _PLAIN_NAME.fullmatch(item_id):
         return {}
-    label = name if _PLAIN_NAME.fullmatch(name) else str(item_id)
-    return {"ref": ref(context, kind, str(item_id), label)}
+    plain = isinstance(name, str) and _PLAIN_NAME.fullmatch(name) and name != item_id
+    label = f"{name} ({item_id[:8]})" if plain else item_id
+    return {"ref": ref(context, kind, item_id, label)}
 
 
 # ── resources ──
