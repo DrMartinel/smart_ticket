@@ -1985,6 +1985,12 @@ export interface SeriesOut {
   points: unknown[][];
 }
 
+export interface OwnMetricAnswerOut {
+  query_id: string;
+  series: SeriesOut[];
+  truncated: boolean;
+}
+
 export interface MetricAnswerOut {
   query_id: string;
   series: SeriesOut[];
@@ -2000,6 +2006,14 @@ export interface LogLineOut {
   server_id: string;
   service: string;
   message: string;
+}
+
+export interface OwnLogAnswerOut {
+  query_id: string;
+  total: number;
+  lines: LogLineOut[];
+  truncated: boolean;
+  withheld: number;
 }
 
 export interface LogAnswerOut {
@@ -2025,11 +2039,23 @@ export interface SpanOut {
   attributes: Record<string, string>;
 }
 
+export interface OwnTraceAnswerOut {
+  query_id: string;
+  spans: SpanOut[];
+  truncated: boolean;
+  withheld: number;
+}
+
 export interface TraceAnswerOut {
   query_id: string;
   spans: SpanOut[];
   truncated: boolean;
   withheld: number;
+  link: string;
+}
+
+export interface InfraQuerySentOut {
+  compiled: string;
   link: string;
 }
 
@@ -2046,8 +2072,7 @@ export interface InfraQueryReceiptOut {
   withheld: number;
   truncated: boolean;
   duration_ms: number;
-  compiled: string;
-  link: string;
+  sent?: InfraQuerySentOut | null;
 }
 
 export interface MetricQueryIn {
