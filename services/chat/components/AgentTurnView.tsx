@@ -62,6 +62,8 @@ export default function AgentTurnView({
   onOpenTicket,
   onRetry,
   onAsk,
+  busy,
+  viewingEnded,
 }: {
   row: AgentRow;
   pending: AgentActionOut[];
@@ -77,6 +79,8 @@ export default function AgentTurnView({
   onOpenTicket: (turnId: string) => void;
   onRetry: (key: string) => void;
   onAsk: (text: string) => void;
+  busy: boolean;
+  viewingEnded: boolean;
 }) {
   if (row.kind === "ended") {
     return (
@@ -122,7 +126,7 @@ export default function AgentTurnView({
           <div className="flex flex-col gap-3">
             <AnswerText text={t.reply} />
             {t.state === "replied" && (t.choices ?? []).length > 0 && (
-              <ChoiceCard choices={t.choices ?? []} onPick={onAsk} />
+              <ChoiceCard choices={t.choices ?? []} disabled={busy || viewingEnded} onPick={onAsk} />
             )}
             {helpdesk.map((id) => (
               <HelpdeskCard key={id} publicId={id} onAnswer={onAsk} />
@@ -273,11 +277,25 @@ function Handoff({
 }
 
 /** The reply's choices as buttons; a press sends the button's label as the person's next message. */
-function ChoiceCard({ choices, onPick }: { choices: AgentChoiceOut[]; onPick: (label: string) => void }) {
+function ChoiceCard({
+  choices,
+  disabled,
+  onPick,
+}: {
+  choices: AgentChoiceOut[];
+  disabled: boolean;
+  onPick: (label: string) => void;
+}) {
   return (
     <div role="group" aria-label="Choose one" className="flex flex-wrap gap-2">
       {choices.map((c) => (
-        <Button key={`${c.kind}:${c.id ?? ""}`} size="sm" variant="outline" onClick={() => onPick(c.label)}>
+        <Button
+          key={`${c.kind}:${c.id ?? ""}`}
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => onPick(c.label)}
+        >
           {c.label}
         </Button>
       ))}

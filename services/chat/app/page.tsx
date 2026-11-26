@@ -69,6 +69,8 @@ export default function AssistantPage() {
                   onOpenTicket={(id) => void agent.openTicket(id)}
                   onRetry={agent.retry}
                   onAsk={agent.send}
+                  busy={agent.busy}
+                  viewingEnded={agent.viewingEnded}
                 />
               ))}
               {agent.pendingError && (
