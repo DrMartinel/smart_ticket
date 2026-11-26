@@ -526,9 +526,10 @@ def main() -> None:
     ):
         chunks.append(emit_enum(enum.__name__, [member.value for member in enum]))
 
-    from apps.infra.models import CustomerTier
+    from apps.infra.models import CustomerLookup, CustomerTier
 
-    chunks.append(emit_enum("CustomerTier", [tier.value for tier in CustomerTier]))
+    for customer_enum in (CustomerTier, CustomerLookup):
+        chunks.append(emit_enum(customer_enum.__name__, [m.value for m in customer_enum]))
 
     for model_name in MODELS:
         chunks.append(emit_json_schema(model_name))

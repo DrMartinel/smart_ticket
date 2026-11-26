@@ -9,7 +9,7 @@ from datetime import datetime
 
 from ninja import Field, Schema
 
-from apps.infra.models import CustomerTier
+from apps.infra.models import CustomerLookup, CustomerTier
 from apps.sla.response_schema import SlaBadgeOut
 from apps.sla.services.clocks import Badge, sla_clocks
 from apps.tickets.models import PiiAccessLog, RoutingDecision, Ticket, TicketComment
@@ -190,7 +190,7 @@ class StaffTicketDetail(StaffTicketRow):
     agent_handoff_reason: str | None = None
     # The reporter's customer company and how its lookup went (F17 BR-F17-21).
     customer: TicketCustomerOut | None = None
-    customer_lookup: str | None = None
+    customer_lookup: CustomerLookup | None = None
 
     @staticmethod
     def resolve_reporter_person(ticket: Ticket) -> PersonOut:

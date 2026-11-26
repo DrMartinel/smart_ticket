@@ -69,6 +69,8 @@ export type AgentActionState = "pending" | "applied" | "dismissed" | "expired" |
 
 export type CustomerTier = "standard" | "business" | "enterprise";
 
+export type CustomerLookup = "found" | "none" | "unavailable";
+
 export interface TicketIn {
   subject: string;
   body: string;
@@ -434,7 +436,7 @@ export interface StaffTicketDetail {
   clarifications: ClarificationOut[];
   agent_handoff_reason?: string | null;
   customer?: TicketCustomerOut | null;
-  customer_lookup?: string | null;
+  customer_lookup?: CustomerLookup | null;
 }
 
 export interface RevealOut {
