@@ -587,7 +587,7 @@ A cue run (`infra_cue_runs.outcome`):
 | `running` | Nothing was linked and the overview set ran | `overview` |
 | `running` | The reporter has no Keystone user | `no_cloud_user` |
 | `running` | Keystone did not answer | `scope_unavailable` |
-| `running` | The task raised | `failed` |
+| `running` | The task raised or ran past its time limit, or the person who linked the resource can no longer read it (UC-F17-13 3x) | `failed` |
 
 There is one run per handoff, plus one for each resource a person links. A
 later handoff (after a `clarify` re-run sent the ticket back to triage) adds a
@@ -595,8 +595,10 @@ new run. The panel shows the latest handoff run and every run a person started
 after it.
 
 A cue (`infra_ticket_cues.status`) is `ok`, `empty` (the query ran and found
-nothing), `refused` (over a cap, with its `QueryCheck`) or `unavailable` (the
-backend did not answer).
+nothing), `refused` (over a cap, with its `QueryCheck`), `unavailable` (the
+backend did not answer) or `cut` (the answer was over `infra.max_result_bytes`:
+the summary covers only the part kept, or says there is none, and points to the
+query for the whole answer).
 
 `tickets.customer_lookup` is `found`, `none` or `unavailable`. It is null for
 tickets opened before this amendment.
@@ -673,7 +675,7 @@ Mock data, added to §d's (from `services/cloud-sim/src/cloud_sim/seed.json`):
 | Trigger | The overview in UC-F17-12 points at `vol-db-01` |
 | Preconditions | `duc.tm` holds `infra:read` and reaches the ticket |
 | Main flow | 1. He links `vol-db-01` from the Cues panel. 2. core-api answers 202 and queues a run started by him. 3. The volume set runs as his read (`via=human`, actor `duc.tm`, ticket set). 4. The panel adds the run under the overview |
-| Exception | 1x. The resource doesn't exist: 404 `infra_not_found` |
+| Exception | 1x. The resource doesn't exist: 404 `infra_not_found`. 3x. By the time the run starts he is no longer active, no longer holds `infra:read` or no longer reaches the ticket: the run is `failed` and reads nothing |
 | Rules | BR-F17-25 |
 | MoSCoW | Should |
 
@@ -698,7 +700,7 @@ Mock data, added to §d's (from `services/cloud-sim/src/cloud_sim/seed.json`):
 | BR-F17-16 | Cue queries are fixed templates per resource kind (§o.6), compiled by PR 3's structured query builder under its caps. No model writes or chooses them. Each one is a cue read (ADR-0048 decision 10): an `infra_queries` row with `via=cue`, no actor, and its ticket |
 | BR-F17-17 | Cue evidence (log lines, alert annotations) is masked inline as in BR-F17-06; text whose masking fails is `[withheld]`. Summaries are written by code from numbers and names (OQ-F17-10) |
 | BR-F17-18 | Cues never change the routing decision, priority, team, assignee, status or clocks. A failure ends in a run or cue outcome, never a `ReasonCode`: the ticket is already with a person, and cues can only add to what that person sees |
-| BR-F17-19 | A missing source is stated, never read as healthy. An `unavailable` or `refused` cue names its source and reason, and an `overview` run says the ticket named no resource |
+| BR-F17-19 | A missing source is stated, never read as healthy. An `unavailable` or `refused` cue names its source and reason, a `cut` cue says its answer was over the result cap, and an `overview` run says the ticket named no resource |
 | BR-F17-20 | Only staff holding `infra:read` who reach the ticket see its cues. A requester never does, and no route puts cues in a prompt (agent tier `none`) |
 | BR-F17-21 | A ticket's customer is read from Keystone when the pipeline starts: the `infra_customers` row for the domain of the reporter's Keystone user, found by their Keycloak subject (OQ-F17-01). It is never guessed, never set by the model, and never read by the router (OQ-F17-08). A failed lookup is BR-X-07's case, not a `ReasonCode`: the ticket gets the decision it would have had with no customer, and the ticket page names the failure |
 | BR-F17-22 | `infra_customers` holds only what Keystone lacks, a display name and a tier, keyed by Keystone domain ID. Membership stays in Keystone (ADR-0048 decision 11). A row is created or its tier changed only with a reason, and both are audited |
@@ -764,7 +766,7 @@ It shows numbers, not judgements: "highest CPU 12 %" is a fact, not an all-clear
 | `tickets` | CHANGED | NEW `customer_id` (FK `infra_customers`, null, `PROTECT`); NEW `customer_lookup` (`found` \| `none` \| `unavailable`, null). Both null for old rows |
 | `infra_cue_runs` | NEW | `id`, `ticket_id`, `transfer_id` (the handoff's `lifecycle_transfers` row, unique, null for a person's run), `started_by_id` (null for a handoff run), `started_at`, `finished_at` (null), `outcome` |
 | `infra_ticket_resources` | NEW | `id`, `run_id`, `project_id`, `kind` (`server` \| `volume` \| `network`), `resource_id`, `name`, `source` (`picked` \| `named` \| `attached` \| `every_server` \| `linked`), `token` (the text that matched, for `named`; else null). Unique (`run_id`, `resource_id`) |
-| `infra_ticket_cues` | NEW | `id`, `run_id`, `resource_id` (FK `infra_ticket_resources`, null for an overview cue), `template`, `status` (`ok` \| `empty` \| `refused` \| `unavailable`), `summary`, `evidence` (JSON, masked), `query_id` (FK `infra_queries`, null), `link` (null) |
+| `infra_ticket_cues` | NEW | `id`, `run_id`, `resource_id` (FK `infra_ticket_resources`, null for an overview cue), `template`, `status` (`ok` \| `empty` \| `refused` \| `unavailable` \| `cut`), `summary`, `evidence` (JSON, masked), `query_id` (FK `infra_queries`, null), `link` (null) |
 | `infra_resource_picks` | NEW | `id`, `conversation_id` (FK `agent_conversations`), `person_id`, `project_id`, `kind`, `resource_id`, `name`, `picked_at`. Unique (`conversation_id`, `resource_id`) |
 | `infra_queries` | CHANGED | `actor_id` becomes null; NEW `ticket_id` (null); `via` gains `cue`; CHECK `(via = 'cue') = (actor_id IS NULL)` and `via <> 'cue' OR ticket_id IS NOT NULL` |
 
@@ -824,15 +826,27 @@ the rows with `domains_unavailable: true`, and a create answers
 `GET /api/tickets/TKT-2026-000431/cues`:
 
 ```json
-{"outcome": "done", "started_at": "2026-11-26T02:31:04Z",
- "resources": [
-   {"kind": "server", "name": "db-01", "project": "saomai-prod",
-    "cues": [
-      {"template": "server.error_logs", "status": "unavailable",
-       "summary": "Elasticsearch was unreachable; no log cue", "link": null},
-      {"template": "server.cpu", "status": "ok",
-       "summary": "CPU peaked at 64 % at 09:05 (+07), now 58 %", "link": "http://localhost:9090/graph?g0.expr=…"}]}]}
+{"runs": [
+  {"id": "5f0c2a91-…", "outcome": "done",
+   "started_at": "2026-11-26T02:31:04Z", "finished_at": "2026-11-26T02:31:06Z",
+   "started_by": null,
+   "window_start": "2026-11-26T01:12:40Z", "window_end": "2026-11-26T02:31:05Z",
+   "resources": [
+     {"kind": "server", "resource_id": "1df109c8-…", "name": "db-01",
+      "project_id": "b055a8f1-…", "source": "named", "token": "db-01",
+      "cues": [
+        {"template": "server.error_logs", "status": "unavailable",
+         "summary": "Elasticsearch was unreachable; no log cue", "evidence": {}, "link": null},
+        {"template": "server.cpu", "status": "ok",
+         "summary": "CPU peaked at 64 % at 09:05 (+07), now 58 %",
+         "evidence": {"peak": 0.64, "peak_at": "2026-11-26T02:05:00+00:00", "latest": 0.58},
+         "link": "http://localhost:9091/graph?g0.expr=…"}]}],
+   "overview": []}]}
 ```
+
+`runs` holds the latest handoff run and every run a person started after it
+(§o.3), oldest first. `started_by` is null for a handoff run and the person's
+username for a linked one; `overview` holds an `overview` run's cues.
 
 ### o.10 Tunables and flags
 
@@ -840,9 +854,15 @@ the rows with `domains_unavailable: true`, and a create answers
 
 ```yaml
 cues:
-  lookback_minutes: 60   # the window starts this long before the ticket was opened
+  lookback_minutes: 60   # the window starts this long before the ticket was opened,
+                         # or infra.max_range_hours before the run, whichever is later
   max_resources: 3       # linked per run, attached volumes included
   overview_top: 3        # rows per overview query
+  step_seconds: 60       # seconds between a metric cue's points, and the range of its rates
+  log_lines: 3           # error lines an error-log cue shows
+  max_points: 120        # one resource's metric cue widens its step past step_seconds
+                         # so a series holds at most this many points
+  overview_points: 12    # the overview's IOPS cue reads every volume at this many points
 sla:
   tier_floor:            # F1 amendment, BR-F1-16
     enterprise: P2
@@ -850,20 +870,28 @@ sla:
     standard: P3
 ```
 
-Per-query caps stay under `infra:`. No new `.env.example` setting: cues reuse
-the `INFRA_*` timeouts and the backend URLs.
+Per-query caps stay under `infra:`. The overview's highest-CPU cue reads one
+value per server: `max_over_time` over the whole window, at a step of the
+window. A cue whose answer is still over `infra.max_result_bytes` is `cut`
+(§o.3), never `ok` or `empty`.
 
-**F9 flag:** `FlagBranch.TICKET_CUES = "ticket_cues"`, seeded `off` by a data
-migration. The agent flags are already F9 flags that are not routing branches,
-so this follows them. It is not one of the F15 flags: cues involve no agent, so
-TODO 23 does not gate them.
+`.env.example` (new): `INFRA_WORKER_CONCURRENCY`, the runs in flight on the
+`worker-infra` container, which takes the `infra` queue both cue tasks go to;
+`INFRA_CUE_SOFT_TIME_LIMIT_SEC`, how long one run may take before Celery stops
+it and it ends `failed`. Each read reuses the `INFRA_*` timeouts and the
+backend URLs.
+
+**F9 flag:** `FlagBranch.TICKET_CUES = "ticket_cues"`, seeded `on` by a data
+migration, as every flag is (ADR-0051). The agent flags are already F9 flags
+that are not routing branches, so this follows them. It is not one of the F15
+flags: cues involve no agent, so TODO 23 does not gate them.
 
 ### o.11 Tasks and events
 
 | Task | Trigger | Idempotency |
 |---|---|---|
-| `infra.ticket_cues(ticket_id, transfer_id)` | On commit at handoff (FR-F17-017) | One run per handoff (`infra_cue_runs.transfer_id` unique); a retried task finds the run and stops |
-| `infra.linked_cues(run_id)` | `POST …/cues/resources` | The run exists before the task is queued; a retried task finds it finished and stops |
+| `infra.ticket_cues(ticket_id, transfer_id)`, on the `infra` queue | On commit at handoff (FR-F17-017) | One run per handoff (`infra_cue_runs.transfer_id` unique); a retried task finds the run and stops |
+| `infra.linked_cues(run_id)`, on the `infra` queue | `POST …/cues/resources` | The run exists before the task is queued; a retried task finds it finished and stops |
 
 No notification event. Audit rows: `customer_created`, `customer_changed`,
 `customer_lookup_failed`. A cue run is not audited: it decides and changes
