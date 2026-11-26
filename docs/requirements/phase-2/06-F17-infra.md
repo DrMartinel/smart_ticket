@@ -804,8 +804,8 @@ No `users` column: a person's company is read from Keystone, never copied
 
 | Method · Path | Permission | Agent tier | Service |
 |---|---|---|---|
-| `GET /api/tickets/{public_id}/cues` | `infra:read`, and the caller reaches the ticket (else 404) | none | `Cues.of(ticket)` |
-| `POST /api/tickets/{public_id}/cues/resources` | `infra:read`, and the caller reaches the ticket (else 404) | none | `Cues.link(ticket, caller, kind, resource_id)`: 202 |
+| `GET /api/tickets/{public_id}/cues` | `infra:read`, and the caller reaches the ticket (else 403) | none | `Cues.of(ticket)` |
+| `POST /api/tickets/{public_id}/cues/resources` | `infra:read`, and the caller reaches the ticket (else 403) | none | `Cues.link(ticket, caller, kind, resource_id)`: 202 |
 | `POST /api/requester/infra/picks` | `infra:read:own` | none | `ResourcePicks.record(caller, conversation_id, kind, resource_id)` |
 | `GET /api/infra/customers` | `infra:customers:manage` | none | `Customers.listing()`: rows, and Keystone's domains with no row |
 | `POST /api/infra/customers` | `infra:customers:manage` | none | `Customers.create(domain_id, name, tier, reason)` |
