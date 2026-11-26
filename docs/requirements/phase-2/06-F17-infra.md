@@ -598,7 +598,8 @@ A cue (`infra_ticket_cues.status`) is `ok`, `empty` (the query ran and found
 nothing), `refused` (over a cap, with its `QueryCheck`), `unavailable` (the
 backend did not answer) or `cut` (the answer was over `infra.max_result_bytes`:
 the summary covers only the part kept, or says there is none, and points to the
-query for the whole answer).
+query for the whole answer; a log cue keeps its exact count and says the lines
+over the cap are not shown).
 
 `tickets.customer_lookup` is `found`, `none` or `unavailable`. It is null for
 tickets opened before this amendment.
@@ -870,10 +871,15 @@ sla:
     standard: P3
 ```
 
-Per-query caps stay under `infra:`. The overview's highest-CPU cue reads one
-value per server: `max_over_time` over the whole window, at a step of the
-window. A cue whose answer is still over `infra.max_result_bytes` is `cut`
-(§o.3), never `ok` or `empty`.
+Per-query caps stay under `infra:`. A gauge cue (CPU, memory, read and write
+latency) reads `max_over_time` over its step, so each point is the highest value
+in that step and a spike between two samples is still its peak. A rate cue
+(IOPS, dropped packets) is averaged over each step, so its summary names the
+steps ("averaged over 11-minute steps") and a reader knows a burst shorter than
+a step can hide. The overview's highest-CPU cue reads one value per server:
+`max_over_time` over the whole window, at a step of the window. A cue whose
+answer is still over `infra.max_result_bytes` is `cut` (§o.3), never `ok` or
+`empty`.
 
 `.env.example` (new): `INFRA_WORKER_CONCURRENCY`, the runs in flight on the
 `worker-infra` container, which takes the `infra` queue both cue tasks go to;
