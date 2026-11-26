@@ -88,7 +88,7 @@ export default function NetworkPage() {
                 )}
               </Facts>
             </Panel>
-            <ResourceAlerts projectId={network.project_id} labels={[["network_id", network.id]]} />
+            <ResourceAlerts projectId={network.project_id} kind="network" id={network.id} />
           </div>
           <Card className="overflow-x-auto">
             <Table className="min-w-[640px]">

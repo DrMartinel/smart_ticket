@@ -115,13 +115,7 @@ export default function ServerPage() {
                   </ul>
                 )}
               </Panel>
-              <ResourceAlerts
-                projectId={server.project_id}
-                labels={[
-                  ["server_id", server.id],
-                  ["server", server.name],
-                ]}
-              />
+              <ResourceAlerts projectId={server.project_id} kind="server" id={server.id} />
             </div>
           </div>
           <MetricsPanel

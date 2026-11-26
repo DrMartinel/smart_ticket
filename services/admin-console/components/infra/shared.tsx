@@ -8,7 +8,7 @@ import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
 import { P, can } from "@/lib/permissions";
-import type { AlertOut, ProjectOut } from "@/lib/types/generated";
+import type { AlertOut, AlertResource, ProjectOut } from "@/lib/types/generated";
 import { Badge, type Tone } from "@/components/ui/badge";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
@@ -94,18 +94,17 @@ export function SeverityBadge({ severity }: { severity: string }) {
   return <Badge variant={SEVERITY_TONE[severity] ?? "neutral"}>{severity || "alert"}</Badge>;
 }
 
-/** The alerts of the resource's project carrying any of `labels` (a label and its value). */
-export function ResourceAlerts({ projectId, labels }: { projectId: string; labels: [string, string][] }) {
+/** The alerts core-api names as about one resource. */
+export function ResourceAlerts({ projectId, kind, id }: { projectId: string; kind: AlertResource; id: string }) {
   const [alerts, setAlerts] = useState<AlertOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const key = JSON.stringify(labels);
 
   useEffect(() => {
-    const wanted: [string, string][] = JSON.parse(key);
-    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+    const query = new URLSearchParams({ resource_kind: kind, resource_id: id });
+    if (projectId) query.set("project_id", projectId);
     api
-      .get<AlertOut[]>(`/api/infra/alerts${query}`)
-      .then((found) => setAlerts(found.filter((a) => wanted.some(([label, value]) => value && a.labels[label] === value))))
+      .get<AlertOut[]>(`/api/infra/alerts?${query}`)
+      .then(setAlerts)
       .catch((err) =>
         setError(
           err instanceof ApiError && err.code === "infra_backend_unavailable"
@@ -113,7 +112,7 @@ export function ResourceAlerts({ projectId, labels }: { projectId: string; label
             : "Couldn't load the alerts.",
         ),
       );
-  }, [projectId, key]);
+  }, [projectId, kind, id]);
 
   return (
     <Panel title="Alerts">
@@ -122,7 +121,10 @@ export function ResourceAlerts({ projectId, labels }: { projectId: string; label
       ) : alerts === null ? (
         <LoadingState rows={2} label="Loading alerts" />
       ) : alerts.length === 0 ? (
-        <EmptyState compact title="No alert names this resource">Alertmanager answered with none for it.</EmptyState>
+        <EmptyState compact title={`No alert is about this ${kind}`}>
+          Alertmanager answered, and none of its alerts names this {kind} as its resource. An alert on something attached to it, such as a volume, is on
+          that resource&apos;s page.
+        </EmptyState>
       ) : (
         <ul className="flex flex-col gap-2 text-sm">
           {alerts.map((a) => (

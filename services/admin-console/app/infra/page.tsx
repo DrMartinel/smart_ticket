@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
-import { resourceHref, type ResourceKind } from "@/lib/infra";
+import { resourceHref } from "@/lib/infra";
 import { P, can } from "@/lib/permissions";
 import type { AlertOut, NetworkOut, ServerOut, VolumeOut } from "@/lib/types/generated";
 
@@ -32,12 +32,6 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "volumes", label: "Volumes" },
   { key: "networks", label: "Networks" },
   { key: "alerts", label: "Alerts" },
-];
-
-const ALERT_RESOURCE: [string, ResourceKind][] = [
-  ["server_id", "server"],
-  ["volume_id", "volume"],
-  ["network_id", "network"],
 ];
 
 export default function InfraPage() {
@@ -245,33 +239,30 @@ export default function InfraPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {shown.rows.map((a) => {
-                  const [label, kind] = ALERT_RESOURCE.find(([l]) => a.labels[l]) ?? [];
-                  return (
-                    <TableRow key={a.fingerprint}>
-                      <TableCell>
-                        <span className="font-medium">{a.name}</span>
-                        {a.summary && <div className="text-xs text-muted-foreground">{a.summary}</div>}
-                      </TableCell>
-                      <TableCell>
-                        <SeverityBadge severity={a.severity} />
-                      </TableCell>
-                      <TableCell>
-                        {label && kind ? (
-                          <Link href={resourceHref(kind, a.labels[label])} className="font-mono text-xs text-primary hover:underline">
-                            {a.labels[label]}
-                          </Link>
-                        ) : (
-                          "—"
-                        )}
-                      </TableCell>
-                      <TableCell>{projectName(a.project_id)}</TableCell>
-                      <TableCell>
-                        {a.state} {relativeTime(a.starts_at)}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                {shown.rows.map((a) => (
+                  <TableRow key={a.fingerprint}>
+                    <TableCell>
+                      <span className="font-medium">{a.name}</span>
+                      {a.summary && <div className="text-xs text-muted-foreground">{a.summary}</div>}
+                    </TableCell>
+                    <TableCell>
+                      <SeverityBadge severity={a.severity} />
+                    </TableCell>
+                    <TableCell>
+                      {a.resource_kind && a.resource_id ? (
+                        <Link href={resourceHref(a.resource_kind, a.resource_id)} className="font-mono text-xs text-primary hover:underline">
+                          {a.resource_kind} {a.resource_id}
+                        </Link>
+                      ) : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell>{projectName(a.project_id)}</TableCell>
+                    <TableCell>
+                      {a.state} {relativeTime(a.starts_at)}
+                    </TableCell>
+                  </TableRow>
+                ))}
                 <TableStatus colSpan={5} rows={shown.rows} error={!!error} empty={empty} />
               </TableBody>
             </>

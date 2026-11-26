@@ -107,13 +107,7 @@ export default function VolumePage() {
                 ))}
               </Facts>
             </Panel>
-            <ResourceAlerts
-              projectId={volume.project_id}
-              labels={[
-                ["volume_id", volume.id],
-                ["volume", volume.name],
-              ]}
-            />
+            <ResourceAlerts projectId={volume.project_id} kind="volume" id={volume.id} />
           </div>
           <MetricsPanel
             projectId={volume.project_id}
