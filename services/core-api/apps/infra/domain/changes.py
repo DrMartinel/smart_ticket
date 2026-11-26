@@ -20,6 +20,19 @@ class InfraChange(StrEnum):
     ADD_SECURITY_RULE = "add_security_rule"
     REMOVE_SECURITY_RULE = "remove_security_rule"
 
+    def server_action(self) -> dict[str, Any]:
+        """The body of the Nova server action that makes this change."""
+        match self:
+            case InfraChange.SOFT_REBOOT:
+                return {"reboot": {"type": "SOFT"}}
+            case InfraChange.HARD_REBOOT:
+                return {"reboot": {"type": "HARD"}}
+            case InfraChange.START:
+                return {"os-start": None}
+            case InfraChange.STOP:
+                return {"os-stop": None}
+        raise ValueError(f"{self.value} is not a server action")
+
 
 class InfraResource(StrEnum):
     SERVER = "server"

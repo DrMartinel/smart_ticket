@@ -31,7 +31,7 @@ from apps.infra.domain.changes import (
     InfraResource,
     RuleSpec,
 )
-from apps.infra.domain.resources import Project, Rule, Server, Volume
+from apps.infra.domain.resources import Project, Rule, SecurityGroup, Server, Volume
 from apps.infra.domain.vocabulary import InfraError, InfraOutcomeUnknown, InfraRefusal
 from apps.infra.models import InfraBackend
 from apps.infra.services.recording import UNREADABLE, QueryLog
@@ -85,23 +85,22 @@ class InfraChanges:
 
     def reboot(self, server_id: str, *, hard: bool, public_id: str | None = None) -> ChangeDone:
         kind = InfraChange.HARD_REBOOT if hard else InfraChange.SOFT_REBOOT
-        action = {"reboot": {"type": "HARD" if hard else "SOFT"}}
-        return self.server_action(kind, action, server_id, public_id)
+        return self.server_action(kind, server_id, public_id)
 
     def start(self, server_id: str, public_id: str | None = None) -> ChangeDone:
-        return self.server_action(InfraChange.START, {"os-start": None}, server_id, public_id)
+        return self.server_action(InfraChange.START, server_id, public_id)
 
     def stop(self, server_id: str, public_id: str | None = None) -> ChangeDone:
-        return self.server_action(InfraChange.STOP, {"os-stop": None}, server_id, public_id)
+        return self.server_action(InfraChange.STOP, server_id, public_id)
 
-    def server_action(
-        self, kind: InfraChange, action: dict[str, Any], server_id: str, public_id: str | None
-    ) -> ChangeDone:
+    def server_action(self, kind: InfraChange, server_id: str, public_id: str | None) -> ChangeDone:
         """One Nova server action on a server the caller reaches."""
         ticket = self.ticket(public_id)
         server = self.server(server_id)
         path = f"/servers/{server.id}/action"
-        return self.send(ticket, Change(kind, server, "POST", "compute", path, action))
+        return self.send(
+            ticket, Change(kind, server, "POST", "compute", path, kind.server_action())
+        )
 
     # ── volumes ──
 
@@ -222,14 +221,13 @@ class InfraChanges:
         return self.reached(volume_id, target), read
 
     def security_group(self, group_id: str) -> tuple[ChangeTarget, list[Rule]]:
-        raw = self.read(
-            "network", f"/v2.0/security-groups/{group_id}", lambda raw: raw["security_group"]
+        read = self.read(
+            "network",
+            f"/v2.0/security-groups/{group_id}",
+            lambda raw: SecurityGroup.of(raw["security_group"]),
         )
-        target = ChangeTarget(
-            InfraResource.SECURITY_GROUP, raw["id"], raw.get("name") or "", raw["project_id"]
-        )
-        rules = [Rule.of(r) for r in raw.get("security_group_rules") or []]
-        return self.reached(group_id, target), rules
+        target = ChangeTarget(InfraResource.SECURITY_GROUP, read.id, read.name, read.project_id)
+        return self.reached(group_id, target), read.rules
 
     def read[T](self, service: str, path: str, parse: Callable[[Any], T]) -> T:
         """A resource read a change needs first; one that doesn't exist is `infra_not_found`."""

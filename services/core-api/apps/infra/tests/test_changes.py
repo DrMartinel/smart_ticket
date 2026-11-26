@@ -21,7 +21,8 @@ from apps.audit.models import AuditLog
 from apps.categories.models import Category
 from apps.infra.models import Customer, CustomerLookup
 from apps.infra.services import changes as changes_module
-from apps.infra.tests.conftest import LAN_SUBJECT, CloudSim
+from apps.infra.clients.backends import OpenStack
+from apps.infra.tests.conftest import LAN_SUBJECT, CloudSim, FakeCloud
 from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.lifecycle.tests.conftest import make_ticket
 from apps.notifications.domain.vocabulary import NotificationEvent
@@ -553,6 +554,27 @@ def test_attaching_a_volume_to_another_projects_server_is_refused(
     assert response.json()["message"] == "the volume and the server are in different projects"
     assert cloud_sim.changes() == []
     assert cloud_sim.cloud.volumes[volume].status is VolumeStatus.AVAILABLE
+
+
+def test_a_partial_security_group_reply_is_unavailable_not_a_500(
+    api_as, technician_user, ticket, settings, monkeypatch
+):
+    settings.OPENSTACK_AUTH_URL = "http://cloud.test/identity/v3"
+    partial = {"security_group": {"id": "g1", "name": "db"}}
+    cloud = FakeCloud(
+        {"/network/v2.0/security-groups/g1": [httpx.Response(200, json=partial)]},
+        services=("network",),
+    )
+    monkeypatch.setattr(changes_module, "openstack", lambda: OpenStack(cloud.http()))
+
+    response = api_as(technician_user).delete(
+        "/api/infra/security-groups/g1/rules",
+        {"public_id": ticket.public_id, "rule_id": "r1"},
+        content_type=JSON,
+    )
+
+    assert response.status_code == 424
+    assert response.json()["code"] == "infra_backend_unavailable"
 
 
 def test_a_missing_server_is_not_found(api_as, technician_user, ticket, cloud_sim: CloudSim):

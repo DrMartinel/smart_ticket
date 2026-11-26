@@ -109,10 +109,12 @@ def cloud_sim(settings: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[CloudS
 
 @dataclass
 class FakeCloud:
-    """A Keystone that issues tokens expiring at `expires_at`, and scripted answers per path."""
+    """A Keystone that issues tokens expiring at `expires_at` for `services`, and scripted
+    answers per path."""
 
     answers: dict[str, list[httpx.Response]]
     expires_at: str = "2999-01-01T00:00:00+00:00"
+    services: tuple[str, ...] = ("compute",)
     sign_ins: int = 0
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -120,9 +122,10 @@ class FakeCloud:
             self.sign_ins += 1
             catalog = [
                 {
-                    "type": "compute",
-                    "endpoints": [{"interface": "public", "url": "http://cloud.test/compute"}],
+                    "type": service,
+                    "endpoints": [{"interface": "public", "url": f"http://cloud.test/{service}"}],
                 }
+                for service in self.services
             ]
             body = {"token": {"expires_at": self.expires_at, "catalog": catalog}}
             return httpx.Response(201, json=body, headers={"X-Subject-Token": f"t{self.sign_ins}"})
