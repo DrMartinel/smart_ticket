@@ -64,6 +64,7 @@ export const P = {
   categoriesDefine: perm("categories:define"),
   infraRead: perm("infra:read"),
   infraCustomersManage: perm("infra:customers:manage"),
+  infraOperate: perm("infra:operate"),
   teamsRead: perm("teams:read"),
   teamsManage: perm("teams:manage"),
   availabilityOwn: perm("teams:availability:own"),
