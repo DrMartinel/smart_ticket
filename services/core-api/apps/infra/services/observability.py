@@ -53,6 +53,7 @@ class MetricAnswer:
     query_id: str
     series: list[Series]
     truncated: bool
+    link: str
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,7 @@ class LogAnswer:
     lines: list[LogLine]
     truncated: bool
     withheld: int
+    link: str
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,7 @@ class TraceAnswer:
     spans: list[Span]
     truncated: bool
     withheld: int
+    link: str
 
 
 class Observability:
@@ -141,8 +144,9 @@ class Observability:
                 series, truncated = cut_to_bytes(
                     [Series.of(s, shown) for s in found], self.caps.max_result_bytes
                 )
+                read.truncated = truncated
             series = read.shown(series)
-        return MetricAnswer(str(read.query_id), series, truncated)
+        return MetricAnswer(str(read.query_id), series, truncated, read.link)
 
     def promql(self, query: PromQLQuery, project_id: str | None) -> MetricAnswer:
         """Raw PromQL, run only as Prometheus parsed it and core-api checked and scoped it."""
@@ -166,8 +170,9 @@ class Observability:
                 series, truncated = cut_to_bytes(
                     [Series.of(s, tuple(s["metric"])) for s in found], self.caps.max_result_bytes
                 )
+                read.truncated = truncated
             series = read.shown(series)
-        return MetricAnswer(str(read.query_id), series, truncated)
+        return MetricAnswer(str(read.query_id), series, truncated, read.link)
 
     # ── logs ──
 
@@ -183,8 +188,9 @@ class Observability:
                 lines, truncated = cut_to_bytes(
                     [LogLine.of(h) for h in hits_of(answer)], self.caps.max_result_bytes
                 )
+                read.truncated = truncated
             lines = read.shown(lines)
-        return LogAnswer(str(read.query_id), total, lines, truncated, read.withheld)
+        return LogAnswer(str(read.query_id), total, lines, truncated, read.withheld, read.link)
 
     def log_counts(self, query: LogCount, project_id: str | None) -> CountAnswer:
         wanted = self.scope.narrowed_to(project_id)
@@ -211,8 +217,9 @@ class Observability:
                 spans, truncated = cut_to_bytes(
                     [Span.of(h) for h in hits_of(answer)], self.caps.max_result_bytes
                 )
+                read.truncated = truncated
             spans = read.shown(spans)
-        return TraceAnswer(str(read.query_id), spans, truncated, read.withheld)
+        return TraceAnswer(str(read.query_id), spans, truncated, read.withheld, read.link)
 
     def trace(self, trace_id: str) -> TraceAnswer:
         """Every span of one trace; a trace outside the scope is not found, like a missing one."""
@@ -227,8 +234,9 @@ class Observability:
             if not found:
                 raise BackendNotFound(f"trace {trace_id}")
             spans, truncated = cut_to_bytes([Span.of(h) for h in found], self.caps.max_result_bytes)
+            read.truncated = truncated
             spans = read.shown(spans)
-        return TraceAnswer(str(read.query_id), spans, truncated, read.withheld)
+        return TraceAnswer(str(read.query_id), spans, truncated, read.withheld, read.link)
 
     # ── how a query runs ──
 

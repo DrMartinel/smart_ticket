@@ -18,6 +18,9 @@ from apps.agent.models import (
     AgentTurn,
     AgentTurnState,
 )
+from apps.infra.models import InfraQuery
+from apps.infra.response_schema import InfraQueryReceiptOut
+from apps.infra.services.recording import missing_sources
 
 
 class AgentReceiptOut(Schema):
@@ -46,9 +49,12 @@ class AgentTurnOut(Schema):
     ticket_offered: bool = False
     queued_at: datetime
     finished_at: datetime | None
+    queries: list[InfraQueryReceiptOut] = []
+    warnings: list[str] = []
 
     @classmethod
     def of(cls, turn: AgentTurn) -> AgentTurnOut:
+        queries = list(InfraQuery.objects.of_turn(turn.id))
         return cls(
             turn_id=turn.id,
             conversation_id=turn.conversation_id,
@@ -62,6 +68,8 @@ class AgentTurnOut(Schema):
             ticket_offered=turn.offers_ticket(),
             queued_at=turn.queued_at,
             finished_at=turn.finished_at,
+            queries=[InfraQueryReceiptOut.model_validate(q, from_attributes=True) for q in queries],
+            warnings=missing_sources(queries, turn.language()),
         )
 
 

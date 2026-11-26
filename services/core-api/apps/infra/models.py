@@ -47,6 +47,12 @@ class InfraOutcome(StrEnum):
     SCOPE_UNAVAILABLE = "scope_unavailable"
 
 
+class InfraQueryQuerySet(models.QuerySet["InfraQuery"]):
+    def of_turn(self, turn_id: uuid.UUID) -> InfraQueryQuerySet:
+        """The queries an agent turn made, oldest first."""
+        return self.filter(agent_turn_id=turn_id).order_by("created_at")
+
+
 class InfraQuery(BaseModel):
     """One query a person, their agent or a ticket's cues made, and what came of it."""
 
@@ -67,10 +73,15 @@ class InfraQuery(BaseModel):
     projects = ArrayField(models.CharField(max_length=64), default=list)
     outcome = models.CharField(max_length=24, choices=_choices(InfraOutcome))
     refusal = models.CharField(max_length=40, null=True, blank=True)
+    # The check a refused query failed, a `QueryCheck` value.
+    refusal_reason = models.CharField(max_length=24, null=True, blank=True)
     duration_ms = models.PositiveIntegerField(default=0)
     rows = models.PositiveIntegerField(default=0)
     withheld = models.PositiveIntegerField(default=0)
+    truncated = models.BooleanField(default=False)
     link = models.TextField(blank=True, default="")
+
+    objects = InfraQueryQuerySet.as_manager()
 
     class Meta(BaseModel.Meta):
         db_table = "infra_queries"

@@ -1,5 +1,6 @@
 """Response shapes for the infra reads (F17 §h.1), where free text is already masked or
-withheld, for the customer and cue routes (F17 §o.9), and for the changes (F17 §h.1)."""
+withheld, for the customer and cue routes (F17 §o.9), for the changes (F17 §h.1), and for the
+receipt of each query an agent turn ran (BR-F17-10)."""
 
 from __future__ import annotations
 
@@ -10,8 +11,23 @@ from typing import Any
 from ninja import Schema
 
 from apps.infra.domain.changes import InfraChange, InfraResource
-from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
-from apps.infra.models import CueRun, Customer, CustomerTier, TicketCue
+from apps.infra.domain.vocabulary import (
+    CueRunOutcome,
+    CueStatus,
+    InfraRefusal,
+    QueryCheck,
+    ResourceKind,
+    ResourceSource,
+)
+from apps.infra.models import (
+    CueRun,
+    Customer,
+    CustomerTier,
+    InfraBackend,
+    InfraOutcome,
+    InfraQueryKind,
+    TicketCue,
+)
 
 
 class ProjectOut(Schema):
@@ -183,6 +199,7 @@ class MetricAnswerOut(Schema):
     query_id: str
     series: list[SeriesOut]
     truncated: bool
+    link: str
 
 
 class LogLineOut(Schema):
@@ -201,6 +218,7 @@ class LogAnswerOut(Schema):
     lines: list[LogLineOut]
     truncated: bool
     withheld: int
+    link: str
 
 
 class SpanOut(Schema):
@@ -222,6 +240,25 @@ class TraceAnswerOut(Schema):
     spans: list[SpanOut]
     truncated: bool
     withheld: int
+    link: str
+
+
+class InfraQueryReceiptOut(Schema):
+    """One query an agent turn ran, and how it ended."""
+
+    id: uuid.UUID
+    created_at: datetime
+    backend: InfraBackend
+    kind: InfraQueryKind
+    outcome: InfraOutcome
+    refusal: InfraRefusal | None
+    refusal_reason: QueryCheck | None
+    rows: int
+    withheld: int
+    truncated: bool
+    duration_ms: int
+    compiled: str
+    link: str
 
 
 class CustomerOut(Schema):
