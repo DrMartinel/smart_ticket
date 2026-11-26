@@ -27,6 +27,7 @@ from apps.agent.models import (
 )
 from apps.agent.services.actions import AGENT_ACTION_HEADER
 from apps.agent.services.turns import agent_turns
+from apps.agent.testing import as_agent
 from apps.audit.models import AuditLog
 from apps.core.testing import api_client_with
 from apps.rollout.models import RolloutFlag
@@ -755,6 +756,7 @@ def test_ai_engine_gets_the_limits_language_and_no_access(
     assert body["limits"] == {
         "max_steps": th.max_steps,
         "max_tool_calls": th.max_tool_calls_per_turn,
+        "max_read_calls": th.max_read_calls_per_turn,
         "max_model_tokens": th.max_model_tokens_per_turn,
         "max_choices": th.max_choices,
         "max_handoff_summary_chars": th.max_handoff_summary_chars,
@@ -765,6 +767,23 @@ def test_ai_engine_gets_the_limits_language_and_no_access(
         turn.message_masked,
     )
     assert body["token"] and "permission" not in json.dumps(body)
+
+
+@pytest.mark.django_db
+def test_a_console_turn_gets_the_console_s_step_and_token_caps(
+    technician_user, api_as, engine, queued, settings
+):
+    turn = _start(api_as(technician_user), surface="console")
+
+    agent_turns.run(turn.id)
+
+    (body,) = engine.turn_bodies
+    th = settings.THRESHOLDS.agent
+    assert (body["limits"]["max_steps"], body["limits"]["max_model_tokens"]) == (
+        th.console_max_steps,
+        th.console_max_model_tokens_per_turn,
+    )
+    assert body["limits"]["max_read_calls"] == th.max_read_calls_per_turn
 
 
 @pytest.mark.django_db
@@ -983,6 +1002,36 @@ def test_a_turn_s_writes_beyond_the_cap_are_refused(employee_user, settings, eng
     assert first.status_code == 200
     assert (second.status_code, second.json()["code"]) == (429, "agent_tool_limit")
     assert AgentTurn.objects.get().write_calls == 1
+
+
+def _agent_caps(settings: Any, **caps: Any) -> None:
+    agent = settings.THRESHOLDS.agent.model_copy(update=caps)
+    settings.THRESHOLDS = settings.THRESHOLDS.model_copy(update={"agent": agent})
+
+
+@pytest.mark.django_db
+def test_a_turn_s_reads_beyond_max_read_calls_are_refused(employee_user, settings):
+    _agent_caps(settings, max_read_calls_per_turn=2, max_tool_calls_per_turn=0)
+    client = as_agent(employee_user, tool="list_my_tickets")
+
+    answers = [client.get("/api/requester/tickets") for _ in range(3)]
+
+    assert [a.status_code for a in answers[:2]] == [200, 200]
+    assert (answers[2].status_code, answers[2].json()["code"]) == (429, "agent_tool_limit")
+    turn = AgentTurn.objects.get()
+    assert (turn.read_calls, turn.write_calls) == (2, 0)
+
+
+@pytest.mark.django_db
+def test_without_max_read_calls_core_api_caps_no_read(employee_user, settings):
+    _agent_caps(settings, max_read_calls_per_turn=None, max_tool_calls_per_turn=1)
+    client = as_agent(employee_user, tool="list_my_tickets")
+
+    answers = [client.get("/api/requester/tickets") for _ in range(4)]
+
+    assert {a.status_code for a in answers} == {200}
+    turn = AgentTurn.objects.get()
+    assert (turn.read_calls, turn.write_calls) == (4, 0)
 
 
 # ── agent.sweep (FR-F15-019) ──

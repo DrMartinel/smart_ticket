@@ -129,9 +129,14 @@ class ChooseActionNode(BaseNode[AgentState]):
         if isinstance(choice, Reply):
             picked = dict.fromkeys(choice.proposed_choices)
             return {**update, "reply": choice.text, "choices": [state.refs[r] for r in picked]}
-        if len(state.steps) >= caps.max_tool_calls:
-            return {**update, "stop_reason": AgentStopReason.TOOL_LIMIT}
         tool, args = choice
+        if caps.max_read_calls is None:
+            used, cap = len(state.steps), caps.max_tool_calls
+        else:
+            used = sum(1 for step in state.steps if tools[step.tool].writes is tool.writes)
+            cap = caps.max_tool_calls if tool.writes else caps.max_read_calls
+        if used >= cap:
+            return {**update, "stop_reason": AgentStopReason.TOOL_LIMIT}
         call = PendingCall(
             tool=tool.name, arguments=args.model_dump(mode="json", exclude_none=True)
         )

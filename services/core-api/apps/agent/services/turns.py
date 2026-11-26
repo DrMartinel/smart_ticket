@@ -207,6 +207,7 @@ class AgentTurns:
                 conversation.chat_conversation = chat_conversation
                 conversation.save(update_fields=["chat_conversation"])
         th = settings.THRESHOLDS.agent
+        console = conversation.surface == AgentSurface.CONSOLE.value
         request = AgentTurnRequest(
             turn_id=turn.id,
             surface=cast(Any, conversation.surface),
@@ -214,9 +215,14 @@ class AgentTurns:
             message_masked=turn.message_masked,
             earlier_turns=self.earlier_turns(turn),
             limits=AgentLimits(
-                max_steps=th.max_steps,
+                max_steps=th.console_max_steps if console else th.max_steps,
                 max_tool_calls=th.max_tool_calls_per_turn,
-                max_model_tokens=th.max_model_tokens_per_turn,
+                max_read_calls=th.max_read_calls_per_turn,
+                max_model_tokens=(
+                    th.console_max_model_tokens_per_turn
+                    if console
+                    else th.max_model_tokens_per_turn
+                ),
                 max_choices=th.max_choices,
                 max_handoff_summary_chars=th.max_handoff_summary_chars,
             ),

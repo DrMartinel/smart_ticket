@@ -314,6 +314,8 @@ class AgentLimits(BaseModel):
 
     max_steps: int = Field(ge=1)
     max_tool_calls: int = Field(ge=0)
+    # Reads count against this when it is set, and writes against max_tool_calls (FR-F17-011).
+    max_read_calls: int | None = Field(default=None, ge=0)
     max_model_tokens: int = Field(ge=1)
     max_choices: int = Field(ge=1)
     max_handoff_summary_chars: int = Field(ge=1)

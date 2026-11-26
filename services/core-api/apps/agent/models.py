@@ -131,6 +131,14 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
             self.filter(id=turn_id, write_calls__lt=cap).update(write_calls=F("write_calls") + 1)
         )
 
+    def count_read(self, turn_id: uuid.UUID, cap: int | None) -> bool:
+        """Counts one read call of the turn; False once it has made `cap`, never with no cap
+        (F17 FR-F17-011)."""
+        rows = self.filter(id=turn_id)
+        if cap is not None:
+            rows = rows.filter(read_calls__lt=cap)
+        return bool(rows.update(read_calls=F("read_calls") + 1))
+
     def pii_map_of(self, conversation_id: uuid.UUID) -> dict[str, str]:
         """Every placeholder the conversation's turns masked, with its quarantine ref; a later
         turn's ref wins a placeholder two turns share."""
@@ -181,6 +189,7 @@ class AgentTurn(BaseModel):
     receipts = models.JSONField(default=list)
     tool_calls = models.PositiveIntegerField(default=0)
     write_calls = models.PositiveIntegerField(default=0)
+    read_calls = models.PositiveIntegerField(default=0)
     model = models.CharField(max_length=100, blank=True, default="")
     prompt_version = models.CharField(max_length=50, blank=True, default="")
     tokens_in = models.PositiveIntegerField(default=0)
@@ -225,7 +234,7 @@ class AgentTurn(BaseModel):
 
     def ran_a_read(self) -> bool:
         """Whether the turn read anything before it ended."""
-        return self.steps.filter(method="GET").exists()
+        return self.read_calls > 0 or self.steps.filter(method="GET").exists()
 
     def card_of(self, choices: list[AgentChoice]) -> list[dict[str, str | None]] | None:
         """The card a reply with `choices` shows: one button each, then "Something else" in the

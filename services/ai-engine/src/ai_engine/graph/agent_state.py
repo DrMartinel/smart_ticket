@@ -14,12 +14,15 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
 class AgentLimits(BaseModel):
-    """The turn's caps, from core-api's `thresholds.yaml` `agent:` section."""
+    """The turn's caps, from core-api's `thresholds.yaml` `agent:` section. With
+    `max_read_calls` set, reads count against it and writes against `max_tool_calls`;
+    without it, every call counts against `max_tool_calls` (F17 FR-F17-011)."""
 
     model_config = ConfigDict(frozen=True)
 
     max_steps: int = Field(ge=1)
     max_tool_calls: int = Field(ge=0)
+    max_read_calls: int | None = Field(default=None, ge=0)
     max_model_tokens: int = Field(ge=1)
     max_choices: int = Field(ge=1)
     max_handoff_summary_chars: int = Field(ge=1)

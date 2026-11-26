@@ -11,6 +11,8 @@ import pytest
 from cloud_sim.faults import FaultKind
 
 from apps.accounts.models import User
+from apps.agent.models import AgentTurn
+from apps.agent.testing import as_agent
 from apps.infra.domain.catalog import PROJECT_FIELD
 from apps.infra.domain.untrusted import WITHHELD
 from apps.infra.models import InfraQuery
@@ -481,3 +483,23 @@ def test_the_customer_catalog_hides_the_hypervisor_label_and_staff_only_datasets
     assert {d["name"] for d in mine["log_datasets"]} == {"instance"}
     assert {d["name"] for d in staff["log_datasets"]} == {"instance", "apm_errors"}
     assert staff["caps"]["max_series"] == mine["caps"]["max_series"]
+
+
+# ── an agent's queries (F17 FR-F17-010, FR-F17-011) ──
+
+
+def test_an_agent_s_post_query_counts_as_a_read_never_a_write(
+    technician_user, settings, cloud_sim: CloudSim, prom: FakePrometheus
+):
+    agent = settings.THRESHOLDS.agent.model_copy(
+        update={"max_read_calls_per_turn": 5, "max_tool_calls_per_turn": 0}
+    )
+    settings.THRESHOLDS = settings.THRESHOLDS.model_copy(update={"agent": agent})
+    client = as_agent(technician_user, tool="query_metrics")
+
+    reply = client.post(f"{STAFF}/metrics/query", data=latency(), content_type="application/json")
+
+    assert reply.status_code == 200, reply.content
+    turn = AgentTurn.objects.get()
+    assert (turn.read_calls, turn.write_calls) == (1, 0)
+    assert turn.ran_a_read()

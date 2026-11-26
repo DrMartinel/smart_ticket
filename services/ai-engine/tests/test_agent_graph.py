@@ -116,6 +116,7 @@ def turn(
     surface: str = "chat",
     max_steps: int = 6,
     max_tool_calls: int = 4,
+    max_read_calls: int | None = None,
     max_model_tokens: int = 10_000,
     max_choices: int = 3,
     max_handoff_summary_chars: int = 80,
@@ -128,6 +129,7 @@ def turn(
         limits=AgentLimits(
             max_steps=max_steps,
             max_tool_calls=max_tool_calls,
+            max_read_calls=max_read_calls,
             max_model_tokens=max_model_tokens,
             max_choices=max_choices,
             max_handoff_summary_chars=max_handoff_summary_chars,
@@ -204,6 +206,68 @@ def test_tool_limit_hands_off_before_the_call_is_made(model, core_api):
 
     assert final.stop_reason is AgentStopReason.TOOL_LIMIT
     assert len(api.calls) == 1
+
+
+def test_f15_limits_hold_without_max_read_calls(model, core_api):
+    """FR-F17-011: with no read cap, a read and a write both count against max_tool_calls."""
+
+    llm = model(
+        call("list_my_tickets"),
+        call("reply_to_my_ticket", public_id="TK-1", body="Still broken."),
+    )
+    api = core_api(Reply(200, {"open": [], "recent": []}))
+
+    final = run(turn(max_tool_calls=1, max_read_calls=None))
+
+    assert final.stop_reason is AgentStopReason.TOOL_LIMIT
+    assert [c["tool"] for c in api.calls] == ["list_my_tickets"]
+    assert len(llm.prompts) == 2
+
+
+def test_reads_count_against_max_read_calls_and_writes_against_max_tool_calls(model, core_api):
+    action = uuid4()
+    model(
+        call("list_my_tickets"),
+        call("get_my_ticket", public_id="TK-1"),
+        call("reply_to_my_ticket", public_id="TK-1", body="Still broken."),
+    )
+    api = core_api(
+        Reply(200, {"open": [], "recent": []}),
+        Reply(200, {"public_id": "TK-1", "thread": []}),
+        Reply(202, {"action_id": str(action)}),
+    )
+
+    final = run(turn(max_tool_calls=1, max_read_calls=2))
+
+    assert final.stop_reason is None and final.awaiting_confirmation
+    assert [c["tool"] for c in api.calls] == [
+        "list_my_tickets",
+        "get_my_ticket",
+        "reply_to_my_ticket",
+    ]
+
+
+def test_a_read_beyond_max_read_calls_hands_off_before_it_is_made(model, core_api):
+    model(call("list_my_tickets"), call("list_my_tickets"), call("list_my_tickets"))
+    api = core_api(*[Reply(200, {"open": [], "recent": []})] * 2)
+
+    final = run(turn(max_tool_calls=10, max_read_calls=2))
+
+    assert final.stop_reason is AgentStopReason.TOOL_LIMIT
+    assert len(api.calls) == 2
+
+
+def test_a_write_beyond_max_tool_calls_hands_off_with_reads_to_spare(model, core_api):
+    model(
+        call("reopen_my_ticket", public_id="TK-1", reason="still broken"),
+        call("reply_to_my_ticket", public_id="TK-1", body="Still broken."),
+    )
+    api = core_api(Reply(409, {"code": "not_reopenable", "message": ""}))
+
+    final = run(turn(max_tool_calls=1, max_read_calls=10))
+
+    assert final.stop_reason is AgentStopReason.TOOL_LIMIT
+    assert [c["tool"] for c in api.calls] == ["reopen_my_ticket"]
 
 
 def test_token_budget_hands_off_without_a_model_call(model, core_api):

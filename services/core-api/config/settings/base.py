@@ -551,6 +551,11 @@ class AgentThresholds(BaseModel):
     max_steps: int = Field(ge=1)
     max_tool_calls_per_turn: int = Field(ge=0)
     max_model_tokens_per_turn: int = Field(ge=1)
+    # Read calls one turn may make, None for F15's one cap on every call (F17 FR-F17-011).
+    max_read_calls_per_turn: int | None = Field(ge=0)
+    # A console turn's model calls and tokens, in place of the two above (F17 §h.3).
+    console_max_steps: int = Field(ge=1)
+    console_max_model_tokens_per_turn: int = Field(ge=1)
     # Lifetime of an agent turn's access token (F15, BR-F15-02).
     token_ttl_seconds: int = Field(ge=1)
     # Lifetimes of a pending confirm and a human-only draft (BR-F15-06, BR-F15-07).

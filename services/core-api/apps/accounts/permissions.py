@@ -253,8 +253,16 @@ def require(
                 raise HttpError(401, "authentication required")
             caller.admit(gate)
             if caller.agent is not None:
-                if gate.agent_tier is not AgentTier.READ and not AgentTurn.objects.count_write(
-                    caller.agent.turn, settings.THRESHOLDS.agent.max_tool_calls_per_turn
+                caps = settings.THRESHOLDS.agent
+                if gate.agent_tier is AgentTier.READ:
+                    if not AgentTurn.objects.count_read(
+                        caller.agent.turn, caps.max_read_calls_per_turn
+                    ):
+                        raise AgentError(
+                            429, AgentRefusal.TOOL_LIMIT, "this turn has made all its read calls"
+                        )
+                elif not AgentTurn.objects.count_write(
+                    caller.agent.turn, caps.max_tool_calls_per_turn
                 ):
                     raise AgentError(
                         429, AgentRefusal.TOOL_LIMIT, "this turn has made all its write calls"
