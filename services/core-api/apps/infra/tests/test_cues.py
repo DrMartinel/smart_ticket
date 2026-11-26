@@ -275,9 +275,7 @@ def test_only_the_conversation_that_opened_the_ticket_lends_it_picks(lan, backen
     assert linked(run_of(from_chat)) == linked(run_of(from_form)) == named
 
 
-def test_two_tickets_from_one_conversation_each_take_only_their_own_picks(
-    lan, backends, queued
-):
+def test_two_tickets_from_one_conversation_each_take_only_their_own_picks(lan, backends, queued):
     first_turn = chat_turn(lan)
     picked(first_turn, ResourceKind.SERVER, backends.id_of("servers", "app-02"))
     first = opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=first_turn)
