@@ -163,13 +163,14 @@ def alert(name: str, project: str | None, summary: str, **labels: str) -> dict[s
 @dataclass
 class FakePrometheus:
     """prom-label-proxy answering range queries with `series`, or `status` and `error`; keeps
-    the query and the `project` values of every request."""
+    the query, the step and the `project` values of every request."""
 
     series: list[dict[str, Any]] = field(default_factory=list)
     status: int = 200
     error: str = ""
     raises: Exception | None = None
     queries: list[str] = field(default_factory=list)
+    steps: list[int] = field(default_factory=list)
     projects: list[list[str]] = field(default_factory=list)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -177,6 +178,7 @@ class FakePrometheus:
             raise self.raises
         form = parse_qs(request.content.decode())
         self.queries.append(form["query"][0])
+        self.steps.append(int(form["step"][0]))
         self.projects.append(request.url.params.get_list("project"))
         if self.status != 200:
             return httpx.Response(

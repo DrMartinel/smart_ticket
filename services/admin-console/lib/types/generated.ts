@@ -73,7 +73,7 @@ export type CustomerLookup = "found" | "none" | "unavailable";
 
 export type CueRunOutcome = "running" | "done" | "overview" | "no_cloud_user" | "scope_unavailable" | "failed";
 
-export type CueStatus = "ok" | "empty" | "refused" | "unavailable";
+export type CueStatus = "ok" | "empty" | "refused" | "unavailable" | "cut";
 
 export type ResourceKind = "server" | "volume" | "network";
 

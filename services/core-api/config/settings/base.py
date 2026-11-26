@@ -580,6 +580,9 @@ class CuesThresholds(BaseModel):
     # A cue's metric step and rate range, and the error lines it shows.
     step_seconds: int = Field(ge=1)
     log_lines: int = Field(ge=1)
+    # The most points a resource's metric cue, and the overview's IOPS cue, read per series.
+    max_points: int = Field(ge=2)
+    overview_points: int = Field(ge=2)
 
 
 class Thresholds(BaseModel):

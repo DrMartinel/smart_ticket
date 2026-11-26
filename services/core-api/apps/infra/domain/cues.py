@@ -4,6 +4,7 @@ names (BR-F17-16, BR-F17-17, BR-F17-19)."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, tzinfo
@@ -236,9 +237,22 @@ USAGE = {
 }
 
 
-def cpu_query(window: Window, step: int) -> MetricQuery:
-    """Every server's CPU in the scope."""
-    return MetricQuery(USAGE[CueTemplate.SERVER_CPU].metric, window, step)
+def step_for(window: Window, step: int, points: int) -> int:
+    """The step a metric cue reads `window` at: `step`, widened so a range query over the window
+    answers at most `points` points a series."""
+    return max(step, math.ceil(window.seconds() / (points - 1)))
+
+
+def cpu_peaks(window: Window) -> MetricQuery:
+    """Every server's highest CPU over `window`: one value per server, at the window's end."""
+    seconds = window.seconds()
+    return MetricQuery(
+        USAGE[CueTemplate.SERVER_CPU].metric,
+        window,
+        seconds,
+        function="max_over_time",
+        function_seconds=seconds,
+    )
 
 
 # ── IOPS against quota ──
@@ -478,9 +492,10 @@ def nearest_quota(ratios: list[Ratios], top: int) -> Finding:
 
 
 def highest_cpu(series: list[Series], top: int) -> Finding:
+    """The servers whose `cpu_peaks` value, the last point of each series, is highest."""
     peaks = sorted(
         (
-            (s.labels.get("server", ""), s.labels.get("server_id", ""), found.value)
+            (s.labels.get("server", ""), s.labels.get("server_id", ""), found.latest)
             for s in series
             if (found := peak_of(merged([s]))) is not None
         ),
@@ -500,7 +515,20 @@ def highest_cpu(series: list[Series], top: int) -> Finding:
     )
 
 
-# ── a cue whose read failed ──
+# ── a cue whose read failed or was cut ──
+
+
+def cut_short(template: CueTemplate, finding: Finding) -> Finding:
+    """The cue an answer cut to the result cap leaves: never `ok` or `empty`, and saying the
+    summary covers only part of the answer, or none of it."""
+    source, noun = SOURCES[template]
+    note = f"the {source} {noun} answer was over the result cap"
+    summary = (
+        f"No summary: {note}; open the query for it"
+        if finding.status is CueStatus.EMPTY
+        else f"{finding.summary}, from part of the answer: {note}; open the query for all of it"
+    )
+    return Finding(CueStatus.CUT, summary, {**finding.evidence, "cut": True})
 
 
 def failed(template: CueTemplate, error: InfraError) -> Finding:

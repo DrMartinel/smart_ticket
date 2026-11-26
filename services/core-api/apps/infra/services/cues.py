@@ -37,7 +37,8 @@ from apps.infra.domain.cues import (
     Ratios,
     about,
     alerts_finding,
-    cpu_query,
+    cpu_peaks,
+    cut_short,
     error_counts,
     error_lines,
     failed,
@@ -51,9 +52,11 @@ from apps.infra.domain.cues import (
     not_running,
     overview_alerts,
     state_finding,
+    step_for,
 )
 from apps.infra.domain.enrichment import Holdings, linked
-from apps.infra.domain.queries import Window
+from apps.infra.domain.observations import Series
+from apps.infra.domain.queries import MetricQuery, Window
 from apps.infra.domain.resources import Network, Server, Volume
 from apps.infra.domain.vocabulary import CueRunOutcome, InfraError, ResourceKind, ResourceSource
 from apps.infra.models import CueRun, InfraQuery, InfraVia, TicketCue, TicketResource
@@ -125,7 +128,9 @@ class Collector:
         self.window = Window(run.window_start, run.window_end)
         zone = Calendar.objects.filter(is_default=True).values_list("timezone", flat=True).first()
         self.clock = Clock(ZoneInfo(zone) if zone else UTC)
+        self.step = step_for(self.window, self.caps.step_seconds, self.caps.max_points)
         self.seq = 0
+        self.cut = False
 
     def store(
         self,
@@ -134,13 +139,17 @@ class Collector:
         finding: Callable[[], Finding],
         query: InfraQuery | None = None,
     ) -> TicketCue:
-        """Stores the cue `finding` makes, or the one its failed read leaves, with the first
-        query it ran."""
+        """Stores the cue `finding` makes, the one its failed read leaves, or the one an answer
+        cut to the result cap leaves, with the first query it ran."""
         before = len(self.log.recorded)
+        self.cut = False
         try:
             found = finding()
         except InfraError as e:
             found = failed(template, e)
+        else:
+            if self.cut:
+                found = cut_short(template, found)
         query = query or next(iter(self.log.recorded[before:]), None)
         cue = TicketCue.objects.create(
             run=self.run,
@@ -162,35 +171,41 @@ class Collector:
             self.store(template, resource, partial(self.finding, template, resource))
 
     def finding(self, template: CueTemplate, resource: TicketResource) -> Finding:
-        step, kind = self.caps.step_seconds, ResourceKind(resource.kind)
+        kind = ResourceKind(resource.kind)
         if template in USAGE:
             usage = USAGE[template]
-            query = usage.query(resource.resource_id, self.window, step)
-            series = self.observability.metrics(query, resource.project_id).series
+            query = usage.query(resource.resource_id, self.window, self.step)
+            series = self.metrics(query, resource.project_id)
             return usage.finding(resource.name, series, self.clock)
         if template is CueTemplate.SERVER_STATE:
             return state_finding(self.inventory.server(resource.resource_id), timezone.now())
         if template is CueTemplate.SERVER_ERROR_LOGS:
             search = error_lines(resource.resource_id, self.window, self.caps.log_lines)
             answer = self.observability.logs(search, resource.project_id)
+            self.cut = self.cut or answer.truncated
             return log_finding(resource.name, answer.total, answer.lines)
         if template is CueTemplate.VOLUME_IOPS_QUOTA:
-            ratios = self.ratios(resource.project_id, resource.resource_id)
+            ratios = self.ratios(resource.project_id, resource.resource_id, self.step)
             return iops_finding(resource.name, ratios, self.clock)
         alerts = self.inventory.alerts(resource.project_id)
         return alerts_finding(resource.name, about(alerts, kind, resource.resource_id), self.clock)
 
-    def ratios(self, project_id: str | None, volume_id: str | None) -> list[Ratios]:
+    def metrics(self, query: MetricQuery, project_id: str | None) -> list[Series]:
+        """The series `query` answers, noting when the answer was cut to the result cap."""
+        answer = self.observability.metrics(query, project_id)
+        self.cut = self.cut or answer.truncated
+        return answer.series
+
+    def ratios(self, project_id: str | None, volume_id: str | None, step: int) -> list[Ratios]:
         """Each volume's IOPS rate over its quota, from two queries divided here."""
-        rate, quota = iops_queries(self.window, self.caps.step_seconds, volume_id)
-        rates = self.observability.metrics(rate, project_id).series
-        quotas = self.observability.metrics(quota, project_id).series
-        return iops_ratios(rates, quotas)
+        rate, quota = iops_queries(self.window, step, volume_id)
+        return iops_ratios(self.metrics(rate, project_id), self.metrics(quota, project_id))
 
     def overview(self, holdings: Holdings, servers_read: InfraQuery | None) -> None:
         """Runs the overview set over every project the reads reach (BR-F17-24)."""
-        top, step = self.caps.overview_top, self.caps.step_seconds
+        top = self.caps.overview_top
         server_ids = {s.name: s.id for s in holdings.servers}
+        iops_step = step_for(self.window, self.caps.step_seconds, self.caps.overview_points)
         self.store(
             CueTemplate.OVERVIEW_ALERTS,
             None,
@@ -211,14 +226,12 @@ class Collector:
         self.store(
             CueTemplate.OVERVIEW_IOPS_QUOTA,
             None,
-            lambda: nearest_quota(self.ratios(None, None), top),
+            lambda: nearest_quota(self.ratios(None, None, iops_step), top),
         )
         self.store(
             CueTemplate.OVERVIEW_CPU,
             None,
-            lambda: highest_cpu(
-                self.observability.metrics(cpu_query(self.window, step), None).series, top
-            ),
+            lambda: highest_cpu(self.metrics(cpu_peaks(self.window), None), top),
         )
 
 

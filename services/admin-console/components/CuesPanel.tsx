@@ -26,6 +26,7 @@ const STATUS: Record<CueStatus, { label: string; tone: Tone }> = {
   empty: { label: "Nothing found", tone: "neutral" },
   refused: { label: "Refused", tone: "warn" },
   unavailable: { label: "Unavailable", tone: "danger" },
+  cut: { label: "Cut short", tone: "warn" },
 };
 
 const KINDS: ResourceKind[] = ["server", "volume", "network"];

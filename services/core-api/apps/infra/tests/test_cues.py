@@ -4,6 +4,7 @@ BR-F17-24, UC-F17-08, UC-F17-09, UC-F17-12)."""
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 import httpx
@@ -11,6 +12,7 @@ import pytest
 from cloud_sim.faults import FaultKind
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.infra import tasks
@@ -21,6 +23,7 @@ from apps.infra.services.cues import cues
 from apps.infra.tests.conftest import (
     FakeElasticsearch,
     FakePrometheus,
+    series,
 )
 from apps.infra.tests.test_customers import insufficient_context_answers
 from apps.lifecycle.domain.vocabulary import PipelineStatus
@@ -53,6 +56,14 @@ def opened(reporter: User, subject: str, body: str = "", **fields: Any) -> Ticke
     return ticket
 
 
+def opened_ago(reporter: User, subject: str, hours: int) -> Ticket:
+    """A ticket at `new` opened `hours` ago."""
+    ticket = opened(reporter, subject)
+    ticket.created_at = timezone.now() - timedelta(hours=hours)
+    Ticket.objects.filter(pk=ticket.pk).update(created_at=ticket.created_at)
+    return ticket
+
+
 def hand_off(ticket: Ticket) -> Ticket:
     """Hands the ticket off to `pending_review` and runs what its commit queues."""
     with TestCase.captureOnCommitCallbacks(execute=True):
@@ -62,6 +73,11 @@ def hand_off(ticket: Ticket) -> Ticket:
 
 def run_of(ticket: Ticket) -> CueRun:
     return CueRun.objects.get(ticket=ticket, transfer__isnull=False)
+
+
+def window_of(run: CueRun) -> timedelta:
+    assert run.window_start is not None and run.window_end is not None
+    return run.window_end - run.window_start
 
 
 def linked(run: CueRun) -> list[tuple[str, str, str | None]]:
@@ -315,6 +331,64 @@ def test_a_refused_cue_names_its_check(lan, backends, queued, settings):
     assert cpu.status == CueStatus.REFUSED
     assert cpu.evidence == {"check": "step"}
     assert cpu.summary.startswith("Prometheus CPU query refused (step)")
+
+
+def test_a_long_window_reads_one_resource_at_most_max_points_a_series(
+    lan, backends, queued, prom: FakePrometheus, settings
+):
+    ticket = hand_off(opened_ago(lan, "db-01 chậm", hours=20))
+
+    run = run_of(ticket)
+    seconds = window_of(run).total_seconds()
+    assert prom.steps
+    assert all(seconds // step + 1 <= settings.THRESHOLDS.cues.max_points for step in prom.steps)
+
+
+def test_the_overview_reads_one_cpu_value_a_server_and_iops_at_overview_points(
+    lan, backends, queued, prom: FakePrometheus, settings
+):
+    ticket = hand_off(opened_ago(lan, "Hệ thống chạy chậm từ sáng", hours=20))
+
+    run = run_of(ticket)
+    seconds = int(window_of(run).total_seconds())
+    reads = list(zip(prom.queries, prom.steps, strict=True))
+    [(cpu, step)] = [(q, s) for q, s in reads if "cpu" in q]
+    assert cpu.startswith("max_over_time(") and cpu.endswith(f"[{seconds}s])")
+    assert step == seconds
+    iops = [s for q, s in reads if "iops" in q]
+    assert iops
+    assert all(seconds // s + 1 <= settings.THRESHOLDS.cues.overview_points for s in iops)
+
+
+@pytest.mark.parametrize(
+    ("long_first", "ending"),
+    [
+        (
+            False,
+            ", from part of the answer: the Prometheus CPU answer was over the result cap; "
+            "open the query for all of it",
+        ),
+        (
+            True,
+            "No summary: the Prometheus CPU answer was over the result cap; open the query for it",
+        ),
+    ],
+)
+def test_an_answer_cut_to_the_result_cap_is_never_shown_complete(
+    lan, backends, queued, prom: FakePrometheus, long_first, ending
+):
+    prod, db01 = backends.id_of("projects", "saomai-prod"), backends.id_of("servers", "db-01")
+    long = series(prod, 0.9, server_id=db01)
+    long["values"] = [[1764147600 + 60 * i, "0.9"] for i in range(2_000)]
+    prom.series = [long, *prom.series] if long_first else [*prom.series, long]
+
+    ticket = hand_off(opened(lan, "db-01 chậm"))
+
+    cpu = run_of(ticket).cues.get(template=CueTemplate.SERVER_CPU)
+    assert cpu.status == CueStatus.CUT
+    assert cpu.summary.endswith(ending)
+    assert cpu.evidence["cut"] is True
+    assert cpu.link
 
 
 def test_a_run_that_raises_is_failed_never_left_running(lan, backends, queued, monkeypatch):

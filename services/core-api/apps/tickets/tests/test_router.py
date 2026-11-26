@@ -186,6 +186,8 @@ def make_thresholds(**overrides) -> Thresholds:
             overview_top=3,
             step_seconds=60,
             log_lines=3,
+            max_points=120,
+            overview_points=12,
         ),
     )
     base.update(overrides)

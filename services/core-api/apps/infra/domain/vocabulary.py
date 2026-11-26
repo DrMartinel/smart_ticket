@@ -88,7 +88,11 @@ class ResourceSource(StrEnum):
 
 
 class CueStatus(StrEnum):
+    """What one cue's reads gave: an answer, nothing, a refusal, no answer, or an answer cut to
+    the result cap, whose summary covers only part of it."""
+
     OK = "ok"
     EMPTY = "empty"
     REFUSED = "refused"
     UNAVAILABLE = "unavailable"
+    CUT = "cut"

@@ -633,6 +633,10 @@ guard and that comment is later trimmed, the entry is the record.
   inventory, and a mask-failed ticket's stored text can't be trusted to be
   masked (BR-F17-14). *`test_enrichment_reads_the_masked_text_only`,
   `test_a_ticket_whose_masking_failed_names_nothing`.*
+- **`Collector.store` turning an answer cut to `infra.max_result_bytes` into
+  a `cut` cue.** A cut answer summarised as `ok` or `empty` reads as complete
+  while the peak may sit in the part that was dropped, and nothing fails
+  loudly. *`test_an_answer_cut_to_the_result_cap_is_never_shown_complete`.*
 
 ## ai-engine
 

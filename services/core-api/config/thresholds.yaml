@@ -330,3 +330,10 @@ cues:
   # assumptions, not measured.
   step_seconds: 60
   log_lines: 3
+  # The most points a series holds: one resource's metric cue widens its step
+  # past step_seconds so a series holds at most max_points, and the overview's IOPS
+  # cue reads every volume at overview_points, so a long window or many
+  # volumes still fit infra.max_result_bytes. An answer cut to that cap is
+  # shown as cut, never as complete. 🔧 assumptions, not measured.
+  max_points: 120
+  overview_points: 12
