@@ -2,6 +2,11 @@
 
 Must · Wave 2 · ADR-0030 (accepted 2026-10-26). Defaults from OQ-04…07 (accepted 2026-10-17).
 
+**Amendment (customer tier floor): Accepted, 2026-11-26.** It adds BR-F1-16 and
+changes BR-F1-02; see the end of this file. It comes with
+[F17 §o](06-F17-infra.md#o-amendment-2026-11-26-ticket-cues-and-customers--accepted),
+which gives tickets a customer.
+
 ## a. Problem & goal
 
 Nothing measures how long support takes. `tickets.sla_due_at` exists but only
@@ -515,3 +520,117 @@ Feature: F1 SLA and business hours
     When the ticket is unlinked
     Then the clock runs again with its elapsed minutes kept
 ```
+
+## Amendment (2026-11-26): customer tier floor — Accepted
+
+**Status:** Accepted, 2026-11-26. The owner decided that tickets get a
+customer and a tier, and that priority stays decided by rules (the model never
+proposes it). The customer comes from [F17 §o](06-F17-infra.md#o-amendment-2026-11-26-ticket-cues-and-customers--accepted):
+`tickets.customer` is read from Keystone when the pipeline starts, and its tier
+is set by a manager on `infra_customers`. This section adds one rule on top of
+BR-F1-02. Where it changes a rule above, this section holds.
+
+### Rules
+
+| ID | Rule | Rationale | Enforced where |
+|---|---|---|---|
+| BR-F1-02 (changed) | Priority at handoff: linked to an open incident → P1; category `security` → P2; else P3. **Then raised to the customer's tier floor if that is higher (BR-F1-16).** Staff change it with a reason. Requesters can't. No `proposed_*` field is read | OQ-06; ADR-0001 | `initial_priority()`, endpoint |
+| BR-F1-16 | At handoff, the rule's priority is raised to `sla.tier_floor[tier]` of the ticket's customer when that floor is higher, and never lowered. A ticket with no customer (`customer_lookup` `none` or `unavailable`) or a tier missing from the map gets no floor. The floor applies at handoff only. A later tier change doesn't move the priority of a ticket already handed off, and a person may change the priority either way afterwards, with a reason (UC-F1-05) | A tier is a commitment to the customer, but it is a floor, not a ceiling: an incident's P1 must survive it. A snapshot at handoff, like BR-F1-05 | `initial_priority()` |
+
+UC-F1-01 changes at step 1: "Set priority by BR-F1-02 and BR-F1-16 if empty."
+It gains the alternate "1b. The customer's tier floor is higher than the rule's
+priority → the floor."
+
+### Requirements
+
+| ID | Requirement |
+|---|---|
+| FR-F1-018 | `initial_priority(ticket)` shall apply BR-F1-16 after BR-F1-02, reading the floor from `thresholds.yaml` and the tier from `ticket.customer` |
+| FR-F1-019 | The `sla_started` audit payload shall record `rule_priority`, `tier` and `floor` beside `priority`, so the chosen priority can be explained |
+
+### Data
+
+No F1 table changes. F1 reads `tickets.customer` (F17 §o.8).
+
+**`thresholds.yaml` (CHANGED, new `version`, ADR-0044):**
+
+```yaml
+sla:
+  # A customer's tier raises the starting priority to at least this; it
+  # never lowers it (BR-F1-16). 🔧 placeholders, OQ-F1-01.
+  tier_floor:
+    enterprise: P2
+    business: P3
+    standard: P3
+```
+
+With these values only `enterprise` changes anything: the rule never gives P4
+at handoff, so a P3 floor is never higher than it. `business` and `standard`
+are listed so that every tier has an explicit value.
+
+### Worked example
+
+| Ticket | Customer (tier) | Rule (BR-F1-02) | Floor | Priority | Policy |
+|---|---|---|---|---|---|
+| `TKT-2026-000431`, `software`, no incident | Sao Mai Logistics (`enterprise`) | P3 | P2 | **P2** | 20, P2 — high: 30 / 480 business minutes |
+| Same, linked to an open incident | Sao Mai Logistics (`enterprise`) | P1 | P2 | **P1** | 10, P1 — critical, 24×7 |
+| A `hbr-web` ticket, no incident | Hoa Binh Retail (`standard`) | P3 | P3 | **P3** | 30, P3 — normal |
+| A staff member's ticket | none (`customer_lookup` `none`) | P3 | — | **P3** | 30 |
+| `TKT-2026-000431` while Keystone is down | none (`unavailable`) | P3 | — | **P3** | 30; the ticket page says "Customer unknown" |
+
+`sla_started` payload for the first row:
+
+```json
+{"category": "software", "priority": "P2", "rule_priority": "P3",
+ "tier": "enterprise", "floor": "P2"}
+```
+
+### Impact and regression tests
+
+- **Changes:** `initial_priority` reads the customer and the floor;
+  `sla_started` records three more fields.
+- **Must not change:** routing (the router reads neither priority nor
+  customer); BR-F1-09 (nothing raises priority automatically after handoff);
+  BR-F1-11 (an error in the hook rolls back its savepoint only).
+- **Regression tests:** `test_the_tier_floor_raises_never_lowers` (P1 from an
+  incident stays P1 for every tier); `test_no_customer_means_no_floor`;
+  `test_a_tier_change_keeps_a_handed_off_tickets_priority`;
+  `test_sla_started_records_the_rule_priority_and_floor`; the thresholds
+  loader refuses a `tier_floor` value that isn't P1–P4.
+
+### Acceptance criteria
+
+```gherkin
+  @BR-F1-16
+  Scenario: AC-F1-13 an enterprise customer's ticket starts at P2
+    Given Sao Mai Logistics has tier "enterprise" and sla.tier_floor.enterprise is "P2"
+    And "TKT-2026-000431" from "lan.nt" (Sao Mai Logistics) is in category "software"
+    When the pipeline hands it off
+    Then its priority is "P2"
+    And its response clock targets 30 business minutes
+
+  @BR-F1-16
+  Scenario: AC-F1-14 the floor never lowers a priority
+    Given a ticket from an "enterprise" customer linked to an open mass incident
+    When it is handed off
+    Then its priority is "P1"
+
+  @BR-F1-16
+  Scenario: AC-F1-15 a tier change doesn't move a handed-off ticket
+    Given "TKT-2026-000431" was handed off at "P2"
+    When a manager changes Sao Mai Logistics to tier "standard"
+    Then "TKT-2026-000431" is still "P2"
+    And the next Sao Mai Logistics ticket in category "software" starts at "P3"
+
+  @BR-F1-16 @BR-X-07
+  Scenario: AC-F1-16 an unknown customer gets the rule's priority
+    Given Keystone did not answer when "TKT-2026-000431" was processed
+    When it is handed off
+    Then its priority is "P3"
+```
+
+### Open questions
+
+| ID | Question | Options | Recommendation |
+|---|---|---|---|
+| OQ-F1-01 | The floor values | (a) As above: enterprise P2, others P3. (b) Enterprise P1 | **(a).** P1 is the 24×7 policy and is kept for incidents. With (b), an enterprise password reset would page someone at night. Revisit when real contracts name response times |

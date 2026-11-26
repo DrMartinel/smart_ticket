@@ -63,6 +63,15 @@ def people(db) -> dict[str, User]:
     }
 
 
+FLOOR = {"enterprise": "P2", "business": "P3", "standard": "P4"}
+
+
+def set_tier_floor(settings: Any, floor: dict[str, str]) -> None:
+    """Makes `floor` the tier floor the clocks read in place of the shipped one."""
+    sla = settings.THRESHOLDS.sla.model_copy(update={"tier_floor": floor})
+    settings.THRESHOLDS = settings.THRESHOLDS.model_copy(update={"sla": sla})
+
+
 def submitted(reporter: User, **fields: Any) -> Ticket:
     """A ticket at `new` in the default workflow."""
     ticket = Ticket.objects.create(

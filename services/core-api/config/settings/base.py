@@ -13,7 +13,7 @@ import os
 from collections.abc import Mapping
 from datetime import timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from corsheaders.defaults import default_headers as default_cors_headers
@@ -458,6 +458,9 @@ class NotificationThresholds(BaseModel):
     in_app_retention_days: int = Field(ge=1)
 
 
+TierName = Literal["standard", "business", "enterprise"]
+
+
 class SlaThresholds(BaseModel):
     # Share of a clock's target at which its warning fires (F1, BR-F1-08).
     warn_at_percent: float = Field(gt=0, lt=100)
@@ -465,6 +468,8 @@ class SlaThresholds(BaseModel):
     escalate_at_percent: float = Field(gt=100)
     # From this day (MM-DD) a calendar with no holidays for next year is reported.
     holidays_reminder_month_day: str = Field(pattern=r"^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
+    # The starting priority a customer's tier raises a ticket to, never lowers (F1 BR-F1-16).
+    tier_floor: dict[TierName, Literal["P1", "P2", "P3", "P4"]]
 
 
 class RequesterThresholds(BaseModel):

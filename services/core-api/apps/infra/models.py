@@ -1,5 +1,6 @@
 """One row per read of the cloud or its observability: who asked, through what, what was
-sent and how it ended (F17, ADR-0048 §9)."""
+sent and how it ended (F17, ADR-0048 §9); and the customer companies, each a Keystone domain
+with a tier (F17 §o, ADR-0048 decision 11)."""
 
 from __future__ import annotations
 
@@ -63,3 +64,43 @@ class InfraQuery(BaseModel):
 
     class Meta(BaseModel.Meta):
         db_table = "infra_queries"
+
+
+class CustomerTier(StrEnum):
+    STANDARD = "standard"
+    BUSINESS = "business"
+    ENTERPRISE = "enterprise"
+
+
+class CustomerLookup(StrEnum):
+    """What a ticket's customer lookup found (BR-F17-21)."""
+
+    FOUND = "found"
+    NONE = "none"
+    UNAVAILABLE = "unavailable"
+
+
+class Customer(BaseModel):
+    """A customer company: a Keystone domain, with the display name and tier Keystone lacks."""
+
+    name = models.CharField(max_length=120, unique=True)
+    keystone_domain_id = models.CharField(max_length=64, unique=True)
+    tier = models.CharField(max_length=16, choices=_choices(CustomerTier))
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "infra_customers"
+        ordering = ["name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(tier__in=[t.value for t in CustomerTier]),
+                name="infra_customers_tier_valid",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.name

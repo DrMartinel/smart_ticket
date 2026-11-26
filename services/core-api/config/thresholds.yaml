@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-009"
+version: "CR-2026-010"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -195,6 +195,13 @@ sla:
   # From this day (MM-DD) on, a calendar with no holidays entered for next year
   # sends sla.holidays_missing to workflow admins (BR-F1-14).
   holidays_reminder_month_day: "12-01"
+  # A customer's tier raises a ticket's starting priority to at least this, and
+  # never lowers it (F1 BR-F1-16). Only enterprise changes anything: the rule
+  # never gives P4 at handoff. 🔧 placeholders, F1 OQ-F1-01.
+  tier_floor:
+    enterprise: P2
+    business: P3
+    standard: P3
 
 requester:
   # A chat conversation ends after this many minutes without a turn; the next

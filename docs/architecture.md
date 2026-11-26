@@ -124,6 +124,7 @@ Masking can also fail by removing too much. Everything after it, the injection d
 ```
 process_ticket(ticket_id)        acks_late=True, idempotency = {ticket_id}:{attempt}
    │
+   ├─ customer lookup (Keystone) ── unreachable? ─► unavailable, audited, continue
    ├─ embed(subject + body)  ── unreachable? ─► HITL / embedding_unavailable
    ├─ find similar tickets in the last 15 min
    │
@@ -133,6 +134,8 @@ process_ticket(ticket_id)        acks_late=True, idempotency = {ticket_id}:{atte
    └─ otherwise similar?
         └─► duplicate: link to original, inherit assignment, continue
 ```
+
+The customer lookup stamps the ticket with its reporter's customer company (F17 §o, ADR-0048 decision 11): the customer row for the Keystone domain of the reporter's Keystone user, found by their Keycloak subject. Keystone is asked only when some customer exists and the reporter has a subject, and a re-run asks again only after `unavailable`. The router never reads the customer; F1's tier floor (`sla.tier_floor`) raises the starting priority at handoff.
 
 The baseline is rolling and per-category, so "unusual" means unusual *for this organization and this category*, and `baseline_rate` is persisted on the incident so the decision stays explainable months later.
 
@@ -421,6 +424,7 @@ Every degradation resolves toward a human. A user waiting longer is acceptable; 
 |---|---|
 | LLM unreachable, timed out or erroring | No retry → HITL, `all_llm_down` |
 | Embedding unavailable | HITL, `embedding_unavailable` |
+| The customer lookup fails (Keystone down, or any other error) | No customer and no tier floor: `customer_lookup = unavailable`, audited `customer_lookup_failed`, shown on the ticket page. Triage goes on; routing never reads the customer (ADR-0048 decision 11) |
 | Retrieval query, cross-encoder or Jev fails (reranking or the category) | ai-engine raises, answers 500 → HITL, `ai_engine_unavailable`. No fallback to another score scale or to the LLM's category |
 | ai-engine down | Tickets still accepted; all to HITL — **fail open toward people** |
 | Worker dies mid-task | `acks_late` + idempotency key; redelivery cannot double-send |

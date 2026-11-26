@@ -22,7 +22,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from urllib.parse import parse_qs
 
 from apps.infra.clients.backends import Alertmanager, Elasticsearch, OpenStack, Prometheus
-from apps.infra.services import inventory, observability
+from apps.infra.services import customers, inventory, observability
 
 # The real client, captured before the root conftest's ai-engine stub replaces `httpx.Client`.
 _Client = httpx.Client
@@ -72,6 +72,7 @@ def cloud_sim(settings: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[CloudS
         cloud = OpenStack(cast(httpx.Client, client))
         monkeypatch.setattr(inventory, "openstack", lambda: cloud)
         monkeypatch.setattr(observability, "openstack", lambda: cloud)
+        monkeypatch.setattr(customers, "openstack", lambda: cloud)
         yield sim
 
 

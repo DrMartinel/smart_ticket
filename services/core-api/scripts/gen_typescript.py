@@ -62,6 +62,7 @@ MODELS = [
     "AiSummaryOut",
     "ClarificationOut",
     "PlaceholderOut",
+    "TicketCustomerOut",
     "StaffTicketDetail",
     "RevealOut",
     "AccessLogRowOut",
@@ -240,6 +241,11 @@ MODELS = [
     "MetricQueryIn",
     "LogSearchIn",
     "TraceSearchIn",
+    "CustomerIn",
+    "CustomerPatch",
+    "CustomerOut",
+    "DomainOut",
+    "CustomerListingOut",
     "BranchReadinessOut",
     "AutomationOut",
     "RolloutReportOut",
@@ -519,6 +525,11 @@ def main() -> None:
         agent_models.AgentActionState,
     ):
         chunks.append(emit_enum(enum.__name__, [member.value for member in enum]))
+
+    from apps.infra.models import CustomerLookup, CustomerTier
+
+    for customer_enum in (CustomerTier, CustomerLookup):
+        chunks.append(emit_enum(customer_enum.__name__, [m.value for m in customer_enum]))
 
     for model_name in MODELS:
         chunks.append(emit_json_schema(model_name))

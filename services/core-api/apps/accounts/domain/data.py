@@ -128,6 +128,10 @@ class Permission(StrEnum):
         "urn:smart-ticket:perm:incidents:unlink",
         "Unlink a ticket from an incident",
     )
+    INFRA_CUSTOMERS_MANAGE = _p(
+        "urn:smart-ticket:perm:infra:customers:manage",
+        "Add customer companies and set their tiers",
+    )
     INFRA_OPERATE = _p(
         "urn:smart-ticket:perm:infra:operate",
         "Reboot, start, stop and attach on any cloud project",
@@ -604,6 +608,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
             Permission.ACCESS_ROLES_MANAGE,
             Permission.INCIDENTS_READ,
             Permission.INCIDENTS_UNLINK,
+            Permission.INFRA_CUSTOMERS_MANAGE,
             Permission.KB_AUTHORITY_LOG_READ,
             Permission.KB_AUTHORITY_GRANT,
             Permission.KB_AUTHORITY_QUEUE,

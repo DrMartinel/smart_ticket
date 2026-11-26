@@ -8,7 +8,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
@@ -42,6 +42,7 @@ from apps.sla.domain.business_time import BusinessCalendar, parse_hours
 if TYPE_CHECKING:
     from apps.lifecycle.models import Transfer, WorkflowStatus
     from apps.tickets.models import Ticket
+    from config.settings.base import SlaThresholds, TierName
 
 logger = logging.getLogger(__name__)
 
@@ -110,15 +111,35 @@ class Preview:
     resolution: Due
 
 
-def initial_priority(ticket: Ticket) -> Priority:
-    """P1 for a ticket in an open incident, P2 for security, else P3; never from a proposal
-    (BR-F1-02)."""
+@dataclass(frozen=True)
+class StartingPriority:
+    """A ticket's priority at handoff: the rule's, raised to its customer's tier floor."""
+
+    rule: Priority
+    tier: str | None = None
+    floor: Priority | None = None
+
+    @property
+    def priority(self) -> Priority:
+        """The more urgent of the rule's priority and the floor (BR-F1-16)."""
+        return self.rule if self.floor is None else min(self.rule, self.floor)
+
+
+def initial_priority(ticket: Ticket, sla: SlaThresholds) -> StartingPriority:
+    """P1 for a ticket in an open incident, P2 for security, else P3, then raised to the floor of
+    its customer's tier in `sla.tier_floor`; never from a proposal (BR-F1-02, BR-F1-16)."""
     incident = ticket.incident if ticket.incident_id is not None else None
     if incident is not None and incident.is_open:
-        return Priority.P1
-    if Category.objects.is_security(ticket.category):
-        return Priority.P2
-    return Priority.P3
+        rule = Priority.P1
+    elif Category.objects.is_security(ticket.category):
+        rule = Priority.P2
+    else:
+        rule = Priority.P3
+    customer = ticket.customer if ticket.customer_id is not None else None
+    if customer is None:
+        return StartingPriority(rule)
+    floor = sla.tier_floor.get(cast("TierName", customer.tier))
+    return StartingPriority(rule, customer.tier, Priority(floor) if floor else None)
 
 
 def held_by_incident(ticket: Ticket) -> bool:
@@ -259,8 +280,10 @@ class SlaClocks:
 
     def start(self, ticket: Ticket, at: datetime, transfer: Transfer | None) -> dict[str, Clock]:
         """Picks priority, policy and calendar and starts both clocks at handoff (UC-F1-01)."""
+        starting = None
         if not ticket.priority:
-            ticket.priority = initial_priority(ticket).value
+            starting = initial_priority(ticket, settings.THRESHOLDS.sla)
+            ticket.priority = starting.priority.value
             ticket.save(update_fields=["priority"])
         policy = Policy.objects.matching(ticket.category, ticket.priority)
         if policy is None:
@@ -290,6 +313,9 @@ class SlaClocks:
             payload={
                 "ticket_public_id": ticket.public_id,
                 "priority": ticket.priority,
+                "rule_priority": starting.rule.value if starting else None,
+                "tier": starting.tier if starting else None,
+                "floor": starting.floor.value if starting and starting.floor else None,
                 "policy": policy.name,
                 "calendar": calendar.name,
                 "response_due": clocks["response"].due_at.isoformat()

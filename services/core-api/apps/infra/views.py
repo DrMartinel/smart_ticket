@@ -1,28 +1,41 @@
 """The infra read routes (F17 §h.1), split into two routers so every endpoint carries one
 permission: `/api/infra/*` for staff (`infra:read`, every project) and `/api/requester/infra/*`
-for customers (`infra:read:own`, only their Keystone projects)."""
+for customers (`infra:read:own`, only their Keystone projects); and the customer routes
+(`infra:customers:manage`, F17 §o.9)."""
+
+import uuid
 
 from django.conf import settings
-from ninja import Router
+from ninja import Router, Status
 
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.accounts.domain.catalog import Permission
 from apps.infra.domain.catalog import Catalog, Listing, Surface
-from apps.infra.request_schema import LogSearchIn, MetricQueryIn, TraceSearchIn
+from apps.infra.models import Customer
+from apps.infra.request_schema import (
+    CustomerIn,
+    CustomerPatch,
+    LogSearchIn,
+    MetricQueryIn,
+    TraceSearchIn,
+)
 from apps.infra.response_schema import (
     AlertOut,
     CatalogOut,
+    CustomerListingOut,
+    CustomerOut,
     LogAnswerOut,
     MetricAnswerOut,
-    TraceAnswerOut,
     NetworkDetailOut,
     NetworkOut,
     ProjectOut,
     ServerDetailOut,
     ServerOut,
     SilenceOut,
+    TraceAnswerOut,
     VolumeOut,
 )
+from apps.infra.services.customers import CustomerListing, customers
 from apps.infra.services.inventory import Inventory
 from apps.infra.services.observability import (
     LogAnswer,
@@ -121,6 +134,29 @@ def search_traces(request: AuthedRequest, body: TraceSearchIn) -> TraceAnswer:
 @require(Permission.INFRA_READ, agent=AgentTier.READ)
 def get_trace(request: AuthedRequest, trace_id: str) -> TraceAnswer:
     return Observability.for_all(request.auth).trace(trace_id)
+
+
+# ── customers (`/api/infra/customers`) ──
+
+
+@router.get("/customers", auth=SessionAuth(), response=CustomerListingOut)
+@require(Permission.INFRA_CUSTOMERS_MANAGE, agent=AgentTier.NONE)
+def list_customers(request: AuthedRequest) -> CustomerListing:
+    return customers.listing()
+
+
+@router.post("/customers", auth=SessionAuth(), response={201: CustomerOut})
+@require(Permission.INFRA_CUSTOMERS_MANAGE, agent=AgentTier.NONE)
+def create_customer(request: AuthedRequest, payload: CustomerIn) -> Status[Customer]:
+    return Status(201, customers.create(request.auth.user, payload.model_dump()))
+
+
+@router.patch("/customers/{customer_id}", auth=SessionAuth(), response=CustomerOut)
+@require(Permission.INFRA_CUSTOMERS_MANAGE, agent=AgentTier.NONE)
+def change_customer(
+    request: AuthedRequest, customer_id: uuid.UUID, payload: CustomerPatch
+) -> Customer:
+    return customers.change(request.auth.user, customer_id, payload.model_dump())
 
 
 # ── customer / chat (`/api/requester/infra/*`) ──

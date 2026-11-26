@@ -1,6 +1,7 @@
 # ADR-0048: The agent reads infrastructure and proposes infra changes through core-api
 
-**Status:** Accepted (2026-11-24)
+**Status:** Accepted (2026-11-24); amendment (decisions 10 and 11) Accepted
+(2026-11-26)
 **Date:** 2026-11-24
 **Builds on:** ADR-0046 (the agent acts as the user, through tiered routes),
 ADR-0045 (roles are permission sets with scope), ADR-0012 (one route to each
@@ -9,7 +10,11 @@ outside system), ADR-0006 and ADR-0038 (runbooks go through a person)
 (four permissions), `apps/agent/utils/actions.py` (action targets),
 `thresholds.yaml` (`infra:`, `agent:`), ai-engine `agent/tools/` (an `infra`
 tool module, the client's retry rule), `graph/agent_state.py`
-(`AgentLimits`), compose (an `infra` profile and `cloud-sim`)
+(`AgentLimits`), compose (an `infra` profile and `cloud-sim`). The amendment
+adds: `apps/infra` (customers, cues, `infra_queries`), `tickets` (customer),
+the pipeline (the customer lookup), the lifecycle engine (queueing cues),
+`apps/sla/services/clocks.py` (the tier floor), `apps/rollout` (the
+`ticket_cues` flag), `thresholds.yaml` (`cues:`, `sla.tier_floor`)
 **Supersedes:** nothing. Every decision of ADR-0046 stands.
 **Spec:** [06-F17-infra.md](../requirements/phase-2/06-F17-infra.md)
 
@@ -150,3 +155,132 @@ answer:
   project.
 - **A customer company table in core-api.** A second copy of the cloud's
   membership that can drift; Keystone is the source instead.
+
+## Amendment (2026-11-26): cue reads for a ticket, and customers — Accepted
+
+**Spec:** [06-F17-infra.md §o](../requirements/phase-2/06-F17-infra.md#o-amendment-2026-11-26-ticket-cues-and-customers--accepted)
+
+### Context
+
+The owner is adopting module 1 ("AI triage and cues") of an outside Cloud
+Support System Plan. Two of its parts reach the cloud without a person asking:
+
+1. **Cues.** When a ticket is handed to support, core-api reads the reporter's
+   resources that the ticket names (state, metrics, logs, alerts) and shows
+   them on the ticket page. Decision 2 says every read is a person's, or their
+   agent's. Decision 9 records who ran each query. A cue has no one to name.
+2. **Customers.** A ticket needs its reporter's customer company and that
+   company's tier, so F1 can raise its starting priority. "A customer company
+   table in core-api" is one of this ADR's rejected alternatives, because a
+   copy of membership drifts.
+
+The owner has decided that the model proposes neither priority nor team, and
+that the agent never starts by itself (ADR-0046 §3). Neither part may change
+either decision.
+
+### Decision
+
+10. **A cue read is a system read, scoped to the reporter's own projects and
+    tied to a ticket.**
+    - It runs only at handoff (F1 BR-F1-01), after the routing decision has been
+      carried out and committed, and only while the F9 flag `ticket_cues` is on.
+    - Its scope is the projects Keystone lists the **reporter** as a member of.
+      It never uses every project, even when the reporter is staff. A Keystone
+      failure links nothing. Decision 2's "never widens" holds unchanged.
+    - It finds resources among those projects only, in a fixed order: the ones
+      the reporter picked in the chat, then names and IDs in the ticket's
+      **masked** subject and body, then volumes attached to those servers.
+      When it finds none, it runs a fixed overview of the reporter's projects
+      (firing alerts, stopped servers, the most errors, the highest load), and
+      says that the ticket named no resource.
+    - A pick is recorded by core-api when the person presses a choice the
+      agent offered. The model can offer only resources its tools returned
+      in that turn, with the person's own token (ADR-0046 decision 17),
+      and no agent tool can record a pick.
+    - Its queries are fixed templates in core-api code, compiled by the same
+      structured query builder and caps as decision 4. No model writes,
+      chooses or summarises them, and no agent runs.
+    - Results are masked as in decision 5. A source that was down is stated as
+      in decision 6, never read as healthy.
+    - Each query writes an `infra_queries` row with `via = cue`, no actor, and
+      the ticket that caused it. A database CHECK allows a row with no actor
+      only for `via = cue`, and requires such a row to name its ticket.
+    - Cues are shown only to staff holding `infra:read` who reach the ticket.
+      No route puts them in a prompt (agent tier `none`). They never change the
+      decision, priority, team, assignee, status or clocks.
+    - A resource a technician links on the ticket page is read as that
+      technician (decision 9, `via = human`), not as a cue.
+11. **A customer is a Keystone domain with a tier. Membership stays in
+    Keystone.**
+    - `infra_customers` holds only what Keystone lacks: a display name and a
+      tier (`standard`, `business`, `enterprise`), keyed by Keystone domain
+      ID. A manager creates rows and changes tiers, with a reason, audited.
+    - A ticket's customer is read from Keystone when the pipeline starts: the
+      domain of the reporter's Keystone user, found by their Keycloak subject
+      as in decision 2. It is stamped on the ticket. No `users` column copies
+      it.
+    - A failed lookup leaves the ticket with no customer and says so on the
+      ticket page. It never guesses and never blocks the pipeline.
+    - The router never reads the customer. Only F1's tier floor does, and that
+      floor can only raise a rule's priority, never lower it.
+
+### How the earlier decisions still hold
+
+- **Decision 1.** core-api is still the only client of every backend. Cues
+  are core-api code, and ai-engine gains nothing.
+- **Decision 2.** Every read *by a person or their agent* is still scoped as
+  before. Cue reads are a new, narrower kind: always the reporter's own
+  projects, even when staff hold `infra:read`.
+- **Decision 9.** Every read still writes one `infra_queries` row. A cue row
+  names its ticket in place of a person.
+- **Rejected alternative "a customer company table".** That was rejected as a
+  copy of *membership*. `infra_customers` holds no membership, only a tier
+  Keystone has no place for.
+- **ADR-0046.** No agent runs and no token is used. "An agent that starts on
+  its own" stays out (F16 §m, F17 §a).
+- **ADR-0001 and BR-F1-02.** Priority comes from rules. The tier floor is a
+  rule over data a manager set, never a `proposed_*` field.
+
+### Consequences
+
+- core-api reads customers' logs and metrics with no person asking. A query
+  can run for a ticket no one ever opens. The reads are capped, scoped to the
+  reporter, recorded, and behind a flag that starts off.
+- A cue read's scope rests on enrichment code matching against the right
+  projects. A mutation-checked test pins it, as decision 3's filter test does.
+- A ticket that names nothing still costs the overview's five queries over
+  every project the reporter belongs to, each capped as decision 4's are.
+- Each ticket now costs one Keystone call when the pipeline starts, as long as
+  any customer row exists, plus a sign-in when the service token has expired.
+  A Keystone that refuses connections adds up to the connect timeout to each
+  ticket; one that accepts them but doesn't answer adds up to the read timeout
+  (`INFRA_READ_TIMEOUT_SEC`), twice when a sign-in comes first. Either way
+  the ticket is left with no customer.
+- Decision 11 assumes the cloud's federation mapping puts each customer's
+  users in their company's domain, as `cloud-sim` does. If a real cloud puts
+  every federated user in one domain, the lookup must go by the domain of the
+  reporter's projects instead. That is a code change in the lookup, not a new
+  decision.
+- A customer whose domain has no row gets no tier, so a new company starts at
+  the rule's priority until a manager adds it.
+
+### Alternatives considered
+
+- **Cues run by the agent on every ticket.** This needs a service identity
+  with its own token, which ADR-0046 rules out, and the owner chose not to
+  have automatic investigations.
+- **A model guessing the resource from the ticket** ("the database" →
+  `db-01`), checked against the reporter's resources. It needs a model call,
+  a change on both sides of the ai-engine wire and an eval, and a wrong guess
+  shows confident cues about the wrong server. The agent asking the person,
+  with choices from their own resources, gets the same answer from the person
+  who knows.
+- **A model summary per cue.** This adds a model call on infra results, their
+  masking, an eval, and prose a technician might take as fact. Code-written
+  summaries come first; revisit with the investigation agent.
+- **Cues behind the F15 agent flags.** These would stay off until F15's evals
+  run (TODO 23), though cues involve no agent.
+- **`users.customer`, set by a manager.** Simpler to read, but it is the copy
+  of membership this ADR rejected.
+- **A floor of the highest tier when Keystone is down.** During an outage
+  every ticket would become P2, and the ticket reaches a person either way.

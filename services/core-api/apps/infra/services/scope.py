@@ -47,11 +47,18 @@ class InfraScope:
         return ["*"] if projects is None else sorted(projects)
 
 
-def member_projects(user: User, cloud: OpenStack) -> frozenset[str]:
-    """The projects Keystone lists `user` as a member of, found by their Keycloak subject;
-    none for a person with no Keycloak subject or no Keystone user."""
+@dataclass(frozen=True)
+class KeystoneUser:
+    id: str
+    domain_id: str
+
+
+def keystone_user(user: User, cloud: OpenStack) -> KeystoneUser | None:
+    """`user`'s Keystone user, found by their Keycloak subject; None for a person with no Keycloak
+    subject or no Keystone user. Raises `BackendUnavailable` when Keystone can't answer, answers
+    unreadably, or lists more than one user."""
     if not user.external_id:
-        return frozenset()
+        return None
     found = cloud.get(
         "identity",
         "/users",
@@ -64,10 +71,22 @@ def member_projects(user: User, cloud: OpenStack) -> frozenset[str]:
     try:
         users = found["users"]
         if not users:
-            return frozenset()
+            return None
         if len(users) > 1:
             raise BackendUnavailable(InfraBackend.CLOUD, "Keystone lists more than one user")
-        assignments = cloud.get("identity", "/role_assignments", {"user.id": users[0]["id"]})
+        return KeystoneUser(users[0]["id"], users[0]["domain_id"])
+    except (KeyError, TypeError, IndexError) as e:
+        raise BackendUnavailable(InfraBackend.CLOUD, "Keystone's answer is unreadable") from e
+
+
+def member_projects(user: User, cloud: OpenStack) -> frozenset[str]:
+    """The projects Keystone lists `user` as a member of; none for a person with no Keycloak
+    subject or no Keystone user."""
+    found = keystone_user(user, cloud)
+    if found is None:
+        return frozenset()
+    assignments = cloud.get("identity", "/role_assignments", {"user.id": found.id})
+    try:
         return frozenset(
             a["scope"]["project"]["id"]
             for a in assignments["role_assignments"]

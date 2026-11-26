@@ -67,6 +67,10 @@ export type AgentActionKind = "confirm" | "draft";
 
 export type AgentActionState = "pending" | "applied" | "dismissed" | "expired" | "superseded";
 
+export type CustomerTier = "standard" | "business" | "enterprise";
+
+export type CustomerLookup = "found" | "none" | "unavailable";
+
 export interface TicketIn {
   subject: string;
   body: string;
@@ -400,6 +404,11 @@ export interface PlaceholderOut {
   level: string;
 }
 
+export interface TicketCustomerOut {
+  name: string;
+  tier: CustomerTier;
+}
+
 export interface StaffTicketDetail {
   public_id: string;
   subject_masked: string;
@@ -426,6 +435,8 @@ export interface StaffTicketDetail {
   reviews: OpenReviewOut[];
   clarifications: ClarificationOut[];
   agent_handoff_reason?: string | null;
+  customer?: TicketCustomerOut | null;
+  customer_lookup?: CustomerLookup | null;
 }
 
 export interface RevealOut {
@@ -2015,6 +2026,40 @@ export interface TraceSearchIn {
   min_duration_ms?: number | null;
   size?: number | null;
   project_id?: string | null;
+}
+
+export interface CustomerIn {
+  domain_id: string;
+  name: string;
+  tier: CustomerTier;
+  reason?: string;
+}
+
+export interface CustomerPatch {
+  name?: string | null;
+  tier?: CustomerTier | null;
+  reason?: string;
+}
+
+export interface CustomerOut {
+  id: string;
+  name: string;
+  keystone_domain_id: string;
+  tier: CustomerTier;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+}
+
+export interface DomainOut {
+  id: string;
+  name: string;
+}
+
+export interface CustomerListingOut {
+  customers: CustomerOut[];
+  unclaimed_domains: DomainOut[];
+  domains_unavailable: boolean;
 }
 
 export interface BranchReadinessOut {
