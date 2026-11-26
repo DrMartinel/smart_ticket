@@ -83,6 +83,16 @@ export type ResourceKind = "server" | "volume" | "network";
 
 export type ResourceSource = "picked" | "named" | "attached" | "every_server" | "linked";
 
+export type InfraBackend = "prometheus" | "elasticsearch" | "alertmanager" | "cloud";
+
+export type InfraQueryKind = "structured" | "promql" | "resource";
+
+export type InfraOutcome = "ok" | "refused" | "backend_unavailable" | "scope_unavailable";
+
+export type InfraRefusal = "infra_not_found" | "infra_query_refused" | "infra_scope_unavailable" | "infra_backend_unavailable" | "infra_ticket_required" | "infra_state_changed" | "infra_change_refused" | "infra_outcome_unknown" | "customer_exists" | "unknown_domain" | "reason_required";
+
+export type QueryCheck = "range" | "step" | "series" | "size" | "field" | "dataset" | "function" | "match_all" | "selectors" | "unsupported" | "backend_refused";
+
 export interface TicketIn {
   subject: string;
   body: string;
@@ -299,6 +309,8 @@ export interface AgentTurnOut {
   ticket_offered?: boolean;
   queued_at: string;
   finished_at: string | null;
+  queries?: InfraQueryReceiptOut[];
+  warnings?: string[];
 }
 
 export interface AgentConversationOut {
@@ -1969,6 +1981,7 @@ export interface MetricAnswerOut {
   query_id: string;
   series: SeriesOut[];
   truncated: boolean;
+  link: string;
 }
 
 export interface LogLineOut {
@@ -1987,6 +2000,7 @@ export interface LogAnswerOut {
   lines: LogLineOut[];
   truncated: boolean;
   withheld: number;
+  link: string;
 }
 
 export interface SpanOut {
@@ -2008,6 +2022,23 @@ export interface TraceAnswerOut {
   spans: SpanOut[];
   truncated: boolean;
   withheld: number;
+  link: string;
+}
+
+export interface InfraQueryReceiptOut {
+  id: string;
+  created_at: string;
+  backend: InfraBackend;
+  kind: InfraQueryKind;
+  outcome: InfraOutcome;
+  refusal: InfraRefusal | null;
+  refusal_reason: QueryCheck | null;
+  rows: number;
+  withheld: number;
+  truncated: boolean;
+  duration_ms: number;
+  compiled: string;
+  link: string;
 }
 
 export interface MetricQueryIn {

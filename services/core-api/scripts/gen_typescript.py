@@ -238,6 +238,7 @@ MODELS = [
     "LogAnswerOut",
     "SpanOut",
     "TraceAnswerOut",
+    "InfraQueryReceiptOut",
     "MetricQueryIn",
     "PromQLIn",
     "LogSearchIn",
@@ -540,8 +541,21 @@ def main() -> None:
         chunks.append(emit_enum(enum.__name__, [member.value for member in enum]))
 
     from apps.infra.domain.changes import InfraChange, InfraResource
-    from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
-    from apps.infra.models import CustomerLookup, CustomerTier
+    from apps.infra.domain.vocabulary import (
+        CueRunOutcome,
+        CueStatus,
+        InfraRefusal,
+        QueryCheck,
+        ResourceKind,
+        ResourceSource,
+    )
+    from apps.infra.models import (
+        CustomerLookup,
+        CustomerTier,
+        InfraBackend,
+        InfraOutcome,
+        InfraQueryKind,
+    )
 
     for infra_enum in (
         CustomerTier,
@@ -552,6 +566,11 @@ def main() -> None:
         CueStatus,
         ResourceKind,
         ResourceSource,
+        InfraBackend,
+        InfraQueryKind,
+        InfraOutcome,
+        InfraRefusal,
+        QueryCheck,
     ):
         chunks.append(emit_enum(infra_enum.__name__, [m.value for m in infra_enum]))
 
