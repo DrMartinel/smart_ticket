@@ -809,6 +809,21 @@ guard and that comment is later trimmed, the entry is the record.
   inventory, and a mask-failed ticket's stored text can't be trusted to be
   masked (BR-F17-14). *`test_enrichment_reads_the_masked_text_only`,
   `test_a_ticket_whose_masking_failed_names_nothing`.*
+- **The picks route's `agent=AgentTier.NONE`, `Cues.pick` reading the resource
+  through `Inventory.for_own`, and `linked` taking only the picks the
+  reporter's holdings hold.** A pick comes before every name in the cap's order
+  (BR-F17-14), so a pick the model sent, or one of another company's resources,
+  would point a ticket's cues wherever it named. Only the person's press records
+  one (ADR-0046 decision 17: nothing the model sends records a choice), it is
+  checked against the person's own Keystone projects when pressed (a forged
+  request gets `infra_not_found`, UC-F17-14 4x), and the cue run checks it
+  against the reporter's projects again, dropping one it doesn't find there.
+  `ResourcePick.objects.of_ticket` takes only the conversation whose turn opened
+  the ticket. *`test_no_agent_tool_can_record_a_pick`,
+  `test_a_pick_of_another_companys_resource_is_refused_and_records_nothing`,
+  `test_a_pick_outside_the_reporters_projects_is_dropped`,
+  `test_only_the_conversation_that_opened_the_ticket_lends_it_picks`,
+  `test_the_cap_keeps_picked_then_named_then_attached`.*
 - **The savepoint (`transaction.atomic()`) around the handoff check in
   `Cues.on_status_entered`.** The hook runs inside the move's transaction. A
   query that fails there without a savepoint leaves that transaction aborted,
