@@ -9,7 +9,7 @@ import type {
   ChatTurnOut,
 } from "@/lib/types/generated";
 import type { ActionResult, AgentRow } from "@/lib/agent";
-import { CLOUD_TOOL_LABEL, type Language } from "@/lib/infra";
+import { CLOUD_TOOL_LABEL } from "@/lib/infra";
 import AnswerText from "./AnswerText";
 import { QueryReceipts, ServerChange } from "./CloudCards";
 import HelpdeskCard from "./HelpdeskCard";
@@ -68,7 +68,6 @@ export default function AgentTurnView({
   onChoose,
   busy,
   viewingEnded,
-  language,
 }: {
   row: AgentRow;
   pending: AgentActionOut[];
@@ -87,7 +86,6 @@ export default function AgentTurnView({
   onChoose: (choice: AgentChoiceOut) => void;
   busy: boolean;
   viewingEnded: boolean;
-  language: Language;
 }) {
   if (row.kind === "ended") {
     return (
@@ -142,7 +140,7 @@ export default function AgentTurnView({
             {helpdesk.map((id) => (
               <HelpdeskCard key={id} publicId={id} onAnswer={onAsk} />
             ))}
-            <QueryReceipts queries={t.queries ?? []} warnings={t.warnings ?? []} language={language} />
+            <QueryReceipts queries={t.queries ?? []} warnings={t.warnings ?? []} language={t.language} />
             {acts.length > 0 && (
               <ul aria-label="What the assistant did" className="flex flex-col gap-1.5 border-t border-border pt-3">
                 {acts.map((r, i) => (

@@ -1,7 +1,7 @@
 // The customer's cloud in the chat (F17): what each server change is called, does and says once
 // made, what each refusal of it tells the person, and the words for a query's receipt.
 
-import type { InfraBackend, InfraChange, InfraOutcome, QueryCheck } from "./types/generated";
+import type { InfraBackend, InfraChange, InfraOutcome, Language, QueryCheck } from "./types/generated";
 
 /** What each server change of the chat is called on its receipt and its confirmation card. */
 export const CLOUD_TOOL_LABEL: Record<string, string> = {
@@ -57,8 +57,6 @@ export const CHANGE_REFUSAL: Record<string, string> = {
 export const OUTCOME_UNKNOWN_TEXT =
   "I couldn't tell whether that went through. Check the server before asking again; it won't be sent twice.";
 
-export type Language = "vi" | "en";
-
 /** The words of a query's receipt in one language. */
 type ReceiptWords = {
   heading: string;
@@ -74,7 +72,7 @@ type ReceiptWords = {
   refused: string;
 };
 
-/** The words of a query's receipt, by the person's language. */
+/** The words of a query's receipt, by the turn's language. */
 export const RECEIPT_WORDS: Record<Language, ReceiptWords> = {
   en: {
     heading: "What the assistant looked at",

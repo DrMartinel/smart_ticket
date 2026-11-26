@@ -539,9 +539,11 @@ def main() -> None:
 
     chunks.append(emit_enum("ReasonCode", [code.value for code in ReasonCode]))
 
+    from apps.accounts.models import Language
     from apps.agent import models as agent_models
 
     for enum in (
+        Language,
         agent_models.AgentSurface,
         agent_models.AgentTurnState,
         agent_models.AgentConversationState,

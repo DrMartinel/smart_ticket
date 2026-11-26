@@ -6,9 +6,9 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import type { AgentActionOut, InfraQueryReceiptOut, ServerDetailOut } from "@/lib/types/generated";
+import type { AgentActionOut, InfraQueryReceiptOut, Language, ServerDetailOut } from "@/lib/types/generated";
 import { infraApi } from "@/lib/api";
-import { type Language, QUERY_TONE, RECEIPT_WORDS, SERVER_CHANGE, serverState } from "@/lib/infra";
+import { QUERY_TONE, RECEIPT_WORDS, SERVER_CHANGE, serverState } from "@/lib/infra";
 import { Badge } from "@/components/ui/badge";
 
 /** The turn's warnings, then one line per query it ran. */
