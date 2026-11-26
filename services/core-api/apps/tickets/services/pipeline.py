@@ -56,6 +56,7 @@ from apps.audit.models import AuditLog
 from apps.categories.models import Category
 from apps.chat.services.conversations import conversations
 from apps.incidents.services.incidents import incidents
+from apps.infra.services.customers import customers
 from apps.kb.models import KbArticle
 from apps.lifecycle.services.engine import lifecycle
 from apps.lifecycle.domain.vocabulary import PipelineStatus
@@ -439,6 +440,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
     """
     ticket = Ticket.objects.select_related("reporter", "conversation").get(id=ticket_id)
     trace_id = f"ticket-{ticket.public_id}"
+    customers.stamp(ticket)
 
     attempt = AiRun.objects.filter(ticket=ticket).count() + 1
     idempotency_key = f"{ticket.id}:{attempt}"

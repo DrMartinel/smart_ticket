@@ -1,8 +1,14 @@
-"""Response shapes for the infra reads (F17 §h.1). Free text is already masked or withheld."""
+"""Response shapes for the infra reads (F17 §h.1), where free text is already masked or
+withheld, and for the customer routes (F17 §o.9)."""
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime
+
 from ninja import Schema
+
+from apps.infra.models import Customer, CustomerTier
 
 
 class ProjectOut(Schema):
@@ -211,3 +217,28 @@ class TraceAnswerOut(Schema):
     spans: list[SpanOut]
     truncated: bool
     withheld: int
+
+
+class CustomerOut(Schema):
+    id: uuid.UUID
+    name: str
+    keystone_domain_id: str
+    tier: CustomerTier
+    created_at: datetime
+    created_by: str
+    updated_at: datetime
+
+    @staticmethod
+    def resolve_created_by(customer: Customer) -> str:
+        return customer.created_by.username
+
+
+class DomainOut(Schema):
+    id: str
+    name: str
+
+
+class CustomerListingOut(Schema):
+    customers: list[CustomerOut]
+    unclaimed_domains: list[DomainOut]
+    domains_unavailable: bool

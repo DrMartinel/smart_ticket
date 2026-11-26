@@ -26,6 +26,7 @@ from pgvector.django import CosineDistance, VectorField
 
 from apps.core.models import BaseModel
 from apps.rollout.domain.vocabulary import BRANCH_FLAG, FlagState
+from apps.infra.models import CustomerLookup
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.domain.router import AGENT_HANDOFF_REASONS
 from apps.tickets.request_schema import RevealReason
@@ -256,7 +257,9 @@ class TicketManager(models.Manager["Ticket"]):
         """Tickets with what the staff detail shows loaded, each list in display order."""
         from apps.review.models import ReviewItem
 
-        return self.select_related("reporter", "assigned_to", "workflow_status").prefetch_related(
+        return self.select_related(
+            "reporter", "assigned_to", "workflow_status", "customer"
+        ).prefetch_related(
             models.Prefetch("routing_decisions", RoutingDecision.objects.order_by("-decided_at")),
             models.Prefetch("review_items", ReviewItem.objects.order_by("-created_at")),
             models.Prefetch("clarifications", TicketClarification.objects.order_by("asked_at")),
@@ -459,6 +462,13 @@ class Ticket(BaseModel):
         blank=True,
         choices=[(r.value, r.value) for r in sorted(AGENT_HANDOFF_REASONS)],
     )
+    # The reporter's customer company, read from Keystone when the pipeline starts (F17 BR-F17-21).
+    customer = models.ForeignKey(
+        "infra.Customer", on_delete=models.PROTECT, null=True, blank=True, related_name="tickets"
+    )
+    customer_lookup = models.CharField(
+        max_length=12, null=True, blank=True, choices=[(c.value, c.value) for c in CustomerLookup]
+    )
 
     class Meta(BaseModel.Meta):
         db_table = "tickets"
@@ -469,7 +479,25 @@ class Ticket(BaseModel):
                     agent_handoff_reason__in=[r.value for r in sorted(AGENT_HANDOFF_REASONS)]
                 ),
                 name="tickets_agent_handoff_reason_known",
-            )
+            ),
+            models.CheckConstraint(
+                condition=models.Q(
+                    customer__isnull=False,
+                    customer_lookup__isnull=False,
+                    customer_lookup=CustomerLookup.FOUND.value,
+                )
+                | models.Q(
+                    models.Q(customer_lookup__isnull=True)
+                    | models.Q(
+                        customer_lookup__in=[
+                            CustomerLookup.NONE.value,
+                            CustomerLookup.UNAVAILABLE.value,
+                        ]
+                    ),
+                    customer__isnull=True,
+                ),
+                name="tickets_customer_matches_lookup",
+            ),
         ]
 
     objects = TicketManager()

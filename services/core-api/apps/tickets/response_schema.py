@@ -9,6 +9,7 @@ from datetime import datetime
 
 from ninja import Field, Schema
 
+from apps.infra.models import CustomerTier
 from apps.sla.response_schema import SlaBadgeOut
 from apps.sla.services.clocks import Badge, sla_clocks
 from apps.tickets.models import PiiAccessLog, RoutingDecision, Ticket, TicketComment
@@ -170,6 +171,11 @@ class PlaceholderOut(Schema):
     level: str
 
 
+class TicketCustomerOut(Schema):
+    name: str
+    tier: CustomerTier
+
+
 class StaffTicketDetail(StaffTicketRow):
     body_masked: str
     pii_placeholders: list[PlaceholderOut] = []
@@ -182,6 +188,9 @@ class StaffTicketDetail(StaffTicketRow):
     clarifications: list[ClarificationOut]
     # The agent's reason when an agent turn handed this ticket to a person (F15).
     agent_handoff_reason: str | None = None
+    # The reporter's customer company and how its lookup went (F17 BR-F17-21).
+    customer: TicketCustomerOut | None = None
+    customer_lookup: str | None = None
 
     @staticmethod
     def resolve_reporter_person(ticket: Ticket) -> PersonOut:

@@ -1,13 +1,15 @@
-"""Request shapes for the infra queries (F17 §h.1); the catalog and the caps are checked when
-the query compiles."""
+"""Request shapes for the infra queries (F17 §h.1), whose catalog and caps are checked when the
+query compiles, and the customer routes' bodies (F17 §o.9)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
 from ninja import Field, Schema
+from pydantic import ConfigDict
 
 from apps.infra.domain.queries import LogSearch, MetricQuery, TraceSearch, Window
+from apps.infra.models import CustomerTier
 
 
 class MetricQueryIn(Schema):
@@ -69,3 +71,20 @@ class TraceSearchIn(Schema):
             min_duration_ms=self.min_duration_ms,
             size=self.size,
         )
+
+
+class CustomerIn(Schema):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    domain_id: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=120)
+    tier: CustomerTier
+    reason: str = Field("", max_length=500)
+
+
+class CustomerPatch(Schema):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    name: str | None = Field(None, min_length=1, max_length=120)
+    tier: CustomerTier | None = None
+    reason: str = Field("", max_length=500)

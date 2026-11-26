@@ -13,6 +13,9 @@ class InfraRefusal(StrEnum):
     QUERY_REFUSED = "infra_query_refused"
     SCOPE_UNAVAILABLE = "infra_scope_unavailable"
     BACKEND_UNAVAILABLE = "infra_backend_unavailable"
+    CUSTOMER_EXISTS = "customer_exists"
+    UNKNOWN_DOMAIN = "unknown_domain"
+    REASON_REQUIRED = "reason_required"
 
 
 class QueryCheck(StrEnum):
@@ -33,6 +36,9 @@ _STATUS = {
     InfraRefusal.QUERY_REFUSED: 422,
     InfraRefusal.SCOPE_UNAVAILABLE: 424,
     InfraRefusal.BACKEND_UNAVAILABLE: 424,
+    InfraRefusal.CUSTOMER_EXISTS: 409,
+    InfraRefusal.UNKNOWN_DOMAIN: 422,
+    InfraRefusal.REASON_REQUIRED: 422,
 }
 
 
