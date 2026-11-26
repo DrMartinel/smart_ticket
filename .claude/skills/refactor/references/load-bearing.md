@@ -819,10 +819,18 @@ guard and that comment is later trimmed, the entry is the record.
   request gets `infra_not_found`, UC-F17-14 4x), and the cue run checks it
   against the reporter's projects again, dropping one it doesn't find there.
   `ResourcePick.objects.of_ticket` takes only the conversation whose turn opened
-  the ticket. *`test_no_agent_tool_can_record_a_pick`,
+  the ticket, and in it only the picks made after its previous ticket opened and
+  no later than this one: a `needs_staff` hand-off leaves the conversation
+  active, so without the bounds a second ticket would put the first problem's
+  resources first and could push its own past `cues.max_resources`. A pick on an
+  ended conversation is refused with `conversation_ended`, and the chat posts a
+  pick only after its message was sent, on the conversation that took it.
+  *`test_no_agent_tool_can_record_a_pick`,
   `test_a_pick_of_another_companys_resource_is_refused_and_records_nothing`,
   `test_a_pick_outside_the_reporters_projects_is_dropped`,
   `test_only_the_conversation_that_opened_the_ticket_lends_it_picks`,
+  `test_two_tickets_from_one_conversation_each_take_only_their_own_picks`,
+  `test_a_pick_on_an_ended_conversation_is_refused`,
   `test_the_cap_keeps_picked_then_named_then_attached`.*
 - **The savepoint (`transaction.atomic()`) around the handoff check in
   `Cues.on_status_entered`.** The hook runs inside the move's transaction. A

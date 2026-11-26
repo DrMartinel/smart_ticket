@@ -10,7 +10,8 @@ import pytest
 from cloud_sim.faults import FaultKind
 
 from apps.accounts.models import User
-from apps.agent.models import AgentConversation, AgentSurface
+from apps.agent.models import AgentConversation, AgentConversationEnd, AgentSurface
+from apps.agent.services.turns import agent_turns
 from apps.agent.testing import as_agent
 from apps.infra.models import InfraQuery, InfraVia, ResourcePick
 from apps.infra.tests.conftest import CloudSim
@@ -63,6 +64,19 @@ def test_a_pick_in_someone_elses_conversation_is_refused_before_the_cloud_is_ask
 
         assert reply.status_code == 404
         assert reply.json()["code"] == "conversation_not_found"
+    assert not ResourcePick.objects.exists()
+    assert cloud_sim.calls == []
+
+
+def test_a_pick_on_an_ended_conversation_is_refused(api_as, lan, cloud_sim: CloudSim):
+    db01 = cloud_sim.id_of("servers", "db-01")
+    ended = chat_of(lan)
+    agent_turns.end(ended, AgentConversationEnd.USER)
+
+    reply = api_as(lan).post(PICKS, pick(ended, "server", db01), "application/json")
+
+    assert reply.status_code == 409
+    assert reply.json()["code"] == "conversation_ended"
     assert not ResourcePick.objects.exists()
     assert cloud_sim.calls == []
 
