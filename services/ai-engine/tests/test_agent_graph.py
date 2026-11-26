@@ -349,6 +349,28 @@ def test_the_retry_prompt_names_the_error(model, core_api, invalid, names):
     assert names in llm.prompts[1].split("## Your last reply was invalid", 1)[1]
 
 
+def test_every_step_is_told_the_time_with_its_offset_in_the_agent_s_zone(
+    model, core_api, monkeypatch
+):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from ai_engine.core.config import settings
+
+    monkeypatch.setattr(settings, "agent_time_zone", ZoneInfo("Asia/Ho_Chi_Minh"))
+    llm = model(call("list_my_tickets"), reply())
+    core_api(Reply(200, _VPN_TICKETS))
+
+    run(turn())
+
+    assert len(llm.prompts) == 2
+    for prompt in llm.prompts:
+        stamp, zone = prompt.split("## Now\n", 1)[1].split("\n", 1)[0].split(" ")
+        now = datetime.fromisoformat(stamp)
+        assert zone == "(Asia/Ho_Chi_Minh)" and now.utcoffset().total_seconds() == 7 * 3600
+        assert abs((datetime.now(now.tzinfo) - now).total_seconds()) < 120
+
+
 def test_no_retry_when_no_step_is_left(model, core_api):
     llm = model("not json at all")
     core_api()

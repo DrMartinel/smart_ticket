@@ -14,6 +14,7 @@ meaning "unset".
 
 from pathlib import Path
 from typing import Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -117,6 +118,8 @@ class Settings(BaseSettings):
     agent_tool_read_timeout_sec: float = Field(gt=0)
     agent_ask_poll_interval_sec: float = Field(gt=0)
     agent_ask_wait_sec: float = Field(ge=0)
+    # The time zone the agent is told the current time in, and reads people's times in (F17).
+    agent_time_zone: ZoneInfo
 
 
 settings = Settings()  # type: ignore[call-arg]  # every value comes from .env or the env

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
@@ -17,6 +18,7 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from ai_engine.agent.tools import for_surface
 from ai_engine.agent.tools.tool import Tool, ToolInput
+from ai_engine.core.config import settings
 from ai_engine.core.prompts import AGENT_PROMPT
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import AllLLMDownError, BlankReplyError
@@ -224,13 +226,15 @@ class ChooseActionNode(BaseNode[AgentState]):
         return ChooseOutcome.REPLY
 
     def prompt(self, state: AgentState, tools: dict[str, Tool]) -> str:
-        """The step's user prompt: the tools, the conversation and this turn so far."""
+        """The step's user prompt: the time, the tools, the conversation and this turn so far."""
         offered = [t for t in tools.values() if not (state.result_flagged and t.writes)]
         earlier = "\n\n".join(
             f"Person: {t.message_masked}\nYou: {t.reply}" for t in state.earlier_turns
         )
         done = [e.model_dump(mode="json") for e in state.exchanges]
+        zone = settings.agent_time_zone
         parts = [
+            f"## Now\n{datetime.now(zone).isoformat(timespec='minutes')} ({zone.key})",
             f"## The person's language\n{state.language}",
             f"## Surface\n{state.surface}",
             "## Tools\n" + json.dumps([t.describe() for t in offered], ensure_ascii=False),
