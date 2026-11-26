@@ -717,12 +717,17 @@ each file is clean.
   (`services/cloud-sim/`, `infra/observability/`). PR 2 (#39): core-api's
   `apps/infra` with the cloud and Alertmanager clients, `InfraScope`, the four
   `infra:` permissions, the resource and alert reads, masked free text and the
-  `infra_queries` record. PR 3 is built: the catalog and structured metric,
+  `infra_queries` record. PR 3 (#42) is merged: the catalog and structured metric,
   log and trace queries (`domain/queries.py`), the `infra:` caps in
   `thresholds.yaml`, and links to Prometheus and Kibana on each query's row.
   Elasticsearch field names (`labels.openstack_project_id`, `log.level`, …)
   follow the APM Server's usual OpenTelemetry mapping and are not yet checked
-  against a running stack. Next: PR 4, raw PromQL (§n).
+  against a running stack. PR 3a, customers (§o, accepted 2026-11-26), is
+  built: `infra_customers` (a Keystone domain and a tier, Admin → Settings →
+  Customers), the reporter's customer stamped on each ticket at pipeline
+  start and never read by the router, and F1's tier floor on the starting
+  priority (`sla.tier_floor`, BR-F1-16). Next: PR 3b, ticket cues (§o.14),
+  and PR 4, raw PromQL (§n).
 - **Built ahead of F15's evals by the owner's choice.** F17 adds write tools
   to an agent whose prompt has never run against a model, and ADR-0051 turns
   both agent flags on by default before item 23 and F17's trace cases are
