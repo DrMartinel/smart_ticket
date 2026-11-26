@@ -134,3 +134,80 @@ class SilenceOut(Schema):
     comment: str
     starts_at: str
     ends_at: str
+
+
+class MetricEntryOut(Schema):
+    name: str
+    kind: str
+    help: str
+    labels: list[str]
+
+
+class DatasetEntryOut(Schema):
+    name: str
+    help: str
+
+
+class FieldEntryOut(Schema):
+    name: str
+    help: str
+
+
+class CatalogOut(Schema):
+    metrics: list[MetricEntryOut]
+    range_functions: dict[str, str]
+    aggregations: list[str]
+    log_datasets: list[DatasetEntryOut]
+    log_fields: list[FieldEntryOut]
+    trace_fields: list[FieldEntryOut]
+    caps: dict[str, int]
+
+
+class SeriesOut(Schema):
+    labels: dict[str, str]
+    points: list[tuple[float, float | None]]
+
+
+class MetricAnswerOut(Schema):
+    query_id: str
+    series: list[SeriesOut]
+    truncated: bool
+
+
+class LogLineOut(Schema):
+    at: str
+    level: str
+    project_id: str
+    server: str
+    server_id: str
+    service: str
+    message: str
+
+
+class LogAnswerOut(Schema):
+    query_id: str
+    total: int
+    lines: list[LogLineOut]
+    truncated: bool
+    withheld: int
+
+
+class SpanOut(Schema):
+    trace_id: str
+    id: str
+    parent_id: str
+    name: str
+    project_id: str
+    service: str
+    server: str
+    started_at: str
+    duration_ms: float
+    outcome: str
+    attributes: dict[str, str]
+
+
+class TraceAnswerOut(Schema):
+    query_id: str
+    spans: list[SpanOut]
+    truncated: bool
+    withheld: int

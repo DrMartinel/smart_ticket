@@ -553,6 +553,40 @@ guard and that comment is later trimmed, the entry is the record.
   "done" reply would both stand. *`test_a_late_answer_for_a_turn_already_handed_off_is_dropped`,
   `test_a_turn_runs_once_however_often_it_is_delivered`.*
 
+### Infra reads and queries (F17, ADR-0048)
+
+- **`QueryLog.own_scope` refusing when Keystone can't answer.** Falling back
+  to "every project", or to none, would either show a customer another
+  company's servers or tell them they have none, and neither fails loudly.
+  *`test_a_failed_membership_lookup_refuses_and_never_widens`,
+  `test_a_failed_membership_lookup_refuses_a_query_without_reaching_a_backend`.*
+- **`Inventory.require_reach` raising `BackendNotFound`, and `Observability.trace`
+  answering 404 for a trace outside the scope.** A 403 would confirm that the
+  resource exists in another company's project.
+  *`test_a_customer_cannot_see_another_companys_server_404_like_a_missing_one`,
+  `test_a_trace_outside_the_scope_is_not_found_like_a_missing_one`.*
+- **The project matcher in `MetricQuery.promql` and the `project=` values the
+  `Prometheus` client sends prom-label-proxy.** Elasticsearch has no
+  document-level security here, so `scoped()` in `domain/queries.py` is the only
+  scope a log or trace search has; Prometheus gets it twice on purpose.
+  *`test_every_log_search_filters_the_callers_projects`,
+  `test_every_metric_selector_carries_the_scope_matcher_and_the_proxy_its_projects`.*
+- **The compilers raising on an empty project set, and `Observability` not
+  calling a backend for one.** `project=~""` matches every series that has no
+  `project` label, and an empty `terms` filter is easy to drop by accident; an
+  empty scope must mean "nothing", decided in core-api, not left to the proxy.
+  *`test_another_companys_project_reaches_no_backend`.*
+- **`Read.shown` masking every free text, and `MaskedTexts` withholding when
+  masking raises.** Log lines and span attributes are written by whoever runs
+  the workload; a masking failure read as "no PII" would send it raw to the
+  model and the chat.
+  *`test_ner_failure_withholds_log_messages_but_keeps_counts`,
+  `test_pii_in_a_log_line_or_span_attribute_is_masked`.*
+- **`Catalog.labels_of` dropping `host` for customers, on filters and on the
+  labels an answer shows.** The hypervisor a server runs on is the provider's,
+  and naming it lets a customer map which other tenants share their machine.
+  *`test_a_customer_answer_never_shows_the_hypervisor_label`.*
+
 ## ai-engine
 
 - **`TriageState` is frozen with `extra="forbid"`.** Without that, an in-place

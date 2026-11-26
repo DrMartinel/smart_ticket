@@ -1,5 +1,6 @@
-"""core-api's clients of the cloud's API (OpenStack) and of Alertmanager (F17, ADR-0048 §1).
-Transport only: a read answers its JSON, or raises `BackendNotFound` for a 404 and
+"""core-api's clients of the cloud's API (OpenStack), Alertmanager, Prometheus (through
+prom-label-proxy) and Elasticsearch (F17, ADR-0048 §1). Transport only: a read answers its JSON,
+or raises `BackendNotFound` for a 404, `BackendRefused` for a query Prometheus rejects and
 `BackendUnavailable` for anything else."""
 
 from __future__ import annotations
@@ -33,6 +34,10 @@ class BackendUnavailable(Exception):
 
 class BackendNotFound(Exception):
     """A backend that answered 404."""
+
+
+class BackendRefused(Exception):
+    """A backend that rejected the query it was sent."""
 
 
 def http_client() -> httpx.Client:
@@ -160,6 +165,63 @@ class Alertmanager:
         return json_of(InfraBackend.ALERTMANAGER, response)
 
 
+class Prometheus:
+    """Prometheus's range queries, sent through prom-label-proxy with the projects it enforces."""
+
+    def __init__(self, http: httpx.Client) -> None:
+        self.http = http
+
+    def query_range(
+        self, promql: str, start: float, end: float, step: int, projects: frozenset[str]
+    ) -> Any:
+        """The matrix a range query answers, scoped by the proxy to `projects`."""
+        try:
+            response = self.http.post(
+                f"{settings.PROMETHEUS_URL}/api/v1/query_range",
+                params=[("project", p) for p in sorted(projects)],
+                data={"query": promql, "start": start, "end": end, "step": step},
+            )
+        except httpx.HTTPError as e:
+            raise BackendUnavailable(InfraBackend.PROMETHEUS, type(e).__name__) from e
+        if response.status_code in (400, 422):
+            try:
+                message = str(response.json()["error"])
+            except (ValueError, KeyError, TypeError):
+                message = f"answered {response.status_code}"
+            raise BackendRefused(message)
+        answer = json_of(InfraBackend.PROMETHEUS, response)
+        try:
+            if answer["data"]["resultType"] != "matrix":
+                raise BackendUnavailable(InfraBackend.PROMETHEUS, "answered no matrix")
+            return answer["data"]["result"]
+        except (KeyError, TypeError) as e:
+            raise BackendUnavailable(
+                InfraBackend.PROMETHEUS, "answered something unreadable"
+            ) from e
+
+
+class Elasticsearch:
+    """Elasticsearch's search API, as core-api's read-only user."""
+
+    def __init__(self, http: httpx.Client) -> None:
+        self.http = http
+
+    def search(self, index: str, body: dict[str, Any]) -> Any:
+        try:
+            response = self.http.post(
+                f"{settings.ELASTICSEARCH_URL}/{index}/_search",
+                json=body,
+                auth=(settings.ELASTICSEARCH_USERNAME, settings.ELASTICSEARCH_PASSWORD),
+            )
+        except httpx.HTTPError as e:
+            raise BackendUnavailable(InfraBackend.ELASTICSEARCH, type(e).__name__) from e
+        if response.status_code == 401:
+            logger.error("infra: Elasticsearch refused core-api's reader")
+        if response.status_code == 400:
+            logger.error("infra: Elasticsearch rejected a compiled search: %s", response.text[:500])
+        return json_of(InfraBackend.ELASTICSEARCH, response)
+
+
 @cache
 def openstack() -> OpenStack:
     """The process's cloud client."""
@@ -170,3 +232,15 @@ def openstack() -> OpenStack:
 def alertmanager() -> Alertmanager:
     """The process's Alertmanager client."""
     return Alertmanager(http_client())
+
+
+@cache
+def prometheus() -> Prometheus:
+    """The process's Prometheus client."""
+    return Prometheus(http_client())
+
+
+@cache
+def elasticsearch() -> Elasticsearch:
+    """The process's Elasticsearch client."""
+    return Elasticsearch(http_client())

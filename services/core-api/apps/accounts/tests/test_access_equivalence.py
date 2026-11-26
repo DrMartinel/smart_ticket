@@ -86,6 +86,11 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/infra/networks/{network_id}": Permission.INFRA_READ,
     "GET /api/infra/alerts": Permission.INFRA_READ,
     "GET /api/infra/alerts/silences": Permission.INFRA_READ,
+    "GET /api/infra/catalog": Permission.INFRA_READ,
+    "POST /api/infra/metrics/query": Permission.INFRA_READ,
+    "POST /api/infra/logs/search": Permission.INFRA_READ,
+    "POST /api/infra/traces/search": Permission.INFRA_READ,
+    "GET /api/infra/traces/{trace_id}": Permission.INFRA_READ,
     "GET /api/requester/infra/projects": Permission.INFRA_READ_OWN,
     "GET /api/requester/infra/servers": Permission.INFRA_READ_OWN,
     "GET /api/requester/infra/servers/{server_id}": Permission.INFRA_READ_OWN,
@@ -95,6 +100,11 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/requester/infra/networks/{network_id}": Permission.INFRA_READ_OWN,
     "GET /api/requester/infra/alerts": Permission.INFRA_READ_OWN,
     "GET /api/requester/infra/alerts/silences": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/catalog": Permission.INFRA_READ_OWN,
+    "POST /api/requester/infra/metrics/query": Permission.INFRA_READ_OWN,
+    "POST /api/requester/infra/logs/search": Permission.INFRA_READ_OWN,
+    "POST /api/requester/infra/traces/search": Permission.INFRA_READ_OWN,
+    "GET /api/requester/infra/traces/{trace_id}": Permission.INFRA_READ_OWN,
 }
 
 

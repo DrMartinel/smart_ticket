@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-008"
+version: "CR-2026-009"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -296,3 +296,16 @@ agent:
   conversation_idle_minutes: 30
   # Conversations the history list returns, newest first. 🔧
   history_limit: 20
+
+infra:
+  # Caps on one structured query of the cloud's metrics, logs or traces
+  # (F17 BR-F17-12, OQ-F17-04): the longest range, the finest step, the most
+  # series, log lines and spans one answer holds (a query over one is refused
+  # with infra_query_refused), and the bytes an answer is cut to. 🔧
+  # assumptions, revisited after the first traces.
+  max_range_hours: 168
+  min_step_seconds: 15
+  max_series: 200
+  max_log_docs: 100
+  max_spans: 500
+  max_result_bytes: 24000

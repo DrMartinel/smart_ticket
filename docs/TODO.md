@@ -714,10 +714,15 @@ each file is clean.
 
 - **Spec and ADR-0048 accepted 2026-11-24**, every open question decided
   (§k). PR 1, `cloud-sim` and the `infra` compose profile, is merged
-  (`services/cloud-sim/`, `infra/observability/`). PR 2 is built: core-api's
+  (`services/cloud-sim/`, `infra/observability/`). PR 2 (#39): core-api's
   `apps/infra` with the cloud and Alertmanager clients, `InfraScope`, the four
-  `infra:` permissions, nine read routes, masked free text and the
-  `infra_queries` record. Next: PR 3, structured queries and the catalog (§n).
+  `infra:` permissions, the resource and alert reads, masked free text and the
+  `infra_queries` record. PR 3 is built: the catalog and structured metric,
+  log and trace queries (`domain/queries.py`), the `infra:` caps in
+  `thresholds.yaml`, and links to Prometheus and Kibana on each query's row.
+  Elasticsearch field names (`labels.openstack_project_id`, `log.level`, …)
+  follow the APM Server's usual OpenTelemetry mapping and are not yet checked
+  against a running stack. Next: PR 4, raw PromQL (§n).
 - **Built ahead of F15's evals by the owner's choice.** F17 adds write tools
   to an agent whose prompt has never run against a model; both agent flags
   stay off until item 23 and F17's trace cases are done.
