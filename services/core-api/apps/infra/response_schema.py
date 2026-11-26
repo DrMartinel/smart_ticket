@@ -25,6 +25,7 @@ from apps.infra.models import (
     CustomerTier,
     InfraBackend,
     InfraOutcome,
+    InfraQuery,
     InfraQueryKind,
     TicketCue,
 )
@@ -199,10 +200,15 @@ class SeriesOut(Schema):
     points: list[tuple[float, float | None]]
 
 
-class MetricAnswerOut(Schema):
+class OwnMetricAnswerOut(Schema):
+    """Metrics on the customer routes, without the staff-only link."""
+
     query_id: str
     series: list[SeriesOut]
     truncated: bool
+
+
+class MetricAnswerOut(OwnMetricAnswerOut):
     link: str
 
 
@@ -216,12 +222,17 @@ class LogLineOut(Schema):
     message: str
 
 
-class LogAnswerOut(Schema):
+class OwnLogAnswerOut(Schema):
+    """Logs on the customer routes, without the staff-only link."""
+
     query_id: str
     total: int
     lines: list[LogLineOut]
     truncated: bool
     withheld: int
+
+
+class LogAnswerOut(OwnLogAnswerOut):
     link: str
 
 
@@ -239,11 +250,23 @@ class SpanOut(Schema):
     attributes: dict[str, str]
 
 
-class TraceAnswerOut(Schema):
+class OwnTraceAnswerOut(Schema):
+    """Traces on the customer routes, without the staff-only link."""
+
     query_id: str
     spans: list[SpanOut]
     truncated: bool
     withheld: int
+
+
+class TraceAnswerOut(OwnTraceAnswerOut):
+    link: str
+
+
+class InfraQuerySentOut(Schema):
+    """A query as it was sent, and its link in Prometheus or Kibana."""
+
+    compiled: str
     link: str
 
 
@@ -262,8 +285,14 @@ class InfraQueryReceiptOut(Schema):
     withheld: int
     truncated: bool
     duration_ms: int
-    compiled: str
-    link: str
+    # None on the chat surface.
+    sent: InfraQuerySentOut | None = None
+
+    @classmethod
+    def of(cls, query: InfraQuery, *, staff: bool) -> InfraQueryReceiptOut:
+        """The receipt of `query`, with what was sent only for `staff`."""
+        sent = InfraQuerySentOut(compiled=query.compiled, link=query.link) if staff else None
+        return cls.model_validate(query, from_attributes=True).model_copy(update={"sent": sent})
 
 
 class CustomerOut(Schema):

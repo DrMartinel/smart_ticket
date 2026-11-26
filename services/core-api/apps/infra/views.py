@@ -41,6 +41,9 @@ from apps.infra.response_schema import (
     MetricAnswerOut,
     NetworkDetailOut,
     NetworkOut,
+    OwnLogAnswerOut,
+    OwnMetricAnswerOut,
+    OwnTraceAnswerOut,
     ProjectOut,
     SecurityGroupDetailOut,
     ServerDetailOut,
@@ -352,25 +355,25 @@ def get_my_catalog(request: AuthedRequest) -> Listing:
     return Catalog(Surface.CUSTOMER).listing(settings.THRESHOLDS.infra)
 
 
-@requester_router.post("/metrics/query", auth=SessionAuth(), response=MetricAnswerOut)
+@requester_router.post("/metrics/query", auth=SessionAuth(), response=OwnMetricAnswerOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def query_my_metrics(request: AuthedRequest, body: MetricQueryIn) -> MetricAnswer:
     return Observability.for_own(request.auth).metrics(body.query(), body.project_id)
 
 
-@requester_router.post("/logs/search", auth=SessionAuth(), response=LogAnswerOut)
+@requester_router.post("/logs/search", auth=SessionAuth(), response=OwnLogAnswerOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def search_my_logs(request: AuthedRequest, body: LogSearchIn) -> LogAnswer:
     return Observability.for_own(request.auth).logs(body.query(), body.project_id)
 
 
-@requester_router.post("/traces/search", auth=SessionAuth(), response=TraceAnswerOut)
+@requester_router.post("/traces/search", auth=SessionAuth(), response=OwnTraceAnswerOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def search_my_traces(request: AuthedRequest, body: TraceSearchIn) -> TraceAnswer:
     return Observability.for_own(request.auth).traces(body.query(), body.project_id)
 
 
-@requester_router.get("/traces/{trace_id}", auth=SessionAuth(), response=TraceAnswerOut)
+@requester_router.get("/traces/{trace_id}", auth=SessionAuth(), response=OwnTraceAnswerOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def get_my_trace(request: AuthedRequest, trace_id: str) -> TraceAnswer:
     return Observability.for_own(request.auth).trace(trace_id)

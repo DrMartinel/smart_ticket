@@ -12,7 +12,7 @@ from cloud_sim.faults import FaultKind
 from django.test import Client
 
 from apps.accounts.models import User
-from apps.agent.models import AgentTurn
+from apps.agent.models import AgentConversation, AgentSurface, AgentTurn, AgentTurnState
 from apps.agent.testing import as_agent
 from apps.infra.models import InfraQuery
 from apps.infra.tests.conftest import (
@@ -22,12 +22,14 @@ from apps.infra.tests.conftest import (
     FakePrometheus,
     log_doc,
     series,
+    span_doc,
 )
 
 pytestmark = pytest.mark.django_db
 
 START, END = "2026-11-26T08:00:00Z", "2026-11-26T10:00:00Z"
 STAFF = "/api/infra"
+MINE = "/api/requester/infra"
 LATENCY = {
     "metric": "cloud_volume_read_latency_seconds",
     "start": START,
@@ -44,6 +46,19 @@ def post(client: Client, path: str, body: dict[str, Any]) -> Any:
     return client.post(path, data=body, content_type="application/json")
 
 
+def console_turn(user: User) -> uuid.UUID:
+    """A running turn in a new console conversation of `user`."""
+    conversation = AgentConversation.objects.create(user=user, surface=AgentSurface.CONSOLE.value)
+    return AgentTurn.objects.create(
+        conversation=conversation,
+        seq=1,
+        message_masked="Why is db-01 slow?",
+        pii_level="routine",
+        session_family=uuid.uuid4(),
+        state=AgentTurnState.RUNNING.value,
+    ).id
+
+
 def turn_view(api_as: Any, user: User, turn: uuid.UUID) -> dict[str, Any]:
     reply = api_as(user).get(f"/api/agent/turns/{turn}")
     assert reply.status_code == 200
@@ -56,7 +71,7 @@ def turn_view(api_as: Any, user: User, turn: uuid.UUID) -> dict[str, Any]:
 def test_a_reply_after_an_unreachable_elasticsearch_says_so_in_code_s_words(
     api_as, technician_user, cloud_sim: CloudSim, es: FakeElasticsearch, prom: FakePrometheus
 ):
-    turn = uuid.uuid4()
+    turn = console_turn(technician_user)
     es.raises = httpx.ConnectError("refused")
 
     logs = post(as_agent(technician_user, "search_logs", turn), f"{STAFF}/logs/search", LOGS)
@@ -76,7 +91,7 @@ def test_a_reply_after_an_unreachable_elasticsearch_says_so_in_code_s_words(
 def test_each_unreachable_source_is_named_once_in_the_order_it_failed(
     api_as, technician_user, cloud_sim: CloudSim, es: FakeElasticsearch, prom: FakePrometheus
 ):
-    turn = uuid.uuid4()
+    turn = console_turn(technician_user)
     es.raises = httpx.ConnectError("refused")
     prom.raises = httpx.ReadTimeout("slow")
 
@@ -97,7 +112,7 @@ def test_a_customer_whose_projects_could_not_be_read_is_told_so(
 
     reply = post(
         as_agent(employee_user, "query_my_metrics", turn),
-        "/api/requester/infra/metrics/query",
+        f"{MINE}/metrics/query",
         LATENCY,
     )
 
@@ -109,7 +124,7 @@ def test_a_customer_whose_projects_could_not_be_read_is_told_so(
 def test_a_staff_query_whose_project_list_failed_blames_the_cloud_api_not_prometheus(
     api_as, technician_user, cloud_sim: CloudSim, prom: FakePrometheus
 ):
-    turn = uuid.uuid4()
+    turn = console_turn(technician_user)
     cloud_sim.cloud.add_fault(FaultKind.API_UNAVAILABLE, None, {})
 
     reply = post(
@@ -126,7 +141,7 @@ def test_a_staff_query_whose_project_list_failed_blames_the_cloud_api_not_promet
 def test_the_warning_is_in_the_language_of_the_message(
     api_as, technician_user, cloud_sim: CloudSim, es: FakeElasticsearch
 ):
-    turn = uuid.uuid4()
+    turn = console_turn(technician_user)
     es.raises = httpx.ConnectError("refused")
     post(as_agent(technician_user, "search_logs", turn), f"{STAFF}/logs/search", LOGS)
     AgentTurn.objects.filter(id=turn).update(message_masked="Vì sao db-01 chậm từ 9h sáng?")
@@ -138,7 +153,7 @@ def test_the_warning_is_in_the_language_of_the_message(
 def test_a_turn_whose_sources_all_answered_has_no_warning(
     api_as, technician_user, cloud_sim: CloudSim, es: FakeElasticsearch
 ):
-    turn = uuid.uuid4()
+    turn = console_turn(technician_user)
     post(as_agent(technician_user, "search_logs", turn), f"{STAFF}/logs/search", LOGS)
 
     view = turn_view(api_as, technician_user, turn)
@@ -152,7 +167,7 @@ def test_a_turn_whose_sources_all_answered_has_no_warning(
 def test_a_turn_shows_only_the_queries_it_ran(
     api_as, technician_user, cloud_sim: CloudSim, es: FakeElasticsearch
 ):
-    mine, other = uuid.uuid4(), uuid.uuid4()
+    mine, other = console_turn(technician_user), console_turn(technician_user)
     post(as_agent(technician_user, "search_logs", mine), f"{STAFF}/logs/search", LOGS)
     post(as_agent(technician_user, "search_logs", other), f"{STAFF}/logs/search", LOGS)
     post(api_as(technician_user), f"{STAFF}/logs/search", LOGS)
@@ -164,7 +179,7 @@ def test_a_turn_shows_only_the_queries_it_ran(
 def test_a_receipt_names_the_check_that_refused_its_query(
     api_as, technician_user, cloud_sim: CloudSim, prom: FakePrometheus
 ):
-    turn = uuid.uuid4()
+    turn = console_turn(technician_user)
 
     reply = post(
         as_agent(technician_user, "query_metrics", turn),
@@ -187,13 +202,13 @@ def test_a_receipt_says_its_answer_was_cut_to_the_result_cap(
     infra = settings.THRESHOLDS.infra.model_copy(update={"max_result_bytes": 700})
     settings.THRESHOLDS = settings.THRESHOLDS.model_copy(update={"infra": infra})
     es.docs = [log_doc("p", f"line {i} " + "x" * 100) for i in range(10)]
-    turn = uuid.uuid4()
+    turn = console_turn(technician_user)
 
     post(as_agent(technician_user, "search_logs", turn), f"{STAFF}/logs/search", LOGS)
 
     (receipt,) = turn_view(api_as, technician_user, turn)["queries"]
     assert receipt["truncated"] is True
-    assert receipt["link"].startswith(settings.KIBANA_URL)
+    assert receipt["sent"]["link"].startswith(settings.KIBANA_URL)
 
 
 def test_an_answer_that_was_not_cut_is_not_recorded_as_cut(
@@ -231,3 +246,59 @@ def test_every_answer_carries_the_link_its_row_records(
         body = answer.json()
         assert answer.status_code == 200
         assert body["link"] and body["link"] == rows[body["query_id"]]
+
+
+# ── what a customer never sees ──
+
+
+def test_the_customer_routes_answer_without_a_link(
+    api_as,
+    employee_user,
+    cloud_sim: CloudSim,
+    prom: FakePrometheus,
+    es: FakeElasticsearch,
+):
+    employee_user.external_id = LAN_SUBJECT
+    employee_user.save(update_fields=["external_id"])
+    prom.series = [series("p")]
+    es.docs = [span_doc("p")]
+    client = api_as(employee_user)
+
+    answers = [
+        post(client, f"{MINE}/metrics/query", LATENCY),
+        post(client, f"{MINE}/logs/search", LOGS),
+        post(client, f"{MINE}/traces/search", LOGS),
+        client.get(f"{MINE}/traces/t1"),
+    ]
+
+    assert [a.status_code for a in answers] == [200, 200, 200, 200]
+    assert all("link" not in a.json() for a in answers)
+    assert all(q.link for q in InfraQuery.objects.exclude(compiled=""))
+
+
+def test_a_customer_s_turn_shows_no_query_text_or_link(
+    api_as, employee_user, cloud_sim: CloudSim, prom: FakePrometheus
+):
+    employee_user.external_id = LAN_SUBJECT
+    employee_user.save(update_fields=["external_id"])
+    turn = uuid.uuid4()
+
+    post(as_agent(employee_user, "query_my_metrics", turn), f"{MINE}/metrics/query", LATENCY)
+
+    (receipt,) = turn_view(api_as, employee_user, turn)["queries"]
+    assert receipt["outcome"] == "ok"
+    assert receipt["sent"] is None
+    assert not {"compiled", "link"} & receipt.keys()
+
+
+def test_a_staff_turn_shows_what_each_query_sent_and_its_link(
+    api_as, technician_user, cloud_sim: CloudSim, prom: FakePrometheus
+):
+    turn = console_turn(technician_user)
+
+    post(as_agent(technician_user, "query_metrics", turn), f"{STAFF}/metrics/query", LATENCY)
+
+    (receipt,) = turn_view(api_as, technician_user, turn)["queries"]
+    row = InfraQuery.objects.get()
+    assert receipt["sent"] == {"compiled": row.compiled, "link": row.link}
+    assert row.compiled and row.link

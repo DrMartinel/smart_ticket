@@ -55,6 +55,7 @@ class AgentTurnOut(Schema):
     @classmethod
     def of(cls, turn: AgentTurn) -> AgentTurnOut:
         queries = list(InfraQuery.objects.of_turn(turn.id))
+        staff = turn.conversation.surface == AgentSurface.CONSOLE.value
         return cls(
             turn_id=turn.id,
             conversation_id=turn.conversation_id,
@@ -68,7 +69,7 @@ class AgentTurnOut(Schema):
             ticket_offered=turn.offers_ticket(),
             queued_at=turn.queued_at,
             finished_at=turn.finished_at,
-            queries=[InfraQueryReceiptOut.model_validate(q, from_attributes=True) for q in queries],
+            queries=[InfraQueryReceiptOut.of(q, staff=staff) for q in queries],
             warnings=missing_sources(queries, turn.language()),
         )
 
