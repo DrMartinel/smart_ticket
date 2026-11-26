@@ -2037,6 +2037,7 @@ export interface InfraQueryReceiptOut {
   id: string;
   created_at: string;
   backend: InfraBackend;
+  failed_backend?: InfraBackend | null;
   kind: InfraQueryKind;
   outcome: InfraOutcome;
   refusal: InfraRefusal | null;
