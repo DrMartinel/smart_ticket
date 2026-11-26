@@ -10,10 +10,11 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.db import models
-from django.db.models import F
+from django.db.models import F, Prefetch
 
 from apps.accounts.models import Language
 from apps.core.models import BaseModel
+from apps.infra.models import InfraQuery
 from apps.tickets.domain.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 if TYPE_CHECKING:
@@ -119,6 +120,13 @@ class AgentConversation(BaseModel):
 class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
     def of_user(self, user: User) -> AgentTurnQuerySet:
         return self.filter(conversation__user=user)
+
+    def with_receipts(self) -> AgentTurnQuerySet:
+        """The turns with their conversation, hand-off ticket and infra queries, oldest query
+        first."""
+        return self.select_related("conversation", "handoff_ticket").prefetch_related(
+            Prefetch("infra_queries", queryset=InfraQuery.objects.order_by("created_at"))
+        )
 
     def unfinished(self) -> AgentTurnQuerySet:
         return self.filter(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))

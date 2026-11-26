@@ -38,18 +38,13 @@ def start_turn(request: AuthedRequest, payload: AgentTurnIn) -> Status[AgentTurn
     turn = agent_turns.start(
         request.auth, payload.message, payload.surface, payload.conversation_id
     )
-    return Status(202, AgentTurnOut.of(turn))
+    return Status(202, AgentTurnOut.of(AgentTurn.objects.with_receipts().get(id=turn.id)))
 
 
 @router.get("/turns/{turn_id}", auth=SessionAuth(), response=AgentTurnOut)
 @require(Permission.AGENT_USE, agent=AgentTier.NONE)
 def turn(request: AuthedRequest, turn_id: uuid.UUID) -> AgentTurnOut:
-    found = (
-        AgentTurn.objects.of_user(request.auth.user)
-        .select_related("conversation", "handoff_ticket")
-        .filter(id=turn_id)
-        .first()
-    )
+    found = AgentTurn.objects.of_user(request.auth.user).with_receipts().filter(id=turn_id).first()
     if found is None:
         raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such turn")
     return AgentTurnOut.of(found)
@@ -58,7 +53,8 @@ def turn(request: AuthedRequest, turn_id: uuid.UUID) -> AgentTurnOut:
 @router.post("/turns/{turn_id}/ticket", auth=SessionAuth(), response=AgentTurnOut)
 @require(Permission.AGENT_USE, agent=AgentTier.NONE)
 def open_ticket(request: AuthedRequest, turn_id: uuid.UUID) -> AgentTurnOut:
-    return AgentTurnOut.of(agent_turns.open_ticket(request.auth.user, turn_id))
+    opened = agent_turns.open_ticket(request.auth.user, turn_id)
+    return AgentTurnOut.of(AgentTurn.objects.with_receipts().get(id=opened.id))
 
 
 @router.get("/conversations", auth=SessionAuth(), response=list[AgentConversationSummaryOut])

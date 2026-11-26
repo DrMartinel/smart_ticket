@@ -40,6 +40,7 @@ LOGS = {"start": START, "end": END}
 ES_DOWN = "Elasticsearch was unreachable; this answer has no logs or traces."
 PROMETHEUS_DOWN = "Prometheus was unreachable; this answer has no metrics."
 CLOUD_DOWN = "The cloud's API was unreachable; this answer has no resource state."
+QUERIES_TO_READ_A_CONVERSATION = 6
 
 
 def post(client: Client, path: str, body: dict[str, Any]) -> Any:
@@ -173,7 +174,7 @@ def test_a_turn_shows_only_the_queries_it_ran(
     post(api_as(technician_user), f"{STAFF}/logs/search", LOGS)
 
     (receipt,) = turn_view(api_as, technician_user, mine)["queries"]
-    assert receipt["id"] == str(InfraQuery.objects.of_turn(mine).get().id)
+    assert receipt["id"] == str(InfraQuery.objects.get(agent_turn_id=mine).id)
 
 
 def test_a_receipt_names_the_check_that_refused_its_query(
@@ -302,3 +303,41 @@ def test_a_staff_turn_shows_what_each_query_sent_and_its_link(
     row = InfraQuery.objects.get()
     assert receipt["sent"] == {"compiled": row.compiled, "link": row.link}
     assert row.compiled and row.link
+
+
+# ── reading a conversation ──
+
+
+@pytest.mark.parametrize("turns", [1, 4])
+def test_a_conversation_s_receipts_are_read_in_one_query_however_many_turns_it_has(
+    api_as, technician_user, django_assert_num_queries, turns
+):
+    conversation = AgentConversation.objects.create(
+        user=technician_user, surface=AgentSurface.CONSOLE.value
+    )
+    for seq in range(1, turns + 1):
+        turn = AgentTurn.objects.create(
+            conversation=conversation,
+            seq=seq,
+            message_masked="Why is db-01 slow?",
+            pii_level="routine",
+            session_family=uuid.uuid4(),
+            state=AgentTurnState.REPLIED.value,
+        )
+        for backend in ("prometheus", "elasticsearch"):
+            InfraQuery.objects.create(
+                actor=technician_user,
+                via="agent",
+                agent_turn=turn,
+                backend=backend,
+                kind="structured",
+                compiled="q",
+                outcome="ok",
+            )
+    client = api_as(technician_user)
+
+    with django_assert_num_queries(QUERIES_TO_READ_A_CONVERSATION):
+        reply = client.get(f"/api/agent/conversations/{conversation.id}")
+
+    assert reply.status_code == 200
+    assert [len(t["queries"]) for t in reply.json()["turns"]] == [2] * turns

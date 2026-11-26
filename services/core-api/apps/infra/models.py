@@ -47,12 +47,6 @@ class InfraOutcome(StrEnum):
     SCOPE_UNAVAILABLE = "scope_unavailable"
 
 
-class InfraQueryQuerySet(models.QuerySet["InfraQuery"]):
-    def of_turn(self, turn_id: uuid.UUID) -> InfraQueryQuerySet:
-        """The queries an agent turn made, oldest first."""
-        return self.filter(agent_turn_id=turn_id).order_by("created_at")
-
-
 class InfraQuery(BaseModel):
     """One query a person, their agent or a ticket's cues made, and what came of it."""
 
@@ -62,7 +56,11 @@ class InfraQuery(BaseModel):
     )
     via = models.CharField(max_length=8, choices=_choices(InfraVia))
     agent_turn = models.ForeignKey(
-        "agent.AgentTurn", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+        "agent.AgentTurn",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="infra_queries",
     )
     ticket = models.ForeignKey(
         "tickets.Ticket", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
@@ -84,8 +82,6 @@ class InfraQuery(BaseModel):
     withheld = models.PositiveIntegerField(default=0)
     truncated = models.BooleanField(default=False)
     link = models.TextField(blank=True, default="")
-
-    objects = InfraQueryQuerySet.as_manager()
 
     class Meta(BaseModel.Meta):
         db_table = "infra_queries"

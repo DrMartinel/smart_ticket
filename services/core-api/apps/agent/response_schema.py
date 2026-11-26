@@ -18,7 +18,6 @@ from apps.agent.models import (
     AgentTurn,
     AgentTurnState,
 )
-from apps.infra.models import InfraQuery
 from apps.infra.response_schema import InfraQueryReceiptOut
 from apps.infra.services.recording import missing_sources
 
@@ -54,7 +53,7 @@ class AgentTurnOut(Schema):
 
     @classmethod
     def of(cls, turn: AgentTurn) -> AgentTurnOut:
-        queries = list(InfraQuery.objects.of_turn(turn.id))
+        queries = list(turn.infra_queries.all())
         staff = turn.conversation.surface == AgentSurface.CONSOLE.value
         return cls(
             turn_id=turn.id,
@@ -105,7 +104,7 @@ class AgentConversationOut(Schema):
 
     @classmethod
     def of(cls, conversation: AgentConversation) -> AgentConversationOut:
-        turns = conversation.turns.select_related("conversation", "handoff_ticket").order_by("seq")
+        turns = conversation.turns.with_receipts().order_by("seq")
         return cls(
             conversation_id=conversation.id,
             surface=AgentSurface(conversation.surface),
