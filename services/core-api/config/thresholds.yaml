@@ -285,10 +285,12 @@ access:
 agent:
   # Model calls, tool calls and model tokens (in + out) one turn may use; core-api
   # also refuses a turn's write calls beyond max_tool_calls_per_turn
-  # (FR-F15-015). 🔧 assumptions, not measured.
+  # (FR-F15-015). The token budget pays for max_steps calls: each sends the
+  # prompt and the chat's tool list, about 5,200 tokens before any result
+  # (F17 §h.3). 🔧 assumptions, not measured.
   max_steps: 8
   max_tool_calls_per_turn: 6
-  max_model_tokens_per_turn: 16000
+  max_model_tokens_per_turn: 48000
   # Read calls one turn may make; with it set, max_tool_calls_per_turn counts
   # writes only, and core-api refuses a turn's reads beyond it too. null keeps
   # F15's rule: every call counts against max_tool_calls_per_turn (F17
@@ -296,9 +298,11 @@ agent:
   max_read_calls_per_turn: 16
   # A console turn's model calls and model tokens, in place of max_steps and
   # max_model_tokens_per_turn: investigating the cloud takes more reads (F17
-  # §h.3, ADR-0048). 🔧 assumptions, revisited after the first traces.
+  # §h.3, ADR-0048). Each call sends the prompt and the console's tool list,
+  # about 8,000 tokens before any result. 🔧 assumptions, revisited after the
+  # first traces.
   console_max_steps: 20
-  console_max_model_tokens_per_turn: 60000
+  console_max_model_tokens_per_turn: 200000
   # Seconds an agent turn's token lives (F15, BR-F15-02); it also dies with
   # the turn and with the sign-in it was minted from. 🔧 assumption, not measured.
   token_ttl_seconds: 300

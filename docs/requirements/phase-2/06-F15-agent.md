@@ -363,7 +363,7 @@ VPN rớt khoảng 10 phút một lần từ sáng, gọi em qua 0912 345 678 nh
 { "turn_id": "at-77c2", "surface": "chat", "language": "vi",
   "message_masked": "VPN rớt khoảng 10 phút một lần từ sáng, gọi em qua [PHONE_VN_1] nhé, mở phiếu giúp em",
   "earlier_turns": [],
-  "limits": { "max_steps": 8, "max_tool_calls": 6, "max_model_tokens": 16000 },
+  "limits": { "max_steps": 8, "max_tool_calls": 6, "max_model_tokens": 48000 },
   "chat_conversation_id": "cv-9b31",
   "token": "**********" }
 ```
@@ -456,7 +456,7 @@ Model sees: `{"tool": "request_ticket", "status": 200, "result": {"public_id": "
 agent:
   max_steps: 8                    # 🔧 model calls per turn
   max_tool_calls_per_turn: 6      # 🔧 tool calls per turn; core-api also caps write calls at this
-  max_model_tokens_per_turn: 16000  # 🔧 tokens in + out per turn
+  max_model_tokens_per_turn: 48000  # 🔧 tokens in + out per turn (16000 until F17 §h.3)
   token_ttl_seconds: 300          # agent token lifetime; ≥ AI_ENGINE_AGENT_READ_TIMEOUT_SEC (checked at boot)
   confirm_ttl_minutes: 30         # a pending confirm card
   draft_ttl_hours: 72             # a human_only draft
