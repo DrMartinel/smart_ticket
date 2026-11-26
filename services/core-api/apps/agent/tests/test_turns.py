@@ -865,6 +865,27 @@ def test_a_handoff_sentence_follows_the_message_language(
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("profile", "message", "language"),
+    [
+        ("vi", "My VPN drops every ten minutes.", "en"),
+        ("en", "VPN của tôi bị ngắt mỗi mười phút.", "vi"),
+    ],
+)
+def test_a_turn_says_the_language_its_words_are_in_whatever_the_profile_says(
+    employee_user, api_as, engine, queued, profile, message, language
+):
+    employee_user.language = profile
+    employee_user.save(update_fields=["language"])
+    client = api_as(employee_user)
+    turn = _start(client, message)
+
+    agent_turns.run(turn.id)
+
+    assert client.get(f"/api/agent/turns/{turn.id}").json()["language"] == language
+
+
+@pytest.mark.django_db
 def test_a_mask_failed_turn_hands_off_in_the_message_language(
     employee_user, api_as, engine, queued
 ):

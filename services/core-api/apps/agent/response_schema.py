@@ -8,6 +8,7 @@ from typing import Literal
 
 from ninja import Schema
 
+from apps.accounts.models import Language
 from apps.agent.domain.vocabulary import CHECKED_GOES_WITH_TICKET, OPEN_TICKET, TICKET_OPENED
 from apps.agent.models import (
     AgentAction,
@@ -84,11 +85,14 @@ class AgentTurnOut(Schema):
     finished_at: datetime | None
     queries: list[InfraQueryReceiptOut] = []
     warnings: list[str] = []
+    # The language of the turn's reply, choices, hand-off text and warnings.
+    language: Language
 
     @classmethod
     def of(cls, turn: AgentTurn) -> AgentTurnOut:
         queries = list(turn.infra_queries.all())
         staff = turn.conversation.surface == AgentSurface.CONSOLE.value
+        language = turn.language()
         return cls(
             turn_id=turn.id,
             conversation_id=turn.conversation_id,
@@ -105,7 +109,8 @@ class AgentTurnOut(Schema):
             queued_at=turn.queued_at,
             finished_at=turn.finished_at,
             queries=[InfraQueryReceiptOut.of(q, staff=staff) for q in queries],
-            warnings=missing_sources(queries, turn.language()),
+            warnings=missing_sources(queries, language),
+            language=language,
         )
 
 
