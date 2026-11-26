@@ -179,6 +179,8 @@ def make_thresholds(**overrides) -> Thresholds:
             max_spans=500,
             max_result_bytes=24000,
             max_selectors=10,
+            max_regex_kib=256,
+            max_regex_matchers=10,
         ),
     )
     base.update(overrides)

@@ -27,9 +27,6 @@ BINARY_OPS = frozenset(
 )
 # Label values of every shape; a regex matcher accepting all of them matches everything.
 SAMPLES = ("a", "db-01", "Zz 9.:/_é\n")
-# How a matcher's regex is read: RE2, the engine and syntax Prometheus uses, in linear time.
-RE2_OPTIONS = re2.Options()
-RE2_OPTIONS.log_errors = False
 # The keys `parse_query` gives each node, matcher and vector matching core-api knows.
 SELECTOR_KEYS = frozenset({"type", "name", "offset", "matchers", "timestamp", "startOrEnd"})
 NODE_KEYS = {
@@ -79,24 +76,6 @@ def text(value: Any) -> str:
     return value
 
 
-def matches_everything(kind: str, value: str) -> bool:
-    """Whether a matcher accepts every value a label has: `!=""`, a regex accepting every sample,
-    or a negative regex excluding the empty string and no sample."""
-    if kind == "=":
-        return False
-    if kind == "!=":
-        return value == ""
-    try:
-        pattern = re2.compile(f"(?s:{value})", RE2_OPTIONS)
-    except re2.error as e:
-        raise QueryRefused(
-            QueryCheck.UNSUPPORTED, f"core-api can't read the regular expression {value!r}"
-        ) from e
-    if kind == "=~":
-        return all(pattern.fullmatch(sample) for sample in SAMPLES)
-    return bool(pattern.fullmatch("")) and not any(pattern.fullmatch(s) for s in SAMPLES)
-
-
 class ScopedPromQL:
     """Writes a parsed expression back out as PromQL, refusing what the checks don't allow and
     adding the scope matcher to every selector."""
@@ -105,6 +84,12 @@ class ScopedPromQL:
         self.caps = caps
         self.scope = scope
         self.selectors = 0
+        self.regexes = 0
+        # How a matcher's regex is read: RE2, the engine and syntax Prometheus uses, in linear
+        # time and within the memory cap.
+        self.regex_options = re2.Options()
+        self.regex_options.log_errors = False
+        self.regex_options.max_mem = caps.max_regex_kib * 1024
 
     def expr(self, node: Node) -> str:
         """`node` as PromQL."""
@@ -163,7 +148,7 @@ class ScopedPromQL:
             if kind not in ("=", "!=", "=~", "!~"):
                 raise self.unsupported(f"the matcher type {kind!r}")
             value = text(value)
-            if matches_everything(kind, value):
+            if self.matches_everything(kind, value):
                 raise QueryRefused(
                     QueryCheck.MATCH_ALL,
                     f"{label}{kind}{promql_string(value)} matches every value; name the ones "
@@ -171,6 +156,32 @@ class ScopedPromQL:
                 )
             matchers.append(f"{self.label(label)}{kind}{promql_string(value)}")
         return f"{name}{{{','.join([*matchers, self.scope])}}}"
+
+    def matches_everything(self, kind: str, value: str) -> bool:
+        """Whether a matcher accepts every value a label has: `!=""`, a regex accepting every
+        sample, or a negative regex excluding the empty string and no sample; refuses a regex
+        over the memory cap, or one regex matcher too many."""
+        if kind == "=":
+            return False
+        if kind == "!=":
+            return value == ""
+        self.regexes += 1
+        if self.regexes > self.caps.max_regex_matchers:
+            raise QueryRefused(
+                QueryCheck.SELECTORS,
+                f"more than {self.caps.max_regex_matchers} regex matchers; name values with = "
+                "or split the query",
+            )
+        try:
+            pattern = re2.compile(f"(?s:{value})", self.regex_options)
+        except re2.error as e:
+            raise QueryRefused(
+                QueryCheck.UNSUPPORTED,
+                f"core-api can't read the regular expression {value!r}; use a simpler one",
+            ) from e
+        if kind == "=~":
+            return all(pattern.fullmatch(sample) for sample in SAMPLES)
+        return bool(pattern.fullmatch("")) and not any(pattern.fullmatch(s) for s in SAMPLES)
 
     def range(self, ms: int) -> str:
         """A range selector's or subquery's range; refuses one over the cap."""

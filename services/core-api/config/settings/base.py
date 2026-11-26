@@ -573,6 +573,9 @@ class InfraThresholds(BaseModel):
     max_result_bytes: int = Field(ge=1)
     # The most selectors one raw PromQL query may hold (FR-F17-005).
     max_selectors: int = Field(ge=1)
+    # RE2's memory for one raw PromQL regex, and the most regex matchers one query may hold.
+    max_regex_kib: int = Field(ge=1)
+    max_regex_matchers: int = Field(ge=1)
 
 
 class Thresholds(BaseModel):

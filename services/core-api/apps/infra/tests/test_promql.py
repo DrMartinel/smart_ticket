@@ -541,6 +541,40 @@ def test_a_catastrophic_regex_is_checked_in_linear_time(
     assert len(prom.queries) == (1 if runs else 0)
 
 
+def test_a_regex_over_the_memory_cap_is_refused_and_never_run(
+    api_as, technician_user, settings, cloud_sim: CloudSim, prom: FakePrometheus
+):
+    with_caps(settings, max_regex_kib=64)
+    prom.tree = vs("cloud_server_up", m("server", "=~", r"\pL{10}"))
+
+    reply = run(api_as(technician_user))
+
+    assert refusal(reply) == (422, "infra_query_refused", "unsupported")
+    assert prom.queries == []
+
+
+@pytest.mark.parametrize(
+    ("third", "runs"), [(m("server", "=~", "web-.*"), False), (m("server", "=", "web-01"), True)]
+)
+def test_more_regex_matchers_than_the_cap_are_refused(
+    api_as, technician_user, settings, cloud_sim: CloudSim, prom: FakePrometheus, third, runs
+):
+    with_caps(settings, max_regex_matchers=2)
+    prom.tree = binary(
+        "+",
+        vs("cloud_server_up", third),
+        vs("cloud_server_up", m("server", "=~", "db-.*"), m("server_id", "!~", "s1")),
+    )
+
+    reply = run(api_as(technician_user))
+
+    if runs:
+        assert reply.status_code == 200 and len(prom.queries) == 1
+    else:
+        assert refusal(reply) == (422, "infra_query_refused", "selectors")
+        assert prom.queries == []
+
+
 @pytest.mark.parametrize(
     "path", ["metrics/promql", "metrics/query", "logs/search", "traces/search"]
 )

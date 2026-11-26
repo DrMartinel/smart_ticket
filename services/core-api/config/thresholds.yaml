@@ -319,3 +319,8 @@ infra:
   # The most selectors one raw PromQL query may hold (F17 FR-F17-005); the
   # range, step and series caps above apply to it too. 🔧
   max_selectors: 10
+  # The memory RE2 may spend reading one regex matcher in raw PromQL, and the
+  # most regex matchers one query may hold (F17 FR-F17-005); a regex over
+  # either is refused. 🔧
+  max_regex_kib: 256
+  max_regex_matchers: 10
