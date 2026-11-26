@@ -31,7 +31,9 @@ from apps.review.models import EvalCandidate, ReviewDecision, ReviewItem
 from apps.rollout.testing import all_live
 from apps.sla.models import Clock, ClockKind
 from apps.sla.tests.conftest import submitted, vn
+from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.models import Incident, RoutingDecision, Ticket, TicketComment
+from apps.tickets.services.pipeline import ticket_process
 
 pytestmark = pytest.mark.django_db
 
@@ -49,6 +51,16 @@ def confirmed(desk, engine: Engine, count: int = 5) -> tuple[Incident, list[Tick
     incidents.confirm(incident.public_id, desk["duc"], "VPN công ty gián đoạn", "network", "VPN")
     incident.refresh_from_db()
     return incident, tickets
+
+
+def arrive_with(reporter, engine: Engine, pii_level: PIILevel) -> Ticket:
+    """A new ticket about VPN at `pii_level`, through the pipeline."""
+    engine.vector = near(VPN)
+    ticket = submitted(reporter)
+    Ticket.objects.filter(pk=ticket.pk).update(pii_level=pii_level.value)
+    ticket_process(str(ticket.id))
+    ticket.refresh_from_db()
+    return ticket
 
 
 def resolution_clock(ticket: Ticket) -> Clock:
@@ -132,6 +144,32 @@ class TestConfirmAndDismiss:
         assert list(RoutingDecision.objects.filter(ticket__in=tickets).values()) == routed
         incident.refresh_from_db()
         assert (incident.status, incident.category) == ("confirmed", "network")
+
+    def test_confirm_leaves_a_linked_critical_pii_review_open(self, desk, engine, clock):
+        incident, _ = outage(desk, engine)
+        leaked = arrive_with(desk["lan"], engine, PIILevel.CRITICAL)
+        (item,) = ReviewItem.objects.filter(ticket=leaked)
+        assert item.queue == "pii_verify"
+        assert IncidentLink.objects.active().filter(incident=incident, ticket=leaked).exists()
+
+        incidents.confirm(incident.public_id, desk["duc"], "VPN công ty gián đoạn", "network", "")
+
+        item.refresh_from_db()
+        assert item.state == "pending"
+        assert not ReviewDecision.objects.filter(review_item=item).exists()
+
+    def test_confirm_leaves_a_swept_in_mask_failed_review_open(self, desk, engine, clock):
+        unmasked = arrive_with(desk["lan"], engine, PIILevel.MASK_FAILED)
+        incident, _ = outage(desk, engine, count=4)
+        (item,) = ReviewItem.objects.filter(ticket=unmasked)
+        assert item.queue == "mask_failed"
+        assert IncidentLink.objects.active().filter(incident=incident, ticket=unmasked).exists()
+
+        incidents.confirm(incident.public_id, desk["duc"], "VPN công ty gián đoạn", "network", "")
+
+        item.refresh_from_db()
+        assert item.state == "pending"
+        assert not ReviewDecision.objects.filter(review_item=item).exists()
 
     def test_dismiss_returns_tickets_to_normal_review(self, desk, engine, clock):
         """AC-F7-06 (BR-F7-01)."""

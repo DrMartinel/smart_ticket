@@ -257,8 +257,9 @@ class Incidents:
     def confirm(
         self, public_id: str, actor: User, title: str, category: str | None, service: str
     ) -> Incident:
-        """Confirms a proposal: each linked ticket's pending review item is decided `approve` in the
-        manager's name, and their resolution clocks wait for the incident (BR-F7-03, 07)."""
+        """Confirms a proposal: each linked ticket's pending review item, outside the security and
+        mask-failed queues, is decided `approve` in the manager's name, and their resolution
+        clocks wait for the incident (BR-F7-03, 07)."""
         self.check_manager(actor)
         if category:
             Category.objects.require(category)
@@ -296,15 +297,21 @@ class Incidents:
             sla_clocks.incident_hold(ticket, True)
 
     def agree(self, ticket: Ticket, actor: User) -> None:
-        """Decides the ticket's pending review item `approve`: agreement with the router's
-        escalation, so no eval candidate and no hand-off."""
-        from apps.review.models import ReviewItem
+        """Decides the ticket's pending review item `approve`, unless it waits in a security or
+        mask-failed queue: agreement with the router's escalation, so no eval candidate and no
+        hand-off."""
+        from apps.review.models import SECURITY_QUEUES, ReviewItem
         from apps.review.request_schema import DecisionIn
         from apps.review.services.decisions import review_decisions
+        from apps.tickets.domain.router import ReviewQueue
 
-        item: ReviewItem | None = ReviewItem.objects.filter(
-            ticket=ticket, state__in=ReviewItem.OPEN_STATES, comment__isnull=True
-        ).first()
+        item: ReviewItem | None = (
+            ReviewItem.objects.filter(
+                ticket=ticket, state__in=ReviewItem.OPEN_STATES, comment__isnull=True
+            )
+            .exclude(queue__in=[*SECURITY_QUEUES, ReviewQueue.MASK_FAILED.value])
+            .first()
+        )
         if item is not None:
             review_decisions.decide(
                 item, actor, DecisionIn(action_taken="approve", time_spent_sec=0), handoff=False
