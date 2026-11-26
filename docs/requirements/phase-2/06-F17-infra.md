@@ -289,7 +289,7 @@ F17 doesn't wait on ADR-0047's guards (OQ-F17-06).
 | Code | Status | When |
 |---|---|---|
 | `infra_not_found` | 404 | No such resource, or outside the caller's scope |
-| `infra_query_refused` | 422 | A cap or check failed; `details.reason` names it (`range`, `step`, `series`, `match_all`, `function`, `selectors`, `field`, `dataset`) |
+| `infra_query_refused` | 422 | A cap or check failed; `details.reason` names it (`range`, `step`, `series`, `match_all`, `function`, `selectors`, `field`, `dataset`, `unsupported`: raw PromQL syntax core-api can't check) |
 | `infra_scope_unavailable` | 424 | Keystone did not answer |
 | `infra_backend_unavailable` | 424 | The backend did not answer in time |
 | `infra_ticket_required` | 409 | A staff change without an open ticket the person covers |
@@ -312,6 +312,7 @@ infra:
   max_log_docs: 100
   max_spans: 500
   max_result_bytes: 24000
+  max_selectors: 10        # raw PromQL (FR-F17-005)
   max_queries_per_turn: 16
 agent:
   max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn

@@ -71,7 +71,7 @@ answer:
      core-api compiles to PromQL or Elasticsearch DSL;
    - **raw PromQL**, which core-api parses with Prometheus's own
      `/api/v1/parse_query` and checks before running: allowlisted functions,
-     no match-everything matcher, range, step and series caps.
+     no match-everything matcher, range, step, series and selector caps.
    Every cap is in `thresholds.yaml` `infra:`. A query over a cap is a coded
    422 the model can read and narrow.
 5. **Infra results are untrusted and masked.** Log messages, span

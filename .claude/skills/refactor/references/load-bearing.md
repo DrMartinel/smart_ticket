@@ -603,13 +603,38 @@ guard and that comment is later trimmed, the entry is the record.
   `test_a_tree_core_api_cannot_check_is_refused_and_never_run`,
   `test_a_label_value_cannot_break_out_of_its_matcher`.*
 - **`ScopedPromQL.expr` refusing a node, matcher, modifier or matching it
-  doesn't know (`unsupported`), and `Observability.promql` refusing a query
-  that nests too deeply.** A newer Prometheus adds syntax (duration
-  expressions, for one), and writing an unknown node out as nothing, or
-  skipping it, could drop a selector's scope or change what runs. A
-  `RecursionError` left alone is a 500 with no `infra_queries` row.
+  doesn't know (`unsupported`), `expect` refusing a key `NODE_KEYS`,
+  `MATCHER_KEYS` or `MATCHING_KEYS` doesn't list, and `Observability.promql`
+  refusing a query that nests too deeply.** A newer Prometheus adds syntax
+  (duration expressions, for one) or a key to a node it already had, and
+  writing an unknown node out as nothing, or dropping a key, could drop a
+  selector's scope or change what runs. A `RecursionError` left alone is a
+  500 with no `infra_queries` row.
   *`test_a_tree_core_api_cannot_check_is_refused_and_never_run`,
   `test_a_query_nested_too_deeply_is_refused_and_never_run`.*
+- **`matches_everything` reading a matcher's regex with RE2 (`google-re2`),
+  never Python's `re`.** The regex is the caller's, and the agent can send
+  it: Python's backtracking engine takes hours on one Prometheus accepts
+  (`a|db-01|` then forty `.*` then `Q`), and three such requests hold every
+  gunicorn worker. RE2 runs in linear time, and it is Prometheus's own
+  syntax, so a leading `(?i)` inside `(?s:…)` compiles as it does there.
+  *`test_a_catastrophic_regex_is_checked_in_linear_time`,
+  `test_a_matcher_that_narrows_is_allowed`.*
+- **`match_all` is best effort for `=~`.** A regex accepting every sample
+  value is refused, as are `!=""` and a `!~` whose regex matches `""` and no
+  sample (`!~"()"`, `!~"^$"`); a wider regex that misses one sample still
+  runs. What bounds such a query is `max_series`, checked after it runs, and
+  the project matcher, which no regex can widen.
+  *`test_a_raw_query_outside_the_checks_is_refused_and_never_run`.*
+- **`ScopedPromQL.binary` refusing `project` in `group_left` or `group_right`
+  (`field`).** Either copies the other side's `project` label onto the
+  result, so a series reads as another project's, as `label_replace` would.
+  *`test_a_raw_query_outside_the_checks_is_refused_and_never_run`.*
+- **`project_id` with `min_length=1` on the metric, PromQL, log and trace
+  bodies.** `project_id=""` passes `InfraScope.narrowed_to` and scopes every
+  selector to `project=""`, which Prometheus and prom-label-proxy both read
+  as "series with no project label": the provider's own.
+  *`test_an_empty_project_id_is_refused_and_runs_nothing`.*
 - **A parser that fails refusing the query (424, or 422 `backend_refused`),
   and `PROMETHEUS_PARSE_URL` used only for `parse_query`.** That URL is
   Prometheus itself, with no proxy in front: falling back to the text as
