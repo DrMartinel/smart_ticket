@@ -217,7 +217,7 @@ class AgentTurns:
         request = AgentTurnRequest(
             turn_id=turn.id,
             surface=cast(Any, conversation.surface),
-            language=user.preferred_language().value,
+            language=turn.language().value,
             message_masked=turn.message_masked,
             earlier_turns=self.earlier_turns(turn),
             limits=AgentLimits(
@@ -329,7 +329,7 @@ class AgentTurns:
     # ── handing off (BR-F15-13, BR-F15-14, FR-F15-016) ──
 
     def _hand_off(self, turn_id: uuid.UUID, reason: ReasonCode) -> None:
-        """Ends a running turn with `reason` and its message in the user's language; on the chat
+        """Ends a running turn with `reason` and its message in the message's language; on the chat
         surface, an employee's turn becomes a ticket for a person."""
         with transaction.atomic():
             turn = (
@@ -344,7 +344,7 @@ class AgentTurns:
             user = conversation.user
             turn.state = AgentTurnState.HANDED_OFF.value
             turn.stop_reason = reason.value
-            turn.reply_text = HANDOFF_TEXT[reason][user.preferred_language()]
+            turn.reply_text = HANDOFF_TEXT[reason][turn.language()]
             turn.finished_at = timezone.now()
             turn.save(update_fields=["state", "stop_reason", "reply_text", "finished_at"])
             if reason in _ENDS_CONVERSATION:

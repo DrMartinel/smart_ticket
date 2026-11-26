@@ -3,6 +3,7 @@ call waiting for the user's confirmation, or a draft a person applies (F15, ADR-
 
 from __future__ import annotations
 
+import unicodedata
 import uuid
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -11,6 +12,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import F
 
+from apps.accounts.models import Language
 from apps.core.models import BaseModel
 
 if TYPE_CHECKING:
@@ -139,6 +141,12 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
         return merged
 
 
+# The letters Vietnamese is written with and English is not: its extra vowels, đ, and tone marks.
+_VIETNAMESE_LETTERS = frozenset(
+    "ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ"
+)
+
+
 class AgentTurn(BaseModel):
     """One message to the agent and what the agent did with it."""
 
@@ -173,6 +181,11 @@ class AgentTurn(BaseModel):
     finished_at = models.DateTimeField(null=True, blank=True)
 
     objects = AgentTurnQuerySet.as_manager()
+
+    def language(self) -> Language:
+        """The language the message is written in: Vietnamese if it has a Vietnamese letter."""
+        letters = set(unicodedata.normalize("NFC", self.message_masked).lower())
+        return Language.VI if letters & _VIETNAMESE_LETTERS else Language.EN
 
     class Meta(BaseModel.Meta):
         db_table = "agent_turns"

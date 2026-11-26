@@ -627,7 +627,12 @@ each file is clean.
 
 **Priority:** High before the `agent_chat` or `agent_console` flag goes on · **Spec:** [06-F15-agent.md](requirements/phase-2/06-F15-agent.md) · ADR-0046
 
-- **No eval has run on `agent.v1`.** The scripted trace suite
+- **No eval has run on `agent.v1` or `agent.v2`** (v2 adds rule 7: an
+  answered helpdesk question gets one line, not a restated answer), nor on
+  `choose_action`'s one re-ask of an invalid reply (ADR-0046 #12, amended):
+  how often DeepSeek needs it is unmeasured. The reply language now follows
+  the message (FR-F15-021, amended): Vietnamese typed without accents reads
+  as English. The scripted trace suite
   (`evals/suites/test_agent_traces.py`) was written in PR 9 and has not been
   run; run it first (it needs Postgres, no model), then add it to the
   offline eval gate's suite step. Then the live agent eval

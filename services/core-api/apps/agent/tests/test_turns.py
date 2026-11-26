@@ -15,7 +15,7 @@ import pytest
 from django.test import Client
 from django.utils import timezone
 
-from apps.accounts.models import RefreshSession
+from apps.accounts.models import Language, RefreshSession
 from apps.accounts.testing import agent_token_for
 from apps.agent.models import (
     AgentAction,
@@ -649,6 +649,78 @@ def test_ai_engine_gets_the_limits_language_and_no_access(
         turn.message_masked,
     )
     assert body["token"] and "permission" not in json.dumps(body)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("profile", "message", "language"),
+    [
+        ("vi", "Reply to TKT-2026-001543 saying I'm still waiting.", "en"),
+        ("en", "Làm sao để đặt lại mật khẩu AWS access portal?", "vi"),
+        ("vi", "TKT-2026-001543?", "en"),
+    ],
+    ids=["english-message-vi-profile", "vietnamese-message-en-profile", "no-letters"],
+)
+def test_the_reply_language_follows_the_message_whatever_the_profile_says(
+    employee_user, api_as, live, engine, queued, profile, message, language
+):
+    employee_user.language = profile
+    employee_user.save(update_fields=["language"])
+    turn = _start(api_as(employee_user), message)
+
+    agent_turns.run(turn.id)
+
+    (body,) = engine.turn_bodies
+    assert body["language"] == language
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("profile", "message", "language"),
+    [
+        ("vi", "My VPN drops every ten minutes.", "en"),
+        ("en", "VPN của tôi bị ngắt mỗi mười phút.", "vi"),
+    ],
+)
+def test_a_handoff_sentence_follows_the_message_language(
+    employee_user, api_as, live, engine, queued, profile, message, language
+):
+    from apps.agent.utils.vocabulary import HANDOFF_TEXT
+
+    employee_user.language = profile
+    employee_user.save(update_fields=["language"])
+    engine.reply = _handed_off("model_unavailable")
+    turn = _start(api_as(employee_user), message)
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert turn.reply_text == HANDOFF_TEXT[ReasonCode.AGENT_MODEL_UNAVAILABLE][language]
+
+
+@pytest.mark.django_db
+def test_a_mask_failed_turn_hands_off_in_the_message_language(
+    employee_user, api_as, live, engine, queued
+):
+    from apps.agent.utils.vocabulary import HANDOFF_TEXT
+
+    employee_user.language = "en"
+    employee_user.save(update_fields=["language"])
+    engine.ner_fails = True
+
+    turn = _start(api_as(employee_user), f"Gọi cho tôi số {PHONE}, VPN bị lỗi")
+
+    turn.refresh_from_db()
+    assert turn.state == "handed_off" and turn.stop_reason is not None
+    assert turn.reply_text == HANDOFF_TEXT[ReasonCode(turn.stop_reason)][Language.VI]
+
+
+def test_a_decomposed_vietnamese_message_is_vietnamese():
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFD", "mật khẩu")
+
+    assert AgentTurn(message_masked=decomposed).language() == "vi"
 
 
 @pytest.mark.django_db
