@@ -5,6 +5,7 @@ from ninja import Header, Router, Status
 
 from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
+from apps.agent.models import AgentTargetKind
 from apps.itsm_mock.models import ExecutionState, Runbook, RunbookExecution
 from apps.itsm_mock.request_schema import (
     CallbackIn,
@@ -55,13 +56,21 @@ def runbook_panel(request: AuthedRequest, item_id: uuid.UUID) -> RunbookPanel:
 
 
 @router.post("/review-items/{item_id}/execute", auth=SessionAuth(), response=RunbookExecutionOut)
-@require(Permission.RUNBOOKS_EXECUTE, agent=AgentTier.HUMAN_ONLY)
+@require(
+    Permission.RUNBOOKS_EXECUTE,
+    agent=AgentTier.HUMAN_ONLY,
+    target=AgentTargetKind.REVIEW_ITEM,
+)
 def execute(request: AuthedRequest, item_id: uuid.UUID, payload: ExecuteIn) -> RunbookExecution:
     return runbooks.execute(item_id, request.auth.user, payload.payload)
 
 
 @router.post("/executions/{execution_id}/resolve", auth=SessionAuth(), response=RunbookExecutionOut)
-@require(Permission.RUNBOOKS_EXECUTE, agent=AgentTier.HUMAN_ONLY)
+@require(
+    Permission.RUNBOOKS_EXECUTE,
+    agent=AgentTier.HUMAN_ONLY,
+    target=AgentTargetKind.RUNBOOK_EXECUTION,
+)
 def resolve(
     request: AuthedRequest, execution_id: uuid.UUID, payload: ExecutionResolveIn
 ) -> RunbookExecution:

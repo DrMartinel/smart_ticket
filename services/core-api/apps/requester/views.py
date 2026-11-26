@@ -9,6 +9,7 @@ from ninja import Query, Router
 
 from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
+from apps.agent.models import AgentTargetKind
 from apps.accounts.response_schema import DepartmentTicketOut
 from apps.requester.request_schema import RatingIn, ReopenIn, ReplyIn
 from apps.requester.response_schema import (
@@ -72,14 +73,14 @@ def my_ticket(request: AuthedRequest, public_id: str) -> RequesterTicketOut:
 
 
 @router.post("/tickets/{public_id}/replies", auth=SessionAuth(), response=ThreadCommentOut)
-@require(Permission.REQUESTER_TICKETS, agent=AgentTier.CONFIRM)
+@require(Permission.REQUESTER_TICKETS, agent=AgentTier.CONFIRM, target=AgentTargetKind.TICKET)
 def reply(request: AuthedRequest, public_id: str, payload: ReplyIn) -> ThreadCommentOut:
     comment = requester_tickets.reply(request.auth.user, public_id, payload.body)
     return ThreadCommentOut.of(comment, request.auth.user)
 
 
 @router.post("/tickets/{public_id}/reopen", auth=SessionAuth(), response=ReopenOut)
-@require(Permission.REQUESTER_TICKETS, agent=AgentTier.CONFIRM)
+@require(Permission.REQUESTER_TICKETS, agent=AgentTier.CONFIRM, target=AgentTargetKind.TICKET)
 def reopen(request: AuthedRequest, public_id: str, payload: ReopenIn) -> ReopenOut:
     done = requester_tickets.reopen(request.auth.user, public_id, payload.reason)
     return ReopenOut(reopened=done.reopened, new_ticket=done.new_ticket)
