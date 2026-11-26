@@ -40,7 +40,8 @@ git diff --stat origin/<base>...HEAD
 - **Uncommitted changes:** list them and ask whether they belong in this MR. Never
   commit them without being asked.
 - **An open PR for this branch already exists** (`gh pr list --head <branch>`): offer
-  to update its description with `gh pr edit` instead of opening a second one.
+  to update its title and description instead of opening a second one (step 8
+  says how).
 
 ## 2. Read the change
 
@@ -202,7 +203,17 @@ git push -u origin <branch>
 gh pr create --base <base> --head <branch> --title "<title>" --body-file "<scratchpad>/mr-body.md"
 ```
 
-Add `--draft` only if the user asked for a draft. Then call the ccd_pr
+Add `--draft` only if the user asked for a draft.
+
+To update a PR that already exists, push the same way, then set its title and
+body through the REST API. `gh pr edit` fails on this repo: it trips on
+GitHub's Projects (classic) deprecation.
+
+```bash
+gh api -X PATCH repos/DrMartinel/smart_ticket/pulls/<n> -f title="<title>" -F body=@"<scratchpad>/mr-body.md"
+```
+
+Then call the ccd_pr
 `get_status` tool and, if it doesn't report this PR, `bind_pr` it. Never enable
 auto-merge unless asked.
 
