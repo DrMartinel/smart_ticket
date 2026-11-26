@@ -14,13 +14,13 @@ from apps.accounts.testing import grant_capability
 from apps.lifecycle.tests.conftest import celery, strict, webhooks  # noqa: F401 — the fixtures
 from apps.sla.tests.conftest import clock, submitted  # noqa: F401 — the fixture
 from apps.tickets.models import Ticket
-from apps.tickets.services.pipeline import _degraded_signals, ticket_process
+from apps.tickets.services.pipeline import ticket_process
+from apps.tickets.testing import nothing_found
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import (
     AIRunResponse,
     CategoryOption,
     EmbedResponse,
-    EngineSignals,
     TicketMasked,
 )
 
@@ -65,19 +65,13 @@ def engine(monkeypatch) -> Engine:
         masked: TicketMasked, request_id: str, categories: list[CategoryOption]
     ) -> AIRunResponse:
         fake.analysed.append(masked.ticket_public_id)
-        d = _degraded_signals()
         return AIRunResponse(
             request_id=request_id,
             graph_version="test",
             prompt_version="test",
             model="test",
             proposal=None,
-            signals=EngineSignals(
-                retrieval=d.retrieval,
-                generation=d.generation,
-                classification=d.classification,
-                injection_detected=False,
-            ),
+            signals=nothing_found(),
         )
 
     monkeypatch.setattr(ai_engine, "analyze", analyze)

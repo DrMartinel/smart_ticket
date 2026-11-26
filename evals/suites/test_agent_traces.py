@@ -35,10 +35,10 @@ from apps.review.models import ReviewDecision
 from apps.rollout.testing import all_live
 from apps.tickets import tasks as ticket_tasks
 from apps.tickets.models import IncidentVerdict, Ticket
-from apps.tickets.services.pipeline import _degraded_signals
+from apps.tickets.testing import nothing_found
 from config.urls import api
 from infrastructure.ai_engine import ai_engine
-from infrastructure.dtos import AIRunResponse, EngineSignals
+from infrastructure.dtos import AIRunResponse
 
 PHONE = "0912345678"
 
@@ -190,19 +190,13 @@ class Stack:
 
 def _no_proposal(request_id: str) -> AIRunResponse:
     """ai-engine's triage with nothing found: the router refuses before any proposal."""
-    d = _degraded_signals()
     return AIRunResponse(
         request_id=request_id,
         graph_version="trace",
         prompt_version="trace",
         model="n/a",
         proposal=None,
-        signals=EngineSignals(
-            retrieval=d.retrieval,
-            generation=d.generation,
-            classification=d.classification,
-            injection_detected=False,
-        ),
+        signals=nothing_found(),
     )
 
 

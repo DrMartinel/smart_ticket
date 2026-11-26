@@ -283,31 +283,9 @@ class Router:
 
         th = self.thresholds
 
-        # ═══════════════ HARD GATES — order has meaning ═══════════════
-        p = signals.policy
-
-        if p.injection_detected:
-            return RoutingDecision.block(ReasonCode.INJECTION_DETECTED, alert_security=True)
-
-        if p.pii_level is PIILevel.CRITICAL:
-            return RoutingDecision.block(ReasonCode.PII_CRITICAL, alert_security=True)
-
-        if p.mass_incident:
-            # BEFORE any duplicate logic. 40 identical tickets in 10 minutes
-            # is not something to dedupe quietly — it's an outage to escalate.
-            return RoutingDecision.escalate(ReasonCode.MASS_INCIDENT)
-
-        if p.pii_level is PIILevel.MASK_FAILED:
-            return RoutingDecision.hitl(
-                ReasonCode.PII_MASK_FAILED, queue=ReviewQueue.MASK_FAILED.value, priority=1
-            )
-
-        if p.agent_handoff_reason is not None:
-            return RoutingDecision.hitl(
-                ReasonCode(p.agent_handoff_reason),
-                queue=ReviewQueue.LOW_CONFIDENCE.value,
-                priority=2,
-            )
+        gated = self.hard_gate(signals)
+        if gated is not None:
+            return gated
 
         # A set with no security category or a blank description, or Jev's choice outside it
         # (ADR-0049).
@@ -372,7 +350,7 @@ class Router:
                 return RoutingDecision.hitl(
                     ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN, queue=ReviewQueue.LOW_CONFIDENCE.value
                 )
-            if p.clarifications_asked >= th.clarification.max_rounds:
+            if signals.policy.clarifications_asked >= th.clarification.max_rounds:
                 # One question per ticket, then a person (ADR-0023).
                 return RoutingDecision.hitl(
                     ReasonCode.CLARIFY_ROUND_CAP, queue=ReviewQueue.CLARIFICATION.value
@@ -469,6 +447,36 @@ class Router:
         return RoutingDecision.hitl(
             ReasonCode.SCHEMA_INVALID, queue=ReviewQueue.LOW_CONFIDENCE.value
         )
+
+    def hard_gate(self, signals: TrustSignals) -> RoutingDecision | None:
+        """The decision of the first hard gate the signals' policy fails, in order, or None."""
+
+        p = signals.policy
+
+        if p.injection_detected:
+            return RoutingDecision.block(ReasonCode.INJECTION_DETECTED, alert_security=True)
+
+        if p.pii_level is PIILevel.CRITICAL:
+            return RoutingDecision.block(ReasonCode.PII_CRITICAL, alert_security=True)
+
+        if p.mass_incident:
+            # BEFORE any duplicate logic. 40 identical tickets in 10 minutes
+            # is not something to dedupe quietly — it's an outage to escalate.
+            return RoutingDecision.escalate(ReasonCode.MASS_INCIDENT)
+
+        if p.pii_level is PIILevel.MASK_FAILED:
+            return RoutingDecision.hitl(
+                ReasonCode.PII_MASK_FAILED, queue=ReviewQueue.MASK_FAILED.value, priority=1
+            )
+
+        if p.agent_handoff_reason is not None:
+            return RoutingDecision.hitl(
+                ReasonCode(p.agent_handoff_reason),
+                queue=ReviewQueue.LOW_CONFIDENCE.value,
+                priority=2,
+            )
+
+        return None
 
     def _confident_category(self, signals: TrustSignals) -> str | None:
         """Jev's category, when it chose one with at least

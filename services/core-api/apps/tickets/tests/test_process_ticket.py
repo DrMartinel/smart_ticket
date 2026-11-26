@@ -17,6 +17,7 @@ from apps.tickets.domain.patterns import PIILevel
 
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import process_ticket
+from apps.tickets.testing import nothing_found
 from infrastructure.ai_engine import ai_engine
 
 
@@ -63,22 +64,6 @@ class TestEmbeddingFailureFailsOpenToHitl:
         assert ticket.status != "new"
 
 
-def _no_findings():
-    """ai-engine's signals with every check failed and nothing found."""
-
-    from infrastructure.dtos import EngineSignals
-
-    from apps.tickets.services.pipeline import _degraded_signals
-
-    d = _degraded_signals()
-    return EngineSignals(
-        retrieval=d.retrieval,
-        generation=d.generation,
-        classification=d.classification,
-        injection_detected=False,
-    )
-
-
 def _llm_failed_response(reason: str, request_id: str):
     """What ai-engine returns when its chat LLM call failed: no proposal,
     and `reason` as the degraded_reason."""
@@ -91,7 +76,7 @@ def _llm_failed_response(reason: str, request_id: str):
         prompt_version="test",
         model="n/a",
         proposal=None,
-        signals=_no_findings(),
+        signals=nothing_found(),
         degraded_reason=reason,
     )
 
@@ -132,7 +117,7 @@ def _clarify_response(request_id: str):
 
     from infrastructure.dtos import AIRunResponse, LLMProposalEnvelope
 
-    signals = _no_findings()
+    signals = nothing_found()
     signals.retrieval.rerank_top1 = 0.9
     signals.retrieval.rerank_total = 0.95
     signals.generation.clarify_options_in_topk = True
@@ -281,3 +266,137 @@ class TestCategorySet:
             "software",
         ]
         assert {"slug": "security", "is_security": True, "is_routable": True, "version": 1} in used
+
+
+# The ticket's own fields that fail a hard gate, and where each gate sends the ticket.
+_TICKET_GATES = pytest.mark.parametrize(
+    "fields, branch, reason, queue",
+    [
+        (
+            {"pii_level": PIILevel.CRITICAL.value},
+            Branch.BLOCK,
+            ReasonCode.PII_CRITICAL,
+            "pii_verify",
+        ),
+        (
+            {"pii_level": PIILevel.MASK_FAILED.value},
+            Branch.HITL,
+            ReasonCode.PII_MASK_FAILED,
+            "mask_failed",
+        ),
+        (
+            {"agent_handoff_reason": ReasonCode.AGENT_STEP_LIMIT.value},
+            Branch.HITL,
+            ReasonCode.AGENT_STEP_LIMIT,
+            "low_confidence",
+        ),
+    ],
+    ids=["pii_critical", "mask_failed", "agent_handoff"],
+)
+
+
+@pytest.mark.django_db
+class TestShortCircuitsMeetTheHardGates:
+    """A run that skips ai-engine's proposal still meets the router's hard gates on the
+    ticket's own PII level and hand-off reason, and records them in its signals."""
+
+    @pytest.fixture
+    def unique(self, monkeypatch):
+        """The ticket's embedding works and it is no incident."""
+        from apps.tickets.models import IncidentVerdict
+
+        monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
+        monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
+
+    def run(self, reporter, fields) -> Ticket:
+        ticket = make_ticket(reporter)
+        Ticket.objects.filter(pk=ticket.pk).update(**fields)
+        process_ticket.apply(args=(ticket.id,)).get()
+        ticket.refresh_from_db()
+        return ticket
+
+    def assert_gate_decided(self, ticket, branch, reason, queue) -> None:
+        from apps.security.models import SecurityAlert
+
+        decision = ticket.routing_decisions.get()
+        assert (decision.branch, decision.reason_code) == (branch.value, reason.value)
+        assert list(ticket.review_items.values_list("queue", flat=True)) == [queue]
+        alerts = SecurityAlert.objects.filter(ticket=ticket)
+        assert alerts.exists() is (reason is ReasonCode.PII_CRITICAL)
+        policy = ticket.ai_runs.get().trust_signals["policy"]
+        assert policy["pii_level"] == ticket.pii_level
+        assert policy["agent_handoff_reason"] == ticket.agent_handoff_reason
+
+    @_TICKET_GATES
+    def test_an_embedding_outage_does_not_hide_the_hard_gates(
+        self, employee_user, monkeypatch, fields, branch, reason, queue
+    ):
+        def refuse(text):
+            raise httpx.ConnectError("simulated: embedder unreachable")
+
+        monkeypatch.setattr(ai_engine, "embed", refuse)
+
+        ticket = self.run(employee_user, fields)
+
+        assert ticket.ai_runs.get().degraded_reason == "embedding_unavailable"
+        self.assert_gate_decided(ticket, branch, reason, queue)
+
+    @_TICKET_GATES
+    def test_a_budget_stop_does_not_hide_the_hard_gates(
+        self, employee_user, monkeypatch, unique, fields, branch, reason, queue
+    ):
+        from apps.tickets.models import AiRunManager
+
+        monkeypatch.setattr(AiRunManager, "cost_today_usd", lambda self: float("inf"))
+
+        ticket = self.run(employee_user, fields)
+
+        assert ticket.ai_runs.get().degraded_reason == "budget_exceeded"
+        self.assert_gate_decided(ticket, branch, reason, queue)
+
+    @_TICKET_GATES
+    def test_an_ai_engine_outage_does_not_hide_the_hard_gates(
+        self, employee_user, monkeypatch, unique, fields, branch, reason, queue
+    ):
+        from infrastructure.ai_engine import AIEngineUnavailable
+
+        def refuse(masked, request_id, categories):
+            raise AIEngineUnavailable("simulated: ai-engine unreachable")
+
+        monkeypatch.setattr(ai_engine, "analyze", refuse)
+
+        ticket = self.run(employee_user, fields)
+
+        assert ticket.ai_runs.get().degraded_reason == "ai_engine_unavailable"
+        self.assert_gate_decided(ticket, branch, reason, queue)
+
+    @_TICKET_GATES
+    def test_an_llm_outage_does_not_hide_the_hard_gates(
+        self, employee_user, monkeypatch, unique, fields, branch, reason, queue
+    ):
+        monkeypatch.setattr(
+            ai_engine,
+            "analyze",
+            lambda masked, request_id, categories: _llm_failed_response(
+                ReasonCode.ALL_LLM_DOWN.value, request_id
+            ),
+        )
+
+        ticket = self.run(employee_user, fields)
+
+        assert ticket.ai_runs.get().degraded_reason == ReasonCode.ALL_LLM_DOWN.value
+        self.assert_gate_decided(ticket, branch, reason, queue)
+
+    def test_a_critical_pii_ticket_in_a_mass_incident_is_blocked_with_an_alert(
+        self, employee_user, monkeypatch
+    ):
+        from apps.tickets.models import IncidentVerdict
+
+        monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
+        monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="mass_incident"))
+
+        ticket = self.run(employee_user, {"pii_level": PIILevel.CRITICAL.value})
+
+        assert ticket.ai_runs.get().degraded_reason == "mass_incident_short_circuit"
+        assert ticket.ai_runs.get().trust_signals["policy"]["mass_incident"] is True
+        self.assert_gate_decided(ticket, Branch.BLOCK, ReasonCode.PII_CRITICAL, "pii_verify")

@@ -80,8 +80,15 @@ guard and that comment is later trimmed, the entry is the record.
   reason, and a `KbAuthorityLog` row. Ingestion scripts take the same path. *ADR-0002;
   `KbArticle.set_auto_reply_allowed` in `apps/kb/models.py`;
   `apps/kb/tests/test_article_create.py`.*
-- **The deny-by-default `_degraded_signals()` in `apps/tickets/utils/pipeline.py`**: every check failed,
-  `kb_auto_reply_allowed=False`, `kb_risk_tier="high"`.
+- **The deny-by-default `_degraded_signals(ticket)` in `apps/tickets/services/pipeline.py`**: every
+  check failed, `kb_auto_reply_allowed=False`, `kb_risk_tier="high"`, built through
+  `trust_signals()` with the ticket's own PII level and agent hand-off reason. Every run that
+  skips ai-engine's proposal (embedding outage, mass incident, budget stop, ai-engine
+  unavailable, all LLMs down) meets `Router.hard_gate` before its own reason code. With
+  `PIILevel.ROUTINE` hard-coded there, a critical-PII ticket escalated with no security
+  alert, a mask-failed one sat in `low_confidence` as an outage, a hand-off lost its reason,
+  and `ai_runs.trust_signals` recorded `routine`.
+  *`test_process_ticket.py::TestShortCircuitsMeetTheHardGates`.*
 - **A chunk's titles go into its embedding input, never into `content`**
   (`ArticleIndexer.ingest`). A chunk from the middle of a page means nothing
   to the embedder without them, while `content` must stay the exact text the
@@ -658,8 +665,7 @@ guard and that comment is later trimmed, the entry is the record.
   employee's click; a mask-failed or critical-PII turn must reach a person
   (and its security alert must name a ticket) whether or not the employee
   clicks. A hand-off ticket is never held, because the click was the
-  employee's request; holding it would need a second click, and a
-  degraded triage run would hold it as `ai_engine_unavailable`.
+  employee's request; holding it would need a second click.
   *`test_a_message_whose_masking_failed_reaches_no_model_and_hands_off`,
   `test_an_agent_handoff_ticket_never_waits_whatever_its_decision`,
   `test_a_live_handoff_ticket_is_never_held_for_the_employee`.*

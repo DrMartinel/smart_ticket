@@ -142,30 +142,32 @@ def category_set() -> CategorySet:
     )
 
 
-def _degraded_signals() -> TrustSignals:
-    return TrustSignals(
+def _degraded_signals(ticket: Ticket) -> TrustSignals:
+    """The signals of a run ai-engine never scored: nothing found, under the ticket's own policy."""
+    nothing_found = EngineSignals(
         retrieval=RetrievalSignals(rerank_top1=0.0, rerank_margin=0.0, docs_above_floor=0),
         generation=GenerationSignals(
             quote_match_ratio=0.0,
             quote_source_in_topk=False,
             negation_consistent=False,
         ),
-        policy=PolicySignals(
-            kb_auto_reply_allowed=False,
-            kb_risk_tier="high",
-            pii_level=PIILevel.ROUTINE,
-            injection_detected=False,
-            mass_incident=False,
-        ),
-        # A degraded run never asked Jev: no category.
         classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
+        injection_detected=False,
+    )
+    return trust_signals(
+        nothing_found,
+        PIILevel(ticket.pii_level),
+        None,
+        clarifications_asked=ticket.clarifications.count(),
+        agent_handoff_reason=cast("AgentHandoffReason | None", ticket.agent_handoff_reason),
     )
 
 
 def _degraded_decision(
-    reason_code: ReasonCode, queue: ReviewQueue, *, priority: int = 3
+    signals: TrustSignals, reason_code: ReasonCode, queue: ReviewQueue, *, priority: int = 3
 ) -> Decision:
-    return Decision(
+    """The hard gate the signals fail, else HITL for `reason_code` in `queue`."""
+    return router.hard_gate(signals) or Decision(
         branch=Branch.HITL,
         reason_code=reason_code,
         reason_detail=f"degraded: {reason_code.value}",
@@ -304,9 +306,7 @@ def _finalize(
 _NEVER_HELD = frozenset(
     {ReasonCode.PII_MASK_FAILED, ReasonCode.CLARIFY_SECURITY, ReasonCode.AGENT_MASK_FAILED}
 )
-# Checked on the ticket as well as the reason code: a degraded run (embedding
-# or ai-engine down, budget) never reaches the router, so a mask-failed
-# ticket arrives here as ai_engine_unavailable.
+# PII levels whose chat ticket is never held, whatever its decision.
 _NEVER_HELD_PII = frozenset({PIILevel.MASK_FAILED, PIILevel.CRITICAL})
 
 
@@ -488,9 +488,9 @@ def ticket_process(ticket_id: str) -> TaskResult:
         logger.warning(
             "embedding unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
         )
-        signals = _degraded_signals()
+        signals = _degraded_signals(ticket)
         decision = _degraded_decision(
-            ReasonCode.EMBEDDING_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
+            signals, ReasonCode.EMBEDDING_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
         )
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="embedding_unavailable"
@@ -507,7 +507,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
     if verdict.kind == "mass_incident":
         # Skip the AI engine entirely — cost saved, and per spec §9 a mass
         # incident must never receive an (possibly wrong) auto-reply.
-        signals = _degraded_signals()
+        signals = _degraded_signals(ticket)
         signals.policy.mass_incident = True
         decision = router.route(signals, None, None, categories)
         ai_run = _persist_ai_run(
@@ -520,9 +520,9 @@ def ticket_process(ticket_id: str) -> TaskResult:
     # actually see total daily spend) ──
     ceiling = settings.THRESHOLDS.budget.daily_cost_ceiling_usd
     if AiRun.objects.cost_today_usd() >= ceiling:
-        signals = _degraded_signals()
+        signals = _degraded_signals(ticket)
         decision = _degraded_decision(
-            ReasonCode.BUDGET_EXCEEDED, ReviewQueue.LOW_CONFIDENCE, priority=2
+            signals, ReasonCode.BUDGET_EXCEEDED, ReviewQueue.LOW_CONFIDENCE, priority=2
         )
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="budget_exceeded"
@@ -531,11 +531,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
 
     # No category set Jev can choose from (ADR-0049): the router's earlier gates still decide.
     if not categories.is_usable():
-        signals = _degraded_signals()
-        signals.policy.pii_level = PIILevel(ticket.pii_level)
-        signals.policy.agent_handoff_reason = cast(
-            "AgentHandoffReason | None", ticket.agent_handoff_reason
-        )
+        signals = _degraded_signals(ticket)
         decision = router.route(signals, None, None, categories)
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="category_set_invalid"
@@ -562,9 +558,9 @@ def ticket_process(ticket_id: str) -> TaskResult:
         logger.warning(
             "ai-engine unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
         )
-        signals = _degraded_signals()
+        signals = _degraded_signals(ticket)
         decision = _degraded_decision(
-            ReasonCode.AI_ENGINE_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
+            signals, ReasonCode.AI_ENGINE_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
         )
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="ai_engine_unavailable"
@@ -575,19 +571,20 @@ def ticket_process(ticket_id: str) -> TaskResult:
     # sees only proposal=None and would label an outage SCHEMA_INVALID — the
     # same code as "the model returned bad JSON".
     if resp.degraded_reason == ReasonCode.ALL_LLM_DOWN.value:
+        signals = trust_signals(
+            resp.signals,
+            masked.pii_level,
+            None,
+            clarifications_asked=clarifications_asked,
+            agent_handoff_reason=cast("AgentHandoffReason | None", ticket.agent_handoff_reason),
+        )
         decision = _degraded_decision(
-            ReasonCode.ALL_LLM_DOWN, ReviewQueue.LOW_CONFIDENCE, priority=2
+            signals, ReasonCode.ALL_LLM_DOWN, ReviewQueue.LOW_CONFIDENCE, priority=2
         )
         ai_run = _persist_ai_run(
             ticket,
             idempotency_key,
-            trust_signals(
-                resp.signals,
-                masked.pii_level,
-                None,
-                clarifications_asked=clarifications_asked,
-                agent_handoff_reason=cast("AgentHandoffReason | None", ticket.agent_handoff_reason),
-            ),
+            signals,
             resp.proposal,
             resp=resp,
             degraded_reason=resp.degraded_reason,
