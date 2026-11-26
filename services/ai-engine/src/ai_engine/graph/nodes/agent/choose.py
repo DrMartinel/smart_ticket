@@ -123,7 +123,7 @@ class ChooseActionNode(BaseNode[AgentState]):
             return {
                 **update,
                 "reply": choice.text,
-                "handoff_summary": choice.proposed_handoff_summary,
+                "proposed_handoff_summary": choice.proposed_handoff_summary,
                 "stop_reason": AgentStopReason.NEEDS_STAFF,
             }
         if isinstance(choice, Reply):

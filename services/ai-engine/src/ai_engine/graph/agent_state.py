@@ -126,7 +126,7 @@ class AgentState(BaseModel):
     pending_call: PendingCall | None = None
     reply: str = ""
     choices: list[AgentChoice] = []  # the reply's choices, resolved from `refs`
-    handoff_summary: str | None = None  # a hand-off's summary for staff
+    proposed_handoff_summary: str | None = None  # a hand-off's summary for staff
     tokens_in: int = 0
     tokens_out: int = 0
     cost_usd: float = 0.0

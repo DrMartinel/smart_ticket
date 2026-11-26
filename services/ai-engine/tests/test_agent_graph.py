@@ -460,7 +460,7 @@ def test_a_hand_off_after_an_injection_hit_drops_its_text_and_summary(model, cor
     final = run(turn())
 
     assert final.stop_reason is AgentStopReason.INJECTION_IN_RESULT
-    assert (final.reply, final.handoff_summary) == ("", None)
+    assert (final.reply, final.proposed_handoff_summary) == ("", None)
     assert len(api.calls) == 1 and len(llm.prompts) == 2
 
 
@@ -988,7 +988,7 @@ def test_console_surface_has_no_hand_off(model, core_api):
     final = run(turn(surface="console"))
 
     assert final.stop_reason is AgentStopReason.SCHEMA_INVALID
-    assert final.handoff_summary is None and api.calls == []
+    assert final.proposed_handoff_summary is None and api.calls == []
     assert "hand_off is not available here" in llm.prompts[1]
 
 

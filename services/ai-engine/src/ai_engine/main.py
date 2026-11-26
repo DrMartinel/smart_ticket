@@ -162,7 +162,7 @@ def agent_turn(req: AgentTurnRequest) -> AgentTurnResponse:
         stop_reason=final_state.stop_reason,
         steps=final_state.steps,
         choices=final_state.choices if outcome == "replied" else [],
-        proposed_handoff_summary=final_state.handoff_summary if needs_staff else None,
+        proposed_handoff_summary=final_state.proposed_handoff_summary if needs_staff else None,
         model=final_state.model_used or "n/a",
         prompt_version=settings.agent_prompt_version,
         tokens_in=final_state.tokens_in,
