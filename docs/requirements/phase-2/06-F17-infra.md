@@ -313,6 +313,8 @@ infra:
   max_spans: 500
   max_result_bytes: 24000
   max_selectors: 10        # raw PromQL (FR-F17-005)
+  max_regex_kib: 256       # RE2's memory for one raw PromQL regex
+  max_regex_matchers: 10   # regex matchers in one raw PromQL query
   max_queries_per_turn: 16
 agent:
   max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn
