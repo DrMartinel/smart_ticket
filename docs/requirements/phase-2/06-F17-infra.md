@@ -156,7 +156,7 @@ Mock data for this feature (added to §6.0.5's):
 | Actor | Customer (`lan.nt`), chat |
 | Trigger | "Our database has been slow all morning" |
 | Preconditions | `agent_chat` live; `lan.nt` holds `infra:read:own`; Keystone lists her in `saomai-prod` |
-| Main flow | 1. The agent lists her servers (only `saomai-prod`'s). 2–4. As UC-F17-01 steps 3–5, every query scoped to `saomai-prod`. 5. It replies with what it found and offers a ticket |
+| Main flow | 1. The agent lists her servers (only `saomai-prod`'s). 2–4. As UC-F17-01 steps 3–5, every query scoped to `saomai-prod`, except that she never gets a query's Prometheus or Kibana link or its compiled text: the customer answers have no `link`, and her turn's receipts have no `sent`. 5. It replies with what it found and offers a ticket |
 | Exception | 1x. Keystone is unreachable: 424 `infra_scope_unavailable`; the agent says it can't see her resources now and offers a ticket |
 | Rules | BR-F17-02, BR-F17-03 |
 | MoSCoW | Must |
@@ -217,14 +217,14 @@ Mock data for this feature (added to §6.0.5's):
 | FR-F17-010 | The agent client decides retry behaviour by the tool's tier: a failed read raises `ToolFailed`, whatever its method |
 | FR-F17-011 | `AgentLimits` gains `max_read_calls: int \| None = None`; `None` keeps F15's rule (reads count against `max_tool_calls`) |
 | FR-F17-012 | core-api's reply builder adds a warning for each `infra_queries` row of the turn with `outcome = backend_unavailable` |
-| FR-F17-013 | The console gets a resource page (server, volume, network) that shows state, alerts and drafts, and applies a draft |
+| FR-F17-013 | The console gets a resource page (server, volume, network, security group) that shows state, alerts and drafts, and applies a draft. The security group page reads `GET /security-groups/{group_id}`, a staff route no agent may call |
 | FR-F17-014 | `cloud-sim` serves Keystone tokens, users, projects and role assignments; Nova servers and actions; Cinder volumes and attachments; Neutron networks, ports and security groups; Prometheus `/metrics`; OTLP logs and traces to the APM Server; and `/sim/faults` to inject scenarios |
 
 ## g. Data changes
 
 | Table | Columns |
 |---|---|
-| `infra_queries` (new) | `id`, `created_at`, `actor_id`, `via` (`human` \| `agent`), `agent_turn_id` (null), `backend` (`prometheus` \| `elasticsearch` \| `alertmanager` \| `cloud`), `kind` (`structured` \| `promql` \| `resource`), `compiled` (text), `projects` (text[]), `outcome` (`ok` \| `refused` \| `backend_unavailable` \| `scope_unavailable`), `refusal` (null), `duration_ms`, `rows`, `withheld`, `link` |
+| `infra_queries` (new) | `id`, `created_at`, `actor_id`, `via` (`human` \| `agent`), `agent_turn_id` (null), `backend` (`prometheus` \| `elasticsearch` \| `alertmanager` \| `cloud`), `kind` (`structured` \| `promql` \| `resource`), `compiled` (text), `projects` (text[]), `outcome` (`ok` \| `refused` \| `backend_unavailable` \| `scope_unavailable`), `refusal` (null), `refusal_reason` (null, the `QueryCheck` a refused query failed), `failed_backend` (null, the backend that didn't answer, which may differ from `backend`), `truncated` (bool, default false), `duration_ms`, `rows`, `withheld`, `link` |
 | `agent_actions` (changed) | state gains `outcome_unknown`; target kinds gain `server`, `volume`, `security_group` |
 
 No table holds cloud resources or project membership: both are read live.
@@ -269,6 +269,7 @@ caller's Keystone projects by BR-F17-02).
 | `GET /servers`, `/servers/{server_id}` | `GET /servers`, `/servers/{server_id}` | read | `list_servers`, `get_server` | `list_my_servers`, `get_my_server` |
 | `GET /volumes`, `/volumes/{volume_id}` | `GET /volumes`, `/volumes/{volume_id}` | read | `list_volumes`, `get_volume` | `list_my_volumes`, `get_my_volume` |
 | `GET /networks`, `/networks/{network_id}` | `GET /networks`, `/networks/{network_id}` | read | `list_networks`, `get_network` | `list_my_networks`, `get_my_network` |
+| `GET /security-groups/{group_id}` | — | none | — | — |
 | `GET /alerts`, `/alerts/silences` | `GET /alerts`, `/alerts/silences` | read | `list_alerts`, `list_silences` | `list_my_alerts`, `list_my_silences` |
 | `POST /metrics/query` | `POST /metrics/query` | read | `query_metrics` | `query_my_metrics` |
 | `POST /metrics/promql` | — (OQ-F17-05) | read | `run_promql` | — |
@@ -283,6 +284,11 @@ caller's Keystone projects by BR-F17-02).
 
 Hard reboot is its own route, so its tier doesn't depend on an argument and
 F17 doesn't wait on ADR-0047's guards (OQ-F17-06).
+
+Each alert names its resource (`resource_kind`, `resource_id`), taken in
+core-api from its most specific id label: `volume_id`, then `network_id`,
+then `server_id`. The staff `GET /alerts` takes `resource_kind` and
+`resource_id` to return one resource's alerts, for its console page.
 
 ### h.2 Refusal codes (`InfraRefusal`, BR-X-08)
 
