@@ -614,6 +614,44 @@ guard and that comment is later trimmed, the entry is the record.
   *`test_customer_never_changes_the_decision`,
   `test_a_floor_below_the_rules_priority_never_lowers_it`.*
 
+### Infra changes (F17 §h.1, ADR-0048)
+
+- **`OpenStack.send_change` telling "never sent" (a connect failure,
+  `infra_backend_unavailable`) from "sent, no answer" (any later transport
+  error or a 5xx, `ChangeOutcomeUnknown`), and `InfraChanges.send` calling the
+  cloud once.** A reboot or a detach whose answer is lost may have happened;
+  sending it again, or answering as if it was never sent, invites a second one
+  (AC-F17-08). The same split as the runbook executors'.
+  *`test_a_confirmed_reboot_whose_answer_is_lost_is_sent_once_and_never_again`,
+  `test_a_persons_change_whose_answer_is_lost_answers_502_after_one_call`,
+  `test_a_change_never_sent_is_unavailable_and_its_action_stays_pending`.*
+- **`InfraOutcomeUnknown` being an `OutcomeUnknownError`, and
+  `AgentActions.applying` catching that before its catch-all.** The catch-all
+  puts a failed action back to `pending`, where the person could confirm the
+  change again; a lost answer ends the action `outcome_unknown` instead.
+  `OutcomeUnknownError` lives in `apps/core/errors.py` so `apps/agent` never
+  imports `apps/infra`.
+  *`test_a_confirmed_reboot_whose_answer_is_lost_is_sent_once_and_never_again`.*
+- **An action's target is the gate's `target` and the route's one path
+  parameter (`AgentCall.path_value`, from `resolver_match.kwargs`), never a
+  name looked up in the arguments** (F16 BR-F16-05). An attach's body names a
+  server and a ticket; a lookup by name would file the action under either.
+  `test_tiers.py` pins that every `confirm` and `human_only` route declares a
+  target and has exactly one path parameter.
+  *`test_an_actions_target_is_the_routes_never_a_resource_its_body_names`,
+  `test_a_drafts_target_is_the_routes`,
+  `test_every_confirm_and_human_only_route_declares_its_target`.*
+- **`InfraChanges.reached` refusing a resource outside the scope as
+  `infra_not_found`, before anything is sent.** A customer's change route
+  takes any server id; a 403 would confirm it exists in another company's
+  project, and skipping the check would reboot it.
+  *`test_a_customer_cannot_change_another_companys_server_404_like_a_missing_one`,
+  `test_a_customers_confirmed_stop_on_another_companys_server_sends_nothing`.*
+- **`InfraChanges.record` catching its audit and note failures, and running
+  after the cloud call.** The change is already made; an error there must not
+  answer the person as if it failed, or they would make it again.
+  *`test_a_failed_note_never_hides_a_change_made`.*
+
 ## ai-engine
 
 - **`TriageState` is frozen with `extra="forbid"`.** Without that, an in-place
