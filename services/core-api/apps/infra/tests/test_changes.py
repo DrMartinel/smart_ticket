@@ -528,6 +528,8 @@ def test_attaching_a_volume_to_another_projects_server_is_refused(
 
     assert response.status_code == 422
     assert response.json()["code"] == "infra_change_refused"
+    assert response.json()["message"] == "the volume and the server are in different projects"
+    assert cloud_sim.changes() == []
     assert cloud_sim.cloud.volumes[volume].status is VolumeStatus.AVAILABLE
 
 

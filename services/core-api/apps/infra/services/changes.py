@@ -106,9 +106,16 @@ class InfraChanges:
     # ── volumes ──
 
     def attach(self, volume_id: str, server_id: str, public_id: str) -> ChangeDone:
+        """Attaches the volume to a server of the same project."""
         ticket = self.ticket(public_id)
         volume, _ = self.volume(volume_id)
         server = self.server(server_id)
+        if server.project_id != volume.project_id:
+            raise InfraError(
+                InfraRefusal.CHANGE_REFUSED,
+                "the volume and the server are in different projects",
+                {"target_kind": InfraResource.VOLUME.value, "target_id": volume.id},
+            )
         path = f"/servers/{server.id}/os-volume_attachments"
         body = {"volumeAttachment": {"volumeId": volume.id}}
         using = f"{server.name} ({server.id})"
