@@ -38,6 +38,7 @@ class MaskedTicket:
     reopened_from: Ticket | None = None
     agent_turn: AgentTurn | None = None
     agent_handoff_reason: AgentHandoffReason | None = None
+    proposed_handoff_summary: str | None = None
 
 
 class TicketIntake:
@@ -103,8 +104,9 @@ class TicketIntake:
         audit: dict[str, str],
     ) -> Ticket:
         """Stores the chat ticket an agent turn hands to a person: the turn's masked message, the
-        conversation's quarantine entries it names and the agent's reason (BR-F15-14, -18). Does
-        not queue its pipeline run; the caller does, after its transaction commits."""
+        conversation's quarantine entries it names, the agent's reason and, for a `needs_staff`
+        turn, its summary for staff (BR-F15-14, -18, -25). Does not queue its pipeline run; the
+        caller does, after its transaction commits."""
         from apps.agent.models import AgentTurn
         from apps.chat.services.turns import subject_of
 
@@ -119,6 +121,7 @@ class TicketIntake:
                 conversation=conversation,
                 agent_turn=turn,
                 agent_handoff_reason=reason,
+                proposed_handoff_summary=turn.proposed_handoff_summary,
             ),
             lambda ticket: PiiQuarantine.objects.copy_to(ticket, known, turn.message_masked),
             trace_id=None,
@@ -157,6 +160,7 @@ class TicketIntake:
                 reopened_from=masked.reopened_from,
                 agent_turn=masked.agent_turn,
                 agent_handoff_reason=masked.agent_handoff_reason,
+                proposed_handoff_summary=masked.proposed_handoff_summary,
             )
             ticket.pii_map = store(ticket)
             ticket.save(update_fields=["pii_map"])

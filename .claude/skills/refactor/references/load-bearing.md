@@ -558,6 +558,39 @@ guard and that comment is later trimmed, the entry is the record.
   answer from ai-engine must not overwrite that, or a person's ticket and a
   "done" reply would both stand. *`test_a_late_answer_for_a_turn_already_handed_off_is_dropped`,
   `test_a_turn_runs_once_however_often_it_is_delivered`.*
+- **`AgentTurns.earlier_turns` leaving out the reply of a turn with an
+  `injection_flagged` step.** The next turn starts unflagged; carried as
+  "You: …", a reply the injected text steered would reach its prompt as the
+  assistant's own words and could be repeated in a hand-off's summary.
+  *`test_a_turn_that_read_flagged_text_carries_no_reply_into_the_next`.*
+- **`AgentTurn.card_of` adding "Something else" in code.** The model can only
+  offer refs from its own results; without a button code adds, a card of
+  wrong choices leaves the person nothing to press but a wrong one
+  (BR-F15-22). `earlier_turns` carries the card without it, so the model
+  never learns to offer it. *`test_something_else_is_always_on_the_card`,
+  `test_an_earlier_turn_carries_the_choices_its_card_offered`.*
+- **`AgentTurns._record` downgrading a `needs_staff` hand-off to
+  `agent_schema_invalid` unless it is a chat turn with a text and a summary
+  within `max_handoff_summary_chars`.** ai-engine checks the same; this is
+  the second check, so an ai-engine that drifts can't hand off on the
+  console or store an empty or oversized summary (BR-F15-23).
+  *`test_a_needs_staff_hand_off_missing_its_text_or_summary_is_schema_invalid`,
+  `test_console_surface_has_no_hand_off`.*
+- **`AgentTurns._record` storing a `needs_staff` hand-off whose steps include
+  an `injection_flagged` one as `agent_injection_in_result`.** The rest of a
+  flagged turn is read-only (BR-F15-11); without this, text that steered the
+  model reaches staff as the assistant's summary on the ticket. ai-engine
+  ends such a turn the same way; this is the second check. It runs after
+  the validity check, so a console or malformed hand-off stays
+  `agent_schema_invalid` whether or not a step was flagged.
+  *`test_a_needs_staff_hand_off_after_a_flagged_result_is_injection_in_result`,
+  `test_a_console_hand_off_after_a_flagged_result_is_still_schema_invalid`.*
+- **`proposed_handoff_summary` stored only in its own `tickets` column,
+  never in the subject, the body or `TicketMasked`.** It is model text; in
+  the subject it would reach triage's prompts as if the person wrote it
+  (BR-F15-25), and the requester's routes never show it.
+  *`test_handoff_summary_never_reaches_triage_or_routing`,
+  `test_the_summary_is_shown_to_staff_and_never_to_the_requester`.*
 
 ### Infra reads and queries (F17, ADR-0048)
 
@@ -864,6 +897,32 @@ guard and that comment is later trimmed, the entry is the record.
   `::test_no_retry_when_the_token_budget_is_spent`, `::test_a_retry_never_repeats_a_tool_call`,
   `::test_a_blank_reply_is_asked_again_and_the_tool_runs`;
   `test_provider_selection.py::test_a_blank_reply_is_still_an_all_llm_down_error_for_triage`.*
+- **Refs issued only by `projection.ref` on a 2xx result, and `choose_action`
+  resolving `proposed_choices` from `state.refs` alone.** A ref the turn
+  never issued makes the reply invalid; resolving any other way lets the
+  model put an item on a button that no call of the person's returned
+  (BR-F15-21). The ref map lives in `Context.refs` and `AgentState.refs`,
+  never in a prompt, a step or a log.
+  *`test_agent_graph.py::test_a_choice_the_turn_never_issued_is_refused`,
+  `::test_refs_never_reach_a_prompt_step_or_log`.*
+- **A ref's label built from the person's own fields only** (their own
+  ticket's subject, a staff ticket's public id, a review item's ticket and
+  queue, a page's title). A label from an `untrusted_text` field would put
+  someone else's words on a button whose press is sent as the person's own
+  message. *`test_agent_graph.py::test_a_choice_label_never_carries_someone_else_s_text`.*
+- **`_SCHEMAS["console"]` holding no `HandOff`.** Staff are told in a reply
+  (BR-F15-23); a console `hand_off` is an invalid reply, asked again once.
+  *`test_agent_graph.py::test_console_surface_has_no_hand_off`,
+  `::test_the_console_is_never_offered_the_hand_off_shape`.*
+- **`choose_action` ending a `hand_off` chosen after `result_flagged` as
+  `INJECTION_IN_RESULT`, through `hand_off`, not `finish`.** A hand-off
+  opens a ticket that carries the model's summary to staff; after a result
+  tripped the screen that summary may be the injected text's (BR-F15-11).
+  The test pins the outcome: the stop reason, an empty reply, no summary
+  and no further call. It does not pin the route: `choose_action` sets no
+  reply on this path, so `finish` would pass it too, and no test fails if
+  `RESULT_FLAGGED` is routed there.
+  *`test_agent_graph.py::test_a_hand_off_after_an_injection_hit_drops_its_text_and_summary`.*
 - **`TICKET_AT_ONCE` in `apps/agent/models.py`, and `agent_handoff` in
   `waits_for_requester`.** Every other hand-off opens its ticket only on the
   employee's click; a mask-failed or critical-PII turn must reach a person

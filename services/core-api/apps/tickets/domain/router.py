@@ -119,6 +119,8 @@ class ReasonCode(StrEnum):
     AGENT_MASK_FAILED = "agent_mask_failed"
     AGENT_PII_CRITICAL = "agent_pii_critical"
     AGENT_ENGINE_UNAVAILABLE = "agent_engine_unavailable"
+    # The person asked the chat agent for a change none of their tools makes (F15 amendment)
+    AGENT_NEEDS_STAFF = "agent_needs_staff"
 
 
 AGENT_HANDOFF_REASONS = frozenset(
@@ -135,6 +137,7 @@ AGENT_HANDOFF_REASONS = frozenset(
         ReasonCode.AGENT_MASK_FAILED,
         ReasonCode.AGENT_PII_CRITICAL,
         ReasonCode.AGENT_ENGINE_UNAVAILABLE,
+        ReasonCode.AGENT_NEEDS_STAFF,
     }
 )
 """The reasons a ticket the agent handed off may carry."""

@@ -11,7 +11,7 @@ from typing import Any, cast
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Max
+from django.db.models import Exists, Max, OuterRef
 from django.utils import timezone
 from pydantic import SecretStr
 
@@ -217,6 +217,8 @@ class AgentTurns:
                 max_steps=th.max_steps,
                 max_tool_calls=th.max_tool_calls_per_turn,
                 max_model_tokens=th.max_model_tokens_per_turn,
+                max_choices=th.max_choices,
+                max_handoff_summary_chars=th.max_handoff_summary_chars,
             ),
             chat_conversation_id=chat_conversation.id if chat_conversation else None,
             actor_id=user.id,
@@ -231,19 +233,26 @@ class AgentTurns:
         self._record(turn, response)
 
     def earlier_turns(self, turn: AgentTurn) -> list[AgentEarlierTurn]:
-        """The finished turns before `turn` that it carries, oldest first (BR-F15-17)."""
+        """The finished turns before `turn` that it carries, oldest first (BR-F15-17); a turn
+        that read text the injection screen flagged carries no reply of its own."""
         earlier = (
             AgentTurn.objects.filter(conversation_id=turn.conversation_id, seq__lt=turn.seq)
             .exclude(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
             .exclude(pii_level__in=[level.value for level in _UNREAD])
+            .annotate(
+                read_flagged=Exists(
+                    AgentStep.objects.filter(turn=OuterRef("pk"), injection_flagged=True)
+                )
+            )
             .order_by("-seq")[: settings.THRESHOLDS.agent.max_earlier_turns]
         )
         return [
             AgentEarlierTurn(
                 message_masked=t.message_masked,
                 reply="\n".join(
-                    [t.reply_text]
+                    ([] if t.read_flagged else [t.reply_text])
                     + [f"[{r['outcome']}] {r['method']} {r['path']}" for r in t.receipts]
+                    + [f"[choice] {c['label']}" for c in t.offered()]
                 ),
             )
             for t in reversed(earlier)
@@ -296,6 +305,7 @@ class AgentTurns:
             if response.outcome != "handed_off":
                 locked.state = response.outcome
                 locked.reply_text = response.reply
+                locked.choices = locked.card_of(response.choices)
                 locked.finished_at = timezone.now()
             locked.save(
                 update_fields=[
@@ -308,6 +318,7 @@ class AgentTurns:
                     "cost_usd",
                     "state",
                     "reply_text",
+                    "choices",
                     "finished_at",
                 ]
             )
@@ -317,13 +328,28 @@ class AgentTurns:
                 if response.stop_reason is not None
                 else ReasonCode.AGENT_SCHEMA_INVALID
             )
-            self._hand_off(turn.id, reason)
+            summary = response.proposed_handoff_summary or ""
+            if reason is ReasonCode.AGENT_NEEDS_STAFF and not (
+                turn.conversation.surface == AgentSurface.CHAT.value
+                and response.reply.strip()
+                and summary.strip()
+                and len(summary) <= settings.THRESHOLDS.agent.max_handoff_summary_chars
+            ):
+                reason = ReasonCode.AGENT_SCHEMA_INVALID
+            elif reason is ReasonCode.AGENT_NEEDS_STAFF and any(
+                step.injection_flagged for step in response.steps
+            ):
+                reason = ReasonCode.AGENT_INJECTION_IN_RESULT
+            self._hand_off(turn.id, reason, text=response.reply, summary=summary)
 
     # ── handing off (BR-F15-13, BR-F15-14, FR-F15-016) ──
 
-    def _hand_off(self, turn_id: uuid.UUID, reason: ReasonCode) -> None:
-        """Ends a running turn with `reason` and its message in the message's language; on the chat
-        surface, a turn whose masking failed or that holds critical PII becomes a ticket at once."""
+    def _hand_off(
+        self, turn_id: uuid.UUID, reason: ReasonCode, *, text: str = "", summary: str = ""
+    ) -> None:
+        """Ends a running turn with `reason` and its message in the message's language, or, for
+        `agent_needs_staff`, the model's `text` and its `summary` for staff; on the chat surface, a
+        turn whose masking failed or that holds critical PII becomes a ticket at once."""
         with transaction.atomic():
             turn = (
                 AgentTurn.objects.select_for_update()
@@ -337,9 +363,21 @@ class AgentTurns:
             user = conversation.user
             turn.state = AgentTurnState.HANDED_OFF.value
             turn.stop_reason = reason.value
-            turn.reply_text = HANDOFF_TEXT[reason][turn.language()]
+            if reason is ReasonCode.AGENT_NEEDS_STAFF:
+                turn.reply_text = text
+                turn.proposed_handoff_summary = summary
+            else:
+                turn.reply_text = HANDOFF_TEXT[reason][turn.language()]
             turn.finished_at = timezone.now()
-            turn.save(update_fields=["state", "stop_reason", "reply_text", "finished_at"])
+            turn.save(
+                update_fields=[
+                    "state",
+                    "stop_reason",
+                    "reply_text",
+                    "proposed_handoff_summary",
+                    "finished_at",
+                ]
+            )
             if reason in _ENDS_CONVERSATION:
                 self.end(conversation, _ENDS_CONVERSATION[reason])
             origin = AgentOrigin(conversation.id, turn.id, "").audit_fields()

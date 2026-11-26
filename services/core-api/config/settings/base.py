@@ -561,6 +561,9 @@ class AgentThresholds(BaseModel):
     conversation_idle_minutes: int = Field(ge=1)
     # Conversations the history list returns, newest first (F15).
     history_limit: int = Field(ge=1)
+    # Buttons on one choice card, and the characters a hand-off's summary may hold (BR-F15-21, -23).
+    max_choices: int = Field(ge=1)
+    max_handoff_summary_chars: int = Field(ge=1)
 
 
 class InfraThresholds(BaseModel):

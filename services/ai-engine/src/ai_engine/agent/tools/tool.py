@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from ai_engine.agent.tools import client
 from ai_engine.agent.tools.client import Reply
+from ai_engine.graph.agent_state import AgentChoice
 
 
 class Tier(StrEnum):
@@ -42,12 +43,14 @@ class PublicIdIn(ToolInput):
 
 @dataclass(frozen=True)
 class Context:
-    """Who the turn acts for, as code needs it; none of it reaches the model."""
+    """Who the turn acts for, and the items its results offered by ref, as code needs them; none
+    of it reaches the model."""
 
     token: SecretStr
     actor_id: UUID | None
     actor_username: str
     chat_conversation_id: UUID | None
+    refs: dict[str, AgentChoice] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

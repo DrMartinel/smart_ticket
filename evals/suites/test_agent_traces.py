@@ -1,7 +1,8 @@
 """
-The F15 agent's acceptance traces (spec F15 §j, AC-F15-01..05), run end to end in one process:
-core-api takes the message and runs the turn, ai-engine's agent graph answers it with a scripted
-model, and every tool call goes back into core-api with the turn's agent token.
+The F15 agent's acceptance traces (spec F15 §j, AC-F15-01..05, and the 2026-11-26 amendment's
+AC-F15-11..15 and EC-F15-09), run end to end in one process: core-api takes the message and runs
+the turn, ai-engine's agent graph answers it with a scripted model, and every tool call goes back
+into core-api with the turn's agent token.
 """
 
 from __future__ import annotations
@@ -20,8 +21,11 @@ from ai_engine.agent.tools import client as tool_client
 from ai_engine.agent.tools.client import OutcomeUnknown, Reply, ToolFailed
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import LLMResult
+from ai_engine.graph.agent_state import AgentChoice as EngineChoice
+from ai_engine.graph.agent_state import AgentStopReason as EngineStopReason
 from ai_engine.main import agent_turn as engine_agent_turn
 from ai_engine.schemas import AgentTurnRequest as EngineTurnRequest
+from ai_engine.schemas import AgentTurnResponse as EngineTurnResponse
 from apps.accounts.models import User
 from apps.accounts.permissions import gate_of
 from apps.accounts.testing import agent_token_for, api_client_for
@@ -37,7 +41,7 @@ from apps.tickets.models import IncidentVerdict, Ticket
 from apps.tickets.testing import nothing_found
 from config.urls import api
 from infrastructure.ai_engine import ai_engine
-from infrastructure.dtos import AIRunResponse
+from infrastructure.dtos import AgentChoice, AgentStopReason, AgentTurnResponse, AIRunResponse
 
 PHONE = "0912345678"
 
@@ -171,13 +175,20 @@ class Stack:
             self._real_process.apply(args=(self.queued_tickets.pop(0),), throw=True)
         return ran
 
-    def send(self, user: User, message: str, surface: str = "chat") -> AgentTurn:
+    def send(
+        self,
+        user: User,
+        message: str,
+        surface: str = "chat",
+        conversation: uuid.UUID | None = None,
+    ) -> AgentTurn:
         """The person's message to the agent, through core-api's own route, then the turn's run."""
+        body: dict[str, Any] = {"message": message, "surface": surface}
+        if conversation is not None:
+            body["conversation_id"] = str(conversation)
         with self.capture_on_commit(execute=True):
             response = api_client_for(user).post(
-                "/api/agent/turns",
-                {"message": message, "surface": surface},
-                content_type="application/json",
+                "/api/agent/turns", body, content_type="application/json"
             )
         assert response.status_code == 202, response.content
         turn_id = response.json()["turn_id"]
@@ -205,6 +216,14 @@ def call(tool: str, **arguments: Any) -> dict[str, Any]:
 
 def reply(text: str) -> dict[str, Any]:
     return {"action": "reply", "text": text}
+
+
+def choose(text: str, *refs: str) -> dict[str, Any]:
+    return {"action": "reply", "text": text, "proposed_choices": list(refs)}
+
+
+def hand_off(text: str, summary: str) -> dict[str, Any]:
+    return {"action": "hand_off", "text": text, "proposed_handoff_summary": summary}
 
 
 @pytest.fixture
@@ -347,3 +366,161 @@ def test_ac_f15_05_a_turn_at_the_step_limit_hands_off_to_the_router(stack, linh,
     assert ticket.agent_handoff_reason == "agent_step_limit"
     decision = ticket.routing_decisions.get()
     assert (decision.branch, decision.reason_code) == ("hitl", "agent_step_limit")
+
+
+# ── The 2026-11-26 amendment: the agent finds out, asks, and says why ──
+
+FOLDER = "Give me access to the Finance Reports folder"
+FOLDER_TEXT = (
+    "Folder access is granted by IT after your manager approves it; I can't grant it here."
+)
+SUMMARY = "Asks for access to the Finance Reports folder"
+
+
+def vpn_tickets(reporter: User) -> None:
+    """Two open VPN tickets of `reporter`."""
+    for public_id, subject in (
+        ("TKT-2026-000415", "VPN TLS handshake error"),
+        ("TKT-2026-000437", "VPN drops every 10 minutes"),
+    ):
+        Ticket.objects.create(
+            public_id=public_id,
+            reporter=reporter,
+            subject_masked=subject,
+            body_masked=subject,
+            pii_level="routine",
+        )
+
+
+@pytest.mark.django_db
+def test_ac_f15_11_a_choice_the_turn_never_fetched_is_refused(stack, linh):
+    vpn_tickets(linh)
+    model = stack.script(
+        call("list_my_tickets"),
+        choose("Which one?", "item_1", "item_7"),
+        choose("Which one?", "item_1", "item_7"),
+    )
+
+    turn = stack.send(linh, "What happened to my VPN ticket?")
+
+    assert len(model.prompts) == 3
+    assert "item_7" in model.prompts[2]
+    assert (turn.state, turn.stop_reason) == ("handed_off", "agent_schema_invalid")
+    assert turn.choices is None
+
+
+@pytest.mark.django_db
+def test_ac_f15_12_a_card_always_lets_the_person_say_something_else(stack, linh):
+    vpn_tickets(linh)
+    stack.script(call("list_my_tickets"), choose("Which one?", "item_1", "item_2"))
+
+    asked = stack.send(linh, "What happened to my VPN ticket?")
+
+    assert asked.state == "replied", asked.stop_reason
+    card = api_client_for(linh).get(f"/api/agent/turns/{asked.id}").json()["choices"]
+    assert sorted(c["id"] for c in card[:2]) == ["TKT-2026-000415", "TKT-2026-000437"]
+    assert {c["label"] for c in card[:2]} == {
+        "TKT-2026-000415 · VPN TLS handshake error",
+        "TKT-2026-000437 · VPN drops every 10 minutes",
+    }
+    assert card[2] == {"kind": "something_else", "id": None, "label": "Something else"}
+
+
+@pytest.mark.django_db
+def test_pressing_a_choice_sends_its_label(stack, linh):
+    vpn_tickets(linh)
+    stack.script(call("list_my_tickets"), choose("Which one?", "item_1", "item_2"))
+    asked = stack.send(linh, "What happened to my VPN ticket?")
+    pressed = asked.choices[1]
+    model = stack.script(
+        call("get_my_ticket", public_id=pressed["id"]), reply("It is waiting for the team.")
+    )
+
+    answered = stack.send(linh, pressed["label"], conversation=asked.conversation_id)
+
+    assert answered.state == "replied", answered.stop_reason
+    assert (answered.conversation_id, answered.seq) == (asked.conversation_id, asked.seq + 1)
+    assert answered.message_masked == pressed["label"]
+    assert f"[choice] {asked.choices[0]['label']}" in model.prompts[0]
+    assert "Something else" not in model.prompts[0]
+
+
+@pytest.mark.django_db
+def test_ac_f15_13_a_change_the_chat_can_t_make_is_explained_and_offered_as_a_ticket(stack, linh):
+    stack.script(hand_off(FOLDER_TEXT, SUMMARY))
+
+    turn = stack.send(linh, FOLDER)
+
+    assert (turn.state, turn.stop_reason) == ("handed_off", "agent_needs_staff")
+    shown = api_client_for(linh).get(f"/api/agent/turns/{turn.id}").json()
+    assert (shown["reply"], shown["ticket_offered"]) == (FOLDER_TEXT, True)
+    assert shown["needs_staff"] == {"checked": None, "button": "Open a ticket", "opened": None}
+    assert SUMMARY not in dumps(shown)
+
+
+@pytest.mark.django_db
+def test_ac_f15_14_the_ticket_keeps_the_person_s_words_and_the_summary_stays_with_staff(
+    stack, linh, monkeypatch
+):
+    sent: list[str] = []
+
+    def analyze(masked, request_id, categories):
+        sent.append(masked.model_dump_json())
+        return _no_proposal(request_id)
+
+    monkeypatch.setattr(ai_engine, "analyze", analyze)
+    stack.script(call("list_my_tickets"), hand_off(FOLDER_TEXT, SUMMARY))
+    turn = stack.send(linh, FOLDER)
+
+    opened = api_client_for(linh).post(f"/api/agent/turns/{turn.id}/ticket")
+    stack.run_pipelines()
+
+    assert opened.status_code == 200, opened.content
+    ticket = Ticket.objects.get()
+    assert opened.json()["needs_staff"] == {
+        "checked": "What I checked above goes with the ticket, so you won't need to explain again.",
+        "button": "Open a ticket",
+        "opened": f"Opened ticket {ticket.public_id}. You can follow it under My tickets.",
+    }
+    assert (ticket.subject_masked, ticket.body_masked) == (FOLDER, FOLDER)
+    assert (ticket.agent_handoff_reason, ticket.proposed_handoff_summary) == (
+        "agent_needs_staff",
+        SUMMARY,
+    )
+    (request,) = sent
+    assert SUMMARY not in request
+    decision = ticket.routing_decisions.get()
+    assert (decision.branch, decision.reason_code) == ("hitl", "agent_needs_staff")
+
+
+@pytest.mark.django_db
+def test_ac_f15_15_staff_can_t_hand_off_on_purpose(stack, minh):
+    model = stack.script(hand_off(FOLDER_TEXT, SUMMARY), repeat_last=True)
+
+    turn = stack.send(minh, "Give linh access to the Finance Reports folder", surface="console")
+
+    assert len(model.prompts) == 2
+    assert (turn.state, turn.stop_reason) == ("handed_off", "agent_schema_invalid")
+    assert turn.reply_text != FOLDER_TEXT and turn.proposed_handoff_summary is None
+
+
+@pytest.mark.django_db
+def test_ec_f15_09_a_laptop_that_won_t_reach_vpn_goes_to_the_helpdesk(stack, linh):
+    stack.script(
+        call("ask_helpdesk", message="My laptop won't connect to VPN."),
+        reply("The helpdesk's answer is below."),
+    )
+
+    turn = stack.send(linh, "My laptop won't connect to VPN.")
+
+    assert turn.state == "replied", turn.stop_reason
+    assert [(r["tool"], r["outcome"]) for r in turn.receipts] == [("ask_helpdesk", "done")]
+
+
+def test_stop_reasons_match_in_both_services():
+    assert {r.value for r in EngineStopReason} == {r.value for r in AgentStopReason}
+
+
+def test_the_turn_result_and_its_choices_have_the_same_fields_in_both_services():
+    assert set(EngineTurnResponse.model_fields) == set(AgentTurnResponse.model_fields)
+    assert set(EngineChoice.model_fields) == set(AgentChoice.model_fields)

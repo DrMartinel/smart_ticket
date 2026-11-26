@@ -98,6 +98,8 @@ export default function AgentPanel() {
                   onConfirm={agent.confirm}
                   onDismiss={agent.dismiss}
                   onRetry={agent.retry}
+                  busy={agent.busy}
+                  onAsk={agent.send}
                 />
               ))
             )}
@@ -144,6 +146,8 @@ function Turn({
   onConfirm,
   onDismiss,
   onRetry,
+  busy,
+  onAsk,
 }: {
   row: AgentRow;
   pending: AgentActionOut[];
@@ -153,6 +157,8 @@ function Turn({
   onConfirm: (a: AgentActionOut) => void;
   onDismiss: (a: AgentActionOut) => void;
   onRetry: (key: string) => void;
+  busy: boolean;
+  onAsk: (text: string) => void;
 }) {
   if (row.kind === "ended") {
     return (
@@ -181,6 +187,15 @@ function Turn({
       ) : (
         <div className="flex flex-col gap-2">
           <p className="whitespace-pre-wrap">{row.turn.reply}</p>
+          {row.turn.state === "replied" && (row.turn.choices ?? []).length > 0 && (
+            <div role="group" aria-label="Choose one" className="flex flex-wrap gap-2">
+              {(row.turn.choices ?? []).map((c) => (
+                <Button key={`${c.kind}:${c.id ?? ""}`} size="sm" variant="outline" disabled={busy} onClick={() => onAsk(c.label)}>
+                  {c.label}
+                </Button>
+              ))}
+            </div>
+          )}
           {row.turn.state === "handed_off" && row.turn.stop_reason && (
             <p className="text-xs text-muted-foreground">Stopped: {reasonText(row.turn.stop_reason)}</p>
           )}

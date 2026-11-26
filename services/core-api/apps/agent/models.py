@@ -13,11 +13,13 @@ from django.db import models
 from django.db.models import F
 
 from apps.accounts.models import Language
+from apps.agent.domain.vocabulary import SOMETHING_ELSE
 from apps.core.models import BaseModel
 from apps.tickets.domain.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 if TYPE_CHECKING:
     from apps.accounts.models import User
+    from infrastructure.dtos import AgentChoice
 
 
 def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
@@ -150,6 +152,8 @@ _VIETNAMESE_LETTERS = frozenset(
 TICKET_AT_ONCE = frozenset({ReasonCode.AGENT_MASK_FAILED, ReasonCode.AGENT_PII_CRITICAL})
 # Hand-offs whose ticket opens only when the person asks for it.
 TICKET_ON_REQUEST = AGENT_HANDOFF_REASONS - TICKET_AT_ONCE
+# The kind of the button every choice card ends with (BR-F15-22).
+SOMETHING_ELSE_KIND = "something_else"
 
 
 class AgentTurn(BaseModel):
@@ -170,6 +174,10 @@ class AgentTurn(BaseModel):
     # A ReasonCode value when the turn handed off.
     stop_reason = models.CharField(max_length=40, null=True, blank=True)
     reply_text = models.TextField(blank=True, default="")
+    # The choice card the reply showed: kind, id and label per button, "Something else" last.
+    choices = models.JSONField(null=True, blank=True)
+    # The model's summary of what a `needs_staff` turn asked for, for staff only (BR-F15-25).
+    proposed_handoff_summary = models.TextField(null=True, blank=True)
     receipts = models.JSONField(default=list)
     tool_calls = models.PositiveIntegerField(default=0)
     write_calls = models.PositiveIntegerField(default=0)
@@ -210,6 +218,30 @@ class AgentTurn(BaseModel):
             and self.conversation.surface == AgentSurface.CHAT.value
             and self.stop_reason in TICKET_ON_REQUEST
         )
+
+    def needs_staff(self) -> bool:
+        """Whether the turn handed off on purpose, for a change none of its person's tools makes."""
+        return self.stop_reason == ReasonCode.AGENT_NEEDS_STAFF.value
+
+    def ran_a_read(self) -> bool:
+        """Whether the turn read anything before it ended."""
+        return self.steps.filter(method="GET").exists()
+
+    def card_of(self, choices: list[AgentChoice]) -> list[dict[str, str | None]] | None:
+        """The card a reply with `choices` shows: one button each, then "Something else" in the
+        message's language; none without choices."""
+        if not choices:
+            return None
+        something_else = {
+            "kind": SOMETHING_ELSE_KIND,
+            "id": None,
+            "label": SOMETHING_ELSE[self.language()],
+        }
+        return [choice.model_dump(mode="json") for choice in choices] + [something_else]
+
+    def offered(self) -> list[dict[str, str | None]]:
+        """The choices the reply's card offered, without "Something else"."""
+        return [c for c in self.choices or [] if c["kind"] != SOMETHING_ELSE_KIND]
 
 
 class AgentStep(BaseModel):

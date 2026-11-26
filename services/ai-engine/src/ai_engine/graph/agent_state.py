@@ -21,6 +21,8 @@ class AgentLimits(BaseModel):
     max_steps: int = Field(ge=1)
     max_tool_calls: int = Field(ge=0)
     max_model_tokens: int = Field(ge=1)
+    max_choices: int = Field(ge=1)
+    max_handoff_summary_chars: int = Field(ge=1)
 
 
 class AgentEarlierTurn(BaseModel):
@@ -46,6 +48,18 @@ class AgentStopReason(StrEnum):
     MODEL_UNAVAILABLE = "model_unavailable"
     SCHEMA_INVALID = "schema_invalid"
     TOKEN_REFUSED = "token_refused"
+    # The person asked for a change none of their tools makes (BR-F15-23).
+    NEEDS_STAFF = "needs_staff"
+
+
+class AgentChoice(BaseModel):
+    """An item a tool result offered the person to pick: what it is, its id and its label."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: str
+    id: str
+    label: str
 
 
 StepOutcome = Literal["ok", "refused", "confirmation_required", "drafted", "failed", "unknown"]
@@ -111,6 +125,8 @@ class AgentState(BaseModel):
     model_calls: int = 0
     pending_call: PendingCall | None = None
     reply: str = ""
+    choices: list[AgentChoice] = []  # the reply's choices, resolved from `refs`
+    proposed_handoff_summary: str | None = None  # a hand-off's summary for staff
     tokens_in: int = 0
     tokens_out: int = 0
     cost_usd: float = 0.0
@@ -121,6 +137,7 @@ class AgentState(BaseModel):
     steps: list[AgentStep] = []
     result_flagged: bool = False  # an untrusted field in some result tripped the screen
     awaiting_confirmation: bool = False
+    refs: dict[str, AgentChoice] = {}  # every item the turn's results offered, by its `item_N`
 
     # Any node that ends the turn early
     stop_reason: AgentStopReason | None = None
