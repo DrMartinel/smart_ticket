@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-010"
+version: "CR-2026-011"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -316,3 +316,17 @@ infra:
   max_log_docs: 100
   max_spans: 500
   max_result_bytes: 24000
+
+cues:
+  # A ticket's cues (F17 §o, BR-F17-14, BR-F17-24): their window starts this
+  # many minutes before the ticket was opened and ends when they run; at most
+  # max_resources resources are linked per run, attached volumes included;
+  # each overview query keeps its overview_top rows. 🔧 assumptions, not measured.
+  lookback_minutes: 60
+  max_resources: 3
+  overview_top: 3
+  # Seconds between the points of a cue's metric query, also the range its
+  # rates are taken over, and the error lines an error-log cue shows. 🔧
+  # assumptions, not measured.
+  step_seconds: 60
+  log_lines: 3

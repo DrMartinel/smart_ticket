@@ -42,6 +42,7 @@ from config.settings.base import (
     ReportsThresholds,
     AccessThresholds,
     AgentThresholds,
+    CuesThresholds,
     InfraThresholds,
     SecurityThresholds,
     SlaThresholds,
@@ -178,6 +179,13 @@ def make_thresholds(**overrides) -> Thresholds:
             max_log_docs=100,
             max_spans=500,
             max_result_bytes=24000,
+        ),
+        cues=CuesThresholds(
+            lookback_minutes=60,
+            max_resources=3,
+            overview_top=3,
+            step_seconds=60,
+            log_lines=3,
         ),
     )
     base.update(overrides)

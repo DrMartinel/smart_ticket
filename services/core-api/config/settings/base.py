@@ -572,6 +572,16 @@ class InfraThresholds(BaseModel):
     max_result_bytes: int = Field(ge=1)
 
 
+class CuesThresholds(BaseModel):
+    # A ticket's cue window, resources per run and rows per overview query (F17 §o).
+    lookback_minutes: int = Field(ge=0)
+    max_resources: int = Field(ge=1)
+    overview_top: int = Field(ge=1)
+    # A cue's metric step and rate range, and the error lines it shows.
+    step_seconds: int = Field(ge=1)
+    log_lines: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -602,6 +612,7 @@ class Thresholds(BaseModel):
     access: AccessThresholds
     agent: AgentThresholds
     infra: InfraThresholds
+    cues: CuesThresholds
 
     @property
     def retrieval_floor(self) -> float:
