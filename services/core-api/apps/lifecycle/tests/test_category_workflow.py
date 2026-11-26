@@ -183,6 +183,7 @@ def test_a_move_that_fails_after_writing_leaves_no_part_of_it_behind(
     lifecycle.enter_category_workflow(ticket, "network", actor=None)
 
     assert reload(ticket).workflow_status == before
+    assert ticket.workflow_status == before, "the caller's instance is not moved"
     assert Transfer.objects.filter(ticket=ticket).count() == moves
     assert [(p["reason"], p["error"]) for p in skipped()] == [("error", "RuntimeError")]
 

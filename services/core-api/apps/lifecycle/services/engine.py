@@ -788,7 +788,8 @@ class Lifecycle:
     def enter_category_workflow(
         self, ticket: Ticket, category: str | None, *, actor: User | None
     ) -> None:
-        """Moves a ticket at a handoff status into its category's workflow (ADR-0049 part 3)."""
+        """Moves a ticket at a handoff status into its category's workflow, and updates the
+        caller's instance (ADR-0049 part 3)."""
         if category is None:
             return
         moved: Ticket | None = None
@@ -818,7 +819,7 @@ class Lifecycle:
                     moved = locked
         except Exception as e:  # noqa: BLE001 — the move never undoes the handoff it follows
             logger.exception("moving %s into its category's workflow failed", ticket.public_id)
-            skip, detail = CategoryWorkflowSkip.ERROR, {"error": type(e).__name__}
+            moved, skip, detail = None, CategoryWorkflowSkip.ERROR, {"error": type(e).__name__}
         if moved is not None:
             for name in _MOVED_FIELDS:
                 setattr(ticket, name, getattr(moved, name))
