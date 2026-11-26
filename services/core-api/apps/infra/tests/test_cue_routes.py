@@ -10,6 +10,7 @@ from django.test import TestCase
 
 from apps.accounts.domain.access import Access
 from apps.accounts.domain.catalog import Permission
+from apps.accounts.models import User
 from apps.infra import tasks
 from apps.infra.domain.cues import TEMPLATES
 from apps.infra.domain.vocabulary import CueRunOutcome, ResourceKind, ResourceSource
@@ -115,8 +116,9 @@ def test_linking_a_resource_the_cloud_lacks_is_404(lan, technician_user, backend
     assert not CueRun.objects.exists()
 
 
-def test_a_person_who_lost_infra_read_before_the_run_reads_nothing(
-    lan, technician_user, backends, queued, api_as, monkeypatch
+@pytest.mark.parametrize("lost", ["infra_read", "the_ticket", "active"])
+def test_a_person_who_lost_reach_before_the_run_reads_nothing(
+    lan, technician_user, backends, queued, api_as, monkeypatch, lost
 ):
     ticket = opened(lan, "db-01 chậm")
     held: list[str] = []
@@ -128,10 +130,20 @@ def test_a_person_who_lost_infra_read_before_the_run_reads_nothing(
             content_type="application/json",
         )
     before = InfraQuery.objects.count()
-    holds: Callable[[Access, Permission], bool] = Access.holds
-    monkeypatch.setattr(
-        Access, "holds", lambda self, p: p is not Permission.INFRA_READ and holds(self, p)
-    )
+    if lost == "infra_read":
+        holds: Callable[[Access, Permission], bool] = Access.holds
+        monkeypatch.setattr(
+            Access, "holds", lambda self, p: p is not Permission.INFRA_READ and holds(self, p)
+        )
+    elif lost == "the_ticket":
+        reaches = Access.covers_ticket
+        monkeypatch.setattr(
+            Access,
+            "covers_ticket",
+            lambda self, p, t: p is not Permission.TICKETS_READ and reaches(self, p, t),
+        )
+    else:
+        User.objects.filter(pk=technician_user.pk).update(is_active=False)
 
     tasks.linked_cues.apply(args=(held[0],)).get()
 

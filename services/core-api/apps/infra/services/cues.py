@@ -340,7 +340,7 @@ class Cues:
     def collect_linked(self, run_id: uuid.UUID) -> None:
         """Runs a person's run once; leaves one past `running`, or with cues, as it is."""
         run = (
-            CueRun.objects.select_related("ticket", "started_by")
+            CueRun.objects.select_related("ticket__reporter", "started_by")
             .filter(pk=run_id, outcome=CueRunOutcome.RUNNING.value, started_by__isnull=False)
             .first()
         )
@@ -349,11 +349,17 @@ class Cues:
 
     def linked_outcome(self, run: CueRun) -> CueRunOutcome:
         """Runs the linked resource's templates as the person who linked it, across every
-        project as their `infra:read` reaches."""
+        project as their `infra:read` reaches; fails a run whose person is no longer active,
+        holds `infra:read` no more or no longer reaches the ticket."""
         person = run.started_by
         assert person is not None
-        if not Access.of(person).holds(Permission.INFRA_READ):
-            logger.warning("infra: %s no longer holds infra:read; run %s", person, run.id)
+        access = Access.of(person)
+        if not (
+            person.is_active
+            and access.holds(Permission.INFRA_READ)
+            and access.covers_ticket(Permission.TICKETS_READ, run.ticket)
+        ):
+            logger.warning("infra: %s can no longer read run %s", person, run.id)
             return CueRunOutcome.FAILED
         self.open_window(run, run.ticket)
         log, cloud = QueryLog(person, InfraVia.HUMAN, ticket=run.ticket), openstack()
