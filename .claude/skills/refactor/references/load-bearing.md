@@ -633,6 +633,12 @@ guard and that comment is later trimmed, the entry is the record.
   inventory, and a mask-failed ticket's stored text can't be trusted to be
   masked (BR-F17-14). *`test_enrichment_reads_the_masked_text_only`,
   `test_a_ticket_whose_masking_failed_names_nothing`.*
+- **The savepoint (`transaction.atomic()`) around the handoff check in
+  `Cues.on_status_entered`.** The hook runs inside the move's transaction. A
+  query that fails there without a savepoint leaves that transaction aborted,
+  so the move fails at its next query even though the `except` caught the
+  error, and cues must never undo the move they follow (BR-F17-13).
+  *`test_a_failure_queueing_cues_never_fails_the_move`.*
 - **`Collector.store` turning an answer cut to `infra.max_result_bytes` into
   a `cut` cue.** A cut answer summarised as `ok` or `empty` reads as complete
   while the peak may sit in the part that was dropped, and nothing fails

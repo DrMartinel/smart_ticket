@@ -10,7 +10,7 @@ from typing import Any
 import httpx
 import pytest
 from cloud_sim.faults import FaultKind
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import TestCase
 from django.utils import timezone
 
@@ -165,7 +165,9 @@ def test_cue_tasks_run_on_the_infra_queue_under_a_time_limit(settings):
 
 def test_a_failure_queueing_cues_never_fails_the_move(lan, queued, monkeypatch):
     def broken(*args: Any) -> bool:
-        raise RuntimeError("a bug in the handoff check")
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1/0")
+        return True
 
     monkeypatch.setattr(Transfer.objects, "is_handoff", broken)
 
