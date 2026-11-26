@@ -9,7 +9,9 @@ import type {
   ChatTurnOut,
 } from "@/lib/types/generated";
 import type { ActionResult, AgentRow } from "@/lib/agent";
+import { CLOUD_READS, CLOUD_TOOL_LABEL } from "@/lib/infra";
 import AnswerText from "./AnswerText";
+import { CloudReads, ServerChange } from "./CloudCards";
 import HelpdeskCard from "./HelpdeskCard";
 import { PLACEHOLDER, Question, Reply, Working } from "./TurnView";
 import { Badge } from "@/components/ui/badge";
@@ -17,13 +19,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/states";
 
-// What each chat tool's change is called in a receipt or a confirmation card.
+// What each chat tool is called in a receipt or a confirmation card.
 const TOOL_LABEL: Record<string, string> = {
   ask_helpdesk: "Asked the helpdesk",
   answer_clarification: "Answered the helpdesk's question",
   request_ticket: "Asked for a ticket",
   reply_to_my_ticket: "Reply to your ticket",
   reopen_my_ticket: "Reopen your ticket",
+  ...CLOUD_TOOL_LABEL,
 };
 
 const OUTCOME: Record<AgentReceiptOut["outcome"], { label: string; variant: "ok" | "info" | "warn" | "danger" }> = {
@@ -116,7 +119,8 @@ export default function AgentTurnView({
   const asked = t.receipts.filter((r) => r.outcome === "awaiting_confirmation" && r.action_id);
   const cards = asked.flatMap((r) => pending.filter((a) => a.action_id === r.action_id));
   const helpdesk = t.receipts.flatMap((r) => (r.chat_turn ? [r.chat_turn] : []));
-  const acts = t.receipts.filter((r) => !r.chat_turn);
+  const acts = t.receipts.filter((r) => !r.chat_turn && !CLOUD_READS.has(r.tool));
+  const reads = t.receipts.filter((r) => CLOUD_READS.has(r.tool));
   const answered = asked.flatMap((r) => (r.action_id && results[r.action_id] ? [results[r.action_id]] : []));
   return (
     <>
@@ -137,6 +141,7 @@ export default function AgentTurnView({
             {helpdesk.map((id) => (
               <HelpdeskCard key={id} publicId={id} onAnswer={onAsk} />
             ))}
+            {reads.length > 0 && <CloudReads receipts={reads} />}
             {acts.length > 0 && (
               <ul aria-label="What the assistant did" className="flex flex-col gap-1.5 border-t border-border pt-3">
                 {acts.map((r, i) => (
@@ -235,6 +240,7 @@ function ConfirmCard({
         {TOOL_LABEL[action.tool] ?? action.tool}
         {ticket && <span className="num"> · {ticket}</span>}
       </p>
+      {action.target_kind === "server" && <ServerChange action={action} />}
       {text && <blockquote className="whitespace-pre-wrap rounded-md bg-muted px-3 py-2 text-sm">{text}</blockquote>}
       <p className="text-xs text-muted-foreground">
         Nothing is sent until you choose Send. This expires at{" "}
