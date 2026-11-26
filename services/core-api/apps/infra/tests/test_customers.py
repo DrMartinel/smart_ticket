@@ -18,6 +18,7 @@ from apps.infra.models import Customer, CustomerLookup
 from apps.infra.services import customers as customers_module
 from apps.infra.services.customers import customers
 from apps.infra.tests.conftest import LAN_SUBJECT, CloudSim, mock_http
+from apps.lifecycle.services.engine import lifecycle
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.domain.router import Branch
 from apps.tickets.models import IncidentVerdict, Ticket
@@ -134,6 +135,22 @@ def test_customer_never_changes_the_decision(lan, manager_user, cloud_sim: Cloud
         for t in (with_customer, without)
     ]
     assert decided[0] == decided[1]
+
+
+def test_a_ticket_the_pipeline_hands_off_starts_at_its_customers_floor(
+    lan, manager_user, cloud_sim: CloudSim, monkeypatch
+):
+    customer(manager_user, SAO_MAI, "Sao Mai Logistics")
+    insufficient_context_answers(monkeypatch)
+    ticket = ticket_from(lan)
+    lifecycle.start(ticket)
+
+    process_ticket.apply(args=(ticket.id,)).get()
+
+    ticket.refresh_from_db()
+    started = AuditLog.objects.get(event="sla_started", ticket_id=ticket.id).payload
+    assert ticket.priority == "P2"
+    assert (started["rule_priority"], started["tier"]) == ("P3", "enterprise")
 
 
 def test_no_customer_rows_means_no_lookup(lan, cloud_sim: CloudSim):

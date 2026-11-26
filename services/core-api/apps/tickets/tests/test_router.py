@@ -117,7 +117,10 @@ def make_thresholds(**overrides) -> Thresholds:
         ),
         assignment=AssignmentThresholds(reassign_note_min_chars=10),
         sla=SlaThresholds(
-            warn_at_percent=75, escalate_at_percent=125, holidays_reminder_month_day="12-01"
+            warn_at_percent=75,
+            escalate_at_percent=125,
+            holidays_reminder_month_day="12-01",
+            tier_floor={"enterprise": "P2", "business": "P3", "standard": "P3"},
         ),
         requester=RequesterThresholds(
             conversation_idle_minutes=30,
