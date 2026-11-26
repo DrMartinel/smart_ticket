@@ -312,10 +312,17 @@ class Alert:
             resource_id=ref,
         )
 
-    def is_about(self, kind: AlertResource | None, resource_id: str | None) -> bool:
-        """Whether the alert's resource is of `kind` and has `resource_id`, each when given."""
-        return (kind is None or self.resource_kind is kind) and (
-            resource_id is None or self.resource_id == resource_id
+    def names(self, kind: AlertResource | None, resource_id: str | None) -> bool:
+        """Whether one of the alert's id labels names a resource of `kind` with `resource_id`,
+        each when given, so a volume's alert that carries its server's id names that server too;
+        with neither given, every alert does."""
+        if kind is None and resource_id is None:
+            return True
+        return any(
+            (kind is None or labelled is kind)
+            and bool(self.labels.get(label))
+            and (resource_id is None or self.labels[label] == resource_id)
+            for labelled, label in _RESOURCE_LABELS
         )
 
     def free_text(self) -> list[str]:

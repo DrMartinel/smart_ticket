@@ -286,18 +286,27 @@ def test_an_alert_s_resource_is_its_most_specific_label(
     ]
 
 
-def test_the_alerts_of_one_resource_leave_out_those_of_what_is_attached_to_it(
+def test_a_volume_alert_carrying_its_server_s_id_shows_on_both_their_pages(
     api_as, technician_user, cloud_sim, alertmanager: FakeAlertmanager, ner
 ):
     alertmanager.alerts = [
         alert("CloudServerDown", "p1", "db-01 down", server_id="srv-1"),
         alert("CloudVolumeLatencyHigh", "p1", "slow", volume_id="vol-1", server_id="srv-1"),
         alert("CloudServerDown", "p1", "db-02 down", server_id="srv-2"),
+        alert("CloudVolumeLatencyHigh", "p1", "also slow", volume_id="vol-2", server_id="srv-2"),
     ]
+    client = api_as(technician_user)
 
-    reply = api_as(technician_user).get("/api/infra/alerts?resource_kind=server&resource_id=srv-1")
+    server = client.get("/api/infra/alerts?resource_kind=server&resource_id=srv-1").json()
+    volume = client.get("/api/infra/alerts?resource_kind=volume&resource_id=vol-1").json()
+    wrong_kind = client.get("/api/infra/alerts?resource_kind=volume&resource_id=srv-1").json()
 
-    assert [a["summary"] for a in reply.json()] == ["db-01 down"]
+    assert [(a["summary"], a["resource_kind"], a["resource_id"]) for a in server] == [
+        ("db-01 down", "server", "srv-1"),
+        ("slow", "volume", "vol-1"),
+    ]
+    assert [a["summary"] for a in volume] == ["slow"]
+    assert wrong_kind == []
 
 
 def test_staff_see_alerts_tied_to_no_project(

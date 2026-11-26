@@ -139,8 +139,8 @@ class Inventory:
         resource_kind: AlertResource | None = None,
         resource_id: str | None = None,
     ) -> list[Alert]:
-        """The alerts in scope, narrowed to the resource `resource_kind` and `resource_id`
-        name, each when given."""
+        """The alerts in scope, narrowed to those whose id labels name the resource
+        `resource_kind` and `resource_id`, each when given."""
         wanted = self.scope.narrowed_to(project_id)
         with self.read(InfraBackend.ALERTMANAGER, wanted) as read:
             read.calls.append("GET /api/v2/alerts")
@@ -149,7 +149,7 @@ class Inventory:
                 [
                     a
                     for a in found
-                    if self.covers(wanted, a.project_id) and a.is_about(resource_kind, resource_id)
+                    if self.covers(wanted, a.project_id) and a.names(resource_kind, resource_id)
                 ]
             )
 
