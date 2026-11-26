@@ -30,7 +30,7 @@ from history import (
 )
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
-from record_run import metrics_from_results  # noqa: E402
+from record_run import categories_config, metrics_from_results  # noqa: E402
 
 HEADING = re.compile(r"^## (\d{4}-\d{2}-\d{2}.*)$", re.MULTILINE)
 
@@ -128,6 +128,32 @@ def test_results_json_shapes_become_tidy_rows():
     assert gated["auto_reply_page_precision"] is not None
     assert gated["auto_reply_page_precision"].value == 0.95
     assert gated["auto_reply_precision"] is None
+
+
+def test_the_category_set_is_recorded_as_configuration_not_a_metric():
+    """The category set the suites record goes into the run's configuration, as its slugs and a
+    hash, and never becomes a metric row the history would refuse."""
+
+    used = [
+        {"slug": "access", "version": 1, "is_security": False, "is_routable": True},
+        {"slug": "security", "version": 2, "is_security": True, "is_routable": True},
+    ]
+    results = {
+        "category_set": {"value": 2.0, "categories": used},
+        "auto_reply_precision": {"value": 0.97, "n": 21},
+    }
+
+    assert [r.metric for r in metrics_from_results(results, "2026-10-02-x")] == [
+        "auto_reply_precision"
+    ]
+    config = categories_config(results)
+    assert config["categories"] == "access,security"
+    edited = [used[0], {**used[1], "version": 3}]
+    assert (
+        categories_config({"category_set": {"value": 2.0, "categories": edited}})["categories_sha"]
+        != config["categories_sha"]
+    )
+    assert categories_config({"auto_reply_precision": {"value": 0.97}}) == {}
 
 
 def test_old_metric_name_maps_to_the_renamed_one():

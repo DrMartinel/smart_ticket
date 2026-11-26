@@ -73,12 +73,12 @@ There is no shared schema package (ADR-0010). Each type is defined in the module
 |---|---|---|
 | `TicketIn` (`extra="forbid"`) | `apps/tickets/request_schema.py` | — |
 | `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / clarification / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `ClassificationSignals`, `EngineSignals`, `AIRunRequest` (with the `CategoryOption`s Jev chooses among, ADR-0049), `AIRunResponse`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies only); the ticket types in `graph/ticket.py`, the proposals in `graph/nodes/infer/proposals.py`, the signals in `graph/nodes/emit_signals/signals.py` |
-| `PIILevel` | `apps/tickets/utils/patterns.py` | `graph/ticket.py` |
+| `PIILevel` | `apps/tickets/domain/patterns.py` | `graph/ticket.py` |
 | `AgentTurnRequest`, `AgentTurnResponse`, `AgentLimits`, `AgentEarlierTurn`, `AgentStep`, `AgentStopReason` (F15) | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies); the rest in `graph/agent_state.py` |
 | `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `CategoryMeta`, `CategorySet`, `RoutingDecision` | `apps/tickets/domain/router.py` | — |
 | `PolicySignals`, `TrustSignals` (ai-engine's findings plus core-api's policy; what the router and trust scorer read) | `infrastructure/dtos.py` | — |
 | `Thresholds` | `config/settings/base.py` | — |
-| `TrustScore` | `apps/tickets/utils/trust_scorer.py` | — |
+| `TrustScore` | `apps/tickets/domain/trust_scorer.py` | — |
 | `ReviewAction`, `Verdict` · `UserRole` | `apps/review/models.py` · `apps/accounts/models.py` | — |
 
 Two details worth understanding rather than just accepting:
@@ -424,7 +424,7 @@ Two timeout budgets exist per model call, and the distinction matters: **connect
 | How a branch is chosen | `router.py` (and add branch tests) |
 | What the model is asked | `ai-engine/core/prompts/*.md` — versioned, and eval-gated like code |
 | What Jev is asked | `ai-engine/core/prompts/*.json` (`rerank_choice.v*`, `category.v*`) — versioned and eval-gated the same way |
-| What counts as PII | `tickets/utils/patterns.py` (regex) or ai-engine's NER prompt `core/prompts/pii_ner.v*.md` |
+| What counts as PII | `apps/tickets/domain/patterns.py` (regex) or ai-engine's NER prompt `core/prompts/pii_ner.v*.md` |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` (Jev's question, `category.v3` instructions), the categories' descriptions in `ticket_categories` (ADR-0049), `classification.min_confidence` in `thresholds.yaml` |
 | What a reviewer sees | `TrustSignalsPanel.tsx`, `ReviewForm.tsx` |

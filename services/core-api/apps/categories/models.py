@@ -16,7 +16,7 @@ class CategoryQuerySet(QuerySet["Category"]):
 
     def for_triage(self) -> CategoryQuerySet:
         """The active categories in slug order, as Jev is offered them (ADR-0049)."""
-        return self.filter(is_active=True).order_by("slug")
+        return self.active().order_by("slug")
 
     def is_security(self, slug: str | None) -> bool:
         """Whether `slug` names a security category, active or not."""

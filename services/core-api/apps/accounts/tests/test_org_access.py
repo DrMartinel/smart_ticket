@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import dataclasses
 import json
 import re
 from datetime import timedelta
@@ -687,9 +688,13 @@ def test_services_check_permissions_not_role_names():
 
 @pytest.mark.parametrize("holder", [User, Caller, Access])
 def test_a_person_has_no_role_name_properties(holder):
-    """`is_security` is also a category's flag (ADR-0049), so it is checked on the person's types."""
-    assert not hasattr(holder, "is_security")
-    assert not hasattr(holder, "is_manager")
+    """A person's types have no `is_security` or `is_manager` attribute or field."""
+    names = (
+        {f.name for f in dataclasses.fields(holder)} if dataclasses.is_dataclass(holder) else set()
+    )
+    for name in ("is_security", "is_manager"):
+        assert not hasattr(holder, name)
+        assert name not in names
 
 
 def test_an_employee_head_gets_no_staff_only_permission(boss, finance):

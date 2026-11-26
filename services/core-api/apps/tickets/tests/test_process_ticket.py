@@ -240,20 +240,25 @@ class TestCategorySet:
         assert ticket.review_items.exists(), "must land in a review queue"
 
     @pytest.mark.parametrize(
-        "pii_level, branch, reason",
+        "fields, branch, reason",
         [
-            (PIILevel.CRITICAL, Branch.BLOCK, ReasonCode.PII_CRITICAL),
-            (PIILevel.MASK_FAILED, Branch.HITL, ReasonCode.PII_MASK_FAILED),
+            ({"pii_level": PIILevel.CRITICAL.value}, Branch.BLOCK, ReasonCode.PII_CRITICAL),
+            ({"pii_level": PIILevel.MASK_FAILED.value}, Branch.HITL, ReasonCode.PII_MASK_FAILED),
+            (
+                {"agent_handoff_reason": ReasonCode.AGENT_STEP_LIMIT.value},
+                Branch.HITL,
+                ReasonCode.AGENT_STEP_LIMIT,
+            ),
         ],
     )
     def test_an_unusable_set_still_lets_the_earlier_gates_decide(
-        self, employee_user, sent, pii_level, branch, reason
+        self, employee_user, sent, fields, branch, reason
     ):
         from apps.categories.models import Category
 
         Category.objects.update(is_security=False)
         ticket = make_ticket(employee_user)
-        Ticket.objects.filter(pk=ticket.pk).update(pii_level=pii_level.value)
+        Ticket.objects.filter(pk=ticket.pk).update(**fields)
 
         result = process_ticket.apply(args=(ticket.id,)).get()
 
