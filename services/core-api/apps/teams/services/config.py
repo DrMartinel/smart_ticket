@@ -53,8 +53,12 @@ class TeamConfig:
         return team
 
     def set_categories(self, team: Team, categories: list[str], *, move: bool) -> None:
-        """Makes `categories` the team's; refuses one another team owns unless asked to move it."""
+        """Makes `categories` the team's; refuses an inactive one it doesn't own yet, and one another
+        team owns unless asked to move it."""
         wanted = set(categories)
+        added = wanted - set(team.categories.values_list("category", flat=True))
+        for category in sorted(added):
+            Category.objects.require(category)
         owned_elsewhere = TeamCategory.objects.filter(category__in=wanted).exclude(team=team)
         taken = list(owned_elsewhere.select_related("team"))
         if taken and not move:
@@ -67,7 +71,7 @@ class TeamConfig:
             )
         owned_elsewhere.delete()
         team.categories.exclude(category__in=wanted).delete()
-        for category in wanted - set(team.categories.values_list("category", flat=True)):
+        for category in added:
             TeamCategory.objects.create(team=team, category=category)
 
     def check_whole(self, team: Team) -> None:

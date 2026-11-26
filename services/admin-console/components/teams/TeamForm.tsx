@@ -75,6 +75,13 @@ export function TeamForm({
   onChange: (patch: Partial<TeamDraft>) => void;
 }) {
   const { categories, error: categoriesError, retry: retryCategories } = useCategories();
+  const known = categories.length > 0 || categoriesError !== null;
+  const options = [
+    ...categories.map((c) => ({ slug: c.slug, label: c.name })),
+    ...(known ? d.categories : [])
+      .filter((slug) => !categories.some((c) => c.slug === slug))
+      .map((slug) => ({ slug, label: categoriesError ? slug : `${slug} (inactive)` })),
+  ];
   return (
     <div className="flex flex-col gap-4 text-sm">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -121,7 +128,7 @@ export function TeamForm({
       <fieldset className="flex flex-wrap gap-x-4 gap-y-1.5" disabled={disabled}>
         <legend className="pb-1.5 text-xs text-muted-foreground">Categories it owns</legend>
         {categoriesError && <CategoryReadError error={categoriesError} onRetry={retryCategories} />}
-        {categories.map((c) => (
+        {options.map((c) => (
           <label key={c.slug} className="flex items-center gap-1.5">
             <Checkbox
               checked={d.categories.includes(c.slug)}
@@ -132,7 +139,7 @@ export function TeamForm({
                 })
               }
             />
-            {c.name}
+            {c.label}
           </label>
         ))}
       </fieldset>

@@ -18,6 +18,7 @@ from apps.accounts.models import User
 from apps.accounts.domain.access import Access
 from apps.accounts.domain.catalog import Permission
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.core.errors import CodedError
 from apps.notifications.services.notifier import Notice, notifier
 from apps.notifications.domain.vocabulary import NotificationEvent
@@ -446,21 +447,23 @@ class Assignment:
     def category_for(
         self, ticket: Ticket, current: Team | None, target: Team, asked: str | None
     ) -> str | None:
-        """The category after a move: kept when the target owns it, else the one it owns or names."""
+        """The category after a move: kept when the target owns it, else the active one it owns or
+        names."""
         if target == current:
             return ticket.category
         owned = list(target.categories.values_list("category", flat=True))
         if ticket.category in owned and asked in (None, ticket.category):
             return ticket.category
         if asked is not None and asked in owned:
-            return asked
-        if asked is None and len(owned) == 1:
-            return owned[0]
+            return Category.objects.require(asked).slug
+        choices = list(Category.objects.active().filter(slug__in=owned).values_list("slug", flat=True))
+        if asked is None and len(choices) == 1:
+            return choices[0]
         raise TeamError(
             422,
             TeamRefusal.CATEGORY_REQUIRED,
             f"say which of {target.slug}'s categories the ticket moves to",
-            {"categories": owned},
+            {"categories": choices},
         )
 
     def team(self, slug: str) -> Team:

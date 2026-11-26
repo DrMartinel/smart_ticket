@@ -9,6 +9,7 @@ import pytest
 from django.db import connection
 
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.lifecycle.tests.conftest import make_ticket
 from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.notifications.models import Message
@@ -427,6 +428,29 @@ def test_the_lead_moves_a_ticket_to_another_team_and_category(network, api_as):
     assert label.human_truth == {"category": "access", "reason_code": "wrong_team"}
     assert notices(network.people["ha"], "ticket.reassigned")
     assert notices(network.people["khoa"], "ticket.reassigned")
+
+
+@pytest.mark.parametrize(
+    "asked, code", [("access", "unknown_category"), (None, "category_required")]
+)
+def test_a_ticket_cannot_be_moved_into_an_inactive_category(network, api_as, asked, code):
+    ticket = assigned(network)
+    Category.objects.filter(slug="access").update(is_active=False)
+
+    response = reassign(
+        api_as(network.people["duc"]),
+        ticket,
+        to_team="access",
+        to_category=asked,
+        reason_code="wrong_team",
+        note="Tài khoản bị khoá",
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == code
+    ticket.refresh_from_db()
+    assert (ticket.category, ticket.assigned_team) == ("network", "network")
+    assert not Reassignment.objects.filter(ticket=ticket).exists()
 
 
 def test_the_assignee_hands_over_within_the_team(network, api_as):

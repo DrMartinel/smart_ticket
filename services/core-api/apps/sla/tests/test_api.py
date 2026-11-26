@@ -8,6 +8,7 @@ from apps.accounts.models import Capability
 
 from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.sla.models import Calendar, Holiday, Policy
 from apps.sla.tests.conftest import handed_off
 from apps.sla.services.clocks import sla_clocks
@@ -42,6 +43,19 @@ def test_a_workflow_admin_activates_their_own_draft(people, api_as):
 
     assert response.json()["state"] == "active"
     assert AuditLog.objects.get(event="sla_policy_activated").payload["reason"] == "Q4"
+
+
+def test_a_policy_for_an_inactive_category_is_refused(people, api_as):
+    Category.objects.filter(slug="network").update(is_active=False)
+    tu = admin(people["tu"])
+
+    refused = send(api_as(tu), "post", "/api/sla/policies", {**P3_FASTER, "category": "network"})
+    draft = send(api_as(tu), "post", "/api/sla/policies", P3_FASTER).json()
+    moved = send(api_as(tu), "patch", f"/api/sla/policies/{draft['id']}", {"category": "network"})
+
+    assert (refused.status_code, refused.json()["code"]) == (422, "unknown_category")
+    assert (moved.status_code, moved.json()["code"]) == (422, "unknown_category")
+    assert not Policy.objects.filter(category="network").exists()
 
 
 def test_activating_needs_a_reason(people, api_as):

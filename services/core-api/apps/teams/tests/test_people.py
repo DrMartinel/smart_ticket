@@ -180,6 +180,21 @@ def test_an_inactive_category_needs_no_team(network, api_as):
     assert not TeamCategory.objects.filter(category="network").exists()
 
 
+def test_a_team_cannot_claim_an_inactive_category(network, api_as):
+    Category.objects.filter(slug="network").update(is_active=False)
+
+    response = send(
+        api_as(network.people["huy"]),
+        "patch",
+        "/api/teams/access",
+        {"categories": ["access", "network"], "move_categories": True, "reason": "Gộp nhóm"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "unknown_category"
+    assert TeamCategory.objects.get(category="network").team == network.team
+
+
 def test_a_category_moves_when_asked_and_is_audited(network, api_as):
     response = send(
         api_as(network.people["huy"]),
