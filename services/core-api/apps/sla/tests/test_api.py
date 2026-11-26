@@ -170,6 +170,18 @@ def test_the_preview_shows_due_times_without_creating_clocks(people, api_as):
     assert body["resolution"]["due_at"] == "2026-10-28T08:30:00Z"
 
 
+def test_a_preview_for_an_unknown_category_is_refused(people, api_as):
+    response = send(
+        api_as(people["mai"]),
+        "post",
+        "/api/sla/preview",
+        {"category": "billing", "priority": "P3", "start_at": "2026-10-23T08:30:00Z"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "unknown_category"
+
+
 def test_staff_see_the_clocks_and_the_requester_only_the_resolution_due(clock, people, api_as):
     clock.set(2026, 10, 23, 15, 30)
     ticket = handed_off(people["lan"], category="hardware")

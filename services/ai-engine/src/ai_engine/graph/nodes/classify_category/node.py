@@ -42,7 +42,10 @@ class ClassifyCategoryNode(BaseNode[TriageState]):
             top = state.reranked[0]
             title = article_titles([top.article_id]).get(top.article_id)
         choice = classifier.classify(
-            state.ticket.subject_masked, state.ticket.body_masked, title, state.categories
+            subject=state.ticket.subject_masked,
+            body=state.ticket.body_masked,
+            page_title=title,
+            categories=state.categories,
         )
         return {"category_choice": choice.category, "category_confidence": choice.confidence}
 

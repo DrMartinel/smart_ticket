@@ -83,6 +83,13 @@ def test_a_ticket_with_an_unknown_category_is_refused_by_the_database():
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("description", ["", "   "])
+def test_a_blank_description_is_refused_by_the_database(description):
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Category.objects.filter(slug="network").update(description=description)
+
+
+@pytest.mark.django_db
 def test_a_category_in_use_cannot_be_deleted():
     Category.objects.create(slug="billing", name="Billing", description="Invoices.")
     Ticket.objects.create(
@@ -104,7 +111,7 @@ def test_a_category_in_use_cannot_be_deleted():
 
 
 @pytest.mark.django_db
-def test_the_seeded_slugs_are_the_wire_enum():
+def test_the_seeded_slugs_are_the_six_categories():
     assert set(Category.objects.values_list("slug", flat=True)) == {
         "hardware",
         "software",

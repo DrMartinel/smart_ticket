@@ -15,8 +15,12 @@ import json
 import os
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import httpx
+
+if TYPE_CHECKING:
+    from apps.tickets.domain.router import CategorySet
 
 GOLDEN_PATH = Path(__file__).parent.parent / "golden" / "tickets.jsonl"
 # Chat follow-ups with the conversation's earlier turns (F3, ADR-0034).
@@ -108,6 +112,7 @@ def analyze(
     subject: str,
     body: str,
     *,
+    categories: CategorySet,
     never_refuse: bool = False,
     prior_turns: list[dict] | None = None,
 ) -> dict:
@@ -124,7 +129,7 @@ def analyze(
     2026-10-04 run instead of blocked, and no masking regression could show
     up here. Masking calls ai-engine's NER, so a run needs it up.
 
-    The categories are the active rows, as the pipeline sends them (ADR-0049).
+    `categories` is the set the pipeline would send (ADR-0049), read once per run.
 
     `prior_turns` are a chat conversation's earlier turns ({question, outcome,
     answer_excerpt}); each question is masked the way core-api stored it, as
@@ -134,7 +139,6 @@ def analyze(
     from django.conf import settings
 
     from apps.tickets.request_schema import TicketIn
-    from apps.tickets.services.pipeline import category_set
     from apps.tickets.domain.masking import mask, mask_reply
 
     floor = 0.0 if never_refuse else settings.THRESHOLDS.retrieval_floor
@@ -164,7 +168,7 @@ def analyze(
             ],
         },
         "retrieval_floor": floor,
-        "categories": [c.model_dump() for c in category_set().options()],
+        "categories": [c.model_dump() for c in categories.options()],
     }
     resp = client.post("/v1/analyze", json=req)
     resp.raise_for_status()

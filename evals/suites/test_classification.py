@@ -65,7 +65,7 @@ def _stratified_sample(cases: list[dict], per_category: int) -> list[dict]:
     return [c for bucket in by_category.values() for c in bucket[:per_category]]
 
 
-def test_per_category_f1_meets_threshold(ai_engine_client):
+def test_per_category_f1_meets_threshold(ai_engine_client, categories):
     cases = _stratified_sample(
         [c for c in load_golden("kb_covered", "out_of_kb") if "category" in c["truth"]],
         PER_CATEGORY_SAMPLE,
@@ -80,7 +80,7 @@ def test_per_category_f1_meets_threshold(ai_engine_client):
     for case in cases:
         truth = case["truth"]["category"]
         try:
-            result = analyze(ai_engine_client, case["subject"], case["body"])
+            result = analyze(ai_engine_client, case["subject"], case["body"], categories=categories)
         except httpx.HTTPStatusError as e:
             if e.response.status_code < 500:
                 raise

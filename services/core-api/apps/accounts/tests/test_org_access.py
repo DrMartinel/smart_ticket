@@ -25,6 +25,7 @@ from apps.accounts.models import (
 )
 from apps.accounts.testing import grant_capability
 from apps.accounts.domain.access import Access
+from apps.accounts.permissions import Caller
 from apps.accounts.domain.catalog import (
     SYSTEM_ROLE_PERMISSIONS,
     Permission,
@@ -684,10 +685,11 @@ def test_services_check_permissions_not_role_names():
     assert found == []
 
 
-def test_a_user_has_no_role_name_properties():
-    """`is_security` is also a category's flag (ADR-0049), so it is checked on `User` itself."""
-    assert not hasattr(User, "is_security")
-    assert not hasattr(User, "is_manager")
+@pytest.mark.parametrize("holder", [User, Caller, Access])
+def test_a_person_has_no_role_name_properties(holder):
+    """`is_security` is also a category's flag (ADR-0049), so it is checked on the person's types."""
+    assert not hasattr(holder, "is_security")
+    assert not hasattr(holder, "is_manager")
 
 
 def test_an_employee_head_gets_no_staff_only_permission(boss, finance):

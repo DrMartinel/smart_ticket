@@ -239,6 +239,28 @@ class TestCategorySet:
         assert ticket.ai_runs.get().degraded_reason == "category_set_invalid"
         assert ticket.review_items.exists(), "must land in a review queue"
 
+    @pytest.mark.parametrize(
+        "pii_level, branch, reason",
+        [
+            (PIILevel.CRITICAL, Branch.BLOCK, ReasonCode.PII_CRITICAL),
+            (PIILevel.MASK_FAILED, Branch.HITL, ReasonCode.PII_MASK_FAILED),
+        ],
+    )
+    def test_an_unusable_set_still_lets_the_earlier_gates_decide(
+        self, employee_user, sent, pii_level, branch, reason
+    ):
+        from apps.categories.models import Category
+
+        Category.objects.update(is_security=False)
+        ticket = make_ticket(employee_user)
+        Ticket.objects.filter(pk=ticket.pk).update(pii_level=pii_level.value)
+
+        result = process_ticket.apply(args=(ticket.id,)).get()
+
+        assert sent == []
+        assert result["branch"] == branch.value
+        assert ticket.routing_decisions.get().reason_code == reason.value
+
     def test_a_decision_records_the_categories_it_ran_against(self, employee_user, sent):
         ticket = make_ticket(employee_user)
 

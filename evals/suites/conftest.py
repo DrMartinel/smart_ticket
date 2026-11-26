@@ -24,12 +24,25 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
 os.environ.setdefault("EMBEDDING_PROVIDER", "stub")
 django.setup()
 
-from suites.golden_utils import AI_ENGINE_URL, load_golden  # noqa: E402
+from apps.tickets.domain.router import CategorySet  # noqa: E402
+from suites.golden_utils import AI_ENGINE_URL, load_golden, record_metric  # noqa: E402
 
 
 @pytest.fixture(scope="session")
 def golden_cases() -> list[dict]:
     return load_golden()
+
+
+@pytest.fixture(scope="session")
+def categories(django_db_blocker) -> CategorySet:
+    """The category set the pipeline would send, read once from the dev database and recorded
+    with the run's results (ADR-0049)."""
+    from apps.tickets.services.pipeline import category_set
+
+    with django_db_blocker.unblock():
+        found = category_set()
+    record_metric("category_set", float(len(found.categories)), categories=found.as_used())
+    return found
 
 
 @pytest.fixture(scope="session")

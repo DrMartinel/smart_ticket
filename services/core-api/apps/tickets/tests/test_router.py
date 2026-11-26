@@ -625,9 +625,6 @@ def test_auto_route_all_checks_pass():
     assert d.category == "network"
 
 
-# ── Router purity ─────────────────────────────────────────────────────
-
-
 # ── The category set (ADR-0049) ──────────────────────────────────────────
 
 
@@ -636,11 +633,12 @@ def test_auto_route_all_checks_pass():
     [
         CategorySet(categories=()),
         CategorySet(categories=tuple(category(s, is_security=False) for s in SEEDED)),
+        CategorySet(categories=(*CATEGORIES.categories, category("billing", description="  "))),
     ],
-    ids=["empty", "no_security_category"],
+    ids=["empty", "no_security_category", "a_blank_description"],
 )
-def test_a_set_with_no_security_category_goes_to_a_human(categories):
-    """A security ticket could never be held as one: the set is unusable."""
+def test_an_unusable_set_goes_to_a_human(categories):
+    """A set with no security category, or a category Jev is told nothing about, is unusable."""
     d = Router(TH).route(good_signals(), route_proposal(), None, categories)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.CATEGORY_SET_INVALID
@@ -654,11 +652,25 @@ def test_a_choice_outside_the_set_goes_to_a_human():
     assert d.reason_code is ReasonCode.CATEGORY_SET_INVALID
 
 
-def test_an_unusable_set_still_lets_the_hard_gates_decide_first():
-    signals = good_signals(**{"policy.injection_detected": True})
-    d = Router(TH).route(signals, route_proposal(), None, CategorySet(categories=()))
-    assert d.branch is Branch.BLOCK
-    assert d.reason_code is ReasonCode.INJECTION_DETECTED
+@pytest.mark.parametrize(
+    "policy, branch, reason",
+    [
+        ({"policy.injection_detected": True}, Branch.BLOCK, ReasonCode.INJECTION_DETECTED),
+        ({"policy.pii_level": PIILevel.CRITICAL}, Branch.BLOCK, ReasonCode.PII_CRITICAL),
+        ({"policy.mass_incident": True}, Branch.ESCALATE, ReasonCode.MASS_INCIDENT),
+        ({"policy.pii_level": PIILevel.MASK_FAILED}, Branch.HITL, ReasonCode.PII_MASK_FAILED),
+        (
+            {"policy.agent_handoff_reason": "agent_step_limit"},
+            Branch.HITL,
+            ReasonCode.AGENT_STEP_LIMIT,
+        ),
+    ],
+    ids=["injection", "pii_critical", "mass_incident", "mask_failed", "agent_handoff"],
+)
+def test_an_unusable_set_still_lets_the_hard_gates_decide_first(policy, branch, reason):
+    d = Router(TH).route(good_signals(**policy), route_proposal(), None, CategorySet(categories=()))
+    assert d.branch is branch
+    assert d.reason_code is reason
 
 
 def test_a_route_into_a_category_not_routable_goes_to_a_human():
@@ -725,6 +737,9 @@ def test_the_set_records_slugs_versions_and_flags_but_no_descriptions():
     assert CategorySet(categories=(category("network", version=3),)).as_used() == [
         {"slug": "network", "is_security": False, "is_routable": True, "version": 3}
     ]
+
+
+# ── Router purity ─────────────────────────────────────────────────────
 
 
 def test_route_is_deterministic_pure_function():

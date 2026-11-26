@@ -36,7 +36,13 @@ from django.conf import settings  # noqa: E402
 from apps.kb.models import KbArticle  # noqa: E402
 from apps.tickets.domain.patterns import PIILevel  # noqa: E402
 from apps.tickets.services.pipeline import category_set, trust_signals  # noqa: E402
-from apps.tickets.domain.router import Branch, KBArticleMeta, RiskTier, Router  # noqa: E402
+from apps.tickets.domain.router import (  # noqa: E402
+    Branch,
+    CategorySet,
+    KBArticleMeta,
+    RiskTier,
+    Router,
+)
 from infrastructure.dtos import EngineSignals, LLMProposalEnvelope  # noqa: E402
 from suites.golden_utils import AI_ENGINE_URL, analyze, load_golden, right_pages  # noqa: E402
 
@@ -63,11 +69,11 @@ def kb_meta_of(proposal: dict | None) -> dict | None:
     }
 
 
-def run_case(client: httpx.Client, case: dict) -> dict:
+def run_case(client: httpx.Client, case: dict, categories: CategorySet) -> dict:
     """One golden ticket's ai-engine result, or the status it failed with."""
     row: dict = {"id": case["id"], "truth": case["truth"], "tags": case["tags"]}
     try:
-        result = analyze(client, case["subject"], case["body"])
+        result = analyze(client, case["subject"], case["body"], categories=categories)
     except httpx.HTTPStatusError as e:
         row["error"] = e.response.status_code
         return row
@@ -98,12 +104,13 @@ def collect(out: Path, workers: int, limit: int | None) -> None:
         cases = cases[:limit]
     print(f"{len(done)} already collected, {len(cases)} to run → {out}")
     client = httpx.Client(base_url=AI_ENGINE_URL, timeout=180.0)
+    categories = category_set()
     lock = threading.Lock()
     finished = 0
 
     def one(case: dict) -> None:
         nonlocal finished
-        row = run_case(client, case)
+        row = run_case(client, case, categories)
         with lock, out.open("a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
             finished += 1
@@ -133,7 +140,7 @@ def router_at(bar: float) -> Router:
     return Router(th.model_copy(update={"retrieval": retrieval}))
 
 
-def decide(router: Router, row: dict):
+def decide(router: Router, row: dict, categories: CategorySet):
     """The router's decision on one saved run."""
     kb = row["kb"]
     meta = (
@@ -155,7 +162,7 @@ def decide(router: Router, row: dict):
         clarifications_asked=0,
         agent_handoff_reason=None,
     )
-    return router.route(signals, proposal, meta, category_set())
+    return router.route(signals, proposal, meta, categories)
 
 
 def right_page(row: dict) -> bool:
@@ -170,6 +177,7 @@ def sweep(path: Path, bars: list[float]) -> str:
     errors = [r["id"] for r in rows if "error" in r]
     expected = [r for r in ran if r["truth"]["expected_branch"] == "auto_reply"]
     current = settings.THRESHOLDS.retrieval.min_rerank_confidence
+    categories = category_set()
     lines = [
         f"# `min_rerank_confidence` sweep, {path.name}",
         "",
@@ -186,7 +194,7 @@ def sweep(path: Path, bars: list[float]) -> str:
     ]
     for bar in bars:
         router = router_at(bar)
-        sent = [r for r in ran if decide(router, r).branch is Branch.AUTO_REPLY]
+        sent = [r for r in ran if decide(router, r, categories).branch is Branch.AUTO_REPLY]
         right = [r for r in sent if r["truth"]["expected_branch"] == "auto_reply"]
         page_right = [r for r in right if right_page(r)]
         wrong = sorted(r["id"] for r in sent if r not in page_right)
@@ -201,8 +209,8 @@ def sweep(path: Path, bars: list[float]) -> str:
     held = [
         r
         for r in ran
-        if decide(router_at(0.0), r).branch is Branch.AUTO_REPLY
-        and decide(router_at(current), r).branch is not Branch.AUTO_REPLY
+        if decide(router_at(0.0), r, categories).branch is Branch.AUTO_REPLY
+        and decide(router_at(current), r, categories).branch is not Branch.AUTO_REPLY
     ]
     lines += [
         "",

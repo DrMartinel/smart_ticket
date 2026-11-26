@@ -44,6 +44,7 @@ class JevCategoryClassifier:
 
     def classify(
         self,
+        *,
         subject: str,
         body: str,
         page_title: str | None,

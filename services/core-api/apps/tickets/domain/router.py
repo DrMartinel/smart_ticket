@@ -190,8 +190,10 @@ class CategorySet(BaseModel):
         return next((c for c in self.categories if c.slug == slug), None)
 
     def is_usable(self) -> bool:
-        """Whether the set has a category, and a security one among them."""
-        return any(c.is_security for c in self.categories)
+        """Whether the set has a security category and every category says what it covers."""
+        return any(c.is_security for c in self.categories) and all(
+            c.description.strip() for c in self.categories
+        )
 
     def options(self) -> list[CategoryOption]:
         """The categories as ai-engine offers them to Jev."""
@@ -307,7 +309,8 @@ class Router:
                 priority=2,
             )
 
-        # A set with no security category, or Jev's choice outside it (ADR-0049).
+        # A set with no security category or a blank description, or Jev's choice outside it
+        # (ADR-0049).
         chosen = signals.classification.category_choice
         if not categories.is_usable() or (chosen is not None and categories.get(chosen) is None):
             return RoutingDecision.hitl(

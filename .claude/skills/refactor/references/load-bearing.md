@@ -68,7 +68,12 @@ guard and that comment is later trimmed, the entry is the record.
   The agent hand-off gate (F15, FR-F15-017) sits right after the mask check and before
   the retrieval floor, so a hand-off keeps its reason whatever triage proposed.
   *`test_each_earlier_gate_still_wins_over_an_agent_handoff`,
-  `test_an_agent_handoff_wins_over_every_later_check`.*
+  `test_an_agent_handoff_wins_over_every_later_check`.* The category-set gate
+  (`category_set_invalid`, ADR-0049) sits after the hand-off and before the floor, so an
+  unusable set never hides a block, an escalation, a failed mask or the agent's reason.
+  The pipeline's pre-check for an unusable set calls the router too, for the same reason.
+  *`test_an_unusable_set_still_lets_the_hard_gates_decide_first`,
+  `test_process_ticket.py::TestCategorySet::test_an_unusable_set_still_lets_the_earlier_gates_decide`.*
 - **Refuse-before-LLM reports `retrieval_below_floor`, not `schema_invalid`.**
   *`test_router.py::test_refuse_before_llm_reports_retrieval_floor_not_schema_invalid`.*
 - **The KB governance path for `auto_reply_allowed`**: manager role, a non-empty

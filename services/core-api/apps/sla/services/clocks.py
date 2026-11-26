@@ -759,6 +759,8 @@ class SlaClocks:
 
     def preview(self, category: str | None, priority: Priority, start_at: datetime) -> Preview:
         """Due times a new clock would get, without creating one (FR-F1-014)."""
+        if category is not None:
+            Category.objects.require(category)
         policy = Policy.objects.matching(category, priority.value)
         if policy is None:
             raise SlaError(409, SlaRefusal.NO_POLICY, "no active SLA policy matches")

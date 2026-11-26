@@ -14,6 +14,10 @@ class CategoryQuerySet(QuerySet["Category"]):
         """The categories a ticket may be given now, in display order."""
         return self.filter(is_active=True).order_by("sort_order", "slug")
 
+    def for_triage(self) -> CategoryQuerySet:
+        """The active categories in slug order, as Jev is offered them (ADR-0049)."""
+        return self.filter(is_active=True).order_by("slug")
+
     def is_security(self, slug: str | None) -> bool:
         """Whether `slug` names a security category, active or not."""
         return slug is not None and self.filter(slug=slug, is_security=True).exists()
@@ -47,6 +51,12 @@ class Category(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "ticket_categories"
         ordering = ["sort_order", "slug"]
+        constraints = [
+            models.CheckConstraint(
+                condition=~models.Q(description__regex=r"^\s*$"),
+                name="ck_ticket_categories_description_not_blank",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.slug

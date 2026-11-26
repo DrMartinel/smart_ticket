@@ -89,11 +89,18 @@ Teams and the categories they own were already data (`team_teams`,
   still name `access` by its slug.
 - **An unusable set.** "Fallback-less" is read as "no security category":
   no row marks a fallback, and without an `is_security` row no ticket can be
-  held as security. An empty set, a set with no security category, or Jev
-  choosing outside the set is `category_set_invalid`. The pipeline checks
-  the set before calling ai-engine and records a degraded run
-  (`degraded_reason` `category_set_invalid`) without calling it; the router
-  checks it too, after the hard gates.
+  held as security. An empty set, a set with no security category, a
+  category with a blank description (Jev would be told nothing about it;
+  the database also refuses one), or Jev choosing outside the set is
+  `category_set_invalid`. The router owns the rule, after the hard gates.
+  The pipeline checks the set before calling ai-engine, records a degraded
+  run (`degraded_reason` `category_set_invalid`) without calling it, and
+  still asks the router, so a critical-PII ticket is blocked, a failed mask
+  goes to its queue and an agent's hand-off keeps its reason.
+- **The evals read the set once per run** from the database they run
+  against, pass it to ai-engine and the router, and record its slugs,
+  versions and flags with the results (`category_set`), so a run against
+  an edited set can be told apart from one against the seed.
 - **`is_routable`** gates `auto_route` only. An auto-reply takes its page's
   category, and its authority is the page's (ADR-0002).
 - **`categories_used`** on each routing decision records each category's

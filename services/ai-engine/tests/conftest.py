@@ -239,7 +239,7 @@ class FakeClassifier:
         self._error = error
 
     def classify(
-        self, subject: str, body: str, page_title: str | None, categories: list[CategoryOption]
+        self, *, subject: str, body: str, page_title: str | None, categories: list[CategoryOption]
     ) -> CategoryChoice:
         self.calls.append((subject, body, page_title))
         self.offered.append(list(categories))

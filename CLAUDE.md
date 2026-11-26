@@ -223,7 +223,7 @@ read it before adding a module, class or helper in core-api.
 | What is in the demo KB | `demo_kb/sources.json` (then `fetch.py`), approvals and risk tiers in `demo_kb/curation.json` — never by editing fetched pages |
 | The entity-graph edges link expansion follows | ai-engine `core/associations/build.py`, which writes them; after `load-demo-kb`, its `--rescore-only` (`demo_kb/README.md`). An edit marks them stale and `graph-builder`'s `--pending` rebuilds them; an editor's correction is a `kb_association_overrides` row (`KbGraph`), never an edit of an edge |
 | How relevance is judged | ai-engine `graph/nodes/retrieve/`, `graph/nodes/candidate_pool/` (shortlister), `graph/nodes/rerank/` (Jev) |
-| How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question `core/prompts/category.v*.json`; the confidence bar in `thresholds.yaml` |
+| How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question's instructions `core/prompts/category.v*.json`; the options are the active `ticket_categories` rows' descriptions (ADR-0049); the confidence bar in `thresholds.yaml` |
 | Any tunable number | `thresholds.yaml`, nowhere else, by pull request; give a changed file a new `version` (ADR-0044) |
 | Which area a console page sits in | Daily work in the Workspace (`components/AppShell.tsx`); figures, authority, rollout, thresholds and settings in Admin under `/admin/*` (`lib/areas.ts`, ADR-0039). Old paths redirect in `next.config.mjs` |
 | Whether a branch acts live | Admin → Rollout (F9 flags); never a code path around `Rollout.is_live` |

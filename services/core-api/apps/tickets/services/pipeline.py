@@ -137,7 +137,7 @@ def category_set() -> CategorySet:
                 is_routable=c.is_routable,
                 version=c.version,
             )
-            for c in Category.objects.active().order_by("slug")
+            for c in Category.objects.for_triage()
         )
     )
 
@@ -529,12 +529,14 @@ def ticket_process(ticket_id: str) -> TaskResult:
         )
         return _finalize(ticket, ai_run, decision, trace_id, categories)
 
-    # No category set Jev can choose from, with a security category (ADR-0049).
+    # No category set Jev can choose from (ADR-0049): the router's earlier gates still decide.
     if not categories.is_usable():
         signals = _degraded_signals()
-        decision = _degraded_decision(
-            ReasonCode.CATEGORY_SET_INVALID, ReviewQueue.LOW_CONFIDENCE, priority=2
+        signals.policy.pii_level = PIILevel(ticket.pii_level)
+        signals.policy.agent_handoff_reason = cast(
+            "AgentHandoffReason | None", ticket.agent_handoff_reason
         )
+        decision = router.route(signals, None, None, categories)
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="category_set_invalid"
         )

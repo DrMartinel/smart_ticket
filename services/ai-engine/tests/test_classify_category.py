@@ -72,7 +72,7 @@ def test_a_choice_that_is_not_a_sent_category_raises(serve):
     serve("jev", _choice_reply("billing", options=["billing", *(c.slug for c in _SEED)]))
 
     with pytest.raises(ValueError, match="billing"):
-        JevCategoryClassifier().classify("s", "b", None, _SEED)
+        JevCategoryClassifier().classify(subject="s", body="b", page_title=None, categories=_SEED)
 
 
 def test_below_the_floor_jev_is_still_asked_with_no_page(jev, make_state):
@@ -208,7 +208,9 @@ def _choice_reply(choice: str, confidence: float = 0.8, options: list[str] | Non
 def test_the_classifier_sends_the_versioned_question_and_the_page_title(serve):
     jev = serve("jev", _choice_reply("network", 0.7))
 
-    out = JevCategoryClassifier().classify("s", "b", "VPN troubleshooting", _SEED)
+    out = JevCategoryClassifier().classify(
+        subject="s", body="b", page_title="VPN troubleshooting", categories=_SEED
+    )
 
     assert out == CategoryChoice("network", 0.7)
     [(path, payload)] = jev.sent
@@ -226,7 +228,7 @@ def test_the_classifier_sends_no_page_key_without_a_page(serve):
 
     jev = serve("jev", _choice_reply("other"))
 
-    JevCategoryClassifier().classify("s", "b", None, _SEED)
+    JevCategoryClassifier().classify(subject="s", body="b", page_title=None, categories=_SEED)
 
     [(_, payload)] = jev.sent
     assert payload["state"] == {"ticket": {"subject": "s", "body": "b"}}
@@ -242,7 +244,7 @@ def test_the_question_offers_exactly_the_sent_categories(serve):
     ]
     jev = serve("jev", _choice_reply("billing", options=["network", "billing"]))
 
-    out = JevCategoryClassifier().classify("s", "b", None, sent)
+    out = JevCategoryClassifier().classify(subject="s", body="b", page_title=None, categories=sent)
 
     assert out == CategoryChoice("billing", 0.8)
     [(_, payload)] = jev.sent
