@@ -103,6 +103,17 @@ ADR-0006 holds only on paper.
     answered, so it is asked again too); stopping there sent requests a
     second ask gets right to a person. Tool calls and writes are still never
     retried.
+    *Amended 2026-11-26 (2):* an employee's hand-off opens its ticket only
+    when the employee presses "Open a ticket" on the turn
+    (`POST /api/agent/turns/{id}/ticket`, once however often it is pressed).
+    Until then the turn only offers one (`ticket_offered`) and no ticket row
+    exists. A turn whose masking failed or that holds critical PII still
+    becomes a ticket with the hand-off: a person has to see it whether or not
+    it is asked for, and the security alert names it. A ticket opened either
+    way is never held for the employee (`waits_for_requester`), since the
+    employee has already been asked. Opening a ticket at every hand-off and
+    holding it as `awaiting_requester` filled each employee's ticket list
+    with tickets nobody asked for.
 13. **The router decides the hand-off branch.** A ticket that carries an
     agent hand-off reason meets a new hard gate in `Router.route()` and goes
     to HITL with that reason. The agent never chooses a branch.

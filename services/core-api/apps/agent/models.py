@@ -14,6 +14,7 @@ from django.db.models import F
 
 from apps.accounts.models import Language
 from apps.core.models import BaseModel
+from apps.tickets.utils.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 if TYPE_CHECKING:
     from apps.accounts.models import User
@@ -145,6 +146,10 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
 _VIETNAMESE_LETTERS = frozenset(
     "ăâđêôơưàáảãạằắẳẵặầấẩẫậèéẻẽẹềếểễệìíỉĩịòóỏõọồốổỗộờớởỡợùúủũụừứửữựỳýỷỹỵ"
 )
+# Hand-offs whose ticket opens with the hand-off: masking failed, or the message holds critical PII.
+TICKET_AT_ONCE = frozenset({ReasonCode.AGENT_MASK_FAILED, ReasonCode.AGENT_PII_CRITICAL})
+# Hand-offs whose ticket opens only when the person asks for it.
+TICKET_ON_REQUEST = AGENT_HANDOFF_REASONS - TICKET_AT_ONCE
 
 
 class AgentTurn(BaseModel):
@@ -195,6 +200,16 @@ class AgentTurn(BaseModel):
 
     def is_finished(self) -> bool:
         return self.state not in (AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value)
+
+    def offers_ticket(self) -> bool:
+        """Whether the turn handed off on the chat surface and waits for its person to ask for a
+        ticket."""
+        return (
+            self.state == AgentTurnState.HANDED_OFF.value
+            and self.handoff_ticket_id is None
+            and self.conversation.surface == AgentSurface.CHAT.value
+            and self.stop_reason in TICKET_ON_REQUEST
+        )
 
 
 class AgentStep(BaseModel):

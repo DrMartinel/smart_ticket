@@ -676,6 +676,11 @@ each file is clean.
   outside the guides is English too. Neither app's in-app guides has an
   assistant guide yet.
 
+- **Ticket on click has been checked only in unit tests and the chat build**
+  (2026-11-26), not yet in the browser. Hand-off tickets opened before it
+  (held `awaiting_requester`) still release through the chat's own button.
+  An `ask_helpdesk` question is still a chat ticket row by F3's design.
+
 - **A hand-off whose triage run degrades** (embedding, budget, ai-engine)
   records the degraded reason in its routing decision; the agent's reason is
   only on `tickets.agent_handoff_reason`, which the console's ticket page

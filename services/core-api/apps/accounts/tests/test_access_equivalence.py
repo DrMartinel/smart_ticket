@@ -54,6 +54,7 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "POST /api/agent/conversations/{conversation_id}/end": Permission.AGENT_USE,
     "GET /api/agent/actions": Permission.AGENT_USE,
     "POST /api/agent/actions/{action_id}/dismiss": Permission.AGENT_USE,
+    "POST /api/agent/turns/{turn_id}/ticket": Permission.AGENT_USE,
     "PATCH /api/access/roles/{urn}": Permission.ACCESS_ROLES_MANAGE,
     "PATCH /api/accounts/people/{username}": Permission.ACCESS_PEOPLE_MANAGE,
     "PATCH /api/org/departments/{code}": Permission.ORG_DEPARTMENTS_MANAGE,

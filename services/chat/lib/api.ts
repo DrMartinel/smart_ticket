@@ -95,6 +95,9 @@ export const agentApi = {
       body: JSON.stringify({ message, surface, ...(conversationId ? { conversation_id: conversationId } : {}) }),
     }),
   turn: (id: string) => request<AgentTurnOut>(`/api/agent/turns/${encodeURIComponent(id)}`),
+  /** Opens the ticket a handed-off turn offers; asking again returns the same ticket. */
+  openTicket: (id: string) =>
+    request<AgentTurnOut>(`/api/agent/turns/${encodeURIComponent(id)}/ticket`, { method: "POST" }),
   conversations: () => request<AgentConversationSummaryOut[]>("/api/agent/conversations"),
   conversation: (id: string) => request<AgentConversationOut>(`/api/agent/conversations/${encodeURIComponent(id)}`),
   endConversation: (id: string) =>

@@ -254,7 +254,10 @@ def _finalize(
             )
 
         if ticket.source == TicketSource.CHAT.value and waits_for_requester(
-            decision, not ask_requester, PIILevel(ticket.pii_level)
+            decision,
+            not ask_requester,
+            PIILevel(ticket.pii_level),
+            agent_handoff=ticket.agent_handoff_reason is not None,
         ):
             if decision.branch is Branch.CLARIFY and not clarifications.ask(
                 ticket, ai_run, trace_id
@@ -287,15 +290,18 @@ _NEVER_HELD = frozenset(
 _NEVER_HELD_PII = frozenset({PIILevel.MASK_FAILED, PIILevel.CRITICAL})
 
 
-def waits_for_requester(decision: Decision, shadow: bool, pii_level: PIILevel) -> bool:
+def waits_for_requester(
+    decision: Decision, shadow: bool, pii_level: PIILevel, *, agent_handoff: bool
+) -> bool:
     """Whether a chat ticket's decision waits for the requester to ask for a
     ticket before it is carried out. Pure.
 
     In live mode, a HITL, AUTO_ROUTE or CLARIFY decision waits unless it
-    raises a security alert, has a never-held reason code, or the ticket's
-    PII level is never held. In shadow mode nothing waits.
+    raises a security alert, has a never-held reason code, the ticket's
+    PII level is never held, or the ticket is an agent hand-off. In shadow
+    mode nothing waits.
     """
-    if shadow:
+    if shadow or agent_handoff:
         return False
     if decision.alert_security or decision.reason_code in _NEVER_HELD:
         return False

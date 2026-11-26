@@ -43,6 +43,7 @@ class AgentTurnOut(Schema):
     receipts: list[AgentReceiptOut]
     stop_reason: str | None
     handoff_ticket: str | None
+    ticket_offered: bool = False
     queued_at: datetime
     finished_at: datetime | None
 
@@ -58,6 +59,7 @@ class AgentTurnOut(Schema):
             receipts=[AgentReceiptOut(**r) for r in turn.receipts],
             stop_reason=turn.stop_reason,
             handoff_ticket=turn.handoff_ticket.public_id if turn.handoff_ticket else None,
+            ticket_offered=turn.offers_ticket(),
             queued_at=turn.queued_at,
             finished_at=turn.finished_at,
         )

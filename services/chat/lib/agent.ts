@@ -326,6 +326,22 @@ export function useAgentConversation(enabled: boolean) {
     }
   }, []);
 
+  /** Opens the ticket a handed-off turn offers, and shows the turn with it. */
+  const openTicket = useCallback(async (turnId: string) => {
+    setCreating(turnId);
+    setCreateError((prev) => ({ ...prev, [turnId]: "" }));
+    try {
+      const fresh = await agentApi.openTicket(turnId);
+      setRows((prev) =>
+        prev.map((r) => (r.kind === "server" && r.turn.turn_id === turnId ? { ...r, turn: fresh } : r)),
+      );
+    } catch {
+      setCreateError((prev) => ({ ...prev, [turnId]: "I couldn't open the ticket. Try again." }));
+    } finally {
+      setCreating(null);
+    }
+  }, []);
+
   /** Ends the conversation on screen: the next message starts a new one. */
   const startNew = useCallback(async () => {
     const current = conversationRef.current;
@@ -355,6 +371,7 @@ export function useAgentConversation(enabled: boolean) {
     confirm: (a: AgentActionOut) => resolve(a, true),
     dismiss: (a: AgentActionOut) => resolve(a, false),
     createTicket,
+    openTicket,
     startNew,
     busy: rows.some((r) => r.kind === "sending" || (r.kind === "server" && UNFINISHED.has(r.turn.state))),
   };

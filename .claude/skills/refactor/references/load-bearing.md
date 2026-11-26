@@ -643,6 +643,16 @@ guard and that comment is later trimmed, the entry is the record.
   no call is repeated; it counts against `max_steps` and `max_model_tokens`,
   so a turn with no room left hands off without it; a second invalid reply
   still hands off `agent_schema_invalid` (ADR-0046 #12, amended 2026-11-26).
+- **`TICKET_AT_ONCE` in `apps/agent/models.py`, and `agent_handoff` in
+  `waits_for_requester`.** Every other hand-off opens its ticket only on the
+  employee's click; a mask-failed or critical-PII turn must reach a person
+  (and its security alert must name a ticket) whether or not the employee
+  clicks. A hand-off ticket is never held, because the click was the
+  employee's request; holding it would need a second click, and a
+  degraded triage run would hold it as `ai_engine_unavailable`.
+  *`test_a_message_whose_masking_failed_reaches_no_model_and_hands_off`,
+  `test_an_agent_handoff_ticket_never_waits_whatever_its_decision`,
+  `test_a_live_handoff_ticket_is_never_held_for_the_employee`.*
   *`test_agent_graph.py::test_the_flattened_envelope_is_asked_again_and_the_tool_runs`,
   `::test_an_invalid_action_hands_off_with_no_call`, `::test_no_retry_when_no_step_is_left`,
   `::test_no_retry_when_the_token_budget_is_spent`, `::test_a_retry_never_repeats_a_tool_call`,
