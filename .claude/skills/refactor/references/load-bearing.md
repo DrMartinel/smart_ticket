@@ -647,10 +647,21 @@ guard and that comment is later trimmed, the entry is the record.
   project, and skipping the check would reboot it.
   *`test_a_customer_cannot_change_another_companys_server_404_like_a_missing_one`,
   `test_a_customers_confirmed_stop_on_another_companys_server_sends_nothing`.*
-- **`InfraChanges.record` catching its audit and note failures, and running
-  after the cloud call.** The change is already made; an error there must not
-  answer the person as if it failed, or they would make it again.
-  *`test_a_failed_note_never_hides_a_change_made`.*
+- **`InfraChanges.attach` refusing a volume and a server in different
+  projects.** Staff reach every project and core-api calls the cloud with an
+  admin token, so nothing else stops one company's volume landing on another
+  company's server.
+  *`test_attaching_a_volume_to_another_projects_server_is_refused`.*
+- **`InfraChanges.record` telling the requester only when the resource's
+  project is in their customer's Keystone domain.** A change names any open
+  ticket the person covers; without the check, another company hears of the
+  first one's server. *`test_a_change_to_a_resource_the_tickets_company_does_not_own_tells_no_one`.*
+- **`InfraChanges.record` catching its audit, note and notice failures, and
+  running after the cloud call.** The change is already made; an error there
+  must not answer the person as if it failed, and through `applying`'s
+  catch-all it would put a confirmed change back to `pending` to be confirmed
+  again. *`test_a_failed_note_never_hides_a_change_made`,
+  `test_a_change_made_whose_notice_fails_stays_applied_and_is_never_confirmed_again`.*
 
 ## ai-engine
 
