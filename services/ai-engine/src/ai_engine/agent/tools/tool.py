@@ -91,7 +91,13 @@ class Tool:
         body = {k: v for k, v in values.items() if k not in in_path and k not in self.query}
         json = None if self.method == "GET" else {**body, **self.fixed}
         reply = client.core_api.send(
-            self.method, path, context.token, self.name, params=params or None, json=json
+            self.method,
+            path,
+            context.token,
+            self.name,
+            read=not self.writes,
+            params=params or None,
+            json=json,
         )
         return path, reply
 

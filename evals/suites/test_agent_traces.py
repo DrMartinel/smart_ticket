@@ -78,7 +78,7 @@ class InProcessCoreApi:
         self.on_wait = on_wait
         self.calls: list[tuple[str, str, int]] = []
 
-    def send(self, method, path, token, tool, *, params=None, json=None):
+    def send(self, method, path, token, tool, *, read, params=None, json=None):
         headers = {
             "HTTP_AUTHORIZATION": f"Bearer {token.get_secret_value()}",
             "HTTP_X_AGENT_TOOL": tool,
@@ -95,7 +95,7 @@ class InProcessCoreApi:
             )
         self.calls.append((method, path, response.status_code))
         if response.status_code >= 500:
-            if method == "GET":
+            if read:
                 raise ToolFailed(f"HTTP {response.status_code}")
             raise OutcomeUnknown(f"HTTP {response.status_code}")
         try:

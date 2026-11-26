@@ -1,6 +1,7 @@
 """
 The agent's one HTTP client to core-api: each call is one attempt, as the
-signed-in user, with the turn's agent token. No retry, a write included.
+signed-in user, with the turn's agent token. What a failure means is set by
+the tool's tier, never by its HTTP method (F17 FR-F17-010).
 """
 
 from __future__ import annotations
@@ -45,10 +46,12 @@ class CoreApi:
         token: SecretStr,
         tool: str,
         *,
+        read: bool,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
     ) -> Reply:
-        """One request on behalf of `tool`. Raises `ToolFailed` or, for a write, `OutcomeUnknown`."""
+        """One request on behalf of `tool`, a read when its route's tier is `read`. Raises
+        `ToolFailed`, or `OutcomeUnknown` for a write that was sent and not answered."""
         try:
             response = self._http.request(
                 method,
@@ -63,11 +66,11 @@ class CoreApi:
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as e:
             raise ToolFailed(type(e).__name__) from None
         except httpx.TransportError as e:
-            if method == "GET":
+            if read:
                 raise ToolFailed(type(e).__name__) from None
             raise OutcomeUnknown(type(e).__name__) from None
         if response.status_code >= 500:
-            if method == "GET":
+            if read:
                 raise ToolFailed(f"HTTP {response.status_code}")
             raise OutcomeUnknown(f"HTTP {response.status_code}")
         try:

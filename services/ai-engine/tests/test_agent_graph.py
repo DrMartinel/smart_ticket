@@ -59,13 +59,14 @@ class FakeCoreApi:
         self.calls: list[dict[str, Any]] = []
         self.waits: list[float] = []
 
-    def send(self, method, path, token, tool, *, params=None, json=None):
+    def send(self, method, path, token, tool, *, read, params=None, json=None):
         self.calls.append(
             {
                 "method": method,
                 "path": path,
                 "token": token,
                 "tool": tool,
+                "read": read,
                 "params": params,
                 "json": json,
             }
@@ -750,38 +751,42 @@ def _raise(error: type[httpx.TransportError]):
     return handler
 
 
-@pytest.mark.parametrize("method", ["POST", "PATCH"])
+@pytest.mark.parametrize("method", ["POST", "PATCH", "DELETE"])
 def test_a_write_whose_answer_was_lost_is_outcome_unknown(monkeypatch, method):
     api = _core_api(monkeypatch, _raise(httpx.ReadTimeout))
 
     with pytest.raises(OutcomeUnknown):
-        api.send(method, "/x", SecretStr(_TOKEN), "t", json={})
+        api.send(method, "/x", SecretStr(_TOKEN), "t", read=False, json={})
 
 
-@pytest.mark.parametrize("method", ["POST", "PATCH"])
+@pytest.mark.parametrize("method", ["POST", "PATCH", "DELETE"])
 def test_a_write_answered_with_a_5xx_is_outcome_unknown(monkeypatch, method):
     api = _core_api(monkeypatch, lambda request: httpx.Response(500))
 
     with pytest.raises(OutcomeUnknown):
-        api.send(method, "/x", SecretStr(_TOKEN), "t", json={})
+        api.send(method, "/x", SecretStr(_TOKEN), "t", read=False, json={})
 
 
 @pytest.mark.parametrize(
-    ("method", "handler"),
+    ("method", "read", "handler"),
     [
-        ("GET", _raise(httpx.ReadTimeout)),
-        ("GET", lambda request: httpx.Response(503)),
-        ("GET", lambda request: httpx.Response(200, content=b"not json")),
-        ("POST", _raise(httpx.ConnectError)),
-        ("POST", _raise(httpx.ConnectTimeout)),
-        ("POST", lambda request: httpx.Response(200, content=b"not json")),
+        ("GET", True, _raise(httpx.ReadTimeout)),
+        ("GET", True, lambda request: httpx.Response(503)),
+        ("GET", True, lambda request: httpx.Response(200, content=b"not json")),
+        ("POST", True, _raise(httpx.ReadTimeout)),
+        ("POST", True, lambda request: httpx.Response(502)),
+        ("POST", False, _raise(httpx.ConnectError)),
+        ("POST", False, _raise(httpx.ConnectTimeout)),
+        ("POST", False, lambda request: httpx.Response(200, content=b"not json")),
     ],
 )
-def test_a_read_failure_or_an_unsent_write_is_tool_failed(monkeypatch, method, handler):
+def test_a_read_failure_or_an_unsent_write_is_tool_failed(monkeypatch, method, read, handler):
     api = _core_api(monkeypatch, handler)
 
     with pytest.raises(ToolFailed):
-        api.send(method, "/x", SecretStr(_TOKEN), "t", json=None if method == "GET" else {})
+        api.send(
+            method, "/x", SecretStr(_TOKEN), "t", read=read, json=None if method == "GET" else {}
+        )
 
 
 def test_a_call_sends_the_token_and_the_tool_name(monkeypatch):
@@ -793,7 +798,7 @@ def test_a_call_sends_the_token_and_the_tool_name(monkeypatch):
 
     api = _core_api(monkeypatch, handler)
 
-    got = api.send("GET", "/x", SecretStr(_TOKEN), "get_sla", params={"a": "1"})
+    got = api.send("GET", "/x", SecretStr(_TOKEN), "get_sla", read=True, params={"a": "1"})
 
     assert got == Reply(200, {"ok": True})
     assert seen[0].headers["Authorization"] == f"Bearer {_TOKEN}"

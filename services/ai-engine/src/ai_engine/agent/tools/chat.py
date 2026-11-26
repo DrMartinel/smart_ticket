@@ -171,7 +171,7 @@ class AskHelpdesk(Tool):
             "conversation_id": str(conversation) if conversation else None,
         }
         api = client.core_api
-        reply = api.send("POST", self.path, context.token, self.name, json=body)
+        reply = api.send("POST", self.path, context.token, self.name, read=False, json=body)
         if reply.status != 200 or not isinstance(reply.body, dict):
             return self.path, reply
         deadline = time.monotonic() + settings.agent_ask_wait_sec
@@ -179,7 +179,7 @@ class AskHelpdesk(Tool):
         while reply.body.get("state") == "thinking" and time.monotonic() < deadline:
             api.wait(settings.agent_ask_poll_interval_sec)
             try:
-                polled = api.send("GET", turn, context.token, self.name)
+                polled = api.send("GET", turn, context.token, self.name, read=True)
             except ToolFailed:
                 break
             if polled.status != 200 or not isinstance(polled.body, dict):
