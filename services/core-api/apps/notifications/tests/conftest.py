@@ -10,16 +10,16 @@ from typing import Any
 import pytest
 from django.core.mail.backends.base import BaseEmailBackend
 
-from apps.accounts.utils.grants import grants
+from apps.accounts.services.grants import grants
 from apps.accounts.models import Capability, User, UserRole
 
 from apps.accounts.testing import grant_capability
 from apps.notifications import tasks
 from apps.teams.models import MembershipRole, Team, TeamMembership
-from apps.teams.utils.assignment import ReassignRequest, assignment
-from apps.teams.utils.vocabulary import ReassignReason
+from apps.teams.services.assignment import ReassignRequest, assignment
+from apps.teams.domain.vocabulary import ReassignReason
 from apps.tickets.models import Ticket
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 from infrastructure.outbound import OutboundHttp, OutboundResponse
 
 
@@ -127,7 +127,7 @@ class FakeHost:
 @pytest.fixture
 def host(monkeypatch) -> FakeHost:
     fake = FakeHost()
-    monkeypatch.setattr("apps.notifications.utils.dispatcher.outbound", fake)
+    monkeypatch.setattr("apps.notifications.services.dispatcher.outbound", fake)
     return fake
 
 

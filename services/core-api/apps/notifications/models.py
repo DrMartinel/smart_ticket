@@ -11,7 +11,7 @@ from django.db import models
 from django.db.models import Q, QuerySet
 
 from apps.core.models import BaseModel
-from apps.notifications.utils.vocabulary import Channel, MessageState
+from apps.notifications.domain.vocabulary import Channel, MessageState
 
 
 def _choices(enum: Any) -> list[tuple[str, str]]:

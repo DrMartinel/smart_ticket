@@ -9,10 +9,10 @@ from django.db import OperationalError, connection
 
 from apps.lifecycle.request_schema import TransitionPatch
 from apps.lifecycle.tests.conftest import actions, put_in
-from apps.lifecycle.utils.config import workflow_config
-from apps.lifecycle.utils.engine import lifecycle
-from apps.lifecycle.utils.errors import LifecycleError
-from apps.lifecycle.utils.vocabulary import Phase, Trigger
+from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.domain.errors import LifecycleError
+from apps.lifecycle.domain.vocabulary import Phase, Trigger
 
 
 @pytest.mark.django_db(transaction=True, serialized_rollback=True)

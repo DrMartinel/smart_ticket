@@ -25,23 +25,23 @@ from ninja_jwt.exceptions import AuthenticationFailed
 from ninja_jwt.tokens import Token
 
 from apps.accounts.models import RefreshSession, RefusedCall, User
-from apps.accounts.utils import AGENT_ACT
-from apps.accounts.utils.access import Access
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.services.sessions import AGENT_ACT
+from apps.accounts.domain.access import Access
+from apps.accounts.domain.catalog import Permission
 from apps.agent.models import (
     AgentActionKind,
     AgentConversationState,
     AgentTurn,
     AgentTurnState,
 )
-from apps.agent.utils.actions import (
+from apps.agent.services.actions import (
     AGENT_ACTION_HEADER,
     AgentActionPending,
     AgentCall,
     AgentOrigin,
     agent_actions,
 )
-from apps.agent.utils.vocabulary import AgentError, AgentRefusal
+from apps.agent.domain.vocabulary import AgentError, AgentRefusal
 from apps.audit.context import audit_context
 from apps.audit.models import AuditLog
 from apps.core.errors import CodedError

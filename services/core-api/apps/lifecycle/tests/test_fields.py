@@ -7,11 +7,11 @@ import pytest
 from apps.lifecycle.models import ActionRun, TicketFieldValue, Workflow
 from apps.lifecycle.request_schema import FieldEventIn, FieldIn, FieldPatch, FieldRuleIn
 from apps.lifecycle.tests.conftest import actions
-from apps.lifecycle.utils.config import workflow_config
-from apps.lifecycle.utils.errors import LifecycleError
-from apps.lifecycle.utils.fields import field_values
-from apps.lifecycle.utils.rules import EventCode, FieldType, RuleCode
-from apps.lifecycle.utils.vocabulary import FailureCode, RunState
+from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.domain.errors import LifecycleError
+from apps.lifecycle.services.fields import field_values
+from apps.lifecycle.domain.rules import EventCode, FieldType, RuleCode
+from apps.lifecycle.domain.vocabulary import FailureCode, RunState
 from apps.tickets.models import PiiQuarantine, Ticket
 
 pytestmark = pytest.mark.django_db

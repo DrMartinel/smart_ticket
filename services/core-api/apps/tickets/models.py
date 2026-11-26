@@ -23,8 +23,8 @@ from django.utils import timezone
 from pgvector.django import CosineDistance, VectorField
 
 from apps.core.models import BaseModel
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import AGENT_HANDOFF_REASONS
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import AGENT_HANDOFF_REASONS
 from infrastructure.dtos import TicketCategory
 from apps.tickets.request_schema import RevealReason
 
@@ -188,15 +188,15 @@ class TicketManager(models.Manager["Ticket"]):
 
     def reach(self, user: User) -> models.Q | None:
         """The tickets `user`'s ticket-read grants cover; None for every ticket."""
-        from apps.accounts.utils.access import Access
-        from apps.accounts.utils.catalog import Permission
+        from apps.accounts.domain.access import Access
+        from apps.accounts.domain.catalog import Permission
 
         return Access.of(user).ticket_filter(Permission.TICKETS_READ)
 
     def in_department_of(self, user: User) -> QuerySet[Ticket]:
         """Tickets raised by people in the departments `user` heads, subtrees included."""
-        from apps.accounts.utils.access import Access
-        from apps.accounts.utils.catalog import Permission
+        from apps.accounts.domain.access import Access
+        from apps.accounts.domain.catalog import Permission
 
         departments = Access.of(user).department_ids(Permission.REQUESTER_DEPARTMENT_READ)
         if departments is None:
@@ -233,8 +233,8 @@ class TicketManager(models.Manager["Ticket"]):
                 waiting = ReviewItem.objects.filter(
                     ticket=models.OuterRef("pk"), state__in=ReviewItem.OPEN_STATES
                 )
-                from apps.accounts.utils.access import Access
-                from apps.accounts.utils.catalog import Permission
+                from apps.accounts.domain.access import Access
+                from apps.accounts.domain.catalog import Permission
 
                 if not Access.of(user).holds(Permission.SECURITY_QUEUE_WORK):
                     waiting = waiting.exclude(queue__in=SECURITY_QUEUES)
@@ -364,7 +364,7 @@ class TicketManager(models.Manager["Ticket"]):
 
 class Ticket(BaseModel):
     """§3.1. The main table holds ONLY masked data — raw PII never lands
-    here (see PiiQuarantine below and apps/tickets/utils/masking.py)."""
+    here (see PiiQuarantine below and apps/tickets/domain/masking.py)."""
 
     public_id = models.CharField(max_length=32, unique=True)  # TKT-2026-000123
     reporter = models.ForeignKey(

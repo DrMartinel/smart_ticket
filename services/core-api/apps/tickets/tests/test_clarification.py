@@ -9,20 +9,20 @@ import pytest
 from django.utils import timezone
 
 from apps.audit.models import AuditLog
-from apps.incidents.utils.incidents import incidents
+from apps.incidents.services.incidents import incidents
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
 from apps.rollout.testing import all_live
 from apps.tickets.models import IncidentVerdict, PiiQuarantine, Ticket, TicketSource
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.clarification import (
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.services.clarification import (
     CLARIFY_QUESTION,
     Clarifications,
     NotAwaitingAnswer,
     clarifications,
 )
-from apps.tickets.utils.pipeline import release_to_support, ticket_process
-from apps.tickets.utils.router import Branch, ReasonCode, ReviewQueue
+from apps.tickets.services.pipeline import release_to_support, ticket_process
+from apps.tickets.domain.router import Branch, ReasonCode, ReviewQueue
 from config.settings.base import ClarificationThresholds
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import (
@@ -114,7 +114,7 @@ def ner_finds_nothing(monkeypatch):
     async def fake_ner(*a, **kw):
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", fake_ner)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", fake_ner)
 
 
 @pytest.fixture

@@ -5,9 +5,9 @@ import uuid
 import pytest
 
 from apps.lifecycle.models import Transition, Workflow, WorkflowAction, WorkflowStatus
-from apps.lifecycle.utils.errors import LifecycleError
-from apps.lifecycle.utils.resolver import allowed_moves, path_to, plan_runs, resolve
-from apps.lifecycle.utils.vocabulary import (
+from apps.lifecycle.domain.errors import LifecycleError
+from apps.lifecycle.domain.resolver import allowed_moves, path_to, plan_runs, resolve
+from apps.lifecycle.domain.vocabulary import (
     Direction,
     FailureCode,
     Phase,

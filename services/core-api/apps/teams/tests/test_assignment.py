@@ -10,17 +10,17 @@ from django.db import connection
 
 from apps.audit.models import AuditLog
 from apps.lifecycle.tests.conftest import make_ticket
-from apps.lifecycle.utils.vocabulary import PipelineStatus
+from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.notifications.models import Message
 from apps.review.models import EvalCandidate, ReviewItem
 from apps.teams.models import Reassignment, Team, TeamCategory, TeamMembership
 from apps.teams.tests.conftest import handed_off
-from apps.teams.utils.assignment import Assignment, assignment
-from apps.teams.utils.vocabulary import AssignmentTrigger
+from apps.teams.services.assignment import Assignment, assignment
+from apps.teams.domain.vocabulary import AssignmentTrigger
 from apps.tickets.models import RoutingDecision as DecisionRow
 from apps.tickets.models import Ticket
-from apps.tickets.utils.pipeline import _execute_or_enqueue
-from apps.tickets.utils.router import Branch, ReasonCode, ReviewQueue, RoutingDecision
+from apps.tickets.services.pipeline import _execute_or_enqueue
+from apps.tickets.domain.router import Branch, ReasonCode, ReviewQueue, RoutingDecision
 from infrastructure.dtos import TicketCategory
 
 JSON = "application/json"
@@ -514,8 +514,8 @@ def test_a_resolved_ticket_is_not_reassigned(network, api_as):
 def test_assign_team_refuses_an_unknown_slug_when_saved(network):
     """FR-F2-014."""
     from apps.lifecycle.models import Workflow
-    from apps.lifecycle.utils.actions import HANDLERS
-    from apps.lifecycle.utils.vocabulary import ActionCode
+    from apps.lifecycle.services.actions import HANDLERS
+    from apps.lifecycle.domain.vocabulary import ActionCode
 
     handler = HANDLERS[ActionCode.ASSIGN_TEAM]
     workflow = Workflow.objects.default()

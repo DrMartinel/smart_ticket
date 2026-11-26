@@ -152,12 +152,12 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 
 | Concern | Path |
 |---|---|
-| The routing decision (a pure `Router`, the only place a `Branch` is chosen) | [router.py](services/core-api/apps/tickets/utils/router.py) |
-| PII masking (inline, two-tier; 100% branch coverage is a release gate) | [masking.py](services/core-api/apps/tickets/utils/masking.py) |
-| Trust score (in core-api, so the LLM can't score itself) | [trust_scorer.py](services/core-api/apps/tickets/utils/trust_scorer.py) |
-| What happens to a ticket after submit (embed → incident check → ai-engine → score → route → act) | [pipeline.py](services/core-api/apps/tickets/utils/pipeline.py) |
+| The routing decision (a pure `Router`, the only place a `Branch` is chosen) | [router.py](services/core-api/apps/tickets/domain/router.py) |
+| PII masking (inline, two-tier; 100% branch coverage is a release gate) | [masking.py](services/core-api/apps/tickets/domain/masking.py) |
+| Trust score (in core-api, so the LLM can't score itself) | [trust_scorer.py](services/core-api/apps/tickets/domain/trust_scorer.py) |
+| What happens to a ticket after submit (embed → incident check → ai-engine → score → route → act) | [pipeline.py](services/core-api/apps/tickets/services/pipeline.py) |
 | `AIEngineClient`, core-api's only route to ai-engine and, through it, to every model (ADR-0012; transport only, never judgement) | [infrastructure/](services/core-api/infrastructure/) |
-| PII regex patterns | [patterns.py](services/core-api/apps/tickets/utils/patterns.py) |
+| PII regex patterns | [patterns.py](services/core-api/apps/tickets/domain/patterns.py) |
 | Every tunable number | [thresholds.yaml](services/core-api/config/thresholds.yaml) |
 | Operational settings and their defaults (URLs, models, timeouts, top-k), for both services and compose | [.env.example](.env.example) |
 | The Docker stack | [docker-compose.yml](docker-compose.yml) (repo root; DB image and raw SQL in [infra/](infra/)) |
@@ -168,22 +168,22 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
 | KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |
-| Ticket lifecycle after triage: workflows, transitions, rules, actions (ADR-0028) | [apps/lifecycle/](services/core-api/apps/lifecycle/), the engine in [engine.py](services/core-api/apps/lifecycle/utils/engine.py) |
-| SLA clocks, calendars and policies (F1, ADR-0030); business time in [business_time.py](services/core-api/apps/sla/utils/business_time.py) | [apps/sla/](services/core-api/apps/sla/), the clocks in [clocks.py](services/core-api/apps/sla/utils/clocks.py) |
-| Teams, assignment at handoff, take and reassign (F2, ADR-0031) | [apps/teams/](services/core-api/apps/teams/), the service in [assignment.py](services/core-api/apps/teams/utils/assignment.py) |
-| Chat conversations and the earlier masked turns a question carries (F3, ADR-0034) | [conversations.py](services/core-api/apps/chat/utils/conversations.py) |
-| A requester's tickets: list, thread, reply, reopen, rating, the stale-wait sweep (F3) | [apps/requester/](services/core-api/apps/requester/), the service in [tickets.py](services/core-api/apps/requester/utils/tickets.py); comments in [comments.py](services/core-api/apps/tickets/utils/comments.py) |
-| Rollout flags, gates and threshold change requests (F9, ADR-0035) | [apps/rollout/](services/core-api/apps/rollout/), the live check in [rollout.py](services/core-api/apps/rollout/utils/rollout.py) |
-| Mass incidents: matching, the detector, confirm, broadcasts, close-all (F7) | [apps/incidents/](services/core-api/apps/incidents/), the service in [incidents.py](services/core-api/apps/incidents/utils/incidents.py) |
-| Security alerts: raising, grouping, ack targets, triage and release (F8) | [apps/security/](services/core-api/apps/security/), the service in [alerts.py](services/core-api/apps/security/utils/alerts.py) |
-| KB drafts, review, authority queue and gap report (F6, ADR-0036) | [apps/kb/utils/](services/core-api/apps/kb/utils/): [drafts.py](services/core-api/apps/kb/utils/drafts.py), [authority.py](services/core-api/apps/kb/utils/authority.py), [gaps.py](services/core-api/apps/kb/utils/gaps.py) |
-| Reports: the nightly facts table, every report and its scope, CSV, the weekly email (F10) | [apps/reports/](services/core-api/apps/reports/), the queries in [reports.py](services/core-api/apps/reports/utils/reports.py), the facts in [facts.py](services/core-api/apps/reports/utils/facts.py) |
-| The entity graph as a KB feature: a page's edges, editor overrides, rebuild requests, graph health (F11, ADR-0037) | [graph.py](services/core-api/apps/kb/utils/graph.py); the `--pending` build in ai-engine [build.py](services/ai-engine/src/ai_engine/core/associations/build.py), run by compose's `graph-builder` |
-| Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/utils/vocabulary.py) |
-| People, departments and access: URN permissions, roles, scoped grants, reviews (F14, ADR-0045) | the catalogue in [catalog.py](services/core-api/apps/accounts/utils/catalog.py), the evaluator in [access.py](services/core-api/apps/accounts/utils/access.py), grants in [grants.py](services/core-api/apps/accounts/utils/grants.py); `roles.py`, `departments.py`, `people.py`, `reviews.py`, `org_import.py` beside them |
-| What happens to an agent turn: masking, queueing, the run task, the sweep, hand-off, ending (F15, ADR-0046) | [apps/agent/](services/core-api/apps/agent/), the service in [turns.py](services/core-api/apps/agent/utils/turns.py); the reasons and their texts in [vocabulary.py](services/core-api/apps/agent/utils/vocabulary.py) |
-| Opening a ticket: masking, storing, quarantine entries, queueing the pipeline (also for the agent) | [intake.py](services/core-api/apps/tickets/utils/intake.py) (`ticket_intake`), never `Ticket.objects.create` with raw text |
-| Runbooks: the catalog, execution, Keycloak and n8n executors (F12, ADR-0038) | [apps/itsm_mock/](services/core-api/apps/itsm_mock/), the service in [runbooks.py](services/core-api/apps/itsm_mock/utils/runbooks.py), the executors in [executors.py](services/core-api/apps/itsm_mock/utils/executors.py) |
+| Ticket lifecycle after triage: workflows, transitions, rules, actions (ADR-0028) | [apps/lifecycle/](services/core-api/apps/lifecycle/), the engine in [engine.py](services/core-api/apps/lifecycle/services/engine.py) |
+| SLA clocks, calendars and policies (F1, ADR-0030); business time in [business_time.py](services/core-api/apps/sla/domain/business_time.py) | [apps/sla/](services/core-api/apps/sla/), the clocks in [clocks.py](services/core-api/apps/sla/services/clocks.py) |
+| Teams, assignment at handoff, take and reassign (F2, ADR-0031) | [apps/teams/](services/core-api/apps/teams/), the service in [assignment.py](services/core-api/apps/teams/services/assignment.py) |
+| Chat conversations and the earlier masked turns a question carries (F3, ADR-0034) | [conversations.py](services/core-api/apps/chat/services/conversations.py) |
+| A requester's tickets: list, thread, reply, reopen, rating, the stale-wait sweep (F3) | [apps/requester/](services/core-api/apps/requester/), the service in [tickets.py](services/core-api/apps/requester/services/tickets.py); comments in [comments.py](services/core-api/apps/tickets/services/comments.py) |
+| Rollout flags, gates and threshold change requests (F9, ADR-0035) | [apps/rollout/](services/core-api/apps/rollout/), the live check in [rollout.py](services/core-api/apps/rollout/services/rollout.py) |
+| Mass incidents: matching, the detector, confirm, broadcasts, close-all (F7) | [apps/incidents/](services/core-api/apps/incidents/), the service in [incidents.py](services/core-api/apps/incidents/services/incidents.py) |
+| Security alerts: raising, grouping, ack targets, triage and release (F8) | [apps/security/](services/core-api/apps/security/), the service in [alerts.py](services/core-api/apps/security/services/alerts.py) |
+| KB drafts, review, authority queue and gap report (F6, ADR-0036) | [apps/kb/services/](services/core-api/apps/kb/services/): [drafts.py](services/core-api/apps/kb/services/drafts.py), [authority.py](services/core-api/apps/kb/services/authority.py), [gaps.py](services/core-api/apps/kb/services/gaps.py) |
+| Reports: the nightly facts table, every report and its scope, CSV, the weekly email (F10) | [apps/reports/](services/core-api/apps/reports/), the queries in [reports.py](services/core-api/apps/reports/services/reports.py), the facts in [facts.py](services/core-api/apps/reports/services/facts.py) |
+| The entity graph as a KB feature: a page's edges, editor overrides, rebuild requests, graph health (F11, ADR-0037) | [graph.py](services/core-api/apps/kb/services/graph.py); the `--pending` build in ai-engine [build.py](services/ai-engine/src/ai_engine/core/associations/build.py), run by compose's `graph-builder` |
+| Notifications: the event catalog, `Notifier.emit`, sending (ADR-0033) | [apps/notifications/](services/core-api/apps/notifications/), the catalog in [vocabulary.py](services/core-api/apps/notifications/domain/vocabulary.py) |
+| People, departments and access: URN permissions, roles, scoped grants, reviews (F14, ADR-0045) | system data in [data.py](services/core-api/apps/accounts/domain/data.py), helpers in [catalog.py](services/core-api/apps/accounts/domain/catalog.py), the evaluator in [access.py](services/core-api/apps/accounts/domain/access.py), grants in [grants.py](services/core-api/apps/accounts/services/grants.py); `roles.py`, `departments.py`, `people.py`, `reviews.py`, `org_import.py` beside it in `services/` |
+| What happens to an agent turn: masking, queueing, the run task, the sweep, hand-off, ending (F15, ADR-0046) | [apps/agent/](services/core-api/apps/agent/), the service in [turns.py](services/core-api/apps/agent/services/turns.py); the reasons and their texts in [vocabulary.py](services/core-api/apps/agent/domain/vocabulary.py) |
+| Opening a ticket: masking, storing, quarantine entries, queueing the pipeline (also for the agent) | [intake.py](services/core-api/apps/tickets/services/intake.py) (`ticket_intake`), never `Ticket.objects.create` with raw text |
+| Runbooks: the catalog, execution, Keycloak and n8n executors (F12, ADR-0038) | [apps/itsm_mock/](services/core-api/apps/itsm_mock/), the service in [runbooks.py](services/core-api/apps/itsm_mock/services/runbooks.py), the executors in [executors.py](services/core-api/apps/itsm_mock/clients/executors.py) |
 | A simulated OpenStack with metrics, logs, traces and faults (F17, ADR-0048; dev and test only), and the `infra` compose profile around it | [services/cloud-sim/](services/cloud-sim/) ([README](services/cloud-sim/README.md)); Prometheus, Alertmanager and APM config in [infra/observability/](infra/observability/) |
 
 Services: `core-api` (Django + Ninja) owns **every decision and every write
@@ -215,7 +215,7 @@ read it before adding a module, class or helper in core-api.
 | When something is auto-replied | `thresholds.yaml`, or a page's authority (granted by a manager, pinned to its text's SHA-256, `KbArticle.is_authorized()`) — **not** the prompt |
 | A KB page's text | A draft (`kb_drafts`) a second person approves (F6, ADR-0036); never a direct write to a page's title or body (only `load_demo_kb` imports the snapshot) |
 | How a branch is chosen | `router.py` (and add branch tests) |
-| What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/utils/pipeline.py` — not `tasks.py`, which is only the entry point |
+| What a degraded ticket run records, or a new `degraded_reason` from ai-engine | `apps/tickets/services/pipeline.py` — not `tasks.py`, which is only the entry point |
 | What the model is asked | `ai-engine/core/prompts/*.md` — bump the version in filename and `PROMPT_VERSION` in `.env.example` (and your `.env`) |
 | What Jev is asked | `ai-engine/core/prompts/*.json` — bump the version in filename and `RERANK_PROMPT_VERSION` or `CATEGORY_QUESTION_VERSION` the same way |
 | What counts as PII | `patterns.py` (regex) or the NER prompt `ai-engine/core/prompts/pii_ner.v*.md` |
@@ -226,21 +226,21 @@ read it before adding a module, class or helper in core-api.
 | Any tunable number | `thresholds.yaml`, nowhere else, by pull request; give a changed file a new `version` (ADR-0044) |
 | Which area a console page sits in | Daily work in the Workspace (`components/AppShell.tsx`); figures, authority, rollout, thresholds and settings in Admin under `/admin/*` (`lib/areas.ts`, ADR-0039). Old paths redirect in `next.config.mjs` |
 | Whether a branch acts live | Admin → Rollout (F9 flags); never a code path around `Rollout.is_live` |
-| Sign-in, token lifetimes | `apps/accounts/utils.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
-| Who may call what | A route's `require(Permission.…)`; a new permission is a `Permission` URN with its `PermissionSpec` in `catalog.py`, never a check on a role name (ADR-0045). A new route goes in `ADDED_SINCE_SNAPSHOT` in `test_access_equivalence.py`. Every route also declares `agent=AgentTier.…` (ADR-0046): `NONE` unless the F15 tier table (06-F15 §h.3) names it. Frontends read `user.permissions` through `can()` in `lib/permissions.ts` |
+| Sign-in, token lifetimes | `apps/accounts/services/sessions.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
+| Who may call what | A route's `require(Permission.…)`; a new permission is a `Permission` URN with its metadata in `apps/accounts/domain/data.py`, never a check on a role name (ADR-0045). A new route goes in `ADDED_SINCE_SNAPSHOT` in `test_access_equivalence.py`. Every route also declares `agent=AgentTier.…` (ADR-0046): `NONE` unless the F15 tier table (06-F15 §h.3) names it. Frontends read `user.permissions` through `can()` in `lib/permissions.ts` |
 | Someone's access | Admin → People & access: a grant (`grants.grant`), a custom role (`roles`), a department head (`departments.set_head`), a person's status (`people`); never an `Assignment` row written directly. Each takes a reason and ends the person's sessions |
 | A ticket's status | `lifecycle.system_move` from pipeline code, `lifecycle.move` for a person: never `ticket.status = …` (ADR-0028) |
-| What a workflow action can do | `apps/lifecycle/utils/actions.py` (a handler and an `ActionCode`); rules and events in `utils/rules.py` |
+| What a workflow action can do | `apps/lifecycle/services/actions.py` (a handler and an `ActionCode`); rules and events in `domain/rules.py` |
 | SLA targets, hours, holidays | Data: `/admin/settings/sla` (a workflow admin or manager drafts and activates a policy, ADR-0043), calendars and holidays; percentages in `thresholds.yaml` `sla`. Clocks change only through `sla_clocks`, called by the engine after a status change |
 | Who gets a ticket | `assignment.assign_after_handoff` after the decision is carried out (pipeline, review decisions), `take` / `reassign` for people; never `ticket.assigned_to = …` in new code. Team ownership of categories is data (`team_categories`) |
 | A comment on a ticket | `comments.add` (or `by_staff`), which masks inline and holds a mask-failed one for review; never `TicketComment.objects.create` with raw text |
 | What a chat question tells the model about earlier turns | `Conversations.prior_turns` (which turns count) and `requester:` in `thresholds.yaml`; ai-engine's `TicketMasked.earlier_turns()` (how they read) and `propose.v*` / `hyde_draft.v*`. Never the router or a signal (ADR-0034) |
-| What happens to a mass incident's tickets | `incidents.confirm` / `resolve` / `unlink` in `apps/incidents/utils/incidents.py`; never `ticket.incident = …` or a status write. Close-all moves each ticket with `lifecycle.automatic_move` |
+| What happens to a mass incident's tickets | `incidents.confirm` / `resolve` / `unlink` in `apps/incidents/services/incidents.py`; never `ticket.incident = …` or a status write. Close-all moves each ticket with `lifecycle.automatic_move` |
 | A security event | `security_alerts.raise_(AlertKind…)`, which writes the `security_alert` audit row and the alert together; never `AuditLog.objects.record("security_alert", …)` |
-| What a report counts or who may read it | `apps/reports/utils/reports.py` (`Reports`, scope in `team_scope`); a new fact goes on `TicketFacts` and `ReportFacts.facts_of`; shadow agreement only through `rollout_metrics.shadow_agreement` |
-| What an agent turn hands off with, or what it may do while its flag is off | `apps/agent/utils/turns.py`, with the reason in `ReasonCode` and its text in `vocabulary.py`; the flag is checked at `start` and again at `run`, never only at `start` |
-| Who is told about an event | `notifier.emit(event, ticket, Notice(...))` from the service that owns the event, never `router.py` or the routing step; new events go in the catalog (`apps/notifications/utils/vocabulary.py`) and its seed migration |
-| What a runbook does, or who may run it | Data: Admin → Settings → Runbooks (a workflow admin's change is live at once, ADR-0043); grantable groups in `ITSM_GRANTABLE_GROUP_PREFIXES`; executor code in `apps/itsm_mock/utils/executors.py`. Never a path around `runbooks.execute` and the worker's `runbooks.run`, which both check ADR-0006 |
+| What a report counts or who may read it | `apps/reports/services/reports.py` (`Reports`, scope in `team_scope`); a new fact goes on `TicketFacts` and `ReportFacts.facts_of`; shadow agreement only through `rollout_metrics.shadow_agreement` |
+| What an agent turn hands off with, or what it may do while its flag is off | `apps/agent/services/turns.py`, with the reason in `ReasonCode` and its text in `domain/vocabulary.py`; the flag is checked at `start` and again at `run`, never only at `start` |
+| Who is told about an event | `notifier.emit(event, ticket, Notice(...))` from the service that owns the event, never `router.py` or the routing step; new events go in the catalog (`apps/notifications/domain/vocabulary.py`) and its seed migration |
+| What a runbook does, or who may run it | Data: Admin → Settings → Runbooks (a workflow admin's change is live at once, ADR-0043); grantable groups in `ITSM_GRANTABLE_GROUP_PREFIXES`; executor code in `apps/itsm_mock/clients/executors.py`. Never a path around `runbooks.execute` and the worker's `runbooks.run`, which both check ADR-0006 |
 
 **Workflows** (`.claude/skills/`, usage in [`.claude/README.md`](.claude/README.md)):
 `/feature` for any feature change, in any service · `/review` before a PR ·
@@ -337,7 +337,7 @@ copies that directory — a new SQL file that isn't copied fails at container st
   conversation. The multi-turn golden cases await a reviewer other than their
   author, and no eval has run on the two prompts yet (TODO 15).
 - PII quarantine **read** path is done (phase 2 F5): `PiiReveal.reveal()` in
-  `apps/tickets/utils/pii_reveal.py` is the only `decrypt()` caller
+  `apps/tickets/services/pii_reveal.py` is the only `decrypt()` caller
   (`test_decrypt_has_one_caller`). **Never add another caller of the PII `crypto.decrypt()`; anything
   that needs a raw value goes through `PiiReveal`, which writes the `PiiAccessLog`
   row in the same transaction, with a reason.**

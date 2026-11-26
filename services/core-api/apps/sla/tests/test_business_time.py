@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from apps.sla.utils.business_time import BusinessCalendar, CalendarError, parse_hours
+from apps.sla.domain.business_time import BusinessCalendar, CalendarError, parse_hours
 
 VN = ZoneInfo("Asia/Ho_Chi_Minh")
 OFFICE = {d: [["08:00", "17:30"]] for d in ("mon", "tue", "wed", "thu", "fri")}

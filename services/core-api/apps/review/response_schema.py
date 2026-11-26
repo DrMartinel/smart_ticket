@@ -15,7 +15,7 @@ from infrastructure.dtos import TrustSignals
 
 from apps.review.models import ReviewItem
 from apps.tickets.models import RoutingDecision
-from apps.tickets.utils.trust_scorer import score as compute_trust
+from apps.tickets.domain.trust_scorer import score as compute_trust
 
 
 class DecisionOut(Schema):

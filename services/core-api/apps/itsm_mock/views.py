@@ -3,7 +3,7 @@ import uuid
 from django.db.models import QuerySet
 from ninja import Header, Router, Status
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.itsm_mock.models import ExecutionState, Runbook, RunbookExecution
 from apps.itsm_mock.request_schema import (
@@ -14,7 +14,7 @@ from apps.itsm_mock.request_schema import (
     RunbookIn,
 )
 from apps.itsm_mock.response_schema import RunbookExecutionOut, RunbookOut, RunbookPanelOut
-from apps.itsm_mock.utils.runbooks import RunbookPanel, runbooks
+from apps.itsm_mock.services.runbooks import RunbookPanel, runbooks
 
 router = Router(tags=["itsm"])
 

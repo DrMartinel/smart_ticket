@@ -18,11 +18,11 @@ from apps.accounts.models import Capability, User, UserRole
 
 from apps.accounts.testing import grant_capability
 from apps.itsm_mock.models import ExecutorKind, Runbook
-from apps.itsm_mock.utils.executors import EXECUTORS
+from apps.itsm_mock.clients.executors import EXECUTORS
 from apps.review.models import ReviewAction, ReviewDecision, ReviewItem
 from apps.tickets.models import AiRun, Ticket
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import ReviewQueue
 from infrastructure.outbound import OutboundResponse
 
 
@@ -190,7 +190,7 @@ class FakeN8n:
 
 @pytest.fixture
 def n8n(monkeypatch, settings) -> FakeN8n:
-    from apps.itsm_mock.utils import executors
+    from apps.itsm_mock.clients import executors
 
     settings.LIFECYCLE_WEBHOOK_ALLOWED_HOSTS = ["n8n.congty.vn"]
     fake = FakeN8n()

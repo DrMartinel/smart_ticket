@@ -11,7 +11,7 @@ from uuid import UUID
 import pytest
 from pydantic import ValidationError
 
-from apps.tickets.utils.router import (
+from apps.tickets.domain.router import (
     AGENT_HANDOFF_REASONS,
     Branch,
     KBArticleMeta,
@@ -44,7 +44,7 @@ from config.settings.base import (
     SlaThresholds,
     Thresholds,
 )
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 from infrastructure.dtos import (
     AgentHandoffReason,
     AutoReplyProposal,

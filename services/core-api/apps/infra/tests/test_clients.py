@@ -7,7 +7,7 @@ import httpx
 import pytest
 
 from apps.infra.tests.conftest import FakeCloud, mock_http
-from apps.infra.utils.clients import BackendNotFound, BackendUnavailable, OpenStack
+from apps.infra.clients.backends import BackendNotFound, BackendUnavailable, OpenStack
 
 SERVERS = "/compute/servers/detail"
 

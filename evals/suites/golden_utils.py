@@ -132,7 +132,7 @@ def analyze(
     from django.conf import settings
 
     from apps.tickets.request_schema import TicketIn
-    from apps.tickets.utils.masking import mask, mask_reply
+    from apps.tickets.domain.masking import mask, mask_reply
 
     floor = 0.0 if never_refuse else settings.THRESHOLDS.retrieval_floor
     masked = async_to_sync(mask)(

@@ -9,7 +9,7 @@ from django.utils import timezone
 from ninja import Schema
 
 from apps.security.models import SecurityAlert, SecurityAlertEvent
-from apps.security.utils.vocabulary import CREDENTIAL_KINDS, AlertKind
+from apps.security.domain.vocabulary import CREDENTIAL_KINDS, AlertKind
 
 
 class AlertTicketOut(Schema):

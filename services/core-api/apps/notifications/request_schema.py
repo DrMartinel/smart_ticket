@@ -9,7 +9,7 @@ from typing import Literal
 from ninja import Schema
 from pydantic import Field
 
-from apps.notifications.utils.vocabulary import Channel, MessageState, RecipientKind
+from apps.notifications.domain.vocabulary import Channel, MessageState, RecipientKind
 
 PersonChannel = Literal["in_app", "email"]
 TemplateLanguage = Literal["vi", "en"]

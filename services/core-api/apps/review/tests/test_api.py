@@ -8,9 +8,9 @@ wrong, the item cannot be opened at all.
 
 import pytest
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 from apps.review.models import ReviewAction, ReviewItem
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.router import ReviewQueue
 
 from apps.review.tests.test_decide import review_item
 from apps.tickets.models import AiRun, RoutingDecision, Ticket

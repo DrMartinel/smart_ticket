@@ -9,8 +9,8 @@ import uuid
 import pytest
 
 from apps.kb.models import AssociationSource, KbArticle, KbArticleAssociation, KbChunk
-from apps.kb.utils.associations import link_scores, linked_urls, resolve_link
-from apps.kb.utils.indexing import indexer
+from apps.kb.services.associations import link_scores, linked_urls, resolve_link
+from apps.kb.services.indexing import indexer
 
 BASE = "https://docs.aws.amazon.com/ses/latest/dg/verify.html"
 

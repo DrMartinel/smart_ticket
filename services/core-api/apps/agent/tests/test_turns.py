@@ -25,15 +25,15 @@ from apps.agent.models import (
     AgentTurn,
     AgentTurnState,
 )
-from apps.agent.utils.actions import AGENT_ACTION_HEADER
-from apps.agent.utils.turns import agent_turns
+from apps.agent.services.actions import AGENT_ACTION_HEADER
+from apps.agent.services.turns import agent_turns
 from apps.audit.models import AuditLog
 from apps.core.testing import api_client_with
 from apps.rollout.models import RolloutFlag
 from apps.rollout.testing import all_live
 from apps.security.models import SecurityAlert
 from apps.tickets.models import PiiQuarantine, Ticket
-from apps.tickets.utils.router import AGENT_HANDOFF_REASONS, ReasonCode
+from apps.tickets.domain.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 PHONE = "0912345678"
 
@@ -392,7 +392,7 @@ def test_a_hand_off_whose_ticket_fails_leaves_the_turn_running(
     def fail(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("db down")
 
-    monkeypatch.setattr("apps.agent.utils.turns.ticket_intake.open_for_agent", fail)
+    monkeypatch.setattr("apps.agent.services.turns.ticket_intake.open_for_agent", fail)
     with pytest.raises(RuntimeError):
         _send(api_as(employee_user), "My VPN fails, password: hunter2xyz")
 
@@ -414,7 +414,7 @@ def test_a_ticket_that_fails_to_open_leaves_the_offer_open(
     def fail(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("db down")
 
-    monkeypatch.setattr("apps.agent.utils.turns.ticket_intake.open_for_agent", fail)
+    monkeypatch.setattr("apps.agent.services.turns.ticket_intake.open_for_agent", fail)
     with pytest.raises(RuntimeError):
         client.post(f"/api/agent/turns/{turn.id}/ticket")
 
@@ -675,7 +675,7 @@ def test_a_late_answer_for_a_turn_already_handed_off_is_dropped(
 
         return AgentTurnResponse.model_validate(_replied("Too late", [_step(1, "POST")]))
 
-    monkeypatch.setattr("apps.agent.utils.turns.ai_engine.agent_turn", answer_after_the_sweep)
+    monkeypatch.setattr("apps.agent.services.turns.ai_engine.agent_turn", answer_after_the_sweep)
     agent_turns.run(turn.id)
 
     turn.refresh_from_db()
@@ -824,7 +824,7 @@ def test_the_reply_language_follows_the_message_whatever_the_profile_says(
 def test_a_handoff_sentence_follows_the_message_language(
     employee_user, api_as, live, engine, queued, profile, message, language
 ):
-    from apps.agent.utils.vocabulary import HANDOFF_TEXT
+    from apps.agent.domain.vocabulary import HANDOFF_TEXT
 
     employee_user.language = profile
     employee_user.save(update_fields=["language"])
@@ -841,7 +841,7 @@ def test_a_handoff_sentence_follows_the_message_language(
 def test_a_mask_failed_turn_hands_off_in_the_message_language(
     employee_user, api_as, live, engine, queued
 ):
-    from apps.agent.utils.vocabulary import HANDOFF_TEXT
+    from apps.agent.domain.vocabulary import HANDOFF_TEXT
 
     employee_user.language = "en"
     employee_user.save(update_fields=["language"])
@@ -922,7 +922,7 @@ def test_a_hand_off_ticket_is_audited_as_the_agent_s(employee_user, api_as, live
 
 
 def test_every_hand_off_reason_has_a_message_in_both_languages():
-    from apps.agent.utils.vocabulary import HANDOFF_TEXT
+    from apps.agent.domain.vocabulary import HANDOFF_TEXT
 
     assert set(HANDOFF_TEXT) == AGENT_HANDOFF_REASONS | {
         ReasonCode.AGENT_TOKEN_REFUSED,
@@ -933,7 +933,7 @@ def test_every_hand_off_reason_has_a_message_in_both_languages():
 
 
 def test_every_stop_reason_maps_to_an_agent_reason_code():
-    from apps.agent.utils.vocabulary import STOP_REASONS
+    from apps.agent.domain.vocabulary import STOP_REASONS
     from infrastructure.dtos import AgentStopReason
 
     assert set(STOP_REASONS) == set(AgentStopReason)

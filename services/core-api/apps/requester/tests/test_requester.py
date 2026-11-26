@@ -6,9 +6,9 @@ from __future__ import annotations
 import pytest
 
 from apps.audit.models import AuditLog
-from apps.lifecycle.utils.errors import LifecycleError
-from apps.lifecycle.utils.vocabulary import FailureCode
-from apps.metrics.utils import quality_metrics
+from apps.lifecycle.domain.errors import LifecycleError
+from apps.lifecycle.domain.vocabulary import FailureCode
+from apps.metrics.services.dashboard import quality_metrics
 from apps.requester.tests.conftest import (
     auto_replied,
     move,
@@ -18,8 +18,8 @@ from apps.requester.tests.conftest import (
     status,
     with_support,
 )
-from apps.requester.utils.tickets import requester_tickets
-from apps.requester.utils.vocabulary import status_label
+from apps.requester.services.tickets import requester_tickets
+from apps.requester.domain.vocabulary import status_label
 from apps.review.models import EvalCandidate, ReviewItem
 from apps.sla.models import Clock as SlaClock
 from apps.tickets.models import Ticket, TicketComment, TicketRating, TicketSource
@@ -280,7 +280,7 @@ class TestReply:
         def refuse(*a, **kw):
             raise LifecycleError(422, FailureCode.TRANSITION_NOT_ALLOWED, "no way back")
 
-        monkeypatch.setattr("apps.lifecycle.utils.engine.lifecycle.automatic_move", refuse)
+        monkeypatch.setattr("apps.lifecycle.services.engine.lifecycle.automatic_move", refuse)
 
         assert reply(api_as(lan), ticket.public_id, "Em gửi log ạ").status_code == 200
 
@@ -494,7 +494,7 @@ class TestAutoClose:
         def refuse(*a, **kw):
             raise LifecycleError(422, FailureCode.TRANSITION_NOT_ALLOWED, "no way to resolved")
 
-        monkeypatch.setattr("apps.lifecycle.utils.engine.lifecycle.automatic_move", refuse)
+        monkeypatch.setattr("apps.lifecycle.services.engine.lifecycle.automatic_move", refuse)
         clock.set(2026, 11, 9, 18, 0)
         requester_tickets.sweep()
         requester_tickets.sweep()
@@ -532,7 +532,7 @@ class TestStaffComments:
 
     def test_a_rebuild_keeps_a_public_comment_as_the_response(self, desk, clock, api_as):
         """FR-F1-015: replaying the ticket counts the staff reply as its response."""
-        from apps.sla.utils.clocks import sla_clocks
+        from apps.sla.services.clocks import sla_clocks
 
         lan, khoa = desk.people["lan"], desk.people["khoa"]
         ticket = with_support(lan, khoa)

@@ -18,7 +18,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, SecretStr, field_serializer
 
-from apps.tickets.utils.patterns import PIILevel
+from apps.tickets.domain.patterns import PIILevel
 
 
 # --- Wire schema of POST /v1/analyze (spec §6) --------------------------
@@ -221,7 +221,7 @@ class EngineSignals(BaseModel):
     """What ai-engine found about one ticket: the wire shape of
     `AIRunResponse.signals`. core-api adds what it knows itself (the PII
     level, its own KB read, mass incidents) to build `TrustSignals`
-    (`apps/tickets/utils/pipeline.py::trust_signals`)."""
+    (`apps/tickets/services/pipeline.py::trust_signals`)."""
 
     retrieval: RetrievalSignals
     generation: GenerationSignals

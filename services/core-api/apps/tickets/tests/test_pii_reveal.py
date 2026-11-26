@@ -21,8 +21,8 @@ from apps.notifications.models import Message
 from apps.review.models import ReviewItem
 from apps.tickets.models import PiiAccessLog, PiiQuarantine, Ticket
 from apps.tickets.utils.crypto import build_quarantine_entries
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import ReviewQueue
 
 CCCD = "001203004567"
 PASSWORD = "Abc@12345"
@@ -73,7 +73,7 @@ def reveal(api_as, actor: User, placeholder: str = "[CCCD_1]", reason: str = REA
 
 
 def events(name: str) -> list[AuditLog]:
-    return list(AuditLog.objects.filter(event=name))
+    return list(AuditLog.objects.filter(event=name).order_by("occurred_at"))
 
 
 def test_reveal_writes_exactly_one_access_log_row(api_as, people, ticket):
@@ -342,7 +342,7 @@ def test_decrypt_has_one_caller():
     }
     key_readers = {path for path, text in sources.items() if "PII_ENCRYPTION_KEY" in text}
 
-    assert callers == {"apps/tickets/utils/pii_reveal.py"}
+    assert callers == {"apps/tickets/services/pii_reveal.py"}
     assert key_readers == {
         "apps/tickets/utils/crypto.py",
         "config/settings/base.py",

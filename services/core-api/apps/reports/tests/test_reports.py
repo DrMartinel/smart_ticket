@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 from django.utils import timezone
 
-from apps.accounts.utils.grants import grants
+from apps.accounts.services.grants import grants
 from apps.accounts.models import Capability, User, UserRole
 
 from apps.accounts.testing import grant_capability
@@ -23,13 +23,13 @@ from apps.incidents.models import IncidentLink
 from apps.kb.models import DraftState, KbDraft, KbGapCluster, KbGapReport
 from apps.notifications.models import Message
 from apps.reports.models import FactState, TicketFacts
-from apps.reports.utils.facts import report_facts
-from apps.reports.utils.weekly import weekly_report
+from apps.reports.services.facts import report_facts
+from apps.reports.services.weekly import weekly_report
 from apps.review.models import ReviewDecision, ReviewItem
-from apps.rollout.utils.gates import rollout_metrics
+from apps.rollout.services.gates import rollout_metrics
 from apps.security.models import SecurityAlert
 from apps.sla.models import Calendar, Clock, Policy
-from apps.sla.utils.clocks import snapshot_of
+from apps.sla.services.clocks import snapshot_of
 from apps.teams.models import Reassignment, Team, TeamMembership
 from apps.tickets.models import (
     AiRun,

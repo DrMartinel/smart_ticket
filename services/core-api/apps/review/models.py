@@ -11,7 +11,7 @@ from django.db.models import QuerySet
 from django.utils import timezone
 
 from apps.core.models import BaseModel
-from apps.tickets.utils.router import ReviewQueue
+from apps.tickets.domain.router import ReviewQueue
 from apps.accounts.models import User
 from apps.kb.models import KbArticle
 from apps.tickets.models import AiRun, Ticket

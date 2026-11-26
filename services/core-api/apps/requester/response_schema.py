@@ -10,9 +10,9 @@ from ninja import Schema
 
 from apps.accounts.models import User
 from apps.incidents.response_schema import IncidentBannerOut
-from apps.lifecycle.utils.vocabulary import TRIAGE_STATUSES
-from apps.requester.utils.tickets import requester_tickets
-from apps.requester.utils.vocabulary import CommentState, status_label
+from apps.lifecycle.domain.vocabulary import TRIAGE_STATUSES
+from apps.requester.services.tickets import requester_tickets
+from apps.requester.domain.vocabulary import CommentState, status_label
 from apps.tickets.models import CommentAuthorKind, Ticket, TicketComment
 
 

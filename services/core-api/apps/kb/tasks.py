@@ -1,11 +1,11 @@
-"""Celery entry points for KB governance (F6); the work is in `utils/`."""
+"""Celery entry points for KB governance (F6); the work is in `services/`."""
 
 from __future__ import annotations
 
 from celery import shared_task
 
-from apps.kb.utils.drafts import kb_drafts
-from apps.kb.utils.gaps import kb_gaps
+from apps.kb.services.drafts import kb_drafts
+from apps.kb.services.gaps import kb_gaps
 
 
 @shared_task

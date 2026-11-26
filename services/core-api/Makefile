@@ -37,7 +37,7 @@ test: ## Unit tests (needs the Dockerized Postgres)
 
 .PHONY: coverage
 coverage: ## 100% coverage gate on masking + router (the release gate)
-	uv run pytest -q --cov=apps.tickets.utils.masking --cov=apps.tickets.utils.router \
+	uv run pytest -q --cov=apps.tickets.domain.masking --cov=apps.tickets.domain.router \
 		--cov-report=term-missing --cov-fail-under=100
 
 .PHONY: typecheck

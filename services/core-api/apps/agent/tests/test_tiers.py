@@ -110,7 +110,7 @@ def test_a_self_route_runs_and_stamps_its_audit_rows(employee_user, monkeypatch)
     async def ner_finds_nothing(*a, **kw):
         return []
 
-    monkeypatch.setattr("apps.tickets.utils.masking.llm_ner", ner_finds_nothing)
+    monkeypatch.setattr("apps.tickets.domain.masking.llm_ner", ner_finds_nothing)
     monkeypatch.setattr(
         "apps.tickets.tasks.process_ticket", type("Fake", (), {"delay": lambda self, i: None})()
     )

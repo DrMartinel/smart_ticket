@@ -4,7 +4,7 @@ precision). This is the one suite that exercises the REAL decision path:
 live ai-engine for signals/proposal, then core-api's actual
 `router.route()` — the identical function used in production, imported
 directly rather than reimplemented here — with a real `KBArticleMeta`
-looked up from the database exactly as `apps/tickets/utils/pipeline.py`
+looked up from the database exactly as `apps/tickets/services/pipeline.py`
 does. A ticket answered with a 5xx is a branch miss; a 4xx or an
 unreachable ai-engine fails the run.
 
@@ -31,9 +31,9 @@ from __future__ import annotations
 
 import httpx
 
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.router import Branch, KBArticleMeta, RiskTier
-from apps.tickets.utils.pipeline import router, trust_signals
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import Branch, KBArticleMeta, RiskTier
+from apps.tickets.services.pipeline import router, trust_signals
 from infrastructure.dtos import EngineSignals, TicketCategory
 
 from apps.kb.models import KbArticle

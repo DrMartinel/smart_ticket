@@ -3,8 +3,8 @@
 import pytest
 
 from apps.accounts.models import User, UserRole
-from apps.accounts.utils.access import Access
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.access import Access
+from apps.accounts.domain.catalog import Permission
 
 
 @pytest.mark.django_db

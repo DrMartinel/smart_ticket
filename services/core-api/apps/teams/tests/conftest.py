@@ -10,12 +10,12 @@ from typing import Any
 
 import pytest
 
-from apps.accounts.utils.grants import grants
+from apps.accounts.services.grants import grants
 from apps.accounts.models import User, UserRole
 from apps.lifecycle.tests.conftest import make_ticket
-from apps.lifecycle.utils.vocabulary import PipelineStatus
+from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.teams.models import Leave, MembershipRole, Team, TeamMembership
-from apps.teams.utils.assignment import today
+from apps.teams.services.assignment import today
 from apps.tickets.models import Ticket
 
 _numbers = itertools.count(1)

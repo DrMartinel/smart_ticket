@@ -11,7 +11,7 @@ from apps.accounts.models import User, UserRole
 from apps.audit.models import AuditLog
 from apps.notifications.tests.conftest import assign_to
 from apps.notifications.models import MatrixRule, Message, Template, WebhookSubscription
-from apps.notifications.utils.vocabulary import MessageState
+from apps.notifications.domain.vocabulary import MessageState
 
 JSON = "application/json"
 
@@ -314,7 +314,7 @@ def test_an_event_outside_the_catalog_is_refused(api_as, people):
 @override_settings(EMAIL_BACKEND="apps.notifications.tests.conftest.RejectingRelay")
 def test_a_manager_lists_failed_deliveries_and_retries_them(api_as, people, ticket, queue):
     """UC-F4-05: retried rows are queued again, with a fresh set of attempts, audited."""
-    from apps.notifications.utils.dispatcher import dispatcher
+    from apps.notifications.services.dispatcher import dispatcher
 
     assign_to(ticket, User.objects.get(username="duc.tm"), people["huy"])
     email = Message.objects.get(user=people["duc"], channel="email")

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from apps.rollout.models import RolloutFlag
-from apps.rollout.utils.vocabulary import FlagBranch, FlagState
+from apps.rollout.domain.vocabulary import FlagBranch, FlagState
 
 
 def all_live(settings: Any) -> None:

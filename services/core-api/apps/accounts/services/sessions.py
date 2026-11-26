@@ -1,0 +1,354 @@
+"""
+Sign-in sessions (ADR-0029): a short-lived access token for the API, and a
+rotating refresh token kept in an httpOnly cookie. Every login starts a token
+family; a refresh token used twice ends its whole family.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import secrets
+import uuid
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import cast
+from datetime import UTC, datetime, timedelta
+
+from django.conf import settings
+from django.db import transaction
+from django.utils import timezone
+from ninja_jwt.tokens import AccessToken
+
+from apps.accounts.models import AuthClient, RefreshSession, User
+from apps.audit.models import AuditLog
+from apps.security.services.alerts import security_alerts
+from apps.security.domain.vocabulary import AlertKind
+from apps.core.errors import CodedError
+from apps.notifications.services.notifier import Notice, notifier
+from apps.notifications.domain.vocabulary import NotificationEvent
+
+
+INVALID_CREDENTIALS = "invalid username or password"
+# The `act` claim of a token an agent turn uses on the user's behalf (ADR-0046).
+AGENT_ACT = "agent"
+
+
+class SessionRefused(Exception):
+    """A sign-in or refresh the server refuses; callers answer 401 and clear the refresh cookie."""
+
+
+class SignInRefusal(StrEnum):
+    LOCAL_LOGIN_DISABLED = "local_login_disabled"
+    ACCOUNT_LOCKED = "account_locked"
+    REDIRECT_URI_NOT_ALLOWED = "redirect_uri_not_allowed"
+    OIDC_TOKEN_INVALID = "oidc_token_invalid"
+    NO_ACCESS = "no_access"
+    IDP_UNAVAILABLE = "idp_unavailable"
+    LOGOUT_TOKEN_INVALID = "logout_token_invalid"
+
+
+class SignInError(CodedError):
+    """A sign-in core-api refuses with a code the sign-in error page names (F13)."""
+
+    code: SignInRefusal
+
+
+@dataclass(frozen=True)
+class IssuedSession:
+    """What a sign-in or refresh hands the browser. `refresh` is None when the browser already
+    holds the newest refresh token."""
+
+    user: User
+    access: str
+    access_expires_at: datetime
+    refresh: str | None
+    refresh_expires_at: datetime | None
+
+
+@dataclass(frozen=True)
+class Requester:
+    """Where a sign-in or refresh came from, for the session list and the audit log."""
+
+    user_agent: str
+    ip_address: str | None
+
+
+def token_hash(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+class Sessions:
+    """Every sign-in, refresh, sign-out and session listing."""
+
+    def login(
+        self, username: str, password: str, client: AuthClient, requester: Requester
+    ) -> IssuedSession:
+        """Checks a break-glass account's password and starts a session; everyone else
+        signs in through Keycloak (BR-F13-06)."""
+        now = timezone.now()
+        user = User.objects.filter(username=username, is_break_glass=True, is_active=True).first()
+        if user is None or user.is_locked(now):
+            User().set_password(password)
+            refusal = SignInRefusal.ACCOUNT_LOCKED if user else SignInRefusal.LOCAL_LOGIN_DISABLED
+            self.record_failure(username, client, requester, refusal)
+            raise SessionRefused(INVALID_CREDENTIALS)
+        if not user.check_password(password):
+            self.count_failure(user.pk, now)
+            self.record_failure(username, client, requester, None)
+            raise SessionRefused(INVALID_CREDENTIALS)
+        User.objects.filter(pk=user.pk).update(failed_logins=0, last_failed_login_at=None)
+        issued = self.start(user, client, requester, method="local")
+        with transaction.atomic():
+            security_alerts.raise_(
+                AlertKind.BREAK_GLASS_SIGN_IN,
+                actor_type="human",
+                actor_id=user.id,
+                subject_user=user,
+                reason="break_glass_used",
+                payload={
+                    "client": client.value,
+                    "ip": requester.ip_address,
+                },
+                detail=f"{user.username}, {client.value}, IP {requester.ip_address or 'unknown'}",
+                notify=False,
+            )
+            notifier.emit(
+                NotificationEvent.IDENTITY_BREAK_GLASS_USED,
+                notice=Notice(
+                    actor=user.username,
+                    reason="break_glass_used",
+                    detail=f"{client.value}, IP {requester.ip_address or 'unknown'}",
+                    data={"username": user.username, "client": client.value},
+                ),
+            )
+        return issued
+
+    def start(
+        self, user: User, client: AuthClient, requester: Requester, *, method: str
+    ) -> IssuedSession:
+        """Starts a new token family for a user whose identity is already checked."""
+        now = timezone.now()
+        family_ends = now + timedelta(hours=settings.AUTH_SESSION_MAX_HOURS)
+        with transaction.atomic():
+            raw, session = self.new_token(
+                user, client, uuid.uuid4(), now=now, family_ends=family_ends, requester=requester
+            )
+            AuditLog.objects.record(
+                "auth_login",
+                actor_type="human",
+                actor_id=user.id,
+                payload={
+                    "method": method,
+                    "client": client.value,
+                    "session": str(session.family),
+                    "ip": requester.ip_address,
+                },
+            )
+        return self.issue(session, raw)
+
+    def count_failure(self, user_id: uuid.UUID, now: datetime) -> None:
+        """Counts a failed password within the window, locking the account at the limit
+        (FR-F13-009)."""
+        limits = settings.THRESHOLDS.identity
+        window = timedelta(minutes=limits.local_failure_window_minutes)
+        with transaction.atomic():
+            user = User.objects.select_for_update().get(pk=user_id)
+            if user.last_failed_login_at is None or now - user.last_failed_login_at > window:
+                user.failed_logins = 0
+            user.failed_logins += 1
+            user.last_failed_login_at = now
+            if user.failed_logins >= limits.local_max_failures:
+                user.locked_until = now + timedelta(minutes=limits.local_lockout_minutes)
+                user.failed_logins = 0
+            user.save(update_fields=["failed_logins", "last_failed_login_at", "locked_until"])
+
+    def record_failure(
+        self, username: str, client: AuthClient, requester: Requester, code: SignInRefusal | None
+    ) -> None:
+        AuditLog.objects.record(
+            "auth_login_failed",
+            actor_type="human",
+            payload={
+                "username": username[:150],
+                "client": client.value,
+                "ip": requester.ip_address,
+                "reason": code.value if code else "invalid_credentials",
+            },
+        )
+
+    def refresh(self, raw: str, client: AuthClient, requester: Requester) -> IssuedSession:
+        """Swaps a refresh token for a new access token and a new refresh token."""
+        reused: RefreshSession | None = None
+        issued: IssuedSession | None = None
+        with transaction.atomic():
+            session = (
+                RefreshSession.objects.select_for_update()
+                .select_related("user")
+                .filter(token_hash=token_hash(raw), client=client.value)
+                .first()
+            )
+            now = timezone.now()
+            if session is None or session.revoked_at is not None:
+                raise SessionRefused("unknown or revoked refresh token")
+            if session.rotated_at is not None:
+                grace = timedelta(seconds=settings.AUTH_REFRESH_REUSE_GRACE_SEC)
+                live = RefreshSession.objects.live_family(session.family).exists()
+                if now - session.rotated_at <= grace and live and session.user.is_active:
+                    issued = self.issue(session, None)
+                else:
+                    self.revoke_family(session.family, "refresh_reuse_detected")
+                    reused = session
+            elif session.expires_at <= now or session.family_expires_at <= now:
+                raise SessionRefused("refresh token expired")
+            elif not session.user.is_active:
+                self.revoke_family(session.family, "user_inactive")
+                raise SessionRefused("user is inactive")
+            else:
+                session.rotated_at = now
+                session.save(update_fields=["rotated_at"])
+                raw_new, successor = self.new_token(
+                    session.user,
+                    client,
+                    session.family,
+                    now=now,
+                    family_ends=session.family_expires_at,
+                    requester=requester,
+                )
+                issued = self.issue(successor, raw_new)
+        if reused is not None:
+            security_alerts.raise_(
+                AlertKind.REFRESH_TOKEN_REUSED,
+                actor_id=reused.user_id,
+                subject_user=reused.user,
+                payload={
+                    "session": str(reused.family),
+                    "client": client.value,
+                    "ip": requester.ip_address,
+                },
+                detail=f"{reused.user.username}, {client.value}, IP {requester.ip_address or 'unknown'}",
+            )
+            raise SessionRefused("refresh token reused: every token of this sign-in is revoked")
+        assert issued is not None
+        return issued
+
+    def logout(self, raw: str, client: AuthClient) -> None:
+        """Ends the sign-in a refresh token belongs to; an unknown token is ignored."""
+        session = RefreshSession.objects.filter(
+            token_hash=token_hash(raw), client=client.value
+        ).first()
+        if session is None:
+            return
+        self.revoke_family(session.family, "logout")
+        AuditLog.objects.record(
+            "auth_logout",
+            actor_type="human",
+            actor_id=session.user_id,
+            payload={"client": client.value, "session": str(session.family)},
+        )
+
+    def end(self, user: User, family: uuid.UUID) -> int:
+        """Ends one of `user`'s sign-ins; returns how many tokens it revoked."""
+        if not RefreshSession.objects.filter(user=user, family=family).exists():
+            return 0
+        count = self.revoke_family(family, "ended_by_user")
+        AuditLog.objects.record(
+            "auth_session_ended",
+            actor_type="human",
+            actor_id=user.id,
+            payload={"session": str(family)},
+        )
+        return count
+
+    def end_all(self, user: User) -> int:
+        """Ends every sign-in of `user`; returns how many tokens it revoked."""
+        count = self.revoke_user(user, "logout_everywhere")
+        AuditLog.objects.record("auth_logout_everywhere", actor_type="human", actor_id=user.id)
+        return count
+
+    def revoke_user(self, user: User, reason: str) -> int:
+        """Revokes every live token of `user`; the caller audits why."""
+        return RefreshSession.objects.filter(user=user, revoked_at__isnull=True).update(
+            revoked_at=timezone.now(), revoke_reason=reason
+        )
+
+    def live(self, user: User) -> list[RefreshSession]:
+        """The newest token of each of `user`'s live sign-ins, newest sign-in first."""
+        newest: dict[uuid.UUID, RefreshSession] = {}
+        for session in RefreshSession.objects.filter(
+            user=user,
+            revoked_at__isnull=True,
+            rotated_at__isnull=True,
+            expires_at__gt=timezone.now(),
+        ).order_by("-created_at"):
+            newest.setdefault(session.family, session)
+        return list(newest.values())
+
+    def revoke_family(self, family: uuid.UUID, reason: str) -> int:
+        return RefreshSession.objects.filter(family=family, revoked_at__isnull=True).update(
+            revoked_at=timezone.now(), revoke_reason=reason
+        )
+
+    def new_token(
+        self,
+        user: User,
+        client: AuthClient,
+        family: uuid.UUID,
+        *,
+        now: datetime,
+        family_ends: datetime,
+        requester: Requester,
+    ) -> tuple[str, RefreshSession]:
+        """A fresh refresh token in `family`, idle-limited and never outliving the family."""
+        raw = secrets.token_urlsafe(48)
+        session = RefreshSession.objects.create(
+            user=user,
+            client=client.value,
+            family=family,
+            token_hash=token_hash(raw),
+            expires_at=min(now + timedelta(hours=settings.AUTH_REFRESH_IDLE_HOURS), family_ends),
+            family_expires_at=family_ends,
+            user_agent=requester.user_agent[:255],
+            ip_address=requester.ip_address,
+        )
+        return raw, session
+
+    def issue(self, session: RefreshSession, raw: str | None) -> IssuedSession:
+        """An access token bound to `session`'s family, with the refresh token to hand over."""
+        # ninja_jwt annotates for_user as returning the class; it returns a token.
+        access = cast(AccessToken, AccessToken.for_user(session.user))  # type: ignore[misc]
+        access["sid"] = str(session.family)
+        return IssuedSession(
+            user=session.user,
+            access=str(access),
+            access_expires_at=datetime.fromtimestamp(access["exp"], tz=UTC),
+            refresh=raw,
+            refresh_expires_at=session.expires_at if raw is not None else None,
+        )
+
+    def issue_for_agent(
+        self, user: User, family: uuid.UUID, *, conversation: uuid.UUID, turn: uuid.UUID
+    ) -> str:
+        """An access token for one agent turn acting as `user` in the live sign-in `family`
+        (ADR-0046)."""
+        live = RefreshSession.objects.live_family(family).filter(user=user)
+        family_ends = (
+            live.order_by("-family_expires_at").values_list("family_expires_at", flat=True).first()
+        )
+        if family_ends is None:
+            raise SessionRefused("the sign-in this agent turn belongs to has ended")
+        lifetime = timedelta(seconds=settings.THRESHOLDS.agent.token_ttl_seconds)
+        # ninja_jwt annotates for_user as returning the class; it returns a token.
+        access = cast(AccessToken, AccessToken.for_user(user))  # type: ignore[misc]
+        access.set_exp(from_time=timezone.now(), lifetime=lifetime)
+        if access["exp"] > family_ends.timestamp():
+            access["exp"] = int(family_ends.timestamp())
+        access["sid"] = str(family)
+        access["act"] = AGENT_ACT
+        access["agc"] = str(conversation)
+        access["agt"] = str(turn)
+        return str(access)
+
+
+# --- the sessions service ---
+
+sessions = Sessions()

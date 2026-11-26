@@ -18,7 +18,7 @@ from apps.accounts.permissions import (
     Caller,
     require,
 )
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 
 
 class Handler:

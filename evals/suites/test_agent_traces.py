@@ -27,15 +27,15 @@ from apps.accounts.permissions import gate_of
 from apps.accounts.testing import agent_token_for, api_client_for
 from apps.agent.models import AgentAction, AgentTurn
 from apps.agent.testing import runbook_item
-from apps.agent.utils.turns import agent_turns
+from apps.agent.services.turns import agent_turns
 from apps.audit.models import AuditLog
-from apps.incidents.utils.incidents import incidents
+from apps.incidents.services.incidents import incidents
 from apps.itsm_mock.models import RunbookExecution
 from apps.review.models import ReviewDecision
 from apps.rollout.testing import all_live
 from apps.tickets import tasks as ticket_tasks
 from apps.tickets.models import IncidentVerdict, Ticket
-from apps.tickets.utils.pipeline import _degraded_signals
+from apps.tickets.services.pipeline import _degraded_signals
 from config.urls import api
 from infrastructure.ai_engine import ai_engine
 from infrastructure.dtos import AIRunResponse, EngineSignals

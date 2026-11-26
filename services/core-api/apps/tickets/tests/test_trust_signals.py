@@ -7,9 +7,9 @@ so no database.
 
 from uuid import UUID
 
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.pipeline import trust_signals
-from apps.tickets.utils.router import KBArticleMeta, RiskTier
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.services.pipeline import trust_signals
+from apps.tickets.domain.router import KBArticleMeta, RiskTier
 from infrastructure.dtos import (
     ClassificationSignals,
     EngineSignals,

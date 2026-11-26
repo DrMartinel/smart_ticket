@@ -2,8 +2,8 @@
 
 from celery import shared_task
 
-from apps.reports.utils.weekly import weekly_report
-from apps.reports.utils.facts import report_facts
+from apps.reports.services.weekly import weekly_report
+from apps.reports.services.facts import report_facts
 
 
 @shared_task(name="apps.reports.tasks.build_facts")

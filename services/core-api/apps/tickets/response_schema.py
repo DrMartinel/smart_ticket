@@ -10,9 +10,9 @@ from datetime import datetime
 from ninja import Field, Schema
 
 from apps.sla.response_schema import SlaBadgeOut
-from apps.sla.utils.clocks import Badge, sla_clocks
+from apps.sla.services.clocks import Badge, sla_clocks
 from apps.tickets.models import PiiAccessLog, RoutingDecision, Ticket, TicketComment
-from apps.tickets.utils.patterns import placeholder_level
+from apps.tickets.domain.patterns import placeholder_level
 
 
 class TicketSubmitOut(Schema):

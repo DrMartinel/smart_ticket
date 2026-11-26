@@ -1,12 +1,12 @@
 """
-Celery entry points for SLA clocks. The work lives in `utils/clocks.py`.
+Celery entry points for SLA clocks. The work lives in `services/clocks.py`.
 """
 
 from __future__ import annotations
 
 from celery import shared_task
 
-from apps.sla.utils.clocks import sla_clocks
+from apps.sla.services.clocks import sla_clocks
 
 
 @shared_task

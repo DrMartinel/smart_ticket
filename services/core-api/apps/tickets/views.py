@@ -1,7 +1,7 @@
 """
 Ticket endpoints. `submit_ticket` is the one HTTP-facing place masking runs
 inline and synchronously (spec §5); the contract for what is written before
-it returns lives in `TicketIntake.submit` (utils/intake.py).
+it returns lives in `TicketIntake.submit` (services/intake.py).
 """
 
 import uuid
@@ -14,7 +14,7 @@ from ninja import Query, Router
 from ninja.errors import HttpError
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.tickets.utils.intake import ticket_intake
+from apps.tickets.services.intake import ticket_intake
 from apps.tickets.models import (
     CommentVisibility,
     PiiAccessLog,
@@ -34,7 +34,7 @@ from apps.tickets.response_schema import (
     TicketOut,
     TicketSubmitOut,
 )
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import (
     AgentTier,
     AuthedRequest,
@@ -43,12 +43,12 @@ from apps.accounts.permissions import (
 )
 from apps.sla.request_schema import PriorityIn
 from apps.sla.response_schema import TicketSlaOut
-from apps.sla.utils.clocks import sla_clocks
+from apps.sla.services.clocks import sla_clocks
 from apps.teams.request_schema import ReassignIn, TakeIn
 from apps.teams.response_schema import AssignedTicketOut
-from apps.teams.utils.assignment import ReassignRequest, assignment
-from apps.tickets.utils.comments import comments
-from apps.tickets.utils.pii_reveal import PiiReveal, Revealed
+from apps.teams.services.assignment import ReassignRequest, assignment
+from apps.tickets.services.comments import comments
+from apps.tickets.services.pii_reveal import PiiReveal, Revealed
 
 router = Router(tags=["tickets"])
 pii_router = Router(tags=["pii"])

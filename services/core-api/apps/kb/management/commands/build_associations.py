@@ -13,7 +13,7 @@ from typing import Any
 from django.core.management.base import BaseCommand, CommandParser
 
 from apps.kb.models import AssociationSource
-from apps.kb.utils.indexing import indexer
+from apps.kb.services.indexing import indexer
 
 
 class Command(BaseCommand):

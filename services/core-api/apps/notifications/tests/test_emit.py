@@ -14,10 +14,10 @@ from django.utils import timezone
 from apps.audit.models import AuditLog
 from apps.notifications.tests.conftest import assign_to
 from apps.notifications.models import MatrixRule, Message, Preference, Template
-from apps.notifications.utils.configuration import config
-from apps.notifications.utils.notifier import Notice, notifier
+from apps.notifications.services.configuration import config
+from apps.notifications.services.notifier import Notice, notifier
 from apps.notifications.utils.secrets import webhook_secrets
-from apps.notifications.utils.vocabulary import (
+from apps.notifications.domain.vocabulary import (
     CATALOG,
     Channel,
     MessageState,

@@ -11,7 +11,7 @@ from django.db.models import QuerySet
 from ninja import Query, Router, Status
 from ninja.pagination import LimitOffsetPagination, paginate
 
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.notifications.models import Message, WebhookSubscription
 from apps.notifications.request_schema import (
@@ -36,7 +36,7 @@ from apps.notifications.response_schema import (
     TemplateOut,
     WebhookOut,
 )
-from apps.notifications.utils.configuration import (
+from apps.notifications.services.configuration import (
     InboxPage,
     MatrixCellView,
     PreferenceView,
@@ -44,7 +44,7 @@ from apps.notifications.utils.configuration import (
     config,
     inbox,
 )
-from apps.notifications.utils.dispatcher import dispatcher
+from apps.notifications.services.dispatcher import dispatcher
 
 router = Router(tags=["notifications"])
 

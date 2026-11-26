@@ -3,7 +3,7 @@ from ninja import Router
 
 from apps.fewshot.models import FewshotExample
 from apps.fewshot.response_schema import FewshotExampleOut
-from apps.accounts.utils.catalog import Permission
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 
 router = Router(tags=["fewshot"])

@@ -13,8 +13,8 @@ from django.db import models
 from django.db.models import F, Q, QuerySet
 
 from apps.core.models import BaseModel
-from apps.lifecycle.utils.rules import EventCode, FieldType, RuleCode
-from apps.lifecycle.utils.vocabulary import (
+from apps.lifecycle.domain.rules import EventCode, FieldType, RuleCode
+from apps.lifecycle.domain.vocabulary import (
     OPEN_TRANSFER_STATES,
     ActionCode,
     TRIAGE_STATUSES,

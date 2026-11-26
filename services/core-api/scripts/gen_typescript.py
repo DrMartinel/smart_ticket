@@ -383,7 +383,7 @@ def _models() -> dict[str, type[BaseModel]]:
     from apps.sla import request_schema as sla_request, response_schema as sla_response
     from apps.teams import request_schema as teams_request, response_schema as teams_response
     from apps.tickets import request_schema, response_schema as tickets_response
-    from apps.tickets.utils import router, trust_scorer
+    from apps.tickets.domain import router, trust_scorer
     from infrastructure import dtos
 
     modules = (
@@ -483,7 +483,7 @@ def main() -> None:
     for name, values in ENUMS.items():
         chunks.append(emit_enum(name, values))
 
-    from apps.tickets.utils.router import ReasonCode
+    from apps.tickets.domain.router import ReasonCode
 
     chunks.append(emit_enum("ReasonCode", [code.value for code in ReasonCode]))
 

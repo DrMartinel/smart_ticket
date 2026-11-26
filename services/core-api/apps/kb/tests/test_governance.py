@@ -18,14 +18,14 @@ from apps.accounts.models import Capability, User, UserRole
 from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.kb.models import KbArticle, KbAuthorityLog, KbChunk, KbGapCluster, KbGapReport
-from apps.kb.utils.authority import kb_authority
-from apps.kb.utils.gaps import kb_gaps
+from apps.kb.services.authority import kb_authority
+from apps.kb.services.gaps import kb_gaps
 from apps.notifications.models import Message
 from apps.review.models import ReviewDecision, ReviewItem
 from apps.tickets.models import RoutingDecision, Ticket
 from apps.tickets.tests.test_router import TH, auto_reply_proposal, good_signals
-from apps.tickets.utils.pipeline import _kb_meta
-from apps.tickets.utils.router import ReasonCode, Router
+from apps.tickets.services.pipeline import _kb_meta
+from apps.tickets.domain.router import ReasonCode, Router
 
 pytestmark = pytest.mark.django_db
 
@@ -61,7 +61,7 @@ def clients(team, api_as) -> dict:
 def ingest_now(monkeypatch):
     """Runs the publish task's ingest in place of queueing it."""
     from apps.kb.tasks import publish_draft
-    from apps.kb.utils.drafts import kb_drafts
+    from apps.kb.services.drafts import kb_drafts
 
     monkeypatch.setattr(publish_draft, "delay", lambda draft_id: kb_drafts.ingest(draft_id))
 
@@ -319,7 +319,7 @@ class TestReview:
         self, clients, live, serve_ai_engine, django_capture_on_commit_callbacks, ingest_now
     ):
         """UC-F6-02 3y."""
-        from apps.kb.utils.indexing import indexer
+        from apps.kb.services.indexing import indexer
 
         indexer.ingest(live)
         old = set(KbChunk.objects.filter(article=live).values_list("content", flat=True))

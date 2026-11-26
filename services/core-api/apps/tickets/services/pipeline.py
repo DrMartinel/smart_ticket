@@ -1,0 +1,583 @@
+"""
+The per-ticket pipeline that runs after submission has masked the ticket:
+embed/incident-check → ai-engine → trust score → route →
+execute-or-enqueue-HITL. This is the one place all the pieces from §5–§9
+come together per ticket. `tasks.process_ticket` is its Celery entry point.
+
+Every failure here ends in a RoutingDecision and a ReviewItem — never an
+exception out of the task. A ticket that raises is left at status="new",
+invisible to every queue (spec §10.3).
+
+Each run is recorded as an `AiRun` keyed `{ticket_id}:{attempt}`. With
+`acks_late=True` (settings), a redelivered message collides on that key in
+`_persist_ai_run` and reuses the existing row rather than creating a second
+side effect — so a worker dying mid-task cannot send a double auto-reply.
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from typing import cast
+
+import httpx
+from django.conf import settings
+from django.db import IntegrityError, transaction
+
+from infrastructure.dtos import (
+    AgentHandoffReason,
+    AIRunResponse,
+    EngineSignals,
+    GenerationSignals,
+    LLMProposalEnvelope,
+    ClassificationSignals,
+    PolicySignals,
+    RetrievalSignals,
+    TicketCategory,
+    TicketMasked,
+    TrustSignals,
+)
+from infrastructure.ai_engine import AIEngineUnavailable, ai_engine
+from apps.teams.services.assignment import assignment
+from apps.teams.domain.vocabulary import AssignmentTrigger
+from apps.tickets.domain.router import (
+    Branch,
+    KBArticleMeta,
+    ReasonCode,
+    ReviewQueue,
+    RiskTier,
+    Router,
+    RoutingDecision as Decision,
+)
+from apps.tickets.domain.patterns import PIILevel
+
+from apps.audit.models import AuditLog
+from apps.chat.services.conversations import conversations
+from apps.incidents.services.incidents import incidents
+from apps.kb.models import KbArticle
+from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.domain.vocabulary import PipelineStatus
+from apps.review.models import ReviewItem
+from apps.rollout.services.rollout import rollout
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.security.services.alerts import security_alerts
+from apps.security.domain.vocabulary import AlertKind
+from apps.tickets.models import (
+    AiRun,
+    RoutingDecision,
+    Ticket,
+    TicketSource,
+)
+from apps.tickets.services.clarification import clarifications
+from apps.tickets.domain.trust_scorer import score as compute_trust
+
+logger = logging.getLogger(__name__)
+
+type TaskResult = dict[str, str | bool]
+
+
+def trust_signals(
+    engine: EngineSignals,
+    pii_level: PIILevel,
+    kb: KBArticleMeta | None,
+    *,
+    clarifications_asked: int,
+    agent_handoff_reason: AgentHandoffReason | None,
+) -> TrustSignals:
+    """ai-engine's findings plus the policy core-api knows itself: the
+    ticket's PII level, the KB page's authority, from core-api's own KB
+    read (ADR-0002; `kb` is None unless an auto-reply proposal names an
+    active page, and then auto-reply is denied), how many questions the
+    ticket has asked its requester (ADR-0023), and why the agent handed it
+    off (F15). Pure."""
+    return TrustSignals(
+        retrieval=engine.retrieval,
+        generation=engine.generation,
+        classification=engine.classification,
+        policy=PolicySignals(
+            kb_auto_reply_allowed=kb.auto_reply_allowed if kb else False,
+            kb_risk_tier=kb.risk_tier.value if kb else RiskTier.HIGH.value,
+            pii_level=pii_level,
+            injection_detected=engine.injection_detected,
+            mass_incident=False,
+            clarifications_asked=clarifications_asked,
+            agent_handoff_reason=agent_handoff_reason,
+        ),
+        llm_self_confidence=engine.llm_self_confidence,
+    )
+
+
+def _kb_meta(proposal: LLMProposalEnvelope | None) -> KBArticleMeta | None:
+    """The KB page an auto-reply proposal names, if it is active. Authority
+    is read here, never taken from anything ai-engine reports (ADR-0002)."""
+    if proposal is None or proposal.root.proposed_intent != "auto_reply":
+        return None
+    kb = KbArticle.objects.filter(slug=proposal.root.kb_slug, is_active=True).first()
+    if kb is None:
+        return None
+    return KBArticleMeta(
+        id=kb.id,
+        slug=kb.slug,
+        category=TicketCategory(kb.category),
+        auto_reply_allowed=kb.is_authorized(),
+        risk_tier=RiskTier(kb.risk_tier),
+    )
+
+
+def _degraded_signals() -> TrustSignals:
+    return TrustSignals(
+        retrieval=RetrievalSignals(rerank_top1=0.0, rerank_margin=0.0, docs_above_floor=0),
+        generation=GenerationSignals(
+            quote_match_ratio=0.0,
+            quote_source_in_topk=False,
+            negation_consistent=False,
+        ),
+        policy=PolicySignals(
+            kb_auto_reply_allowed=False,
+            kb_risk_tier="high",
+            pii_level=PIILevel.ROUTINE,
+            injection_detected=False,
+            mass_incident=False,
+        ),
+        # A degraded run never asked Jev: no category.
+        classification=ClassificationSignals(category_choice=None, category_confidence=0.0),
+    )
+
+
+def _degraded_decision(
+    reason_code: ReasonCode, queue: ReviewQueue, *, priority: int = 3
+) -> Decision:
+    return Decision(
+        branch=Branch.HITL,
+        reason_code=reason_code,
+        reason_detail=f"degraded: {reason_code.value}",
+        gate_failed=reason_code.value,
+        queue=queue,
+        priority=priority,
+    )
+
+
+def _persist_ai_run(
+    ticket: Ticket,
+    idempotency_key: str,
+    signals: TrustSignals,
+    proposal: LLMProposalEnvelope | None,
+    *,
+    resp: AIRunResponse | None = None,
+    degraded_reason: str | None = None,
+) -> AiRun:
+    trust = compute_trust(signals) if proposal is not None else None
+    try:
+        with transaction.atomic():
+            return AiRun.objects.create(
+                ticket=ticket,
+                idempotency_key=idempotency_key,
+                prompt_version=resp.prompt_version if resp else "n/a",
+                model=resp.model if resp else "n/a",
+                graph_version=resp.graph_version if resp else "n/a",
+                proposed_draft=proposal.model_dump(mode="json") if proposal else None,
+                llm_self_confidence=signals.llm_self_confidence,
+                trust_signals=signals.model_dump(mode="json"),
+                trust_score=trust.value if trust else None,
+                retrieved_chunks=resp.retrieved_chunks if resp else [],
+                tokens_in=resp.tokens_in if resp else None,
+                tokens_out=resp.tokens_out if resp else None,
+                cost_usd=resp.cost_usd if resp else 0,
+                latency_ms=resp.latency_ms if resp else None,
+                degraded_reason=degraded_reason,
+            )
+    except IntegrityError:
+        # Idempotency key collision: this exact attempt was already
+        # recorded by another delivery of the same message (spec §10.3,
+        # acks_late redelivery). Return the existing row instead of
+        # creating a duplicate side effect.
+        return AiRun.objects.get(idempotency_key=idempotency_key)
+
+
+# The automated branches a rollout flag turns live (F9, ADR-0035); every other branch is a person's.
+_FLAGGED = {Branch.AUTO_ROUTE: FlagBranch.AUTO_ROUTE, Branch.AUTO_REPLY: FlagBranch.AUTO_REPLY}
+
+
+def _finalize(
+    ticket: Ticket,
+    ai_run: AiRun,
+    decision: Decision,
+    trace_id: str,
+    *,
+    kb: KBArticleMeta | None = None,
+) -> TaskResult:
+    snapshot = rollout.snapshot()
+    family = _FLAGGED.get(decision.branch)
+    shadow = not rollout.is_live(family, snapshot) if family else settings.SHADOW_MODE
+    ask_requester = rollout.is_live(FlagBranch.REQUESTER_QUESTIONS, snapshot)
+
+    with transaction.atomic():
+        RoutingDecision.objects.create(
+            ticket=ticket,
+            ai_run=ai_run,
+            branch=decision.branch.value,
+            reason_code=decision.reason_code.value,
+            reason_detail=decision.reason_detail,
+            gate_failed=decision.gate_failed,
+            thresholds_used=router.thresholds.model_dump(mode="json"),
+            shadow_mode=shadow,
+            rollout_snapshot=snapshot,
+        )
+
+        AuditLog.objects.record(
+            "routing_decided",
+            actor_type="system",
+            ticket_id=ticket.id,
+            payload={
+                "ticket_public_id": ticket.public_id,
+                "branch": decision.branch.value,
+                "reason_code": decision.reason_code.value,
+                "shadow_mode": shadow,
+                "thresholds_version": router.thresholds.version,
+            },
+            trace_id=trace_id,
+        )
+
+        conversations.after_decision(ticket, decision.branch)
+
+        if decision.alert_security:
+            security_alerts.raise_(
+                AlertKind(decision.reason_code.value),
+                ticket=ticket,
+                subject_user=ticket.reporter,
+                payload={
+                    "reason_code": decision.reason_code.value,
+                    "ticket_public_id": ticket.public_id,
+                },
+                detail=f"{ticket.public_id}: {decision.reason_code.value}",
+                trace_id=trace_id,
+            )
+
+        if ticket.source == TicketSource.CHAT.value and waits_for_requester(
+            decision,
+            not ask_requester,
+            PIILevel(ticket.pii_level),
+            agent_handoff=ticket.agent_handoff_reason is not None,
+        ):
+            if decision.branch is Branch.CLARIFY and not clarifications.ask(
+                ticket, ai_run, trace_id
+            ):
+                # Fewer than two pages to offer: carried out as for a form ticket.
+                _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
+            else:
+                _hold_for_requester(ticket, decision, trace_id)
+        else:
+            _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
+
+    return {
+        "ticket_public_id": ticket.public_id,
+        "branch": decision.branch.value,
+        "shadow_mode": shadow,
+    }
+
+
+# Decisions about a chat ticket that are carried out at once, never held for
+# the requester: each is a human looking at something that may already be
+# wrong (masking that failed, a security clarification ADR-0016 says "never
+# waits on a requester's answer"). The requester closing the tab must not be
+# able to keep those from support.
+_NEVER_HELD = frozenset(
+    {ReasonCode.PII_MASK_FAILED, ReasonCode.CLARIFY_SECURITY, ReasonCode.AGENT_MASK_FAILED}
+)
+# Checked on the ticket as well as the reason code: a degraded run (embedding
+# or ai-engine down, budget) never reaches the router, so a mask-failed
+# ticket arrives here as ai_engine_unavailable.
+_NEVER_HELD_PII = frozenset({PIILevel.MASK_FAILED, PIILevel.CRITICAL})
+
+
+def waits_for_requester(
+    decision: Decision, shadow: bool, pii_level: PIILevel, *, agent_handoff: bool
+) -> bool:
+    """Whether a chat ticket's decision waits for the requester to ask for a
+    ticket before it is carried out. Pure.
+
+    In live mode, a HITL, AUTO_ROUTE or CLARIFY decision waits unless it
+    raises a security alert, has a never-held reason code, the ticket's
+    PII level is never held, or the ticket is an agent hand-off. In shadow
+    mode nothing waits.
+    """
+    if shadow or agent_handoff:
+        return False
+    if decision.alert_security or decision.reason_code in _NEVER_HELD:
+        return False
+    if pii_level in _NEVER_HELD_PII:
+        return False
+    return decision.branch in (Branch.HITL, Branch.CLARIFY, Branch.AUTO_ROUTE)
+
+
+def _hold_for_requester(ticket: Ticket, decision: Decision, trace_id: str) -> None:
+    ticket.held_decision = decision.model_dump(mode="json")
+    ticket.save(update_fields=["held_decision"])
+    lifecycle.system_move(ticket, PipelineStatus.AWAITING_REQUESTER)
+    AuditLog.objects.record(
+        "handoff_held_for_requester",
+        actor_type="system",
+        ticket_id=ticket.id,
+        payload={"ticket_public_id": ticket.public_id, "branch": decision.branch.value},
+        trace_id=trace_id,
+    )
+
+
+class NotAwaitingRequester(Exception):
+    """The ticket has no held decision to release: it is still being
+    analysed, was answered, or is already with support."""
+
+
+def release_to_support(
+    ticket_id: uuid.UUID, requester_id: uuid.UUID, trace_id: str | None
+) -> Ticket:
+    """The requester asked for a ticket: carry out the decision recorded for
+    it (`Ticket.held_decision`), exactly as `_finalize` would have, with the
+    shadow mode that decision was recorded under. Nothing is re-routed.
+
+    Locks the row, so a double click releases once; the second call raises
+    `NotAwaitingRequester`.
+    """
+    with transaction.atomic():
+        ticket = Ticket.objects.select_for_update().get(id=ticket_id)
+        if ticket.status != "awaiting_requester" or ticket.held_decision is None:
+            raise NotAwaitingRequester(ticket.public_id)
+
+        decision = Decision.model_validate(ticket.held_decision)
+        recorded = ticket.routing_decisions.order_by("-decided_at").first()
+        if recorded is None:
+            raise NotAwaitingRequester(ticket.public_id)
+
+        ticket.held_decision = None
+        ticket.save(update_fields=["held_decision"])
+        AuditLog.objects.record(
+            "requester_asked_for_ticket",
+            actor_type="human",
+            actor_id=requester_id,
+            ticket_id=ticket.id,
+            payload={"ticket_public_id": ticket.public_id, "branch": decision.branch.value},
+            trace_id=trace_id,
+        )
+        # kb=None: only a live auto-reply reads it, and that is never held.
+        _execute_or_enqueue(ticket, recorded.ai_run, decision, recorded.shadow_mode, None)
+    return ticket
+
+
+def _execute_or_enqueue(
+    ticket: Ticket,
+    ai_run: AiRun | None,
+    decision: Decision,
+    shadow: bool,
+    kb: KBArticleMeta | None,
+) -> None:
+    branch = decision.branch
+
+    if branch is Branch.BLOCK:
+        lifecycle.system_move(ticket, PipelineStatus.BLOCKED)
+        queue = (
+            ReviewQueue.INJECTION
+            if decision.reason_code is ReasonCode.INJECTION_DETECTED
+            else ReviewQueue.PII_VERIFY
+        )
+        ReviewItem.objects.create(ticket=ticket, ai_run=ai_run, queue=queue.value, priority=1)
+        return
+
+    if branch is Branch.ESCALATE:
+        lifecycle.system_move(ticket, PipelineStatus.ESCALATED)
+        if decision.reason_code is ReasonCode.MASS_INCIDENT and incidents.attach(
+            ticket, live=not shadow
+        ):
+            return
+        ReviewItem.objects.create(
+            ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=1
+        )
+        return
+
+    if branch is Branch.HITL:
+        lifecycle.system_move(ticket, PipelineStatus.PENDING_REVIEW)
+        ReviewItem.objects.create(
+            ticket=ticket,
+            ai_run=ai_run,
+            queue=(decision.queue.value if decision.queue else ReviewQueue.LOW_CONFIDENCE.value),
+            priority=decision.priority,
+        )
+        return
+
+    if branch is Branch.CLARIFY:
+        # In shadow mode and out of it: nothing sends a question to the
+        # requester yet (ADR-0016, "Not decided"). A person sees the proposed
+        # question in the clarification queue and asks it, edits it or
+        # ignores it, which is also the data that will judge the branch.
+        lifecycle.system_move(ticket, PipelineStatus.PENDING_REVIEW)
+        ReviewItem.objects.create(
+            ticket=ticket,
+            ai_run=ai_run,
+            queue=ReviewQueue.CLARIFICATION.value,
+            priority=decision.priority,
+        )
+        return
+
+    # branch is AUTO_REPLY or AUTO_ROUTE
+    if shadow:
+        # Same route() call as live mode (spec §8.2) — only the execution
+        # differs. Still surfaced to a human so shadow-mode data reflects
+        # exactly what would have happened live.
+        lifecycle.system_move(ticket, PipelineStatus.PENDING_REVIEW)
+        ReviewItem.objects.create(
+            ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=3
+        )
+        return
+
+    if branch is Branch.AUTO_REPLY:
+        ticket.category = kb.category if kb else ticket.category
+        ticket.save(update_fields=["category"])
+        lifecycle.system_move(ticket, PipelineStatus.AUTO_REPLIED)
+    elif branch is Branch.AUTO_ROUTE:
+        ticket.category = decision.category.value if decision.category else ticket.category
+        ticket.save(update_fields=["category"])
+        lifecycle.system_move(ticket, PipelineStatus.AUTO_ROUTED)
+        assignment.assign_after_handoff(ticket, AssignmentTrigger.AUTO_ROUTE)
+
+
+def ticket_process(ticket_id: str) -> TaskResult:
+    """Runs one ticket from embedding to a recorded routing decision.
+
+    Each call is a new attempt: it creates a new `AiRun` and `RoutingDecision`.
+    Does not raise for an embedding, ai-engine, LLM or budget failure; those
+    reach a human with their own `ReasonCode`.
+    """
+    ticket = Ticket.objects.select_related("reporter", "conversation").get(id=ticket_id)
+    trace_id = f"ticket-{ticket.public_id}"
+
+    attempt = AiRun.objects.filter(ticket=ticket).count() + 1
+    idempotency_key = f"{ticket.id}:{attempt}"
+
+    # ── Embedding + incident detection (core-api owns this, spec §1 map) ──
+    combined_text = f"{ticket.subject_masked}\n{ticket.body_masked}"
+    try:
+        embedding = ai_engine.embed(combined_text)
+        ticket.store_embedding(embedding.vector, embedding.model)
+        verdict = incidents.classify(ticket, embedding.vector)
+    except (httpx.HTTPError, ValueError) as e:
+        # Same fail-open-to-human principle as the AIEngineUnavailable
+        # branch below (spec §10.3: "khi degrade, luôn đẩy về con người").
+        # Without this, an embedding outage left the ticket stuck
+        # at status="new" forever — no RoutingDecision, no ReviewItem,
+        # invisible to every queue and dashboard.
+        logger.warning(
+            "embedding unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
+        )
+        signals = _degraded_signals()
+        decision = _degraded_decision(
+            ReasonCode.EMBEDDING_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
+        ai_run = _persist_ai_run(
+            ticket, idempotency_key, signals, None, degraded_reason="embedding_unavailable"
+        )
+        return _finalize(ticket, ai_run, decision, trace_id)
+
+    if verdict.kind == "duplicate" and verdict.of:
+        original = Ticket.objects.filter(id=verdict.of).first()
+        if original:
+            ticket.duplicate_of = original
+            ticket.category = ticket.category or original.category
+            ticket.save(update_fields=["duplicate_of", "category"])
+
+    if verdict.kind == "mass_incident":
+        # Skip the AI engine entirely — cost saved, and per spec §9 a mass
+        # incident must never receive an (possibly wrong) auto-reply.
+        signals = _degraded_signals()
+        signals.policy.mass_incident = True
+        decision = router.route(signals, None, None)
+        ai_run = _persist_ai_run(
+            ticket, idempotency_key, signals, None, degraded_reason="mass_incident_short_circuit"
+        )
+        return _finalize(ticket, ai_run, decision, trace_id)
+
+    # ── Budget: daily cost ceiling (core-api owns this — it's the only
+    # side with write access to ai_runs, so it's the only side that can
+    # actually see total daily spend) ──
+    ceiling = settings.THRESHOLDS.budget.daily_cost_ceiling_usd
+    if AiRun.objects.cost_today_usd() >= ceiling:
+        signals = _degraded_signals()
+        decision = _degraded_decision(
+            ReasonCode.BUDGET_EXCEEDED, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
+        ai_run = _persist_ai_run(
+            ticket, idempotency_key, signals, None, degraded_reason="budget_exceeded"
+        )
+        return _finalize(ticket, ai_run, decision, trace_id)
+
+    # ── Call ai-engine ──
+    # Questions asked so far, answered or not (ADR-0023).
+    clarifications_asked = ticket.clarifications.count()
+    masked = TicketMasked(
+        ticket_public_id=ticket.public_id,
+        subject_masked=ticket.subject_masked,
+        body_masked=ticket.body_masked,
+        pii_level=PIILevel(ticket.pii_level),
+        placeholder_keys=list(ticket.pii_map.keys()),
+        prior_turns=conversations.context_for(ticket) if ticket.conversation_id else [],
+    )
+
+    try:
+        resp = ai_engine.analyze(masked, request_id=idempotency_key)
+    except AIEngineUnavailable as e:
+        logger.warning(
+            "ai-engine unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
+        )
+        signals = _degraded_signals()
+        decision = _degraded_decision(
+            ReasonCode.AI_ENGINE_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
+        ai_run = _persist_ai_run(
+            ticket, idempotency_key, signals, None, degraded_reason="ai_engine_unavailable"
+        )
+        return _finalize(ticket, ai_run, decision, trace_id)
+
+    # The chat LLM failed. Routed here rather than through the router, which
+    # sees only proposal=None and would label an outage SCHEMA_INVALID — the
+    # same code as "the model returned bad JSON".
+    if resp.degraded_reason == ReasonCode.ALL_LLM_DOWN.value:
+        decision = _degraded_decision(
+            ReasonCode.ALL_LLM_DOWN, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
+        ai_run = _persist_ai_run(
+            ticket,
+            idempotency_key,
+            trust_signals(
+                resp.signals,
+                masked.pii_level,
+                None,
+                clarifications_asked=clarifications_asked,
+                agent_handoff_reason=cast("AgentHandoffReason | None", ticket.agent_handoff_reason),
+            ),
+            resp.proposal,
+            resp=resp,
+            degraded_reason=resp.degraded_reason,
+        )
+        return _finalize(ticket, ai_run, decision, trace_id)
+
+    kb_meta = _kb_meta(resp.proposal)
+    signals = trust_signals(
+        resp.signals,
+        masked.pii_level,
+        kb_meta,
+        clarifications_asked=clarifications_asked,
+        agent_handoff_reason=cast("AgentHandoffReason | None", ticket.agent_handoff_reason),
+    )
+    decision = router.route(signals, resp.proposal, kb_meta)
+    ai_run = _persist_ai_run(
+        ticket,
+        idempotency_key,
+        signals,
+        resp.proposal,
+        resp=resp,
+        degraded_reason=resp.degraded_reason,
+    )
+    return _finalize(ticket, ai_run, decision, trace_id, kb=kb_meta)
+
+
+# --- the router, built from the thresholds loaded at startup ---
+
+router = Router(settings.THRESHOLDS)

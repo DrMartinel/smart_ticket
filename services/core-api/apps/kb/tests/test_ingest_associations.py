@@ -7,7 +7,7 @@ from __future__ import annotations
 import pytest
 
 from apps.kb.models import AssociationSource, KbArticle, KbArticleAssociation
-from apps.kb.utils.indexing import indexer
+from apps.kb.services.indexing import indexer
 
 pytestmark = pytest.mark.django_db
 

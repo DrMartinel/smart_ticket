@@ -21,9 +21,9 @@ from collections import Counter
 import httpx
 import pytest
 
-from apps.tickets.utils.patterns import PIILevel
-from apps.tickets.utils.pipeline import router, trust_signals
-from apps.tickets.utils.router import Branch
+from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.services.pipeline import router, trust_signals
+from apps.tickets.domain.router import Branch
 from infrastructure.dtos import EngineSignals, LLMProposalEnvelope
 
 from suites.golden_utils import (
