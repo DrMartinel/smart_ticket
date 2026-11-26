@@ -57,53 +57,6 @@ _WRONG_SHAPE = (
 _UNKNOWN_TOOL = "The tool you named is not among the tools listed. Use only those."
 
 
-@dataclass(frozen=True)
-class _Invalid:
-    """A model reply that is not a valid action, with the sentence that says why."""
-
-    reason: str
-
-
-def _ask(prompt: str, update: dict[str, Any]) -> str:
-    """One model call, a blank reply read as empty text; adds its usage to `update`."""
-    update["model_calls"] += 1
-    try:
-        result = clients.agent.complete(
-            AGENT_PROMPT, prompt, schema_name="agent_action", schema=_ACTION_SCHEMA
-        )
-    except BlankReplyError as blank:
-        update["tokens_in"] += blank.tokens_in
-        update["tokens_out"] += blank.tokens_out
-        update["cost_usd"] += blank.cost_usd
-        return ""
-    update["tokens_in"] += result.tokens_in
-    update["tokens_out"] += result.tokens_out
-    update["cost_usd"] += result.cost_usd
-    update["model_used"] = result.model
-    return result.text
-
-
-def _choice(text: str, tools: dict[str, Tool]) -> Reply | tuple[Tool, ToolInput] | _Invalid:
-    """The model's reply as a reply or a tool call with checked arguments."""
-    try:
-        action = _ACTION.validate_json(text)
-    except ValidationError:
-        return _Invalid(_WRONG_SHAPE)
-    if isinstance(action, Reply):
-        return action
-    tool = tools.get(action.tool)
-    if tool is None:
-        return _Invalid(_UNKNOWN_TOOL)
-    try:
-        return tool, tool.Input.model_validate(action.arguments)
-    except ValidationError as e:
-        fields = "; ".join(
-            f"{'.'.join(str(part) for part in error['loc']) or 'arguments'}: {error['msg']}"
-            for error in e.errors()
-        )
-        return _Invalid(f"The arguments for {tool.name} do not match its schema: {fields}.")
-
-
 class ChooseActionNode(BaseNode[AgentState]):
     """Asks the model for its next action, unless the turn has reached a cap."""
 
@@ -127,14 +80,14 @@ class ChooseActionNode(BaseNode[AgentState]):
             "cost_usd": state.cost_usd,
         }
         try:
-            choice = _choice(_ask(prompt, update), tools)
+            choice = self._choice(self._ask(prompt, update), tools)
             if (
                 isinstance(choice, _Invalid)
                 and update["model_calls"] < caps.max_steps
                 and update["tokens_in"] + update["tokens_out"] < caps.max_model_tokens
             ):
                 retry = f"{prompt}\n\n## Your last reply was invalid\n{choice.reason}"
-                choice = _choice(_ask(retry, update), tools)
+                choice = self._choice(self._ask(retry, update), tools)
         except AllLLMDownError:
             return {**update, "stop_reason": AgentStopReason.MODEL_UNAVAILABLE}
 
@@ -149,6 +102,48 @@ class ChooseActionNode(BaseNode[AgentState]):
             tool=tool.name, arguments=args.model_dump(mode="json", exclude_none=True)
         )
         return {**update, "pending_call": call}
+
+    def _ask(self, prompt: str, update: dict[str, Any]) -> str:
+        """One model call, a blank reply read as empty text; adds its usage to `update`."""
+        update["model_calls"] += 1
+        try:
+            result = clients.agent.complete(
+                AGENT_PROMPT, prompt, schema_name="agent_action", schema=_ACTION_SCHEMA
+            )
+        except BlankReplyError as blank:
+            update["tokens_in"] += blank.tokens_in
+            update["tokens_out"] += blank.tokens_out
+            update["cost_usd"] += blank.cost_usd
+            if blank.model:
+                update["model_used"] = blank.model
+            return ""
+        update["tokens_in"] += result.tokens_in
+        update["tokens_out"] += result.tokens_out
+        update["cost_usd"] += result.cost_usd
+        update["model_used"] = result.model
+        return result.text
+
+    def _choice(
+        self, text: str, tools: dict[str, Tool]
+    ) -> Reply | tuple[Tool, ToolInput] | _Invalid:
+        """The model's reply as a reply or a tool call with checked arguments."""
+        try:
+            action = _ACTION.validate_json(text)
+        except ValidationError:
+            return _Invalid(_WRONG_SHAPE)
+        if isinstance(action, Reply):
+            return action
+        tool = tools.get(action.tool)
+        if tool is None:
+            return _Invalid(_UNKNOWN_TOOL)
+        try:
+            return tool, tool.Input.model_validate(action.arguments)
+        except ValidationError as e:
+            fields = "; ".join(
+                f"{'.'.join(str(part) for part in error['loc']) or 'arguments'}: {error['msg']}"
+                for error in e.errors()
+            )
+            return _Invalid(f"The arguments for {tool.name} do not match its schema: {fields}.")
 
     def decide(self, state: AgentState) -> ChooseOutcome:
         reason = state.stop_reason
@@ -187,6 +182,13 @@ class ChooseActionNode(BaseNode[AgentState]):
             parts.append("## What you did this turn\n" + json.dumps(done, ensure_ascii=False))
         parts.append(f"## Steps left\n{state.limits.max_steps - state.model_calls}")
         return "\n\n".join(parts)
+
+
+@dataclass(frozen=True)
+class _Invalid:
+    """A model reply that is not a valid action, with the sentence that says why."""
+
+    reason: str
 
 
 choose_action = ChooseActionNode()

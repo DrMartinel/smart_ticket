@@ -63,11 +63,20 @@ class AllLLMDownError(Exception):
 class BlankReplyError(AllLLMDownError):
     """The model answered with no text, with what the call used."""
 
-    def __init__(self, message: str, *, tokens_in: int, tokens_out: int, cost_usd: float):
+    def __init__(
+        self,
+        message: str,
+        *,
+        tokens_in: int,
+        tokens_out: int,
+        cost_usd: float,
+        model: str = "",
+    ):
         super().__init__(message)
         self.tokens_in = tokens_in
         self.tokens_out = tokens_out
         self.cost_usd = cost_usd
+        self.model = model
 
 
 class LLMResult(BaseModel):
@@ -306,6 +315,7 @@ class ChatClient:
                     tokens_in=tokens_in,
                     tokens_out=tokens_out,
                     cost_usd=cost_usd,
+                    model=self.model,
                 )
 
             return LLMResult(

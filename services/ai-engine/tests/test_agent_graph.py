@@ -241,8 +241,6 @@ def test_an_invalid_action_hands_off_with_no_call(model, core_api, action):
 
 
 def test_the_flattened_envelope_is_asked_again_and_the_tool_runs(model, core_api):
-    """DeepSeek's slip: the tool's name in `action`, its arguments beside it."""
-
     llm = model(
         {"action": "get_my_ticket", "public_id": "TKT-1"},
         call("get_my_ticket", public_id="TKT-1"),
@@ -312,12 +310,12 @@ def test_a_model_failure_on_the_retry_hands_off_as_model_unavailable(model, core
 
 
 def blank(tokens_out: int = 500) -> BlankReplyError:
-    return BlankReplyError("blank", tokens_in=10, tokens_out=tokens_out, cost_usd=0.01)
+    return BlankReplyError(
+        "blank", tokens_in=10, tokens_out=tokens_out, cost_usd=0.01, model="deepseek-flash"
+    )
 
 
 def test_a_blank_reply_is_asked_again_and_the_tool_runs(model, core_api):
-    """DeepSeek's other slip: a 200 whose content is only whitespace."""
-
     llm = model(blank(), call("list_my_tickets"), reply())
     api = core_api(Reply(200, {"open": [], "recent": []}))
 
@@ -350,6 +348,7 @@ def test_a_blank_reply_counts_its_tokens_against_the_budget(model, core_api):
     assert len(llm.prompts) == 1
     assert (final.tokens_in, final.tokens_out) == (10, 500)
     assert final.cost_usd == pytest.approx(0.01)
+    assert final.model_used == "deepseek-flash"
 
 
 def test_a_retry_never_repeats_a_tool_call(model, core_api):

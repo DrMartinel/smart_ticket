@@ -378,6 +378,7 @@ def test_a_blank_reply_raises_blank_reply_error_with_its_usage():
 
     assert (raised.value.tokens_in, raised.value.tokens_out) == (100, 40)
     assert raised.value.cost_usd == pytest.approx(0.14)
+    assert raised.value.model == "m"
 
 
 def test_a_blank_reply_is_still_an_all_llm_down_error_for_triage():

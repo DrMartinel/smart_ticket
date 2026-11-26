@@ -96,7 +96,7 @@ class AgentConversationOut(Schema):
 
     @classmethod
     def of(cls, conversation: AgentConversation) -> AgentConversationOut:
-        turns = conversation.turns.select_related("handoff_ticket").order_by("seq")
+        turns = conversation.turns.select_related("conversation", "handoff_ticket").order_by("seq")
         return cls(
             conversation_id=conversation.id,
             surface=AgentSurface(conversation.surface),

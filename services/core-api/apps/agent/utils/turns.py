@@ -345,7 +345,7 @@ class AgentTurns:
             origin = AgentOrigin(conversation.id, turn.id, "").audit_fields()
             ticket = None
             if conversation.surface == AgentSurface.CHAT.value and reason in TICKET_AT_ONCE:
-                ticket = self._open_ticket(turn, reason, user, origin)
+                ticket = self._open_ticket(turn, reason, origin)
             if reason is ReasonCode.AGENT_PII_CRITICAL:
                 security_alerts.raise_(
                     AlertKind.PII_CRITICAL,
@@ -374,7 +374,7 @@ class AgentTurns:
             turn = (
                 AgentTurn.objects.of_user(user)
                 .select_for_update(of=("self",))
-                .select_related("conversation")
+                .select_related("conversation__user", "handoff_ticket")
                 .filter(id=turn_id)
                 .first()
             )
@@ -385,7 +385,7 @@ class AgentTurns:
             if turn.stop_reason is None or not turn.offers_ticket():
                 raise AgentError(409, AgentRefusal.NO_TICKET_OFFERED, "this turn offers no ticket")
             origin = AgentOrigin(turn.conversation_id, turn.id, "").audit_fields()
-            ticket = self._open_ticket(turn, ReasonCode(turn.stop_reason), user, origin)
+            ticket = self._open_ticket(turn, ReasonCode(turn.stop_reason), origin)
             AuditLog.objects.record(
                 "agent_handoff_ticket_requested",
                 actor_type="human",
@@ -396,12 +396,13 @@ class AgentTurns:
         ticket_intake.queue(ticket)
         return turn
 
-    def _open_ticket(
-        self, turn: AgentTurn, reason: ReasonCode, user: User, origin: dict[str, str]
-    ) -> Ticket:
+    def _open_ticket(self, turn: AgentTurn, reason: ReasonCode, origin: dict[str, str]) -> Ticket:
         """Opens the turn's hand-off ticket and links it to the turn; the caller queues it."""
         ticket = ticket_intake.open_for_agent(
-            turn, cast(AgentHandoffReason, reason.value), conversations.current(user), origin
+            turn,
+            cast(AgentHandoffReason, reason.value),
+            conversations.current(turn.conversation.user),
+            origin,
         )
         turn.handoff_ticket = ticket
         turn.save(update_fields=["handoff_ticket"])
