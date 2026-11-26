@@ -1,6 +1,6 @@
-"""The cloud projects a caller reaches (F17 BR-F17-02..04): every one for staff holding
-`infra:read`, else the ones Keystone lists the caller's user as a member of, read on every
-request."""
+"""The cloud projects a caller reaches (F17 BR-F17-02..04): every one on the staff router
+(`infra:read`), or the ones Keystone lists the caller's user as a member of on the requester
+router (`infra:read:own`), read on every request."""
 
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ from django.conf import settings
 
 from apps.accounts.models import User
 from apps.accounts.permissions import Caller
-from apps.accounts.utils.catalog import Permission
 from apps.infra.models import InfraBackend
 from apps.infra.utils.clients import BackendUnavailable, OpenStack
 
@@ -23,10 +22,14 @@ class InfraScope:
     project_ids: frozenset[str] = frozenset()
 
     @classmethod
-    def of(cls, caller: Caller, cloud: OpenStack) -> InfraScope:
-        """Raises `BackendUnavailable` when Keystone can't say whom a customer belongs to."""
-        if caller.holds(Permission.INFRA_READ):
-            return cls(everything=True)
+    def all(cls) -> InfraScope:
+        """Every cloud project, for staff routes gated by `infra:read`."""
+        return cls(everything=True)
+
+    @classmethod
+    def own(cls, caller: Caller, cloud: OpenStack) -> InfraScope:
+        """Only the projects Keystone lists `caller` in, for requester routes gated by
+        `infra:read:own`. Raises `BackendUnavailable` when Keystone can't answer."""
         return cls(everything=False, project_ids=member_projects(caller.user, cloud))
 
     def reaches(self, project_id: str | None) -> bool:

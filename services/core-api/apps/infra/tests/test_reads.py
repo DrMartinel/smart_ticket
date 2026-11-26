@@ -46,8 +46,10 @@ def names(reply: Any) -> set[str]:
 def test_a_customer_cannot_see_another_companys_server_404_like_a_missing_one(
     api_as, customer, cloud_sim: CloudSim
 ):
-    other = api_as(customer).get(f"/api/infra/servers/{cloud_sim.id_of('servers', 'web-03')}")
-    missing = api_as(customer).get("/api/infra/servers/no-such-server")
+    other = api_as(customer).get(
+        f"/api/requester/infra/servers/{cloud_sim.id_of('servers', 'web-03')}"
+    )
+    missing = api_as(customer).get("/api/requester/infra/servers/no-such-server")
 
     assert other.status_code == missing.status_code == 404
     assert other.json() == missing.json()
@@ -57,9 +59,11 @@ def test_a_customer_cannot_see_another_companys_server_404_like_a_missing_one(
 def test_a_customer_cannot_see_another_companys_volume_or_network(
     api_as, customer, cloud_sim: CloudSim
 ):
-    volume = api_as(customer).get(f"/api/infra/volumes/{cloud_sim.id_of('volumes', 'vol-web-03')}")
+    volume = api_as(customer).get(
+        f"/api/requester/infra/volumes/{cloud_sim.id_of('volumes', 'vol-web-03')}"
+    )
     network = api_as(customer).get(
-        f"/api/infra/networks/{cloud_sim.id_of('networks', 'hbr-web-net')}"
+        f"/api/requester/infra/networks/{cloud_sim.id_of('networks', 'hbr-web-net')}"
     )
 
     assert volume.status_code == network.status_code == 404
@@ -68,10 +72,18 @@ def test_a_customer_cannot_see_another_companys_volume_or_network(
 def test_a_customer_lists_only_their_companys_resources(api_as, customer, cloud_sim: CloudSim):
     client = api_as(customer)
 
-    assert names(client.get("/api/infra/projects")) == {"saomai-prod", "saomai-staging"}
-    assert names(client.get("/api/infra/servers")) == {"db-01", "app-01", "app-02", "stg-app-01"}
-    assert "vol-web-03" not in names(client.get("/api/infra/volumes"))
-    assert names(client.get("/api/infra/networks")) == {"saomai-prod-net", "saomai-staging-net"}
+    assert names(client.get("/api/requester/infra/projects")) == {"saomai-prod", "saomai-staging"}
+    assert names(client.get("/api/requester/infra/servers")) == {
+        "db-01",
+        "app-01",
+        "app-02",
+        "stg-app-01",
+    }
+    assert "vol-web-03" not in names(client.get("/api/requester/infra/volumes"))
+    assert names(client.get("/api/requester/infra/networks")) == {
+        "saomai-prod-net",
+        "saomai-staging-net",
+    }
 
 
 def test_a_customer_asking_for_another_companys_project_gets_nothing(
@@ -79,7 +91,7 @@ def test_a_customer_asking_for_another_companys_project_gets_nothing(
 ):
     hbr = cloud_sim.id_of("projects", "hbr-web")
 
-    reply = api_as(customer).get("/api/infra/servers", {"project_id": hbr})
+    reply = api_as(customer).get("/api/requester/infra/servers", {"project_id": hbr})
 
     assert reply.json() == []
     assert not [c for c in cloud_sim.calls if "servers" in c]
@@ -88,7 +100,7 @@ def test_a_customer_asking_for_another_companys_project_gets_nothing(
 def test_a_failed_membership_lookup_refuses_and_never_widens(api_as, customer, cloud_sim: CloudSim):
     cloud_sim.cloud.add_fault(FaultKind.API_UNAVAILABLE, None, {})
 
-    reply = api_as(customer).get("/api/infra/servers")
+    reply = api_as(customer).get("/api/requester/infra/servers")
 
     assert reply.status_code == 424
     assert reply.json()["code"] == "infra_scope_unavailable"
@@ -101,16 +113,16 @@ def test_a_customer_listed_twice_in_keystone_is_refused(api_as, customer, cloud_
     twin = type(lan)(**{**lan.__dict__, "id": "twin", "name": "lan.nt-2"})
     cloud_sim.cloud.users["twin"] = twin
 
-    reply = api_as(customer).get("/api/infra/servers")
+    reply = api_as(customer).get("/api/requester/infra/servers")
 
     assert reply.json()["code"] == "infra_scope_unavailable"
 
 
 def test_a_person_without_a_keystone_user_sees_nothing(api_as, employee_user, cloud_sim: CloudSim):
-    unlinked = api_as(employee_user).get("/api/infra/servers")
+    unlinked = api_as(employee_user).get("/api/requester/infra/servers")
     employee_user.external_id = "8f0e0f6e-0000-4000-8000-00000000dead"
     employee_user.save(update_fields=["external_id"])
-    unknown = api_as(employee_user).get("/api/infra/servers")
+    unknown = api_as(employee_user).get("/api/requester/infra/servers")
 
     assert unlinked.json() == unknown.json() == []
     assert not [c for c in cloud_sim.calls if "servers" in c]
@@ -131,14 +143,21 @@ def test_staff_see_every_project(api_as, technician_user, cloud_sim: CloudSim):
 # ── refusals ──
 
 
-def test_a_route_refuses_someone_with_neither_permission(api_as, manager_user, cloud_sim):
-    reply = api_as(manager_user).get("/api/infra/servers")
+def test_staff_and_customer_routers_each_require_their_own_single_permission(
+    api_as, customer, technician_user, manager_user, cloud_sim
+):
+    customer_on_staff = api_as(customer).get("/api/infra/servers")
+    staff_on_customer = api_as(technician_user).get("/api/requester/infra/servers")
+    manager_on_staff = api_as(manager_user).get("/api/infra/servers")
+    manager_on_customer = api_as(manager_user).get("/api/requester/infra/servers")
 
-    assert reply.status_code == 403
-    assert reply.json()["details"]["any_of"] == [
-        "urn:smart-ticket:perm:infra:read",
-        "urn:smart-ticket:perm:infra:read:own",
-    ]
+    assert customer_on_staff.status_code == 403
+    assert customer_on_staff.json()["details"]["permission"] == "urn:smart-ticket:perm:infra:read"
+    assert staff_on_customer.status_code == 403
+    assert (
+        staff_on_customer.json()["details"]["permission"] == "urn:smart-ticket:perm:infra:read:own"
+    )
+    assert manager_on_staff.status_code == manager_on_customer.status_code == 403
 
 
 def test_an_unavailable_cloud_api_is_424_with_a_recorded_row(
@@ -242,7 +261,7 @@ def test_a_customer_sees_only_their_projects_alerts(
         alert("HypervisorDown", None, "compute-02 down"),
     ]
 
-    mine = api_as(customer).get("/api/infra/alerts")
+    mine = api_as(customer).get("/api/requester/infra/alerts")
 
     assert [a["project_id"] for a in mine.json()] == [prod]
 
@@ -275,7 +294,7 @@ def test_a_silence_matching_projects_by_regex_is_hidden_from_customers(
 
     alertmanager.silences = [silence("s1", prod, False), silence("s2", ".*", True)]
 
-    reply = api_as(customer).get("/api/infra/alerts/silences")
+    reply = api_as(customer).get("/api/requester/infra/alerts/silences")
 
     assert [s["id"] for s in reply.json()] == ["s1"]
 
@@ -296,7 +315,7 @@ def test_every_read_writes_one_row_naming_who_and_what(
 
 
 def test_an_agents_read_names_its_turn(customer, cloud_sim: CloudSim):
-    reply = as_agent(customer, "list_my_servers").get("/api/infra/servers")
+    reply = as_agent(customer, "list_my_servers").get("/api/requester/infra/servers")
 
     assert reply.status_code == 200
     row = InfraQuery.objects.get()
@@ -308,7 +327,7 @@ def test_an_agents_read_names_its_turn(customer, cloud_sim: CloudSim):
 
 
 def test_a_refused_read_is_recorded(api_as, customer, cloud_sim: CloudSim):
-    api_as(customer).get(f"/api/infra/servers/{cloud_sim.id_of('servers', 'web-03')}")
+    api_as(customer).get(f"/api/requester/infra/servers/{cloud_sim.id_of('servers', 'web-03')}")
 
     row = InfraQuery.objects.get()
     assert (row.outcome, row.refusal, row.rows) == ("refused", "infra_not_found", 0)

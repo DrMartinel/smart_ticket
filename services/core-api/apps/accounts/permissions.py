@@ -120,16 +120,11 @@ class AccessError(CodedError):
 
 @dataclass(frozen=True)
 class Gate:
-    """The permission a route needs, or one of its alternatives, held at any scope
-    (ADR-0045), and its agent tier (ADR-0046); a route with no tier refuses agents."""
+    """The permission a route needs, held at any scope (ADR-0045), and its agent tier
+    (ADR-0046); a route with no tier refuses agents."""
 
     permission: Permission
     agent_tier: AgentTier | None = None
-    alternatives: tuple[Permission, ...] = ()
-
-    @property
-    def any_of(self) -> tuple[Permission, ...]:
-        return (self.permission, *self.alternatives)
 
 
 @dataclass(frozen=True)
@@ -161,8 +156,7 @@ class Caller:
     def admit(self, gate: Gate) -> None:
         """Refuses this caller without the gate's permission, then any agent acting for them
         on a route whose tier refuses agents."""
-        if not any(self.holds(p) for p in gate.any_of):
-            self.refuse(gate)
+        self.require(gate.permission)
         if self.agent is not None and gate.agent_tier in (None, AgentTier.NONE):
             AuditLog.objects.record(
                 "agent_call_refused",
@@ -203,25 +197,15 @@ class Caller:
                     "method": self.method,
                     "role": self.user.role,
                     "permission": gate.permission.value,
-                    **self.alternatives_of(gate),
                     **(self.agent.audit_fields() if self.agent else {}),
                 },
                 trace_id=self.trace_id,
             )
         raise AccessError(
             AccessRefusal.PERMISSION_MISSING,
-            f"requires permission {' or '.join(p.value for p in gate.any_of)}",
-            {
-                "role": self.user.role,
-                "permission": gate.permission.value,
-                **self.alternatives_of(gate),
-            },
+            f"requires permission {gate.permission.value}",
+            {"role": self.user.role, "permission": gate.permission.value},
         )
-
-    @staticmethod
-    def alternatives_of(gate: Gate) -> dict[str, list[str]]:
-        """The refusal's `any_of` field, for a gate with alternatives."""
-        return {"any_of": [p.value for p in gate.any_of]} if gate.alternatives else {}
 
 
 class AuthedRequest(HttpRequest):
@@ -243,12 +227,12 @@ def gate_of(handler: Callable[..., Any]) -> Gate | None:
     return _GATES[handler]
 
 
-def require(permission: Permission, *alternatives: Permission, agent: AgentTier | None = None):
-    """Decorator for Django Ninja handlers: lets in a user who holds `permission` or one of
-    `alternatives`, and an agent acting for them as the route's `agent` tier allows. `request`
-    must be the first arg and `request.auth` its `Caller`."""
+def require(permission: Permission, *, agent: AgentTier | None = None):
+    """Decorator for Django Ninja handlers: lets in a user who holds `permission`, and an agent
+    acting for them as the route's `agent` tier allows. `request` must be the first arg and
+    `request.auth` its `Caller`."""
 
-    gate = Gate(permission, agent, alternatives)
+    gate = Gate(permission, agent)
 
     def decorator[**P, R](
         fn: Callable[Concatenate[AuthedRequest, P], R],

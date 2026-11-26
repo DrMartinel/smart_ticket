@@ -64,13 +64,18 @@ class Inventory:
         self.alertmanager = alerts
 
     @classmethod
-    def of(cls, caller: Caller) -> Inventory:
-        """The caller's inventory; refuses with `infra_scope_unavailable` when Keystone can't
-        say which projects a customer belongs to, never widening their scope."""
+    def for_all(cls, caller: Caller) -> Inventory:
+        """Staff inventory across every cloud project."""
+        return cls(caller, InfraScope.all(), openstack(), alertmanager())
+
+    @classmethod
+    def for_own(cls, caller: Caller) -> Inventory:
+        """Customer inventory narrowed to the caller's Keystone projects; refuses with
+        `infra_scope_unavailable` when Keystone can't answer, never widening scope."""
         cloud = openstack()
         started = time.monotonic()
         try:
-            scope = InfraScope.of(caller, cloud)
+            scope = InfraScope.own(caller, cloud)
         except BackendUnavailable as e:
             logger.warning("infra: scope lookup failed: %s", e)
             cls.record(
