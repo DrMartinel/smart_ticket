@@ -170,6 +170,8 @@ def make_thresholds(**overrides) -> Thresholds:
             max_earlier_turns=6,
             conversation_idle_minutes=30,
             history_limit=20,
+            max_choices=8,
+            max_handoff_summary_chars=500,
         ),
         infra=InfraThresholds(
             max_range_hours=168,

@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-010"
+version: "CR-2026-014"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -303,6 +303,11 @@ agent:
   conversation_idle_minutes: 30
   # Conversations the history list returns, newest first. 🔧
   history_limit: 20
+  # Buttons on one choice card, before the "Something else" code adds, and the
+  # characters a hand-off's summary for staff may hold (F15 amendment, BR-F15-21,
+  # BR-F15-23). 🔧 assumptions, not measured.
+  max_choices: 8
+  max_handoff_summary_chars: 500
 
 infra:
   # Caps on one structured query of the cloud's metrics, logs or traces

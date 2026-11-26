@@ -231,7 +231,13 @@ def test_an_agent_turn_sends_the_token_itself_not_its_mask():
         surface="chat",
         language="en",
         message_masked="VPN drops",
-        limits=AgentLimits(max_steps=6, max_tool_calls=4, max_model_tokens=1000),
+        limits=AgentLimits(
+            max_steps=6,
+            max_tool_calls=4,
+            max_model_tokens=1000,
+            max_choices=3,
+            max_handoff_summary_chars=80,
+        ),
         token=SecretStr("the-agent-token"),
     )
 
