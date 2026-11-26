@@ -17,12 +17,15 @@ export default function Composer({
   autoFocus,
   minChars = MIN_CHARS,
   maxChars = MAX_CHARS,
+  note,
 }: {
   onSend: (text: string) => void;
   disabled?: boolean;
   autoFocus?: boolean;
   minChars?: number;
   maxChars?: number;
+  /** A line above the text box saying what to include. */
+  note?: string;
 }) {
   const [text, setText] = useState("");
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -49,6 +52,11 @@ export default function Composer({
       <label htmlFor="composer" className="sr-only">
         Describe your problem
       </label>
+      {note && (
+        <p id="composer-note" className="px-3.5 pt-2.5 text-xs text-muted-foreground">
+          {note}
+        </p>
+      )}
       <Textarea
         id="composer"
         ref={ref}
@@ -56,6 +64,7 @@ export default function Composer({
         value={text}
         maxLength={maxChars}
         autoFocus={autoFocus}
+        aria-describedby={note ? "composer-note" : undefined}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
