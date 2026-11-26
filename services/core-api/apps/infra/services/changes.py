@@ -79,7 +79,7 @@ class InfraChanges:
     def for_own(cls, caller: Caller) -> InfraChanges:
         """Customer changes on the caller's Keystone projects only."""
         cloud = openstack()
-        return cls(caller, QueryLog(caller).own_scope(cloud), cloud, for_a_ticket=False)
+        return cls(caller, QueryLog.of(caller).own_scope(cloud), cloud, for_a_ticket=False)
 
     # ── servers ──
 
