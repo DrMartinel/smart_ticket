@@ -319,18 +319,21 @@ infra:
   max_regex_kib: 256       # RE2's memory for one raw PromQL regex
   max_regex_matchers: 10   # regex matchers in one raw PromQL query
 agent:
-  max_model_tokens_per_turn: 48000  # was 16000 (F15); pays for max_steps chat calls
+  max_model_tokens_per_turn: 48000  # was 16000 (F15); pays for every chat step's fixed cost
   max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn; caps a turn's queries (BR-F17-12)
   max_free_reads_per_step: 50       # new; ask_helpdesk's polls after its post: 90 s / 2 s = 45
   console_max_steps: 20             # new
-  console_max_model_tokens_per_turn: 200000  # new; pays for console_max_steps calls
+  console_max_model_tokens_per_turn: 200000  # new; pays for every console step's fixed cost
 ```
 
 Each model call sends the prompt (about 1,400 tokens) and the surface's tool
 list (about 3,800 on the chat and 6,600 on the console with F17's tools), and
-then the turn's results so far. The token budgets pay for the step caps: 8
-chat calls cost about 42,000 tokens before any result, 20 console calls about
-160,000.
+then every result of the turn so far. The token budgets pay for the fixed
+cost of every step (8 chat calls about 42,000 tokens, 20 console calls about
+160,000) and a few results. They do not pay for a long turn of full-size
+results: one answer cut to `infra.max_result_bytes` (24,000 bytes, about
+6,000 tokens) at console step 5 is re-sent by the 15 calls after it, about
+90,000 tokens. Such a turn ends `agent_budget_exceeded` and reaches a person.
 
 core-api counts an agent turn's calls by the step each names (`X-Agent-Step`).
 Every write counts against `max_tool_calls_per_turn`. A read counts against
