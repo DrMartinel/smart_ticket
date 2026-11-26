@@ -288,7 +288,9 @@ F17 doesn't wait on ADR-0047's guards (OQ-F17-06).
 Each alert names its resource (`resource_kind`, `resource_id`), taken in
 core-api from its most specific id label: `volume_id`, then `network_id`,
 then `server_id`. The staff `GET /alerts` takes `resource_kind` and
-`resource_id` to return one resource's alerts, for its console page.
+`resource_id` and returns the alerts any of whose id labels name that
+resource, for its console page: a server's page also shows its volume's
+`CloudVolumeLatencyHigh` and its port's `CloudPacketLoss`.
 
 ### h.2 Refusal codes (`InfraRefusal`, BR-X-08)
 

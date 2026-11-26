@@ -3,10 +3,12 @@
 // Pieces every cloud resource page shares: its frame, a status badge, project names, the
 // resource's firing alerts, and what a failed read tells the person.
 
+import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
+import { resourceHref } from "@/lib/infra";
 import { P, can } from "@/lib/permissions";
 import type { AlertOut, AlertResource, ProjectOut } from "@/lib/types/generated";
 import { Badge, type Tone } from "@/components/ui/badge";
@@ -94,7 +96,8 @@ export function SeverityBadge({ severity }: { severity: string }) {
   return <Badge variant={SEVERITY_TONE[severity] ?? "neutral"}>{severity || "alert"}</Badge>;
 }
 
-/** The alerts core-api names as about one resource. */
+/** The alerts whose id labels name one resource, each linking its own resource when that is
+ * something else, such as the server's volume. */
 export function ResourceAlerts({ projectId, kind, id }: { projectId: string; kind: AlertResource; id: string }) {
   const [alerts, setAlerts] = useState<AlertOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -121,9 +124,8 @@ export function ResourceAlerts({ projectId, kind, id }: { projectId: string; kin
       ) : alerts === null ? (
         <LoadingState rows={2} label="Loading alerts" />
       ) : alerts.length === 0 ? (
-        <EmptyState compact title={`No alert is about this ${kind}`}>
-          Alertmanager answered, and none of its alerts names this {kind} as its resource. An alert on something attached to it, such as a volume, is on
-          that resource&apos;s page.
+        <EmptyState compact title={`No alert names this ${kind}`}>
+          Alertmanager answered, and none of its alerts carries this {kind}&apos;s id.
         </EmptyState>
       ) : (
         <ul className="flex flex-col gap-2 text-sm">
@@ -135,6 +137,11 @@ export function ResourceAlerts({ projectId, kind, id }: { projectId: string; kin
                 <span className="text-xs text-muted-foreground">
                   {a.state} since {relativeTime(a.starts_at)}
                 </span>
+                {a.resource_kind && a.resource_id && (a.resource_kind !== kind || a.resource_id !== id) && (
+                  <Link href={resourceHref(a.resource_kind, a.resource_id)} className="text-xs text-primary hover:underline">
+                    on {a.resource_kind} <span className="font-mono">{a.resource_id}</span>
+                  </Link>
+                )}
               </span>
               {a.summary && <span className="text-muted-foreground">{a.summary}</span>}
             </li>
