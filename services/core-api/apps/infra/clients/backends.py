@@ -102,10 +102,25 @@ class OpenStack:
         self, method: str, service: str, path: str, body: dict[str, Any] | None = None
     ) -> None:
         """Sends one change to the catalog's `service` endpoint, and again with a new token only
-        after a 401."""
-        response = self.send_change(self.token(), method, service, path, body)
-        if response.status_code == 401:
-            response = self.send_change(self.token(renew=True), method, service, path, body)
+        after a 401. A connect failure is `BackendUnavailable`; any later transport error or a
+        5xx is `ChangeOutcomeUnknown`."""
+        for renew in (False, True):
+            token = self.token(renew=renew)
+            base = token.endpoints.get(service)
+            if base is None:
+                raise BackendUnavailable(InfraBackend.CLOUD, f"the catalog names no {service}")
+            try:
+                response = self.http.request(
+                    method, f"{base}{path}", json=body, headers={"X-Auth-Token": token.value}
+                )
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                raise BackendUnavailable(
+                    InfraBackend.CLOUD, f"{service}: {type(e).__name__}"
+                ) from e
+            except httpx.HTTPError as e:
+                raise ChangeOutcomeUnknown(f"{service}: {type(e).__name__}") from e
+            if response.status_code != 401:
+                break
         status = response.status_code
         if 200 <= status < 300:
             return
@@ -118,28 +133,6 @@ class OpenStack:
         if status == 409:
             raise BackendConflict(f"{service} answered 409")
         raise BackendRefused(f"{service} answered {status}")
-
-    def send_change(
-        self,
-        token: ServiceToken,
-        method: str,
-        service: str,
-        path: str,
-        body: dict[str, Any] | None,
-    ) -> httpx.Response:
-        """One request that changes something; a failure after it may have been received is
-        `ChangeOutcomeUnknown`."""
-        base = token.endpoints.get(service)
-        if base is None:
-            raise BackendUnavailable(InfraBackend.CLOUD, f"the catalog names no {service}")
-        try:
-            return self.http.request(
-                method, f"{base}{path}", json=body, headers={"X-Auth-Token": token.value}
-            )
-        except (httpx.ConnectError, httpx.ConnectTimeout) as e:
-            raise BackendUnavailable(InfraBackend.CLOUD, f"{service}: {type(e).__name__}") from e
-        except httpx.HTTPError as e:
-            raise ChangeOutcomeUnknown(f"{service}: {type(e).__name__}") from e
 
     def token(self, *, renew: bool = False) -> ServiceToken:
         with self._lock:
