@@ -47,8 +47,8 @@ function QueryReceipt({ query }: { query: InfraQueryReceiptOut }) {
         <span>
           {BACKEND_LABEL[query.backend]} {QUERY_KIND_LABEL[query.kind]}
         </span>
-        {query.link && (
-          <a href={query.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+        {query.sent?.link && (
+          <a href={query.sent.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
             Open the query
             <ExternalLink className="size-3" aria-hidden />
             <span className="sr-only">(opens in a new tab)</span>
@@ -61,10 +61,10 @@ function QueryReceipt({ query }: { query: InfraQueryReceiptOut }) {
           {query.refusal_reason ? CHECK_TEXT[query.refusal_reason] : query.refusal === "infra_not_found" ? "No such resource." : "Refused."}
         </p>
       )}
-      {query.compiled && (
+      {query.sent?.compiled && (
         <details className="text-xs">
           <summary className="cursor-pointer text-muted-foreground">What was sent</summary>
-          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted px-2 py-1.5 font-mono text-[11px]">{query.compiled}</pre>
+          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted px-2 py-1.5 font-mono text-[11px]">{query.sent.compiled}</pre>
         </details>
       )}
     </li>
