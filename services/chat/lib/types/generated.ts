@@ -2011,6 +2011,14 @@ export interface MetricQueryIn {
   project_id?: string | null;
 }
 
+export interface PromQLIn {
+  promql: string;
+  start: string;
+  end: string;
+  step_seconds: number;
+  project_id?: string | null;
+}
+
 export interface LogSearchIn {
   start: string;
   end: string;
