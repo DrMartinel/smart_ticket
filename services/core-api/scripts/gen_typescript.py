@@ -209,6 +209,21 @@ MODELS = [
     "ExecutionResolveIn",
     "RunbookIn",
     "RunbookChangeIn",
+    "ProjectOut",
+    "AddressOut",
+    "AttachmentOut",
+    "ServerOut",
+    "ServerDetailOut",
+    "VolumeOut",
+    "SubnetOut",
+    "PortOut",
+    "RuleOut",
+    "SecurityGroupOut",
+    "NetworkOut",
+    "NetworkDetailOut",
+    "AlertOut",
+    "MatcherOut",
+    "SilenceOut",
     "BranchReadinessOut",
     "AutomationOut",
     "RolloutReportOut",
@@ -345,6 +360,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as incidents_request,
         response_schema as incidents_response,
     )
+    from apps.infra import response_schema as infra_response
     from apps.itsm_mock import request_schema as itsm_request, response_schema as itsm_response
     from apps.kb import request_schema as kb_request, response_schema as kb_response
     from apps.notifications import (
@@ -399,6 +415,7 @@ def _models() -> dict[str, type[BaseModel]]:
         reports_response,
         itsm_request,
         itsm_response,
+        infra_response,
         accounts_request,
         accounts_response,
     )
