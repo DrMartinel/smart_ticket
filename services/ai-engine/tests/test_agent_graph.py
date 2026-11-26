@@ -579,7 +579,10 @@ def test_every_tool_projection_drops_unlisted_fields():
         }
         if tool.name in ("list_comments", "list_review_queue", "list_categories"):
             body = [row]
-        assert secret not in json.dumps(tool.project(body, context), default=str), tool.name
+        shown = tool.project(body, context)
+        if isinstance(shown, list):
+            assert shown, tool.name
+        assert secret not in json.dumps(shown, default=str), tool.name
 
 
 def test_the_category_list_shows_active_categories_with_their_text_untrusted():
@@ -603,6 +606,7 @@ def test_the_category_list_shows_active_categories_with_their_text_untrusted():
     assert set(shown[0]) == {"slug", "name", "description", "is_security"}
     assert shown[0]["name"] == {UNTRUSTED: "Network"}
     assert shown[0]["description"] == {UNTRUSTED: "VPN, Wi-Fi."}
+    assert shown[0]["is_security"] is False
 
 
 @pytest.mark.parametrize(

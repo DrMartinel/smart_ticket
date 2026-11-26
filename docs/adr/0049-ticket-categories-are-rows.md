@@ -177,7 +177,7 @@ Teams and the categories they own were already data (`team_teams`,
 
 ## Open questions
 
-The owner answered 1, 2 and 4 on 2026-11-26.
+The owner answered 1, 2 and 4 on 2026-11-26 (4's employee half is proposed only).
 
 1. **Answered: a manager, with a reason.** A manager changes a category's
    description; the change is audited with the old and new text and bumps
