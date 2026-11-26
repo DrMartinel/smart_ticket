@@ -1260,3 +1260,38 @@ frontends, the `ReasonCode` and its label, the turn and ticket columns, the
 texts, the prompt, and the scripted traces. The live eval and
 `agent_cases.jsonl` are TODO 23's, and EC-F15-09 is its first case; the cloud
 cases join when F17 PR 6 lands (F17 §o.14).
+
+### Where the code differs (build, 2026-11-27)
+
+Numbered on from the first build's list. None lets the agent do more.
+
+47. A ref's label comes from fields the person may see as their own: their
+    own ticket's id and subject (the id alone when its masking failed), a
+    staff ticket's public id alone, a review item's ticket id and queue, a
+    KB page's title. A ref is issued only for an item with an id, and only
+    from a 2xx result. A ref named twice in `proposed_choices` is one button.
+48. core-api checks a `needs_staff` hand-off again: one that is not a chat
+    turn, or has no text, or a summary that is blank or over
+    `agent.max_handoff_summary_chars`, is stored as `agent_schema_invalid`
+    with that reason's fixed text and no summary.
+49. A turn that does not end `replied` carries no choices, and a turn that
+    does not hand off as `needs_staff` carries no summary, whatever the
+    model sent.
+50. The Vietnamese texts code adds speak as "em", like the other hand-off
+    texts, where UC-F15-08 quotes "mình".
+51. "Something else" is a button like the others: pressing it sends its
+    label. A later turn's earlier-turn context lists the card's choices as
+    `[choice] <label>` lines, without "Something else".
+52. The turn's reply after the ticket opens (`needs_staff.opened` on the
+    turn) is built from the turn's ticket when the turn is read, not stored.
+    The "Open a ticket" label is always on a `needs_staff` turn; the
+    frontends show it only while `ticket_offered` and no ticket is open.
+53. The console ticket page lists what the hand-off turn called
+    (`agent_steps`: tool, method, path, outcome) for every agent hand-off,
+    under "What the assistant checked" (OQ-F15-13 (a)), and shows the
+    summary as "Assistant's summary". The ticket list row shows the summary
+    under the ticket, labelled. The reason's console label is
+    `REASON_TEXT`, shown on the ticket page as for the other agent reasons;
+    there is no separate chip.
+54. EC-F15-09's scripted trace pins only the wiring (the chat reaches
+    `ask_helpdesk`); whether a model chooses it is TODO 23's live eval.
