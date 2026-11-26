@@ -1,5 +1,6 @@
 """Request shapes for the infra queries (F17 §h.1), whose catalog and caps are checked when the
-query compiles, and the customer routes' bodies (F17 §o.9)."""
+query compiles, or for raw PromQL when Prometheus has parsed it, and the customer routes' bodies
+(F17 §o.9)."""
 
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ from datetime import datetime
 from ninja import Field, Schema
 from pydantic import ConfigDict
 
+from apps.infra.domain.promql import PromQLQuery
 from apps.infra.domain.queries import LogSearch, MetricQuery, TraceSearch, Window
 from apps.infra.models import CustomerTier
 
@@ -34,6 +36,19 @@ class MetricQueryIn(Schema):
             function_seconds=self.function_seconds,
             aggregate=self.aggregate,
             by=self.by,
+        )
+
+
+class PromQLIn(Schema):
+    promql: str = Field(min_length=1, max_length=2000)
+    start: datetime
+    end: datetime
+    step_seconds: int = Field(ge=1)
+    project_id: str | None = None
+
+    def query(self) -> PromQLQuery:
+        return PromQLQuery(
+            text=self.promql, window=Window(self.start, self.end), step_seconds=self.step_seconds
         )
 
 

@@ -1943,6 +1943,8 @@ export interface CatalogOut {
   log_datasets: DatasetEntryOut[];
   log_fields: FieldEntryOut[];
   trace_fields: FieldEntryOut[];
+  promql_functions: string[];
+  promql_aggregations: string[];
   caps: Record<string, number>;
 }
 

@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-010"
+version: "CR-2026-012"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -316,3 +316,6 @@ infra:
   max_log_docs: 100
   max_spans: 500
   max_result_bytes: 24000
+  # The most selectors one raw PromQL query may hold (F17 FR-F17-005); the
+  # range, step and series caps above apply to it too. 🔧
+  max_selectors: 10

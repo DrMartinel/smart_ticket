@@ -178,6 +178,7 @@ def make_thresholds(**overrides) -> Thresholds:
             max_log_docs=100,
             max_spans=500,
             max_result_bytes=24000,
+            max_selectors=10,
         ),
     )
     base.update(overrides)

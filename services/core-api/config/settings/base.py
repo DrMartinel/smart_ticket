@@ -571,6 +571,8 @@ class InfraThresholds(BaseModel):
     max_log_docs: int = Field(ge=1)
     max_spans: int = Field(ge=1)
     max_result_bytes: int = Field(ge=1)
+    # The most selectors one raw PromQL query may hold (FR-F17-005).
+    max_selectors: int = Field(ge=1)
 
 
 class Thresholds(BaseModel):

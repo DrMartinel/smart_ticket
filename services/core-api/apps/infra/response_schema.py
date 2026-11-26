@@ -166,6 +166,8 @@ class CatalogOut(Schema):
     log_datasets: list[DatasetEntryOut]
     log_fields: list[FieldEntryOut]
     trace_fields: list[FieldEntryOut]
+    promql_functions: list[str]
+    promql_aggregations: list[str]
     caps: dict[str, int]
 
 

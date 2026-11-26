@@ -17,6 +17,7 @@ from apps.infra.request_schema import (
     CustomerPatch,
     LogSearchIn,
     MetricQueryIn,
+    PromQLIn,
     TraceSearchIn,
 )
 from apps.infra.response_schema import (
@@ -116,6 +117,12 @@ def get_catalog(request: AuthedRequest) -> Listing:
 @require(Permission.INFRA_READ, agent=AgentTier.READ)
 def query_metrics(request: AuthedRequest, body: MetricQueryIn) -> MetricAnswer:
     return Observability.for_all(request.auth).metrics(body.query(), body.project_id)
+
+
+@router.post("/metrics/promql", auth=SessionAuth(), response=MetricAnswerOut)
+@require(Permission.INFRA_READ, agent=AgentTier.READ)
+def run_promql(request: AuthedRequest, body: PromQLIn) -> MetricAnswer:
+    return Observability.for_all(request.auth).promql(body.query(), body.project_id)
 
 
 @router.post("/logs/search", auth=SessionAuth(), response=LogAnswerOut)
