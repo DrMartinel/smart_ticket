@@ -1,4 +1,4 @@
-"""Category endpoints: the list every console reads, and renaming or reordering one (ADR-0049)."""
+"""Category endpoints: the list every console reads, and editing one (ADR-0049)."""
 
 from __future__ import annotations
 

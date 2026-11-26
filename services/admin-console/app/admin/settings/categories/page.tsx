@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ApiError, api } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import { forgetCategories } from "@/lib/categories";
+import type { Workflow } from "@/lib/lifecycle";
 import { P, can } from "@/lib/permissions";
 import type { CategoryOut, CategoryPatch, TeamOut } from "@/lib/types/generated";
 
@@ -30,12 +31,6 @@ interface Draft {
   is_routable: boolean;
   workflow: string;
   reason: string;
-}
-
-interface Workflow {
-  id: string;
-  name: string;
-  is_default: boolean;
 }
 
 export default function CategoriesPage() {
@@ -82,7 +77,7 @@ export default function CategoriesPage() {
       name: draft.name.trim(),
       sort_order: Number(draft.sort_order),
       reason: draft.reason.trim(),
-      ...(workflows ? { workflow: draft.workflow || null } : {}),
+      ...(workflows ? { workflow_id: draft.workflow || null } : {}),
       ...(canDefine ? { description: draft.description.trim(), is_routable: draft.is_routable } : {}),
     };
     try {
@@ -220,7 +215,7 @@ export default function CategoriesPage() {
             {workflows ? (
               <Labeled
                 label="Workflow"
-                hint="When a ticket in this category is routed, or a reviewer hands it off, it moves into this workflow at the status with the same key."
+                hint="When a ticket in this category is routed, or a reviewer hands it off, it moves into this workflow at the same status. A strict workflow needs a transition out of Auto-routed, Pending review and Escalated."
               >
                 <NativeSelect value={draft.workflow} onChange={(e) => setDraft({ ...draft, workflow: e.target.value })}>
                   <option value="">Default workflow</option>

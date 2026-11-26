@@ -14,6 +14,7 @@ from apps.audit.models import AuditLog
 from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.categories.models import Category
 from apps.lifecycle.models import Workflow
+from apps.lifecycle.services.config import workflow_config
 
 _DISPLAY = ("name", "sort_order")
 # What Jev is told a category means, and whether the router may route into it (ADR-0049).
@@ -43,8 +44,8 @@ class CategoryConfig:
                 for name in (*_DISPLAY, *_DEFINITION)
                 if data.get(name) is not None and data[name] != getattr(category, name)
             }
-            if "workflow" in data:
-                workflow = self.workflow(data["workflow"])
+            if "workflow_id" in data:
+                workflow = self.workflow(data["workflow_id"])
                 if workflow != category.workflow:
                     changed["workflow"] = workflow
             if not changed:
@@ -81,13 +82,26 @@ class CategoryConfig:
         return {**fields, "workflow": str(workflow.id) if workflow is not None else None}
 
     def workflow(self, workflow_id: str | None) -> Workflow | None:
-        """The workflow `workflow_id` names; refuses one that doesn't exist."""
+        """The workflow `workflow_id` names; refuses one that doesn't exist, the default one, and
+        a strict one a handed-off ticket could not leave."""
         if workflow_id is None:
             return None
         found = Workflow.objects.filter(pk=workflow_id).first()
         if found is None:
             raise CategoryError(
                 422, CategoryRefusal.WORKFLOW_NOT_FOUND, f"no workflow {workflow_id!r}"
+            )
+        if found.is_default:
+            raise CategoryError(
+                422, CategoryRefusal.WORKFLOW_IS_DEFAULT, "no workflow already means the default"
+            )
+        dead_ends = workflow_config.handoff_dead_ends(found)
+        if dead_ends:
+            raise CategoryError(
+                422,
+                CategoryRefusal.WORKFLOW_HAS_NO_WAY_OUT,
+                "a strict workflow needs a transition out of every handoff status",
+                {"statuses": dead_ends},
             )
         return found
 

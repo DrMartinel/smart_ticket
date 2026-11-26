@@ -55,7 +55,7 @@ class Category(BaseModel):
     is_routable = models.BooleanField(default=True)
     sort_order = models.PositiveSmallIntegerField(default=0)
     version = models.PositiveIntegerField(default=1)
-    # The workflow its tickets move into at handoff; none keeps them in the default (ADR-0049).
+    # The workflow its tickets move into at handoff; none means the default (ADR-0049).
     workflow = models.ForeignKey(
         "lifecycle.Workflow",
         on_delete=models.PROTECT,

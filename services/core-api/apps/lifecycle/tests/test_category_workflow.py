@@ -67,7 +67,7 @@ def approve(item: ReviewItem, reviewer, **choice) -> None:
 # ── the engine ──
 
 
-def test_a_category_with_no_workflow_leaves_the_ticket_where_it_is(employee_user):
+def test_a_ticket_in_the_default_workflow_stays_when_its_category_names_none(employee_user):
     ticket = make_ticket(employee_user)
     before = ticket.workflow_status
 
@@ -77,7 +77,7 @@ def test_a_category_with_no_workflow_leaves_the_ticket_where_it_is(employee_user
     assert skipped() == []
 
 
-def test_no_category_leaves_the_ticket_where_it_is(employee_user, strict: StrictFlow):
+def test_no_category_keeps_the_ticket_in_the_default_workflow(employee_user, strict: StrictFlow):
     give("network", strict.workflow)
     ticket = make_ticket(employee_user)
     before = ticket.workflow_status
@@ -126,24 +126,45 @@ def test_a_ticket_keeps_its_field_values_of_the_same_name_and_type(
     assert audit.payload["dropped_fields"] == ["Room"]
 
 
-def test_a_ticket_at_a_status_the_workflow_lacks_stays_put_and_is_audited(
+def test_a_ticket_a_person_already_moved_stays_in_its_workflow(
     employee_user, manager_user, strict: StrictFlow
 ):
+    workflow_config.add_status(strict.workflow, StatusIn(name="Waiting on requester"))
     give("network", strict.workflow)
-    ticket = put_in(
-        make_ticket(employee_user), status_of(Workflow.objects.default(), "in_progress")
-    )
+    waiting = status_of(Workflow.objects.default(), "waiting_on_requester")
+    assert waiting.pauses_sla
+    ticket = put_in(make_ticket(employee_user), waiting)
 
     lifecycle.enter_category_workflow(ticket, "network", actor=manager_user)
 
-    assert workflow_of(ticket) == Workflow.objects.default()
+    assert reload(ticket).workflow_status == waiting
     [payload] = skipped()
-    assert payload["reason"] == "no_status_with_the_same_key"
+    assert payload["reason"] == "already_moved_on"
     assert (payload["category"], payload["workflow"], payload["status"]) == (
         "network",
         "Strict",
-        "in_progress",
+        "waiting_on_requester",
     )
+
+
+def test_a_failed_move_is_audited_and_leaves_the_ticket_where_it_is(
+    employee_user, strict: StrictFlow, monkeypatch
+):
+    give("network", strict.workflow)
+    ticket = make_ticket(employee_user)
+    before = ticket.workflow_status
+
+    def boom(*a, **kw):
+        raise RuntimeError("carry-over failed")
+
+    monkeypatch.setattr(field_values, "carry_over", boom)
+
+    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+
+    assert reload(ticket).workflow_status == before
+    assert ticket.workflow_status == before
+    [payload] = skipped()
+    assert (payload["reason"], payload["error"]) == ("error", "RuntimeError")
 
 
 def test_a_ticket_with_a_move_running_stays_put_and_is_audited(employee_user, strict: StrictFlow):
@@ -249,6 +270,64 @@ def test_a_category_jev_chose_and_the_reviewer_confirmed_uses_its_workflow(
     approve(review_item(ticket), technician_user, category_verdict="correct")
 
     assert reload(ticket).workflow_status == status_of(strict.workflow, "pending_review")
+
+
+def test_a_correction_to_a_category_with_no_workflow_returns_the_ticket_to_the_default(
+    employee_user, technician_user, strict: StrictFlow
+):
+    give("network", strict.workflow)
+    ticket = put_in(make_ticket(employee_user), strict.review)
+    Ticket.objects.filter(pk=ticket.pk).update(category="network")
+
+    approve(
+        review_item(reload(ticket)),
+        technician_user,
+        category_verdict="wrong",
+        corrected_category="software",
+    )
+
+    assert reload(ticket).workflow_status == status_of(Workflow.objects.default(), "pending_review")
+
+
+def test_a_failed_move_never_undoes_the_reviewers_decision(
+    employee_user, technician_user, strict: StrictFlow, monkeypatch
+):
+    give("network", strict.workflow)
+    ticket = make_ticket(employee_user)
+    item = review_item(ticket)
+
+    def boom(*a, **kw):
+        raise RuntimeError("carry-over failed")
+
+    monkeypatch.setattr(field_values, "carry_over", boom)
+
+    approve(item, technician_user, category_verdict="correct")
+
+    item.refresh_from_db()
+    assert item.state == "resolved"
+    assert item.decisions.exists()
+    assert workflow_of(ticket) == Workflow.objects.default()
+    assert [p["reason"] for p in skipped()] == ["error"]
+
+
+def test_a_failed_move_never_undoes_an_automatic_route(
+    employee_user, strict: StrictFlow, monkeypatch
+):
+    give("network", strict.workflow)
+    ticket = make_ticket(employee_user, at=PipelineStatus.NEW)
+    decision = RoutingDecision(
+        branch=Branch.AUTO_ROUTE, reason_code=ReasonCode.ALL_CHECKS_PASSED, category="network"
+    )
+
+    def boom(*a, **kw):
+        raise RuntimeError("carry-over failed")
+
+    monkeypatch.setattr(field_values, "carry_over", boom)
+
+    _execute_or_enqueue(ticket, None, decision, False, None)
+
+    assert reload(ticket).workflow_status == status_of(Workflow.objects.default(), "auto_routed")
+    assert [p["reason"] for p in skipped()] == ["error"]
 
 
 def test_an_approved_security_queue_item_stays_in_the_default_workflow(

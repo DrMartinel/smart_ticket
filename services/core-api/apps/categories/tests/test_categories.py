@@ -14,8 +14,9 @@ from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
 from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.categories.models import Category
+from apps.lifecycle.domain.vocabulary import TransitionPolicy
 from apps.lifecycle.models import Workflow
-from apps.lifecycle.request_schema import WorkflowIn
+from apps.lifecycle.request_schema import StatusIn, TransitionIn, WorkflowIn
 from apps.lifecycle.services.config import workflow_config
 from apps.tickets.models import Ticket
 
@@ -48,8 +49,12 @@ def patch(client, slug: str, body: dict):
     return client.patch(f"/api/categories/{slug}", json.dumps(body), content_type=JSON)
 
 
-def workflow(actor: User, name: str = "Network desk") -> Workflow:
-    return workflow_config.create_workflow(WorkflowIn(name=name), actor=actor)
+def workflow(
+    actor: User, name: str = "Network desk", policy: TransitionPolicy = TransitionPolicy.OPEN
+) -> Workflow:
+    return workflow_config.create_workflow(
+        WorkflowIn(name=name, transition_policy=policy), actor=actor
+    )
 
 
 # ── the database ──
@@ -402,7 +407,7 @@ def test_a_workflow_admin_sets_a_categorys_workflow_with_a_reason(api_as):
     grant_capability(admin, "workflow_admin")
     desk = workflow(person("huy.pq", UserRole.MANAGER))
 
-    response = patch(api_as(admin), "network", {"workflow": str(desk.id), "reason": "own desk"})
+    response = patch(api_as(admin), "network", {"workflow_id": str(desk.id), "reason": "own desk"})
 
     assert response.status_code == 200
     assert response.json()["workflow_id"] == str(desk.id)
@@ -431,7 +436,7 @@ def test_null_returns_the_category_to_the_default_workflow(api_as):
     manager = person("huy.pq", UserRole.MANAGER)
     Category.objects.filter(slug="network").update(workflow=workflow(manager))
 
-    response = patch(api_as(manager), "network", {"workflow": None, "reason": "merge desks"})
+    response = patch(api_as(manager), "network", {"workflow_id": None, "reason": "merge desks"})
 
     assert response.status_code == 200
     assert response.json()["workflow_id"] is None
@@ -443,7 +448,7 @@ def test_an_unknown_workflow_is_refused(api_as):
     response = patch(
         api_as(person("huy.pq", UserRole.MANAGER)),
         "network",
-        {"workflow": "00000000-0000-4000-8000-000000000000", "reason": "x"},
+        {"workflow_id": "00000000-0000-4000-8000-000000000000", "reason": "x"},
     )
 
     assert response.status_code == 422
@@ -458,8 +463,43 @@ def test_a_technician_cannot_set_a_categorys_workflow(api_as):
     response = patch(
         api_as(person("khoa.lv", UserRole.TECHNICIAN)),
         "network",
-        {"workflow": str(desk.id), "reason": "x"},
+        {"workflow_id": str(desk.id), "reason": "x"},
     )
 
     assert response.status_code == 403
+    assert Category.objects.get(slug="network").workflow is None
+
+
+@pytest.mark.django_db
+def test_the_default_workflow_is_refused_as_a_categorys_workflow(api_as):
+    response = patch(
+        api_as(person("huy.pq", UserRole.MANAGER)),
+        "network",
+        {"workflow_id": str(Workflow.objects.default().id), "reason": "x"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == CategoryRefusal.WORKFLOW_IS_DEFAULT
+    assert Category.objects.get(slug="network").workflow is None
+
+
+@pytest.mark.django_db
+def test_a_strict_workflow_a_handed_off_ticket_could_not_leave_is_refused(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    desk = workflow(manager, policy=TransitionPolicy.STRICT)
+    working = workflow_config.add_status(desk, StatusIn(name="Working"))
+    workflow_config.add_transition(
+        desk,
+        TransitionIn(
+            from_status_id=desk.statuses.get(key="pending_review").id,
+            to_status_id=working.id,
+            name="Pick up",
+        ),
+    )
+
+    response = patch(api_as(manager), "network", {"workflow_id": str(desk.id), "reason": "x"})
+
+    assert response.status_code == 422
+    assert response.json()["code"] == CategoryRefusal.WORKFLOW_HAS_NO_WAY_OUT
+    assert response.json()["details"] == {"statuses": ["auto_routed", "escalated"]}
     assert Category.objects.get(slug="network").workflow is None

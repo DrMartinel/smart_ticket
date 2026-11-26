@@ -579,7 +579,7 @@ export interface CategoryPatch {
   sort_order?: number | null;
   description?: string | null;
   is_routable?: boolean | null;
-  workflow?: string | null;
+  workflow_id?: string | null;
   reason?: string;
 }
 

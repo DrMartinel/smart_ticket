@@ -110,7 +110,7 @@ class Permission(StrEnum):
     )
     CATEGORIES_MANAGE = _p(
         "urn:smart-ticket:perm:categories:manage",
-        "Rename and reorder ticket categories",
+        "Rename and reorder ticket categories and choose the workflow their tickets enter",
     )
     CATEGORIES_READ = _p(
         "urn:smart-ticket:perm:categories:read",

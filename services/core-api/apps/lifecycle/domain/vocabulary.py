@@ -24,6 +24,12 @@ COMPLETED_PIPELINE_STATUSES = frozenset({PipelineStatus.AUTO_REPLIED})
 # Statuses where the pipeline or the requester owns the ticket: no person moves it out.
 TRIAGE_STATUSES = frozenset({PipelineStatus.NEW, PipelineStatus.AWAITING_REQUESTER})
 
+# Pipeline statuses a ticket is handed off at: it moves into its category's workflow only from
+# one of these (ADR-0049).
+HANDOFF_STATUSES = frozenset(
+    {PipelineStatus.AUTO_ROUTED, PipelineStatus.PENDING_REVIEW, PipelineStatus.ESCALATED}
+)
+
 
 class StatusKind(StrEnum):
     """What a workflow status means to the SLA, workload and resolution."""

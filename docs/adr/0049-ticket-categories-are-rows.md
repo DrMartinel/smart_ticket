@@ -116,26 +116,37 @@ Teams and the categories they own were already data (`team_teams`,
 ### Part 3 as built (2026-11-26)
 
 - **The switch.** `ticket_categories.workflow` is a nullable reference to
-  a workflow. A category without one leaves its tickets in the default
-  workflow, as before. Anyone holding `categories:manage` (manager,
-  workflow admin) sets or clears it, with a reason, on the Categories page
-  (`PATCH /api/categories/{slug}` with `workflow`; null clears it, leaving
-  it out keeps it). It chooses the path a ticket takes, not what Jev reads,
-  so it does not need `categories:define`. A workflow a category names
-  can't be deleted (409 `workflow_in_use`, naming the categories).
+  a workflow; none means the default workflow. Anyone holding
+  `categories:manage` (manager, workflow admin) sets or clears it, with a
+  reason, on the Categories page (`PATCH /api/categories/{slug}` with
+  `workflow_id`; null clears it, leaving it out keeps it). It chooses the
+  path a ticket takes, not what Jev reads, so it does not need
+  `categories:define`. The default workflow can't be named
+  (`workflow_is_default`: none already means it), nor a strict workflow
+  with no transition out of `auto_routed`, `pending_review` or `escalated`
+  (`workflow_has_no_way_out`), where a handed-off ticket would be stuck. A
+  later edit to the workflow's transitions is not checked again. A workflow
+  a category names can't be deleted (409 `workflow_in_use`, naming the
+  categories).
 - **When a ticket moves.** At handoff, before it is assigned: after an
   automatic route (at `auto_routed`), and after a review decision that
   hands the ticket off (at `pending_review`). The category is the one the
   ticket is handed off with: a reviewer's correction moves it into the
   corrected category's workflow, and a category the reviewer confirmed
-  counts the same. In shadow mode the router's decision moves nothing; the
+  counts the same, and a category with no workflow returns the ticket to
+  the default one. In shadow mode the router's decision moves nothing; the
   ticket moves when a reviewer hands it off. An approved security-queue
   item, a reopen and a reassign leave the ticket's workflow as it is.
-- **Where it lands.** At the status with the same key. Every workflow has
-  the pipeline statuses (`Lifecycle.pipeline_status` recreates a missing
-  one), so a handoff always finds one. A ticket at a status the workflow
-  lacks, or with a move running, stays where it is, and
-  `category_workflow_skipped` is audited with the reason.
+- **Where it lands.** Only a ticket at a handoff status (`auto_routed`,
+  `pending_review`, `escalated`) moves, to the same status in the target
+  workflow: every workflow has the pipeline statuses
+  (`Lifecycle.pipeline_status` recreates a missing one). A ticket a person
+  has already moved on stays where it is: a custom status with the same
+  key in another workflow may pause SLA or wait on the requester
+  differently. That, a move running, or a failure leaves the ticket where
+  it is and audits `category_workflow_skipped` with the reason
+  (`already_moved_on`, `a_move_is_running`, `error`). A failure never
+  undoes the routing or review decision it follows.
 - **What moves with it.** Field values of the same name and type, as the
   "Change workflow" action carries them; the rest are dropped and named in
   the status-change audit row. The move is a system move: no transition
