@@ -1,10 +1,21 @@
-"""The permission catalogue and the system roles built from it (ADR-0045)."""
+"""The permission catalogue and the system roles built from it (ADR-0045).
+
+Permission and system-role URNs stay in code as enums so every `@require(...)` gate and
+`Access.holds(...)` check is statically checked. Their metadata (labels, `staff_only`,
+`locked`, `scopes`) and each system role's name and permission set live in `catalog.json`
+beside this module and are validated 1:1 against the enums at import time.
+"""
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from apps.accounts.models import Capability, UserRole
 
@@ -134,141 +145,6 @@ class PermissionSpec:
     scopes: tuple[ScopeKind, ...]
 
 
-def _spec(
-    label: str, *, staff_only: bool = True, locked: bool = False, scopes: tuple[str, ...] = ()
-) -> PermissionSpec:
-    return PermissionSpec(
-        label, staff_only, locked, (ScopeKind.GLOBAL, *(ScopeKind(s) for s in scopes))
-    )
-
-
-P = Permission
-PERMISSIONS: dict[Permission, PermissionSpec] = {
-    P.ACCESS_GRANT: _spec("Set a person's base role and grant roles", locked=True),
-    P.ACCESS_GRANT_DELEGABLE: _spec(
-        "Grant delegable custom roles to people in the departments you head",
-        locked=True,
-        scopes=("department",),
-    ),
-    P.ACCESS_PEOPLE_MANAGE: _spec(
-        "Pre-provision, suspend, reactivate and deactivate people", locked=True
-    ),
-    P.ACCESS_PEOPLE_READ: _spec("List people and their access"),
-    P.ACCESS_READ: _spec("Read roles, grants and access explanations"),
-    P.ACCESS_REVIEW_MANAGE: _spec("Open and close access reviews", locked=True),
-    P.ACCESS_REVIEW_RESPOND: _spec("Answer the access reviews assigned to you"),
-    P.ACCESS_ROLES_MANAGE: _spec("Create, change and retire custom roles", locked=True),
-    P.AGENT_USE: _spec("Use the assistant", staff_only=False),
-    P.INCIDENTS_MANAGE: _spec("Declare, confirm, broadcast, resolve and link incidents"),
-    P.INCIDENTS_READ: _spec("Read incidents"),
-    P.INCIDENTS_UNLINK: _spec("Unlink a ticket from an incident"),
-    P.INFRA_OPERATE: _spec("Reboot, start, stop and attach on any cloud project"),
-    P.INFRA_OPERATE_OWN: _spec(
-        "Reboot, start and stop your own company's cloud servers", staff_only=False
-    ),
-    P.INFRA_READ: _spec("Read every cloud project's resources, metrics, logs and alerts"),
-    P.INFRA_READ_OWN: _spec(
-        "Read your own company's cloud resources, metrics, logs and alerts", staff_only=False
-    ),
-    P.KB_AUTHORITY_LOG_READ: _spec("Read the authority log"),
-    P.KB_AUTHORITY_GRANT: _spec("Allow or revoke automatic answers from a page", locked=True),
-    P.KB_AUTHORITY_QUEUE: _spec("Read the authority queue"),
-    P.KB_AUTHORITY_RISK_TIER: _spec("Change a page's risk tier", locked=True),
-    P.KB_DRAFTS_MANAGE: _spec("Write, review and withdraw page drafts"),
-    P.KB_DRAFTS_WITHDRAW_ANY: _spec("Withdraw anyone's page draft"),
-    P.KB_GAPS_MANAGE: _spec("Read and dismiss knowledge gaps"),
-    P.KB_GRAPH_EDIT: _spec("Correct a page's graph"),
-    P.KB_GRAPH_READ: _spec("Read a page's graph"),
-    P.KB_GRAPH_REBUILD: _spec("Ask for a page's graph to be rebuilt"),
-    P.KB_PAGES_CREATE: _spec("Create a help page"),
-    P.KB_PAGES_READ: _spec("Read the help pages", staff_only=False),
-    P.KB_PAGES_REINGEST: _spec("Re-ingest a help page"),
-    P.NOTIFICATIONS_DELIVERIES_MANAGE: _spec("Read and retry deliveries"),
-    P.NOTIFICATIONS_MATRIX_MANAGE: _spec("Change the notification matrix"),
-    P.NOTIFICATIONS_MATRIX_READ: _spec("Read the notification matrix"),
-    P.NOTIFICATIONS_TEMPLATES_MANAGE: _spec("Change notification templates"),
-    P.NOTIFICATIONS_WEBHOOKS_MANAGE: _spec("Manage webhooks"),
-    P.ORG_DEPARTMENTS_MANAGE: _spec(
-        "Create, change, move and archive departments and place people", scopes=("department",)
-    ),
-    P.ORG_DEPARTMENTS_READ: _spec("Read the department tree", scopes=("department",)),
-    P.ORG_IMPORT: _spec("Import departments and people from CSV"),
-    P.PII_ACCESS_LOG_READ: _spec("Read the PII access log", locked=True),
-    P.PII_REVEAL: _spec("Reveal quarantined personal data", locked=True),
-    P.PII_REVEAL_ANY: _spec(
-        "Reveal any placeholder on any ticket, credentials included", locked=True
-    ),
-    P.REPORTS_DASHBOARD_READ: _spec("Read the dashboard"),
-    P.REPORTS_INCIDENTS_READ: _spec("Read the incidents report"),
-    P.REPORTS_KB_READ: _spec("Read the knowledge report"),
-    P.REPORTS_NOTIFICATIONS_READ: _spec("Read the notifications report"),
-    P.REPORTS_OPERATIONS_READ: _spec(
-        "Read SLA, team, reviewer and satisfaction reports", scopes=("department",)
-    ),
-    P.REPORTS_REVIEWERS_ALL: _spec("Read every reviewer's figures"),
-    P.REPORTS_ROLLOUT_READ: _spec("Read the rollout report"),
-    P.REPORTS_SECURITY_READ: _spec("Read the security report"),
-    P.REPORTS_SECURITY_DETAIL: _spec("Read the security report's alert detail", locked=True),
-    P.REPORTS_TEAMS_READ: _spec("Read a team's figures in reports", scopes=("team",)),
-    P.REQUESTER_CHAT: _spec("Ask IT in the chat", staff_only=False),
-    P.REQUESTER_DEPARTMENT_READ: _spec(
-        "Read your department's tickets, masked", staff_only=False, scopes=("department",)
-    ),
-    P.REQUESTER_SUBMIT: _spec("Submit a ticket", staff_only=False),
-    P.REQUESTER_TICKET_STATUS: _spec("Read a ticket's status and SLA", staff_only=False),
-    P.REQUESTER_TICKETS: _spec("Follow, reply to, reopen and rate your tickets", staff_only=False),
-    P.REVIEW_FEWSHOT_READ: _spec("Read the active few-shot examples"),
-    P.REVIEW_QUEUE_WORK: _spec("Work the review queue"),
-    P.ROLLOUT_FLAG_OFF: _spec("Turn a branch back to shadow"),
-    P.ROLLOUT_FLAG_ON: _spec("Turn a branch live", locked=True),
-    P.ROLLOUT_GATES_MANAGE: _spec("Change a rollout gate", locked=True),
-    P.ROLLOUT_READ: _spec("Read rollout state"),
-    P.ROLLOUT_THRESHOLDS_READ: _spec("Read the loaded thresholds"),
-    P.RUNBOOKS_CATALOG_ACTIVATE: _spec("Turn a runbook on"),
-    P.RUNBOOKS_CATALOG_MANAGE: _spec("Create and change runbooks"),
-    P.RUNBOOKS_CATALOG_READ: _spec("Read the runbook catalog"),
-    P.RUNBOOKS_EXECUTE: _spec("Approve and run a runbook on a reviewed ticket"),
-    P.SECURITY_QUEUE_WORK: _spec("Work security alerts and the security queues", locked=True),
-    P.SECURITY_SUMMARY_READ: _spec("Read the security summary"),
-    P.SELF_NOTIFICATIONS: _spec(
-        "Read your notifications and set your preferences", staff_only=False
-    ),
-    P.SELF_PROFILE: _spec("Read your own profile and access", staff_only=False),
-    P.SELF_SESSIONS: _spec("See and end your own sign-ins", staff_only=False),
-    P.SLA_MANAGE: _spec("Draft SLA policies and edit calendars and holidays"),
-    P.SLA_POLICIES_ACTIVATE: _spec("Activate or retire an SLA policy"),
-    P.SLA_READ: _spec("Read SLA policies, calendars and breaches"),
-    P.TEAMS_AVAILABILITY_MANAGE: _spec("Set a member's availability"),
-    P.TEAMS_AVAILABILITY_OWN: _spec("Set your own availability and leave"),
-    P.TEAMS_LEAD: _spec("Lead a team", scopes=("team",)),
-    P.TEAMS_MANAGE: _spec("Create and change teams and their members"),
-    P.TEAMS_READ: _spec("Read teams, queues and workload"),
-    P.TEAMS_SUPERVISE: _spec(
-        "Supervise a team: its queue, workload, availability, takes and reassignments",
-        scopes=("team",),
-    ),
-    P.TICKETS_ALL_CATEGORIES: _spec("Work tickets of every category, not only security ones"),
-    P.TICKETS_COMMENT: _spec("Comment on a ticket", scopes=("team", "department")),
-    P.TICKETS_FIELDS_WRITE: _spec(
-        "Write a ticket's workflow fields", scopes=("team", "department")
-    ),
-    P.TICKETS_LIFECYCLE_READ: _spec(
-        "Read a ticket's moves and transfers", scopes=("team", "department")
-    ),
-    P.TICKETS_MOVE: _spec("Move a ticket between statuses", scopes=("team", "department")),
-    P.TICKETS_MOVE_FORCE: _spec("Force a move outside the workflow's transitions", locked=True),
-    P.TICKETS_PRIORITY: _spec("Change a ticket's priority", scopes=("team", "department")),
-    P.TICKETS_READ: _spec("Read tickets, the board and comments", scopes=("team", "department")),
-    P.TICKETS_REASSIGN: _spec("Reassign a ticket", scopes=("team", "department")),
-    P.TICKETS_SLA_REBUILD: _spec("Rebuild a ticket's SLA clocks"),
-    P.TICKETS_TAKE: _spec("Take a ticket", scopes=("team", "department")),
-    P.TICKETS_TRANSFERS_RETRY: _spec("Retry a failed transfer"),
-    P.TICKETS_WORKFLOW_CHANGE: _spec("Move a ticket to another workflow"),
-    P.WORKFLOWS_MANAGE: _spec("Change workflows"),
-    P.WORKFLOWS_READ: _spec("Read workflows"),
-}
-
-
 def area_of(permission: Permission) -> str:
     """The permission's area, its first segment after `perm`."""
     return permission.value.removeprefix(PERMISSION_PREFIX).split(":")[0]
@@ -301,251 +177,125 @@ ADD_ON_ROLES: dict[Capability, SystemRole] = {
 }
 STRUCTURAL_ROLES = frozenset({SystemRole.TEAM_LEAD, SystemRole.DEPARTMENT_HEAD})
 
-SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
-    SystemRole.EMPLOYEE: frozenset(
-        {
-            P.AGENT_USE,
-            P.INFRA_OPERATE_OWN,
-            P.INFRA_READ_OWN,
-            P.KB_PAGES_READ,
-            P.REQUESTER_CHAT,
-            P.REQUESTER_SUBMIT,
-            P.REQUESTER_TICKET_STATUS,
-            P.REQUESTER_TICKETS,
-            P.SELF_NOTIFICATIONS,
-            P.SELF_PROFILE,
-            P.SELF_SESSIONS,
-        }
-    ),
-    SystemRole.TECHNICIAN: frozenset(
-        {
-            P.AGENT_USE,
-            P.TICKETS_ALL_CATEGORIES,
-            P.ACCESS_REVIEW_RESPOND,
-            P.INCIDENTS_READ,
-            P.INCIDENTS_UNLINK,
-            P.INFRA_OPERATE,
-            P.INFRA_READ,
-            P.KB_PAGES_READ,
-            P.ORG_DEPARTMENTS_READ,
-            P.PII_REVEAL,
-            P.REPORTS_DASHBOARD_READ,
-            P.REPORTS_OPERATIONS_READ,
-            P.REQUESTER_CHAT,
-            P.REQUESTER_SUBMIT,
-            P.REQUESTER_TICKET_STATUS,
-            P.REQUESTER_TICKETS,
-            P.REVIEW_FEWSHOT_READ,
-            P.REVIEW_QUEUE_WORK,
-            P.ROLLOUT_READ,
-            P.ROLLOUT_THRESHOLDS_READ,
-            P.RUNBOOKS_CATALOG_READ,
-            P.RUNBOOKS_EXECUTE,
-            P.SELF_NOTIFICATIONS,
-            P.SELF_PROFILE,
-            P.SELF_SESSIONS,
-            P.SLA_READ,
-            P.TEAMS_AVAILABILITY_MANAGE,
-            P.TEAMS_AVAILABILITY_OWN,
-            P.TEAMS_READ,
-            P.TICKETS_COMMENT,
-            P.TICKETS_FIELDS_WRITE,
-            P.TICKETS_LIFECYCLE_READ,
-            P.TICKETS_MOVE,
-            P.TICKETS_PRIORITY,
-            P.TICKETS_READ,
-            P.TICKETS_REASSIGN,
-            P.TICKETS_TAKE,
-            P.TICKETS_TRANSFERS_RETRY,
-            P.WORKFLOWS_READ,
-        }
-    ),
-    SystemRole.MANAGER: frozenset(
-        {
-            P.AGENT_USE,
-            P.KB_DRAFTS_WITHDRAW_ANY,
-            P.REPORTS_REVIEWERS_ALL,
-            P.TEAMS_SUPERVISE,
-            P.TICKETS_ALL_CATEGORIES,
-            P.ACCESS_GRANT,
-            P.ACCESS_PEOPLE_MANAGE,
-            P.ACCESS_PEOPLE_READ,
-            P.ACCESS_READ,
-            P.ACCESS_REVIEW_MANAGE,
-            P.ACCESS_REVIEW_RESPOND,
-            P.ACCESS_ROLES_MANAGE,
-            P.INCIDENTS_READ,
-            P.INCIDENTS_UNLINK,
-            P.KB_AUTHORITY_LOG_READ,
-            P.KB_AUTHORITY_GRANT,
-            P.KB_AUTHORITY_QUEUE,
-            P.KB_AUTHORITY_RISK_TIER,
-            P.KB_DRAFTS_MANAGE,
-            P.KB_GAPS_MANAGE,
-            P.KB_GRAPH_READ,
-            P.KB_GRAPH_REBUILD,
-            P.KB_PAGES_CREATE,
-            P.KB_PAGES_READ,
-            P.KB_PAGES_REINGEST,
-            P.NOTIFICATIONS_DELIVERIES_MANAGE,
-            P.NOTIFICATIONS_MATRIX_READ,
-            P.ORG_DEPARTMENTS_MANAGE,
-            P.ORG_DEPARTMENTS_READ,
-            P.ORG_IMPORT,
-            P.REPORTS_DASHBOARD_READ,
-            P.REPORTS_INCIDENTS_READ,
-            P.REPORTS_KB_READ,
-            P.REPORTS_NOTIFICATIONS_READ,
-            P.REPORTS_OPERATIONS_READ,
-            P.REPORTS_ROLLOUT_READ,
-            P.REPORTS_SECURITY_READ,
-            P.REPORTS_TEAMS_READ,
-            P.REQUESTER_CHAT,
-            P.REQUESTER_SUBMIT,
-            P.REQUESTER_TICKET_STATUS,
-            P.REQUESTER_TICKETS,
-            P.REVIEW_FEWSHOT_READ,
-            P.REVIEW_QUEUE_WORK,
-            P.ROLLOUT_FLAG_OFF,
-            P.ROLLOUT_FLAG_ON,
-            P.ROLLOUT_GATES_MANAGE,
-            P.ROLLOUT_READ,
-            P.ROLLOUT_THRESHOLDS_READ,
-            P.RUNBOOKS_CATALOG_ACTIVATE,
-            P.RUNBOOKS_CATALOG_READ,
-            P.RUNBOOKS_EXECUTE,
-            P.SECURITY_SUMMARY_READ,
-            P.SELF_NOTIFICATIONS,
-            P.SELF_PROFILE,
-            P.SELF_SESSIONS,
-            P.SLA_POLICIES_ACTIVATE,
-            P.SLA_READ,
-            P.TEAMS_AVAILABILITY_MANAGE,
-            P.TEAMS_AVAILABILITY_OWN,
-            P.TEAMS_MANAGE,
-            P.TEAMS_READ,
-            P.TICKETS_COMMENT,
-            P.TICKETS_FIELDS_WRITE,
-            P.TICKETS_LIFECYCLE_READ,
-            P.TICKETS_MOVE,
-            P.TICKETS_MOVE_FORCE,
-            P.TICKETS_PRIORITY,
-            P.TICKETS_READ,
-            P.TICKETS_REASSIGN,
-            P.TICKETS_SLA_REBUILD,
-            P.TICKETS_TAKE,
-            P.TICKETS_TRANSFERS_RETRY,
-            P.TICKETS_WORKFLOW_CHANGE,
-            P.WORKFLOWS_MANAGE,
-            P.WORKFLOWS_READ,
-        }
-    ),
-    SystemRole.SECURITY: frozenset(
-        {
-            P.AGENT_USE,
-            P.PII_REVEAL_ANY,
-            P.REPORTS_SECURITY_DETAIL,
-            P.ACCESS_READ,
-            P.ACCESS_REVIEW_RESPOND,
-            P.INCIDENTS_READ,
-            P.INCIDENTS_UNLINK,
-            P.KB_AUTHORITY_LOG_READ,
-            P.KB_PAGES_READ,
-            P.ORG_DEPARTMENTS_READ,
-            P.PII_ACCESS_LOG_READ,
-            P.PII_REVEAL,
-            P.REPORTS_ROLLOUT_READ,
-            P.REPORTS_SECURITY_READ,
-            P.REQUESTER_CHAT,
-            P.REQUESTER_SUBMIT,
-            P.REQUESTER_TICKET_STATUS,
-            P.REQUESTER_TICKETS,
-            P.REVIEW_QUEUE_WORK,
-            P.ROLLOUT_FLAG_OFF,
-            P.ROLLOUT_READ,
-            P.ROLLOUT_THRESHOLDS_READ,
-            P.SECURITY_QUEUE_WORK,
-            P.SECURITY_SUMMARY_READ,
-            P.SELF_NOTIFICATIONS,
-            P.SELF_PROFILE,
-            P.SELF_SESSIONS,
-            P.SLA_READ,
-            P.TEAMS_AVAILABILITY_MANAGE,
-            P.TEAMS_AVAILABILITY_OWN,
-            P.TEAMS_READ,
-            P.TICKETS_COMMENT,
-            P.TICKETS_PRIORITY,
-            P.TICKETS_READ,
-            P.TICKETS_REASSIGN,
-            P.TICKETS_TAKE,
-        }
-    ),
-    SystemRole.WORKFLOW_ADMIN: frozenset(
-        {
-            P.ACCESS_PEOPLE_READ,
-            P.NOTIFICATIONS_DELIVERIES_MANAGE,
-            P.NOTIFICATIONS_MATRIX_MANAGE,
-            P.NOTIFICATIONS_MATRIX_READ,
-            P.NOTIFICATIONS_TEMPLATES_MANAGE,
-            P.NOTIFICATIONS_WEBHOOKS_MANAGE,
-            P.ORG_DEPARTMENTS_MANAGE,
-            P.ORG_DEPARTMENTS_READ,
-            P.REPORTS_NOTIFICATIONS_READ,
-            P.RUNBOOKS_CATALOG_ACTIVATE,
-            P.RUNBOOKS_CATALOG_MANAGE,
-            P.RUNBOOKS_CATALOG_READ,
-            P.SLA_MANAGE,
-            P.SLA_POLICIES_ACTIVATE,
-            P.TEAMS_MANAGE,
-        }
-    ),
-    SystemRole.KB_EDITOR: frozenset(
-        {
-            P.KB_AUTHORITY_LOG_READ,
-            P.KB_DRAFTS_MANAGE,
-            P.KB_GAPS_MANAGE,
-            P.KB_GRAPH_EDIT,
-            P.KB_GRAPH_READ,
-            P.KB_GRAPH_REBUILD,
-            P.KB_PAGES_CREATE,
-            P.REPORTS_KB_READ,
-        }
-    ),
-    SystemRole.INCIDENT_MANAGER: frozenset(
-        {
-            P.INCIDENTS_MANAGE,
-            P.INCIDENTS_UNLINK,
-            P.REPORTS_INCIDENTS_READ,
-        }
-    ),
-    SystemRole.TEAM_LEAD: frozenset(
-        {
-            P.REPORTS_TEAMS_READ,
-            P.TEAMS_LEAD,
-        }
-    ),
-    SystemRole.DEPARTMENT_HEAD: frozenset(
-        {
-            P.ACCESS_GRANT_DELEGABLE,
-            P.ORG_DEPARTMENTS_MANAGE,
-            P.ORG_DEPARTMENTS_READ,
-            P.REPORTS_OPERATIONS_READ,
-            P.REQUESTER_DEPARTMENT_READ,
-        }
-    ),
-}
 
-SYSTEM_ROLE_NAMES: dict[SystemRole, str] = {
-    SystemRole.EMPLOYEE: "Employee",
-    SystemRole.TECHNICIAN: "Technician",
-    SystemRole.MANAGER: "Manager",
-    SystemRole.SECURITY: "Security",
-    SystemRole.WORKFLOW_ADMIN: "Workflow admin",
-    SystemRole.KB_EDITOR: "Knowledge editor",
-    SystemRole.INCIDENT_MANAGER: "Incident manager",
-    SystemRole.TEAM_LEAD: "Team lead",
-    SystemRole.DEPARTMENT_HEAD: "Department head",
-}
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class _PermissionEntry(_Strict):
+    label: str = Field(min_length=1)
+    staff_only: bool = True
+    locked: bool = False
+    scopes: tuple[ScopeKind, ...] = (ScopeKind.GLOBAL,)
+
+    @field_validator("label")
+    @classmethod
+    def non_blank_label(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("label must not be blank")
+        return value
+
+    @field_validator("scopes")
+    @classmethod
+    def valid_scopes(cls, value: tuple[ScopeKind, ...]) -> tuple[ScopeKind, ...]:
+        if ScopeKind.GLOBAL not in value:
+            raise ValueError("scopes must include 'global'")
+        if len(value) != len(set(value)):
+            raise ValueError("scopes must not contain duplicates")
+        return value
+
+
+class _SystemRoleEntry(_Strict):
+    name: str = Field(min_length=1)
+    permissions: tuple[Permission, ...]
+
+    @field_validator("name")
+    @classmethod
+    def non_blank_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("name must not be blank")
+        return value
+
+    @field_validator("permissions")
+    @classmethod
+    def unique_permissions(cls, value: tuple[Permission, ...]) -> tuple[Permission, ...]:
+        if len(value) != len(set(value)):
+            raise ValueError("system role permissions must not contain duplicates")
+        return value
+
+
+class _CatalogData(_Strict):
+    permissions: dict[Permission, _PermissionEntry]
+    system_roles: dict[SystemRole, _SystemRoleEntry]
+
+    @model_validator(mode="after")
+    def matches_enums(self) -> _CatalogData:
+        missing_perms = set(Permission) - set(self.permissions)
+        if missing_perms:
+            names = ", ".join(sorted(p.value for p in missing_perms))
+            raise ValueError(f"catalog is missing permissions: {names}")
+        missing_roles = set(SystemRole) - set(self.system_roles)
+        if missing_roles:
+            names = ", ".join(sorted(r.value for r in missing_roles))
+            raise ValueError(f"catalog is missing system roles: {names}")
+        employee_staff_only = sorted(
+            p.value
+            for p in self.system_roles[SystemRole.EMPLOYEE].permissions
+            if self.permissions[p].staff_only
+        )
+        if employee_staff_only:
+            raise ValueError(
+                f"employee system role holds staff-only permissions: {', '.join(employee_staff_only)}"
+            )
+        return self
+
+
+@dataclass(frozen=True)
+class Catalog:
+    """Loaded and validated permission metadata and system role matrix."""
+
+    permissions: dict[Permission, PermissionSpec]
+    system_role_permissions: dict[SystemRole, frozenset[Permission]]
+    system_role_names: dict[SystemRole, str]
+
+
+CATALOG_PATH = Path(__file__).with_name("catalog.json")
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    obj: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate key in catalog JSON: {key!r}")
+        obj[key] = value
+    return obj
+
+
+def load_catalog(path: Path = CATALOG_PATH) -> Catalog:
+    """Loads `path` and validates it 1:1 against `Permission` and `SystemRole`."""
+    raw = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_no_duplicate_keys)
+    data = _CatalogData.model_validate(raw)
+    return Catalog(
+        permissions={
+            permission: PermissionSpec(
+                label=entry.label,
+                staff_only=entry.staff_only,
+                locked=entry.locked,
+                scopes=entry.scopes,
+            )
+            for permission, entry in data.permissions.items()
+        },
+        system_role_permissions={
+            role: frozenset(entry.permissions) for role, entry in data.system_roles.items()
+        },
+        system_role_names={role: entry.name for role, entry in data.system_roles.items()},
+    )
+
+
+_CATALOG = load_catalog()
+PERMISSIONS: dict[Permission, PermissionSpec] = _CATALOG.permissions
+SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = _CATALOG.system_role_permissions
+SYSTEM_ROLE_NAMES: dict[SystemRole, str] = _CATALOG.system_role_names
 
 
 def custom_role_urn(name: str) -> str:

@@ -1,0 +1,630 @@
+{
+  "permissions": {
+    "urn:smart-ticket:perm:access:grant": {
+      "label": "Set a person's base role and grant roles",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:access:grant:delegable": {
+      "label": "Grant delegable custom roles to people in the departments you head",
+      "locked": true,
+      "scopes": [
+        "global",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:access:people:manage": {
+      "label": "Pre-provision, suspend, reactivate and deactivate people",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:access:people:read": {
+      "label": "List people and their access"
+    },
+    "urn:smart-ticket:perm:access:read": {
+      "label": "Read roles, grants and access explanations"
+    },
+    "urn:smart-ticket:perm:access:review:manage": {
+      "label": "Open and close access reviews",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:access:review:respond": {
+      "label": "Answer the access reviews assigned to you"
+    },
+    "urn:smart-ticket:perm:access:roles:manage": {
+      "label": "Create, change and retire custom roles",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:agent:use": {
+      "label": "Use the assistant",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:incidents:manage": {
+      "label": "Declare, confirm, broadcast, resolve and link incidents"
+    },
+    "urn:smart-ticket:perm:incidents:read": {
+      "label": "Read incidents"
+    },
+    "urn:smart-ticket:perm:incidents:unlink": {
+      "label": "Unlink a ticket from an incident"
+    },
+    "urn:smart-ticket:perm:infra:operate": {
+      "label": "Reboot, start, stop and attach on any cloud project"
+    },
+    "urn:smart-ticket:perm:infra:operate:own": {
+      "label": "Reboot, start and stop your own company's cloud servers",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:infra:read": {
+      "label": "Read every cloud project's resources, metrics, logs and alerts"
+    },
+    "urn:smart-ticket:perm:infra:read:own": {
+      "label": "Read your own company's cloud resources, metrics, logs and alerts",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:kb:authority-log:read": {
+      "label": "Read the authority log"
+    },
+    "urn:smart-ticket:perm:kb:authority:grant": {
+      "label": "Allow or revoke automatic answers from a page",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:kb:authority:queue": {
+      "label": "Read the authority queue"
+    },
+    "urn:smart-ticket:perm:kb:authority:risk-tier": {
+      "label": "Change a page's risk tier",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:kb:drafts:manage": {
+      "label": "Write, review and withdraw page drafts"
+    },
+    "urn:smart-ticket:perm:kb:drafts:withdraw-any": {
+      "label": "Withdraw anyone's page draft"
+    },
+    "urn:smart-ticket:perm:kb:gaps:manage": {
+      "label": "Read and dismiss knowledge gaps"
+    },
+    "urn:smart-ticket:perm:kb:graph:edit": {
+      "label": "Correct a page's graph"
+    },
+    "urn:smart-ticket:perm:kb:graph:read": {
+      "label": "Read a page's graph"
+    },
+    "urn:smart-ticket:perm:kb:graph:rebuild": {
+      "label": "Ask for a page's graph to be rebuilt"
+    },
+    "urn:smart-ticket:perm:kb:pages:create": {
+      "label": "Create a help page"
+    },
+    "urn:smart-ticket:perm:kb:pages:read": {
+      "label": "Read the help pages",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:kb:pages:reingest": {
+      "label": "Re-ingest a help page"
+    },
+    "urn:smart-ticket:perm:notifications:deliveries:manage": {
+      "label": "Read and retry deliveries"
+    },
+    "urn:smart-ticket:perm:notifications:matrix:manage": {
+      "label": "Change the notification matrix"
+    },
+    "urn:smart-ticket:perm:notifications:matrix:read": {
+      "label": "Read the notification matrix"
+    },
+    "urn:smart-ticket:perm:notifications:templates:manage": {
+      "label": "Change notification templates"
+    },
+    "urn:smart-ticket:perm:notifications:webhooks:manage": {
+      "label": "Manage webhooks"
+    },
+    "urn:smart-ticket:perm:org:departments:manage": {
+      "label": "Create, change, move and archive departments and place people",
+      "scopes": [
+        "global",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:org:departments:read": {
+      "label": "Read the department tree",
+      "scopes": [
+        "global",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:org:import": {
+      "label": "Import departments and people from CSV"
+    },
+    "urn:smart-ticket:perm:pii:access-log:read": {
+      "label": "Read the PII access log",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:pii:reveal": {
+      "label": "Reveal quarantined personal data",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:pii:reveal:any": {
+      "label": "Reveal any placeholder on any ticket, credentials included",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:reports:dashboard:read": {
+      "label": "Read the dashboard"
+    },
+    "urn:smart-ticket:perm:reports:incidents:read": {
+      "label": "Read the incidents report"
+    },
+    "urn:smart-ticket:perm:reports:kb:read": {
+      "label": "Read the knowledge report"
+    },
+    "urn:smart-ticket:perm:reports:notifications:read": {
+      "label": "Read the notifications report"
+    },
+    "urn:smart-ticket:perm:reports:operations:read": {
+      "label": "Read SLA, team, reviewer and satisfaction reports",
+      "scopes": [
+        "global",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:reports:reviewers:all": {
+      "label": "Read every reviewer's figures"
+    },
+    "urn:smart-ticket:perm:reports:rollout:read": {
+      "label": "Read the rollout report"
+    },
+    "urn:smart-ticket:perm:reports:security:detail": {
+      "label": "Read the security report's alert detail",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:reports:security:read": {
+      "label": "Read the security report"
+    },
+    "urn:smart-ticket:perm:reports:teams:read": {
+      "label": "Read a team's figures in reports",
+      "scopes": [
+        "global",
+        "team"
+      ]
+    },
+    "urn:smart-ticket:perm:requester:chat": {
+      "label": "Ask IT in the chat",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:requester:department:read": {
+      "label": "Read your department's tickets, masked",
+      "staff_only": false,
+      "scopes": [
+        "global",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:requester:submit": {
+      "label": "Submit a ticket",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:requester:ticket-status": {
+      "label": "Read a ticket's status and SLA",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:requester:tickets": {
+      "label": "Follow, reply to, reopen and rate your tickets",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:review:fewshot:read": {
+      "label": "Read the active few-shot examples"
+    },
+    "urn:smart-ticket:perm:review:queue:work": {
+      "label": "Work the review queue"
+    },
+    "urn:smart-ticket:perm:rollout:flag:off": {
+      "label": "Turn a branch back to shadow"
+    },
+    "urn:smart-ticket:perm:rollout:flag:on": {
+      "label": "Turn a branch live",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:rollout:gates:manage": {
+      "label": "Change a rollout gate",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:rollout:read": {
+      "label": "Read rollout state"
+    },
+    "urn:smart-ticket:perm:rollout:thresholds:read": {
+      "label": "Read the loaded thresholds"
+    },
+    "urn:smart-ticket:perm:runbooks:catalog:activate": {
+      "label": "Turn a runbook on"
+    },
+    "urn:smart-ticket:perm:runbooks:catalog:manage": {
+      "label": "Create and change runbooks"
+    },
+    "urn:smart-ticket:perm:runbooks:catalog:read": {
+      "label": "Read the runbook catalog"
+    },
+    "urn:smart-ticket:perm:runbooks:execute": {
+      "label": "Approve and run a runbook on a reviewed ticket"
+    },
+    "urn:smart-ticket:perm:security:queue:work": {
+      "label": "Work security alerts and the security queues",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:security:summary:read": {
+      "label": "Read the security summary"
+    },
+    "urn:smart-ticket:perm:self:notifications": {
+      "label": "Read your notifications and set your preferences",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:self:profile": {
+      "label": "Read your own profile and access",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:self:sessions": {
+      "label": "See and end your own sign-ins",
+      "staff_only": false
+    },
+    "urn:smart-ticket:perm:sla:manage": {
+      "label": "Draft SLA policies and edit calendars and holidays"
+    },
+    "urn:smart-ticket:perm:sla:policies:activate": {
+      "label": "Activate or retire an SLA policy"
+    },
+    "urn:smart-ticket:perm:sla:read": {
+      "label": "Read SLA policies, calendars and breaches"
+    },
+    "urn:smart-ticket:perm:teams:availability:manage": {
+      "label": "Set a member's availability"
+    },
+    "urn:smart-ticket:perm:teams:availability:own": {
+      "label": "Set your own availability and leave"
+    },
+    "urn:smart-ticket:perm:teams:lead": {
+      "label": "Lead a team",
+      "scopes": [
+        "global",
+        "team"
+      ]
+    },
+    "urn:smart-ticket:perm:teams:manage": {
+      "label": "Create and change teams and their members"
+    },
+    "urn:smart-ticket:perm:teams:read": {
+      "label": "Read teams, queues and workload"
+    },
+    "urn:smart-ticket:perm:teams:supervise": {
+      "label": "Supervise a team: its queue, workload, availability, takes and reassignments",
+      "scopes": [
+        "global",
+        "team"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:all-categories": {
+      "label": "Work tickets of every category, not only security ones"
+    },
+    "urn:smart-ticket:perm:tickets:comment": {
+      "label": "Comment on a ticket",
+      "scopes": [
+        "global",
+        "team",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:fields:write": {
+      "label": "Write a ticket's workflow fields",
+      "scopes": [
+        "global",
+        "team",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:lifecycle:read": {
+      "label": "Read a ticket's moves and transfers",
+      "scopes": [
+        "global",
+        "team",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:move": {
+      "label": "Move a ticket between statuses",
+      "scopes": [
+        "global",
+        "team",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:move:force": {
+      "label": "Force a move outside the workflow's transitions",
+      "locked": true
+    },
+    "urn:smart-ticket:perm:tickets:priority": {
+      "label": "Change a ticket's priority",
+      "scopes": [
+        "global",
+        "team",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:read": {
+      "label": "Read tickets, the board and comments",
+      "scopes": [
+        "global",
+        "team",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:reassign": {
+      "label": "Reassign a ticket",
+      "scopes": [
+        "global",
+        "team",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:sla:rebuild": {
+      "label": "Rebuild a ticket's SLA clocks"
+    },
+    "urn:smart-ticket:perm:tickets:take": {
+      "label": "Take a ticket",
+      "scopes": [
+        "global",
+        "team",
+        "department"
+      ]
+    },
+    "urn:smart-ticket:perm:tickets:transfers:retry": {
+      "label": "Retry a failed transfer"
+    },
+    "urn:smart-ticket:perm:tickets:workflow:change": {
+      "label": "Move a ticket to another workflow"
+    },
+    "urn:smart-ticket:perm:workflows:manage": {
+      "label": "Change workflows"
+    },
+    "urn:smart-ticket:perm:workflows:read": {
+      "label": "Read workflows"
+    }
+  },
+  "system_roles": {
+    "urn:smart-ticket:role:system:employee": {
+      "name": "Employee",
+      "permissions": [
+        "urn:smart-ticket:perm:agent:use",
+        "urn:smart-ticket:perm:infra:operate:own",
+        "urn:smart-ticket:perm:infra:read:own",
+        "urn:smart-ticket:perm:kb:pages:read",
+        "urn:smart-ticket:perm:requester:chat",
+        "urn:smart-ticket:perm:requester:submit",
+        "urn:smart-ticket:perm:requester:ticket-status",
+        "urn:smart-ticket:perm:requester:tickets",
+        "urn:smart-ticket:perm:self:notifications",
+        "urn:smart-ticket:perm:self:profile",
+        "urn:smart-ticket:perm:self:sessions"
+      ]
+    },
+    "urn:smart-ticket:role:system:technician": {
+      "name": "Technician",
+      "permissions": [
+        "urn:smart-ticket:perm:access:review:respond",
+        "urn:smart-ticket:perm:agent:use",
+        "urn:smart-ticket:perm:incidents:read",
+        "urn:smart-ticket:perm:incidents:unlink",
+        "urn:smart-ticket:perm:infra:operate",
+        "urn:smart-ticket:perm:infra:read",
+        "urn:smart-ticket:perm:kb:pages:read",
+        "urn:smart-ticket:perm:org:departments:read",
+        "urn:smart-ticket:perm:pii:reveal",
+        "urn:smart-ticket:perm:reports:dashboard:read",
+        "urn:smart-ticket:perm:reports:operations:read",
+        "urn:smart-ticket:perm:requester:chat",
+        "urn:smart-ticket:perm:requester:submit",
+        "urn:smart-ticket:perm:requester:ticket-status",
+        "urn:smart-ticket:perm:requester:tickets",
+        "urn:smart-ticket:perm:review:fewshot:read",
+        "urn:smart-ticket:perm:review:queue:work",
+        "urn:smart-ticket:perm:rollout:read",
+        "urn:smart-ticket:perm:rollout:thresholds:read",
+        "urn:smart-ticket:perm:runbooks:catalog:read",
+        "urn:smart-ticket:perm:runbooks:execute",
+        "urn:smart-ticket:perm:self:notifications",
+        "urn:smart-ticket:perm:self:profile",
+        "urn:smart-ticket:perm:self:sessions",
+        "urn:smart-ticket:perm:sla:read",
+        "urn:smart-ticket:perm:teams:availability:manage",
+        "urn:smart-ticket:perm:teams:availability:own",
+        "urn:smart-ticket:perm:teams:read",
+        "urn:smart-ticket:perm:tickets:all-categories",
+        "urn:smart-ticket:perm:tickets:comment",
+        "urn:smart-ticket:perm:tickets:fields:write",
+        "urn:smart-ticket:perm:tickets:lifecycle:read",
+        "urn:smart-ticket:perm:tickets:move",
+        "urn:smart-ticket:perm:tickets:priority",
+        "urn:smart-ticket:perm:tickets:read",
+        "urn:smart-ticket:perm:tickets:reassign",
+        "urn:smart-ticket:perm:tickets:take",
+        "urn:smart-ticket:perm:tickets:transfers:retry",
+        "urn:smart-ticket:perm:workflows:read"
+      ]
+    },
+    "urn:smart-ticket:role:system:manager": {
+      "name": "Manager",
+      "permissions": [
+        "urn:smart-ticket:perm:access:grant",
+        "urn:smart-ticket:perm:access:people:manage",
+        "urn:smart-ticket:perm:access:people:read",
+        "urn:smart-ticket:perm:access:read",
+        "urn:smart-ticket:perm:access:review:manage",
+        "urn:smart-ticket:perm:access:review:respond",
+        "urn:smart-ticket:perm:access:roles:manage",
+        "urn:smart-ticket:perm:agent:use",
+        "urn:smart-ticket:perm:incidents:read",
+        "urn:smart-ticket:perm:incidents:unlink",
+        "urn:smart-ticket:perm:kb:authority-log:read",
+        "urn:smart-ticket:perm:kb:authority:grant",
+        "urn:smart-ticket:perm:kb:authority:queue",
+        "urn:smart-ticket:perm:kb:authority:risk-tier",
+        "urn:smart-ticket:perm:kb:drafts:manage",
+        "urn:smart-ticket:perm:kb:drafts:withdraw-any",
+        "urn:smart-ticket:perm:kb:gaps:manage",
+        "urn:smart-ticket:perm:kb:graph:read",
+        "urn:smart-ticket:perm:kb:graph:rebuild",
+        "urn:smart-ticket:perm:kb:pages:create",
+        "urn:smart-ticket:perm:kb:pages:read",
+        "urn:smart-ticket:perm:kb:pages:reingest",
+        "urn:smart-ticket:perm:notifications:deliveries:manage",
+        "urn:smart-ticket:perm:notifications:matrix:read",
+        "urn:smart-ticket:perm:org:departments:manage",
+        "urn:smart-ticket:perm:org:departments:read",
+        "urn:smart-ticket:perm:org:import",
+        "urn:smart-ticket:perm:reports:dashboard:read",
+        "urn:smart-ticket:perm:reports:incidents:read",
+        "urn:smart-ticket:perm:reports:kb:read",
+        "urn:smart-ticket:perm:reports:notifications:read",
+        "urn:smart-ticket:perm:reports:operations:read",
+        "urn:smart-ticket:perm:reports:reviewers:all",
+        "urn:smart-ticket:perm:reports:rollout:read",
+        "urn:smart-ticket:perm:reports:security:read",
+        "urn:smart-ticket:perm:reports:teams:read",
+        "urn:smart-ticket:perm:requester:chat",
+        "urn:smart-ticket:perm:requester:submit",
+        "urn:smart-ticket:perm:requester:ticket-status",
+        "urn:smart-ticket:perm:requester:tickets",
+        "urn:smart-ticket:perm:review:fewshot:read",
+        "urn:smart-ticket:perm:review:queue:work",
+        "urn:smart-ticket:perm:rollout:flag:off",
+        "urn:smart-ticket:perm:rollout:flag:on",
+        "urn:smart-ticket:perm:rollout:gates:manage",
+        "urn:smart-ticket:perm:rollout:read",
+        "urn:smart-ticket:perm:rollout:thresholds:read",
+        "urn:smart-ticket:perm:runbooks:catalog:activate",
+        "urn:smart-ticket:perm:runbooks:catalog:read",
+        "urn:smart-ticket:perm:runbooks:execute",
+        "urn:smart-ticket:perm:security:summary:read",
+        "urn:smart-ticket:perm:self:notifications",
+        "urn:smart-ticket:perm:self:profile",
+        "urn:smart-ticket:perm:self:sessions",
+        "urn:smart-ticket:perm:sla:policies:activate",
+        "urn:smart-ticket:perm:sla:read",
+        "urn:smart-ticket:perm:teams:availability:manage",
+        "urn:smart-ticket:perm:teams:availability:own",
+        "urn:smart-ticket:perm:teams:manage",
+        "urn:smart-ticket:perm:teams:read",
+        "urn:smart-ticket:perm:teams:supervise",
+        "urn:smart-ticket:perm:tickets:all-categories",
+        "urn:smart-ticket:perm:tickets:comment",
+        "urn:smart-ticket:perm:tickets:fields:write",
+        "urn:smart-ticket:perm:tickets:lifecycle:read",
+        "urn:smart-ticket:perm:tickets:move",
+        "urn:smart-ticket:perm:tickets:move:force",
+        "urn:smart-ticket:perm:tickets:priority",
+        "urn:smart-ticket:perm:tickets:read",
+        "urn:smart-ticket:perm:tickets:reassign",
+        "urn:smart-ticket:perm:tickets:sla:rebuild",
+        "urn:smart-ticket:perm:tickets:take",
+        "urn:smart-ticket:perm:tickets:transfers:retry",
+        "urn:smart-ticket:perm:tickets:workflow:change",
+        "urn:smart-ticket:perm:workflows:manage",
+        "urn:smart-ticket:perm:workflows:read"
+      ]
+    },
+    "urn:smart-ticket:role:system:security": {
+      "name": "Security",
+      "permissions": [
+        "urn:smart-ticket:perm:access:read",
+        "urn:smart-ticket:perm:access:review:respond",
+        "urn:smart-ticket:perm:agent:use",
+        "urn:smart-ticket:perm:incidents:read",
+        "urn:smart-ticket:perm:incidents:unlink",
+        "urn:smart-ticket:perm:kb:authority-log:read",
+        "urn:smart-ticket:perm:kb:pages:read",
+        "urn:smart-ticket:perm:org:departments:read",
+        "urn:smart-ticket:perm:pii:access-log:read",
+        "urn:smart-ticket:perm:pii:reveal",
+        "urn:smart-ticket:perm:pii:reveal:any",
+        "urn:smart-ticket:perm:reports:rollout:read",
+        "urn:smart-ticket:perm:reports:security:detail",
+        "urn:smart-ticket:perm:reports:security:read",
+        "urn:smart-ticket:perm:requester:chat",
+        "urn:smart-ticket:perm:requester:submit",
+        "urn:smart-ticket:perm:requester:ticket-status",
+        "urn:smart-ticket:perm:requester:tickets",
+        "urn:smart-ticket:perm:review:queue:work",
+        "urn:smart-ticket:perm:rollout:flag:off",
+        "urn:smart-ticket:perm:rollout:read",
+        "urn:smart-ticket:perm:rollout:thresholds:read",
+        "urn:smart-ticket:perm:security:queue:work",
+        "urn:smart-ticket:perm:security:summary:read",
+        "urn:smart-ticket:perm:self:notifications",
+        "urn:smart-ticket:perm:self:profile",
+        "urn:smart-ticket:perm:self:sessions",
+        "urn:smart-ticket:perm:sla:read",
+        "urn:smart-ticket:perm:teams:availability:manage",
+        "urn:smart-ticket:perm:teams:availability:own",
+        "urn:smart-ticket:perm:teams:read",
+        "urn:smart-ticket:perm:tickets:comment",
+        "urn:smart-ticket:perm:tickets:priority",
+        "urn:smart-ticket:perm:tickets:read",
+        "urn:smart-ticket:perm:tickets:reassign",
+        "urn:smart-ticket:perm:tickets:take"
+      ]
+    },
+    "urn:smart-ticket:role:system:workflow-admin": {
+      "name": "Workflow admin",
+      "permissions": [
+        "urn:smart-ticket:perm:access:people:read",
+        "urn:smart-ticket:perm:notifications:deliveries:manage",
+        "urn:smart-ticket:perm:notifications:matrix:manage",
+        "urn:smart-ticket:perm:notifications:matrix:read",
+        "urn:smart-ticket:perm:notifications:templates:manage",
+        "urn:smart-ticket:perm:notifications:webhooks:manage",
+        "urn:smart-ticket:perm:org:departments:manage",
+        "urn:smart-ticket:perm:org:departments:read",
+        "urn:smart-ticket:perm:reports:notifications:read",
+        "urn:smart-ticket:perm:runbooks:catalog:activate",
+        "urn:smart-ticket:perm:runbooks:catalog:manage",
+        "urn:smart-ticket:perm:runbooks:catalog:read",
+        "urn:smart-ticket:perm:sla:manage",
+        "urn:smart-ticket:perm:sla:policies:activate",
+        "urn:smart-ticket:perm:teams:manage"
+      ]
+    },
+    "urn:smart-ticket:role:system:kb-editor": {
+      "name": "Knowledge editor",
+      "permissions": [
+        "urn:smart-ticket:perm:kb:authority-log:read",
+        "urn:smart-ticket:perm:kb:drafts:manage",
+        "urn:smart-ticket:perm:kb:gaps:manage",
+        "urn:smart-ticket:perm:kb:graph:edit",
+        "urn:smart-ticket:perm:kb:graph:read",
+        "urn:smart-ticket:perm:kb:graph:rebuild",
+        "urn:smart-ticket:perm:kb:pages:create",
+        "urn:smart-ticket:perm:reports:kb:read"
+      ]
+    },
+    "urn:smart-ticket:role:system:incident-manager": {
+      "name": "Incident manager",
+      "permissions": [
+        "urn:smart-ticket:perm:incidents:manage",
+        "urn:smart-ticket:perm:incidents:unlink",
+        "urn:smart-ticket:perm:reports:incidents:read"
+      ]
+    },
+    "urn:smart-ticket:role:system:team-lead": {
+      "name": "Team lead",
+      "permissions": [
+        "urn:smart-ticket:perm:reports:teams:read",
+        "urn:smart-ticket:perm:teams:lead"
+      ]
+    },
+    "urn:smart-ticket:role:system:department-head": {
+      "name": "Department head",
+      "permissions": [
+        "urn:smart-ticket:perm:access:grant:delegable",
+        "urn:smart-ticket:perm:org:departments:manage",
+        "urn:smart-ticket:perm:org:departments:read",
+        "urn:smart-ticket:perm:reports:operations:read",
+        "urn:smart-ticket:perm:requester:department:read"
+      ]
+    }
+  }
+}
