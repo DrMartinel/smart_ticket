@@ -10,7 +10,7 @@ import { useRequireAuth } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { BRANCH_LABEL, INTENT_LABEL, QUEUE_LABEL, reasonText } from "@/lib/explain";
 import { dateTime, humanize, percent, relativeTime } from "@/lib/format";
-import { piiLevelTone, priorityTone } from "@/lib/badges";
+import { customerTierTone, piiLevelTone, priorityTone } from "@/lib/badges";
 import PiiText from "@/components/PiiText";
 import StatusChip from "@/components/StatusChip";
 import ReviewForm, { type ReviewDecisionPayload } from "@/components/ReviewForm";
@@ -503,6 +503,19 @@ export default function TicketPage() {
               <dd>{detail.category ?? "—"}</dd>
               <dt className="text-muted-foreground">Requester</dt>
               <dd className="truncate">{detail.reporter_person.email || detail.reporter_person.username}</dd>
+              <dt className="text-muted-foreground">Customer</dt>
+              <dd>
+                {detail.customer ? (
+                  <span className="flex items-center gap-2">
+                    {detail.customer.name}
+                    <Badge variant={customerTierTone(detail.customer.tier)}>{detail.customer.tier}</Badge>
+                  </span>
+                ) : detail.customer_lookup === "unavailable" ? (
+                  <span className="text-warn">Customer unknown: Keystone did not answer</span>
+                ) : (
+                  "—"
+                )}
+              </dd>
               <dt className="text-muted-foreground">Personal data</dt>
               <dd>
                 <Badge variant={piiLevelTone(detail.pii_level)}>PII: {humanize(detail.pii_level).toLowerCase()}</Badge>

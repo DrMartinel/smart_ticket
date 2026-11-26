@@ -1,6 +1,7 @@
-/** Semantic badge tone for Branch, queue and risk tier, one meaning on every page. */
+/** Semantic badge tone for Branch, queue, risk tier and customer tier, one meaning on every page. */
 
 import type { Tone } from "@/components/ui/badge";
+import type { CustomerTier } from "@/lib/types/generated";
 
 export function branchTone(branch: string): Tone {
   switch (branch) {
@@ -105,6 +106,18 @@ export function slaLevelTone(level: string): Tone {
       return "danger";
     case "met":
       return "ok";
+    default:
+      return "neutral";
+  }
+}
+
+/** A customer's tier: standard, business, enterprise. */
+export function customerTierTone(tier: CustomerTier): Tone {
+  switch (tier) {
+    case "enterprise":
+      return "brand";
+    case "business":
+      return "info";
     default:
       return "neutral";
   }
