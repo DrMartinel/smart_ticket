@@ -84,7 +84,7 @@ class Observability:
     def for_all(cls, caller: Caller) -> Observability:
         """Staff queries across every cloud project."""
         return cls(
-            QueryLog(caller),
+            QueryLog.of(caller),
             InfraScope.all(),
             Catalog(Surface.STAFF),
             openstack(),
@@ -95,7 +95,7 @@ class Observability:
     @classmethod
     def for_own(cls, caller: Caller) -> Observability:
         """Customer queries narrowed to the caller's Keystone projects."""
-        log, cloud = QueryLog(caller), openstack()
+        log, cloud = QueryLog.of(caller), openstack()
         return cls(
             log,
             log.own_scope(cloud),
