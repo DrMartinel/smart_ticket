@@ -1,34 +1,74 @@
 "use client";
 
-// The cloud's part of an assistant turn (F17): what it looked at in the customer's cloud, and the
-// server a change waiting for the customer's Send is about.
+// The cloud's part of an assistant turn (F17): the receipt of each query it ran in the customer's
+// cloud with the warnings core-api wrote for the sources it couldn't read, and the server a change
+// waiting for the customer's Send is about.
 
 import { useEffect, useState } from "react";
-import type { AgentActionOut, AgentReceiptOut, ServerDetailOut } from "@/lib/types/generated";
+import { AlertTriangle } from "lucide-react";
+import type { AgentActionOut, InfraQueryReceiptOut, ServerDetailOut } from "@/lib/types/generated";
 import { infraApi } from "@/lib/api";
-import { CLOUD_TOOL_LABEL, SERVER_CHANGE, serverState } from "@/lib/infra";
+import { type Language, QUERY_TONE, RECEIPT_WORDS, SERVER_CHANGE, serverState } from "@/lib/infra";
 import { Badge } from "@/components/ui/badge";
 
-const READ_OUTCOME: Record<AgentReceiptOut["outcome"], { label: string; variant: "ok" | "info" | "warn" | "danger" }> = {
-  done: { label: "Looked up", variant: "ok" },
-  awaiting_confirmation: { label: "Needs your OK", variant: "info" },
-  draft_waiting: { label: "Draft waiting", variant: "info" },
-  refused: { label: "Not allowed", variant: "warn" },
-  failed: { label: "Couldn't look", variant: "danger" },
-  unknown: { label: "Not sure", variant: "warn" },
-};
-
-/** The cloud reads a turn made, one line each. */
-export function CloudReads({ receipts }: { receipts: AgentReceiptOut[] }) {
+/** The turn's warnings, then one line per query it ran. */
+export function QueryReceipts({
+  queries,
+  warnings,
+  language,
+}: {
+  queries: InfraQueryReceiptOut[];
+  warnings: string[];
+  language: Language;
+}) {
+  const words = RECEIPT_WORDS[language];
+  if (queries.length === 0 && warnings.length === 0) return null;
   return (
-    <ul aria-label="What the assistant looked at" className="flex flex-col gap-1.5 border-t border-border pt-3">
-      {receipts.map((r, i) => (
-        <li key={i} className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge variant={READ_OUTCOME[r.outcome].variant}>{READ_OUTCOME[r.outcome].label}</Badge>
-          <span>{CLOUD_TOOL_LABEL[r.tool] ?? r.tool}</span>
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
+      {warnings.length > 0 && (
+        <ul aria-label={words.missing} className="flex flex-col gap-1 rounded-md bg-warn-soft px-3 py-2 text-warn">
+          {warnings.map((w) => (
+            <li key={w} className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <span>{w}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {queries.length > 0 && (
+        <ul aria-label={words.heading} className="flex flex-col gap-1.5">
+          {queries.map((q) => (
+            <QueryReceipt key={q.id} query={q} language={language} />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function QueryReceipt({ query, language }: { query: InfraQueryReceiptOut; language: Language }) {
+  const words = RECEIPT_WORDS[language];
+  const notes: string[] = [];
+  if (query.outcome === "ok") notes.push(words.results(query.rows));
+  if (query.truncated) notes.push(words.cut);
+  if (query.outcome === "backend_unavailable") notes.push(words.noAnswer(words.source[query.failed_backend ?? query.backend]));
+  return (
+    <li className="flex flex-col gap-0.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant={QUERY_TONE[query.outcome]}>{words.outcome[query.outcome]}</Badge>
+        <span>{words.looked[query.backend]}</span>
+      </div>
+      {notes.length > 0 && <p className="text-xs text-muted-foreground">{notes.join(" · ")}</p>}
+      {query.outcome === "refused" && (
+        <p className="text-xs text-warn">
+          {query.refusal_reason
+            ? words.check[query.refusal_reason]
+            : query.refusal === "infra_not_found"
+              ? words.notFound
+              : words.refused}
+        </p>
+      )}
+    </li>
   );
 }
 

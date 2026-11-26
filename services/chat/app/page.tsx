@@ -79,6 +79,7 @@ export default function AssistantPage() {
                   onChoose={agent.choose}
                   busy={agent.busy}
                   viewingEnded={agent.viewingEnded}
+                  language={user.language ?? "vi"}
                 />
               ))}
               {agent.pendingError && (

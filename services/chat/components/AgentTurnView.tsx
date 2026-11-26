@@ -9,9 +9,9 @@ import type {
   ChatTurnOut,
 } from "@/lib/types/generated";
 import type { ActionResult, AgentRow } from "@/lib/agent";
-import { CLOUD_READS, CLOUD_TOOL_LABEL } from "@/lib/infra";
+import { CLOUD_TOOL_LABEL, type Language } from "@/lib/infra";
 import AnswerText from "./AnswerText";
-import { CloudReads, ServerChange } from "./CloudCards";
+import { QueryReceipts, ServerChange } from "./CloudCards";
 import HelpdeskCard from "./HelpdeskCard";
 import { PLACEHOLDER, Question, Reply, Working } from "./TurnView";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,7 @@ export default function AgentTurnView({
   onChoose,
   busy,
   viewingEnded,
+  language,
 }: {
   row: AgentRow;
   pending: AgentActionOut[];
@@ -86,6 +87,7 @@ export default function AgentTurnView({
   onChoose: (choice: AgentChoiceOut) => void;
   busy: boolean;
   viewingEnded: boolean;
+  language: Language;
 }) {
   if (row.kind === "ended") {
     return (
@@ -119,8 +121,7 @@ export default function AgentTurnView({
   const asked = t.receipts.filter((r) => r.outcome === "awaiting_confirmation" && r.action_id);
   const cards = asked.flatMap((r) => pending.filter((a) => a.action_id === r.action_id));
   const helpdesk = t.receipts.flatMap((r) => (r.chat_turn ? [r.chat_turn] : []));
-  const acts = t.receipts.filter((r) => !r.chat_turn && !CLOUD_READS.has(r.tool));
-  const reads = t.receipts.filter((r) => CLOUD_READS.has(r.tool));
+  const acts = t.receipts.filter((r) => !r.chat_turn);
   const answered = asked.flatMap((r) => (r.action_id && results[r.action_id] ? [results[r.action_id]] : []));
   return (
     <>
@@ -141,7 +142,7 @@ export default function AgentTurnView({
             {helpdesk.map((id) => (
               <HelpdeskCard key={id} publicId={id} onAnswer={onAsk} />
             ))}
-            {reads.length > 0 && <CloudReads receipts={reads} />}
+            <QueryReceipts queries={t.queries ?? []} warnings={t.warnings ?? []} language={language} />
             {acts.length > 0 && (
               <ul aria-label="What the assistant did" className="flex flex-col gap-1.5 border-t border-border pt-3">
                 {acts.map((r, i) => (

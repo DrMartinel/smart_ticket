@@ -156,7 +156,7 @@ Mock data for this feature (added to §6.0.5's):
 | Actor | Customer (`lan.nt`), chat |
 | Trigger | "Our database has been slow all morning" |
 | Preconditions | `agent_chat` live; `lan.nt` holds `infra:read:own`; Keystone lists her in `saomai-prod` |
-| Main flow | 1. The agent lists her servers (only `saomai-prod`'s). 2–4. As UC-F17-01 steps 3–5, every query scoped to `saomai-prod`, except that she never gets a query's Prometheus or Kibana link or its compiled text: the customer answers have no `link`, and her turn's receipts have no `sent`. 5. It replies with what it found and offers a ticket |
+| Main flow | 1. The agent lists her servers (only `saomai-prod`'s). 2–4. As UC-F17-01 steps 3–5, every query scoped to `saomai-prod`, except that she never gets a query's Prometheus or Kibana link or its compiled text: the customer answers have no `link`, and her turn's receipts have no `sent`. 5. It replies with what it found and offers a ticket. Under the reply, the chat shows core-api's warnings, then each query's outcome, result count, whether it was cut, the source that didn't answer and a refusal's check, in her language |
 | Exception | 1x. Keystone is unreachable: 424 `infra_scope_unavailable`; the agent says it can't see her resources now and offers a ticket |
 | Rules | BR-F17-02, BR-F17-03 |
 | MoSCoW | Must |
