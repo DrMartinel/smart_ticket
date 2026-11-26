@@ -88,6 +88,13 @@ class TestWaitsForRequester:
     def test_live_ordinary_handoffs_wait(self, decision):
         assert waits_for_requester(decision, False, PIILevel.ROUTINE, agent_handoff=False) is True
 
+    @pytest.mark.parametrize("pii_level", [PIILevel.MASK_FAILED, PIILevel.CRITICAL])
+    def test_an_unchecked_pii_ticket_never_waits_whatever_its_decision(self, pii_level):
+        decision = _decision(
+            Branch.HITL, ReasonCode.AI_ENGINE_UNAVAILABLE, queue=ReviewQueue.LOW_CONFIDENCE
+        )
+        assert waits_for_requester(decision, False, pii_level, agent_handoff=False) is False
+
 
 @pytest.fixture
 def ner_finds_nothing(monkeypatch):
@@ -211,9 +218,8 @@ class TestHoldAndRelease:
             release_to_support(ticket.id, employee_user.id, None)
 
     def test_mask_failed_chat_ticket_goes_to_review_at_once(self, employee_user, no_celery):
-        """The autouse offline ai-engine fails NER, so masking fails, and
-        analysis fails too, so the run is degraded and never reaches the
-        router. The ticket still reaches review whatever the requester does."""
+        """Checks that a chat ticket whose masking failed, with ai-engine down,
+        reaches the mask_failed queue at once instead of waiting for its requester."""
         ticket = _submit(employee_user, TicketSource.CHAT)
         assert ticket.pii_level == PIILevel.MASK_FAILED.value
 
@@ -222,4 +228,6 @@ class TestHoldAndRelease:
         ticket.refresh_from_db()
         assert ticket.status == "pending_review"
         assert ticket.held_decision is None
-        assert ReviewItem.objects.filter(ticket=ticket).exists()
+        assert list(ReviewItem.objects.filter(ticket=ticket).values_list("queue", flat=True)) == [
+            "mask_failed"
+        ]
