@@ -1,7 +1,7 @@
 """A ticket's cues (F17 §o, ADR-0048 decision 10): queued on commit at handoff while
-`ticket_cues` is live, collected over the reporter's own Keystone projects, linked by a person
-as their own read, and read by the ticket page. Cues change nothing about the ticket
-(BR-F17-18)."""
+`ticket_cues` is live, collected over the reporter's own Keystone projects from what they picked
+in the chat and what the ticket names, linked by a person as their own read, and read by the
+ticket page. Cues change nothing about the ticket (BR-F17-18)."""
 
 from __future__ import annotations
 
@@ -98,14 +98,18 @@ class Enrichment:
         )
 
     def link(self, run: CueRun, ticket: Ticket, holdings: Holdings) -> list[TicketResource]:
-        """Stores the resources the ticket's masked subject and body name, or every server, in
-        the order they are taken; a ticket whose masking failed names none."""
+        """Stores the resources the reporter picked in the chat, then those the ticket's masked
+        subject and body name, or every server, in the order they are taken; a ticket whose
+        masking failed names none."""
+        picked = [
+            (ResourceKind(p.kind), p.resource_id) for p in ResourcePick.objects.of_ticket(ticket)
+        ]
         text = (
             None
             if ticket.pii_level == PIILevel.MASK_FAILED.value
             else f"{ticket.subject_masked}\n{ticket.body_masked}"
         )
-        found = linked(holdings, text, settings.THRESHOLDS.cues.max_resources)
+        found = linked(holdings, picked, text, settings.THRESHOLDS.cues.max_resources)
         return TicketResource.objects.bulk_create(
             TicketResource(
                 run=run,

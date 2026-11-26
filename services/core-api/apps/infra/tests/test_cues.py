@@ -1,10 +1,11 @@
-"""A ticket's cues: queued at handoff, linked among the reporter's own projects from the masked
-text, and collected as cue reads that change nothing about the ticket (F17 §o, BR-F17-13..19,
-BR-F17-24, UC-F17-08, UC-F17-09, UC-F17-12)."""
+"""A ticket's cues: queued at handoff, linked among the reporter's own projects from their picks
+in the chat and the masked text, and collected as cue reads that change nothing about the ticket
+(F17 §o, BR-F17-13..19, BR-F17-24, BR-F17-29, UC-F17-08, UC-F17-09, UC-F17-12, UC-F17-15)."""
 
 from __future__ import annotations
 
 import re
+import uuid
 from datetime import timedelta
 from typing import Any
 
@@ -17,12 +18,14 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.accounts.models import User
+from apps.agent.models import AgentConversation, AgentSurface, AgentTurn, AgentTurnState
+from apps.agent.services.turns import agent_turns
 from apps.infra import tasks
 from apps.infra.domain import untrusted
 from apps.infra.domain.cues import OVERVIEW, TEMPLATES, CueTemplate
 from apps.infra.domain.untrusted import WITHHELD
 from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
-from apps.infra.models import CueRun, InfraQuery, InfraVia
+from apps.infra.models import CueRun, InfraQuery, InfraVia, ResourcePick
 from apps.infra.services.cues import cues
 from apps.infra.tests.conftest import (
     FakeElasticsearch,
@@ -40,6 +43,7 @@ from apps.rollout.testing import flags_off
 from apps.sla.tests.conftest import status
 from apps.tickets.domain.masking import NERError
 from apps.tickets.domain.patterns import PIILevel
+from apps.tickets.domain.router import ReasonCode
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import process_ticket
 from config.celery import app
@@ -89,6 +93,30 @@ def window_of(run: CueRun) -> timedelta:
 
 def linked(run: CueRun) -> list[tuple[str, str, str | None]]:
     return list(run.resources.order_by("seq").values_list("name", "source", "token"))
+
+
+def chat_turn(reporter: User, message: str = "Hệ thống chạy chậm từ sáng") -> AgentTurn:
+    """A turn of a new chat conversation of `reporter`'s with the agent."""
+    conversation = AgentConversation.objects.create(user=reporter, surface=AgentSurface.CHAT.value)
+    return AgentTurn.objects.create(
+        conversation=conversation,
+        seq=1,
+        message_masked=message,
+        pii_level=PIILevel.ROUTINE.value,
+        session_family=uuid.uuid4(),
+    )
+
+
+def picked(turn: AgentTurn, kind: ResourceKind, resource_id: str) -> None:
+    """Records that the turn's person pressed `resource_id` on a choice card."""
+    ResourcePick.objects.create(
+        conversation=turn.conversation,
+        person=turn.conversation.user,
+        project_id="p",
+        kind=kind.value,
+        resource_id=resource_id,
+        name="as pressed",
+    )
 
 
 # ── the database ──
@@ -208,6 +236,80 @@ def test_the_cap_keeps_named_then_attached(lan, backends, queued):
         ("app-01", ResourceSource.NAMED, "app-01"),
         ("db-01", ResourceSource.NAMED, "db-01"),
         ("vol-app-01", ResourceSource.ATTACHED, None),
+    ]
+
+
+def test_the_cap_keeps_picked_then_named_then_attached(lan, backends, queued):
+    turn = chat_turn(lan)
+    picked(turn, ResourceKind.SERVER, backends.id_of("servers", "app-02"))
+
+    ticket = hand_off(opened(lan, "db-01 chậm", "app-01 cũng lỗi", agent_turn=turn))
+
+    assert linked(run_of(ticket)) == [
+        ("app-02", ResourceSource.PICKED, None),
+        ("db-01", ResourceSource.NAMED, "db-01"),
+        ("app-01", ResourceSource.NAMED, "app-01"),
+    ]
+
+
+def test_a_pick_outside_the_reporters_projects_is_dropped(lan, backends, queued):
+    web03 = backends.id_of("servers", "web-03")
+    turn = chat_turn(lan)
+    picked(turn, ResourceKind.SERVER, web03)
+
+    ticket = hand_off(opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=turn))
+
+    run = run_of(ticket)
+    assert run.outcome == CueRunOutcome.OVERVIEW
+    assert not run.resources.exists()
+    assert not [c for c in backends.calls if web03 in c]
+
+
+def test_only_the_conversation_that_opened_the_ticket_lends_it_picks(lan, backends, queued):
+    picked(chat_turn(lan), ResourceKind.SERVER, backends.id_of("servers", "app-02"))
+
+    from_chat = hand_off(opened(lan, "db-01 chậm", agent_turn=chat_turn(lan)))
+    from_form = hand_off(opened(lan, "db-01 chậm"))
+
+    named = [("db-01", ResourceSource.NAMED, "db-01"), ("vol-db-01", ResourceSource.ATTACHED, None)]
+    assert linked(run_of(from_chat)) == linked(run_of(from_form)) == named
+
+
+def test_a_ticket_whose_masking_failed_still_takes_its_picks(lan, backends, queued):
+    turn = chat_turn(lan)
+    picked(turn, ResourceKind.VOLUME, backends.id_of("volumes", "vol-db-01"))
+
+    ticket = hand_off(
+        opened(lan, "db-01 chậm", pii_level=PIILevel.MASK_FAILED.value, agent_turn=turn)
+    )
+
+    assert linked(run_of(ticket)) == [("vol-db-01", ResourceSource.PICKED, None)]
+
+
+def test_a_needs_staff_ticket_gets_cues_on_what_was_picked_in_the_chat(
+    lan, backends, queued, monkeypatch
+):
+    insufficient_context_answers(monkeypatch)
+    monkeypatch.setattr(
+        process_ticket, "delay", lambda ticket_id: process_ticket.apply(args=(ticket_id,)).get()
+    )
+    turn = chat_turn(lan, "Có cách nào tăng tốc không? Đơn hàng đang bị trễ")
+    picked(turn, ResourceKind.SERVER, backends.id_of("servers", "db-01"))
+    AgentTurn.objects.filter(id=turn.id).update(
+        state=AgentTurnState.HANDED_OFF.value,
+        stop_reason=ReasonCode.AGENT_NEEDS_STAFF.value,
+        reply_text="vol-db-01 đã chạm giới hạn IOPS từ 09:01.",
+        proposed_handoff_summary="Customer asks to raise vol-db-01's IOPS quota",
+    )
+
+    with TestCase.captureOnCommitCallbacks(execute=True):
+        agent_turns.open_ticket(lan, turn.id)
+
+    ticket = Ticket.objects.get(agent_turn=turn)
+    assert ticket.routing_decisions.get().reason_code == ReasonCode.AGENT_NEEDS_STAFF
+    assert linked(run_of(ticket)) == [
+        ("db-01", ResourceSource.PICKED, None),
+        ("vol-db-01", ResourceSource.ATTACHED, None),
     ]
 
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import uuid
 from enum import StrEnum
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
@@ -16,6 +16,9 @@ from django.db import models
 
 from apps.core.models import BaseModel
 from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
+
+if TYPE_CHECKING:
+    from apps.tickets.models import Ticket
 
 
 def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
@@ -229,6 +232,17 @@ class TicketCue(BaseModel):
         ordering = ["seq"]
 
 
+class ResourcePickQuerySet(models.QuerySet["ResourcePick"]):
+    def of_ticket(self, ticket: Ticket) -> Self:
+        """The picks the ticket's reporter made in the agent conversation that opened it, in the
+        order they were made; none for a ticket no agent turn opened."""
+        if ticket.agent_turn_id is None:
+            return self.none()
+        return self.filter(
+            conversation__turns=ticket.agent_turn_id, person_id=ticket.reporter_id
+        ).order_by("picked_at")
+
+
 class ResourcePick(BaseModel):
     """A server, volume or network a person pressed on a choice card in their agent
     conversation, checked against their own projects when it was pressed."""
@@ -242,6 +256,8 @@ class ResourcePick(BaseModel):
     resource_id = models.CharField(max_length=64)
     name = models.CharField(max_length=255)
     picked_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ResourcePickQuerySet.as_manager()
 
     class Meta(BaseModel.Meta):
         db_table = "infra_resource_picks"
