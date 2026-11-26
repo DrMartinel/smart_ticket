@@ -643,6 +643,14 @@ guard and that comment is later trimmed, the entry is the record.
   a `cut` cue.** A cut answer summarised as `ok` or `empty` reads as complete
   while the peak may sit in the part that was dropped, and nothing fails
   loudly. *`test_an_answer_cut_to_the_result_cap_is_never_shown_complete`.*
+- **`function="max_over_time"` on the gauge `Usage`s in `domain/cues.py`
+  (CPU, memory, read and write latency), over the cue's step.** A long window
+  widens the step, and a plain range query samples a gauge at one instant per
+  step, so a spike between two samples vanishes and the cue reads `ok` with a
+  lower peak. Rate cues can't take a maximum, so their summaries name the
+  steps they averaged over instead.
+  *`test_a_spike_between_two_samples_is_still_a_gauge_cues_peak`,
+  `test_a_rate_cue_says_the_steps_it_averaged_over`.*
 
 ## ai-engine
 

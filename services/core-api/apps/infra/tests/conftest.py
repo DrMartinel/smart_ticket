@@ -162,10 +162,12 @@ def alert(name: str, project: str | None, summary: str, **labels: str) -> dict[s
 
 @dataclass
 class FakePrometheus:
-    """prom-label-proxy answering range queries with `series`, or `status` and `error`; keeps
-    the query, the step and the `project` values of every request."""
+    """prom-label-proxy answering range queries with `series`, or with what `answer` gives for
+    the query, start, end and step, or `status` and `error`; keeps the query, the step and the
+    `project` values of every request."""
 
     series: list[dict[str, Any]] = field(default_factory=list)
+    answer: Callable[[str, float, float, int], list[dict[str, Any]]] | None = None
     status: int = 200
     error: str = ""
     raises: Exception | None = None
@@ -177,14 +179,20 @@ class FakePrometheus:
         if self.raises is not None:
             raise self.raises
         form = parse_qs(request.content.decode())
-        self.queries.append(form["query"][0])
-        self.steps.append(int(form["step"][0]))
+        query, step = form["query"][0], int(form["step"][0])
+        self.queries.append(query)
+        self.steps.append(step)
         self.projects.append(request.url.params.get_list("project"))
         if self.status != 200:
             return httpx.Response(
                 self.status, json={"status": "error", "errorType": "bad_data", "error": self.error}
             )
-        body = {"status": "success", "data": {"resultType": "matrix", "result": self.series}}
+        result = (
+            self.series
+            if self.answer is None
+            else self.answer(query, float(form["start"][0]), float(form["end"][0]), step)
+        )
+        body = {"status": "success", "data": {"resultType": "matrix", "result": result}}
         return httpx.Response(200, json=body)
 
 

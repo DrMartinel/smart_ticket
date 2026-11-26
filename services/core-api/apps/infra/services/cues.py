@@ -179,7 +179,7 @@ class Collector:
             usage = USAGE[template]
             query = usage.query(resource.resource_id, self.window, self.step)
             series = self.metrics(query, resource.project_id)
-            return usage.finding(resource.name, series, self.clock)
+            return usage.finding(resource.name, series, self.clock, self.step)
         if template is CueTemplate.SERVER_STATE:
             return state_finding(self.inventory.server(resource.resource_id), timezone.now())
         if template is CueTemplate.SERVER_ERROR_LOGS:
@@ -189,7 +189,7 @@ class Collector:
             return log_finding(resource.name, answer.total, answer.lines)
         if template is CueTemplate.VOLUME_IOPS_QUOTA:
             ratios = self.ratios(resource.project_id, resource.resource_id, self.step)
-            return iops_finding(resource.name, ratios, self.clock)
+            return iops_finding(resource.name, ratios, self.clock, self.step)
         alerts = self.inventory.alerts(resource.project_id)
         return alerts_finding(resource.name, about(alerts, kind, resource.resource_id), self.clock)
 
@@ -229,7 +229,7 @@ class Collector:
         self.store(
             CueTemplate.OVERVIEW_IOPS_QUOTA,
             None,
-            lambda: nearest_quota(self.ratios(None, None, iops_step), top),
+            lambda: nearest_quota(self.ratios(None, None, iops_step), top, iops_step),
         )
         self.store(
             CueTemplate.OVERVIEW_CPU,

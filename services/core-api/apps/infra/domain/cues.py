@@ -164,6 +164,14 @@ def per_second(rate: float) -> str:
     return f"{rate:.1f}/s"
 
 
+def averaged(step: int) -> str:
+    """How a rate cue's points were taken, for its summary: "averaged over 11-minute steps"."""
+    for unit, size in (("hour", 3600), ("minute", 60)):
+        if step >= 2 * size or step % size == 0:
+            return f"averaged over {round(step / size)}-{unit} steps"
+    return f"averaged over {step}-second steps"
+
+
 def started(text: str) -> datetime | None:
     try:
         return datetime.fromisoformat(text)
@@ -181,7 +189,8 @@ def since(text: str, clock: Clock) -> str:
 
 @dataclass(frozen=True)
 class Usage:
-    """A metric a cue shows the peak and latest of, for one resource."""
+    """A metric a cue shows the peak and latest of, for one resource: a gauge's highest value in
+    each step, or a counter's rate averaged over each step."""
 
     label: str
     metric: str
@@ -201,30 +210,39 @@ class Usage:
             aggregate=self.aggregate,
         )
 
-    def finding(self, name: str, series: list[Series], clock: Clock) -> Finding:
+    def finding(self, name: str, series: list[Series], clock: Clock, step: int) -> Finding:
         found = peak_of(merged(series))
         if found is None:
             return Finding(CueStatus.EMPTY, f"No {self.label.lower()} data for {name}", {})
+        resolution = f", {averaged(step)}" if self.function == "rate" else ""
         return Finding(
             CueStatus.OK,
             f"{self.label} peaked at {self.show(found.value)} at {clock.at(found.at)}, "
-            f"now {self.show(found.latest)}",
+            f"now {self.show(found.latest)}{resolution}",
             {"peak": found.value, "peak_at": found.at.isoformat(), "latest": found.latest},
         )
 
 
 USAGE = {
     CueTemplate.SERVER_CPU: Usage(
-        "CPU", "cloud_server_cpu_utilization_ratio", "server_id", percent
+        "CPU", "cloud_server_cpu_utilization_ratio", "server_id", percent, "max_over_time"
     ),
     CueTemplate.SERVER_MEMORY: Usage(
-        "Memory", "cloud_server_memory_used_ratio", "server_id", percent
+        "Memory", "cloud_server_memory_used_ratio", "server_id", percent, "max_over_time"
     ),
     CueTemplate.VOLUME_READ_LATENCY: Usage(
-        "Read latency", "cloud_volume_read_latency_seconds", "volume_id", millis
+        "Read latency",
+        "cloud_volume_read_latency_seconds",
+        "volume_id",
+        millis,
+        "max_over_time",
     ),
     CueTemplate.VOLUME_WRITE_LATENCY: Usage(
-        "Write latency", "cloud_volume_write_latency_seconds", "volume_id", millis
+        "Write latency",
+        "cloud_volume_write_latency_seconds",
+        "volume_id",
+        millis,
+        "max_over_time",
     ),
     CueTemplate.NETWORK_DROPPED: Usage(
         "Dropped packets",
@@ -296,7 +314,7 @@ def iops_ratios(rates: list[Series], quotas: list[Series]) -> list[Ratios]:
     return found
 
 
-def iops_finding(name: str, ratios: list[Ratios], clock: Clock) -> Finding:
+def iops_finding(name: str, ratios: list[Ratios], clock: Clock, step: int) -> Finding:
     points: dict[float, float] = {}
     for r in ratios:
         for t, v in r.points.items():
@@ -320,7 +338,7 @@ def iops_finding(name: str, ratios: list[Ratios], clock: Clock) -> Finding:
             f"IOPS peaked at {percent(found.value)} of quota at {clock.at(found.at)}, "
             f"now {percent(found.latest)}"
         )
-    return Finding(CueStatus.OK, summary, evidence)
+    return Finding(CueStatus.OK, f"{summary}, {averaged(step)}", evidence)
 
 
 # ── logs ──
@@ -476,7 +494,7 @@ def most_errors(counts: list[Count], names: dict[str, str]) -> Finding:
     )
 
 
-def nearest_quota(ratios: list[Ratios], top: int) -> Finding:
+def nearest_quota(ratios: list[Ratios], top: int, step: int) -> Finding:
     peaks = sorted(((r, max(r.points.values())) for r in ratios), key=lambda p: (-p[1], p[0].name))[
         :top
     ]
@@ -484,7 +502,8 @@ def nearest_quota(ratios: list[Ratios], top: int) -> Finding:
         return Finding(CueStatus.EMPTY, "No IOPS or quota data in these projects", {"volumes": []})
     return Finding(
         CueStatus.OK,
-        "Nearest their IOPS quota: " + ", ".join(f"{r.name} {percent(p)}" for r, p in peaks),
+        f"Nearest their IOPS quota, {averaged(step)}: "
+        + ", ".join(f"{r.name} {percent(p)}" for r, p in peaks),
         {
             "volumes": [
                 {**linkable(ResourceKind.VOLUME, r.volume_id, r.name), "peak_ratio": p}

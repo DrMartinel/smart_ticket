@@ -4,6 +4,7 @@ BR-F17-24, UC-F17-08, UC-F17-09, UC-F17-12)."""
 
 from __future__ import annotations
 
+import re
 from datetime import timedelta
 from typing import Any
 
@@ -376,6 +377,42 @@ def test_the_overview_reads_one_cpu_value_a_server_and_iops_at_overview_points(
     iops = [s for q, s in reads if "iops" in q]
     assert iops
     assert all(seconds // s + 1 <= settings.THRESHOLDS.cues.overview_points for s in iops)
+
+
+def test_a_spike_between_two_samples_is_still_a_gauge_cues_peak(
+    lan, backends, queued, prom: FakePrometheus
+):
+    db01 = backends.id_of("servers", "db-01")
+
+    def spiky(query: str, start: float, end: float, step: int) -> list[dict[str, Any]]:
+        instants = [start + k * step for k in range(int((end - start) // step) + 1)]
+        spike = instants[len(instants) // 2] + step / 4
+        over = re.fullmatch(r"max_over_time\(.*\[(\d+)s\]\)", query)
+        reach = int(over[1]) if over else 0
+
+        def value(t: float) -> float:
+            return 0.95 if t >= spike and t - reach < spike + step / 2 else 0.2
+
+        values = [[t, str(value(t))] for t in instants]
+        return [{"metric": {"server_id": db01}, "values": values}]
+
+    prom.answer = spiky
+
+    ticket = hand_off(opened_ago(lan, "db-01 chậm", hours=20))
+
+    by = {c.template: c for c in run_of(ticket).cues.all()}
+    assert by[CueTemplate.SERVER_CPU].summary.startswith("CPU peaked at 95 %")
+    assert by[CueTemplate.SERVER_MEMORY].summary.startswith("Memory peaked at 95 %")
+
+
+def test_a_rate_cue_says_the_steps_it_averaged_over(lan, backends, queued):
+    named = hand_off(opened(lan, "db-01 chậm"))
+    overview = hand_off(opened(lan, "Hệ thống chạy chậm từ sáng"))
+
+    iops = run_of(named).cues.get(template=CueTemplate.VOLUME_IOPS_QUOTA)
+    nearest = run_of(overview).cues.get(template=CueTemplate.OVERVIEW_IOPS_QUOTA)
+    assert iops.summary.endswith(", averaged over 1-minute steps")
+    assert re.match(r"Nearest their IOPS quota, averaged over \d+-minute steps: ", nearest.summary)
 
 
 def test_a_window_never_starts_past_the_range_cap(lan, backends, queued, settings):
