@@ -23,6 +23,7 @@ from django.utils.crypto import constant_time_compare
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.categories.models import Category
+from apps.infra.services.cues import cues
 from apps.lifecycle.models import (
     ActionRun,
     CustomField,
@@ -193,6 +194,7 @@ class Lifecycle:
         self.audit_status_change(ticket, transfer, current, target, extra=extra)
         sla_clocks.on_status_entered(ticket, transfer)
         ticket_notices.on_status_entered(ticket, transfer)
+        cues.on_status_entered(ticket, transfer)
         return transfer
 
     # ── people's and actions' moves ──
@@ -447,6 +449,7 @@ class Lifecycle:
         self.audit_status_change(ticket, transfer, transfer.before_status, transfer.after_status)
         sla_clocks.on_status_entered(ticket, transfer)
         ticket_notices.on_status_entered(ticket, transfer)
+        cues.on_status_entered(ticket, transfer)
 
     def audit_status_change(
         self,
