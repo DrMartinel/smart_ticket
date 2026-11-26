@@ -629,17 +629,21 @@ each file is clean.
 
 **Priority:** High: both agent flags are on by default since ADR-0051 · **Spec:** [06-F15-agent.md](requirements/phase-2/06-F15-agent.md) · ADR-0046
 
-- **No eval has run on `agent.v1` or `agent.v2`** (v2 adds rule 7: IT
-  questions go to `ask_helpdesk` first, and rule 8: an answered helpdesk
-  question gets one line, not a restated answer), nor on
+- **No eval has run on any agent prompt, `agent.v3` included** (v2 adds
+  rule 7: IT questions go to `ask_helpdesk` first, and rule 8: an answered
+  helpdesk question gets one line, not a restated answer; v3, the F15
+  amendment, adds rules 9–11: find out before asking, offer choices by ref,
+  and on the chat `hand_off` a change no tool makes), nor on
   `choose_action`'s one re-ask of an invalid reply (ADR-0046 #12, amended):
   how often DeepSeek needs it is unmeasured. The reply language now follows
   the message (FR-F15-021, amended): Vietnamese typed without accents reads
   as English. The scripted trace suite
   (`evals/suites/test_agent_traces.py`) was written in PR 9 and has not been
   run; run it first (it needs Postgres, no model), then add it to the
-  offline eval gate's suite step. Then the live agent eval
-  (OQ-F15-07), with an injection-in-result case per surface, before
+  offline eval gate's suite step. Then the live agent eval on `agent.v3`
+  (OQ-F15-07, graded on actions per OQ-F15-15, its cases in
+  `evals/golden/agent_cases.jsonl` from EC-F15-09), with an
+  injection-in-result case per surface, before
   production picks `AGENT_CLIENT_PROVIDER`, reported ungated until a
   baseline is reviewed by someone other than its author (OQ-F15-08).
 - **Rerun the injection suite** after the patterns moved to
@@ -706,7 +710,8 @@ each file is clean.
 ### Done when
 
 - F16's nine PRs are merged, AC-F16-01..08 pass in the trace suite, and the
-  live agent eval on `agent.v2` is recorded in `evals/HISTORY.md`.
+  live agent eval on F16's prompt (`agent.v5`, against `agent.v4`) is
+  recorded in `evals/HISTORY.md`.
 
 ## 25. Infrastructure for the agent (F17)
 
@@ -768,7 +773,7 @@ A category added as a row (with a description that passed review and an owning t
 
 ### Work
 
-1. Run the agent's trace suite (`evals/suites/test_agent_traces.py`) and `agent.v2` against a real model, and settle the bar the agent must clear (open question 1).
+1. Run the agent's trace suite (`evals/suites/test_agent_traces.py`) and `agent.v3` against a real model, and settle the bar the agent must clear (open question 1).
 2. Write the propose version without shape (e) and run the eval: auto-reply precision must stay at or above its floor.
 3. Answer open questions 2–5: how an n8n action is marked as changing a system, the agent's ask cap, `ticket_clarifications`, and workflow conditions on built-in fields.
 4. Then build it: remove `clarify` in both services in one PR, pass `proposed_missing_information` to the agent, add `ticket.branch`, `ticket.reasonCode` and `ticket.priority` to the action fields, and enforce the rule for flows that change systems.
