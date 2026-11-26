@@ -36,6 +36,7 @@ from apps.sla.tests.conftest import status
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.models import Ticket
 from apps.tickets.tasks import process_ticket
+from config.celery import app
 
 pytestmark = pytest.mark.django_db
 
@@ -151,6 +152,12 @@ def test_a_flag_turned_off_before_the_task_runs_collects_nothing(lan, backends, 
 
     assert not CueRun.objects.filter(ticket=ticket).exists()
     assert not InfraQuery.objects.exists()
+
+
+def test_cue_tasks_run_on_the_infra_queue_under_a_time_limit(settings):
+    for task in (tasks.ticket_cues, tasks.linked_cues):
+        assert app.amqp.router.route({}, task.name)["queue"].name == "infra"
+        assert task.soft_time_limit == settings.INFRA_CUE_SOFT_TIME_LIMIT_SEC
 
 
 def test_a_failure_queueing_cues_never_fails_the_move(lan, queued, monkeypatch):

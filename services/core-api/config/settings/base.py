@@ -291,6 +291,7 @@ OPENSTACK_FEDERATION_PROTOCOL = env("OPENSTACK_FEDERATION_PROTOCOL")
 ALERTMANAGER_URL = env("ALERTMANAGER_URL")
 INFRA_CONNECT_TIMEOUT_SEC = float(env("INFRA_CONNECT_TIMEOUT_SEC"))
 INFRA_READ_TIMEOUT_SEC = float(env("INFRA_READ_TIMEOUT_SEC"))
+INFRA_CUE_SOFT_TIME_LIMIT_SEC = int(env("INFRA_CUE_SOFT_TIME_LIMIT_SEC"))
 PROMETHEUS_URL = env("PROMETHEUS_URL")
 ELASTICSEARCH_URL = env("ELASTICSEARCH_URL")
 ELASTICSEARCH_USERNAME = env("ELASTICSEARCH_USERNAME")
@@ -667,7 +668,11 @@ CELERY_BEAT_SCHEDULE["agent-sweep"] = {
     "task": "agent.sweep",
     "schedule": AGENT_SWEEP_INTERVAL_SEC,
 }
-CELERY_TASK_ROUTES = {"agent.run_turn": {"queue": "agent"}}
+CELERY_TASK_ROUTES = {
+    "agent.run_turn": {"queue": "agent"},
+    "infra.ticket_cues": {"queue": "infra"},
+    "infra.linked_cues": {"queue": "infra"},
+}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
