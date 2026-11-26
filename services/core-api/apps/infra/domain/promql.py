@@ -30,6 +30,22 @@ SAMPLES = ("a", "db-01", "Zz 9.:/_é\n")
 # How a matcher's regex is read: RE2, the engine and syntax Prometheus uses, in linear time.
 RE2_OPTIONS = re2.Options()
 RE2_OPTIONS.log_errors = False
+# The keys `parse_query` gives each node, matcher and vector matching core-api knows.
+SELECTOR_KEYS = frozenset({"type", "name", "offset", "matchers", "timestamp", "startOrEnd"})
+NODE_KEYS = {
+    "vectorSelector": SELECTOR_KEYS,
+    "matrixSelector": SELECTOR_KEYS | {"range"},
+    "subquery": frozenset({"type", "expr", "range", "offset", "step", "timestamp", "startOrEnd"}),
+    "call": frozenset({"type", "func", "args"}),
+    "aggregation": frozenset({"type", "op", "expr", "param", "grouping", "without"}),
+    "binaryExpr": frozenset({"type", "op", "lhs", "rhs", "matching", "bool"}),
+    "unaryExpr": frozenset({"type", "op", "expr"}),
+    "parenExpr": frozenset({"type", "expr"}),
+    "numberLiteral": frozenset({"type", "val"}),
+    "stringLiteral": frozenset({"type", "val"}),
+}
+MATCHER_KEYS = frozenset({"name", "type", "value"})
+MATCHING_KEYS = frozenset({"card", "labels", "on", "include"})
 # Prometheus durations, largest first.
 UNITS = (
     ("y", 365 * 24 * 3600 * 1000),
@@ -92,6 +108,8 @@ class ScopedPromQL:
 
     def expr(self, node: Node) -> str:
         """`node` as PromQL."""
+        if node["type"] in NODE_KEYS:
+            self.expect(node, NODE_KEYS[node["type"]], f"a {node['type']}")
         match node["type"]:
             case "vectorSelector":
                 return self.selector(node) + self.modifiers(node)
@@ -134,6 +152,7 @@ class ScopedPromQL:
             raise self.unsupported(f"the metric name {name!r}")
         matchers = []
         for found in node["matchers"]:
+            self.expect(found, MATCHER_KEYS, "a matcher")
             label, kind, value = found["name"], found["type"], found["value"]
             if name and (label, kind, value) == ("__name__", "=", name):
                 continue
@@ -220,6 +239,7 @@ class ScopedPromQL:
             written.append("bool")
         matching = node["matching"]
         if matching is not None:
+            self.expect(matching, MATCHING_KEYS, "a vector matching")
             labels = self.labels(matching["labels"])
             card = matching["card"]
             if matching["on"]:
@@ -248,6 +268,11 @@ class ScopedPromQL:
         if not isinstance(name, str) or not LABEL_NAME.fullmatch(name):
             raise self.unsupported(f"the label name {name!r}")
         return name
+
+    def expect(self, found: Node, keys: frozenset[str], what: str) -> None:
+        """Refuses `found` if it holds a key besides `keys`."""
+        if extra := set(found) - keys:
+            raise self.unsupported(f"{', '.join(sorted(map(str, extra)))} on {what}")
 
     @staticmethod
     def unsupported(what: str) -> QueryRefused:

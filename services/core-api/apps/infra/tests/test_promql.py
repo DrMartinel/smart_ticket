@@ -298,6 +298,10 @@ def test_a_raw_query_naming_the_project_is_refused(
         unary("!", CPU),
         binary("+", CPU, CPU, card="sideways"),
         agg("sum", CPU, by=("server) or vector(1) #",)),
+        vs("cloud_server_up") | {"anchored": True},
+        vs("cloud_server_up", m("server", "=", "db-01") | {"utf8": True}),
+        binary("+", CPU, CPU)
+        | {"matching": {"card": "one-to-one", "labels": [], "on": False, "include": [], "fill": 0}},
     ],
     ids=[
         "unknown_node",
@@ -308,6 +312,9 @@ def test_a_raw_query_naming_the_project_is_refused(
         "unknown_unary",
         "unknown_matching",
         "grouping_breakout",
+        "unknown_node_key",
+        "unknown_matcher_key",
+        "unknown_matching_key",
     ],
 )
 def test_a_tree_core_api_cannot_check_is_refused_and_never_run(
