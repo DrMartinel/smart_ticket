@@ -284,14 +284,14 @@ export function useAgentConversation(enabled: boolean) {
   );
 
   /** Sends a pressed choice's label as the next message; once it is sent, a server, volume or
-   * network is also posted as the person's pick, on the conversation that took the message. */
+   * network is also posted as the person's pick, on the turn that took the message. */
   const choose = useCallback(
     (choice: AgentChoiceOut) => {
       const { kind, id } = choice;
       void send(choice.label).then((turn) => {
         if (turn && id && namesAResource(kind)) {
           void infraApi
-            .pick({ conversation_id: turn.conversation_id, kind, resource_id: id })
+            .pick({ conversation_id: turn.conversation_id, turn_id: turn.turn_id, kind, resource_id: id })
             .catch(() => undefined);
         }
       });

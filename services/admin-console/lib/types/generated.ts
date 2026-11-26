@@ -2260,12 +2260,14 @@ export interface TicketCuesOut {
 
 export interface ResourcePickIn {
   conversation_id: string;
+  turn_id: string;
   kind: ResourceKind;
   resource_id: string;
 }
 
 export interface ResourcePickOut {
   conversation_id: string;
+  turn_id: string;
   kind: ResourceKind;
   resource_id: string;
   name: string;
