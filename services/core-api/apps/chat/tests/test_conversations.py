@@ -16,9 +16,10 @@ from apps.incidents.services.incidents import incidents
 from apps.rollout.testing import all_live
 from apps.tickets.models import IncidentVerdict, RoutingDecision, Ticket
 from apps.tickets.domain.masking import NERError
-from apps.tickets.services.pipeline import _degraded_signals, ticket_process
+from apps.tickets.services.pipeline import ticket_process
+from apps.tickets.testing import nothing_found
 from infrastructure.ai_engine import ai_engine
-from infrastructure.dtos import AIRunResponse, CategoryOption, EngineSignals, TicketMasked
+from infrastructure.dtos import AIRunResponse, CategoryOption, TicketMasked
 
 pytestmark = pytest.mark.django_db
 
@@ -28,19 +29,13 @@ SECOND = "Làm theo rồi vẫn lỗi, em dùng mạng 4G"
 
 def response(request_id: str, *, injection: bool = False) -> AIRunResponse:
     """ai-engine with every check failed and nothing proposed; `injection` flags the ticket."""
-    d = _degraded_signals()
     return AIRunResponse(
         request_id=request_id,
         graph_version="test",
         prompt_version="test",
         model="test",
         proposal=None,
-        signals=EngineSignals(
-            retrieval=d.retrieval,
-            generation=d.generation,
-            classification=d.classification,
-            injection_detected=injection,
-        ),
+        signals=nothing_found(injection_detected=injection),
     )
 
 

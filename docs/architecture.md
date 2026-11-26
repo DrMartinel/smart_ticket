@@ -418,6 +418,8 @@ Every degradation resolves toward a human. A user waiting longer is acceptable; 
 | Daily cost ceiling exceeded (core-api) | AI off for the day; everything to HITL |
 | The active categories are unusable (no security category, or a blank description) | ai-engine is not called; the router's earlier gates still decide, else HITL `category_set_invalid` (ADR-0049) |
 
+On every row that reaches a decision the router's hard gates decide first, on the ticket's own PII level and agent hand-off reason (`Router.degraded`): a critical-PII ticket is still blocked with a security alert, a mask-failed one still goes to the `mask_failed` queue, and a hand-off keeps its reason. The row's reason code applies only when no gate fails. A mass-incident short-circuit is routed on the same signals, so a critical-PII ticket in an incident is blocked too; a mask-failed or hand-off one escalates with the incident, in the gates' order.
+
 Two timeout budgets exist per model call, and the distinction matters: **connect** is short (3s) because an unreachable provider is knowable immediately, while **read** is long (120s) because a cold model load legitimately takes 15–20s. Collapsing them means an unreachable provider burns the full read budget — which, since masking is inline, is a user watching a spinner.
 
 ---

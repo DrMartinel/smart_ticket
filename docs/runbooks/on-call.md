@@ -69,7 +69,13 @@ working is exactly the failure ADR-0013 was written after.
 
 **What this means:** core-api could not embed the ticket, so incident and
 duplicate detection could not run. The ticket routes to HITL with
-`ReasonCode.EMBEDDING_UNAVAILABLE` (spec §10.3 — degrade toward a human).
+`ReasonCode.EMBEDDING_UNAVAILABLE` (spec §10.3 — degrade toward a human),
+unless a hard gate fails first: a critical-PII ticket is still blocked, a
+mask-failed one goes to the `mask_failed` queue as `pii_mask_failed`, and an
+agent hand-off keeps its reason. With ai-engine down entirely, NER fails
+too, so most tickets arrive as `pii_mask_failed` while
+`ai_runs.degraded_reason` still says `embedding_unavailable`: the same
+outage, not a second one.
 
 **Why this one deserves its own entry:** the embedding call happens in
 `process_ticket` *before* the ai-engine call, and it is the only remote

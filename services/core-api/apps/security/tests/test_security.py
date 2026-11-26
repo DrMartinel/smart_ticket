@@ -22,9 +22,10 @@ from apps.security.models import SecurityAlert
 from apps.security.services.alerts import security_alerts
 from apps.security.domain.vocabulary import AlertKind
 from apps.tickets.models import AiRun, IncidentVerdict, Ticket
-from apps.tickets.services.pipeline import _degraded_signals, ticket_process
+from apps.tickets.services.pipeline import ticket_process
+from apps.tickets.testing import nothing_found
 from infrastructure.ai_engine import ai_engine
-from infrastructure.dtos import AIRunResponse, EngineSignals
+from infrastructure.dtos import AIRunResponse
 
 pytestmark = pytest.mark.django_db
 
@@ -56,19 +57,13 @@ def engine(monkeypatch) -> dict[str, bool]:
     monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
 
     def analyze(masked, request_id, categories):
-        d = _degraded_signals()
         return AIRunResponse(
             request_id=request_id,
             graph_version="test",
             prompt_version="test",
             model="test",
             proposal=None,
-            signals=EngineSignals(
-                retrieval=d.retrieval,
-                generation=d.generation,
-                classification=d.classification,
-                injection_detected=flags["injection"],
-            ),
+            signals=nothing_found(injection_detected=flags["injection"]),
         )
 
     monkeypatch.setattr(ai_engine, "analyze", analyze)

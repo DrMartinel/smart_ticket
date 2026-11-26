@@ -673,6 +673,36 @@ def test_an_unusable_set_still_lets_the_hard_gates_decide_first(policy, branch, 
     assert d.reason_code is reason
 
 
+def test_a_degraded_run_with_no_gate_failed_keeps_its_own_reason():
+    d = Router(TH).degraded(good_signals(), ReasonCode.EMBEDDING_UNAVAILABLE)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.EMBEDDING_UNAVAILABLE
+    assert d.gate_failed == ReasonCode.EMBEDDING_UNAVAILABLE.value
+    assert d.queue is ReviewQueue.LOW_CONFIDENCE
+
+
+@pytest.mark.parametrize(
+    "policy, branch, reason",
+    [
+        ({"policy.injection_detected": True}, Branch.BLOCK, ReasonCode.INJECTION_DETECTED),
+        ({"policy.pii_level": PIILevel.CRITICAL}, Branch.BLOCK, ReasonCode.PII_CRITICAL),
+        ({"policy.mass_incident": True}, Branch.ESCALATE, ReasonCode.MASS_INCIDENT),
+        ({"policy.pii_level": PIILevel.MASK_FAILED}, Branch.HITL, ReasonCode.PII_MASK_FAILED),
+        (
+            {"policy.agent_handoff_reason": "agent_step_limit"},
+            Branch.HITL,
+            ReasonCode.AGENT_STEP_LIMIT,
+        ),
+    ],
+    ids=["injection", "pii_critical", "mass_incident", "mask_failed", "agent_handoff"],
+)
+def test_a_degraded_run_does_not_hide_a_hard_gate(policy, branch, reason):
+    d = Router(TH).degraded(good_signals(**policy), ReasonCode.AI_ENGINE_UNAVAILABLE)
+    assert d.branch is branch
+    assert d.reason_code is reason
+    assert d.alert_security is (branch is Branch.BLOCK)
+
+
 def test_a_route_into_a_category_not_routable_goes_to_a_human():
     categories = CategorySet(
         categories=tuple(category(s, is_routable=s != "network") for s in SEEDED)
