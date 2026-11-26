@@ -1,7 +1,8 @@
 """core-api's clients of the cloud's API (OpenStack), Alertmanager, Prometheus (through
 prom-label-proxy) and Elasticsearch (F17, ADR-0048 §1). Transport only: a read answers its JSON,
 or raises `BackendNotFound` for a 404, `BackendRefused` for a query Prometheus rejects and
-`BackendUnavailable` for anything else."""
+`BackendUnavailable` for anything else. A change to the cloud also raises `BackendConflict` for
+a 409, `BackendRefused` for another 4xx and `ChangeOutcomeUnknown` once it may have been made."""
 
 from __future__ import annotations
 
@@ -37,7 +38,15 @@ class BackendNotFound(Exception):
 
 
 class BackendRefused(Exception):
-    """A backend that rejected the query it was sent."""
+    """A backend that rejected the query or change it was sent."""
+
+
+class BackendConflict(Exception):
+    """A cloud that refused a change because of the resource's state."""
+
+
+class ChangeOutcomeUnknown(Exception):
+    """A change the cloud may have made: sent with no answer, or answered with a server error."""
 
 
 def http_client() -> httpx.Client:
@@ -88,6 +97,49 @@ class OpenStack:
         if response.status_code == 401:
             response = self.send(self.token(renew=True), service, path, params)
         return json_of(InfraBackend.CLOUD, response)
+
+    def change(
+        self, method: str, service: str, path: str, body: dict[str, Any] | None = None
+    ) -> None:
+        """Sends one change to the catalog's `service` endpoint, and again with a new token only
+        after a 401."""
+        response = self.send_change(self.token(), method, service, path, body)
+        if response.status_code == 401:
+            response = self.send_change(self.token(renew=True), method, service, path, body)
+        status = response.status_code
+        if 200 <= status < 300:
+            return
+        if status >= 500:
+            raise ChangeOutcomeUnknown(f"{service} answered {status}")
+        if status == 401:
+            raise BackendUnavailable(InfraBackend.CLOUD, f"{service} refused the service token")
+        if status == 404:
+            raise BackendNotFound(path)
+        if status == 409:
+            raise BackendConflict(f"{service} answered 409")
+        raise BackendRefused(f"{service} answered {status}")
+
+    def send_change(
+        self,
+        token: ServiceToken,
+        method: str,
+        service: str,
+        path: str,
+        body: dict[str, Any] | None,
+    ) -> httpx.Response:
+        """One request that changes something; a failure after it may have been received is
+        `ChangeOutcomeUnknown`."""
+        base = token.endpoints.get(service)
+        if base is None:
+            raise BackendUnavailable(InfraBackend.CLOUD, f"the catalog names no {service}")
+        try:
+            return self.http.request(
+                method, f"{base}{path}", json=body, headers={"X-Auth-Token": token.value}
+            )
+        except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+            raise BackendUnavailable(InfraBackend.CLOUD, f"{service}: {type(e).__name__}") from e
+        except httpx.HTTPError as e:
+            raise ChangeOutcomeUnknown(f"{service}: {type(e).__name__}") from e
 
     def token(self, *, renew: bool = False) -> ServiceToken:
         with self._lock:
