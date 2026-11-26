@@ -10,9 +10,9 @@ import { agentApi } from "@/lib/agent";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { relativeTime } from "@/lib/format";
-import { CHANGE_LABEL, OUTCOME_UNKNOWN_TEXT, RESOURCE_LABEL, changeOf, changeRefusal, describeRule, type ResourceKind } from "@/lib/infra";
+import { CHANGE_LABEL, OUTCOME_UNKNOWN_TEXT, RESOURCE_LABEL, changeOf, changeRefusal, describeRule, unanswered } from "@/lib/infra";
 import { P, can } from "@/lib/permissions";
-import type { AgentActionOut, RuleOut, SecurityRuleIn } from "@/lib/types/generated";
+import type { AgentActionOut, InfraResource, RuleOut, SecurityRuleIn } from "@/lib/types/generated";
 import { Labeled } from "@/components/Modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ export default function ResourceChanges({
   rules = [],
   onChanged,
 }: {
-  kind: ResourceKind;
+  kind: InfraResource;
   id: string;
   name: string;
   // A security group's rules, to name the one a removal drafts.
@@ -50,18 +50,18 @@ export default function ResourceChanges({
   const [edits, setEdits] = useState<Record<string, Payload>>({});
   const usesAgent = can(user, P.agentUse);
   const operates = can(user, P.infraOperate);
+  const target = `target_kind=${kind}&target_ref=${encodeURIComponent(id)}`;
 
   const load = useCallback(async () => {
-    const onThis = (a: AgentActionOut) => a.target_kind === kind && a.target_ref === id;
     try {
-      const [waiting, unknown] = await Promise.all([agentApi.actions("state=pending"), agentApi.actions("state=outcome_unknown")]);
-      setPending(waiting.filter(onThis));
-      setLost(unknown.filter(onThis).map((action) => ({ action, text: OUTCOME_UNKNOWN_TEXT })));
+      const [waiting, unknown] = await Promise.all([agentApi.actions(`state=pending&${target}`), agentApi.actions(`state=outcome_unknown&${target}`)]);
+      setPending(waiting);
+      setLost(unknown.map((action) => ({ action, text: OUTCOME_UNKNOWN_TEXT })));
       setFailed(false);
     } catch {
       setFailed(true);
     }
-  }, [kind, id]);
+  }, [target]);
 
   useEffect(() => {
     if (usesAgent) void load();
@@ -89,17 +89,17 @@ export default function ResourceChanges({
       toast.success(`${change ? CHANGE_LABEL[change] : "The change"}: the cloud accepted it.`);
       onChanged();
     } catch (err) {
-      if (!(err instanceof ApiError)) {
+      if (!(err instanceof ApiError) || unanswered(err)) {
         try {
-          const waiting = await agentApi.actions("state=pending");
+          const waiting = await agentApi.actions(`state=pending&${target}`);
           if (!waiting.some((a) => a.action_id === actionId)) {
-            loseAnswer(action, "No answer came back, so it isn't known whether the change was sent. Check the resource before doing anything else.");
+            loseAnswer(action, "No answer said what became of it, so it isn't known whether the change was sent. Check the resource before doing anything else.");
             return;
           }
         } catch {
           // the list is unreachable too: the action is shown as still waiting
         }
-        fail(actionId, "Couldn't reach the server, and the change is still waiting. You can try again.");
+        fail(actionId, "No answer said what became of it, and the change is still waiting. You can try again.");
         return;
       }
       const result = changeRefusal(err);

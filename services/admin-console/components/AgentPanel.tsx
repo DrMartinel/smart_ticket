@@ -248,23 +248,21 @@ function ConfirmCard({
   const payload = (action.arguments.payload ?? {}) as Record<string, unknown>;
   const page = pageOf(action.path);
   const change = changeOf(action);
+  const resource = resourceOfPath(action.path);
   return (
     <Card className="flex flex-col gap-2 border-info/40 px-3 py-2.5" aria-label="Confirm this change">
       <p className="font-medium">
         {TOOL_LABEL[action.tool] ?? action.tool}
         {page && <span className="font-normal text-muted-foreground"> · {page.label}</span>}
       </p>
-      {change && (
+      {change && resource && (
         <p className="text-xs text-muted-foreground">
-          {CHANGE_LABEL[change]} of {RESOURCE_LABEL[action.target_kind as keyof typeof RESOURCE_LABEL] ?? action.target_kind}{" "}
-          <span className="font-mono">{action.target_ref}</span>
+          {CHANGE_LABEL[change]} of {RESOURCE_LABEL[resource.kind]} <span className="font-mono">{resource.id}</span>
           {typeof payload.server_id === "string" && <> to server <span className="font-mono">{payload.server_id}</span></>}
           {typeof payload.public_id === "string" && <>, for ticket {payload.public_id}</>}.{" "}
-          {page && (
-            <Link href={page.href} className="text-primary hover:underline">
-              Check its state first
-            </Link>
-          )}
+          <Link href={resource.href} className="text-primary hover:underline">
+            Check its state first
+          </Link>
         </p>
       )}
       {typeof payload.body === "string" && (

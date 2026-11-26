@@ -5,13 +5,15 @@ import { ApiError } from "./api";
 import type {
   AgentActionOut,
   InfraBackend,
+  InfraChange,
   InfraOutcome,
   InfraQueryKind,
+  InfraResource,
   QueryCheck,
   RuleOut,
 } from "./types/generated";
 
-export type ResourceKind = "server" | "volume" | "network" | "security_group";
+export type ResourceKind = InfraResource | "network";
 
 const SEGMENT: Record<ResourceKind, string> = {
   server: "servers",
@@ -119,6 +121,12 @@ const CHANGE_REFUSAL: Record<string, { text: string; final?: boolean }> = {
 export const OUTCOME_UNKNOWN_TEXT =
   "The cloud's answer was lost, so it isn't known whether the change was made. Check the resource before doing anything else.";
 
+/** Whether a server error says nothing of what became of a change: a 5xx without a known code. */
+export function unanswered(err: ApiError): boolean {
+  const known = err.code === "infra_outcome_unknown" || (err.code !== null && err.code in CHANGE_REFUSAL);
+  return err.status >= 500 && !known;
+}
+
 export type ChangeResult =
   | { kind: "unknown"; text: string }
   | { kind: "final"; text: string }
@@ -133,17 +141,7 @@ export function changeRefusal(err: unknown): ChangeResult {
   return { kind: "refused", text: err.message };
 }
 
-export type ChangeKind =
-  | "soft_reboot"
-  | "hard_reboot"
-  | "start"
-  | "stop"
-  | "attach_volume"
-  | "detach_volume"
-  | "add_security_rule"
-  | "remove_security_rule";
-
-export const CHANGE_LABEL: Record<ChangeKind, string> = {
+export const CHANGE_LABEL: Record<InfraChange, string> = {
   soft_reboot: "Soft reboot",
   hard_reboot: "Hard reboot",
   start: "Start",
@@ -155,7 +153,7 @@ export const CHANGE_LABEL: Record<ChangeKind, string> = {
 };
 
 /** The change an assistant's action on an infra route makes, read from its method and path. */
-export function changeOf(action: Pick<AgentActionOut, "method" | "path">): ChangeKind | null {
+export function changeOf(action: Pick<AgentActionOut, "method" | "path">): InfraChange | null {
   const tail = /\/api\/infra\/[^/]+\/[^/]+\/([a-z-]+)\/?$/.exec(action.path)?.[1];
   switch (tail) {
     case "reboot":
