@@ -1,6 +1,6 @@
 # ADR-0049: Ticket categories are rows in `ticket_categories`
 
-**Status:** Accepted for parts 1 and 2 (2026-11-26). Part 1 (decisions 1–4) is merged; part 2 (decision 5, the category set on the wire, open questions 1 and 2) is built and waits on its eval run. Part 3 (a workflow per category) is built as open question 3 proposes and waits on the owner's answer to it. Part 4 (the agent reads the categories, open question 4) is built. Open questions 1, 2 and 4 are answered; 3 and part of 2 are still open.
+**Status:** Accepted for parts 1 and 2 (2026-11-26). Part 1 (decisions 1–4) is merged; part 2 (decision 5, the category set on the wire, open questions 1 and 2) is built and waits on its eval run. Part 3 (a workflow per category) is built as open question 3 proposes and waits on the owner's answer to it. Part 4 (the agent reads the categories, open question 4) is built; its employee half is built as proposed and waits on the owner. Open questions 1, 2 and 4 are answered, except 4's employee half; 3 and part of 2 are still open.
 **Date:** 2026-11-26
 **Builds on:** ADR-0017 (Jev chooses the category), ADR-0031 (teams own categories), ADR-0028 (workflows), ADR-0045 (permissions), ADR-0046 (agent tiers)
 **Will amend:** ADR-0017, once part 2 builds Jev's category question from the rows
@@ -163,15 +163,17 @@ Teams and the categories they own were already data (`team_teams`,
   F15 tier table (06-F15 §h.3). Its edit route stays `none`: an agent
   acting for a manager is refused (`agent_not_allowed`).
 - **The tool.** The console surface gains `list_categories`: each active
-  category's slug, name, `is_security` and description, the description
-  wrapped as untrusted text (BR-F15-10), since a person wrote it. Inactive
-  rows are left out.
+  category's slug, name, `is_security` and description, the name and
+  description wrapped as untrusted text (BR-F15-10), since a person wrote
+  them. Inactive rows are left out. The drafts' category arguments tell
+  the model their slugs come from it.
 - **No fixed list.** The console tools' `corrected_category` and
   `to_category` were the six slugs as a `Literal`; they are now any slug,
   and core-api refuses one that is unknown or inactive, as for a person.
 - **Employees.** The chat surface has no category tool, and employees still
   don't hold `categories:read`: nothing an employee's agent does needs the
-  list. That closes the last part of open question 4.
+  list. This is the proposed answer to the employee half of open question 4;
+  the owner hasn't confirmed it.
 
 ## Open questions
 
@@ -203,10 +205,10 @@ The owner answered 1, 2 and 4 on 2026-11-26.
    ticket again (part 3 leaves it where it is).
 4. **Answered: read only.** The agent reads the category list
    (`GET /api/categories` at `AgentTier.READ`, part 4) and never changes it.
-   A ticket's category is still Jev's choice in triage. The agent acts as
-   the person, and employees don't hold `categories:read`: part 4 gives
-   only the console (staff) surface a category tool, so employees keep
-   no read access.
+   A ticket's category is still Jev's choice in triage. **Built as
+   proposed, not yet confirmed:** the agent acts as the person, and
+   employees don't hold `categories:read`; part 4 gives only the console
+   (staff) surface a category tool, so employees keep no read access.
 
 ## Consequences
 

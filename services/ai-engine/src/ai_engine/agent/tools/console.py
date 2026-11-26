@@ -12,7 +12,15 @@ from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, person, un
 from ai_engine.agent.tools.tool import Context, PublicIdIn, Tier, Tool, ToolInput
 
 StaffView = Literal["review", "mine", "open", "resolved", "all"]
-CategorySlug = Annotated[str, Field(min_length=1, max_length=20, pattern=r"^[-a-zA-Z0-9_]+$")]
+CategorySlug = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=20,
+        pattern=r"^[-a-zA-Z0-9_]+$",
+        description="A category slug from list_categories.",
+    ),
+]
 ReassignReason = Literal[
     "wrong_team", "workload", "skill", "leave", "escalation", "requester_request", "other"
 ]
@@ -165,17 +173,13 @@ def categories(body: Any, context: Context) -> list[dict[str, Any]]:
     return [
         {
             "slug": c.get("slug"),
-            "name": c.get("name"),
+            "name": untrusted(c.get("name")),
             "description": untrusted(c.get("description")),
             "is_security": c.get("is_security"),
         }
         for c in body
         if c.get("is_active")
     ]
-
-
-class NoArgs(ToolInput):
-    pass
 
 
 class ListTicketsIn(ToolInput):
@@ -286,7 +290,7 @@ TOOLS = (
         tier=Tier.READ,
         method="GET",
         path="/api/categories",
-        Input=NoArgs,
+        Input=ToolInput,
         description="List the categories a ticket can be in: each one's slug, name and what it covers.",
         project=categories,
     ),
