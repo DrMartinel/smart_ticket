@@ -20,7 +20,13 @@ from apps.agent.testing import as_agent
 from apps.infra.domain.promql import PromQLQuery, duration
 from apps.infra.domain.queries import Window
 from apps.infra.models import InfraQuery
-from apps.infra.tests.conftest import LAN_SUBJECT, CloudSim, FakePrometheus, series
+from apps.infra.tests.conftest import (
+    LAN_SUBJECT,
+    CloudSim,
+    FakeElasticsearch,
+    FakePrometheus,
+    series,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -533,6 +539,24 @@ def test_a_catastrophic_regex_is_checked_in_linear_time(
 
     assert reply.status_code == (200 if runs else 422)
     assert len(prom.queries) == (1 if runs else 0)
+
+
+@pytest.mark.parametrize(
+    "path", ["metrics/promql", "metrics/query", "logs/search", "traces/search"]
+)
+def test_an_empty_project_id_is_refused_and_runs_nothing(
+    api_as, technician_user, cloud_sim: CloudSim, prom: FakePrometheus, es: FakeElasticsearch, path
+):
+    prom.tree = IOPS
+    data = body(project_id="") | {"metric": "cloud_volume_read_latency_seconds"}
+
+    reply = api_as(technician_user).post(
+        f"/api/infra/{path}", data=data, content_type="application/json"
+    )
+
+    assert reply.status_code == 422
+    assert prom.parsed == [] and prom.queries == [] and es.searches == []
+    assert not InfraQuery.objects.exists()
 
 
 def test_more_selectors_than_the_cap_are_refused(

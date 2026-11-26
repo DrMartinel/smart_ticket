@@ -24,7 +24,7 @@ class MetricQueryIn(Schema):
     function_seconds: int | None = Field(default=None, ge=1)
     aggregate: str | None = None
     by: list[str] = []
-    project_id: str | None = None
+    project_id: str | None = Field(None, min_length=1)
 
     def query(self) -> MetricQuery:
         return MetricQuery(
@@ -44,7 +44,7 @@ class PromQLIn(Schema):
     start: datetime
     end: datetime
     step_seconds: int = Field(ge=1)
-    project_id: str | None = None
+    project_id: str | None = Field(None, min_length=1)
 
     def query(self) -> PromQLQuery:
         return PromQLQuery(
@@ -59,7 +59,7 @@ class LogSearchIn(Schema):
     text: str | None = Field(default=None, max_length=500)
     filters: dict[str, list[str]] = {}
     size: int | None = Field(default=None, ge=1)
-    project_id: str | None = None
+    project_id: str | None = Field(None, min_length=1)
 
     def query(self) -> LogSearch:
         return LogSearch(
@@ -77,7 +77,7 @@ class TraceSearchIn(Schema):
     filters: dict[str, list[str]] = {}
     min_duration_ms: int | None = Field(default=None, ge=0)
     size: int | None = Field(default=None, ge=1)
-    project_id: str | None = None
+    project_id: str | None = Field(None, min_length=1)
 
     def query(self) -> TraceSearch:
         return TraceSearch(
