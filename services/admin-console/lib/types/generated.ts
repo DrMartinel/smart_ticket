@@ -1884,6 +1884,115 @@ export interface SilenceOut {
   ends_at: string;
 }
 
+export interface MetricEntryOut {
+  name: string;
+  kind: string;
+  help: string;
+  labels: string[];
+}
+
+export interface DatasetEntryOut {
+  name: string;
+  help: string;
+}
+
+export interface FieldEntryOut {
+  name: string;
+  help: string;
+}
+
+export interface CatalogOut {
+  metrics: MetricEntryOut[];
+  range_functions: Record<string, string>;
+  aggregations: string[];
+  log_datasets: DatasetEntryOut[];
+  log_fields: FieldEntryOut[];
+  trace_fields: FieldEntryOut[];
+  caps: Record<string, number>;
+}
+
+export interface SeriesOut {
+  labels: Record<string, string>;
+  points: unknown[][];
+}
+
+export interface MetricAnswerOut {
+  query_id: string;
+  series: SeriesOut[];
+  truncated: boolean;
+}
+
+export interface LogLineOut {
+  at: string;
+  level: string;
+  project_id: string;
+  server: string;
+  server_id: string;
+  service: string;
+  message: string;
+}
+
+export interface LogAnswerOut {
+  query_id: string;
+  total: number;
+  lines: LogLineOut[];
+  truncated: boolean;
+  withheld: number;
+}
+
+export interface SpanOut {
+  trace_id: string;
+  id: string;
+  parent_id: string;
+  name: string;
+  project_id: string;
+  service: string;
+  server: string;
+  started_at: string;
+  duration_ms: number;
+  outcome: string;
+  attributes: Record<string, string>;
+}
+
+export interface TraceAnswerOut {
+  query_id: string;
+  spans: SpanOut[];
+  truncated: boolean;
+  withheld: number;
+}
+
+export interface MetricQueryIn {
+  metric: string;
+  start: string;
+  end: string;
+  step_seconds: number;
+  filters?: Record<string, string[]>;
+  function?: string | null;
+  function_seconds?: number | null;
+  aggregate?: string | null;
+  by?: string[];
+  project_id?: string | null;
+}
+
+export interface LogSearchIn {
+  start: string;
+  end: string;
+  dataset?: string;
+  text?: string | null;
+  filters?: Record<string, string[]>;
+  size?: number | null;
+  project_id?: string | null;
+}
+
+export interface TraceSearchIn {
+  start: string;
+  end: string;
+  filters?: Record<string, string[]>;
+  min_duration_ms?: number | null;
+  size?: number | null;
+  project_id?: string | null;
+}
+
 export interface BranchReadinessOut {
   branch: string;
   decision_branch: string;

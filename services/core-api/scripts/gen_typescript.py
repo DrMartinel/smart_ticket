@@ -224,6 +224,19 @@ MODELS = [
     "AlertOut",
     "MatcherOut",
     "SilenceOut",
+    "MetricEntryOut",
+    "DatasetEntryOut",
+    "FieldEntryOut",
+    "CatalogOut",
+    "SeriesOut",
+    "MetricAnswerOut",
+    "LogLineOut",
+    "LogAnswerOut",
+    "SpanOut",
+    "TraceAnswerOut",
+    "MetricQueryIn",
+    "LogSearchIn",
+    "TraceSearchIn",
     "BranchReadinessOut",
     "AutomationOut",
     "RolloutReportOut",
@@ -360,7 +373,7 @@ def _models() -> dict[str, type[BaseModel]]:
         request_schema as incidents_request,
         response_schema as incidents_response,
     )
-    from apps.infra import response_schema as infra_response
+    from apps.infra import request_schema as infra_request, response_schema as infra_response
     from apps.itsm_mock import request_schema as itsm_request, response_schema as itsm_response
     from apps.kb import request_schema as kb_request, response_schema as kb_response
     from apps.notifications import (
@@ -415,6 +428,7 @@ def _models() -> dict[str, type[BaseModel]]:
         reports_response,
         itsm_request,
         itsm_response,
+        infra_request,
         infra_response,
         accounts_request,
         accounts_response,
