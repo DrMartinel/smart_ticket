@@ -591,6 +591,14 @@ guard and that comment is later trimmed, the entry is the record.
   (BR-F15-25), and the requester's routes never show it.
   *`test_handoff_summary_never_reaches_triage_or_routing`,
   `test_the_summary_is_shown_to_staff_and_never_to_the_requester`.*
+- **`require` counting an agent call by its gate's tier (`count_read` for
+  `read`, `count_write` for the rest), never by its HTTP method.** The cloud
+  queries are POSTs that only read; counted as writes, a few of them use up
+  the turn's write cap before the change the person asked for (FR-F17-011).
+  With `max_read_calls_per_turn` unset, reads are uncounted, as in F15.
+  *`test_an_agent_s_post_query_counts_as_a_read_never_a_write`,
+  `test_a_turn_s_reads_beyond_max_read_calls_are_refused`,
+  `test_without_max_read_calls_core_api_caps_no_read`.*
 
 ### Infra reads and queries (F17, ADR-0048)
 
@@ -923,6 +931,25 @@ guard and that comment is later trimmed, the entry is the record.
   reply on this path, so `finish` would pass it too, and no test fails if
   `RESULT_FLAGGED` is routed there.
   *`test_agent_graph.py::test_a_hand_off_after_an_injection_hit_drops_its_text_and_summary`.*
+- **`CoreApi.send` deciding what a failure means by `read`, which `Tool.run`
+  sets from the tool's tier, never by the HTTP method** (FR-F17-010). The
+  cloud queries are POSTs that only read; by method, one that timed out would
+  end the turn `agent_tool_outcome_unknown`, as if a change might have been
+  made. A write sent and not answered stays `OutcomeUnknown` and is never
+  resent. *`test_agent_graph.py::test_a_failed_post_read_is_tool_failed_not_outcome_unknown`,
+  `::test_a_lost_write_is_still_outcome_unknown`.*
+- **`resource_ref` labelling a project, server, volume or network by its name
+  only when the whole name matches `_PLAIN_NAME`, and by its id otherwise.**
+  Whoever runs the project names its resources; a name that is a sentence
+  would go on a button whose press is sent as the person's own message.
+  *`test_agent_graph.py::test_a_resource_label_is_its_name_only_when_that_is_a_plain_name`.*
+- **`cloud_text` and `cloud_pairs` wrapping every text the cloud holds**
+  (descriptions, metadata, alert texts, log messages, span attributes) as
+  `untrusted_text`, and leaving `[withheld]` plain. Whoever runs a workload
+  writes that text; unwrapped, its instructions read as data from the system,
+  the screen never flags it, and change tools stay offered (EC-F15-10).
+  *`test_agent_graph.py::test_text_the_cloud_holds_is_untrusted_and_withheld_text_stays_withheld`,
+  `::test_an_injected_log_line_leaves_only_reads`.*
 - **`TICKET_AT_ONCE` in `apps/agent/models.py`, and `agent_handoff` in
   `waits_for_requester`.** Every other hand-off opens its ticket only on the
   employee's click; a mask-failed or critical-PII turn must reach a person
