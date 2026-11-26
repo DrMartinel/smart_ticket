@@ -8,6 +8,8 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import re2
+
 from apps.infra.domain.catalog import PROJECT_LABEL, PROMQL_AGGREGATIONS, PROMQL_FUNCTIONS
 from apps.infra.domain.queries import Window, matcher, promql_string
 from apps.infra.domain.vocabulary import QueryCheck, QueryRefused
@@ -25,6 +27,9 @@ BINARY_OPS = frozenset(
 )
 # Label values of every shape; a regex matcher accepting all of them matches everything.
 SAMPLES = ("a", "db-01", "Zz 9.:/_é\n")
+# How a matcher's regex is read: RE2, the engine and syntax Prometheus uses, in linear time.
+RE2_OPTIONS = re2.Options()
+RE2_OPTIONS.log_errors = False
 # Prometheus durations, largest first.
 UNITS = (
     ("y", 365 * 24 * 3600 * 1000),
@@ -59,19 +64,21 @@ def text(value: Any) -> str:
 
 
 def matches_everything(kind: str, value: str) -> bool:
-    """Whether a matcher accepts every value a label has: a regex accepting every sample, or a
-    negative matcher of the empty string."""
-    if kind in ("!=", "!~"):
-        return value == ""
-    if kind != "=~":
+    """Whether a matcher accepts every value a label has: `!=""`, a regex accepting every sample,
+    or a negative regex excluding the empty string and no sample."""
+    if kind == "=":
         return False
+    if kind == "!=":
+        return value == ""
     try:
-        pattern = re.compile(f"(?s:{value})")
-    except re.error as e:
+        pattern = re2.compile(f"(?s:{value})", RE2_OPTIONS)
+    except re2.error as e:
         raise QueryRefused(
             QueryCheck.UNSUPPORTED, f"core-api can't read the regular expression {value!r}"
         ) from e
-    return all(pattern.fullmatch(sample) for sample in SAMPLES)
+    if kind == "=~":
+        return all(pattern.fullmatch(sample) for sample in SAMPLES)
+    return bool(pattern.fullmatch("")) and not any(pattern.fullmatch(s) for s in SAMPLES)
 
 
 class ScopedPromQL:

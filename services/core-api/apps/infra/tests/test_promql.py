@@ -5,6 +5,9 @@ prom-label-proxy, and recorded (F17 FR-F17-005, BR-F17-05, BR-F17-10, AC-F17-03,
 from __future__ import annotations
 
 import re
+import signal
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
 
@@ -180,6 +183,26 @@ def with_caps(settings: Any, **caps: int) -> None:
 def selectors(promql: str) -> list[str]:
     """Each selector's braces in `promql`."""
     return re.findall(r"\{[^{}]*\}", promql)
+
+
+class TooSlow(Exception):
+    pass
+
+
+@contextmanager
+def within(seconds: float) -> Iterator[None]:
+    """Raises `TooSlow` in the block once it has run for `seconds`."""
+
+    def expire(signum: int, frame: Any) -> None:
+        raise TooSlow(f"over {seconds} s")
+
+    previous = signal.signal(signal.SIGALRM, expire)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 def scoped(tree: Node, projects: frozenset[str] = frozenset({"p1"})) -> str:
@@ -436,8 +459,11 @@ def test_a_match_everything_selector_is_refused_ac_f17_03(
         (vs("cloud_server_up", m("server", "=~", "(.*)|db-01")), "match_all"),
         (vs("cloud_server_up", m("server", "!=", "")), "match_all"),
         (vs("cloud_server_up", m("server", "!~", "")), "match_all"),
+        (vs("cloud_server_up", m("server", "!~", "()")), "match_all"),
+        (vs("cloud_server_up", m("server", "!~", "^$")), "match_all"),
+        (vs("cloud_server_up", m("server", "!~", "x{0}")), "match_all"),
         (vs("", m("__name__", "=~", ".*"), m("server", "=", "db-01")), "match_all"),
-        (vs("cloud_server_up", m("server", "=~", "\\pL+")), "unsupported"),
+        (vs("cloud_server_up", m("server", "=~", "a{1001}")), "unsupported"),
     ],
 )
 def test_a_raw_query_outside_the_checks_is_refused_and_never_run(
@@ -459,7 +485,9 @@ def test_a_raw_query_outside_the_checks_is_refused_and_never_run(
         m("server", "=~", "(db-01)?"),
         m("server", "!=", "db-02"),
         m("server", "!~", "web-.*"),
+        m("server", "!~", "a?"),
         m("server", "=", ""),
+        m("server", "=~", "(?i)db-.*"),
     ],
 )
 def test_a_matcher_that_narrows_is_allowed(
@@ -469,6 +497,23 @@ def test_a_matcher_that_narrows_is_allowed(
 
     assert run(api_as(technician_user)).status_code == 200
     assert len(prom.queries) == 1
+
+
+@pytest.mark.parametrize(
+    ("kind", "pattern", "runs"),
+    [("=~", "a|db-01|" + ".*" * 40 + "Q", True), ("!~", "|" + ".*" * 40 + "Q", False)],
+)
+def test_a_catastrophic_regex_is_checked_in_linear_time(
+    api_as, technician_user, cloud_sim: CloudSim, prom: FakePrometheus, kind, pattern, runs
+):
+    prom.tree = vs("cloud_server_up", m("server", kind, pattern))
+    client = api_as(technician_user)
+
+    with within(seconds=2):
+        reply = run(client)
+
+    assert reply.status_code == (200 if runs else 422)
+    assert len(prom.queries) == (1 if runs else 0)
 
 
 def test_more_selectors_than_the_cap_are_refused(

@@ -101,3 +101,8 @@ django_settings_module = "config.settings.test"
 [[tool.mypy.overrides]]
 module = ["sklearn", "sklearn.*"]
 ignore_missing_imports = true
+
+# google-re2 ships no type information; only core-api's raw PromQL check uses it.
+[[tool.mypy.overrides]]
+module = ["re2"]
+ignore_missing_imports = true
