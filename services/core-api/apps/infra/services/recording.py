@@ -216,6 +216,41 @@ _UNREACHABLE: dict[InfraBackend, dict[Language, str]] = {
     },
 }
 
+# What a reply says when the cloud's API, asked for the project list inside another backend's
+# read, did not answer, by that read's backend.
+_PROJECTS_UNLISTED: dict[InfraBackend, dict[Language, str]] = {
+    InfraBackend.PROMETHEUS: {
+        Language.EN: (
+            "The cloud's API was unreachable, so no projects could be listed; "
+            "this answer has no metrics."
+        ),
+        Language.VI: (
+            "Không kết nối được API của hệ thống cloud nên không liệt kê được các dự án; "
+            "câu trả lời này không có số liệu đo."
+        ),
+    },
+    InfraBackend.ELASTICSEARCH: {
+        Language.EN: (
+            "The cloud's API was unreachable, so no projects could be listed; "
+            "this answer has no logs or traces."
+        ),
+        Language.VI: (
+            "Không kết nối được API của hệ thống cloud nên không liệt kê được các dự án; "
+            "câu trả lời này không có log hay trace."
+        ),
+    },
+    InfraBackend.ALERTMANAGER: {
+        Language.EN: (
+            "The cloud's API was unreachable, so no projects could be listed; "
+            "this answer has no alerts."
+        ),
+        Language.VI: (
+            "Không kết nối được API của hệ thống cloud nên không liệt kê được các dự án; "
+            "câu trả lời này không có cảnh báo."
+        ),
+    },
+}
+
 _SCOPE_UNREAD = {
     Language.EN: (
         "Keystone did not answer, so your projects could not be read; "
@@ -236,6 +271,12 @@ def missing_sources(queries: Iterable[InfraQuery], language: Language) -> list[s
         if query.outcome == InfraOutcome.SCOPE_UNAVAILABLE.value:
             said[_SCOPE_UNREAD[language]] = None
         elif query.outcome == InfraOutcome.BACKEND_UNAVAILABLE.value:
+            aimed = InfraBackend(query.backend)
             failed = InfraBackend(query.failed_backend or query.backend)
-            said[_UNREACHABLE[failed][language]] = None
+            texts = (
+                _PROJECTS_UNLISTED[aimed]
+                if failed is InfraBackend.CLOUD and aimed is not InfraBackend.CLOUD
+                else _UNREACHABLE[failed]
+            )
+            said[texts[language]] = None
     return list(said)

@@ -39,7 +39,7 @@ LATENCY = {
 LOGS = {"start": START, "end": END}
 ES_DOWN = "Elasticsearch was unreachable; this answer has no logs or traces."
 PROMETHEUS_DOWN = "Prometheus was unreachable; this answer has no metrics."
-CLOUD_DOWN = "The cloud's API was unreachable; this answer has no resource state."
+PROJECTS_UNLISTED = "The cloud's API was unreachable, so no projects could be listed; "
 QUERIES_TO_READ_A_CONVERSATION = 6
 
 
@@ -122,21 +122,48 @@ def test_a_customer_whose_projects_could_not_be_read_is_told_so(
     assert warning.startswith("Keystone did not answer")
 
 
-def test_a_staff_query_whose_project_list_failed_blames_the_cloud_api_not_prometheus(
-    api_as, technician_user, cloud_sim: CloudSim, prom: FakePrometheus
+@pytest.mark.parametrize(
+    ("tool", "path", "body", "backend", "missing"),
+    [
+        ("query_metrics", "/metrics/query", LATENCY, "prometheus", "this answer has no metrics."),
+        (
+            "search_logs",
+            "/logs/search",
+            LOGS,
+            "elasticsearch",
+            "this answer has no logs or traces.",
+        ),
+        (
+            "search_traces",
+            "/traces/search",
+            LOGS,
+            "elasticsearch",
+            "this answer has no logs or traces.",
+        ),
+    ],
+)
+def test_a_staff_query_whose_project_list_failed_blames_the_cloud_for_its_own_missing_data(
+    api_as,
+    technician_user,
+    cloud_sim: CloudSim,
+    prom: FakePrometheus,
+    es: FakeElasticsearch,
+    tool,
+    path,
+    body,
+    backend,
+    missing,
 ):
     turn = console_turn(technician_user)
     cloud_sim.cloud.add_fault(FaultKind.API_UNAVAILABLE, None, {})
 
-    reply = post(
-        as_agent(technician_user, "query_metrics", turn), f"{STAFF}/metrics/query", LATENCY
-    )
+    reply = post(as_agent(technician_user, tool, turn), f"{STAFF}{path}", body)
 
     assert reply.status_code == 424
     view = turn_view(api_as, technician_user, turn)
-    assert view["warnings"] == [CLOUD_DOWN]
+    assert view["warnings"] == [PROJECTS_UNLISTED + missing]
     (receipt,) = view["queries"]
-    assert (receipt["backend"], receipt["failed_backend"]) == ("prometheus", "cloud")
+    assert (receipt["backend"], receipt["failed_backend"]) == (backend, "cloud")
 
 
 def test_the_warning_is_in_the_language_of_the_message(
