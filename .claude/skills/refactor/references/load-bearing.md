@@ -798,6 +798,10 @@ guard and that comment is later trimmed, the entry is the record.
   `INJECTION_IN_RESULT`, through `hand_off`, not `finish`.** A hand-off
   opens a ticket that carries the model's summary to staff; after a result
   tripped the screen that summary may be the injected text's (BR-F15-11).
+  The test pins the outcome: the stop reason, an empty reply, no summary
+  and no further call. It does not pin the route: `choose_action` sets no
+  reply on this path, so `finish` would pass it too, and no test fails if
+  `RESULT_FLAGGED` is routed there.
   *`test_agent_graph.py::test_a_hand_off_after_an_injection_hit_drops_its_text_and_summary`.*
 - **`TICKET_AT_ONCE` in `apps/agent/models.py`, and `agent_handoff` in
   `waits_for_requester`.** Every other hand-off opens its ticket only on the
