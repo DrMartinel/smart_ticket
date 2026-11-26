@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import replace
-from typing import Any
+from typing import Any, assert_never
 from urllib.parse import urlencode
 
 from apps.accounts.permissions import Caller
@@ -21,6 +21,7 @@ from apps.infra.clients.backends import (
 from apps.infra.domain.resources import Alert, AlertResource, Network, Port, Project
 from apps.infra.domain.resources import SecurityGroup, Server
 from apps.infra.domain.resources import Silence, Subnet, Volume
+from apps.infra.domain.vocabulary import ResourceKind
 from apps.infra.models import InfraBackend, InfraQueryKind
 from apps.infra.services.recording import QueryLog, Read
 from apps.infra.services.scope import InfraScope
@@ -119,6 +120,18 @@ class Inventory:
                 security_groups=[SecurityGroup.of(g) for g in groups],
             )
             return read.shown([network])[0]
+
+    def resource(self, kind: ResourceKind, resource_id: str) -> Server | Volume | Network:
+        """The server, volume or network `resource_id`, as `kind` says it is."""
+        match kind:
+            case ResourceKind.SERVER:
+                return self.server(resource_id)
+            case ResourceKind.VOLUME:
+                return self.volume(resource_id)
+            case ResourceKind.NETWORK:
+                return self.network(resource_id)
+            case _:
+                assert_never(kind)
 
     # ── security groups ──
 

@@ -57,7 +57,6 @@ from apps.infra.domain.cues import (
 from apps.infra.domain.enrichment import Holdings, linked
 from apps.infra.domain.observations import Series
 from apps.infra.domain.queries import MetricQuery, Window
-from apps.infra.domain.resources import Network, Server, Volume
 from apps.infra.domain.vocabulary import CueRunOutcome, InfraError, ResourceKind, ResourceSource
 from apps.infra.models import CueRun, InfraQuery, InfraVia, TicketCue, TicketResource
 from apps.infra.services.inventory import Inventory
@@ -315,12 +314,7 @@ class Cues:
         inventory = Inventory(
             QueryLog.of(caller, ticket), InfraScope.all(), openstack(), alertmanager()
         )
-        reads: dict[ResourceKind, Callable[[str], Server | Volume | Network]] = {
-            ResourceKind.SERVER: inventory.server,
-            ResourceKind.VOLUME: inventory.volume,
-            ResourceKind.NETWORK: inventory.network,
-        }
-        resource = reads[kind](resource_id)
+        resource = inventory.resource(kind, resource_id)
         with transaction.atomic():
             run = CueRun.objects.create(ticket=ticket, started_by=caller.user)
             TicketResource.objects.create(
