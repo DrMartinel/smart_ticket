@@ -163,20 +163,6 @@ def _degraded_signals(ticket: Ticket) -> TrustSignals:
     )
 
 
-def _degraded_decision(
-    signals: TrustSignals, reason_code: ReasonCode, queue: ReviewQueue, *, priority: int = 3
-) -> Decision:
-    """The hard gate the signals fail, else HITL for `reason_code` in `queue`."""
-    return router.hard_gate(signals) or Decision(
-        branch=Branch.HITL,
-        reason_code=reason_code,
-        reason_detail=f"degraded: {reason_code.value}",
-        gate_failed=reason_code.value,
-        queue=queue,
-        priority=priority,
-    )
-
-
 def _persist_ai_run(
     ticket: Ticket,
     idempotency_key: str,
@@ -489,9 +475,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
             "embedding unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
         )
         signals = _degraded_signals(ticket)
-        decision = _degraded_decision(
-            signals, ReasonCode.EMBEDDING_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
-        )
+        decision = router.degraded(signals, ReasonCode.EMBEDDING_UNAVAILABLE)
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="embedding_unavailable"
         )
@@ -521,9 +505,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
     ceiling = settings.THRESHOLDS.budget.daily_cost_ceiling_usd
     if AiRun.objects.cost_today_usd() >= ceiling:
         signals = _degraded_signals(ticket)
-        decision = _degraded_decision(
-            signals, ReasonCode.BUDGET_EXCEEDED, ReviewQueue.LOW_CONFIDENCE, priority=2
-        )
+        decision = router.degraded(signals, ReasonCode.BUDGET_EXCEEDED)
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="budget_exceeded"
         )
@@ -559,9 +541,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
             "ai-engine unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
         )
         signals = _degraded_signals(ticket)
-        decision = _degraded_decision(
-            signals, ReasonCode.AI_ENGINE_UNAVAILABLE, ReviewQueue.LOW_CONFIDENCE, priority=2
-        )
+        decision = router.degraded(signals, ReasonCode.AI_ENGINE_UNAVAILABLE)
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="ai_engine_unavailable"
         )
@@ -578,9 +558,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
             clarifications_asked=clarifications_asked,
             agent_handoff_reason=cast("AgentHandoffReason | None", ticket.agent_handoff_reason),
         )
-        decision = _degraded_decision(
-            signals, ReasonCode.ALL_LLM_DOWN, ReviewQueue.LOW_CONFIDENCE, priority=2
-        )
+        decision = router.degraded(signals, ReasonCode.ALL_LLM_DOWN)
         ai_run = _persist_ai_run(
             ticket,
             idempotency_key,

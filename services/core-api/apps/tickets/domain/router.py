@@ -460,8 +460,6 @@ class Router:
             return RoutingDecision.block(ReasonCode.PII_CRITICAL, alert_security=True)
 
         if p.mass_incident:
-            # BEFORE any duplicate logic. 40 identical tickets in 10 minutes
-            # is not something to dedupe quietly — it's an outage to escalate.
             return RoutingDecision.escalate(ReasonCode.MASS_INCIDENT)
 
         if p.pii_level is PIILevel.MASK_FAILED:
@@ -477,6 +475,18 @@ class Router:
             )
 
         return None
+
+    def degraded(self, signals: TrustSignals, reason_code: ReasonCode) -> RoutingDecision:
+        """The decision for a run that skipped ai-engine's proposal: the first hard gate the
+        signals fail, else HITL for `reason_code`."""
+
+        return self.hard_gate(signals) or RoutingDecision.hitl(
+            reason_code,
+            queue=ReviewQueue.LOW_CONFIDENCE.value,
+            detail=f"degraded: {reason_code.value}",
+            priority=2,
+            gate_failed=reason_code.value,
+        )
 
     def _confident_category(self, signals: TrustSignals) -> str | None:
         """Jev's category, when it chose one with at least
