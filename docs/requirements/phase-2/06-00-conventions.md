@@ -10,6 +10,7 @@ Read this once. Each feature file (§6 F1, F2, …) follows it and doesn't repea
 | Business rule | `BR-<feature>-NN` | `BR-F5-02` |
 | Functional requirement | `FR-<feature>-NNN` | `FR-F2-014` |
 | Acceptance scenario | `AC-<feature>-NN` | `AC-F13-07` |
+| Eval case (an agent edge case, graded on what the turn did) | `EC-<feature>-NN` | `EC-F15-04` |
 | Cross-feature rule | `BR-X-NN` | `BR-X-03` |
 
 IDs never get reused. A removed item keeps its ID with the note *withdrawn*.

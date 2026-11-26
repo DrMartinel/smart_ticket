@@ -2,6 +2,7 @@
 
 **Status:** Accepted (2026-11-07), the owner's decision, with every recommendation in
 [06-F15 §k](../requirements/phase-2/06-F15-agent.md#k-open-questions)
+(amendment to decision 12 and a new decision 17: Accepted, 2026-11-26)
 **Date:** 2026-11-07
 **Builds on:** ADR-0001 (code routes), ADR-0003 (no self-confidence), ADR-0004
 (ai-engine is read-only), ADR-0006 and ADR-0038 (runbooks always go through a
@@ -192,3 +193,76 @@ The owner took every recommendation in 06-F15 §k:
   is reviewed (OQ-F15-08).
 - **Refusals keep the BR-X-08 shape** (OQ-F15-09). Placeholder labels stay
   in tool results (OQ-F15-10). `none` is the explicit fifth tier (OQ-F15-11).
+
+## Amendment (2026-11-26): the agent asks with choices and hands off on purpose — Accepted
+
+**Spec:** [06-F15 amendment](../requirements/phase-2/06-F15-agent.md#amendment-2026-11-26-the-agent-finds-out-asks-and-says-why--accepted)
+
+### Context
+
+The agent could do two things: call a tool or reply. While F17 §o was being
+written, each edge case it met got its own rule: a tool just for asking which
+resource a customer meant, and a fixed list of requests the chat can't do, each
+with its own text. The owner asked for an agent that notices what it is
+missing and finds it out, instead of a rule per case. Two things it needs touch
+this ADR:
+
+1. **Choices.** A typed answer to "which server?" ("the second one", "db1") is
+   something code can't use. Buttons would be exact, but a button the model
+   invents could name something the person can't see.
+2. **A hand-off on purpose.** Decision 12 says the person is told why a turn
+   stopped "in words code chose". That fits failures. It doesn't fit "you asked
+   for something only staff can do", where the reason depends on the request.
+
+### Decision
+
+12. *Amended (2026-11-26):* on the chat surface the model may end a
+    turn on purpose with `hand_off` when the person asks for a change none of
+    their tools makes. The reason is the model's own text. core-api then adds
+    what it knows as fact, in words it chose: that what the turn checked goes
+    with the ticket, the "Open a ticket" button, and the ticket's id once
+    pressed. The stop gets its own `ReasonCode`, `agent_needs_staff`, and the
+    router still sends the ticket to a person (decision 13). The model's
+    summary of the request is stored on the ticket for staff only; it is never
+    sent to triage and nothing reads it to decide. Every other stop keeps its
+    fixed text, and the console surface has no `hand_off`.
+17. **The model offers only what its tools returned.** Every item a person
+    could pick in a tool result gets a ref, stable within the turn. A reply
+    may offer up to `agent.max_choices` refs as buttons; ai-engine resolves
+    them from the turn's own results, and a ref the turn never issued makes
+    the reply invalid. core-api builds the card and always adds "Something
+    else". A press sends the button's label as the person's next message, and
+    nothing the model sends records a choice. A feature that needs the pressed
+    item itself checks it again through its own route (F17's resource picks).
+
+### How the earlier decisions still hold
+
+- **Decision 4.** A ref exists only for what the person's own token returned,
+  so a card can't show more than they can see.
+- **Decision 11.** What was done is still reported from tool outcomes. A
+  hand-off's text explains a refusal; it reports nothing as done, and the
+  ticket and button beside it are code's.
+- **Decision 12.** The re-ask of an invalid reply covers an unknown ref and a
+  malformed `hand_off`, as it covers any invalid reply.
+- **Decision 13.** The agent still never chooses a branch.
+
+### Consequences
+
+- The agent's handling of edge cases is now model behaviour, measured by the
+  live agent eval's cases (`evals/golden/agent_cases.jsonl`) rather than
+  written as rules. It counts only once that eval runs (TODO 23).
+- A hand-off's reason can be wrong or badly put. The ticket still reaches a
+  person, with the turn's receipts.
+- The wire gains a third action shape, choices and a summary, in both
+  services (ADR-0010).
+
+### Alternatives considered
+
+- **A fixed list of requests, each with a fixed text** (the first draft).
+  Safe wording, but every new request needs a list entry in both services, a
+  text in two languages and a ticket subject, and anything not listed falls to
+  "other".
+- **A tool per kind of question** ("ask which resource"). Each new kind of
+  question needs a route and a tool.
+- **Choices the model writes freely.** It could offer a server the person
+  can't see, or one that doesn't exist.
