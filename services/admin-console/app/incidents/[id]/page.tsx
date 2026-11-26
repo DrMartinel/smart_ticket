@@ -29,6 +29,7 @@ import { useToast } from "@/components/ui/toast";
 import { Link2, Megaphone } from "lucide-react";
 import { P, can } from "@/lib/permissions";
 import { CategorySelect } from "@/components/CategorySelect";
+import { useFirstCategoryWhenEmpty } from "@/lib/categories";
 
 function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
   return (
@@ -58,7 +59,8 @@ export default function IncidentPage() {
 
   // Confirm
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("network");
+  const [category, setCategory] = useState("");
+  useFirstCategoryWhenEmpty(category, setCategory);
   const [service, setService] = useState("");
   // Dismiss, reopen, unlink, resolve
   const [reason, setReason] = useState("");

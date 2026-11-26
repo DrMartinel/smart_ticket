@@ -26,7 +26,11 @@ class CategoryConfig:
                 422, CategoryRefusal.REASON_REQUIRED, "say why the category changes"
             )
         with transaction.atomic():
-            category = self.locked(slug)
+            category = Category.objects.select_for_update().filter(slug=slug).first()
+            if category is None:
+                raise CategoryError(
+                    404, CategoryRefusal.CATEGORY_NOT_FOUND, f"no category {slug!r}"
+                )
             before = self.snapshot(category)
             changed = {
                 name: data[name]
@@ -51,12 +55,6 @@ class CategoryConfig:
                     "after": self.snapshot(category),
                 },
             )
-        return category
-
-    def locked(self, slug: str) -> Category:
-        category = Category.objects.select_for_update().filter(slug=slug).first()
-        if category is None:
-            raise CategoryError(404, CategoryRefusal.CATEGORY_NOT_FOUND, f"no category {slug!r}")
         return category
 
     def snapshot(self, category: Category) -> dict[str, Any]:

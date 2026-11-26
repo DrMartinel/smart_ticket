@@ -260,6 +260,8 @@ class Incidents:
         """Confirms a proposal: each linked ticket's pending review item is decided `approve` in the
         manager's name, and their resolution clocks wait for the incident (BR-F7-03, 07)."""
         self.check_manager(actor)
+        if category:
+            Category.objects.require(category)
         with transaction.atomic():
             incident = self.get(public_id)
             if incident.status != IncidentStatus.PROPOSED.value:
@@ -280,8 +282,6 @@ class Incidents:
     ) -> None:
         from apps.sla.services.clocks import sla_clocks
 
-        if category:
-            Category.objects.require(category)
         now = timezone.now()
         incident.status = IncidentStatus.CONFIRMED.value
         incident.title = title.strip() or incident.title
@@ -344,6 +344,8 @@ class Incidents:
     ) -> Incident:
         """A confirmed incident a manager opens by hand, with tickets and a first broadcast."""
         self.check_manager(actor)
+        if category:
+            Category.objects.require(category)
         with transaction.atomic():
             self.lock()
             incident = Incident.objects.create(

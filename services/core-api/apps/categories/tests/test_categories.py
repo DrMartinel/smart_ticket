@@ -84,10 +84,20 @@ def test_a_ticket_with_an_unknown_category_is_refused_by_the_database():
 
 @pytest.mark.django_db
 def test_a_category_in_use_cannot_be_deleted():
-    with pytest.raises(IntegrityError), transaction.atomic():
-        Category.objects.filter(slug="network").delete()
+    Category.objects.create(slug="billing", name="Billing", description="Invoices.")
+    Ticket.objects.create(
+        public_id="TKT-CAT-000002",
+        reporter=person("lan.nt", UserRole.EMPLOYEE),
+        subject_masked="invoice",
+        body_masked="invoice",
+        pii_level="routine",
+        category="billing",
+    )
 
-    assert Category.objects.filter(slug="network").exists()
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Category.objects.filter(slug="billing").delete()
+
+    assert Category.objects.filter(slug="billing").exists()
 
 
 # ── the seed ──

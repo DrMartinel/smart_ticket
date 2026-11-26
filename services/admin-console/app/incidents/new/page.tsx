@@ -21,12 +21,14 @@ import { EmptyState, ErrorState } from "@/components/ui/states";
 import { ShieldOff } from "lucide-react";
 import { P, can } from "@/lib/permissions";
 import { CategorySelect } from "@/components/CategorySelect";
+import { useFirstCategoryWhenEmpty } from "@/lib/categories";
 
 export default function DeclareIncidentPage() {
   const user = useRequireAuth();
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("network");
+  const [category, setCategory] = useState("");
+  useFirstCategoryWhenEmpty(category, setCategory);
   const [service, setService] = useState("");
   const [tickets, setTickets] = useState("");
   const [stage, setStage] = useState("investigating");

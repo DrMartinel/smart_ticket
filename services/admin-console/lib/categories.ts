@@ -10,10 +10,13 @@ let loading: Promise<CategoryOut[]> | null = null;
 
 /** Every category, read once per page load. */
 export function loadCategories(): Promise<CategoryOut[]> {
-  loading ??= api.get<CategoryOut[]>("/api/categories").catch((e: unknown) => {
-    loading = null;
-    throw e;
-  });
+  if (!loading) {
+    const request: Promise<CategoryOut[]> = api.get<CategoryOut[]>("/api/categories").catch((e: unknown) => {
+      if (loading === request) loading = null;
+      throw e;
+    });
+    loading = request;
+  }
   return loading;
 }
 
@@ -54,4 +57,12 @@ export function useCategories(): Categories {
     };
   }, [attempt]);
   return { categories, error, retry: () => setAttempt((n) => n + 1) };
+}
+
+/** Sets an empty `value` to the first active category once the categories load. */
+export function useFirstCategoryWhenEmpty(value: string | null | undefined, setValue: (slug: string) => void): void {
+  const { categories } = useCategories();
+  useEffect(() => {
+    if (!value && categories.length > 0) setValue(categories[0].slug);
+  }, [value, categories, setValue]);
 }

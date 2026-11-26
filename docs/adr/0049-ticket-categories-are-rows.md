@@ -1,6 +1,6 @@
 # ADR-0049: Ticket categories are rows in `ticket_categories`
 
-**Status:** Proposed (2026-11-26). Part 1 is built; parts 2–4 wait on the open questions below.
+**Status:** Accepted for part 1 (2026-11-26): decisions 1–4 are built. Part 2's switch to `is_security` (decision 5) and parts 2–4 are proposed and wait on the open questions below.
 **Date:** 2026-11-26
 **Builds on:** ADR-0017 (Jev chooses the category), ADR-0031 (teams own categories), ADR-0028 (workflows), ADR-0045 (permissions), ADR-0046 (agent tiers)
 **Will amend:** ADR-0017, once part 2 builds Jev's category question from the rows
@@ -10,9 +10,12 @@
 The six categories (`hardware`, `software`, `network`, `access`,
 `security`, `other`) existed in three places that had to agree by hand:
 the `TicketCategory` enum in both services, the criteria of
-`category.v2.json`, and eight hardcoded lists in the admin console. Ten
-columns stored a category as free text, constrained only by Django
-`choices`, which the database never checks. Adding a category, or
+`category.v2.json`, and eight hardcoded lists in the admin console. Eleven
+columns in ten tables stored a category as free text. Django `choices`,
+which the database never checks, covered seven of them; nothing covered
+the other four (`review_decisions.corrected_category`,
+`team_reassignments.from_category` and `to_category`,
+`report_ticket_facts.category`). Adding a category, or
 designing a workflow per category, meant a code change in every one of
 those places.
 
@@ -34,21 +37,27 @@ Teams and the categories they own were already data (`team_teams`,
    foreign key on `ticket_categories(slug)`, `ON DELETE RESTRICT`
    (`infra/migrations/sql/0010`). A category is never deleted while used.
    The column names and stored values are unchanged. Before the database
-   sees it, a route that takes a category as text (incidents, KB pages and
-   drafts, a reviewer's correction) refuses one that is unknown or inactive
-   with 422 `unknown_category` (`Category.objects.require`).
+   sees it, every service that writes a category from a request (incidents,
+   KB pages and drafts, a reviewer's correction, a reassignment, a team's
+   categories, an SLA policy) refuses one that is unknown or inactive with
+   422 `unknown_category` (`Category.objects.require`).
 3. **Reads go through `GET /api/categories`** (`categories:read`; staff
    roles), and every console picker reads it. `PATCH /api/categories/{slug}`
    (`categories:manage`; manager, workflow admin) changes only `name` and
    `sort_order`, with a reason, audited `category_changed`, bumping
-   `version`. Both routes are `AgentTier.NONE`.
+   `version`; any other field is refused with 422. Both routes are
+   `AgentTier.NONE`.
 4. **The description and flags change by pull request for now.** A
    description is classifier input, so editing it in the database would
    move the classifier without the eval gate. Until a reviewed change path
    exists (open question 1), the route refuses to touch them.
 5. **`is_security` replaces the slug check** wherever code means "the
-   security category" (router's `clarify_security`, `check_category_scope`),
-   in part 2. Part 1 only seeds the flag.
+   security category" (router's `clarify_security`, `check_category_scope`,
+   and the P2-for-security priority in `apps/sla/services/clocks.py`), in
+   part 2. Part 1 only seeds the flag.
+6. **Only active categories need an owner.** BR-F2-01 ("every category has
+   exactly one owning team") now reads the active rows: an inactive
+   category may have no team, and no team can claim one.
 
 ### Later parts
 
@@ -82,8 +91,14 @@ Teams and the categories they own were already data (`team_teams`,
 
 - A new category can be added as a row plus an owning team, but until
   part 2 the classifier and the router still know only the six in the
-  enum and `category.v2.json`; a seventh row would be offered in pickers
+  enum and `category.v2.json`. A seventh row would be offered in pickers,
+  refused by the routes whose request schema is still the enum (team
+  categories, a reassignment's `to_category`, SLA policies, KB drafts),
   and never chosen by Jev.
+- Deactivating one of the six before part 2 leaves it in Jev's question:
+  tickets still land in it and, with no owning team, go to the fallback
+  team, audited `no_team_for_category`. No route deactivates a category in
+  part 1.
 - `classification.min_confidence` (0.65) was chosen on six categories; a
   larger set spreads Jev's probability and needs it re-chosen.
 - Per-category F1 (hard rule 9) must cover every routable category.

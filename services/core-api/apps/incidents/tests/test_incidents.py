@@ -9,6 +9,7 @@ from datetime import timedelta
 import pytest
 
 from apps.audit.models import AuditLog
+from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.incidents.models import IncidentLink
 from apps.incidents.tests.conftest import PRINTER, VPN, Engine, arrive, near
 from apps.incidents.services.incidents import IncidentError, incidents
@@ -173,6 +174,18 @@ class TestConfirmAndDismiss:
         with pytest.raises(IncidentError) as refused:
             incidents.confirm(incident.public_id, desk["duc"], "again", None, "")
         assert refused.value.code == "not_proposed"
+
+    def test_confirming_into_an_unknown_category_is_refused_and_confirms_nothing(
+        self, desk, engine, clock
+    ):
+        incident, _ = outage(desk, engine)
+
+        with pytest.raises(CategoryError) as refused:
+            incidents.confirm(incident.public_id, desk["duc"], "VPN", "billing", "")
+
+        assert refused.value.code is CategoryRefusal.UNKNOWN_CATEGORY
+        incident.refresh_from_db()
+        assert (incident.status, incident.category) == ("proposed", None)
 
 
 class TestRouting:

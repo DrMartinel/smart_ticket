@@ -16,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CategorySelect } from "@/components/CategorySelect";
+import { useFirstCategoryWhenEmpty } from "@/lib/categories";
 
 export default function NewDraftPage() {
   const user = useRequireAuth();
@@ -24,7 +25,8 @@ export default function NewDraftPage() {
   const kind = search.get("kind") ?? "create";
   const [slug, setSlug] = useState(search.get("slug") ?? "");
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("other");
+  const [category, setCategory] = useState("");
+  useFirstCategoryWhenEmpty(category, setCategory);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
