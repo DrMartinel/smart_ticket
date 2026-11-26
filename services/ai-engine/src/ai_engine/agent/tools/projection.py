@@ -1,13 +1,16 @@
 """
-What a tool result may show the model (BR-F15-09, BR-F15-10): people as
-`you` / `someone else` / `none`, text others wrote wrapped as untrusted, and
-`[withheld]` for text whose masking failed or that a reviewer holds back.
+What a tool result may show the model (BR-F15-09, BR-F15-10, BR-F15-21): people
+as `you` / `someone else` / `none`, text others wrote wrapped as untrusted,
+`[withheld]` for text whose masking failed or that a reviewer holds back, and a
+ref (`item_N`) on every item the person could pick.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
+from ai_engine.agent.tools.tool import Context
+from ai_engine.graph.agent_state import AgentChoice
 from ai_engine.graph.nodes.injection_patterns import matches
 
 WITHHELD = "[withheld]"
@@ -18,6 +21,17 @@ MASKED_LEVELS = frozenset({"routine", "sensitive", "critical"})
 def untrusted(text: str | None) -> dict[str, str] | None:
     """Wraps text someone other than the user wrote."""
     return None if text is None else {UNTRUSTED: text}
+
+
+def ref(context: Context, kind: str, item_id: str, label: str) -> str:
+    """The turn's ref for an item the person could pick; the same item keeps its first ref and
+    label for the rest of the turn."""
+    for name, item in context.refs.items():
+        if (item.kind, item.id) == (kind, item_id):
+            return name
+    name = f"item_{len(context.refs) + 1}"
+    context.refs[name] = AgentChoice(kind=kind, id=item_id, label=label)
+    return name
 
 
 def person(who: object | None, me: object | None) -> str:

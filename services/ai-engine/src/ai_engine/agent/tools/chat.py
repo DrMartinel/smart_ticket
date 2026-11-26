@@ -11,7 +11,7 @@ from pydantic import Field
 
 from ai_engine.agent.tools import client
 from ai_engine.agent.tools.client import Reply, ToolFailed
-from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, untrusted
+from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, ref, untrusted
 from ai_engine.agent.tools.tool import Context, PublicIdIn, Tier, Tool, ToolInput
 from ai_engine.core.config import settings
 
@@ -26,19 +26,17 @@ _MEANING = {
 
 
 def chat_turn(body: Any, context: Context) -> dict[str, Any]:
-    """A chat turn: the state, the KB answer and the clarifying question."""
+    """A chat turn: the state, the KB answer with its page's ref, and the clarifying question."""
     answer = body.get("answer") or {}
     clarification = body.get("clarification") or {}
     incident = body.get("incident") or {}
+    title, url = answer.get("kb_title"), answer.get("kb_url")
+    page = {"ref": ref(context, "kb_page", url, title)} if title and url else {}
     return {
         "public_id": body.get("public_id"),
         "state": body.get("state"),
         "meaning": _MEANING.get(body.get("state", ""), ""),
-        "answer": {
-            "text": untrusted(answer.get("text")),
-            "kb_title": answer.get("kb_title"),
-            "kb_url": answer.get("kb_url"),
-        }
+        "answer": {**page, "text": untrusted(answer.get("text")), "kb_title": title, "kb_url": url}
         if answer
         else None,
         "clarification": {
@@ -83,18 +81,24 @@ def own_text(text: str | None, pii_level: str | None) -> str | None:
     return text if pii_level in MASKED_LEVELS else WITHHELD
 
 
-def my_ticket_row(row: Any) -> dict[str, Any]:
-    """One of the employee's tickets, as a list row."""
+def my_ticket_row(row: Any, context: Context) -> dict[str, Any]:
+    """One of the employee's tickets, as a list row, with its ref labelled by its id and the
+    employee's own subject."""
     projected = {name: row.get(name) for name in _ROW_FIELDS}
-    projected["subject_masked"] = own_text(row.get("subject_masked"), row.get("pii_level"))
-    return projected
+    subject = own_text(row.get("subject_masked"), row.get("pii_level"))
+    projected["subject_masked"] = subject
+    public_id = row.get("public_id")
+    if not public_id:
+        return projected
+    label = f"{public_id} · {subject}" if subject and subject != WITHHELD else public_id
+    return {"ref": ref(context, "ticket", public_id, label), **projected}
 
 
 def my_tickets(body: Any, context: Context) -> dict[str, Any]:
     """The employee's tickets, open and recent."""
     return {
-        "open": [my_ticket_row(r) for r in body.get("open", [])],
-        "recent": [my_ticket_row(r) for r in body.get("recent", [])],
+        "open": [my_ticket_row(r, context) for r in body.get("open", [])],
+        "recent": [my_ticket_row(r, context) for r in body.get("recent", [])],
         "more_before": body.get("more_before"),
     }
 
@@ -120,7 +124,7 @@ def my_ticket(body: Any, context: Context) -> dict[str, Any]:
             }
         )
     return {
-        **my_ticket_row(body),
+        **my_ticket_row(body, context),
         "body_masked": own_text(body.get("body_masked"), body.get("pii_level")),
         "thread": thread,
         "can_reply": body.get("can_reply"),

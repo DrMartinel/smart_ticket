@@ -16,7 +16,13 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
 
-from ai_engine.graph.agent_state import AgentEarlierTurn, AgentLimits, AgentStep, AgentStopReason
+from ai_engine.graph.agent_state import (
+    AgentChoice,
+    AgentEarlierTurn,
+    AgentLimits,
+    AgentStep,
+    AgentStopReason,
+)
 
 from ai_engine.graph.nodes.emit_signals.signals import EngineSignals
 from ai_engine.graph.nodes.infer.proposals import LLMProposalEnvelope
@@ -119,3 +125,7 @@ class AgentTurnResponse(BaseModel):
     tokens_in: int = 0
     tokens_out: int = 0
     cost_usd: float = 0.0
+    # A reply's choices, resolved from the turn's own results (BR-F15-21).
+    choices: list[AgentChoice] = Field(default_factory=list)
+    # The model's summary of a `needs_staff` request, for staff only (BR-F15-25).
+    proposed_handoff_summary: str | None = None

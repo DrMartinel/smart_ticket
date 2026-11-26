@@ -36,7 +36,7 @@ from ai_engine.schemas import (
     PiiDetectResponse,
 )
 from ai_engine.graph.agent import agent_graph, recursion_limit
-from ai_engine.graph.agent_state import AgentState
+from ai_engine.graph.agent_state import AgentState, AgentStopReason
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.config import settings
@@ -155,11 +155,14 @@ def agent_turn(req: AgentTurnRequest) -> AgentTurnResponse:
         outcome = "handed_off"
     elif final_state.awaiting_confirmation:
         outcome = "awaiting_confirmation"
+    needs_staff = final_state.stop_reason is AgentStopReason.NEEDS_STAFF
     return AgentTurnResponse(
         outcome=outcome,
-        reply="" if outcome == "handed_off" else final_state.reply,
+        reply="" if outcome == "handed_off" and not needs_staff else final_state.reply,
         stop_reason=final_state.stop_reason,
         steps=final_state.steps,
+        choices=final_state.choices if outcome == "replied" else [],
+        proposed_handoff_summary=final_state.handoff_summary if needs_staff else None,
         model=final_state.model_used or "n/a",
         prompt_version=settings.agent_prompt_version,
         tokens_in=final_state.tokens_in,

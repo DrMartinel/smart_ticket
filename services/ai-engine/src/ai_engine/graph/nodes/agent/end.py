@@ -9,7 +9,8 @@ from ai_engine.graph.build.node import BaseNode
 
 
 class FinishNode(BaseNode[AgentState]):
-    """Ends a turn that replied, or that waits for the person to confirm a change."""
+    """Ends a turn that replied, that handed off on purpose with the model's text, or that waits
+    for the person to confirm a change."""
 
     def __call__(self, state: AgentState) -> dict[str, Any]:
         return {}
