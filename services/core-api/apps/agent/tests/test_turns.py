@@ -136,6 +136,7 @@ def _step(seq: int, method: str = "GET", outcome: str = "ok", **extra: Any) -> d
         else "/api/chat/tickets/T-1/create-ticket",
         "status_code": 200,
         "outcome": outcome,
+        "read": method == "GET",
         **extra,
     }
 
@@ -693,6 +694,27 @@ def test_a_replied_turn_records_its_steps_receipts_and_usage(employee_user, api_
         "ok",
         "refused",
     ]
+
+
+@pytest.mark.django_db
+def test_a_read_step_shows_no_receipt_whatever_its_method(employee_user, api_as, engine, queued):
+    """F17: a cloud query is a POST that only reads; it is never shown as done or replayed."""
+
+    client = api_as(employee_user)
+    turn = _start(client)
+    query = _step(1, "POST", read=True, tool="query_my_metrics", path="/api/requester/infra/q")
+    engine.reply = _replied("Latency is normal.", [query, _step(2, "POST")])
+    agent_turns.run(turn.id)
+    engine.reply = _replied("Done.")
+
+    later = _start(client, conversation=str(turn.conversation_id))
+    agent_turns.run(later.id)
+
+    turn.refresh_from_db()
+    assert [r["tool"] for r in turn.receipts] == ["request_ticket"]
+    replayed = engine.turn_bodies[-1]["earlier_turns"][0]["reply"]
+    assert "/api/requester/infra/q" not in replayed
+    assert "[done] POST /api/chat/tickets/T-1/create-ticket" in replayed
 
 
 @pytest.mark.django_db

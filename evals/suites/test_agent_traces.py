@@ -22,6 +22,7 @@ from ai_engine.agent.tools.client import OutcomeUnknown, Reply, ToolFailed
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import LLMResult
 from ai_engine.graph.agent_state import AgentChoice as EngineChoice
+from ai_engine.graph.agent_state import AgentStep as EngineStep
 from ai_engine.graph.agent_state import AgentStopReason as EngineStopReason
 from ai_engine.main import agent_turn as engine_agent_turn
 from ai_engine.schemas import AgentTurnRequest as EngineTurnRequest
@@ -41,7 +42,13 @@ from apps.tickets.models import IncidentVerdict, Ticket
 from apps.tickets.testing import nothing_found
 from config.urls import api
 from infrastructure.ai_engine import ai_engine
-from infrastructure.dtos import AgentChoice, AgentStopReason, AgentTurnResponse, AIRunResponse
+from infrastructure.dtos import (
+    AgentChoice,
+    AgentStep,
+    AgentStopReason,
+    AgentTurnResponse,
+    AIRunResponse,
+)
 
 PHONE = "0912345678"
 
@@ -526,3 +533,4 @@ def test_stop_reasons_match_in_both_services():
 def test_the_turn_result_and_its_choices_have_the_same_fields_in_both_services():
     assert set(EngineTurnResponse.model_fields) == set(AgentTurnResponse.model_fields)
     assert set(EngineChoice.model_fields) == set(AgentChoice.model_fields)
+    assert set(EngineStep.model_fields) == set(AgentStep.model_fields)

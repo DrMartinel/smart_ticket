@@ -365,6 +365,8 @@ class AgentStep(BaseModel):
     action_id: UUID | None = None
     injection_flagged: bool = False
     result_ref: str | None = None
+    # Whether the step's tool is `read` tier, whatever its method (F17).
+    read: bool = False
 
 
 class AgentTurnRequest(BaseModel):

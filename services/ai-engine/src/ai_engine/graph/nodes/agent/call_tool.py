@@ -56,7 +56,7 @@ class CallToolNode(BaseNode[AgentState]):
             step=seq,
             refs=dict(state.refs),
         )
-        step = {"seq": seq, "tool": tool.name, "arguments": arguments}
+        step = {"seq": seq, "tool": tool.name, "arguments": arguments, "read": not tool.writes}
         step["method"], step["path"] = tool.method, tool.path_for(arguments)
         try:
             step["path"], reply = tool.run(args, context)

@@ -1328,6 +1328,21 @@ def test_a_soft_reboot_waits_for_the_person_with_its_ticket(model, core_api):
     assert len(llm.prompts) == 1
 
 
+def test_a_step_says_whether_its_tool_reads_whatever_its_method(model, core_api):
+    model(
+        call("query_metrics", **_post_read_args()),
+        call("reboot_server", server_id=_DB01, public_id="TKT-2026-000431"),
+    )
+    core_api(
+        Reply(200, {"query_id": "q-1", "series": [], "truncated": False}),
+        Reply(202, {"action_id": str(uuid4()), "state": "awaiting_confirmation"}),
+    )
+
+    final = run(turn(surface="console"))
+
+    assert [(s.method, s.read) for s in final.steps] == [("POST", True), ("POST", False)]
+
+
 @pytest.mark.parametrize(
     ("tool", "arguments", "method"),
     [

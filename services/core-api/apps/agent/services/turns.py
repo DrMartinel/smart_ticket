@@ -63,7 +63,7 @@ from infrastructure.dtos import (
 )
 
 _FLAGS = {AgentSurface.CHAT: FlagBranch.AGENT_CHAT, AgentSurface.CONSOLE: FlagBranch.AGENT_CONSOLE}
-# What a write step's outcome shows the person (BR-F15-12).
+# What a write step's outcome shows the person (BR-F15-12); a read shows no receipt.
 _RECEIPTS = {
     "ok": "done",
     "confirmation_required": "awaiting_confirmation",
@@ -300,7 +300,7 @@ class AgentTurns:
                     "chat_turn": step.result_ref,
                 }
                 for step in response.steps
-                if step.method != "GET"
+                if not step.read
             ]
             locked.tool_calls = len(response.steps)
             locked.model = response.model[:100]
