@@ -288,6 +288,12 @@ OPENSTACK_FEDERATION_PROTOCOL = env("OPENSTACK_FEDERATION_PROTOCOL")
 ALERTMANAGER_URL = env("ALERTMANAGER_URL")
 INFRA_CONNECT_TIMEOUT_SEC = float(env("INFRA_CONNECT_TIMEOUT_SEC"))
 INFRA_READ_TIMEOUT_SEC = float(env("INFRA_READ_TIMEOUT_SEC"))
+PROMETHEUS_URL = env("PROMETHEUS_URL")
+ELASTICSEARCH_URL = env("ELASTICSEARCH_URL")
+ELASTICSEARCH_USERNAME = env("ELASTICSEARCH_USERNAME")
+ELASTICSEARCH_PASSWORD = env("ELASTICSEARCH_PASSWORD")
+KIBANA_URL = env("KIBANA_URL")
+PROMETHEUS_UI_URL = env("PROMETHEUS_UI_URL")
 
 # ── Smart Triage domain settings ────────────────────────────────────────
 SHADOW_MODE = env_bool("SHADOW_MODE")
@@ -549,6 +555,16 @@ class AgentThresholds(BaseModel):
     history_limit: int = Field(ge=1)
 
 
+class InfraThresholds(BaseModel):
+    # Caps on one structured query of metrics, logs or traces (BR-F17-12).
+    max_range_hours: int = Field(ge=1)
+    min_step_seconds: int = Field(ge=1)
+    max_series: int = Field(ge=1)
+    max_log_docs: int = Field(ge=1)
+    max_spans: int = Field(ge=1)
+    max_result_bytes: int = Field(ge=1)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -578,6 +594,7 @@ class Thresholds(BaseModel):
     reports: ReportsThresholds
     access: AccessThresholds
     agent: AgentThresholds
+    infra: InfraThresholds
 
     @property
     def retrieval_floor(self) -> float:

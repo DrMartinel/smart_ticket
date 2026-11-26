@@ -40,6 +40,7 @@ from config.settings.base import (
     ReportsThresholds,
     AccessThresholds,
     AgentThresholds,
+    InfraThresholds,
     SecurityThresholds,
     SlaThresholds,
     Thresholds,
@@ -165,6 +166,14 @@ def make_thresholds(**overrides) -> Thresholds:
             max_earlier_turns=6,
             conversation_idle_minutes=30,
             history_limit=20,
+        ),
+        infra=InfraThresholds(
+            max_range_hours=168,
+            min_step_seconds=15,
+            max_series=200,
+            max_log_docs=100,
+            max_spans=500,
+            max_result_bytes=24000,
         ),
     )
     base.update(overrides)

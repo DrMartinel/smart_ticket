@@ -103,6 +103,8 @@ x-core-api-env: &core-api-env
   # The cloud and its observability (F17): the `infra` profile's containers.
   OPENSTACK_AUTH_URL: http://cloud-sim:8090/identity/v3
   ALERTMANAGER_URL: http://alertmanager:9093
+  PROMETHEUS_URL: http://prom-label-proxy:8080
+  ELASTICSEARCH_URL: http://elasticsearch:9200
   OPENSTACK_SERVICE_DOMAIN: ${OPENSTACK_SERVICE_DOMAIN:?see .env.example}
   OPENSTACK_SERVICE_USER: ${OPENSTACK_SERVICE_USER:?see .env.example}
   OPENSTACK_SERVICE_PASSWORD: ${OPENSTACK_SERVICE_PASSWORD:?see .env.example}
@@ -110,6 +112,10 @@ x-core-api-env: &core-api-env
   OPENSTACK_FEDERATION_PROTOCOL: ${OPENSTACK_FEDERATION_PROTOCOL:?see .env.example}
   INFRA_CONNECT_TIMEOUT_SEC: ${INFRA_CONNECT_TIMEOUT_SEC:?see .env.example}
   INFRA_READ_TIMEOUT_SEC: ${INFRA_READ_TIMEOUT_SEC:?see .env.example}
+  ELASTICSEARCH_USERNAME: ${ELASTICSEARCH_USERNAME:?see .env.example}
+  ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:?see .env.example}
+  KIBANA_URL: ${KIBANA_URL:?see .env.example}
+  PROMETHEUS_UI_URL: ${PROMETHEUS_UI_URL:?see .env.example}
 
 services:
   db:
@@ -509,20 +515,29 @@ services:
       retries: 30
     networks: [smart-triage]
 
-  # One-shot: gives kibana_system its password, then exits.
+  # One-shot: gives kibana_system its password, creates core-api's read-only
+  # role and user (logs-* and traces-apm* only, F17), then exits.
   es-setup:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
     profiles: ["infra"]
     environment:
       ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:?see .env.example}
       KIBANA_SYSTEM_PASSWORD: ${KIBANA_SYSTEM_PASSWORD:?see .env.example}
+      ELASTICSEARCH_USERNAME: ${ELASTICSEARCH_USERNAME:?see .env.example}
+      ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:?see .env.example}
     command:
       - sh
       - -c
       - >-
         curl -fsS -u "elastic:$$ELASTIC_PASSWORD" -H "Content-Type: application/json"
         -X POST http://elasticsearch:9200/_security/user/kibana_system/_password
-        -d "{\"password\": \"$$KIBANA_SYSTEM_PASSWORD\"}"
+        -d "{\"password\": \"$$KIBANA_SYSTEM_PASSWORD\"}" &&
+        curl -fsS -u "elastic:$$ELASTIC_PASSWORD" -H "Content-Type: application/json"
+        -X PUT http://elasticsearch:9200/_security/role/smart_ticket_reader
+        -d "{\"indices\": [{\"names\": [\"logs-*\", \"traces-apm*\"], \"privileges\": [\"read\"]}]}" &&
+        curl -fsS -u "elastic:$$ELASTIC_PASSWORD" -H "Content-Type: application/json"
+        -X PUT "http://elasticsearch:9200/_security/user/$$ELASTICSEARCH_USERNAME"
+        -d "{\"password\": \"$$ELASTICSEARCH_PASSWORD\", \"roles\": [\"smart_ticket_reader\"]}"
     restart: "no"
     depends_on:
       elasticsearch:

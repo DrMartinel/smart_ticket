@@ -7,6 +7,7 @@ import asyncio
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Protocol, Self
 
 from asgiref.sync import async_to_sync
 from django.conf import settings
@@ -18,6 +19,14 @@ logger = logging.getLogger(__name__)
 
 WITHHELD = "[withheld]"
 _WITHHOLD = (PIILevel.MASK_FAILED, PIILevel.CRITICAL)
+
+
+class HasFreeText(Protocol):
+    """Something read from a backend with free text to mask."""
+
+    def free_text(self) -> list[str]: ...
+
+    def with_free_text(self, texts: list[str]) -> Self: ...
 
 
 @dataclass(frozen=True)

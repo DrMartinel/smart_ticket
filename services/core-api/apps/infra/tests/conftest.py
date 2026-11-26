@@ -1,7 +1,9 @@
-"""Fixtures: cloud-sim running in-process as the cloud, a fake Alertmanager, and NER stubs."""
+"""Fixtures: cloud-sim running in-process as the cloud, fakes for Alertmanager, Prometheus and
+Elasticsearch, and NER stubs."""
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any, cast
@@ -17,8 +19,10 @@ from fastapi.testclient import TestClient
 from opentelemetry.sdk._logs.export import InMemoryLogRecordExporter
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
-from apps.infra.services import inventory
-from apps.infra.clients.backends import Alertmanager, OpenStack
+from urllib.parse import parse_qs
+
+from apps.infra.clients.backends import Alertmanager, Elasticsearch, OpenStack, Prometheus
+from apps.infra.services import inventory, observability
 
 # The real client, captured before the root conftest's ai-engine stub replaces `httpx.Client`.
 _Client = httpx.Client
@@ -65,7 +69,9 @@ def cloud_sim(settings: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[CloudS
     with TestClient(app, base_url="http://cloud-sim") as client:
         sim = CloudSim(app.state.cloud, client)
         client.event_hooks["request"].append(lambda r: sim.calls.append(f"{r.method} {r.url.path}"))
-        monkeypatch.setattr(inventory, "openstack", lambda: OpenStack(cast(httpx.Client, client)))
+        cloud = OpenStack(cast(httpx.Client, client))
+        monkeypatch.setattr(inventory, "openstack", lambda: cloud)
+        monkeypatch.setattr(observability, "openstack", lambda: cloud)
         yield sim
 
 
@@ -145,4 +151,102 @@ def alert(name: str, project: str | None, summary: str, **labels: str) -> dict[s
         "startsAt": "2026-11-26T09:00:00Z",
         "fingerprint": f"fp-{name}-{project}",
         "status": {"state": "active", "silencedBy": [], "inhibitedBy": []},
+    }
+
+
+@dataclass
+class FakePrometheus:
+    """prom-label-proxy answering range queries with `series`, or `status` and `error`; keeps
+    the query and the `project` values of every request."""
+
+    series: list[dict[str, Any]] = field(default_factory=list)
+    status: int = 200
+    error: str = ""
+    raises: Exception | None = None
+    queries: list[str] = field(default_factory=list)
+    projects: list[list[str]] = field(default_factory=list)
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        if self.raises is not None:
+            raise self.raises
+        form = parse_qs(request.content.decode())
+        self.queries.append(form["query"][0])
+        self.projects.append(request.url.params.get_list("project"))
+        if self.status != 200:
+            return httpx.Response(
+                self.status, json={"status": "error", "errorType": "bad_data", "error": self.error}
+            )
+        body = {"status": "success", "data": {"resultType": "matrix", "result": self.series}}
+        return httpx.Response(200, json=body)
+
+
+@pytest.fixture
+def prom(settings: Any, monkeypatch: pytest.MonkeyPatch) -> FakePrometheus:
+    fake = FakePrometheus()
+    settings.PROMETHEUS_URL = "http://prom-label-proxy"
+    http = mock_http(fake.handle)
+    monkeypatch.setattr(observability, "prometheus", lambda: Prometheus(http))
+    return fake
+
+
+@dataclass
+class FakeElasticsearch:
+    """Elasticsearch answering every search with `docs`, or failing with `raises`; keeps the
+    index and body of every search."""
+
+    docs: list[dict[str, Any]] = field(default_factory=list)
+    raises: Exception | None = None
+    searches: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        if self.raises is not None:
+            raise self.raises
+        index = request.url.path.removeprefix("/").removesuffix("/_search")
+        self.searches.append((index, json.loads(request.content)))
+        hits = [{"_source": d} for d in self.docs]
+        return httpx.Response(200, json={"hits": {"total": {"value": len(hits)}, "hits": hits}})
+
+    def bodies(self) -> list[dict[str, Any]]:
+        return [body for _, body in self.searches]
+
+
+@pytest.fixture
+def es(settings: Any, monkeypatch: pytest.MonkeyPatch) -> FakeElasticsearch:
+    fake = FakeElasticsearch()
+    settings.ELASTICSEARCH_URL = "http://elasticsearch"
+    http = mock_http(fake.handle)
+    monkeypatch.setattr(observability, "elasticsearch", lambda: Elasticsearch(http))
+    return fake
+
+
+def series(project: str, value: float = 0.5, **labels: str) -> dict[str, Any]:
+    """A range query's series."""
+    return {
+        "metric": {"__name__": "cloud_volume_read_latency_seconds", "project": project, **labels},
+        "values": [[1764147600, str(value)], [1764147660, str(value)]],
+    }
+
+
+def log_doc(project: str, message: str, server: str = "db-01") -> dict[str, Any]:
+    """A log line as the APM Server indexes it."""
+    return {
+        "@timestamp": "2026-11-26T09:02:00Z",
+        "log": {"level": "ERROR"},
+        "labels": {"openstack_project_id": project},
+        "host": {"name": server, "id": f"id-{server}"},
+        "service": {"name": "postgres"},
+        "message": message,
+    }
+
+
+def span_doc(project: str, trace_id: str = "t1", **labels: str) -> dict[str, Any]:
+    """A request (a transaction) as the APM Server indexes it."""
+    return {
+        "@timestamp": "2026-11-26T09:02:00Z",
+        "trace": {"id": trace_id},
+        "transaction": {"id": "tx1", "name": "GET /orders", "duration": {"us": 120000}},
+        "labels": {"openstack_project_id": project, **labels},
+        "host": {"name": "app-01"},
+        "service": {"name": "orders"},
+        "event": {"outcome": "success"},
     }
