@@ -75,6 +75,15 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "POST /api/org/departments/{code}/move": Permission.ORG_DEPARTMENTS_MANAGE,
     "POST /api/org/import/departments": Permission.ORG_IMPORT,
     "POST /api/org/import/people": Permission.ORG_IMPORT,
+    "GET /api/infra/projects": Permission.INFRA_READ,
+    "GET /api/infra/servers": Permission.INFRA_READ,
+    "GET /api/infra/servers/{server_id}": Permission.INFRA_READ,
+    "GET /api/infra/volumes": Permission.INFRA_READ,
+    "GET /api/infra/volumes/{volume_id}": Permission.INFRA_READ,
+    "GET /api/infra/networks": Permission.INFRA_READ,
+    "GET /api/infra/networks/{network_id}": Permission.INFRA_READ,
+    "GET /api/infra/alerts": Permission.INFRA_READ,
+    "GET /api/infra/alerts/silences": Permission.INFRA_READ,
 }
 
 

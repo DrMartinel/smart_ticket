@@ -28,7 +28,12 @@ dev = [
     "pytest>=8.3",
     "pytest-django>=4.9",
     "pytest-cov>=6.0",
+    # The simulated cloud the infra tests run against in-process (F17, dev only).
+    "cloud-sim",
 ]
+
+[tool.uv.sources]
+cloud-sim = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

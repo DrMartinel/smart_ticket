@@ -19,6 +19,7 @@ from apps.tickets.views import router as tickets_router
 from apps.kb.views import router as kb_router
 from apps.review.views import router as review_router
 from apps.fewshot.views import router as fewshot_router
+from apps.infra.views import router as infra_router
 from apps.itsm_mock.views import router as itsm_router
 from apps.metrics.views import router as metrics_router
 from apps.reports.views import router as reports_router
@@ -46,6 +47,7 @@ api.add_router("/kb", kb_router)
 api.add_router("/review", review_router)
 api.add_router("/fewshot", fewshot_router)
 api.add_router("/itsm", itsm_router)
+api.add_router("/infra", infra_router)
 api.add_router("/metrics", metrics_router)
 api.add_router("/reports", reports_router)
 api.add_router("/chat", chat_router)

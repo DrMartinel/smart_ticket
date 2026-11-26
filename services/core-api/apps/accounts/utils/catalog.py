@@ -33,6 +33,10 @@ class Permission(StrEnum):
     INCIDENTS_MANAGE = "urn:smart-ticket:perm:incidents:manage"
     INCIDENTS_READ = "urn:smart-ticket:perm:incidents:read"
     INCIDENTS_UNLINK = "urn:smart-ticket:perm:incidents:unlink"
+    INFRA_OPERATE = "urn:smart-ticket:perm:infra:operate"
+    INFRA_OPERATE_OWN = "urn:smart-ticket:perm:infra:operate:own"
+    INFRA_READ = "urn:smart-ticket:perm:infra:read"
+    INFRA_READ_OWN = "urn:smart-ticket:perm:infra:read:own"
     KB_AUTHORITY_LOG_READ = "urn:smart-ticket:perm:kb:authority-log:read"
     KB_AUTHORITY_GRANT = "urn:smart-ticket:perm:kb:authority:grant"
     KB_AUTHORITY_QUEUE = "urn:smart-ticket:perm:kb:authority:queue"
@@ -158,6 +162,14 @@ PERMISSIONS: dict[Permission, PermissionSpec] = {
     P.INCIDENTS_MANAGE: _spec("Declare, confirm, broadcast, resolve and link incidents"),
     P.INCIDENTS_READ: _spec("Read incidents"),
     P.INCIDENTS_UNLINK: _spec("Unlink a ticket from an incident"),
+    P.INFRA_OPERATE: _spec("Reboot, start, stop and attach on any cloud project"),
+    P.INFRA_OPERATE_OWN: _spec(
+        "Reboot, start and stop your own company's cloud servers", staff_only=False
+    ),
+    P.INFRA_READ: _spec("Read every cloud project's resources, metrics, logs and alerts"),
+    P.INFRA_READ_OWN: _spec(
+        "Read your own company's cloud resources, metrics, logs and alerts", staff_only=False
+    ),
     P.KB_AUTHORITY_LOG_READ: _spec("Read the authority log"),
     P.KB_AUTHORITY_GRANT: _spec("Allow or revoke automatic answers from a page", locked=True),
     P.KB_AUTHORITY_QUEUE: _spec("Read the authority queue"),
@@ -293,6 +305,8 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     SystemRole.EMPLOYEE: frozenset(
         {
             P.AGENT_USE,
+            P.INFRA_OPERATE_OWN,
+            P.INFRA_READ_OWN,
             P.KB_PAGES_READ,
             P.REQUESTER_CHAT,
             P.REQUESTER_SUBMIT,
@@ -310,6 +324,8 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
             P.ACCESS_REVIEW_RESPOND,
             P.INCIDENTS_READ,
             P.INCIDENTS_UNLINK,
+            P.INFRA_OPERATE,
+            P.INFRA_READ,
             P.KB_PAGES_READ,
             P.ORG_DEPARTMENTS_READ,
             P.PII_REVEAL,

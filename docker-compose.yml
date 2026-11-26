@@ -100,6 +100,16 @@ x-core-api-env: &core-api-env
   ITSM_RUN_STUCK_SEC: ${ITSM_RUN_STUCK_SEC:?see .env.example}
   ITSM_SWEEP_INTERVAL_SEC: ${ITSM_SWEEP_INTERVAL_SEC:?see .env.example}
   ITSM_GRANTABLE_GROUP_PREFIXES: ${ITSM_GRANTABLE_GROUP_PREFIXES:?see .env.example}
+  # The cloud and its observability (F17): the `infra` profile's containers.
+  OPENSTACK_AUTH_URL: http://cloud-sim:8090/identity/v3
+  ALERTMANAGER_URL: http://alertmanager:9093
+  OPENSTACK_SERVICE_DOMAIN: ${OPENSTACK_SERVICE_DOMAIN:?see .env.example}
+  OPENSTACK_SERVICE_USER: ${OPENSTACK_SERVICE_USER:?see .env.example}
+  OPENSTACK_SERVICE_PASSWORD: ${OPENSTACK_SERVICE_PASSWORD:?see .env.example}
+  OPENSTACK_FEDERATION_IDP: ${OPENSTACK_FEDERATION_IDP:?see .env.example}
+  OPENSTACK_FEDERATION_PROTOCOL: ${OPENSTACK_FEDERATION_PROTOCOL:?see .env.example}
+  INFRA_CONNECT_TIMEOUT_SEC: ${INFRA_CONNECT_TIMEOUT_SEC:?see .env.example}
+  INFRA_READ_TIMEOUT_SEC: ${INFRA_READ_TIMEOUT_SEC:?see .env.example}
 
 services:
   db:
