@@ -19,8 +19,8 @@ from apps.infra.services import customers as customers_module
 from apps.infra.services.customers import customers
 from apps.infra.tests.conftest import LAN_SUBJECT, CloudSim, mock_http
 from apps.lifecycle.services.engine import lifecycle
+from apps.sla.tests.conftest import FLOOR, set_tier_floor
 from apps.tickets.domain.patterns import PIILevel
-from apps.tickets.domain.router import Branch
 from apps.tickets.models import IncidentVerdict, Ticket
 from apps.tickets.tasks import process_ticket
 from apps.tickets.testing import nothing_found
@@ -58,11 +58,15 @@ def ticket_from(reporter: User, number: int = 1) -> Ticket:
     )
 
 
-def keystone_down(monkeypatch: pytest.MonkeyPatch) -> None:
+def keystone_raises(monkeypatch: pytest.MonkeyPatch, error: Exception) -> None:
     def refuse(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("Keystone is down")
+        raise error
 
     monkeypatch.setattr(customers_module, "openstack", lambda: OpenStack(mock_http(refuse)))
+
+
+def keystone_down(monkeypatch: pytest.MonkeyPatch) -> None:
+    keystone_raises(monkeypatch, httpx.ConnectError("Keystone is down"))
 
 
 def insufficient_context_answers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -95,36 +99,50 @@ def insufficient_context_answers(monkeypatch: pytest.MonkeyPatch) -> None:
 # ── the lookup ──
 
 
-def test_keystone_down_at_customer_lookup_never_blocks_the_pipeline(lan, manager_user, monkeypatch):
+@pytest.mark.parametrize(
+    ("error", "recorded"),
+    [
+        (httpx.ConnectError("Keystone is down"), "BackendUnavailable"),
+        (httpx.InvalidURL("bad OPENSTACK_AUTH_URL"), "InvalidURL"),
+        (RuntimeError("a bug in the client"), "RuntimeError"),
+    ],
+    ids=["outage", "bad_url", "bug"],
+)
+def test_a_failed_lookup_never_keeps_a_ticket_from_its_decision(
+    lan, manager_user, monkeypatch, error, recorded
+):
     customer(manager_user, SAO_MAI, "Sao Mai Logistics")
-    keystone_down(monkeypatch)
+    keystone_raises(monkeypatch, error)
     insufficient_context_answers(monkeypatch)
     ticket = ticket_from(lan)
 
-    result = process_ticket.apply(args=(ticket.id,)).get()
+    process_ticket.apply(args=(ticket.id,)).get()
 
     ticket.refresh_from_db()
-    assert result["branch"] == Branch.HITL.value
-    assert ticket.customer is None
-    assert ticket.customer_lookup == CustomerLookup.UNAVAILABLE
+    assert ticket.routing_decisions.exists()
+    assert (ticket.customer, ticket.customer_lookup) == (None, CustomerLookup.UNAVAILABLE)
     failed = AuditLog.objects.get(event="customer_lookup_failed")
     assert failed.ticket_id == ticket.id
+    assert failed.payload["error"].startswith(recorded)
 
 
 def test_customer_never_changes_the_decision(lan, manager_user, cloud_sim: CloudSim, monkeypatch):
     customer(manager_user, SAO_MAI, "Sao Mai Logistics")
     insufficient_context_answers(monkeypatch)
-    with_customer = ticket_from(lan, 1)
-    process_ticket.apply(args=(with_customer.id,)).get()
+    found = ticket_from(lan, 1)
+    process_ticket.apply(args=(found.id,)).get()
+    with monkeypatch.context() as down:
+        keystone_down(down)
+        unavailable = ticket_from(lan, 2)
+        process_ticket.apply(args=(unavailable.id,)).get()
     lan.external_id = None
     lan.save(update_fields=["external_id"])
-    without = ticket_from(lan, 2)
-    process_ticket.apply(args=(without.id,)).get()
+    none = ticket_from(lan, 3)
+    process_ticket.apply(args=(none.id,)).get()
 
-    with_customer.refresh_from_db()
-    without.refresh_from_db()
-    assert with_customer.customer_lookup == CustomerLookup.FOUND
-    assert without.customer_lookup == CustomerLookup.NONE
+    tickets = [found, unavailable, none]
+    for ticket in tickets:
+        ticket.refresh_from_db()
     decided = [
         (
             t.routing_decisions.values(
@@ -132,14 +150,16 @@ def test_customer_never_changes_the_decision(lan, manager_user, cloud_sim: Cloud
             ).get(),
             list(t.review_items.values_list("queue", "priority")),
         )
-        for t in (with_customer, without)
+        for t in tickets
     ]
-    assert decided[0] == decided[1]
+    assert [t.customer_lookup for t in tickets] == ["found", "unavailable", "none"]
+    assert decided[0] == decided[1] == decided[2]
 
 
 def test_a_ticket_the_pipeline_hands_off_starts_at_its_customers_floor(
-    lan, manager_user, cloud_sim: CloudSim, monkeypatch
+    lan, manager_user, cloud_sim: CloudSim, monkeypatch, settings
 ):
+    set_tier_floor(settings, FLOOR)
     customer(manager_user, SAO_MAI, "Sao Mai Logistics")
     insufficient_context_answers(monkeypatch)
     ticket = ticket_from(lan)
@@ -149,7 +169,7 @@ def test_a_ticket_the_pipeline_hands_off_starts_at_its_customers_floor(
 
     ticket.refresh_from_db()
     started = AuditLog.objects.get(event="sla_started", ticket_id=ticket.id).payload
-    assert ticket.priority == "P2"
+    assert ticket.priority == FLOOR["enterprise"]
     assert (started["rule_priority"], started["tier"]) == ("P3", "enterprise")
 
 

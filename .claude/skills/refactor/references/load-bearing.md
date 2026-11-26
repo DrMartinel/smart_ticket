@@ -593,6 +593,27 @@ guard and that comment is later trimmed, the entry is the record.
   and naming it lets a customer map which other tenants share their machine.
   *`test_a_customer_answer_never_shows_the_hypervisor_label`.*
 
+### Customers (F17 §o, ADR-0048 decision 11)
+
+- **`Customers.stamp` running the lookup in a savepoint and catching every
+  error.** It runs at the top of `ticket_process`, before triage, and
+  `process_ticket` never retries: an error escaping it (a bad
+  `OPENSTACK_AUTH_URL` raises `httpx.InvalidURL`, which the client doesn't
+  wrap) would leave every ticket at `new` with no decision once one customer
+  row exists. *`test_a_failed_lookup_never_keeps_a_ticket_from_its_decision`.*
+- **A failed lookup is `unavailable`, with no `ReasonCode` and no review item
+  of its own.** It looks like a hard rule 3 gap, but the spec decided it
+  (BR-F17-21, OQ-F17-09): the ticket gets the decision it would have had with
+  no customer, the audit row and the ticket page name the failure, and
+  applying the highest floor instead would make every ticket P2 during a
+  Keystone outage. *`test_customer_never_changes_the_decision`* (found,
+  unavailable and none decide alike).
+- **Only `initial_priority` acts on the customer.** The router, the trust
+  score and ai-engine's request never read it; the tier floor only raises the
+  starting priority at handoff, never lowers it (BR-F1-16).
+  *`test_customer_never_changes_the_decision`,
+  `test_a_floor_below_the_rules_priority_never_lowers_it`.*
+
 ## ai-engine
 
 - **`TriageState` is frozen with `extra="forbid"`.** Without that, an in-place

@@ -138,27 +138,31 @@ class Customers:
 
     def stamp(self, ticket: Ticket) -> None:
         """Records `ticket`'s customer and how the lookup went, unless an earlier run found one
-        or found there was none (BR-F17-23); audits `customer_lookup_failed` when Keystone can't
-        answer."""
+        or found there was none (BR-F17-23); records `unavailable` and audits
+        `customer_lookup_failed` when the lookup fails for any reason (BR-F17-21)."""
         if ticket.customer_lookup in (CustomerLookup.FOUND, CustomerLookup.NONE):
             return
         try:
-            lookup, customer = self.of(ticket.reporter)
-        except (BackendUnavailable, BackendNotFound) as e:
-            logger.warning("infra: customer lookup failed for %s: %s", ticket.public_id, e)
+            with transaction.atomic():
+                lookup, customer = self.of(ticket.reporter)
+        except Exception as e:  # noqa: BLE001 — a failed lookup is unavailable, never a stuck ticket
+            logger.warning("infra: customer lookup failed for %s: %r", ticket.public_id, e)
             lookup, customer = CustomerLookup.UNAVAILABLE, None
             AuditLog.objects.record(
                 "customer_lookup_failed",
                 actor_type="system",
                 ticket_id=ticket.id,
-                payload={"ticket_public_id": ticket.public_id, "error": str(e)},
+                payload={
+                    "ticket_public_id": ticket.public_id,
+                    "error": f"{type(e).__name__}: {e}",
+                },
             )
         ticket.customer, ticket.customer_lookup = customer, lookup.value
         ticket.save(update_fields=["customer", "customer_lookup"])
 
     def of(self, reporter: User) -> tuple[CustomerLookup, Customer | None]:
-        """The customer whose Keystone domain holds `reporter`'s Keystone user; asks Keystone
-        only when some customer exists and the reporter has a Keycloak subject."""
+        """The customer whose Keystone domain holds `reporter`'s Keystone user, or none
+        (BR-F17-21, BR-F17-23)."""
         if not reporter.external_id or not Customer.objects.exists():
             return CustomerLookup.NONE, None
         found = keystone_user(reporter, openstack())

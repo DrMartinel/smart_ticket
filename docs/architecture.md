@@ -424,7 +424,7 @@ Every degradation resolves toward a human. A user waiting longer is acceptable; 
 |---|---|
 | LLM unreachable, timed out or erroring | No retry → HITL, `all_llm_down` |
 | Embedding unavailable | HITL, `embedding_unavailable` |
-| Keystone down at the customer lookup | No customer and no tier floor: `customer_lookup = unavailable`, audited `customer_lookup_failed`, shown on the ticket page. Triage goes on; routing never reads the customer (ADR-0048 decision 11) |
+| The customer lookup fails (Keystone down, or any other error) | No customer and no tier floor: `customer_lookup = unavailable`, audited `customer_lookup_failed`, shown on the ticket page. Triage goes on; routing never reads the customer (ADR-0048 decision 11) |
 | Retrieval query, cross-encoder or Jev fails (reranking or the category) | ai-engine raises, answers 500 → HITL, `ai_engine_unavailable`. No fallback to another score scale or to the LLM's category |
 | ai-engine down | Tickets still accepted; all to HITL — **fail open toward people** |
 | Worker dies mid-task | `acks_late` + idempotency key; redelivery cannot double-send |
