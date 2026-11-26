@@ -184,7 +184,9 @@ Membership state: `is_available` true/false; leave dates.
 **Migration:** create teams from the six categories (`hardware` … `other`),
 one team each, `least_loaded`; `other` is the fallback. Backfill
 `tickets.team` from `assigned_team` where it equals a category. Writer:
-core-api only. No PII except masked notes.
+core-api only. No PII except masked notes. Later, `review/0005` backfills
+`tickets.category` where it is null from a confirmed, uncorrected handoff
+decision and its run's `category_choice` (implementation note 6).
 
 **`thresholds.yaml` — CHANGED**
 
