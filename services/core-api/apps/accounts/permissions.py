@@ -31,6 +31,7 @@ from apps.accounts.domain.catalog import Permission
 from apps.agent.models import (
     AgentActionKind,
     AgentConversationState,
+    AgentSurface,
     AgentTargetKind,
     AgentTurn,
     AgentTurnState,
@@ -85,13 +86,18 @@ class SessionAuth(JWTAuth):
                 conversation, turn = uuid.UUID(validated["agc"]), uuid.UUID(validated["agt"])
             except (KeyError, TypeError, ValueError) as e:
                 raise AuthenticationFailed("this token's actor is not one core-api issues") from e
-            if not AgentTurn.objects.filter(
-                id=turn,
-                conversation_id=conversation,
-                state=AgentTurnState.RUNNING.value,
-                conversation__user=user,
-                conversation__state=AgentConversationState.ACTIVE.value,
-            ).exists():
+            surface = (
+                AgentTurn.objects.filter(
+                    id=turn,
+                    conversation_id=conversation,
+                    state=AgentTurnState.RUNNING.value,
+                    conversation__user=user,
+                    conversation__state=AgentConversationState.ACTIVE.value,
+                )
+                .values_list("conversation__surface", flat=True)
+                .first()
+            )
+            if surface is None:
                 raise AuthenticationFailed("the agent turn this token belongs to is not running")
             tool = request.headers.get(AGENT_TOOL_HEADER, "")
             step = request.headers.get(AGENT_STEP_HEADER, "")
@@ -100,6 +106,7 @@ class SessionAuth(JWTAuth):
                 turn,
                 tool if TOOL_NAME.match(tool) else "",
                 int(step) if STEP_NUMBER.match(step) else None,
+                surface,
             )
         match = getattr(request, "resolver_match", None)
         return Caller(
@@ -263,11 +270,20 @@ def require(
             if caller.agent is not None:
                 caps = settings.THRESHOLDS.agent
                 read = gate.agent_tier is AgentTier.READ
+                step = caller.agent.step
+                console = caller.agent.surface == AgentSurface.CONSOLE.value
+                if step is not None and step > (
+                    caps.console_max_steps if console else caps.max_steps
+                ):
+                    raise AgentError(
+                        429, AgentRefusal.TOOL_LIMIT, "this turn has taken all its steps"
+                    )
                 if not AgentTurn.objects.count_step(
                     caller.agent.turn,
-                    caller.agent.step,
+                    step,
                     read=read,
                     cap=caps.max_read_calls_per_turn if read else caps.max_tool_calls_per_turn,
+                    free_reads=caps.max_free_reads_per_step,
                 ):
                     raise AgentError(
                         429,

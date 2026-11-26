@@ -18,6 +18,7 @@ from ai_engine.agent.tools.chat import nothing
 from ai_engine.agent.tools.console import drafted
 from ai_engine.agent.tools.projection import WITHHELD, person, ref, untrusted
 from ai_engine.agent.tools.tool import Context, PublicIdIn, Tier, Tool, ToolInput
+from ai_engine.graph.nodes.injection_patterns import matches
 
 ResourceId = Annotated[
     str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -25,10 +26,16 @@ ResourceId = Annotated[
 Name = Annotated[str, Field(min_length=1, max_length=100)]
 Filters = dict[Name, list[Annotated[str, Field(min_length=1, max_length=200)]]]
 
-# A name the model and a ref's label may see as it is; any other is untrusted text.
+# The shape of a name the model and a ref's label may see as it is (see `plain`).
 _PLAIN_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 # A Prometheus label name.
 _LABEL_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def plain(value: str) -> bool:
+    """Whether a name the cloud holds may be shown as it is: it has a plain name's shape and the
+    injection screen finds nothing in it."""
+    return bool(_PLAIN_NAME.fullmatch(value)) and not matches(value)
 
 
 def cloud_text(text: str | None) -> dict[str, str] | str | None:
@@ -39,7 +46,7 @@ def cloud_text(text: str | None) -> dict[str, str] | str | None:
 def cloud_name(value: Any) -> Any:
     """A name or label value the cloud holds: as it is when it is a plain name or not text,
     untrusted otherwise."""
-    if not isinstance(value, str) or value == WITHHELD or _PLAIN_NAME.fullmatch(value):
+    if not isinstance(value, str) or value == WITHHELD or plain(value):
         return value
     return untrusted(value)
 
@@ -62,13 +69,12 @@ def cloud_pairs(mapping: dict[str, Any] | None) -> list[dict[str, str] | str | N
 
 def resource_ref(context: Context, kind: str, row: dict[str, Any]) -> dict[str, str]:
     """The ref of a project, server, volume or network, labelled by its name and the start of its
-    id when the name is a plain name, and by its id otherwise; none for a row whose id is not a
-    plain name."""
+    id when the name is `plain`, and by its id otherwise; none for a row whose id is not."""
     item_id, name = str(row.get("id") or ""), row.get("name")
-    if not _PLAIN_NAME.fullmatch(item_id):
+    if not plain(item_id):
         return {}
-    plain = isinstance(name, str) and _PLAIN_NAME.fullmatch(name) and name != item_id
-    label = f"{name} ({item_id[:8]})" if plain else item_id
+    named = isinstance(name, str) and plain(name) and name != item_id
+    label = f"{name} ({item_id[:8]})" if named else item_id
     return {"ref": ref(context, kind, item_id, label)}
 
 

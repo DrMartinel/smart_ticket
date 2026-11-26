@@ -1102,17 +1102,49 @@ def test_a_write_counts_whatever_step_it_names(employee_user, settings, engine, 
 
 
 @pytest.mark.django_db
-def test_a_read_in_a_new_step_counts_against_the_cap(employee_user, settings):
+def test_reads_naming_one_step_are_refused_at_the_read_cap(employee_user, settings):
     _agent_caps(settings, max_read_calls_per_turn=2)
     client = as_agent(employee_user, tool="list_my_tickets", step=1)
 
-    answers = []
-    for step in (1, 1, 2, 3):
-        client.defaults["HTTP_X_AGENT_STEP"] = str(step)
-        answers.append(client.get("/api/requester/tickets").status_code)
+    answers = [client.get("/api/requester/tickets").status_code for _ in range(20)]
 
-    assert answers == [200, 200, 200, 429]
+    assert answers == [200, 200] + [429] * 18
     assert AgentTurn.objects.get().read_calls == 2
+
+
+@pytest.mark.django_db
+def test_a_poll_beyond_the_free_reads_of_its_step_counts(employee_user, settings, engine, queued):
+    _agent_caps(
+        settings, max_free_reads_per_step=50, max_read_calls_per_turn=1, max_tool_calls_per_turn=1
+    )
+    client = as_agent(employee_user, tool="ask_helpdesk", step=1)
+    asked = client.post(
+        "/api/chat/ask", {"message": "VPN drops every ten minutes"}, content_type="application/json"
+    )
+    poll = f"/api/chat/tickets/{asked.json()['public_id']}"
+
+    free = {client.get(poll).status_code for _ in range(50)}
+    free_reads = AgentTurn.objects.get().read_calls
+    counted = client.get(poll)
+    over = client.get(poll)
+
+    assert (free, free_reads) == ({200}, 0)
+    assert counted.status_code == 200 and AgentTurn.objects.get().read_calls == 1
+    assert (over.status_code, over.json()["code"]) == (429, "agent_tool_limit")
+
+
+@pytest.mark.django_db
+def test_a_step_beyond_the_turn_s_steps_is_refused(employee_user, settings):
+    _agent_caps(settings, max_steps=3)
+    client = as_agent(employee_user, tool="list_my_tickets", step=4)
+
+    beyond = client.get("/api/requester/tickets")
+    client.defaults["HTTP_X_AGENT_STEP"] = "3"
+    last = client.get("/api/requester/tickets")
+
+    assert (beyond.status_code, beyond.json()["code"]) == (429, "agent_tool_limit")
+    assert last.status_code == 200
+    assert AgentTurn.objects.get().read_calls == 1
 
 
 # ── agent.sweep (FR-F15-019) ──

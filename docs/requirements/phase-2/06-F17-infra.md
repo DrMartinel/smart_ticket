@@ -199,7 +199,7 @@ Mock data for this feature (added to §6.0.5's):
 | BR-F17-09 | A confirmed or applied change whose cloud answer is lost becomes `outcome_unknown` and is never resent |
 | BR-F17-10 | Every query writes one `infra_queries` row; every receipt links its query |
 | BR-F17-11 | A staff change names an open ticket the person covers and writes an internal comment on it. A customer's change needs no ticket and is limited to soft reboot, start and stop |
-| BR-F17-12 | Every cap on a query (range, step, series, documents, spans, result bytes) is in `thresholds.yaml` `infra:`; the queries an agent turn may run are capped by `agent.max_read_calls_per_turn`, which counts every read |
+| BR-F17-12 | Every cap on a query (range, step, series, documents, spans, result bytes) is in `thresholds.yaml` `infra:`; the queries an agent turn may run are capped by `agent.max_read_calls_per_turn`, which counts every read except up to `agent.max_free_reads_per_step` reads in the step of a counted write, so a turn reads at most `max_read_calls_per_turn` + `max_tool_calls_per_turn` × `max_free_reads_per_step` times |
 
 ## f. Functional requirements
 
@@ -327,17 +327,30 @@ infra:
   max_regex_kib: 256       # RE2's memory for one raw PromQL regex
   max_regex_matchers: 10   # regex matchers in one raw PromQL query
 agent:
-  max_model_tokens_per_turn: 48000  # was 16000 (F15); pays for max_steps chat calls
+  max_model_tokens_per_turn: 48000  # was 16000 (F15); pays for every chat step's fixed cost
   max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn; caps a turn's queries (BR-F17-12)
+  max_free_reads_per_step: 50       # new; ask_helpdesk's polls after its post: 90 s / 2 s = 45
   console_max_steps: 20             # new
-  console_max_model_tokens_per_turn: 200000  # new; pays for console_max_steps calls
+  console_max_model_tokens_per_turn: 200000  # new; pays for every console step's fixed cost
 ```
 
 Each model call sends the prompt (about 1,400 tokens) and the surface's tool
 list (about 3,800 on the chat and 6,600 on the console with F17's tools), and
-then the turn's results so far. The token budgets pay for the step caps: 8
-chat calls cost about 42,000 tokens before any result, 20 console calls about
-160,000.
+then every result of the turn so far. The token budgets pay for the fixed
+cost of every step (8 chat calls about 42,000 tokens, 20 console calls about
+160,000) and a few results. They do not pay for a long turn of full-size
+results: one answer cut to `infra.max_result_bytes` (24,000 bytes, about
+6,000 tokens) at console step 5 is re-sent by the 15 calls after it, about
+90,000 tokens. Such a turn ends `agent_budget_exceeded` and reaches a person.
+
+core-api counts an agent turn's calls by the step each names (`X-Agent-Step`).
+Every write counts against `max_tool_calls_per_turn`. A read counts against
+`max_read_calls_per_turn`, except that up to `max_free_reads_per_step` reads
+in the step of a counted write are free: `ask_helpdesk` posts, then polls.
+A read-only step counts every read, and a step number above the surface's
+`max_steps` is refused. The caller sets the header, so the bound holds
+whatever it sends: at most `max_read_calls_per_turn` +
+`max_tool_calls_per_turn` × `max_free_reads_per_step` reads a turn.
 
 `.env.example`: `ELASTICSEARCH_URL`, `ELASTICSEARCH_API_KEY`,
 `PROMETHEUS_URL` (the proxy), `PROMETHEUS_PARSE_URL`, `ALERTMANAGER_URL`,
@@ -356,8 +369,8 @@ range.
 - `graph/agent_state.py` and core-api `infrastructure/dtos.py`:
   `AgentLimits.max_read_calls` (ADR-0010, both in one PR).
 - `choose.py`: counts reads and writes separately. Each call names its
-  step (`X-Agent-Step`), and core-api counts a step once, by the tier of its
-  first call, so `ask_helpdesk`'s polls are free reads.
+  step (`X-Agent-Step`), so `ask_helpdesk`'s polls are free reads in core-api
+  (§h.3).
 - Prompt: `agent.v4`: how to investigate (catalog first, narrow before wide,
   cite the query), and never to read missing data as "no problem".
 
