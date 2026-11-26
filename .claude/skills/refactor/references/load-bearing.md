@@ -614,6 +614,26 @@ guard and that comment is later trimmed, the entry is the record.
   *`test_customer_never_changes_the_decision`,
   `test_a_floor_below_the_rules_priority_never_lowers_it`.*
 
+### Ticket cues (F17 §o, ADR-0048 decision 10)
+
+- **`Cues.handoff_outcome` building its own `InfraScope(everything=False, …)`
+  from the reporter's Keystone projects, never `InfraScope.all()`.** The task
+  runs with no person behind it, so nothing else stops a ticket that names
+  `web-03` from reading another company's server, even when the reporter is
+  staff (BR-F17-14). Keystone not answering ends the run `scope_unavailable`
+  and never widens it (BR-F17-15). `LogCount.search` keeps the project filter
+  from `scoped()` like every other search: Elasticsearch has no other scope.
+  *`test_a_name_from_another_companys_project_is_never_linked`,
+  `test_every_cue_query_carries_only_the_reporters_projects`,
+  `test_keystone_down_links_nothing_and_never_widens`,
+  `test_a_log_count_filters_the_callers_projects_and_stays_under_the_cap`.*
+- **`Enrichment.link` reading `subject_masked` and `body_masked` only, and
+  nothing at all when masking failed.** A name the masker replaced (a host
+  inside an email address, `[EMAIL_1]`) must not come back through the cloud's
+  inventory, and a mask-failed ticket's stored text can't be trusted to be
+  masked (BR-F17-14). *`test_enrichment_reads_the_masked_text_only`,
+  `test_a_ticket_whose_masking_failed_names_nothing`.*
+
 ## ai-engine
 
 - **`TriageState` is frozen with `extra="forbid"`.** Without that, an in-place
