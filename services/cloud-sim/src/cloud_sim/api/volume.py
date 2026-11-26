@@ -10,14 +10,15 @@ from cloud_sim.api.errors import nova_error
 from cloud_sim.api.identity import Admin, cloud_of
 from cloud_sim.cloud import Cloud, NotFound, Volume
 
-router = APIRouter(prefix="/volume/v3/{tenant}")
+router = APIRouter(prefix="/volume/v3")
 
 
 @router.get("/volumes/detail")
+@router.get("/{tenant}/volumes/detail")
 def list_volumes(
     request: Request,
-    tenant: str,
     _: Admin,
+    tenant: str | None = None,
     all_tenants: bool = False,
     project_id: str | None = None,
     name: str | None = None,
@@ -37,7 +38,10 @@ def list_volumes(
 
 
 @router.get("/volumes/{volume_id}")
-def get_volume(request: Request, tenant: str, volume_id: str, _: Admin) -> dict[str, Any]:
+@router.get("/{tenant}/volumes/{volume_id}")
+def get_volume(
+    request: Request, volume_id: str, _: Admin, tenant: str | None = None
+) -> dict[str, Any]:
     cloud = cloud_of(request)
     with cloud.reading():
         try:

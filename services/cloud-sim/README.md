@@ -9,7 +9,7 @@ docker compose --profile infra up -d     # with ELASTIC_PASSWORD … CLOUD_SIM_*
 
 | Port (host) | What |
 |---|---|
-| 8090 | cloud-sim: Keystone `/identity/v3`, Nova `/compute/v2.1`, Cinder `/volume/v3/{project}`, Neutron `/network/v2.0`, `/metrics`, `/sim/*` |
+| 8090 | cloud-sim: Keystone `/identity/v3`, Nova `/compute/v2.1`, Cinder `/volume/v3` (the project in the path optional, as since API 3.67), Neutron `/network/v2.0`, `/metrics`, `/sim/*` |
 | 9091 | Prometheus (scrapes `/metrics`, evaluates `infra/observability/rules.yml`) |
 | 9092 | prom-label-proxy, the only way core-api queries Prometheus |
 | 9094 | Alertmanager |

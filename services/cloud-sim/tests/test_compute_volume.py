@@ -232,3 +232,21 @@ def test_a_hard_reboot_may_follow_a_soft_one(sim: Sim) -> None:
 
     assert _task_state(sim, "db-01") == "rebooting_hard"
     assert _action(sim, "db-01", {"reboot": {"type": "SOFT"}}) == 409
+
+
+def test_volumes_list_without_a_project_in_the_path(sim: Sim) -> None:
+    project = sim.id_of("project", "hbr-web")
+
+    every = sim.client.get("/volume/v3/volumes/detail", headers=sim.headers)
+    one = sim.client.get(
+        "/volume/v3/volumes/detail",
+        params={"all_tenants": True, "project_id": project},
+        headers=sim.headers,
+    )
+    volume = sim.client.get(
+        f"/volume/v3/volumes/{sim.id_of('volume', 'vol-web-03')}", headers=sim.headers
+    )
+
+    assert len(every.json()["volumes"]) == len(sim.cloud.volumes)
+    assert {v["name"] for v in one.json()["volumes"]} == {"vol-web-03"}
+    assert volume.json()["volume"]["name"] == "vol-web-03"
