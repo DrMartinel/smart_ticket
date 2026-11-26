@@ -278,8 +278,11 @@ class AgentActionQuerySet(models.QuerySet["AgentAction"]):
         kind: AgentActionKind | None,
         ticket: str | None,
         review_item: uuid.UUID | None,
+        target_kind: AgentTargetKind | None,
+        target_ref: str | None,
     ) -> AgentActionQuerySet:
-        """The actions in `state`, of `kind`, on `ticket` or on `review_item`, newest first."""
+        """The actions in `state`, of `kind`, on `ticket`, on `review_item` or on the target
+        `target_kind` and `target_ref` name, newest first."""
         rows = self
         if state is not None:
             rows = rows.filter(state=state.value)
@@ -289,6 +292,10 @@ class AgentActionQuerySet(models.QuerySet["AgentAction"]):
             rows = rows.filter(target_kind="ticket", target_ref=ticket)
         if review_item is not None:
             rows = rows.filter(target_kind="review_item", target_ref=str(review_item))
+        if target_kind is not None:
+            rows = rows.filter(target_kind=target_kind.value)
+        if target_ref is not None:
+            rows = rows.filter(target_ref=target_ref)
         return rows.order_by("-created_at")
 
 

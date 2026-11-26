@@ -1096,6 +1096,35 @@ def test_a_turn_reads_back_with_its_reply_and_hand_off_ticket(
 
 
 @pytest.mark.django_db
+def test_the_actions_list_narrows_to_one_target(employee_user, api_as, engine, queued):
+    turn = _start(api_as(employee_user))
+
+    def action(kind: str, ref: str) -> AgentAction:
+        return AgentAction.objects.create(
+            kind="confirm",
+            user=employee_user,
+            conversation=turn.conversation,
+            turn=turn,
+            method="POST",
+            route="/api/x",
+            path=f"/api/x/{ref}",
+            arguments={},
+            arguments_sha256="0" * 64,
+            target_kind=kind,
+            target_ref=ref,
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+    wanted = action("server", "srv-1")
+    action("server", "srv-2")
+    action("volume", "srv-1")
+
+    listed = api_as(employee_user).get("/api/agent/actions?target_kind=server&target_ref=srv-1")
+
+    assert [a["action_id"] for a in listed.json()] == [str(wanted.id)]
+
+
+@pytest.mark.django_db
 def test_an_action_is_dismissed_once(employee_user, technician_user, api_as, engine, queued):
     turn = _start(api_as(employee_user))
     action = AgentAction.objects.create(

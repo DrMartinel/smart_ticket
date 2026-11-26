@@ -17,6 +17,7 @@ from apps.agent.models import (
     AgentActionKind,
     AgentActionState,
     AgentConversation,
+    AgentTargetKind,
     AgentTurn,
 )
 from apps.agent.request_schema import AgentTurnIn
@@ -93,9 +94,14 @@ def actions(
     kind: AgentActionKind | None = None,
     ticket: str | None = None,
     review_item: uuid.UUID | None = None,
+    target_kind: AgentTargetKind | None = None,
+    target_ref: str | None = None,
 ) -> list[AgentActionOut]:
-    """The user's actions, newest first, narrowed to a state, kind, ticket or review item."""
-    rows = AgentAction.objects.of_user(request.auth.user).narrowed(state, kind, ticket, review_item)
+    """The user's actions, newest first, narrowed to a state, kind, ticket, review item or
+    target."""
+    rows = AgentAction.objects.of_user(request.auth.user).narrowed(
+        state, kind, ticket, review_item, target_kind, target_ref
+    )
     return [AgentActionOut.of(a) for a in rows]
 
 
