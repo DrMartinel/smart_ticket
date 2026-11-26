@@ -53,6 +53,7 @@ export default function AgentTurnView({
   onConfirm,
   onDismiss,
   onCreateTicket,
+  onOpenTicket,
   onRetry,
   onAsk,
 }: {
@@ -67,6 +68,7 @@ export default function AgentTurnView({
   onConfirm: (action: AgentActionOut) => void;
   onDismiss: (action: AgentActionOut) => void;
   onCreateTicket: (publicId: string) => void;
+  onOpenTicket: (turnId: string) => void;
   onRetry: (key: string) => void;
   onAsk: (text: string) => void;
 }) {
@@ -143,6 +145,13 @@ export default function AgentTurnView({
                 )}
               </p>
             ))}
+            {t.state === "handed_off" && t.ticket_offered && !t.handoff_ticket && (
+              <TicketOffer
+                busy={creating === t.turn_id}
+                error={createError[t.turn_id]}
+                onOpen={() => onOpenTicket(t.turn_id)}
+              />
+            )}
             {t.state === "handed_off" && t.handoff_ticket && (
               <Handoff
                 publicId={t.handoff_ticket}
@@ -239,21 +248,26 @@ function Handoff({
   );
   if (!ticket || ticket.state === "thinking") return <Working label="Passing this to the helpdesk" />;
   if (ticket.state === "suggest_ticket") {
-    return (
-      <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
-        <p>A person can take this from here. Open a ticket with your message?</p>
-        {error && (
-          <p role="alert" className="text-danger">
-            {error}
-          </p>
-        )}
-        <div>
-          <Button size="sm" onClick={() => onCreateTicket(publicId)} disabled={busy}>
-            Open a ticket
-          </Button>
-        </div>
-      </div>
-    );
+    return <TicketOffer busy={busy} error={error} onOpen={() => onCreateTicket(publicId)} />;
   }
   return <p className="border-t border-border pt-3 text-sm">Your message is with support as {link}.</p>;
+}
+
+/** Offers to open a ticket with the person's message. */
+function TicketOffer({ busy, error, onOpen }: { busy: boolean; error: string | undefined; onOpen: () => void }) {
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
+      <p>A person can take this from here. Open a ticket with your message?</p>
+      {error && (
+        <p role="alert" className="text-danger">
+          {error}
+        </p>
+      )}
+      <div>
+        <Button size="sm" onClick={onOpen} disabled={busy}>
+          Open a ticket
+        </Button>
+      </div>
+    </div>
+  );
 }

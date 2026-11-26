@@ -276,6 +276,7 @@ export interface AgentTurnOut {
   receipts: AgentReceiptOut[];
   stop_reason: string | null;
   handoff_ticket: string | null;
+  ticket_offered?: boolean;
   queued_at: string;
   finished_at: string | null;
 }

@@ -66,6 +66,7 @@ export default function AssistantPage() {
                   onConfirm={agent.confirm}
                   onDismiss={agent.dismiss}
                   onCreateTicket={(id) => void agent.createTicket(id)}
+                  onOpenTicket={(id) => void agent.openTicket(id)}
                   onRetry={agent.retry}
                   onAsk={agent.send}
                 />

@@ -59,6 +59,12 @@ jobs:
       # ratios with the cross-encoder's floor (ADR-0005, docs/TODO.md item 4).
       SHORTLIST_PROVIDER: lexical
       POSTGRES_AI_RO_PASSWORD: ai_engine_ro_password
+      # The template's chat jobs run on DeepSeek; CI has no key and builds
+      # the clients without calling a model, so it pins them local.
+      CHAT_CLIENT_PROVIDER: vllm
+      DRAFT_CLIENT_PROVIDER: vllm
+      NER_CLIENT_PROVIDER: vllm
+      AGENT_CLIENT_PROVIDER: vllm
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
@@ -122,6 +128,12 @@ jobs:
       # fails to ai_engine_unavailable.
       JEV_API_KEY: ${{ secrets.JEV_API_KEY }}
       EVAL_FULL_RUN: "1"
+      # The template's chat jobs run on DeepSeek; CI has no key and builds
+      # the clients without calling a model, so it pins them local.
+      CHAT_CLIENT_PROVIDER: vllm
+      DRAFT_CLIENT_PROVIDER: vllm
+      NER_CLIENT_PROVIDER: vllm
+      AGENT_CLIENT_PROVIDER: vllm
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3

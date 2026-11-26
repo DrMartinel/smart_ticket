@@ -345,6 +345,11 @@ def test_ac_f15_05_a_turn_at_the_step_limit_hands_off_to_the_router(stack, linh,
     assert len(model.prompts) == limits.max_steps
     assert (turn.state, turn.stop_reason) == ("handed_off", "agent_step_limit")
     assert "list_my_tickets" not in turn.reply_text
+    assert turn.handoff_ticket is None and turn.offers_ticket()
+    opened = api_client_for(linh).post(f"/api/agent/turns/{turn.id}/ticket")
+    assert opened.status_code == 200, opened.content
+    stack.run_pipelines()
+    turn.refresh_from_db()
     ticket = turn.handoff_ticket
     assert ticket is not None
     assert ticket.agent_handoff_reason == "agent_step_limit"

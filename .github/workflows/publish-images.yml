@@ -50,6 +50,12 @@ jobs:
       EMBEDDING_PROVIDER: stub
       SHORTLIST_PROVIDER: lexical
       POSTGRES_AI_RO_PASSWORD: ai_engine_ro_password
+      # The template's chat jobs run on DeepSeek; CI has no key and builds
+      # the clients without calling a model, so it pins them local.
+      CHAT_CLIENT_PROVIDER: vllm
+      DRAFT_CLIENT_PROVIDER: vllm
+      NER_CLIENT_PROVIDER: vllm
+      AGENT_CLIENT_PROVIDER: vllm
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3

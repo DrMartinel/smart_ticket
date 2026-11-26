@@ -113,6 +113,7 @@ x-core-api-env: &core-api-env
 
 services:
   db:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     # pgvector + pg_search (ADR-0013). The preload flag is required: without
     # it `CREATE EXTENSION pg_search` fails and BM25 queries error out.
     build: ./infra/db
@@ -139,6 +140,7 @@ services:
     networks: [smart-triage]
 
   redis:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     image: redis:7-alpine
     ports:
       # Not needed by any container (they all reach redis:6379 over the
@@ -154,6 +156,7 @@ services:
     networks: [smart-triage]
 
   core-api:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     build:
       context: .
       dockerfile: services/core-api/Dockerfile
@@ -176,6 +179,7 @@ services:
     networks: [smart-triage]
 
   worker:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     build:
       context: .
       dockerfile: services/core-api/Dockerfile
@@ -195,6 +199,7 @@ services:
 
   # Agent turns (F15) on their own queue, so web workers are never held by one.
   worker-agent:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     build:
       context: .
       dockerfile: services/core-api/Dockerfile
@@ -222,6 +227,7 @@ services:
     networks: [smart-triage]
 
   beat:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     build:
       context: .
       dockerfile: services/core-api/Dockerfile
@@ -236,6 +242,7 @@ services:
     networks: [smart-triage]
 
   ai-engine:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     build:
       context: .
       dockerfile: services/ai-engine/Dockerfile
@@ -320,6 +327,7 @@ services:
   # image and allowlist as ai-engine; its pairs file and reply cache live in
   # the graph_build volume, first seeded from the demo KB's committed pairs.
   graph-builder:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     build:
       context: .
       dockerfile: services/ai-engine/Dockerfile
@@ -357,12 +365,14 @@ services:
   # vllm-rerank's score scale (ADR-0005) and re-embed stored vectors
   # (ADR-0009, docs/TODO.md item 4).
   vllm-chat:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG:?see .env.example}
     profiles: ["vllm"]
     command:
       - --model=${CHAT_MODEL:?see .env.example}
       - --gpu-memory-utilization=${VLLM_CHAT_GPU_UTIL:?see .env.example}
       - --max-model-len=${VLLM_CHAT_MAX_MODEL_LEN:?see .env.example}
+      - --max-num-seqs=${VLLM_CHAT_MAX_NUM_SEQS:?see .env.example}
     volumes:
       - ${HF_CACHE_DIR:?see .env.example}:/root/.cache/huggingface
     ports:
@@ -377,6 +387,7 @@ services:
     networks: [smart-triage]
 
   vllm-embed:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG:?see .env.example}
     profiles: ["vllm"]
     command:
@@ -394,6 +405,7 @@ services:
     networks: [smart-triage]
 
   vllm-rerank:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG:?see .env.example}
     profiles: ["vllm"]
     command:
@@ -415,6 +427,7 @@ services:
     networks: [smart-triage]
 
   admin-console:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     build:
       context: ./services/admin-console
       # Baked into the browser bundle at build time (see its Dockerfile).
@@ -429,6 +442,7 @@ services:
     networks: [smart-triage]
 
   chat:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     build:
       context: ./services/chat
       # Baked into the browser bundle at build time (see its Dockerfile).
@@ -446,6 +460,7 @@ services:
   # `docker compose --profile sso up -d keycloak`. The realm, its clients and
   # test users come from infra/keycloak/; client secrets come from .env.
   keycloak:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
     image: quay.io/keycloak/keycloak:26.4
     profiles: ["sso"]
     command: ["start-dev", "--import-realm"]
@@ -454,7 +469,8 @@ services:
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD:?see .env.example}
       # Tokens name the browser's address; core-api's back-channel calls use
       # whichever host they arrive on.
-      KC_HOSTNAME: http://localhost:8081
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME:?see .env.example}
+      KC_PROXY_HEADERS: ${KEYCLOAK_PROXY_HEADERS:-}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:?see .env.example}
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?see .env.example}

@@ -17,6 +17,7 @@ class AgentRefusal(StrEnum):
     TURN_RUNNING = "turn_running"
     NOT_PENDING = "not_pending"
     TOOL_LIMIT = "agent_tool_limit"
+    NO_TICKET_OFFERED = "no_ticket_offered"
 
 
 class AgentError(CodedError):

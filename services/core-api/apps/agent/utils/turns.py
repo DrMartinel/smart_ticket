@@ -22,6 +22,7 @@ from apps.accounts.utils.catalog import Permission
 from apps.agent.models import (
     METHOD_MAX_LENGTH,
     PATH_MAX_LENGTH,
+    TICKET_AT_ONCE,
     TOOL_MAX_LENGTH,
     AgentAction,
     AgentActionState,
@@ -46,7 +47,7 @@ from apps.rollout.utils.rollout import rollout
 from apps.rollout.utils.vocabulary import FlagBranch
 from apps.security.utils.alerts import security_alerts
 from apps.security.utils.vocabulary import AlertKind
-from apps.tickets.models import PiiQuarantine
+from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.utils.crypto import build_quarantine_entries
 from apps.tickets.utils.intake import ticket_intake
 from apps.tickets.utils.masking import mask_reply
@@ -76,14 +77,6 @@ _UNREAD = {
     PIILevel.MASK_FAILED: ReasonCode.AGENT_MASK_FAILED,
     PIILevel.CRITICAL: ReasonCode.AGENT_PII_CRITICAL,
 }
-# Reasons that open no ticket: nothing was done for the person.
-_NO_TICKET = frozenset(
-    {
-        ReasonCode.AGENT_TOKEN_REFUSED,
-        ReasonCode.AGENT_OFF,
-        ReasonCode.AGENT_CONVERSATION_ENDED,
-    }
-)
 # Reasons that end the conversation with the turn.
 _ENDS_CONVERSATION = {
     ReasonCode.AGENT_INJECTION_DETECTED: AgentConversationEnd.INJECTION,
@@ -217,7 +210,7 @@ class AgentTurns:
         request = AgentTurnRequest(
             turn_id=turn.id,
             surface=cast(Any, conversation.surface),
-            language=user.preferred_language().value,
+            language=turn.language().value,
             message_masked=turn.message_masked,
             earlier_turns=self.earlier_turns(turn),
             limits=AgentLimits(
@@ -329,8 +322,8 @@ class AgentTurns:
     # ── handing off (BR-F15-13, BR-F15-14, FR-F15-016) ──
 
     def _hand_off(self, turn_id: uuid.UUID, reason: ReasonCode) -> None:
-        """Ends a running turn with `reason` and its message in the user's language; on the chat
-        surface, an employee's turn becomes a ticket for a person."""
+        """Ends a running turn with `reason` and its message in the message's language; on the chat
+        surface, a turn whose masking failed or that holds critical PII becomes a ticket at once."""
         with transaction.atomic():
             turn = (
                 AgentTurn.objects.select_for_update()
@@ -344,23 +337,15 @@ class AgentTurns:
             user = conversation.user
             turn.state = AgentTurnState.HANDED_OFF.value
             turn.stop_reason = reason.value
-            turn.reply_text = HANDOFF_TEXT[reason][user.preferred_language()]
+            turn.reply_text = HANDOFF_TEXT[reason][turn.language()]
             turn.finished_at = timezone.now()
             turn.save(update_fields=["state", "stop_reason", "reply_text", "finished_at"])
             if reason in _ENDS_CONVERSATION:
                 self.end(conversation, _ENDS_CONVERSATION[reason])
             origin = AgentOrigin(conversation.id, turn.id, "").audit_fields()
             ticket = None
-            if conversation.surface == AgentSurface.CHAT.value and reason not in _NO_TICKET:
-                ticket = ticket_intake.open_for_agent(
-                    turn,
-                    cast(AgentHandoffReason, reason.value),
-                    conversations.current(user),
-                    origin,
-                )
-                turn.handoff_ticket = ticket
-                turn.save(update_fields=["handoff_ticket"])
-                conversations.after_submit(ticket)
+            if conversation.surface == AgentSurface.CHAT.value and reason in TICKET_AT_ONCE:
+                ticket = self._open_ticket(turn, reason, origin)
             if reason is ReasonCode.AGENT_PII_CRITICAL:
                 security_alerts.raise_(
                     AlertKind.PII_CRITICAL,
@@ -381,6 +366,48 @@ class AgentTurns:
             )
         if ticket is not None:
             ticket_intake.queue(ticket)
+
+    def open_ticket(self, user: User, turn_id: uuid.UUID) -> AgentTurn:
+        """Opens the ticket a handed-off turn offers its person, once however often it is asked
+        (FR-F15-016)."""
+        with transaction.atomic():
+            turn = (
+                AgentTurn.objects.of_user(user)
+                .select_for_update(of=("self",))
+                .select_related("conversation__user", "handoff_ticket")
+                .filter(id=turn_id)
+                .first()
+            )
+            if turn is None:
+                raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such turn")
+            if turn.handoff_ticket_id is not None:
+                return turn
+            if turn.stop_reason is None or not turn.offers_ticket():
+                raise AgentError(409, AgentRefusal.NO_TICKET_OFFERED, "this turn offers no ticket")
+            origin = AgentOrigin(turn.conversation_id, turn.id, "").audit_fields()
+            ticket = self._open_ticket(turn, ReasonCode(turn.stop_reason), origin)
+            AuditLog.objects.record(
+                "agent_handoff_ticket_requested",
+                actor_type="human",
+                actor_id=user.id,
+                ticket_id=ticket.id,
+                payload={"ticket_public_id": ticket.public_id, **origin},
+            )
+        ticket_intake.queue(ticket)
+        return turn
+
+    def _open_ticket(self, turn: AgentTurn, reason: ReasonCode, origin: dict[str, str]) -> Ticket:
+        """Opens the turn's hand-off ticket and links it to the turn; the caller queues it."""
+        ticket = ticket_intake.open_for_agent(
+            turn,
+            cast(AgentHandoffReason, reason.value),
+            conversations.current(turn.conversation.user),
+            origin,
+        )
+        turn.handoff_ticket = ticket
+        turn.save(update_fields=["handoff_ticket"])
+        conversations.after_submit(ticket)
+        return ticket
 
     # ── ending ──
 

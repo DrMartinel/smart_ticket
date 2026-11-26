@@ -50,11 +50,11 @@ class TestWaitsForRequester:
     def test_safety_decisions_never_wait(self, decision, shadow):
         """Each of these is a human looking at something that may already be
         wrong. The requester must not be able to keep it from support."""
-        assert waits_for_requester(decision, shadow, PIILevel.ROUTINE) is False
+        assert waits_for_requester(decision, shadow, PIILevel.ROUTINE, agent_handoff=False) is False
 
     def test_live_auto_reply_is_the_answer_not_a_handoff(self):
         decision = _decision(Branch.AUTO_REPLY, ReasonCode.ALL_CHECKS_PASSED, kb_slug="kb-1")
-        assert waits_for_requester(decision, False, PIILevel.ROUTINE) is False
+        assert waits_for_requester(decision, False, PIILevel.ROUTINE, agent_handoff=False) is False
 
     @pytest.mark.parametrize(
         "decision",
@@ -71,7 +71,7 @@ class TestWaitsForRequester:
     )
     def test_shadow_mode_never_waits(self, decision):
         """Checks that no decision waits for the requester in shadow mode."""
-        assert waits_for_requester(decision, True, PIILevel.ROUTINE) is False
+        assert waits_for_requester(decision, True, PIILevel.ROUTINE, agent_handoff=False) is False
 
     @pytest.mark.parametrize(
         "decision",
@@ -86,7 +86,7 @@ class TestWaitsForRequester:
         ids=["hitl", "degraded", "auto_route", "clarify"],
     )
     def test_live_ordinary_handoffs_wait(self, decision):
-        assert waits_for_requester(decision, False, PIILevel.ROUTINE) is True
+        assert waits_for_requester(decision, False, PIILevel.ROUTINE, agent_handoff=False) is True
 
 
 @pytest.fixture

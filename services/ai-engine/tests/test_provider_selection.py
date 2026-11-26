@@ -14,6 +14,8 @@ from ai_engine.core.providers.clients import (
     DEEPSEEK_COST_PER_1K_TOKENS,
     OPENAI_COST_PER_1K_TOKENS,
     VLLM_COST_PER_1K_TOKENS,
+    AllLLMDownError,
+    BlankReplyError,
     ChatClient,
 )
 from ai_engine.core.db import client as db_client
@@ -130,22 +132,23 @@ def cloud_key(monkeypatch):
 
 def _chat_on(monkeypatch, provider, cloud_base_url=None):
     monkeypatch.setattr(settings, "chat_client_provider", provider)
-    # The draft builds at the same reload: pinned local, so these tests read
-    # the proposal's provider and not a developer's .env draft setting.
+    # The draft and the agent build at the same reload: pinned local, so these
+    # tests read the proposal's provider and not a developer's .env settings.
     monkeypatch.setattr(settings, "draft_client_provider", "vllm")
+    monkeypatch.setattr(settings, "agent_client_provider", "vllm")
     monkeypatch.setattr(settings, "cloud_api_key", "key")
     monkeypatch.setattr(settings, "cloud_model", "test-model")
     monkeypatch.setattr(settings, "cloud_base_url", cloud_base_url)
 
 
-def test_default_chat_runs_on_vllm(env_template, monkeypatch, reload_clients):
+def test_default_chat_runs_on_deepseek(env_template, monkeypatch, reload_clients):
     """Reads the template, not the `settings` instance, which reflects the
     job's env."""
     default = env_template["CHAT_CLIENT_PROVIDER"]
-    assert default == "vllm"
-    _chat_on(monkeypatch, default)
+    assert default == "deepseek"
+    _chat_on(monkeypatch, default, env_template["CLOUD_BASE_URL"])
     m = reload_clients()
-    assert m.chat.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
+    assert m.chat.cost_per_1k_tokens == DEEPSEEK_COST_PER_1K_TOKENS
 
 
 @pytest.mark.parametrize(
@@ -351,3 +354,37 @@ def test_an_unknown_draft_or_ner_provider_fails_the_boot(field, value):
 def test_an_unknown_chat_provider_raises_rather_than_falling_back():
     with pytest.raises(ValueError, match="unknown chat provider"):
         ChatClient.for_provider("bogus")
+
+
+class _BlankModel:
+    """A chat model whose reply is only whitespace, with its usage."""
+
+    def invoke(self, messages, **kwargs):
+        from langchain_core.messages import AIMessage
+
+        return AIMessage(
+            content="\n\n      \n   ",
+            usage_metadata={"input_tokens": 100, "output_tokens": 40, "total_tokens": 140},
+        )
+
+
+def test_a_blank_reply_raises_blank_reply_error_with_its_usage():
+    client = ChatClient(
+        model="m", chat_model=_BlankModel(), cost_per_1k_tokens=1.0, constrains_schema=False
+    )
+
+    with pytest.raises(BlankReplyError) as raised:
+        client.complete("system", "user", schema_name="s", schema={})
+
+    assert (raised.value.tokens_in, raised.value.tokens_out) == (100, 40)
+    assert raised.value.cost_usd == pytest.approx(0.14)
+    assert raised.value.model == "m"
+
+
+def test_a_blank_reply_is_still_an_all_llm_down_error_for_triage():
+    client = ChatClient(
+        model="m", chat_model=_BlankModel(), cost_per_1k_tokens=1.0, constrains_schema=False
+    )
+
+    with pytest.raises(AllLLMDownError):
+        client.complete("system", "user", schema_name="s", schema={})
