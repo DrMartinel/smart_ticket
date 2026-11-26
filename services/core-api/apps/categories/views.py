@@ -1,4 +1,4 @@
-"""Category endpoints: the list every console reads, and editing one (ADR-0049)."""
+"""Category endpoints: the list every console and the agent read, and editing one (ADR-0049)."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ router = Router(tags=["categories"])
 
 
 @router.get("", auth=SessionAuth(), response=list[CategoryOut])
-@require(Permission.CATEGORIES_READ, agent=AgentTier.NONE)
+@require(Permission.CATEGORIES_READ, agent=AgentTier.READ)
 def categories(request: AuthedRequest) -> QuerySet[Category]:
     return Category.objects.all()
 

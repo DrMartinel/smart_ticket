@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import Field
@@ -12,7 +12,7 @@ from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, person, un
 from ai_engine.agent.tools.tool import Context, PublicIdIn, Tier, Tool, ToolInput
 
 StaffView = Literal["review", "mine", "open", "resolved", "all"]
-Category = Literal["hardware", "software", "network", "access", "security", "other"]
+CategorySlug = Annotated[str, Field(min_length=1, max_length=20, pattern=r"^[-a-zA-Z0-9_]+$")]
 ReassignReason = Literal[
     "wrong_team", "workload", "skill", "leave", "escalation", "requester_request", "other"
 ]
@@ -160,6 +160,24 @@ def review_item_detail(body: Any, context: Context) -> dict[str, Any]:
     }
 
 
+def categories(body: Any, context: Context) -> list[dict[str, Any]]:
+    """The active categories, with what each one covers."""
+    return [
+        {
+            "slug": c.get("slug"),
+            "name": c.get("name"),
+            "description": untrusted(c.get("description")),
+            "is_security": c.get("is_security"),
+        }
+        for c in body
+        if c.get("is_active")
+    ]
+
+
+class NoArgs(ToolInput):
+    pass
+
+
 class ListTicketsIn(ToolInput):
     view: StaffView = "all"
     q: str = Field("", max_length=200)
@@ -191,7 +209,7 @@ class DecisionIn(ItemIn):
     action_taken: str = Field(min_length=1, max_length=40)
     kb_verdict: str | None = None
     category_verdict: str | None = None
-    corrected_category: Category | None = None
+    corrected_category: CategorySlug | None = None
     corrected_kb_id: UUID | None = None
     override_reason: str | None = Field(None, max_length=2_000)
 
@@ -203,7 +221,7 @@ class CommentDecisionIn(ItemIn):
 class ReassignIn(PublicIdIn):
     to_user: str | None = Field(None, max_length=150)
     to_team: str | None = Field(None, max_length=50)
-    to_category: Category | None = None
+    to_category: CategorySlug | None = None
     reason_code: ReassignReason
     note: str = Field("", max_length=1_000)
     expected_version: int
@@ -261,6 +279,16 @@ TOOLS = (
         Input=PublicIdIn,
         description="Read a ticket's SLA clocks and due times.",
         project=sla,
+    ),
+    Tool(
+        name="list_categories",
+        surface="console",
+        tier=Tier.READ,
+        method="GET",
+        path="/api/categories",
+        Input=NoArgs,
+        description="List the categories a ticket can be in: each one's slug, name and what it covers.",
+        project=categories,
     ),
     Tool(
         name="take_ticket",

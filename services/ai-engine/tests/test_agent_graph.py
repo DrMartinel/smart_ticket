@@ -577,9 +577,52 @@ def test_every_tool_projection_drops_unlisted_fields():
             "recent": [row],
             "thread": [row],
         }
-        if tool.name in ("list_comments", "list_review_queue"):
+        if tool.name in ("list_comments", "list_review_queue", "list_categories"):
             body = [row]
         assert secret not in json.dumps(tool.project(body, context), default=str), tool.name
+
+
+def test_the_category_list_shows_active_categories_with_their_text_untrusted():
+    context = Context(SecretStr(_TOKEN), _ME, "alice", None)
+    body = [
+        {"slug": "network", "name": "Network", "description": "VPN, Wi-Fi.", "is_active": True},
+        {"slug": "billing", "name": "Billing", "description": "Old.", "is_active": False},
+    ]
+
+    shown = TOOLS["list_categories"].project(body, context)
+
+    assert [c["slug"] for c in shown] == ["network"]
+    assert shown[0]["description"] == {UNTRUSTED: "VPN, Wi-Fi."}
+
+
+@pytest.mark.parametrize("tool", ["draft_review_decision", "draft_reassign"])
+def test_a_draft_may_name_a_category_added_as_a_row(tool):
+    fields = {
+        "draft_review_decision": {"item_id": str(uuid4()), "action_taken": "reroute"},
+        "draft_reassign": {
+            "public_id": "TK-1",
+            "reason_code": "wrong_team",
+            "expected_version": 1,
+        },
+    }[tool]
+    key = "corrected_category" if tool == "draft_review_decision" else "to_category"
+
+    args = TOOLS[tool].Input.model_validate({**fields, key: "billing"})
+
+    assert getattr(args, key) == "billing"
+
+
+@pytest.mark.parametrize("slug", ["", "../users", "a" * 21])
+def test_a_category_argument_that_is_not_a_slug_is_refused(slug):
+    with pytest.raises(ValueError):
+        TOOLS["draft_reassign"].Input.model_validate(
+            {
+                "public_id": "TK-1",
+                "to_category": slug,
+                "reason_code": "wrong_team",
+                "expected_version": 1,
+            }
+        )
 
 
 def test_untrusted_fields_are_wrapped():
