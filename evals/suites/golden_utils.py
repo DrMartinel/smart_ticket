@@ -124,6 +124,8 @@ def analyze(
     2026-10-04 run instead of blocked, and no masking regression could show
     up here. Masking calls ai-engine's NER, so a run needs it up.
 
+    The categories are the active rows, as the pipeline sends them (ADR-0049).
+
     `prior_turns` are a chat conversation's earlier turns ({question, outcome,
     answer_excerpt}); each question is masked the way core-api stored it, as
     `Conversations.prior_turns` sends them (ADR-0034)."""
@@ -132,6 +134,7 @@ def analyze(
     from django.conf import settings
 
     from apps.tickets.request_schema import TicketIn
+    from apps.tickets.services.pipeline import category_set
     from apps.tickets.domain.masking import mask, mask_reply
 
     floor = 0.0 if never_refuse else settings.THRESHOLDS.retrieval_floor
@@ -161,6 +164,7 @@ def analyze(
             ],
         },
         "retrieval_floor": floor,
+        "categories": [c.model_dump() for c in category_set().options()],
     }
     resp = client.post("/v1/analyze", json=req)
     resp.raise_for_status()

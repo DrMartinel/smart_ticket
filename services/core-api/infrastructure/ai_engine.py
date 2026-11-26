@@ -25,6 +25,7 @@ from infrastructure.dtos import (
     AgentTurnResponse,
     AIRunRequest,
     AIRunResponse,
+    CategoryOption,
     EmbedRequest,
     EmbedResponse,
     PiiDetectRequest,
@@ -53,18 +54,21 @@ class AIEngineClient:
     deserves the full read budget.
     """
 
-    def analyze(self, ticket: TicketMasked, request_id: str) -> AIRunResponse:
+    def analyze(
+        self, ticket: TicketMasked, request_id: str, categories: list[CategoryOption]
+    ) -> AIRunResponse:
         """Raises `AIEngineUnavailable` on any failure."""
         th = settings.THRESHOLDS
-        req = AIRunRequest(
-            request_id=request_id,
-            ticket=ticket,
-            retrieval_floor=th.retrieval_floor,
-        )
         # Read: the whole run's latency budget, plus a little slack so a run
         # that finishes right at the budget still delivers its response.
         read = th.budget.max_latency_sec + settings.AI_ENGINE_ANALYZE_GRACE_SEC
         try:
+            req = AIRunRequest(
+                request_id=request_id,
+                ticket=ticket,
+                retrieval_floor=th.retrieval_floor,
+                categories=categories,
+            )
             return AIRunResponse(**self._post("/v1/analyze", req, read_timeout=read))
         except (httpx.HTTPError, ValueError) as e:
             raise AIEngineUnavailable(str(e)) from e

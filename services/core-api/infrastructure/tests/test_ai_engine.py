@@ -25,6 +25,7 @@ from infrastructure.dtos import (
     AgentLimits,
     AgentTurnRequest,
     AIRunResponse,
+    CategoryOption,
     ClassificationSignals,
     EngineSignals,
     GenerationSignals,
@@ -39,6 +40,7 @@ _TICKET = TicketMasked(
     body_masked="May in tang 3 bi ket giay",
     pii_level=PIILevel.ROUTINE,
 )
+_CATEGORIES = [CategoryOption(slug="network", description="Connectivity.")]
 
 
 def _run_response(request_id: str) -> dict:
@@ -94,14 +96,14 @@ def test_analyze_failure_is_always_ai_engine_unavailable(serve_ai_engine, handle
 
     serve_ai_engine(handler)
     with pytest.raises(AIEngineUnavailable):
-        ai_engine.analyze(_TICKET, request_id="t:1")
+        ai_engine.analyze(_TICKET, request_id="t:1", categories=_CATEGORIES)
 
 
 def test_analyze_posts_the_masked_ticket_and_retrieval_floor(serve_ai_engine, settings):
     settings.AI_ENGINE_URL = "http://ai-engine:8001/"
     calls = serve_ai_engine(_reply(200, json=_run_response("t:1")))
 
-    resp = ai_engine.analyze(_TICKET, request_id="t:1")
+    resp = ai_engine.analyze(_TICKET, request_id="t:1", categories=_CATEGORIES)
 
     assert resp.request_id == "t:1"
     [request] = calls.requests
@@ -109,6 +111,17 @@ def test_analyze_posts_the_masked_ticket_and_retrieval_floor(serve_ai_engine, se
     body = json.loads(request.content)
     assert body["ticket"]["subject_masked"] == "May in bi ket giay"
     assert body["retrieval_floor"] == settings.THRESHOLDS.retrieval_floor
+    assert body["categories"] == [{"slug": "network", "description": "Connectivity."}]
+
+
+def test_analyze_with_no_categories_is_ai_engine_unavailable(serve_ai_engine):
+    """A request ai-engine would refuse fails here, as the pipeline expects, not as a crash."""
+
+    calls = serve_ai_engine(_reply(200, json=_run_response("t:1")))
+
+    with pytest.raises(AIEngineUnavailable):
+        ai_engine.analyze(_TICKET, request_id="t:1", categories=[])
+    assert calls.requests == []
 
 
 def test_analyze_connect_timeout_is_short_and_separate_from_the_read_budget(
@@ -120,7 +133,7 @@ def test_analyze_connect_timeout_is_short_and_separate_from_the_read_budget(
 
     calls = serve_ai_engine(_reply(200, json=_run_response("t:1")))
 
-    ai_engine.analyze(_TICKET, request_id="t:1")
+    ai_engine.analyze(_TICKET, request_id="t:1", categories=_CATEGORIES)
 
     [timeout] = calls.timeouts
     assert timeout.connect == settings.MODEL_CONNECT_TIMEOUT_SEC

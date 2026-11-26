@@ -33,7 +33,6 @@ from infrastructure.dtos import (
     ClassificationSignals,
     PolicySignals,
     RetrievalSignals,
-    TicketCategory,
     TicketMasked,
     TrustSignals,
 )
@@ -42,6 +41,8 @@ from apps.teams.services.assignment import assignment
 from apps.teams.domain.vocabulary import AssignmentTrigger
 from apps.tickets.domain.router import (
     Branch,
+    CategoryMeta,
+    CategorySet,
     KBArticleMeta,
     ReasonCode,
     ReviewQueue,
@@ -52,6 +53,7 @@ from apps.tickets.domain.router import (
 from apps.tickets.domain.patterns import PIILevel
 
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.chat.services.conversations import conversations
 from apps.incidents.services.incidents import incidents
 from apps.kb.models import KbArticle
@@ -118,9 +120,25 @@ def _kb_meta(proposal: LLMProposalEnvelope | None) -> KBArticleMeta | None:
     return KBArticleMeta(
         id=kb.id,
         slug=kb.slug,
-        category=TicketCategory(kb.category),
+        category=kb.category,
         auto_reply_allowed=kb.is_authorized(),
         risk_tier=RiskTier(kb.risk_tier),
+    )
+
+
+def category_set() -> CategorySet:
+    """The active categories as triage reads them, in slug order (ADR-0049)."""
+    return CategorySet(
+        categories=tuple(
+            CategoryMeta(
+                slug=c.slug,
+                description=c.description,
+                is_security=c.is_security,
+                is_routable=c.is_routable,
+                version=c.version,
+            )
+            for c in Category.objects.active().order_by("slug")
+        )
     )
 
 
@@ -203,6 +221,7 @@ def _finalize(
     ai_run: AiRun,
     decision: Decision,
     trace_id: str,
+    categories: CategorySet,
     *,
     kb: KBArticleMeta | None = None,
 ) -> TaskResult:
@@ -220,6 +239,7 @@ def _finalize(
             reason_detail=decision.reason_detail,
             gate_failed=decision.gate_failed,
             thresholds_used=router.thresholds.model_dump(mode="json"),
+            categories_used=categories.as_used(),
             shadow_mode=shadow,
             rollout_snapshot=snapshot,
         )
@@ -433,7 +453,7 @@ def _execute_or_enqueue(
         ticket.save(update_fields=["category"])
         lifecycle.system_move(ticket, PipelineStatus.AUTO_REPLIED)
     elif branch is Branch.AUTO_ROUTE:
-        ticket.category = decision.category.value if decision.category else ticket.category
+        ticket.category = decision.category or ticket.category
         ticket.save(update_fields=["category"])
         lifecycle.system_move(ticket, PipelineStatus.AUTO_ROUTED)
         assignment.assign_after_handoff(ticket, AssignmentTrigger.AUTO_ROUTE)
@@ -451,6 +471,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
 
     attempt = AiRun.objects.filter(ticket=ticket).count() + 1
     idempotency_key = f"{ticket.id}:{attempt}"
+    categories = category_set()
 
     # ── Embedding + incident detection (core-api owns this, spec §1 map) ──
     combined_text = f"{ticket.subject_masked}\n{ticket.body_masked}"
@@ -474,7 +495,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="embedding_unavailable"
         )
-        return _finalize(ticket, ai_run, decision, trace_id)
+        return _finalize(ticket, ai_run, decision, trace_id, categories)
 
     if verdict.kind == "duplicate" and verdict.of:
         original = Ticket.objects.filter(id=verdict.of).first()
@@ -488,11 +509,11 @@ def ticket_process(ticket_id: str) -> TaskResult:
         # incident must never receive an (possibly wrong) auto-reply.
         signals = _degraded_signals()
         signals.policy.mass_incident = True
-        decision = router.route(signals, None, None)
+        decision = router.route(signals, None, None, categories)
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="mass_incident_short_circuit"
         )
-        return _finalize(ticket, ai_run, decision, trace_id)
+        return _finalize(ticket, ai_run, decision, trace_id, categories)
 
     # ── Budget: daily cost ceiling (core-api owns this — it's the only
     # side with write access to ai_runs, so it's the only side that can
@@ -506,7 +527,18 @@ def ticket_process(ticket_id: str) -> TaskResult:
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="budget_exceeded"
         )
-        return _finalize(ticket, ai_run, decision, trace_id)
+        return _finalize(ticket, ai_run, decision, trace_id, categories)
+
+    # No category set Jev can choose from, with a security category (ADR-0049).
+    if not categories.is_usable():
+        signals = _degraded_signals()
+        decision = _degraded_decision(
+            ReasonCode.CATEGORY_SET_INVALID, ReviewQueue.LOW_CONFIDENCE, priority=2
+        )
+        ai_run = _persist_ai_run(
+            ticket, idempotency_key, signals, None, degraded_reason="category_set_invalid"
+        )
+        return _finalize(ticket, ai_run, decision, trace_id, categories)
 
     # ── Call ai-engine ──
     # Questions asked so far, answered or not (ADR-0023).
@@ -521,7 +553,9 @@ def ticket_process(ticket_id: str) -> TaskResult:
     )
 
     try:
-        resp = ai_engine.analyze(masked, request_id=idempotency_key)
+        resp = ai_engine.analyze(
+            masked, request_id=idempotency_key, categories=categories.options()
+        )
     except AIEngineUnavailable as e:
         logger.warning(
             "ai-engine unavailable for ticket %s: %s — failing open to HITL", ticket.public_id, e
@@ -533,7 +567,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
         ai_run = _persist_ai_run(
             ticket, idempotency_key, signals, None, degraded_reason="ai_engine_unavailable"
         )
-        return _finalize(ticket, ai_run, decision, trace_id)
+        return _finalize(ticket, ai_run, decision, trace_id, categories)
 
     # The chat LLM failed. Routed here rather than through the router, which
     # sees only proposal=None and would label an outage SCHEMA_INVALID — the
@@ -556,7 +590,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
             resp=resp,
             degraded_reason=resp.degraded_reason,
         )
-        return _finalize(ticket, ai_run, decision, trace_id)
+        return _finalize(ticket, ai_run, decision, trace_id, categories)
 
     kb_meta = _kb_meta(resp.proposal)
     signals = trust_signals(
@@ -566,7 +600,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
         clarifications_asked=clarifications_asked,
         agent_handoff_reason=cast("AgentHandoffReason | None", ticket.agent_handoff_reason),
     )
-    decision = router.route(signals, resp.proposal, kb_meta)
+    decision = router.route(signals, resp.proposal, kb_meta, categories)
     ai_run = _persist_ai_run(
         ticket,
         idempotency_key,
@@ -575,7 +609,7 @@ def ticket_process(ticket_id: str) -> TaskResult:
         resp=resp,
         degraded_reason=resp.degraded_reason,
     )
-    return _finalize(ticket, ai_run, decision, trace_id, kb=kb_meta)
+    return _finalize(ticket, ai_run, decision, trace_id, categories, kb=kb_meta)
 
 
 # --- the router, built from the thresholds loaded at startup ---

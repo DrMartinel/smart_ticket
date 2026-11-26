@@ -8,21 +8,24 @@ never the cross-encoder's opinion of what is above the floor (ADR-0005).
 
 from __future__ import annotations
 
+import json
 from uuid import UUID
 
 import pytest
 
-from ai_engine.core.prompts import CATEGORY_QUESTION
-from ai_engine.graph.nodes.classify_category import classifier as classifier_module
+from ai_engine.core.prompts import CATEGORY_QUESTION, load_question
 from ai_engine.graph.nodes.classify_category.classifier import (
     CategoryChoice,
     JevCategoryClassifier,
+    category_question,
 )
 from ai_engine.graph.nodes.classify_category.node import ClassifyCategoryOutcome, classify_category
 from ai_engine.graph.state import RankedChunk
-from ai_engine.graph.ticket import TicketCategory
+from ai_engine.graph.ticket import CategoryOption
 
 _ARTICLE = UUID(int=10)
+_V2 = load_question("category.v2")
+_SEED = [CategoryOption(slug=s, description=o["what"]) for s, o in _V2["criteria"].items()]
 
 
 def _chunk(jev: float, cross_encoder: float = 0.5) -> RankedChunk:
@@ -40,7 +43,7 @@ def _chunk(jev: float, cross_encoder: float = 0.5) -> RankedChunk:
 def jev(fake_db, fake_classifier, use_db, use_classifier):
     """A fake Jev classifier and the DB the page title comes from."""
 
-    def install(choice=CategoryChoice(TicketCategory.SOFTWARE, 0.9), error=None, titles=None):
+    def install(choice=CategoryChoice("software", 0.9), error=None, titles=None):
         rows = [(_ARTICLE, "Troubleshooting WorkSpaces")] if titles is None else titles
         use_db(fake_db(rows))
         return use_classifier(fake_classifier(choice=choice, error=error))
@@ -62,18 +65,14 @@ def test_a_jev_failure_propagates(jev, make_state):
         classify_category(make_state(reranked=[_chunk(0.9)], retrieval_floor=0.30))
 
 
-def test_a_choice_that_is_not_a_category_raises(serve, monkeypatch):
-    """The question file and `TicketCategory` disagree: a category the
-    router can't name is no category, so the run fails to a human."""
+def test_a_choice_that_is_not_a_sent_category_raises(serve):
+    """A category core-api didn't send is no category the router can name,
+    so the run fails to a human."""
 
-    criteria = {**CATEGORY_QUESTION["criteria"], "billing": {"what": "invoices"}}
-    question = {**CATEGORY_QUESTION, "criteria": criteria}
-    serve("jev", _choice_reply("billing"))
-
-    monkeypatch.setattr(classifier_module, "CATEGORY_QUESTION", question)
+    serve("jev", _choice_reply("billing", options=["billing", *(c.slug for c in _SEED)]))
 
     with pytest.raises(ValueError, match="billing"):
-        JevCategoryClassifier().classify("s", "b", None)
+        JevCategoryClassifier().classify("s", "b", None, _SEED)
 
 
 def test_below_the_floor_jev_is_still_asked_with_no_page(jev, make_state):
@@ -87,7 +86,7 @@ def test_below_the_floor_jev_is_still_asked_with_no_page(jev, make_state):
 
     [(_, _, title)] = fake.calls
     assert title is None
-    assert out["category_choice"] is TicketCategory.SOFTWARE
+    assert out["category_choice"] == "software"
 
 
 def test_jev_choosing_no_passage_is_below_the_floor(jev, make_state):
@@ -178,18 +177,20 @@ def test_a_page_with_no_title_row_is_sent_as_no_page(jev, make_state):
 
 
 def test_the_choice_and_its_confidence_go_on_state(jev, make_state):
-    jev(choice=CategoryChoice(TicketCategory.SECURITY, 0.62))
+    jev(choice=CategoryChoice("security", 0.62))
 
     out = classify_category(make_state(reranked=[_chunk(0.9)], retrieval_floor=0.30))
 
-    assert out == {"category_choice": TicketCategory.SECURITY, "category_confidence": 0.62}
+    assert out == {"category_choice": "security", "category_confidence": 0.62}
 
 
 # --- the classifier, through the real Jev client --------------------------------
 
 
-def _choice_reply(choice: str, confidence: float = 0.8):
+def _choice_reply(choice: str, confidence: float = 0.8, options: list[str] | None = None):
     from ai_engine.core.config import settings
+
+    options = options if options is not None else [c.slug for c in _SEED]
 
     return {
         "model": settings.jev_model,
@@ -198,9 +199,7 @@ def _choice_reply(choice: str, confidence: float = 0.8):
                 "type": "choice",
                 "choice": choice,
                 "confidence": confidence,
-                "probabilities": {
-                    c: confidence if c == choice else 0.0 for c in CATEGORY_QUESTION["criteria"]
-                },
+                "probabilities": {c: confidence if c == choice else 0.0 for c in options},
             }
         },
     }
@@ -209,12 +208,12 @@ def _choice_reply(choice: str, confidence: float = 0.8):
 def test_the_classifier_sends_the_versioned_question_and_the_page_title(serve):
     jev = serve("jev", _choice_reply("network", 0.7))
 
-    out = JevCategoryClassifier().classify("s", "b", "VPN troubleshooting")
+    out = JevCategoryClassifier().classify("s", "b", "VPN troubleshooting", _SEED)
 
-    assert out == CategoryChoice(TicketCategory.NETWORK, 0.7)
+    assert out == CategoryChoice("network", 0.7)
     [(path, payload)] = jev.sent
     assert path == "/systemone"
-    assert payload["questions"] == {"category": CATEGORY_QUESTION}
+    assert payload["questions"] == {"category": category_question(_SEED)}
     assert payload["state"] == {
         "ticket": {"subject": "s", "body": "b"},
         "page": {"title": "VPN troubleshooting"},
@@ -227,15 +226,52 @@ def test_the_classifier_sends_no_page_key_without_a_page(serve):
 
     jev = serve("jev", _choice_reply("other"))
 
-    JevCategoryClassifier().classify("s", "b", None)
+    JevCategoryClassifier().classify("s", "b", None, _SEED)
 
     [(_, payload)] = jev.sent
     assert payload["state"] == {"ticket": {"subject": "s", "body": "b"}}
 
 
-def test_every_category_is_an_option_and_every_option_a_category():
-    """A category with no option can never be chosen; an option with no
-    category raises on every ticket Jev puts in it."""
+def test_the_question_offers_exactly_the_sent_categories(serve):
+    """A seventh row is offered once core-api sends it; a category it
+    stopped sending is never offered (ADR-0049)."""
 
-    assert set(CATEGORY_QUESTION["criteria"]) == {c.value for c in TicketCategory}
+    sent = [
+        CategoryOption(slug="network", description="Connectivity."),
+        CategoryOption(slug="billing", description="Invoices and refunds."),
+    ]
+    jev = serve("jev", _choice_reply("billing", options=["network", "billing"]))
+
+    out = JevCategoryClassifier().classify("s", "b", None, sent)
+
+    assert out == CategoryChoice("billing", 0.8)
+    [(_, payload)] = jev.sent
+    question = payload["questions"]["category"]
+    assert question["criteria"] == {
+        "network": {"what": "Connectivity."},
+        "billing": {"what": "Invoices and refunds."},
+    }
+    assert question["instructions"] == CATEGORY_QUESTION["instructions"]
+
+
+def test_the_seeded_categories_ask_what_category_v2_asked():
+    """The six seeded rows carry category.v2's descriptions, so in v2's
+    order the question Jev reads is v2's, byte for byte."""
+
+    assert json.dumps(category_question(_SEED)) == json.dumps(_V2)
+
+
+def test_the_versioned_question_holds_no_categories_of_its_own():
+    """Options in the file would be a second category set to keep in step."""
+
+    assert "criteria" not in CATEGORY_QUESTION
     assert CATEGORY_QUESTION["type"] == "choice"
+
+
+def test_the_node_offers_the_requests_categories(jev, make_state):
+    fake = jev()
+    sent = [CategoryOption(slug="network", description="Connectivity.")]
+
+    classify_category(make_state(reranked=[_chunk(0.9)], retrieval_floor=0.30, categories=sent))
+
+    assert fake.offered == [sent]

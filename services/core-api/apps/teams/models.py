@@ -14,7 +14,6 @@ from django.db.models.functions import Coalesce
 
 from apps.core.models import BaseModel
 from apps.lifecycle.domain.vocabulary import StatusKind
-from infrastructure.dtos import TicketCategory
 
 if TYPE_CHECKING:
     from django_stubs_ext import WithAnnotations
@@ -80,9 +79,7 @@ class TeamCategory(BaseModel):
     """A ticket category a team owns; each category has exactly one owner (BR-F2-01)."""
 
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name="categories")
-    category = models.CharField(
-        max_length=20, unique=True, choices=[(c.value, c.value) for c in TicketCategory]
-    )
+    category = models.CharField(max_length=20, unique=True)
 
     class Meta(BaseModel.Meta):
         db_table = "team_categories"

@@ -49,7 +49,7 @@ def every_provider_raises(
 
 
 def _run(ticket) -> TriageState:
-    state = TriageState(ticket=ticket, request_id="r", retrieval_floor=0.6)
+    state = TriageState(ticket=ticket, request_id="r", retrieval_floor=0.6, categories=[])
     return TriageState.model_validate(triage_graph.invoke(state))
 
 

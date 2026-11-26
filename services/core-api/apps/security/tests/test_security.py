@@ -55,7 +55,7 @@ def engine(monkeypatch) -> dict[str, bool]:
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
     monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
 
-    def analyze(masked, request_id):
+    def analyze(masked, request_id, categories):
         d = _degraded_signals()
         return AIRunResponse(
             request_id=request_id,

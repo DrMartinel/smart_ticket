@@ -1,5 +1,5 @@
 // What the triage pipeline's decisions mean, in a reviewer's words. The codes
-// are core-api's `Branch` and `ReasonCode` (apps/tickets/utils/router.py).
+// are core-api's `Branch` and `ReasonCode` (apps/tickets/domain/router.py).
 
 import type { ReasonCode } from "@/lib/types/generated";
 
@@ -28,6 +28,8 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   trust_below_auto_threshold: "Confidence was too low to answer automatically.",
   trust_below_route_threshold: "Confidence was too low to route automatically.",
   category_low_confidence: "The AI was not sure which category this belongs to.",
+  category_set_invalid: "The category list has no security category, or the AI chose a category not on it.",
+  category_not_routable: "Its category is not yet routed automatically; a person routes it.",
   clarify_security: "It is security-related, so a person asks any clarifying question.",
   clarify_options_not_shown: "The AI wanted to offer pages it was never shown.",
   clarify_round_cap: "The requester was already asked once; a person takes it from here.",

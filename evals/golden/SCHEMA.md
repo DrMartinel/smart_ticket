@@ -17,7 +17,7 @@
 }
 ```
 
-- `truth.category` — one of `TicketCategory` (core-api `infrastructure/dtos.py`), or omitted if not determinable (e.g. pure injection cases). For `kb_covered` it is the target article's category from `demo_kb/manifest.json`, except a drafted ticket whose line in `kb_covered_drafted.jsonl` carries a reviewed `category`. Every `out_of_kb` case is `other`.
+- `truth.category` — a slug of a `ticket_categories` row (ADR-0049; the six seeded ones), or omitted if not determinable (e.g. pure injection cases). For `kb_covered` it is the target article's category from `demo_kb/manifest.json`, except a drafted ticket whose line in `kb_covered_drafted.jsonl` carries a reviewed `category`. Every `out_of_kb` case is `other`.
 - `truth.kb_slug` — the KB article slug that should answer this ticket, if any.
 - `truth.acceptable_kb_slugs` — optional, drafted tickets only: other pages that resolve the ticket as well as `kb_slug`. The retrieval suite counts a hit on any of them (gated `retrieval_recall_at_3`) and reports `retrieval_recall_at_3_strict` (gold page only) beside it. The end-to-end suite counts an auto-reply citing any of them as right (gated `auto_reply_page_precision`). `expected_branch` still follows `kb_slug` alone.
 - `truth.clarify_slugs` — optional, `underspecified` tickets from g615 on: the pages that fix the ticket's different readings, the ones a clarifying question should offer. At least two.

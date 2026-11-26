@@ -1,0 +1,4 @@
+{
+  "type": "choice",
+  "instructions": "Which category is the primary need of the user in `ticket`? Classify by WHAT the user needs, not by how sensitive or risky the affected system is. Risk and approvals are handled elsewhere; a request that needs extra approval is still in its normal category. If a ticket fits two categories, pick the one describing the user's primary need. An error message that mentions access or permissions does not by itself make a ticket `access`: classify by the service the user is working on, unless what they need is a person's access or sign-in. `page` is the knowledge-base page that answers the ticket, when one does: if a page answers the ticket, the category that page belongs to is usually the right one. When there is no `page`, judge from the ticket alone."
+}

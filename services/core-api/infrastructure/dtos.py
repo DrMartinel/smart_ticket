@@ -37,13 +37,13 @@ from apps.tickets.domain.patterns import PIILevel
 # model needs a lawful way to say "I don't know", or it fabricates.
 
 
-class TicketCategory(StrEnum):
-    HARDWARE = "hardware"
-    SOFTWARE = "software"
-    NETWORK = "network"
-    ACCESS = "access"
-    SECURITY = "security"
-    OTHER = "other"
+class CategoryOption(BaseModel):
+    """A category Jev may choose: its slug and what it means (ADR-0049)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    slug: str = Field(min_length=1, max_length=20)
+    description: str = Field(min_length=1)
 
 
 class PriorTurn(BaseModel):
@@ -213,7 +213,7 @@ class ClassificationSignals(BaseModel):
     No defaults, here or on `EngineSignals.classification`: no signals were
     stored before ADR-0017, so every producer must say what Jev answered."""
 
-    category_choice: TicketCategory | None
+    category_choice: str | None
     category_confidence: float = Field(ge=0, le=1)
 
 
@@ -251,6 +251,8 @@ class AIRunRequest(BaseModel):
     ticket: TicketMasked
     # thresholds.yaml `retrieval.floor`, on Jev's scale (ADR-0015).
     retrieval_floor: float = Field(ge=0, le=1)
+    # The active categories Jev chooses among (ADR-0049).
+    categories: list[CategoryOption] = Field(min_length=1)
     prompt_version: str = "propose.v10"
 
 

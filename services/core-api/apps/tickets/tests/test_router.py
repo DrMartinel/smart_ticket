@@ -14,6 +14,8 @@ from pydantic import ValidationError
 from apps.tickets.domain.router import (
     AGENT_HANDOFF_REASONS,
     Branch,
+    CategoryMeta,
+    CategorySet,
     KBArticleMeta,
     ReasonCode,
     ReviewQueue,
@@ -57,7 +59,6 @@ from infrastructure.dtos import (
     RetrievalSignals,
     RouteProposal,
     RunbookProposal,
-    TicketCategory,
     TrustSignals,
 )
 
@@ -174,6 +175,22 @@ def make_thresholds(**overrides) -> Thresholds:
 TH = make_thresholds()
 
 
+def category(slug: str, **overrides) -> CategoryMeta:
+    base: dict[str, Any] = dict(
+        slug=slug,
+        description=f"{slug} tickets",
+        is_security=slug == "security",
+        is_routable=True,
+        version=1,
+    )
+    base.update(overrides)
+    return CategoryMeta(**base)
+
+
+SEEDED = ("access", "hardware", "network", "other", "security", "software")
+CATEGORIES = CategorySet(categories=tuple(category(s) for s in SEEDED))
+
+
 def good_signals(**overrides) -> TrustSignals:
     s = TrustSignals(
         retrieval=RetrievalSignals(
@@ -198,9 +215,7 @@ def good_signals(**overrides) -> TrustSignals:
             injection_detected=False,
             mass_incident=False,
         ),
-        classification=ClassificationSignals(
-            category_choice=TicketCategory.NETWORK, category_confidence=0.9
-        ),
+        classification=ClassificationSignals(category_choice="network", category_confidence=0.9),
     )
     for path, value in overrides.items():
         group, field = path.split(".")
@@ -212,7 +227,7 @@ def kb(**overrides) -> KBArticleMeta:
     base: dict[str, Any] = dict(
         id=UUID(int=1),
         slug="identity-center.resetpassword-accessportal",
-        category=TicketCategory.ACCESS,
+        category="access",
         auto_reply_allowed=True,
         risk_tier="low",
     )
@@ -258,7 +273,7 @@ def runbook_proposal(**overrides) -> LLMProposalEnvelope:
 
 def test_injection_blocks_and_alerts_security():
     signals = good_signals(**{"policy.injection_detected": True})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.BLOCK
     assert d.reason_code is ReasonCode.INJECTION_DETECTED
     assert d.alert_security is True
@@ -266,7 +281,7 @@ def test_injection_blocks_and_alerts_security():
 
 def test_pii_critical_blocks_and_alerts_security():
     signals = good_signals(**{"policy.pii_level": PIILevel.CRITICAL})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.BLOCK
     assert d.reason_code is ReasonCode.PII_CRITICAL
     assert d.alert_security is True
@@ -278,14 +293,14 @@ def test_mass_incident_escalates_before_mask_failed_check():
     signals = good_signals(
         **{"policy.mass_incident": True, "policy.pii_level": PIILevel.MASK_FAILED}
     )
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.ESCALATE
     assert d.reason_code is ReasonCode.MASS_INCIDENT
 
 
 def test_mask_failed_goes_to_mask_failed_queue_priority_1():
     signals = good_signals(**{"policy.pii_level": PIILevel.MASK_FAILED})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.PII_MASK_FAILED
     assert d.queue is not None
@@ -297,7 +312,7 @@ def test_mask_failed_goes_to_mask_failed_queue_priority_1():
 def test_router_sends_agent_handoff_to_hitl_with_its_reason(reason):
     """FR-F15-017: perfect signals and a perfect proposal still go to a person."""
     signals = good_signals(**{"policy.agent_handoff_reason": reason.value})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is reason
     assert d.queue is not None
@@ -315,7 +330,7 @@ def test_router_sends_agent_handoff_to_hitl_with_its_reason(reason):
 )
 def test_each_earlier_gate_still_wins_over_an_agent_handoff(policy, branch, reason):
     signals = good_signals(**{**policy, "policy.agent_handoff_reason": "agent_mask_failed"})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert (d.branch, d.reason_code) == (branch, reason)
 
 
@@ -324,14 +339,14 @@ def test_an_agent_handoff_wins_over_every_later_check():
     signals = good_signals(
         **{"retrieval.rerank_total": 0.0, "policy.agent_handoff_reason": "agent_tool_failed"}
     )
-    d = Router(TH).route(signals, None, None)
+    d = Router(TH).route(signals, None, None, CATEGORIES)
     assert d.reason_code is ReasonCode.AGENT_TOOL_FAILED
 
 
 def test_router_decision_unchanged_without_agent_handoff():
     signals = good_signals()
     assert signals.policy.agent_handoff_reason is None
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.AUTO_REPLY
 
 
@@ -355,7 +370,7 @@ def test_an_unknown_handoff_reason_is_refused_when_the_signals_are_built():
 
 
 def test_no_proposal_is_schema_invalid():
-    d = Router(TH).route(good_signals(), None, kb())
+    d = Router(TH).route(good_signals(), None, kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.SCHEMA_INVALID
 
@@ -364,14 +379,14 @@ def test_insufficient_context_is_retrieval_floor():
     proposal = LLMProposalEnvelope(
         root=InsufficientContext(proposed_intent="insufficient_context", missing_information="x")
     )
-    d = Router(TH).route(good_signals(), proposal, kb())
+    d = Router(TH).route(good_signals(), proposal, kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
 
 
 def test_below_retrieval_floor():
     signals = good_signals(**{"retrieval.rerank_total": 0.2})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
 
@@ -381,7 +396,7 @@ def test_a_split_choice_with_a_high_total_clears_the_floor():
     an ambiguous ticket splits probability between readings."""
 
     signals = good_signals(**{"retrieval.rerank_top1": 0.25, "retrieval.rerank_total": 0.8})
-    d = Router(TH).route(signals, clarify_proposal(), kb())
+    d = Router(TH).route(signals, clarify_proposal(), kb(), CATEGORIES)
     assert d.reason_code is not ReasonCode.RETRIEVAL_FLOOR
 
 
@@ -390,7 +405,7 @@ def test_a_total_left_at_its_default_is_below_the_floor():
 
     signals = good_signals()
     signals.retrieval = RetrievalSignals(rerank_top1=0.9, rerank_margin=0.3, docs_above_floor=3)
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
 
 
@@ -398,50 +413,52 @@ def test_a_total_left_at_its_default_is_below_the_floor():
 
 
 def test_auto_reply_requires_kb_present():
-    d = Router(TH).route(good_signals(), auto_reply_proposal(), None)
+    d = Router(TH).route(good_signals(), auto_reply_proposal(), None, CATEGORIES)
     assert d.reason_code is ReasonCode.KB_NOT_AUTHORIZED
 
 
 def test_auto_reply_requires_kb_flag_true():
-    d = Router(TH).route(good_signals(), auto_reply_proposal(), kb(auto_reply_allowed=False))
+    d = Router(TH).route(
+        good_signals(), auto_reply_proposal(), kb(auto_reply_allowed=False), CATEGORIES
+    )
     assert d.reason_code is ReasonCode.KB_NOT_AUTHORIZED
 
 
 def test_auto_reply_quote_source_must_be_in_topk():
     signals = good_signals(**{"generation.quote_source_in_topk": False})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.reason_code is ReasonCode.QUOTE_SOURCE_MISMATCH
 
 
 def test_auto_reply_quote_match_ratio_below_threshold():
     signals = good_signals(**{"generation.quote_match_ratio": 0.5})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.reason_code is ReasonCode.QUOTE_INVALID
 
 
 def test_auto_reply_negation_mismatch():
     signals = good_signals(**{"generation.negation_consistent": False})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.reason_code is ReasonCode.NEGATION_MISMATCH
 
 
 def test_auto_reply_citing_a_page_jev_did_not_choose_goes_to_a_human():
     signals = good_signals(**{"generation.cited_is_rerank_choice": False})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RERANK_DISAGREES
 
 
 def test_auto_reply_below_min_rerank_confidence_goes_to_a_human():
     signals = good_signals(**{"retrieval.rerank_confidence": 0.89})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RERANK_LOW_CONFIDENCE
 
 
 def test_auto_reply_at_min_rerank_confidence_passes():
     signals = good_signals(**{"retrieval.rerank_confidence": 0.9})
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.AUTO_REPLY
 
 
@@ -456,12 +473,12 @@ def test_rerank_signals_left_at_their_defaults_never_auto_reply():
     signals.generation = GenerationSignals(
         quote_match_ratio=1.0, quote_source_in_topk=True, negation_consistent=True
     )
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RERANK_DISAGREES
 
     signals.generation.cited_is_rerank_choice = True
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.reason_code is ReasonCode.RERANK_LOW_CONFIDENCE
 
 
@@ -470,7 +487,7 @@ def test_jev_choosing_none_is_retrieval_floor_not_schema_invalid():
     since no LLM ran, reports the floor."""
 
     signals = good_signals(**{"retrieval.rerank_chose_none": True})
-    d = Router(TH).route(signals, None, kb())
+    d = Router(TH).route(signals, None, kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
 
@@ -479,7 +496,7 @@ def test_auto_route_needs_no_rerank_agreement():
     signals = good_signals(
         **{"generation.cited_is_rerank_choice": False, "retrieval.rerank_confidence": 0.0}
     )
-    d = Router(TH).route(signals, route_proposal(), kb())
+    d = Router(TH).route(signals, route_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.AUTO_ROUTE
 
 
@@ -495,12 +512,12 @@ def test_auto_reply_trust_below_auto_threshold():
             "retrieval.docs_above_floor": 0,
         }
     )
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.reason_code is ReasonCode.TRUST_BELOW_AUTO
 
 
 def test_auto_reply_all_checks_pass():
-    d = Router(TH).route(good_signals(), auto_reply_proposal(), kb())
+    d = Router(TH).route(good_signals(), auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.AUTO_REPLY
     assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
     assert d.kb_slug == "identity-center.resetpassword-accessportal"
@@ -510,7 +527,10 @@ def test_auto_reply_all_checks_pass():
 @pytest.mark.parametrize("pool_size", [0, 10, 300])
 def test_pool_size_never_changes_the_branch(pool_size):
     d = Router(TH).route(
-        good_signals(**{"retrieval.pool_size": pool_size}), auto_reply_proposal(), kb()
+        good_signals(**{"retrieval.pool_size": pool_size}),
+        auto_reply_proposal(),
+        kb(),
+        CATEGORIES,
     )
     assert d.branch is Branch.AUTO_REPLY
     assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
@@ -520,7 +540,7 @@ def test_pool_size_never_changes_the_branch(pool_size):
 
 
 def test_runbook_always_hitl_even_with_perfect_signals():
-    d = Router(TH).route(good_signals(), runbook_proposal(), kb())
+    d = Router(TH).route(good_signals(), runbook_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.queue is not None
     assert d.queue.value == "runbook_approval"
@@ -530,7 +550,7 @@ def test_runbook_always_hitl_even_with_perfect_signals():
 def test_runbook_hitl_even_with_no_kb_at_all():
     # Runbooks don't need KB authorization — they need human approval,
     # unconditionally, regardless of KB state.
-    d = Router(TH).route(good_signals(), runbook_proposal(), None)
+    d = Router(TH).route(good_signals(), runbook_proposal(), None, CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.queue is not None
     assert d.queue.value == "runbook_approval"
@@ -544,14 +564,14 @@ def test_auto_route_without_a_jev_category_goes_to_a_human():
     degraded) has no category to route on. The LLM's is not a fallback."""
     signals = good_signals()
     signals.classification = ClassificationSignals(category_choice=None, category_confidence=0.0)
-    d = Router(TH).route(signals, route_proposal(), None)
+    d = Router(TH).route(signals, route_proposal(), None, CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.CATEGORY_LOW_CONFIDENCE
 
 
 def test_auto_route_below_min_confidence_goes_to_a_human():
     signals = good_signals(**{"classification.category_confidence": 0.64})
-    d = Router(TH).route(signals, route_proposal(), None)
+    d = Router(TH).route(signals, route_proposal(), None, CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.CATEGORY_LOW_CONFIDENCE
 
@@ -559,17 +579,17 @@ def test_auto_route_below_min_confidence_goes_to_a_human():
 def test_auto_route_at_min_confidence_routes():
     """The threshold is inclusive: `min_confidence` itself is enough."""
     signals = good_signals(**{"classification.category_confidence": 0.65})
-    d = Router(TH).route(signals, route_proposal(), None)
+    d = Router(TH).route(signals, route_proposal(), None, CATEGORIES)
     assert d.branch is Branch.AUTO_ROUTE
 
 
 def test_auto_route_goes_to_jevs_category():
     """ADR-0017: the team a ticket is routed to is Jev's choice; the
     proposal carries no category since propose.v8."""
-    signals = good_signals(**{"classification.category_choice": TicketCategory.HARDWARE})
-    d = Router(TH).route(signals, route_proposal(), None)
+    signals = good_signals(**{"classification.category_choice": "hardware"})
+    d = Router(TH).route(signals, route_proposal(), None, CATEGORIES)
     assert d.branch is Branch.AUTO_ROUTE
-    assert d.category is TicketCategory.HARDWARE
+    assert d.category == "hardware"
 
 
 def test_auto_reply_needs_no_jev_confidence():
@@ -577,7 +597,7 @@ def test_auto_reply_needs_no_jev_confidence():
     must not add human work where the category isn't used."""
     signals = good_signals()
     signals.classification = ClassificationSignals(category_choice=None, category_confidence=0.0)
-    d = Router(TH).route(signals, auto_reply_proposal(), kb())
+    d = Router(TH).route(signals, auto_reply_proposal(), kb(), CATEGORIES)
     assert d.branch is Branch.AUTO_REPLY
 
 
@@ -594,24 +614,123 @@ def test_auto_route_trust_below_route_threshold():
             "generation.negation_consistent": False,
         }
     )
-    d = Router(TH).route(signals, route_proposal(), None)
+    d = Router(TH).route(signals, route_proposal(), None, CATEGORIES)
     assert d.reason_code is ReasonCode.TRUST_BELOW_ROUTE
 
 
 def test_auto_route_all_checks_pass():
-    d = Router(TH).route(good_signals(), route_proposal(), None)
+    d = Router(TH).route(good_signals(), route_proposal(), None, CATEGORIES)
     assert d.branch is Branch.AUTO_ROUTE
     assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
-    assert d.category == TicketCategory.NETWORK
+    assert d.category == "network"
 
 
 # ── Router purity ─────────────────────────────────────────────────────
 
 
+# ── The category set (ADR-0049) ──────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "categories",
+    [
+        CategorySet(categories=()),
+        CategorySet(categories=tuple(category(s, is_security=False) for s in SEEDED)),
+    ],
+    ids=["empty", "no_security_category"],
+)
+def test_a_set_with_no_security_category_goes_to_a_human(categories):
+    """A security ticket could never be held as one: the set is unusable."""
+    d = Router(TH).route(good_signals(), route_proposal(), None, categories)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CATEGORY_SET_INVALID
+
+
+def test_a_choice_outside_the_set_goes_to_a_human():
+    """A category no row describes has no team, no rule and no flags."""
+    signals = good_signals(**{"classification.category_choice": "billing"})
+    d = Router(TH).route(signals, route_proposal(), None, CATEGORIES)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CATEGORY_SET_INVALID
+
+
+def test_an_unusable_set_still_lets_the_hard_gates_decide_first():
+    signals = good_signals(**{"policy.injection_detected": True})
+    d = Router(TH).route(signals, route_proposal(), None, CategorySet(categories=()))
+    assert d.branch is Branch.BLOCK
+    assert d.reason_code is ReasonCode.INJECTION_DETECTED
+
+
+def test_a_route_into_a_category_not_routable_goes_to_a_human():
+    categories = CategorySet(
+        categories=tuple(category(s, is_routable=s != "network") for s in SEEDED)
+    )
+    d = Router(TH).route(good_signals(), route_proposal(), None, categories)
+    assert d.branch is Branch.HITL
+    assert d.reason_code is ReasonCode.CATEGORY_NOT_ROUTABLE
+
+
+def test_a_category_not_routable_still_allows_an_auto_reply():
+    """An auto-reply's category is its page's; `is_routable` gates routing only."""
+    categories = CategorySet(categories=tuple(category(s, is_routable=False) for s in SEEDED))
+    d = Router(TH).route(good_signals(), auto_reply_proposal(), kb(), categories)
+    assert d.branch is Branch.AUTO_REPLY
+
+
+def test_a_seventh_category_routes_once_it_is_in_the_set():
+    categories = CategorySet(categories=(*CATEGORIES.categories, category("billing")))
+    signals = good_signals(**{"classification.category_choice": "billing"})
+    d = Router(TH).route(signals, route_proposal(), None, categories)
+    assert d.branch is Branch.AUTO_ROUTE
+    assert d.category == "billing"
+
+
+def test_clarify_security_reads_the_flag_not_the_slug():
+    """A security category by another slug is held; `security` without the flag is not."""
+    categories = CategorySet(
+        categories=(
+            *(category(s, is_security=False) for s in SEEDED),
+            category("secops", is_security=True),
+        )
+    )
+    held = Router(TH).route(
+        good_signals(
+            **{
+                "generation.clarify_options_in_topk": True,
+                "classification.category_choice": "secops",
+            }
+        ),
+        clarify_proposal(),
+        None,
+        categories,
+    )
+    plain = Router(TH).route(
+        good_signals(
+            **{
+                "generation.clarify_options_in_topk": True,
+                "classification.category_choice": "security",
+            }
+        ),
+        clarify_proposal(),
+        None,
+        categories,
+    )
+
+    assert held.reason_code is ReasonCode.CLARIFY_SECURITY
+    assert plain.branch is Branch.CLARIFY
+
+
+def test_the_set_records_slugs_versions_and_flags_but_no_descriptions():
+    """A decision is traced to the descriptions through the versions and the audit log."""
+    assert CategorySet(categories=(category("network", version=3),)).as_used() == [
+        {"slug": "network", "is_security": False, "is_routable": True, "version": 3}
+    ]
+
+
 def test_route_is_deterministic_pure_function():
     s, p, k = good_signals(), auto_reply_proposal(), kb()
-    d1 = Router(TH).route(s, p, k)
-    d2 = Router(TH).route(s, p, k)
+    d1 = Router(TH).route(s, p, k, CATEGORIES)
+    d2 = Router(TH).route(s, p, k, CATEGORIES)
     assert d1.branch == d2.branch
     assert d1.reason_code == d2.reason_code
 
@@ -625,7 +744,7 @@ def test_refuse_before_llm_reports_retrieval_floor_not_schema_invalid():
     "which reason sent the most tickets to review" is built on, and a
     gate that misreports its cause makes that dashboard quietly wrong."""
     signals = good_signals(**{"retrieval.rerank_total": 0.10})
-    d = Router(TH).route(signals, None, None)
+    d = Router(TH).route(signals, None, None, CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.RETRIEVAL_FLOOR
 
@@ -635,7 +754,7 @@ def test_genuine_schema_failure_above_floor_still_reports_schema_invalid():
     cleared the floor, so an absent/invalid proposal is genuinely a
     generation problem."""
     signals = good_signals(**{"retrieval.rerank_top1": 0.90})
-    d = Router(TH).route(signals, None, None)
+    d = Router(TH).route(signals, None, None, CATEGORIES)
     assert d.reason_code is ReasonCode.SCHEMA_INVALID
 
 
@@ -661,7 +780,7 @@ def test_unhandled_proposal_type_degrades_to_hitl_rather_than_falling_through():
     class _Envelope:
         root = _FutureProposal()
 
-    d = Router(TH).route(good_signals(), _Envelope(), kb())  # type: ignore[arg-type]
+    d = Router(TH).route(good_signals(), _Envelope(), kb(), CATEGORIES)  # type: ignore[arg-type]
 
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.SCHEMA_INVALID
@@ -691,11 +810,12 @@ def test_clarify_on_a_possible_security_incident_goes_to_a_human():
         good_signals(
             **{
                 "generation.clarify_options_in_topk": True,
-                "classification.category_choice": TicketCategory.SECURITY,
+                "classification.category_choice": "security",
             }
         ),
         clarify_proposal(),
         None,
+        CATEGORIES,
     )
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.CLARIFY_SECURITY
@@ -708,12 +828,13 @@ def test_clarify_security_needs_no_confidence():
         good_signals(
             **{
                 "generation.clarify_options_in_topk": True,
-                "classification.category_choice": TicketCategory.SECURITY,
+                "classification.category_choice": "security",
                 "classification.category_confidence": 0.3,
             }
         ),
         clarify_proposal(),
         None,
+        CATEGORIES,
     )
     assert d.reason_code is ReasonCode.CLARIFY_SECURITY
 
@@ -728,6 +849,7 @@ def test_clarify_on_a_category_jev_is_unsure_of_goes_to_a_human():
         ),
         clarify_proposal(),
         None,
+        CATEGORIES,
     )
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.CATEGORY_LOW_CONFIDENCE
@@ -736,7 +858,7 @@ def test_clarify_on_a_category_jev_is_unsure_of_goes_to_a_human():
 def test_clarify_with_options_not_shown_goes_to_a_human():
     """The default of the signal: a question between pages the model never
     saw is not asked. Also covers rows and runs where validation didn't run."""
-    d = Router(TH).route(good_signals(), clarify_proposal(), None)
+    d = Router(TH).route(good_signals(), clarify_proposal(), None, CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.CLARIFY_OPTIONS_NOT_SHOWN
 
@@ -749,6 +871,7 @@ def test_clarify_passes_hard_gates_first():
         ),
         clarify_proposal(),
         None,
+        CATEGORIES,
     )
     assert d.branch is Branch.BLOCK
 
@@ -763,12 +886,12 @@ def test_clarify_needs_no_trust_and_lands_in_the_clarification_queue():
             "retrieval.rerank_margin": 0.0,
         }
     )
-    d = Router(TH).route(signals, clarify_proposal(), None)
+    d = Router(TH).route(signals, clarify_proposal(), None, CATEGORIES)
     assert d.branch is Branch.CLARIFY
     assert d.reason_code is ReasonCode.ALL_CHECKS_PASSED
     assert d.queue is ReviewQueue.CLARIFICATION
     # Jev's category (good_signals: network), not the proposal's (access).
-    assert d.category is TicketCategory.NETWORK
+    assert d.category == "network"
     assert d.trust is None
 
 
@@ -779,7 +902,7 @@ def test_clarify_after_the_requester_answered_goes_to_a_human():
     signals = good_signals(
         **{"generation.clarify_options_in_topk": True, "policy.clarifications_asked": 1}
     )
-    d = Router(TH).route(signals, clarify_proposal(), None)
+    d = Router(TH).route(signals, clarify_proposal(), None, CATEGORIES)
     assert d.branch is Branch.HITL
     assert d.reason_code is ReasonCode.CLARIFY_ROUND_CAP
     assert d.queue is ReviewQueue.CLARIFICATION
@@ -792,7 +915,7 @@ def test_no_rounds_allowed_means_no_question_is_ever_asked():
             max_rounds=0, wait_minutes=60, option_margin=0.1, max_options=5
         )
     )
-    d = Router(th).route(signals, clarify_proposal(), None)
+    d = Router(th).route(signals, clarify_proposal(), None, CATEGORIES)
     assert d.reason_code is ReasonCode.CLARIFY_ROUND_CAP
 
 
@@ -803,17 +926,17 @@ def test_no_rounds_allowed_means_no_question_is_ever_asked():
 )
 def test_an_answered_question_does_not_change_other_branches(proposal, branch):
     signals = good_signals(**{"policy.clarifications_asked": 1})
-    d = Router(TH).route(signals, proposal, kb())
+    d = Router(TH).route(signals, proposal, kb(), CATEGORIES)
     assert d.branch is branch
 
 
 def test_security_beats_the_round_cap():
     signals = good_signals(
         **{
-            "classification.category_choice": TicketCategory.SECURITY,
+            "classification.category_choice": "security",
             "generation.clarify_options_in_topk": True,
             "policy.clarifications_asked": 1,
         }
     )
-    d = Router(TH).route(signals, clarify_proposal(), None)
+    d = Router(TH).route(signals, clarify_proposal(), None, CATEGORIES)
     assert d.reason_code is ReasonCode.CLARIFY_SECURITY

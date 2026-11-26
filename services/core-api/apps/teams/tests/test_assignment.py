@@ -22,12 +22,11 @@ from apps.tickets.models import RoutingDecision as DecisionRow
 from apps.tickets.models import Ticket
 from apps.tickets.services.pipeline import _execute_or_enqueue
 from apps.tickets.domain.router import Branch, ReasonCode, ReviewQueue, RoutingDecision
-from infrastructure.dtos import TicketCategory
 
 JSON = "application/json"
 
 
-def auto_route(ticket: Ticket, category: TicketCategory) -> None:
+def auto_route(ticket: Ticket, category: str) -> None:
     """Carries out a live auto_route decision for `ticket`, as the pipeline does."""
     decision = RoutingDecision(
         branch=Branch.AUTO_ROUTE, reason_code=ReasonCode.ALL_CHECKS_PASSED, category=category
@@ -58,7 +57,7 @@ def test_auto_route_assigns_team_from_router_category(network):
         shadow_mode=False,
     )
 
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
 
     ticket.refresh_from_db()
     assert (ticket.status, ticket.team, ticket.assigned_team) == (
@@ -87,7 +86,7 @@ def test_assignment_never_changes_routing_decision(network):
     )
     before = DecisionRow.objects.filter(pk=row.pk).values().get()
 
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
 
     assert DecisionRow.objects.filter(pk=row.pk).values().get() == before
     assert DecisionRow.objects.count() == 1
@@ -98,7 +97,7 @@ def test_no_eligible_member_leaves_unassigned_and_notifies_lead(network):
     TeamMembership.objects.filter(team=network.team).update(is_available=False)
     ticket = handed_off(network.people["lan"])
 
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
 
     ticket.refresh_from_db()
     assert (ticket.team, ticket.assigned_to) == (network.team, None)
@@ -110,7 +109,7 @@ def test_an_unowned_category_goes_to_the_fallback_team(network):
     TeamCategory.objects.filter(category="software").delete()
     ticket = handed_off(network.people["lan"])
 
-    auto_route(ticket, TicketCategory.SOFTWARE)
+    auto_route(ticket, "software")
 
     ticket.refresh_from_db()
     assert ticket.status == "auto_routed"
@@ -128,7 +127,7 @@ def test_an_assignment_error_keeps_the_status_and_is_audited(network, monkeypatc
     monkeypatch.setattr(Assignment, "pick", broken)
     ticket = handed_off(network.people["lan"])
 
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
 
     ticket.refresh_from_db()
     assert (ticket.status, ticket.team, ticket.assigned_to) == ("auto_routed", None, None)
@@ -141,7 +140,7 @@ def test_shadow_mode_assigns_nothing_until_a_review(network, settings):
     decision = RoutingDecision(
         branch=Branch.AUTO_ROUTE,
         reason_code=ReasonCode.ALL_CHECKS_PASSED,
-        category=TicketCategory.NETWORK,
+        category="network",
     )
 
     _execute_or_enqueue(ticket, None, decision, True, None)
@@ -156,7 +155,7 @@ def test_round_robin_picks_the_member_assigned_longest_ago(network):
     TeamMembership.objects.filter(user=network.people["duc"]).update(last_assigned_at=None)
     ticket = handed_off(network.people["lan"])
 
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
 
     ticket.refresh_from_db()
     assert ticket.assigned_to == network.people["duc"]
@@ -167,7 +166,7 @@ def test_a_full_member_is_skipped(network):
     network.team.save(update_fields=["max_open_per_member"])
     ticket = handed_off(network.people["lan"])
 
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
 
     ticket.refresh_from_db()
     assert ticket.assigned_to is None
@@ -177,7 +176,7 @@ def test_a_duplicate_goes_to_the_originals_assignee_when_eligible(network):
     original = handed_off(network.people["lan"], assigned_to=network.people["duc"])
     ticket = handed_off(network.people["lan"], duplicate_of=original)
 
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
 
     ticket.refresh_from_db()
     assert ticket.assigned_to == network.people["duc"]
@@ -187,7 +186,7 @@ def test_a_duplicate_of_someone_on_leave_goes_by_strategy(network):
     original = handed_off(network.people["lan"], assigned_to=network.people["nam"])
     ticket = handed_off(network.people["lan"], duplicate_of=original)
 
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
 
     ticket.refresh_from_db()
     assert ticket.assigned_to == network.people["khoa"]
@@ -272,7 +271,7 @@ def test_a_rejection_assigns_nobody(network, api_as):
 def queued(network) -> Ticket:
     ticket = handed_off(network.people["lan"], category="network")
     TeamMembership.objects.filter(team=network.team).update(is_available=False)
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
     TeamMembership.objects.filter(team=network.team).exclude(user=network.people["vy"]).update(
         is_available=True
     )
@@ -310,7 +309,7 @@ def test_someone_outside_the_team_cannot_take(network, api_as):
 
 def test_a_ticket_held_by_someone_unavailable_can_be_taken(network, api_as):
     ticket = handed_off(network.people["lan"], category="network")
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
     TeamMembership.objects.filter(user=network.people["khoa"]).update(is_available=False)
     ticket.refresh_from_db()
 
@@ -369,7 +368,7 @@ def reassign(client, ticket: Ticket, **body):
 
 def assigned(network) -> Ticket:
     ticket = handed_off(network.people["lan"], public_id="TKT-2026-000415", category="network")
-    auto_route(ticket, TicketCategory.NETWORK)
+    auto_route(ticket, "network")
     ticket.refresh_from_db()
     assert ticket.assigned_to == network.people["khoa"]
     return ticket
@@ -514,6 +513,21 @@ def test_security_staff_touch_security_tickets_only(network, api_as):
 
     assert response.status_code == 403
     assert response.json()["code"] == "not_allowed"
+
+
+def test_security_staff_scope_follows_the_security_flag_not_the_slug(network):
+    """ADR-0049: a category flagged security is in their scope, whatever its slug."""
+    from apps.teams.services.assignment import TeamError
+
+    ticket = assigned(network)
+    security_staff = network.people["anh"]
+    Category.objects.filter(slug="network").update(is_security=True)
+
+    assignment.check_category_scope(security_staff, ticket)
+
+    Category.objects.filter(slug="network").update(is_security=False)
+    with pytest.raises(TeamError):
+        assignment.check_category_scope(security_staff, ticket)
 
 
 def test_a_resolved_ticket_is_not_reassigned(network, api_as):

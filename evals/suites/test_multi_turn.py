@@ -22,7 +22,7 @@ import httpx
 import pytest
 
 from apps.tickets.domain.patterns import PIILevel
-from apps.tickets.services.pipeline import router, trust_signals
+from apps.tickets.services.pipeline import category_set, router, trust_signals
 from apps.tickets.domain.router import Branch
 from infrastructure.dtos import EngineSignals, LLMProposalEnvelope
 
@@ -106,7 +106,7 @@ def test_multi_turn_auto_reply_precision(ai_engine_client, django_db_blocker):
             clarifications_asked=0,
             agent_handoff_reason=None,
         )
-        decision = router.route(signals, proposal, kb_meta)
+        decision = router.route(signals, proposal, kb_meta, category_set())
         expected = case["truth"]["expected_branch"]
         if decision.branch.value == expected:
             correct += 1

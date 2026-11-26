@@ -7,19 +7,23 @@ from typing import Any
 from django.db import transaction
 from django.db.models import F
 
+from apps.accounts.domain.access import Access
+from apps.accounts.domain.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.categories.models import Category
 
-_FIELDS = ("name", "sort_order")
+_DISPLAY = ("name", "sort_order")
+# What Jev is told a category means, and whether the router may route into it (ADR-0049).
+_DEFINITION = ("description", "is_routable")
 
 
 class CategoryConfig:
-    """Edits a category's display fields; its slug, description and flags stay as seeded."""
+    """Edits a category's display fields, and for a manager its description and `is_routable`."""
 
     def edit(self, actor: User, slug: str, data: dict[str, Any]) -> Category:
-        """Applies the given `name` and `sort_order`, bumps the version and audits the change."""
+        """Applies the given fields, bumps the version and audits the change."""
         reason = (data.get("reason") or "").strip()
         if not reason:
             raise CategoryError(
@@ -34,11 +38,19 @@ class CategoryConfig:
             before = self.snapshot(category)
             changed = {
                 name: data[name]
-                for name in _FIELDS
+                for name in (*_DISPLAY, *_DEFINITION)
                 if data.get(name) is not None and data[name] != getattr(category, name)
             }
             if not changed:
                 return category
+            if set(changed) & set(_DEFINITION) and not Access.of(actor).holds(
+                Permission.CATEGORIES_DEFINE
+            ):
+                raise CategoryError(
+                    403,
+                    CategoryRefusal.NOT_ALLOWED,
+                    "only a manager changes a category's description or routing",
+                )
             for name, value in changed.items():
                 setattr(category, name, value)
             category.version = F("version") + 1
@@ -58,7 +70,7 @@ class CategoryConfig:
         return category
 
     def snapshot(self, category: Category) -> dict[str, Any]:
-        return {name: getattr(category, name) for name in (*_FIELDS, "version")}
+        return {name: getattr(category, name) for name in (*_DISPLAY, *_DEFINITION, "version")}
 
 
 category_config = CategoryConfig()

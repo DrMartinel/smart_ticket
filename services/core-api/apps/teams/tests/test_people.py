@@ -195,6 +195,34 @@ def test_a_team_cannot_claim_an_inactive_category(network, api_as):
     assert TeamCategory.objects.get(category="network").team == network.team
 
 
+def test_a_team_claims_a_category_added_as_a_row(network, api_as):
+    """ADR-0049 part 2: a seventh category needs a row, not a code change."""
+    Category.objects.create(slug="billing", name="Billing", description="Invoices.")
+
+    response = send(
+        api_as(network.people["huy"]),
+        "patch",
+        "/api/teams/access",
+        {"categories": ["access", "billing"], "reason": "Access nhận cả hoá đơn"},
+    )
+
+    assert response.status_code == 200
+    assert TeamCategory.objects.get(category="billing").team.slug == "access"
+
+
+def test_a_team_cannot_claim_a_category_with_no_row(network, api_as):
+    response = send(
+        api_as(network.people["huy"]),
+        "patch",
+        "/api/teams/access",
+        {"categories": ["access", "billing"], "reason": "x"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["code"] == "unknown_category"
+    assert not TeamCategory.objects.filter(category="billing").exists()
+
+
 def test_a_category_moves_when_asked_and_is_audited(network, api_as):
     response = send(
         api_as(network.people["huy"]),

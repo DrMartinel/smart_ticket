@@ -661,7 +661,7 @@ def test_a_team_scoped_supervisor_sees_only_that_teams_queue(boss):
 SERVICES = Path(__file__).resolve().parents[2]
 ROLE_NAME_CHECK = re.compile(
     r"\.role\s*(==|!=)\s*UserRole\.|\.role not in \(UserRole|Capability\.\w+\.value in"
-    r"|\.is_manager\b|\.is_security\b|may_run_runbooks"
+    r"|\.is_manager\b|may_run_runbooks"
 )
 BASE_ROLE_FILES = {
     "accounts/services/rights.py",
@@ -682,6 +682,12 @@ def test_services_check_permissions_not_role_names():
         if ROLE_NAME_CHECK.search(line)
     ]
     assert found == []
+
+
+def test_a_user_has_no_role_name_properties():
+    """`is_security` is also a category's flag (ADR-0049), so it is checked on `User` itself."""
+    assert not hasattr(User, "is_security")
+    assert not hasattr(User, "is_manager")
 
 
 def test_an_employee_head_gets_no_staff_only_permission(boss, finance):

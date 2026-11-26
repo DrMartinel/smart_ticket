@@ -16,7 +16,6 @@ from django.utils import timezone
 from pgvector.django import VectorField
 
 from apps.core.models import BaseModel
-from infrastructure.dtos import TicketCategory
 from infrastructure.ai_engine import ai_engine
 from apps.accounts.models import User
 from apps.tickets.models import Ticket
@@ -80,7 +79,7 @@ class FewshotExample(BaseModel):
     source_ticket = models.ForeignKey(
         Ticket, on_delete=models.CASCADE, related_name="fewshot_examples"
     )
-    category = models.CharField(max_length=20, choices=[(c.value, c.value) for c in TicketCategory])
+    category = models.CharField(max_length=20)
     input_text = models.TextField()  # already masked
     output_json = models.JSONField()
     embedding = VectorField(dimensions=1024, null=True, blank=True)

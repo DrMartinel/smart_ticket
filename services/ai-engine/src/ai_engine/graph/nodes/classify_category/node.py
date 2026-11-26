@@ -41,7 +41,9 @@ class ClassifyCategoryNode(BaseNode[TriageState]):
         if self._evidence_above_floor(state):
             top = state.reranked[0]
             title = article_titles([top.article_id]).get(top.article_id)
-        choice = classifier.classify(state.ticket.subject_masked, state.ticket.body_masked, title)
+        choice = classifier.classify(
+            state.ticket.subject_masked, state.ticket.body_masked, title, state.categories
+        )
         return {"category_choice": choice.category, "category_confidence": choice.confidence}
 
     def decide(self, state: TriageState) -> ClassifyCategoryOutcome:

@@ -10,7 +10,6 @@ from infrastructure.dtos import (
     GenerationSignals,
     PolicySignals,
     RetrievalSignals,
-    TicketCategory,
     TrustSignals,
 )
 
@@ -44,9 +43,7 @@ def make_signals(**overrides) -> TrustSignals:
             injection_detected=False,
             mass_incident=False,
         ),
-        classification=ClassificationSignals(
-            category_choice=TicketCategory.NETWORK, category_confidence=0.9
-        ),
+        classification=ClassificationSignals(category_choice="network", category_confidence=0.9),
         llm_self_confidence=99.0,
     )
     for path, value in overrides.items():

@@ -13,7 +13,6 @@ from django.db.models import Q, QuerySet
 
 from apps.core.models import BaseModel
 from apps.sla.domain.business_time import BusinessCalendar, parse_hours
-from infrastructure.dtos import TicketCategory
 
 
 class Priority(StrEnum):
@@ -118,9 +117,7 @@ class Policy(BaseModel):
 
     name = models.CharField(max_length=100)
     order = models.PositiveIntegerField()
-    category = models.CharField(
-        max_length=20, null=True, blank=True, choices=_choices(TicketCategory)
-    )
+    category = models.CharField(max_length=20, null=True, blank=True)
     priority = models.CharField(max_length=2, null=True, blank=True, choices=_choices(Priority))
     response_minutes = models.PositiveIntegerField()
     resolution_minutes = models.PositiveIntegerField()

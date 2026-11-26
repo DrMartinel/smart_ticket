@@ -39,7 +39,6 @@ from apps.kb.models import KbArticle
 from apps.kb.utils.chunking import clean_markdown
 from apps.kb.services.indexing import indexer
 from apps.tickets.domain.router import RiskTier
-from infrastructure.dtos import TicketCategory
 
 SLUG_MAX_LENGTH = KbArticle._meta.get_field("slug").max_length
 
@@ -50,7 +49,7 @@ class ManifestPage(BaseModel):
     slug: str = Field(min_length=1, max_length=SLUG_MAX_LENGTH, pattern=r"^[^/]+$")
     path: str
     url: str
-    category: TicketCategory
+    category: str = Field(min_length=1, max_length=20)
     title: str
     sha256: str
 
@@ -69,7 +68,7 @@ class Approval(BaseModel):
 
 
 class Curation(BaseModel):
-    category_risk_tier: dict[TicketCategory, RiskTier]
+    category_risk_tier: dict[str, RiskTier]
     risk_tiers: dict[str, RiskTier] = {}
     auto_reply: list[Approval] = []
 
@@ -135,7 +134,7 @@ class Command(BaseCommand):
                 slug=page.slug,
                 title=page.title or page.slug,
                 body=clean_markdown(raw),
-                category=page.category.value,
+                category=page.category,
                 risk_tier=curation.risk_tiers.get(
                     page.slug, curation.category_risk_tier[page.category]
                 ).value,

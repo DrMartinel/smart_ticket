@@ -1,6 +1,6 @@
 # ADR-0049: Ticket categories are rows in `ticket_categories`
 
-**Status:** Accepted for part 1 (2026-11-26): decisions 1–4 are built. Part 2's switch to `is_security` (decision 5) and parts 2–4 are proposed. Open questions 1, 2 and 4 are answered; 3 and parts of 2 and 4 are still open.
+**Status:** Accepted for parts 1 and 2 (2026-11-26). Part 1 (decisions 1–4) is merged; part 2 (decision 5, the category set on the wire, open questions 1 and 2) is built and waits on its eval run. Parts 3 and 4 are proposed. Open questions 1, 2 and 4 are answered; 3 and parts of 2 and 4 are still open.
 **Date:** 2026-11-26
 **Builds on:** ADR-0017 (Jev chooses the category), ADR-0031 (teams own categories), ADR-0028 (workflows), ADR-0045 (permissions), ADR-0046 (agent tiers)
 **Will amend:** ADR-0017, once part 2 builds Jev's category question from the rows
@@ -69,10 +69,42 @@ Teams and the categories they own were already data (`team_teams`,
   `category_set_invalid`; a routed ticket in a category with
   `is_routable=false` → HITL `category_not_routable`. The wire change lands
   in both services in one PR (hard rule 4) and needs an eval run.
+  As built, see "Part 2 as built" below.
 - **Part 3:** a category may name a workflow; a ticket moves into it at
   handoff.
 - **Part 4:** an agent-readable category route, once the F15 tier table
   names it.
+
+### Part 2 as built (2026-11-26)
+
+- **The wire.** `AIRunRequest.categories` is the active rows' slug and
+  description, in slug order, so the display order a person changes
+  never reorders Jev's options. ai-engine refuses an empty list or a slug
+  sent twice (422, so `ai_engine_unavailable`).
+- **The question.** `category.v3.json` is `category.v2`'s instructions with
+  no options; ai-engine adds one option per category sent. With the six
+  seeded rows in v2's order the question is v2's byte for byte (a test
+  pins it); core-api sends them in slug order, so the options' order is the
+  one difference the eval run has to show is harmless. The instructions
+  still name `access` by its slug.
+- **An unusable set.** "Fallback-less" is read as "no security category":
+  no row marks a fallback, and without an `is_security` row no ticket can be
+  held as security. An empty set, a set with no security category, or Jev
+  choosing outside the set is `category_set_invalid`. The pipeline checks
+  the set before calling ai-engine and records a degraded run
+  (`degraded_reason` `category_set_invalid`) without calling it; the router
+  checks it too, after the hard gates.
+- **`is_routable`** gates `auto_route` only. An auto-reply takes its page's
+  category, and its authority is the page's (ADR-0002).
+- **`categories_used`** on each routing decision records each category's
+  slug, version and flags, not its description: the description a decision
+  ran against is the one at that version, and every change is a
+  `category_changed` audit row with the old and new text.
+- **A manager's edit** (open questions 1 and 2) needs
+  `categories:define`, held by the manager role only and locked out of
+  custom roles. A workflow admin still renames and reorders.
+- **No enum.** `TicketCategory` is gone from both services; the request
+  schemas take a slug (`CategorySlug`) and each service checks it is active.
 
 ## Open questions
 
@@ -105,12 +137,10 @@ The owner answered 1, 2 and 4 on 2026-11-26.
 
 ## Consequences
 
-- A new category can be added as a row plus an owning team, but until
-  part 2 the classifier and the router still know only the six in the
-  enum and `category.v2.json`. A seventh row would be offered in pickers,
-  refused by the routes whose request schema is still the enum (team
-  categories, a reassignment's `to_category`, SLA policies, KB drafts),
-  and never chosen by Jev.
+- A new category is added as a row plus an owning team: from part 2 Jev
+  is offered it, and the router routes into it once it is routable. Part 1
+  alone offered it in pickers, refused it where the request schema was
+  still the enum, and never offered it to Jev.
 - Deactivating one of the six before part 2 leaves it in Jev's question:
   tickets still land in it and, with no owning team, go to the fallback
   team, audited `no_team_for_category`. No route deactivates a category in

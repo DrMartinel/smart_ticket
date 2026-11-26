@@ -23,7 +23,8 @@ from dotenv import dotenv_values
 from sqlalchemy.dialects import postgresql
 
 from ai_engine.core.config import ENV_FILE
-from ai_engine.graph.ticket import PIILevel, TicketMasked
+from ai_engine.core.prompts import load_question
+from ai_engine.graph.ticket import CategoryOption, PIILevel, TicketMasked
 from ai_engine.graph.state import TriageState
 
 from ai_engine.core.providers import embeddings
@@ -42,13 +43,19 @@ from ai_engine.graph.nodes.candidate_pool.shortlister import Shortlister
 from ai_engine.graph.nodes.rerank import node as rerank_node
 from ai_engine.graph.nodes.classify_category import node as classify_category_node
 from ai_engine.graph.nodes.classify_category.classifier import CategoryChoice
-from ai_engine.graph.ticket import TicketCategory
 from ai_engine.graph.nodes.rerank.reranker import Passage, RerankChoice
 from ai_engine.graph.nodes.score_options import node as score_options_node
 from ai_engine.graph.nodes.candidate_pool import links as links_module
 from ai_engine.graph.nodes.retrieve import bm25 as bm25_module
 from ai_engine.graph.nodes.retrieve import node as retrieve_node
 from ai_engine.graph.nodes.retrieve import vector as vector_module
+
+
+# The six categories core-api seeds, as category.v2 described them (ADR-0049).
+SEED_CATEGORIES = [
+    CategoryOption(slug=slug, description=option["what"])
+    for slug, option in load_question("category.v2")["criteria"].items()
+]
 
 
 def _reloader(module):
@@ -219,19 +226,23 @@ class FakeOptionScorer:
 
 class FakeClassifier:
     """Jev's category answer: always `choice`, or raises `error`. Records
-    (subject, body, page_title)."""
+    (subject, body, page_title), and the categories offered in `offered`."""
 
     def __init__(
         self,
-        choice: CategoryChoice = CategoryChoice(TicketCategory.SOFTWARE, 0.9),
+        choice: CategoryChoice = CategoryChoice("software", 0.9),
         error: Exception | None = None,
     ):
         self.calls: list[tuple[str, str, str | None]] = []
+        self.offered: list[list[CategoryOption]] = []
         self._choice = choice
         self._error = error
 
-    def classify(self, subject: str, body: str, page_title: str | None) -> CategoryChoice:
+    def classify(
+        self, subject: str, body: str, page_title: str | None, categories: list[CategoryOption]
+    ) -> CategoryChoice:
         self.calls.append((subject, body, page_title))
+        self.offered.append(list(categories))
         if self._error is not None:
             raise self._error
         return self._choice
@@ -383,6 +394,7 @@ def _make_state(**overrides) -> TriageState:
         "ticket": _make_ticket(),
         "request_id": "req-1",
         "retrieval_floor": 0.5,
+        "categories": SEED_CATEGORIES,
         # Retrieval and the pool refuse to run without a draft (ADR-0021);
         # tests of that refusal pass empty values explicitly.
         "draft_text": "a drafted documentation passage",

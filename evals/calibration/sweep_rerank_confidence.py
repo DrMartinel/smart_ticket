@@ -35,9 +35,9 @@ from django.conf import settings  # noqa: E402
 
 from apps.kb.models import KbArticle  # noqa: E402
 from apps.tickets.domain.patterns import PIILevel  # noqa: E402
-from apps.tickets.services.pipeline import trust_signals  # noqa: E402
+from apps.tickets.services.pipeline import category_set, trust_signals  # noqa: E402
 from apps.tickets.domain.router import Branch, KBArticleMeta, RiskTier, Router  # noqa: E402
-from infrastructure.dtos import EngineSignals, LLMProposalEnvelope, TicketCategory  # noqa: E402
+from infrastructure.dtos import EngineSignals, LLMProposalEnvelope  # noqa: E402
 from suites.golden_utils import AI_ENGINE_URL, analyze, load_golden, right_pages  # noqa: E402
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -140,7 +140,7 @@ def decide(router: Router, row: dict):
         KBArticleMeta(
             id=kb["id"],
             slug=kb["slug"],
-            category=TicketCategory(kb["category"]),
+            category=kb["category"],
             auto_reply_allowed=kb["auto_reply_allowed"],
             risk_tier=RiskTier(kb["risk_tier"]),
         )
@@ -155,7 +155,7 @@ def decide(router: Router, row: dict):
         clarifications_asked=0,
         agent_handoff_reason=None,
     )
-    return router.route(signals, proposal, meta)
+    return router.route(signals, proposal, meta, category_set())
 
 
 def right_page(row: dict) -> bool:

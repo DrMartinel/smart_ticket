@@ -18,7 +18,7 @@ from apps.tickets.models import IncidentVerdict, RoutingDecision, Ticket
 from apps.tickets.domain.masking import NERError
 from apps.tickets.services.pipeline import _degraded_signals, ticket_process
 from infrastructure.ai_engine import ai_engine
-from infrastructure.dtos import AIRunResponse, EngineSignals, TicketMasked
+from infrastructure.dtos import AIRunResponse, CategoryOption, EngineSignals, TicketMasked
 
 pytestmark = pytest.mark.django_db
 
@@ -71,7 +71,9 @@ def engine(monkeypatch) -> dict[str, list]:
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
     monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
 
-    def analyze(masked: TicketMasked, request_id: str) -> AIRunResponse:
+    def analyze(
+        masked: TicketMasked, request_id: str, categories: list[CategoryOption]
+    ) -> AIRunResponse:
         sent["masked"].append(masked)
         return response(request_id, injection=masked.ticket_public_id in sent["flag"])
 

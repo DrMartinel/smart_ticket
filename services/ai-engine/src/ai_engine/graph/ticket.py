@@ -1,7 +1,8 @@
 """
 The ticket as it enters the graph: masked text only, and its PII level.
-`TicketCategory` is here too: the categories Jev chooses among (ADR-0017).
-Part of `AIRunRequest`'s body (schemas.py).
+`CategoryOption` is here too: a category Jev may choose (ADR-0017), as
+core-api's `ticket_categories` row describes it (ADR-0049). Both are part of
+`AIRunRequest`'s body (schemas.py).
 """
 
 from __future__ import annotations
@@ -19,13 +20,13 @@ class PIILevel(StrEnum):
     MASK_FAILED = "mask_failed"  # HITL
 
 
-class TicketCategory(StrEnum):
-    HARDWARE = "hardware"
-    SOFTWARE = "software"
-    NETWORK = "network"
-    ACCESS = "access"
-    SECURITY = "security"
-    OTHER = "other"
+class CategoryOption(BaseModel):
+    """A category Jev may choose: its slug and what it means."""
+
+    model_config = ConfigDict(frozen=True)
+
+    slug: str = Field(min_length=1, max_length=20)
+    description: str = Field(min_length=1)
 
 
 # What happened to an earlier turn, in the words the prompts use.

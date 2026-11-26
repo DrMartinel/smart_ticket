@@ -14,13 +14,13 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 from ai_engine.graph.agent_state import AgentEarlierTurn, AgentLimits, AgentStep, AgentStopReason
 
 from ai_engine.graph.nodes.emit_signals.signals import EngineSignals
 from ai_engine.graph.nodes.infer.proposals import LLMProposalEnvelope
-from ai_engine.graph.ticket import TicketMasked
+from ai_engine.graph.ticket import CategoryOption, TicketMasked
 
 
 # --- POST /v1/analyze (spec §6) ------------------------------------------
@@ -28,12 +28,21 @@ from ai_engine.graph.ticket import TicketMasked
 
 class AIRunRequest(BaseModel):
     """Carries only the refuse-before-LLM floor; routing thresholds stay in
-    core-api."""
+    core-api. `categories` are the active categories Jev chooses among."""
 
     request_id: str
     ticket: TicketMasked
     retrieval_floor: float = Field(ge=0, le=1)
+    categories: list[CategoryOption] = Field(min_length=1)
     prompt_version: str = "propose.v10"
+
+    @field_validator("categories")
+    @classmethod
+    def _one_option_per_slug(cls, categories: list[CategoryOption]) -> list[CategoryOption]:
+        slugs = [c.slug for c in categories]
+        if len(set(slugs)) != len(slugs):
+            raise ValueError(f"a category is sent twice: {slugs}")
+        return categories
 
 
 class AIRunResponse(BaseModel):

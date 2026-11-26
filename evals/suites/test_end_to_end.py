@@ -33,8 +33,8 @@ import httpx
 
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.domain.router import Branch, KBArticleMeta, RiskTier
-from apps.tickets.services.pipeline import router, trust_signals
-from infrastructure.dtos import EngineSignals, TicketCategory
+from apps.tickets.services.pipeline import category_set, router, trust_signals
+from infrastructure.dtos import EngineSignals
 
 from apps.kb.models import KbArticle
 from suites.golden_utils import analyze, load_golden, record_metric, right_pages, sample
@@ -51,7 +51,7 @@ def _kb_meta_for(proposal: dict | None) -> KBArticleMeta | None:
     return KBArticleMeta(
         id=kb.id,
         slug=kb.slug,
-        category=TicketCategory(kb.category),
+        category=kb.category,
         auto_reply_allowed=kb.auto_reply_allowed,
         risk_tier=RiskTier(kb.risk_tier),
     )
@@ -112,7 +112,7 @@ def test_branch_accuracy_and_auto_reply_precision(ai_engine_client, django_db_bl
             clarifications_asked=0,
             agent_handoff_reason=None,
         )
-        decision = router.route(signals, proposal, kb_meta)
+        decision = router.route(signals, proposal, kb_meta, category_set())
 
         expected_branch = case["truth"].get("expected_branch")
         if expected_branch is not None:

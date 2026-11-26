@@ -10,13 +10,13 @@ from pydantic import Field
 
 from apps.teams.models import TeamStrategy
 from apps.teams.domain.vocabulary import ReassignReason
-from infrastructure.dtos import TicketCategory
+from apps.categories.request_schema import CategorySlug
 
 
 class TeamIn(Schema):
     slug: str = Field(min_length=1, max_length=50, pattern=r"^[a-z0-9][a-z0-9-]*$")
     name: str = Field(min_length=1, max_length=100)
-    categories: list[TicketCategory] = Field(default_factory=list)
+    categories: list[CategorySlug] = Field(default_factory=list)
     strategy: TeamStrategy = TeamStrategy.LEAST_LOADED
     max_open_per_member: int | None = Field(None, ge=1)
     is_fallback: bool = False
@@ -26,7 +26,7 @@ class TeamIn(Schema):
 
 class TeamPatch(Schema):
     name: str | None = Field(None, min_length=1, max_length=100)
-    categories: list[TicketCategory] | None = None
+    categories: list[CategorySlug] | None = None
     strategy: TeamStrategy | None = None
     max_open_per_member: int | None = Field(None, ge=1)
     is_fallback: bool | None = None
@@ -47,7 +47,7 @@ class TakeIn(Schema):
 class ReassignIn(Schema):
     to_user: str | None = Field(None, max_length=150)
     to_team: str | None = Field(None, max_length=50)
-    to_category: TicketCategory | None = None
+    to_category: CategorySlug | None = None
     reason_code: ReassignReason
     note: str = Field("", max_length=1000)
     expected_version: int

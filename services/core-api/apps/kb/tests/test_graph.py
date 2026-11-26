@@ -36,7 +36,6 @@ from infrastructure.dtos import (
     EngineSignals,
     GenerationSignals,
     RetrievalSignals,
-    TicketCategory,
 )
 from apps.tickets.tests.test_router import auto_reply_proposal
 
@@ -399,7 +398,7 @@ def _engine_response(origin: str, request_id: str) -> AIRunResponse:
                 cited_is_rerank_choice=True,
             ),
             classification=ClassificationSignals(
-                category_choice=TicketCategory.NETWORK, category_confidence=0.9
+                category_choice="network", category_confidence=0.9
             ),
             injection_detected=False,
         ),
@@ -416,7 +415,9 @@ def test_where_the_cited_page_came_from_changes_no_decision(team, vpn, monkeypat
     monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
     origins = iter(["fused", "expansion"])
     monkeypatch.setattr(
-        ai_engine, "analyze", lambda masked, request_id: _engine_response(next(origins), request_id)
+        ai_engine,
+        "analyze",
+        lambda masked, request_id, categories: _engine_response(next(origins), request_id),
     )
     tickets = [
         Ticket.objects.create(

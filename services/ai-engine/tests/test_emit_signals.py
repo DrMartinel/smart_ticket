@@ -164,15 +164,13 @@ def test_jevs_category_is_forwarded(fake_db, make_state, use_db):
     """The router takes this as the ticket's category (ADR-0017). Dropped
     here, it would read as "not asked" and send every route to a human."""
 
-    from ai_engine.graph.ticket import TicketCategory
-
     use_db(fake_db())
 
-    out = emit_signals(make_state(category_choice=TicketCategory.NETWORK, category_confidence=0.77))
+    out = emit_signals(make_state(category_choice="network", category_confidence=0.77))
 
     classification = out["signals"].classification
     assert (classification.category_choice, classification.category_confidence) == (
-        TicketCategory.NETWORK,
+        "network",
         0.77,
     )
 

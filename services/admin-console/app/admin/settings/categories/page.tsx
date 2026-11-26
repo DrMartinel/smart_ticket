@@ -1,12 +1,14 @@
 "use client";
 
-// Ticket categories (ADR-0049): each category, what it means, the team that owns it; rename and reorder.
+// Ticket categories (ADR-0049): each category, what it means, the team that owns it; rename and reorder,
+// and for a manager, what it means and whether it is routed automatically.
 
 import { useCallback, useEffect, useState } from "react";
 import Modal, { Labeled } from "@/components/Modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { EmptyState, ErrorState, TableStatus } from "@/components/ui/states";
@@ -22,6 +24,8 @@ interface Draft {
   slug: string;
   name: string;
   sort_order: string;
+  description: string;
+  is_routable: boolean;
   reason: string;
 }
 
@@ -56,11 +60,17 @@ export default function CategoriesPage() {
 
   if (!user) return null;
   const canEdit = can(user, P.categoriesManage);
+  const canDefine = can(user, P.categoriesDefine);
 
   const save = async () => {
     if (!draft) return;
     setSaveError(null);
-    const body: CategoryPatch = { name: draft.name.trim(), sort_order: Number(draft.sort_order), reason: draft.reason.trim() };
+    const body: CategoryPatch = {
+      name: draft.name.trim(),
+      sort_order: Number(draft.sort_order),
+      reason: draft.reason.trim(),
+      ...(canDefine ? { description: draft.description.trim(), is_routable: draft.is_routable } : {}),
+    };
     try {
       await api.patch<CategoryOut>(`/api/categories/${draft.slug}`, body);
       forgetCategories();
@@ -72,7 +82,13 @@ export default function CategoriesPage() {
   };
 
   const order = Number(draft?.sort_order);
-  const valid = !!draft?.name.trim() && !!draft?.reason.trim() && draft.sort_order !== "" && Number.isInteger(order) && order >= 0;
+  const valid =
+    !!draft?.name.trim() &&
+    !!draft?.reason.trim() &&
+    (!canDefine || !!draft?.description.trim()) &&
+    draft.sort_order !== "" &&
+    Number.isInteger(order) &&
+    order >= 0;
 
   return (
     <Page width="record" className="flex flex-col gap-4">
@@ -80,7 +96,7 @@ export default function CategoriesPage() {
         className="mb-2"
         eyebrow="Admin / Settings"
         title="Categories"
-        description="The categories a ticket can be given. The text under each one is what the classifier is told it means; it changes by pull request for now."
+        description="The categories a ticket can be given. The text beside each one is what the classifier is told it means: a manager's change to it reaches the classifier on the next ticket, with no evaluation run."
       />
 
       {error && <ErrorState title={error} onRetry={() => { setError(null); void load(); }} />}
@@ -130,7 +146,14 @@ export default function CategoriesPage() {
                       size="sm"
                       onClick={() => {
                         setSaveError(null);
-                        setDraft({ slug: c.slug, name: c.name, sort_order: String(c.sort_order), reason: "" });
+                        setDraft({
+                          slug: c.slug,
+                          name: c.name,
+                          sort_order: String(c.sort_order),
+                          description: c.description,
+                          is_routable: c.is_routable,
+                          reason: "",
+                        });
                       }}
                     >
                       Edit
@@ -147,7 +170,11 @@ export default function CategoriesPage() {
         open={!!draft}
         onClose={() => setDraft(null)}
         title={draft ? `Edit ${draft.slug}` : "Edit category"}
-        subtitle="The name and order are what people see; tickets keep the category's slug."
+        subtitle={
+          canDefine
+            ? "The name and order are what people see; the description is what the classifier reads. Tickets keep the category's slug."
+            : "The name and order are what people see; tickets keep the category's slug."
+        }
         footer={
           <>
             <Button variant="outline" onClick={() => setDraft(null)}>
@@ -167,6 +194,20 @@ export default function CategoriesPage() {
             <Labeled label="Order" hint="Lower comes first in every category list.">
               <Input type="number" min={0} value={draft.sort_order} onChange={(e) => setDraft({ ...draft, sort_order: e.target.value })} />
             </Labeled>
+            {canDefine && (
+              <>
+                <Labeled label="What it covers" required hint="The classifier reads this on every ticket.">
+                  <Textarea rows={6} value={draft.description} maxLength={2000} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+                </Labeled>
+                <label className="flex items-start gap-2 text-sm">
+                  <Checkbox className="mt-0.5" checked={draft.is_routable} onCheckedChange={(on) => setDraft({ ...draft, is_routable: on === true })} />
+                  <span>
+                    Routed automatically
+                    <span className="block text-xs text-muted-foreground">Off: a ticket the AI puts in this category goes to a person to route.</span>
+                  </span>
+                </label>
+              </>
+            )}
             <Labeled label="Reason" required>
               <Textarea value={draft.reason} maxLength={500} onChange={(e) => setDraft({ ...draft, reason: e.target.value })} />
             </Labeled>

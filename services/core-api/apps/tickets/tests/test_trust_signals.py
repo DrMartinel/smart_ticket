@@ -15,7 +15,6 @@ from infrastructure.dtos import (
     EngineSignals,
     GenerationSignals,
     RetrievalSignals,
-    TicketCategory,
 )
 
 
@@ -29,9 +28,7 @@ def _engine(*, injection: bool = False) -> EngineSignals:
             negation_consistent=True,
             clarify_options_in_topk=False,
         ),
-        classification=ClassificationSignals(
-            category_choice=TicketCategory.ACCESS, category_confidence=0.9
-        ),
+        classification=ClassificationSignals(category_choice="access", category_confidence=0.9),
         injection_detected=injection,
         llm_self_confidence=80.0,
     )
@@ -41,7 +38,7 @@ def _kb(*, allowed: bool, tier: RiskTier) -> KBArticleMeta:
     return KBArticleMeta(
         id=UUID(int=1),
         slug="identity-center.resetpassword-accessportal",
-        category=TicketCategory.ACCESS,
+        category="access",
         auto_reply_allowed=allowed,
         risk_tier=tier,
     )

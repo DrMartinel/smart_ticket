@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from ai_engine.core.providers.pii import PiiDetectionError
 from ai_engine.main import app
 
+_CATEGORIES = [{"slug": "other", "description": "Anything else."}]
 _RAW = "anh Tuấn phòng kế toán tầng 3 không in được"
 
 
@@ -115,6 +116,27 @@ def test_detect_passes_an_empty_answer_through(client, fake_pii_detector, use_pi
 # --- /v1/analyze ----------------------------------------------------------------
 
 
+@pytest.mark.parametrize(
+    "categories",
+    [[], [{"slug": "other", "description": "a"}, {"slug": "other", "description": "b"}]],
+    ids=["none", "one_slug_twice"],
+)
+def test_a_request_without_a_usable_category_set_is_refused(client, make_state, categories):
+    """Jev can't be asked to choose among no options, or between two of one."""
+
+    resp = client.post(
+        "/v1/analyze",
+        json={
+            "request_id": "r",
+            "ticket": make_state().ticket.model_dump(mode="json"),
+            "retrieval_floor": 0.3,
+            "categories": categories,
+        },
+    )
+
+    assert resp.status_code == 422
+
+
 def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypatch):
     """Each chunk reports the final score the floor compared (`rerank_score`,
     the key stored runs have always had) and the shortlister's
@@ -156,6 +178,7 @@ def test_retrieved_chunks_carry_both_stages_scores(client, make_state, monkeypat
             "request_id": "r",
             "ticket": final.ticket.model_dump(mode="json"),
             "retrieval_floor": 0.3,
+            "categories": _CATEGORIES,
         },
     )
 
@@ -214,6 +237,7 @@ def test_retrieved_chunks_carry_jevs_option_scores(client, make_state, monkeypat
             "request_id": "r",
             "ticket": final.ticket.model_dump(mode="json"),
             "retrieval_floor": 0.6,
+            "categories": _CATEGORIES,
         },
     )
 
@@ -253,6 +277,7 @@ def test_a_run_is_labelled_with_the_prompt_that_ran(client, make_state, monkeypa
             "request_id": "r",
             "ticket": final.ticket.model_dump(mode="json"),
             "retrieval_floor": 0.3,
+            "categories": _CATEGORIES,
             "prompt_version": "propose.v8",
         },
     )

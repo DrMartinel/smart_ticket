@@ -9,13 +9,13 @@ from ninja import Schema
 from pydantic import Field
 
 from apps.sla.models import Priority
-from infrastructure.dtos import TicketCategory
+from apps.categories.request_schema import CategorySlug
 
 
 class PolicyIn(Schema):
     name: str = Field(min_length=1, max_length=100)
     order: int = Field(ge=1)
-    category: TicketCategory | None = None
+    category: CategorySlug | None = None
     priority: Priority | None = None
     response_minutes: int
     resolution_minutes: int
@@ -27,7 +27,7 @@ class PolicyIn(Schema):
 class PolicyPatch(Schema):
     name: str | None = Field(None, min_length=1, max_length=100)
     order: int | None = Field(None, ge=1)
-    category: TicketCategory | None = None
+    category: CategorySlug | None = None
     priority: Priority | None = None
     response_minutes: int | None = None
     resolution_minutes: int | None = None
@@ -61,7 +61,7 @@ class HolidayIn(Schema):
 
 
 class PreviewIn(Schema):
-    category: TicketCategory | None = None
+    category: CategorySlug | None = None
     priority: Priority
     start_at: datetime.datetime
 

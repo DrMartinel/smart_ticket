@@ -124,7 +124,7 @@ def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Tic
         ReassignRequest(
             to_user=payload.to_user,
             to_team=payload.to_team,
-            to_category=payload.to_category.value if payload.to_category else None,
+            to_category=payload.to_category,
             reason_code=payload.reason_code,
             note=payload.note,
             expected_version=payload.expected_version,

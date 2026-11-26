@@ -9,6 +9,7 @@ from apps.core.errors import CodedError
 
 class CategoryRefusal(StrEnum):
     CATEGORY_NOT_FOUND = "category_not_found"
+    NOT_ALLOWED = "not_allowed"
     REASON_REQUIRED = "reason_required"
     UNKNOWN_CATEGORY = "unknown_category"
 

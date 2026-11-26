@@ -103,6 +103,11 @@ class Permission(StrEnum):
         "Use the assistant",
         staff_only=False,
     )
+    CATEGORIES_DEFINE = _p(
+        "urn:smart-ticket:perm:categories:define",
+        "Change what a ticket category means and whether it is routed automatically",
+        locked=True,
+    )
     CATEGORIES_MANAGE = _p(
         "urn:smart-ticket:perm:categories:manage",
         "Rename and reorder ticket categories",
@@ -583,6 +588,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     SystemRole.MANAGER: frozenset(
         {
             Permission.AGENT_USE,
+            Permission.CATEGORIES_DEFINE,
             Permission.CATEGORIES_MANAGE,
             Permission.CATEGORIES_READ,
             Permission.KB_DRAFTS_WITHDRAW_ANY,

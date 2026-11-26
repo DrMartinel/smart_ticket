@@ -31,6 +31,7 @@ def _detect(subject: str, body: str) -> bool:
         ),
         request_id="eval",
         retrieval_floor=0.0,
+        categories=[],
     )
     return _NODE(state)["injection_detected"]
 

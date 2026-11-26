@@ -14,6 +14,10 @@ class CategoryQuerySet(QuerySet["Category"]):
         """The categories a ticket may be given now, in display order."""
         return self.filter(is_active=True).order_by("sort_order", "slug")
 
+    def is_security(self, slug: str | None) -> bool:
+        """Whether `slug` names a security category, active or not."""
+        return slug is not None and self.filter(slug=slug, is_security=True).exists()
+
     def require(self, slug: str) -> Category:
         """The active category `slug`; refuses one that is unknown or inactive."""
         category = self.active().filter(slug=slug).first()

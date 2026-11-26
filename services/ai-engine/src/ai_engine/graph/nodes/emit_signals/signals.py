@@ -9,8 +9,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-from ai_engine.graph.ticket import TicketCategory
-
 
 class RetrievalSignals(BaseModel):
     rerank_top1: float = Field(ge=0, le=1)
@@ -46,7 +44,7 @@ class ClassificationSignals(BaseModel):
     No defaults, here or on `EngineSignals.classification`: no signals were
     stored before ADR-0017, so every producer must say what Jev answered."""
 
-    category_choice: TicketCategory | None
+    category_choice: str | None
     category_confidence: float = Field(ge=0, le=1)
 
 

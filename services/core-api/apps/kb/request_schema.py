@@ -14,7 +14,7 @@ from pydantic import Field, field_validator
 
 from apps.kb.models import DraftKind, DraftState, OverrideAction
 from apps.tickets.domain.router import RiskTier
-from infrastructure.dtos import TicketCategory
+from apps.categories.request_schema import CategorySlug
 
 
 class ArticleIn(Schema):
@@ -54,7 +54,7 @@ class DraftIn(Schema):
     slug: str = Field(min_length=1, max_length=128)
     title: str = ""
     body: str = ""
-    category: TicketCategory | None = None
+    category: CategorySlug | None = None
     proposed_risk_tier: RiskTier | None = None
     change_note: str = ""
     gap_cluster_id: uuid.UUID | None = None
@@ -63,7 +63,7 @@ class DraftIn(Schema):
 class DraftPatchIn(Schema):
     title: str | None = None
     body: str | None = None
-    category: TicketCategory | None = None
+    category: CategorySlug | None = None
     proposed_risk_tier: RiskTier | None = None
     change_note: str | None = None
 

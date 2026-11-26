@@ -72,7 +72,7 @@ There is no shared schema package (ADR-0010). Each type is defined in the module
 | Types | core-api | ai-engine |
 |---|---|---|
 | `TicketIn` (`extra="forbid"`) | `apps/tickets/request_schema.py` | — |
-| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / clarification / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `ClassificationSignals`, `EngineSignals`, `AIRunRequest`, `AIRunResponse`, `TicketCategory`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies only); the ticket types in `graph/ticket.py`, the proposals in `graph/nodes/infer/proposals.py`, the signals in `graph/nodes/emit_signals/signals.py` |
+| `TicketMasked` (`frozen=True`), the proposal union (auto-reply / route / runbook / clarification / insufficient-context), `RetrievalSignals`, `GenerationSignals`, `ClassificationSignals`, `EngineSignals`, `AIRunRequest` (with the `CategoryOption`s Jev chooses among, ADR-0049), `AIRunResponse`, the `/v1/embed` and `/v1/pii/detect` bodies | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies only); the ticket types in `graph/ticket.py`, the proposals in `graph/nodes/infer/proposals.py`, the signals in `graph/nodes/emit_signals/signals.py` |
 | `PIILevel` | `apps/tickets/utils/patterns.py` | `graph/ticket.py` |
 | `AgentTurnRequest`, `AgentTurnResponse`, `AgentLimits`, `AgentEarlierTurn`, `AgentStep`, `AgentStopReason` (F15) | `infrastructure/dtos.py` | `schemas.py` (the HTTP bodies); the rest in `graph/agent_state.py` |
 | `Branch`, `ReasonCode`, `ReviewQueue`, `RiskTier`, `KBArticleMeta`, `RoutingDecision` | `apps/tickets/utils/router.py` | — |

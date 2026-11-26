@@ -65,7 +65,8 @@ PII_NER_PROMPT = load_system_prompt(settings.pii_ner_prompt_version)
 DRAFT_PROMPT = load_system_prompt(settings.draft_prompt_version)
 # The choice question Jev answers once per ticket over the shortlist (ADR-0026).
 RERANK_QUESTION = load_question(settings.rerank_prompt_version)
-# The choice question Jev answers once per ticket: its category (ADR-0017).
+# The instructions of the choice question Jev answers once per ticket: its
+# category (ADR-0017); the options are the categories core-api sends (ADR-0049).
 CATEGORY_QUESTION = load_question(settings.category_question_version)
 # The yes/no question Jev answers per page a clarifying question may offer (ADR-0023).
 OPTION_QUESTION = load_question(settings.clarify_option_question_version)

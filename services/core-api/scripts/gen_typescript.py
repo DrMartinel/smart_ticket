@@ -38,6 +38,7 @@ MODELS = [
     "TrustScore",
     "KBArticleMeta",
     "RoutingDecision",
+    "CategoryOption",
     "AIRunRequest",
     "AIRunResponse",
     "ChatAskIn",
@@ -268,7 +269,6 @@ MODELS = [
 ]
 
 ENUMS = {
-    "TicketCategory": ["hardware", "software", "network", "access", "security", "other"],
     "PIILevel": ["routine", "sensitive", "critical", "mask_failed"],
     "Branch": ["auto_reply", "auto_route", "hitl", "block", "escalate", "clarify"],
     "ReviewQueue": [

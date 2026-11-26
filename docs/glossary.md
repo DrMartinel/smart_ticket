@@ -78,7 +78,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Jev** — TypeSafe's hosted System One model, the one model outside the deployment (ADR-0015). It answers structured questions about a JSON state: a **noul** (the probability a statement is true), a **score** (a position on ordered levels) or a **choice** (one option of several, with a probability each and a confidence). It receives only masked ticket text and KB text. ai-engine asks it two things:
 - **the reranker**: one choice over the shortlisted chunks plus `none`, "which passage tells the user how to fix the problem?" (ADR-0026). Each chunk's probability is its `rerank_score`, the score `retrieval.floor` and the trust signals read. Its order is final; its top 5 go on, one page per slot (`RERANK_TOP_N_PER_PAGE`).
-- **the category**: one choice among the six categories, given the ticket and the title of the page that answers it (ADR-0017). The router routes on it; the LLM proposes no category (`propose.v8`).
+- **the category**: one choice among the active categories core-api sends, each with its description (ADR-0049), given the ticket and the title of the page that answers it (ADR-0017). The router routes on it; the LLM proposes no category (`propose.v8`).
 
 **Category confidence** — Jev's confidence in its category choice, low when its probability is spread over several categories. Below `classification.min_confidence` (0.65) a route or clarify goes to a human as `category_low_confidence`.
 
