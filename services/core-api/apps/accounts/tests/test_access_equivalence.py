@@ -113,6 +113,7 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "POST /api/requester/infra/logs/search": Permission.INFRA_READ_OWN,
     "POST /api/requester/infra/traces/search": Permission.INFRA_READ_OWN,
     "GET /api/requester/infra/traces/{trace_id}": Permission.INFRA_READ_OWN,
+    "POST /api/requester/infra/picks": Permission.INFRA_READ_OWN,
     "POST /api/infra/servers/{server_id}/reboot": Permission.INFRA_OPERATE,
     "POST /api/infra/servers/{server_id}/hard-reboot": Permission.INFRA_OPERATE,
     "POST /api/infra/servers/{server_id}/start": Permission.INFRA_OPERATE,

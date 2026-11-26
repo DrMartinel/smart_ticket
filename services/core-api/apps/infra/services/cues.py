@@ -20,6 +20,8 @@ from django.utils import timezone
 from apps.accounts.domain.access import Access
 from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import Caller
+from apps.agent.domain.vocabulary import AgentError, AgentRefusal
+from apps.agent.models import AgentConversation, AgentSurface
 from apps.infra.clients.backends import (
     BackendUnavailable,
     alertmanager,
@@ -58,7 +60,14 @@ from apps.infra.domain.enrichment import Holdings, linked
 from apps.infra.domain.observations import Series
 from apps.infra.domain.queries import MetricQuery, Window
 from apps.infra.domain.vocabulary import CueRunOutcome, InfraError, ResourceKind, ResourceSource
-from apps.infra.models import CueRun, InfraQuery, InfraVia, TicketCue, TicketResource
+from apps.infra.models import (
+    CueRun,
+    InfraQuery,
+    InfraVia,
+    ResourcePick,
+    TicketCue,
+    TicketResource,
+)
 from apps.infra.services.inventory import Inventory
 from apps.infra.services.observability import Observability
 from apps.infra.services.recording import QueryLog
@@ -239,7 +248,8 @@ class Collector:
 
 
 class Cues:
-    """Queues, collects, links and reads a ticket's cue runs."""
+    """Queues, collects, links and reads a ticket's cue runs, and records the resources a person
+    picks in the chat for them."""
 
     # ── at handoff (BR-F17-13) ──
 
@@ -369,6 +379,35 @@ class Cues:
         for resource in run.resources.all():
             collector.about(resource)
         return CueRunOutcome.DONE
+
+    # ── a person picks a resource in the chat (BR-F17-26) ──
+
+    def pick(
+        self, caller: Caller, conversation_id: uuid.UUID, kind: ResourceKind, resource_id: str
+    ) -> ResourcePick:
+        """Records a resource `caller` pressed on a choice card in their chat conversation, once
+        however often it is pressed; refuses another person's conversation with
+        `conversation_not_found`, and a resource outside their own projects with
+        `infra_not_found`."""
+        conversation = (
+            AgentConversation.objects.of_user(caller.user)
+            .filter(id=conversation_id, surface=AgentSurface.CHAT.value)
+            .first()
+        )
+        if conversation is None:
+            raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such conversation")
+        resource = Inventory.for_own(caller).resource(kind, resource_id)
+        pick, _ = ResourcePick.objects.get_or_create(
+            conversation=conversation,
+            resource_id=resource.id,
+            defaults={
+                "person": caller.user,
+                "project_id": resource.project_id,
+                "kind": kind.value,
+                "name": resource.name,
+            },
+        )
+        return pick
 
     # ── how a run runs ──
 

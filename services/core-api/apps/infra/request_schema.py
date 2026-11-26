@@ -1,10 +1,11 @@
 """Request shapes for the infra queries (F17 §h.1), whose catalog and caps are checked when the
 query compiles, or for raw PromQL when Prometheus has parsed it, the customer routes' bodies
-(F17 §o.9), the changes' bodies (F17 §h.1), and the resource a person links to a ticket's
-cues (F17 §o.9)."""
+(F17 §o.9), the changes' bodies (F17 §h.1), the resource a person links to a ticket's cues and
+the resource a person picks in the chat (F17 §o.9)."""
 
 from __future__ import annotations
 
+import uuid
 from datetime import datetime
 from typing import Literal, Self
 
@@ -112,6 +113,16 @@ class CustomerPatch(Schema):
 class CueResourceIn(Schema):
     model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
+    kind: ResourceKind
+    resource_id: str = Field(min_length=1, max_length=64)
+
+
+class ResourcePickIn(Schema):
+    """A resource the person pressed on a choice card, and the conversation the card was in."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
+
+    conversation_id: uuid.UUID
     kind: ResourceKind
     resource_id: str = Field(min_length=1, max_length=64)
 

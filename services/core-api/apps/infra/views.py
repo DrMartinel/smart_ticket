@@ -1,8 +1,9 @@
 """The infra routes (F17 §h.1), split into two routers so every endpoint carries one
 permission: `/api/infra/*` for staff (`infra:read` and `infra:operate`, every project) and
 `/api/requester/infra/*` for customers (`infra:read:own` and `infra:operate:own`, only their
-Keystone projects); the customer routes (`infra:customers:manage`, F17 §o.9); and a ticket's cue
-routes under `/api/tickets/*` (`infra:read`, for a ticket the caller reaches, F17 §o.9)."""
+Keystone projects, where a person also records a resource they picked in the chat); the customer
+routes (`infra:customers:manage`, F17 §o.9); and a ticket's cue routes under `/api/tickets/*`
+(`infra:read`, for a ticket the caller reaches, F17 §o.9)."""
 
 import uuid
 
@@ -14,7 +15,7 @@ from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, req
 from apps.accounts.domain.catalog import Permission
 from apps.agent.models import AgentTargetKind
 from apps.infra.domain.catalog import Catalog, Listing, Surface
-from apps.infra.models import CueRun, Customer
+from apps.infra.models import CueRun, Customer, ResourcePick
 from apps.infra.request_schema import (
     AttachVolumeIn,
     CueResourceIn,
@@ -24,6 +25,7 @@ from apps.infra.request_schema import (
     MetricQueryIn,
     MySoftRebootIn,
     PromQLIn,
+    ResourcePickIn,
     SecurityRuleIn,
     SecurityRuleRemoveIn,
     SoftRebootIn,
@@ -45,6 +47,7 @@ from apps.infra.response_schema import (
     OwnMetricAnswerOut,
     OwnTraceAnswerOut,
     ProjectOut,
+    ResourcePickOut,
     SecurityGroupDetailOut,
     ServerDetailOut,
     ServerOut,
@@ -383,6 +386,12 @@ def search_my_traces(request: AuthedRequest, body: TraceSearchIn) -> TraceAnswer
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def get_my_trace(request: AuthedRequest, trace_id: str) -> TraceAnswer:
     return Observability.for_own(request.auth).trace(trace_id)
+
+
+@requester_router.post("/picks", auth=SessionAuth(), response=ResourcePickOut)
+@require(Permission.INFRA_READ_OWN, agent=AgentTier.NONE)
+def pick_resource(request: AuthedRequest, payload: ResourcePickIn) -> ResourcePick:
+    return cues.pick(request.auth, payload.conversation_id, payload.kind, payload.resource_id)
 
 
 @requester_router.post("/servers/{server_id}/reboot", auth=SessionAuth(), response=InfraChangeOut)

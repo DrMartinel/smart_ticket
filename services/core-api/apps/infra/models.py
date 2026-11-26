@@ -1,7 +1,8 @@
 """One row per read of the cloud or its observability: who asked, through what, what was
 sent and how it ended (F17, ADR-0048 §9); the customer companies, each a Keystone domain
-with a tier (F17 §o, ADR-0048 decision 11); and a ticket's cue runs, the resources each
-linked and the cues each collected (F17 §o.8, ADR-0048 decision 10)."""
+with a tier (F17 §o, ADR-0048 decision 11); a ticket's cue runs, the resources each
+linked and the cues each collected (F17 §o.8, ADR-0048 decision 10); and the resources a
+person picked from a choice card in the chat (F17 BR-F17-26)."""
 
 from __future__ import annotations
 
@@ -226,3 +227,26 @@ class TicketCue(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "infra_ticket_cues"
         ordering = ["seq"]
+
+
+class ResourcePick(BaseModel):
+    """A server, volume or network a person pressed on a choice card in their agent
+    conversation, checked against their own projects when it was pressed."""
+
+    conversation = models.ForeignKey(
+        "agent.AgentConversation", on_delete=models.CASCADE, related_name="+"
+    )
+    person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    project_id = models.CharField(max_length=64)
+    kind = models.CharField(max_length=8, choices=_choices(ResourceKind))
+    resource_id = models.CharField(max_length=64)
+    name = models.CharField(max_length=255)
+    picked_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta(BaseModel.Meta):
+        db_table = "infra_resource_picks"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["conversation", "resource_id"], name="uq_resource_pick"
+            ),
+        ]

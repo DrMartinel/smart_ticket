@@ -1,6 +1,6 @@
 """Response shapes for the infra reads (F17 §h.1), where free text is already masked or
-withheld, for the customer and cue routes (F17 §o.9), for the changes (F17 §h.1), and for the
-receipt of each query an agent turn ran (BR-F17-10)."""
+withheld, for the customer, cue and picks routes (F17 §o.9), for the changes (F17 §h.1), and
+for the receipt of each query an agent turn ran (BR-F17-10)."""
 
 from __future__ import annotations
 
@@ -374,3 +374,14 @@ class CueRunOut(Schema):
 
 class TicketCuesOut(Schema):
     runs: list[CueRunOut]
+
+
+class ResourcePickOut(Schema):
+    """A resource the person picked in the chat, as their projects hold it."""
+
+    conversation_id: uuid.UUID
+    kind: ResourceKind
+    resource_id: str
+    name: str
+    project_id: str
+    picked_at: datetime
