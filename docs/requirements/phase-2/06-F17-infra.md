@@ -199,7 +199,7 @@ Mock data for this feature (added to §6.0.5's):
 | BR-F17-09 | A confirmed or applied change whose cloud answer is lost becomes `outcome_unknown` and is never resent |
 | BR-F17-10 | Every query writes one `infra_queries` row; every receipt links its query |
 | BR-F17-11 | A staff change names an open ticket the person covers and writes an internal comment on it. A customer's change needs no ticket and is limited to soft reboot, start and stop |
-| BR-F17-12 | Every cap (range, step, series, documents, spans, result bytes, queries per turn) is in `thresholds.yaml` `infra:` |
+| BR-F17-12 | Every cap on a query (range, step, series, documents, spans, result bytes) is in `thresholds.yaml` `infra:`; the queries an agent turn may run are capped by `agent.max_read_calls_per_turn`, which counts every read |
 
 ## f. Functional requirements
 
@@ -264,7 +264,7 @@ caller's Keystone projects by BR-F17-02).
 
 | Staff route (`/api/infra/…`) | Customer route (`/api/requester/infra/…`) | Tier | Console tool | Chat tool |
 |---|---|---|---|---|
-| `GET /catalog` | `GET /catalog` | read | `infra_catalog` | `infra_catalog` |
+| `GET /catalog` | `GET /catalog` | read | `infra_catalog` | `my_infra_catalog` |
 | `GET /projects` | `GET /projects` | read | `list_projects` | `list_my_projects` |
 | `GET /servers`, `/servers/{server_id}` | `GET /servers`, `/servers/{server_id}` | read | `list_servers`, `get_server` | `list_my_servers`, `get_my_server` |
 | `GET /volumes`, `/volumes/{volume_id}` | `GET /volumes`, `/volumes/{volume_id}` | read | `list_volumes`, `get_volume` | `list_my_volumes`, `get_my_volume` |
@@ -273,16 +273,18 @@ caller's Keystone projects by BR-F17-02).
 | `POST /metrics/query` | `POST /metrics/query` | read | `query_metrics` | `query_my_metrics` |
 | `POST /metrics/promql` | — (OQ-F17-05) | read | `run_promql` | — |
 | `POST /logs/search` | `POST /logs/search` | read | `search_logs` | `search_my_logs` |
-| `POST /traces/search`, `GET /traces/{trace_id}` | `POST /traces/search`, `GET /traces/{trace_id}` | read | `search_traces`, `get_trace` | `search_my_traces` |
+| `POST /traces/search`, `GET /traces/{trace_id}` | `POST /traces/search`, `GET /traces/{trace_id}` | read | `search_traces`, `get_trace` | `search_my_traces`, `get_my_trace` |
 | `POST /servers/{server_id}/reboot` (soft) | `POST /servers/{server_id}/reboot` (soft) | confirm | `reboot_server` | `reboot_my_server` |
 | `POST /servers/{server_id}/hard-reboot` | — | human_only | `draft_hard_reboot` | — |
 | `POST /servers/{server_id}/start`, `/stop` | `POST /servers/{server_id}/start`, `/stop` | confirm | `start_server`, `stop_server` | `start_my_server`, `stop_my_server` |
 | `POST /volumes/{volume_id}/attach` | — | confirm | `attach_volume` | — |
 | `POST /volumes/{volume_id}/detach` | — | human_only | `draft_detach_volume` | — |
-| `POST`/`DELETE /security-groups/{group_id}/rules` | — | human_only | `draft_security_rule` | — |
+| `POST`/`DELETE /security-groups/{group_id}/rules` | — | human_only | `draft_security_rule`, `draft_remove_security_rule` | — |
 
 Hard reboot is its own route, so its tier doesn't depend on an argument and
-F17 doesn't wait on ADR-0047's guards (OQ-F17-06).
+F17 doesn't wait on ADR-0047's guards (OQ-F17-06). A tool is one route at one
+method, so the security-group rule route is two tools. Tool names are unique
+across both surfaces, so the chat's catalog tool is `my_infra_catalog`.
 
 ### h.2 Refusal codes (`InfraRefusal`, BR-X-08)
 
@@ -316,10 +318,9 @@ infra:
   max_selectors: 10        # raw PromQL (FR-F17-005)
   max_regex_kib: 256       # RE2's memory for one raw PromQL regex
   max_regex_matchers: 10   # regex matchers in one raw PromQL query
-  max_queries_per_turn: 16
 agent:
   max_model_tokens_per_turn: 48000  # was 16000 (F15); pays for max_steps chat calls
-  max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn
+  max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn; caps a turn's queries (BR-F17-12)
   console_max_steps: 20             # new
   console_max_model_tokens_per_turn: 200000  # new; pays for console_max_steps calls
 ```
@@ -335,6 +336,9 @@ chat calls cost about 42,000 tokens before any result, 20 console calls about
 `OPENSTACK_AUTH_URL`, `OPENSTACK_SERVICE_USER`, `OPENSTACK_SERVICE_PASSWORD`,
 `INFRA_CONNECT_TIMEOUT_SEC`, `INFRA_READ_TIMEOUT_SEC`, `KIBANA_URL`,
 `PROMETHEUS_UI_URL`; core-api's `environment:` in compose gets each.
+ai-engine's: `AGENT_TIME_ZONE`, the IANA zone each agent step is told the
+current time in, so the model can turn "yesterday afternoon" into a query's
+range.
 
 ### h.4 ai-engine
 
@@ -343,10 +347,11 @@ chat calls cost about 42,000 tokens before any result, 20 console calls about
 - `agent/tools/client.py`: retry rule by tier (FR-F17-010).
 - `graph/agent_state.py` and core-api `infrastructure/dtos.py`:
   `AgentLimits.max_read_calls` (ADR-0010, both in one PR).
-- `choose.py`: counts reads and writes separately.
-- Prompt: the next `agent.v*` (v2 unless F16 lands first): how to
-  investigate (catalog first, narrow before wide, cite the query), and
-  never to read missing data as "no problem".
+- `choose.py`: counts reads and writes separately. Each call names its
+  step (`X-Agent-Step`), and core-api counts a step once, by the tier of its
+  first call, so `ask_helpdesk`'s polls are free reads.
+- Prompt: `agent.v4`: how to investigate (catalog first, narrow before wide,
+  cite the query), and never to read missing data as "no problem".
 
 ### h.5 Tasks and events
 
