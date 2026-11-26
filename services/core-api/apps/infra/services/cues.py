@@ -10,8 +10,7 @@ import time
 import uuid
 from collections.abc import Callable
 from functools import partial
-from datetime import UTC, timedelta
-from zoneinfo import ZoneInfo
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import transaction
@@ -117,17 +116,21 @@ class Collector:
     """Runs one cue run's templates through its reads and stores each cue, in order."""
 
     def __init__(
-        self, run: CueRun, log: QueryLog, inventory: Inventory, observability: Observability
+        self,
+        run: CueRun,
+        log: QueryLog,
+        inventory: Inventory,
+        observability: Observability,
+        clock: Clock,
     ) -> None:
         assert run.window_start is not None and run.window_end is not None
         self.run = run
         self.log = log
         self.inventory = inventory
         self.observability = observability
+        self.clock = clock
         self.caps = settings.THRESHOLDS.cues
         self.window = Window(run.window_start, run.window_end)
-        zone = Calendar.objects.filter(is_default=True).values_list("timezone", flat=True).first()
-        self.clock = Clock(ZoneInfo(zone) if zone else UTC)
         self.step = step_for(self.window, self.caps.step_seconds, self.caps.max_points)
         self.seq = 0
         self.cut = False
@@ -293,7 +296,9 @@ class Cues:
         before = len(log.recorded)
         holdings = enrichment.holdings()
         resources = enrichment.link(run, ticket, holdings)
-        collector = Collector(run, log, inventory, observability)
+        collector = Collector(
+            run, log, inventory, observability, Clock(Calendar.objects.default_zone())
+        )
         if not resources:
             collector.overview(holdings, log.recorded[before])
             return CueRunOutcome.OVERVIEW
@@ -358,6 +363,7 @@ class Cues:
             log,
             Inventory(log, scope, cloud, alertmanager()),
             Observability(log, scope, Catalog(Surface.STAFF), cloud, prometheus(), elasticsearch()),
+            Clock(Calendar.objects.default_zone()),
         )
         for resource in run.resources.all():
             collector.about(resource)

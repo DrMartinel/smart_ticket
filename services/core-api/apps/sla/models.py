@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, tzinfo
 from enum import StrEnum
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -62,6 +62,13 @@ def _choices(enum: Any) -> list[tuple[str, str]]:
     return [(m.value, m.value) for m in enum]
 
 
+class CalendarQuerySet(QuerySet["Calendar"]):
+    def default_zone(self) -> tzinfo:
+        """The default calendar's zone, UTC when there is none."""
+        zone = self.filter(is_default=True).values_list("timezone", flat=True).first()
+        return ZoneInfo(zone) if zone else UTC
+
+
 class Calendar(BaseModel):
     """Working hours per weekday in one zone; exactly one is the default."""
 
@@ -71,6 +78,8 @@ class Calendar(BaseModel):
     is_default = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = CalendarQuerySet.as_manager()
 
     class Meta(BaseModel.Meta):
         db_table = "sla_calendars"
