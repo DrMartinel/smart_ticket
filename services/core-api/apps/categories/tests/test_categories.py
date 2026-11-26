@@ -184,30 +184,56 @@ def test_an_unknown_category_is_not_found(api_as):
 
 
 @pytest.mark.django_db
-def test_an_edit_cannot_change_the_description_or_flags(api_as):
+@pytest.mark.parametrize(
+    "field, value",
+    [
+        ("description", "anything"),
+        ("is_security", False),
+        ("is_routable", False),
+        ("is_active", False),
+        ("slug", "sec"),
+    ],
+)
+def test_an_edit_of_the_description_or_a_flag_is_refused(api_as, field, value):
     before = Category.objects.get(slug="security")
 
     response = patch(
         api_as(person("huy.pq", UserRole.MANAGER)),
         "security",
-        {
-            "name": "Security",
-            "description": "anything",
-            "is_security": False,
-            "is_routable": False,
-            "is_active": False,
-            "reason": "try every field",
-        },
+        {"name": "Security team", field: value, "reason": "try a locked field"},
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 422
     after = Category.objects.get(slug="security")
-    assert (after.description, after.is_security, after.is_routable, after.is_active) == (
+    assert (after.name, after.description, after.is_security, after.is_routable) == (
+        "Security",
         before.description,
         True,
         True,
-        True,
     )
+    assert (after.is_active, after.version) == (True, 1)
+
+
+@pytest.mark.django_db
+def test_a_blank_name_is_refused(api_as):
+    response = patch(
+        api_as(person("huy.pq", UserRole.MANAGER)), "network", {"name": "   ", "reason": "x"}
+    )
+
+    assert response.status_code == 422
+    assert Category.objects.get(slug="network").name == "Network"
+
+
+@pytest.mark.django_db
+def test_a_name_is_stored_without_surrounding_spaces(api_as):
+    response = patch(
+        api_as(person("huy.pq", UserRole.MANAGER)),
+        "network",
+        {"name": "  Networking  ", "reason": "Đổi tên"},
+    )
+
+    assert response.status_code == 200
+    assert Category.objects.get(slug="network").name == "Networking"
 
 
 @pytest.mark.django_db

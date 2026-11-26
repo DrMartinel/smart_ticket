@@ -29,6 +29,7 @@ export default function CategoriesPage() {
   const user = useRequireAuth();
   const [categories, setCategories] = useState<CategoryOut[] | null>(null);
   const [owners, setOwners] = useState<Record<string, string>>({});
+  const [teamsFailed, setTeamsFailed] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -37,10 +38,13 @@ export default function CategoriesPage() {
     try {
       const [all, teams] = await Promise.all([
         api.get<CategoryOut[]>("/api/categories"),
-        api.get<TeamOut[]>("/api/teams").catch(() => [] as TeamOut[]),
+        api.get<TeamOut[]>("/api/teams").catch(() => null),
       ]);
       setCategories(all);
-      setOwners(Object.fromEntries(teams.filter((t) => t.is_active).flatMap((t) => t.categories.map((c) => [c, t.name]))));
+      setTeamsFailed(teams === null);
+      setOwners(
+        Object.fromEntries((teams ?? []).filter((t) => t.is_active).flatMap((t) => t.categories.map((c) => [c, t.name]))),
+      );
     } catch {
       setError("Couldn't load the categories.");
     }
@@ -56,7 +60,7 @@ export default function CategoriesPage() {
   const save = async () => {
     if (!draft) return;
     setSaveError(null);
-    const body: CategoryPatch = { name: draft.name, sort_order: Number(draft.sort_order), reason: draft.reason };
+    const body: CategoryPatch = { name: draft.name.trim(), sort_order: Number(draft.sort_order), reason: draft.reason.trim() };
     try {
       await api.patch<CategoryOut>(`/api/categories/${draft.slug}`, body);
       forgetCategories();
@@ -80,6 +84,7 @@ export default function CategoriesPage() {
       />
 
       {error && <ErrorState title={error} onRetry={() => { setError(null); void load(); }} />}
+      {!error && teamsFailed && <ErrorState compact title="Couldn't load the owning teams." onRetry={() => void load()} />}
 
       <Card className="overflow-x-auto">
         <Table className="min-w-[820px]">
@@ -111,7 +116,13 @@ export default function CategoriesPage() {
                 <TableCell className="max-w-[420px] align-top text-xs leading-relaxed whitespace-normal text-muted-foreground">
                   {c.description}
                 </TableCell>
-                <TableCell className="align-top">{owners[c.slug] ?? <span className="text-muted-foreground">—</span>}</TableCell>
+                <TableCell className="align-top">
+                  {teamsFailed ? (
+                    <span className="text-muted-foreground">?</span>
+                  ) : (
+                    (owners[c.slug] ?? <span className="text-muted-foreground">—</span>)
+                  )}
+                </TableCell>
                 <TableCell className="align-top text-right">
                   {canEdit && (
                     <Button
