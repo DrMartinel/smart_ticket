@@ -202,6 +202,7 @@ class Rule:
 class SecurityGroup:
     id: str
     name: str
+    project_id: str
     description: str
     rules: list[Rule]
 
@@ -210,6 +211,7 @@ class SecurityGroup:
         return cls(
             id=raw["id"],
             name=raw.get("name") or "",
+            project_id=raw["project_id"],
             description=raw.get("description") or "",
             rules=[Rule.of(r) for r in raw.get("security_group_rules") or []],
         )

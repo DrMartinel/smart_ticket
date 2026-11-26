@@ -78,6 +78,7 @@ class NotificationEvent(StrEnum):
     ACCESS_REVIEW_ASSIGNED = "access.review_assigned"
     ACCESS_REVIEW_CLOSING = "access.review_closing"
     ORG_PERSON_MOVED = "org.person_moved"
+    INFRA_CHANGE_ON_YOUR_RESOURCE = "infra.change_on_your_resource"
 
 
 class NotificationRefusal(StrEnum):
@@ -317,6 +318,13 @@ CATALOG: dict[NotificationEvent, EventSpec] = {
     ),
     E.ORG_PERSON_MOVED: EventSpec(
         "F14", True, "Moved department", "Chuyển phòng ban", _cells((K.SUBJECT,), IN_APP)
+    ),
+    E.INFRA_CHANGE_ON_YOUR_RESOURCE: EventSpec(
+        "F17",
+        True,
+        "Support changed your resource",
+        "Bộ phận hỗ trợ đã thay đổi tài nguyên của bạn",
+        _cells((K.REQUESTER,), BOTH),
     ),
 }
 

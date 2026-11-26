@@ -246,6 +246,18 @@ class AgentActionState(StrEnum):
     DISMISSED = "dismissed"
     EXPIRED = "expired"
     SUPERSEDED = "superseded"
+    OUTCOME_UNKNOWN = "outcome_unknown"
+
+
+class AgentTargetKind(StrEnum):
+    """What an action is about, as its route declares (F16 BR-F16-05, F17 §g)."""
+
+    TICKET = "ticket"
+    REVIEW_ITEM = "review_item"
+    RUNBOOK_EXECUTION = "runbook_execution"
+    SERVER = "server"
+    VOLUME = "volume"
+    SECURITY_GROUP = "security_group"
 
 
 class AgentActionQuerySet(models.QuerySet["AgentAction"]):
@@ -289,10 +301,12 @@ class AgentAction(BaseModel):
     path = models.CharField(max_length=PATH_MAX_LENGTH)
     arguments = models.JSONField()
     arguments_sha256 = models.CharField(max_length=64)
-    target_kind = models.CharField(max_length=20, blank=True, default="")
+    target_kind = models.CharField(
+        max_length=20, choices=_choices(AgentTargetKind), blank=True, default=""
+    )
     target_ref = models.CharField(max_length=64, blank=True, default="")
     state = models.CharField(
-        max_length=12, choices=_choices(AgentActionState), default=AgentActionState.PENDING.value
+        max_length=16, choices=_choices(AgentActionState), default=AgentActionState.PENDING.value
     )
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()

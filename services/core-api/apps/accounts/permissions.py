@@ -31,6 +31,7 @@ from apps.accounts.domain.catalog import Permission
 from apps.agent.models import (
     AgentActionKind,
     AgentConversationState,
+    AgentTargetKind,
     AgentTurn,
     AgentTurnState,
 )
@@ -120,11 +121,13 @@ class AccessError(CodedError):
 
 @dataclass(frozen=True)
 class Gate:
-    """The permission a route needs, held at any scope (ADR-0045), and its agent tier
-    (ADR-0046); a route with no tier refuses agents."""
+    """The permission a route needs, held at any scope (ADR-0045), its agent tier (ADR-0046),
+    and what an agent action on it is about (F16 BR-F16-05); a route with no tier refuses
+    agents."""
 
     permission: Permission
     agent_tier: AgentTier | None = None
+    target: AgentTargetKind | None = None
 
 
 @dataclass(frozen=True)
@@ -227,12 +230,18 @@ def gate_of(handler: Callable[..., Any]) -> Gate | None:
     return _GATES[handler]
 
 
-def require(permission: Permission, *, agent: AgentTier | None = None):
+def require(
+    permission: Permission,
+    *,
+    agent: AgentTier | None = None,
+    target: AgentTargetKind | None = None,
+):
     """Decorator for Django Ninja handlers: lets in a user who holds `permission`, and an agent
-    acting for them as the route's `agent` tier allows. `request` must be the first arg and
-    `request.auth` its `Caller`."""
+    acting for them as the route's `agent` tier allows. A `confirm` or `human_only` route names
+    its `target`, the kind of thing its one path parameter names. `request` must be the first
+    arg and `request.auth` its `Caller`."""
 
-    gate = Gate(permission, agent)
+    gate = Gate(permission, agent, target)
 
     def decorator[**P, R](
         fn: Callable[Concatenate[AuthedRequest, P], R],
@@ -261,6 +270,7 @@ def require(permission: Permission, *, agent: AgentTier | None = None):
                                 caller.user,
                                 AgentCall.of(request, kwargs),
                                 caller.agent,
+                                gate.target,
                             )
                         )
                     case AgentTier.HUMAN_ONLY:
@@ -269,6 +279,7 @@ def require(permission: Permission, *, agent: AgentTier | None = None):
                             caller.user,
                             AgentCall.of(request, kwargs),
                             caller.agent,
+                            gate.target,
                         )
                         raise AccessError(
                             AccessRefusal.HUMAN_ONLY_ACTION,

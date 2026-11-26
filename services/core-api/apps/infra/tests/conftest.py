@@ -22,7 +22,7 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 from urllib.parse import parse_qs
 
 from apps.infra.clients.backends import Alertmanager, Elasticsearch, OpenStack, Prometheus
-from apps.infra.services import customers, inventory, observability
+from apps.infra.services import changes, customers, inventory, observability
 
 # The real client, captured before the root conftest's ai-engine stub replaces `httpx.Client`.
 _Client = httpx.Client
@@ -43,18 +43,48 @@ class CloudSim:
 
     cloud: Cloud
     client: TestClient
+    clock: FakeClock
     calls: list[str] = field(default_factory=list)
 
     def id_of(self, table: str, name: str) -> str:
         rows: dict[str, Any] = getattr(self.cloud, table)
         return next(i for i, row in rows.items() if row.name == name)
 
+    def changes(self) -> list[str]:
+        """The calls that asked the cloud to change something."""
+        return [c for c in self.calls if not c.startswith("GET ") and "/auth/tokens" not in c]
+
+    def lose_answers(self) -> None:
+        """Makes every later change reach the cloud and its answer never come back."""
+
+        def lose(response: httpx.Response) -> None:
+            request = response.request
+            if request.method != "GET" and "/auth/tokens" not in request.url.path:
+                raise httpx.ReadTimeout("the answer was lost", request=request)
+
+        self.client.event_hooks["response"].append(lose)
+
+    def refuse_changes(self) -> None:
+        """Makes every later change fail to connect, so the cloud never receives it."""
+
+        def refuse(request: httpx.Request) -> None:
+            if request.method != "GET" and "/auth/tokens" not in request.url.path:
+                raise httpx.ConnectError("connection refused", request=request)
+
+        self.client.event_hooks["request"].insert(0, refuse)
+
+    def settle(self) -> None:
+        """Lets every change in progress finish."""
+        self.clock.advance(seconds=3600)
+        self.cloud.settle()
+
 
 @pytest.fixture
 def cloud_sim(settings: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[CloudSim]:
+    clock = FakeClock()
     app = create_app(
         sim_settings(),
-        clock=FakeClock(),
+        clock=clock,
         exporter=lambda cloud: Exporter(
             cloud, spans=InMemorySpanExporter(), logs=InMemoryLogRecordExporter()
         ),
@@ -67,21 +97,24 @@ def cloud_sim(settings: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[CloudS
     settings.OPENSTACK_FEDERATION_IDP = "smart-ticket"
     settings.OPENSTACK_FEDERATION_PROTOCOL = "openid"
     with TestClient(app, base_url="http://cloud-sim") as client:
-        sim = CloudSim(app.state.cloud, client)
+        sim = CloudSim(app.state.cloud, client, clock)
         client.event_hooks["request"].append(lambda r: sim.calls.append(f"{r.method} {r.url.path}"))
         cloud = OpenStack(cast(httpx.Client, client))
         monkeypatch.setattr(inventory, "openstack", lambda: cloud)
         monkeypatch.setattr(observability, "openstack", lambda: cloud)
         monkeypatch.setattr(customers, "openstack", lambda: cloud)
+        monkeypatch.setattr(changes, "openstack", lambda: cloud)
         yield sim
 
 
 @dataclass
 class FakeCloud:
-    """A Keystone that issues tokens expiring at `expires_at`, and scripted answers per path."""
+    """A Keystone that issues tokens expiring at `expires_at` for `services`, and scripted
+    answers per path."""
 
     answers: dict[str, list[httpx.Response]]
     expires_at: str = "2999-01-01T00:00:00+00:00"
+    services: tuple[str, ...] = ("compute",)
     sign_ins: int = 0
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -89,9 +122,10 @@ class FakeCloud:
             self.sign_ins += 1
             catalog = [
                 {
-                    "type": "compute",
-                    "endpoints": [{"interface": "public", "url": "http://cloud.test/compute"}],
+                    "type": service,
+                    "endpoints": [{"interface": "public", "url": f"http://cloud.test/{service}"}],
                 }
+                for service in self.services
             ]
             body = {"token": {"expires_at": self.expires_at, "catalog": catalog}}
             return httpx.Response(201, json=body, headers={"X-Subject-Token": f"t{self.sign_ins}"})

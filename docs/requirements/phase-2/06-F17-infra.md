@@ -294,6 +294,7 @@ F17 doesn't wait on ADR-0047's guards (OQ-F17-06).
 | `infra_backend_unavailable` | 424 | The backend did not answer in time |
 | `infra_ticket_required` | 409 | A staff change without an open ticket the person covers |
 | `infra_state_changed` | 409 | The resource changed since the draft or card |
+| `infra_change_refused` | 422 | A change core-api or the cloud refuses for what it asks, not the resource's state: a volume and a server in different projects, or a cloud 4xx other than 404 and 409 |
 | `infra_outcome_unknown` | 502 | The cloud's answer to a change was lost (UI only) |
 
 424, not 5xx, so the agent's client records the step and the turn goes on

@@ -1,5 +1,5 @@
 """Response shapes for the infra reads (F17 §h.1), where free text is already masked or
-withheld, and for the customer routes (F17 §o.9)."""
+withheld, for the customer routes (F17 §o.9), and for the changes (F17 §h.1)."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from datetime import datetime
 
 from ninja import Schema
 
+from apps.infra.domain.changes import InfraChange, InfraResource
 from apps.infra.models import Customer, CustomerTier
 
 
@@ -244,3 +245,14 @@ class CustomerListingOut(Schema):
     customers: list[CustomerOut]
     unclaimed_domains: list[DomainOut]
     domains_unavailable: bool
+
+
+class InfraChangeOut(Schema):
+    """A change the cloud accepted."""
+
+    change: InfraChange
+    target_kind: InfraResource
+    target_id: str
+    target_name: str
+    project_id: str
+    ticket: str | None

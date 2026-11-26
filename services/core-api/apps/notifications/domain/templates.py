@@ -254,6 +254,18 @@ DEFAULTS |= {
         VI: ("Bạn đã chuyển sang {{notice.detail}}", "{{notice.actor}}: {{notice.reason}}"),
         EN: ("You moved to {{notice.detail}}", "{{notice.actor}}: {{notice.reason}}"),
     },
+    E.INFRA_CHANGE_ON_YOUR_RESOURCE: {
+        VI: (
+            "Bộ phận hỗ trợ đã thay đổi {{notice.message}} ({{ticket.id}})",
+            "{{notice.actor}} đã thực hiện {{notice.detail}} trên {{notice.message}} khi xử lý "
+            "{{ticket.id}}: {{ticket.subject}}",
+        ),
+        EN: (
+            "Support changed {{notice.message}} ({{ticket.id}})",
+            "{{notice.actor}} made a change ({{notice.detail}}) to {{notice.message}} while "
+            "working on {{ticket.id}}: {{ticket.subject}}",
+        ),
+    },
 }
 
 

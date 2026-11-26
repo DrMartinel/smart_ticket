@@ -13,6 +13,7 @@ from apps.review.response_schema import DecisionOut, ReviewItemOut
 from apps.review.services.decisions import review_decisions
 from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
+from apps.agent.models import AgentTargetKind
 from apps.tickets.services.comments import CommentReviewChoice, comments
 from apps.tickets.domain.router import ReviewQueue
 
@@ -38,7 +39,7 @@ def get_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
 
 
 @router.post("/items/{item_id}/claim", auth=SessionAuth(), response=ReviewItemOut)
-@require(Permission.REVIEW_QUEUE_WORK, agent=AgentTier.CONFIRM)
+@require(Permission.REVIEW_QUEUE_WORK, agent=AgentTier.CONFIRM, target=AgentTargetKind.REVIEW_ITEM)
 def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
     item = _visible(request, _get_or_404(item_id))
     try:
@@ -49,7 +50,9 @@ def claim_item(request: AuthedRequest, item_id: uuid.UUID) -> ReviewItem:
 
 
 @router.post("/items/{item_id}/decide", auth=SessionAuth(), response=DecisionOut)
-@require(Permission.REVIEW_QUEUE_WORK, agent=AgentTier.HUMAN_ONLY)
+@require(
+    Permission.REVIEW_QUEUE_WORK, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.REVIEW_ITEM
+)
 def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn) -> ReviewDecision:
     item = _visible(request, _get_or_404(item_id))
     if item.comment_id is not None:
@@ -63,7 +66,9 @@ def decide_item(request: AuthedRequest, item_id: uuid.UUID, payload: DecisionIn)
 
 
 @router.post("/items/{item_id}/comment-decision", auth=SessionAuth(), response=ReviewItemOut)
-@require(Permission.REVIEW_QUEUE_WORK, agent=AgentTier.HUMAN_ONLY)
+@require(
+    Permission.REVIEW_QUEUE_WORK, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.REVIEW_ITEM
+)
 def decide_comment(
     request: AuthedRequest, item_id: uuid.UUID, payload: CommentDecisionIn
 ) -> ReviewItem:

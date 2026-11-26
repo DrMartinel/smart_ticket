@@ -65,11 +65,15 @@ export type AgentConversationState = "active" | "ended";
 
 export type AgentActionKind = "confirm" | "draft";
 
-export type AgentActionState = "pending" | "applied" | "dismissed" | "expired" | "superseded";
+export type AgentActionState = "pending" | "applied" | "dismissed" | "expired" | "superseded" | "outcome_unknown";
 
 export type CustomerTier = "standard" | "business" | "enterprise";
 
 export type CustomerLookup = "found" | "none" | "unavailable";
+
+export type InfraChange = "soft_reboot" | "hard_reboot" | "start" | "stop" | "attach_volume" | "detach_volume" | "add_security_rule" | "remove_security_rule";
+
+export type InfraResource = "server" | "volume" | "security_group";
 
 export interface TicketIn {
   subject: string;
@@ -2036,6 +2040,48 @@ export interface TraceSearchIn {
   min_duration_ms?: number | null;
   size?: number | null;
   project_id?: string | null;
+}
+
+export interface StaffChangeIn {
+  public_id: string;
+}
+
+export interface SoftRebootIn {
+  public_id: string;
+  type?: "soft";
+}
+
+export interface MySoftRebootIn {
+  type?: "soft";
+}
+
+export interface AttachVolumeIn {
+  public_id: string;
+  server_id: string;
+}
+
+export interface SecurityRuleIn {
+  public_id: string;
+  direction: "ingress" | "egress";
+  ethertype?: "IPv4" | "IPv6";
+  protocol?: "tcp" | "udp" | "icmp" | null;
+  port_range_min?: number | null;
+  port_range_max?: number | null;
+  remote_ip_prefix?: string | null;
+}
+
+export interface SecurityRuleRemoveIn {
+  public_id: string;
+  rule_id: string;
+}
+
+export interface InfraChangeOut {
+  change: InfraChange;
+  target_kind: InfraResource;
+  target_id: string;
+  target_name: string;
+  project_id: string;
+  ticket: string | null;
 }
 
 export interface CustomerIn {
