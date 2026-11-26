@@ -1,11 +1,11 @@
-"""The agent's tools, by name and by surface (spec F15 §h.1)."""
+"""The agent's tools, by name and by surface (spec F15 §h.1, F17 §h.1)."""
 
 from __future__ import annotations
 
-from ai_engine.agent.tools import chat, console
+from ai_engine.agent.tools import chat, console, infra
 from ai_engine.agent.tools.tool import Tool
 
-TOOLS: dict[str, Tool] = {tool.name: tool for tool in (*chat.TOOLS, *console.TOOLS)}
+TOOLS: dict[str, Tool] = {tool.name: tool for tool in (*chat.TOOLS, *console.TOOLS, *infra.TOOLS)}
 
 
 def for_surface(surface: str) -> dict[str, Tool]:
