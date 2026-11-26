@@ -740,10 +740,10 @@ Part 1 (the `ticket_categories` table, its foreign keys, the read and rename rou
 
 ### Work
 
-1. **Part 2, the category set on the wire.** `AIRunRequest.categories` (slug, description) in core-api `dtos.py` and ai-engine `schemas.py` in one PR; ai-engine builds Jev's question from them and `category.v3.json`; category fields become `str`; `Router.route` takes the snapshot and records `categories_used`; `is_security` replaces the `security` slug in the router, `check_category_scope` and the SLA clocks' P2 priority. New reason codes `category_set_invalid`, `category_not_routable`. Needs an eval run that shows no movement against `category.v2`.
+1. **Part 2, the category set on the wire.** `AIRunRequest.categories` (slug, description) in core-api `dtos.py` and ai-engine `schemas.py` in one PR; ai-engine builds Jev's question from them and `category.v3.json`; category fields become `str`; `Router.route` takes the snapshot and records `categories_used`; `is_security` replaces the `security` slug in the router, `check_category_scope` and the SLA clocks' P2 priority. New reason codes `category_set_invalid`, `category_not_routable`. Needs an eval run that shows no movement against `category.v2`. With it or after it, a manager may edit a category's description and `is_routable` with a reason (open questions 1 and 2): the PATCH accepts them from managers only, and the audit row keeps the old and new text.
 2. **Part 3, a workflow per category.** A nullable `workflow` on the category; the ticket moves into it at handoff.
-3. **Part 4, the agent.** A route the F15 tier table names.
-4. Answer ADR-0049's open questions first: who edits a description and how, who turns `is_routable` on, how workflows move, what the agent needs.
+3. **Part 4, the agent.** `GET /api/categories` at `AgentTier.READ`, read only (open question 4); decide whether employees, whom the agent serves, get `categories:read`.
+4. Settle what ADR-0049 still leaves open (1, 2 and 4 answered 2026-11-26): how the per-category F1 floor covers a category a manager makes routable, how workflows move (3), and employees' read access.
 5. **Before anything can deactivate a category** (no route does in part 1), fix what an inactive category breaks:
    - `SlaConfig.draft` / `edit` and `KbDrafts.update` refuse a policy's or draft's own category even when it isn't changing, so a policy can't be replaced and a draft's title and body can't be saved. Check only a changed category, as `TeamConfig.set_categories` does.
    - `Assignment.category_for` refuses a team that owns no active category with `category_required` and an empty list, which the reassign dialog can't act on. Give it its own refusal.

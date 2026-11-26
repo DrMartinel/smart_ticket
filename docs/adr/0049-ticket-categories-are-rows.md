@@ -1,6 +1,6 @@
 # ADR-0049: Ticket categories are rows in `ticket_categories`
 
-**Status:** Accepted for part 1 (2026-11-26): decisions 1–4 are built. Part 2's switch to `is_security` (decision 5) and parts 2–4 are proposed and wait on the open questions below.
+**Status:** Accepted for part 1 (2026-11-26): decisions 1–4 are built. Part 2's switch to `is_security` (decision 5) and parts 2–4 are proposed. Open questions 1, 2 and 4 are answered; 3 and parts of 2 and 4 are still open.
 **Date:** 2026-11-26
 **Builds on:** ADR-0017 (Jev chooses the category), ADR-0031 (teams own categories), ADR-0028 (workflows), ADR-0045 (permissions), ADR-0046 (agent tiers)
 **Will amend:** ADR-0017, once part 2 builds Jev's category question from the rows
@@ -76,16 +76,32 @@ Teams and the categories they own were already data (`team_teams`,
 
 ## Open questions
 
-1. Who may change a category's description, and how: a second person's
-   approval like KB drafts (ADR-0036), a manager with a reason, or a pull
-   request only?
-2. Who turns `is_routable` on, and on what evidence (an eval run with
-   golden tickets in that category)? Should the eval report fail when a
-   routable category has no golden tickets?
-3. Per-category workflows: move the ticket into its category's workflow at
-   handoff, at the status with the same key? Does a reviewer's category
-   correction move it again?
-4. What the agent uses the category list for, which decides its tier.
+The owner answered 1, 2 and 4 on 2026-11-26.
+
+1. **Answered: a manager, with a reason.** A manager changes a category's
+   description; the change is audited with the old and new text and bumps
+   `version`. This relaxes decision 4: a manager's edit reaches Jev with no
+   eval run. Part 2 records the categories and their versions in each
+   routing decision, so a decision can be traced to the description it was
+   made with and replayed. It comes with or after part 2, since before it
+   Jev reads `category.v2.json`, not the rows.
+2. **Answered: a manager, with a reason**, audited, turns `is_routable` on
+   or off. Still open: how the per-category F1 floor (hard rule 9) covers a
+   category a manager makes routable, since the eval in CI reads the golden
+   set and never sees a switch in the database.
+3. **Open.** Per-category workflows: move the ticket into its category's
+   workflow at handoff, at the status with the same key? Does a reviewer's
+   category correction move it again? The owner also asks whether a
+   category can be marked to enter its workflow automatically or not.
+   Today every ticket starts in the default workflow and stays there:
+   workflow rules can't see the category, and the "Change workflow" action
+   runs on a workflow's own events and refuses a ticket still in triage.
+   Proposed: the category's nullable `workflow` is that switch; a category
+   without one leaves its tickets in the default workflow.
+4. **Answered: read only.** The agent reads the category list
+   (`GET /api/categories` at `AgentTier.READ`, part 4) and never changes it.
+   A ticket's category is still Jev's choice in triage. Still open: the
+   agent acts as the person, and employees don't hold `categories:read`.
 
 ## Consequences
 
@@ -99,6 +115,9 @@ Teams and the categories they own were already data (`team_teams`,
   tickets still land in it and, with no owning team, go to the fallback
   team, audited `no_team_for_category`. No route deactivates a category in
   part 1.
+- Once a manager can edit a description (open question 1), what Jev is
+  told about a category can change with no eval run. This is a deliberate
+  relaxation of decision 4 and of eval-gating classifier input.
 - `classification.min_confidence` (0.65) was chosen on six categories; a
   larger set spreads Jev's probability and needs it re-chosen.
 - Per-category F1 (hard rule 9) must cover every routable category.
