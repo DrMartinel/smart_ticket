@@ -12,6 +12,8 @@ import httpx
 import pytest
 
 from apps.incidents.services.incidents import incidents
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.rollout.testing import flags_off
 from apps.tickets.domain.router import Branch, ReasonCode
 from apps.tickets.domain.patterns import PIILevel
 
@@ -147,14 +149,13 @@ def _clarify_response(request_id: str):
 
 @pytest.mark.django_db
 @pytest.mark.parametrize("shadow", [True, False])
-def test_clarify_reaches_a_person_in_the_clarification_queue(
-    shadow, employee_user, monkeypatch, settings
-):
+def test_clarify_reaches_a_person_in_the_clarification_queue(shadow, employee_user, monkeypatch):
     """Checks that a form ticket's clarify decision becomes a review item in
     the clarification queue, live or in shadow (ADR-0023)."""
     from apps.tickets.models import IncidentVerdict
 
-    settings.SHADOW_MODE = shadow
+    if shadow:
+        flags_off(FlagBranch.REQUESTER_QUESTIONS)
     ticket = make_ticket(employee_user)
     monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
     monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))

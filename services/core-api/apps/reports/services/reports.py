@@ -909,7 +909,7 @@ class Reports:
         automated = routed.filter(branch__in=AUTOMATED_BRANCHES)
         return Automation(
             total=routed.count(),
-            live=automated.filter(shadow_mode=False).count(),
+            live=automated.carried_out().count(),
             would_have=automated.count(),
         )
 
@@ -921,7 +921,7 @@ class Reports:
         )
         total = routed.count()
         shadow = dict(
-            routed.filter(shadow_mode=True)
+            routed.held_back()
             .values_list("branch")
             .annotate(n=Count("id"))
             .values_list("branch", "n")

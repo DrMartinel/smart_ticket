@@ -112,7 +112,7 @@ called, and so through `lifecycle` exactly as a click would.
 | Trigger | Types "VPN drops every ~10 min since this morning, open a ticket for me" in the chat |
 | Preconditions | Signed in to the chat; holds `requester:chat` and `agent:use`; the chat's agent flag is on (OQ-F15-06) |
 | Main flow | 1. Chat sends `POST /api/agent/turns`. 2. core-api masks the message inline, stores the turn and queues it. 3. The worker mints an agent token and calls ai-engine. 4. ai-engine screens the masked message, then the model calls `ask_helpdesk`. 5. The tool calls `POST /api/chat/ask` as Linh and polls the turn until it leaves `thinking`. 6. The router has decided; the chat turn is `suggest_ticket`. 7. The model calls `request_ticket`; `create-ticket` releases the held decision. 8. The model replies; code adds a receipt "Ticket TKT-… opened" |
-| Alternate | 6a. State `answered`: the model relays the KB answer and its page; no ticket is opened unless asked again. 6b. State `clarify`: the model shows the question and options; the employee's next message is answered with `answer_clarification`. 6c. State `with_support` (shadow mode, or a never-held decision): the model says a ticket already exists; it does not call `request_ticket` |
+| Alternate | 6a. State `answered`: the model relays the KB answer and its page; no ticket is opened unless asked again. 6b. State `clarify`: the model shows the question and options; the employee's next message is answered with `answer_clarification`. 6c. State `with_support` (the `requester_questions` flag off, or a never-held decision): the model says a ticket already exists; it does not call `request_ticket` |
 | Exception | 2x. Masking fails → turn `handed_off`, `agent_mask_failed`; the message is never sent to ai-engine (§e BR-F15-08). 4x. Injection on the message → `handed_off`, `agent_injection_detected`. 5x. `ask_helpdesk` gets a 5xx or a timeout → `handed_off`, `agent_tool_failed`; a timeout after the request was sent → `agent_tool_outcome_unknown`. 5y. Still `thinking` after `AGENT_ASK_WAIT_SEC` → the tool returns `thinking`; the model says the question is being looked at |
 | Postconditions | One chat ticket, decided by the router; its handoff row `requester_asked_for_ticket` has `via=agent` |
 | Rules | BR-F15-01, 02, 03, 05, 08, 10, 12, 14 |
@@ -674,7 +674,7 @@ notification event (`agent.draft_waiting`) is OQ-F15-03.
 
 The five traces below are the owner's, unchanged. The tests run them
 against core-api with a scripted model in ai-engine (no live model), in live
-mode with every rollout flag on (`apps.rollout.testing.all_live`). The ids
+mode with every rollout flag on (the default since ADR-0051). The ids
 in the traces (`CH-0412`, item `88`) stand for whatever the fixture creates:
 public ids are `TKT-YYYY-NNNNNN` and review item ids are UUIDs (§k OQ-F15-09).
 
@@ -916,8 +916,9 @@ Each departure is the smaller choice; none lets an agent do more.
     `body_masked`, `target_ticket`, `target_review_item` and `for_user`.
     Its `conversation` and `turn` become foreign keys. The migration deletes
     any action rows written before them, which only tests wrote.
-26. The agent answers only while its surface is live: `SHADOW_MODE` off and
-    the `agent_chat` or `agent_console` flag on (OQ-F15-06 (a)). Otherwise
+26. The agent answers only while its surface is live: ~~`SHADOW_MODE` off and~~
+    the `agent_chat` or `agent_console` flag on (OQ-F15-06 (a)). *Amended by
+    ADR-0051: the flag alone decides, and both start on.* Otherwise
     `POST /api/agent/turns` answers 403 `agent_off`.
 27. `agent.sweep` also hands off a turn still `queued` after
     `token_ttl_seconds` (no worker took it), as `agent_engine_unavailable`.

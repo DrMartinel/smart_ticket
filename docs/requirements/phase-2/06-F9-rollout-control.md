@@ -2,6 +2,10 @@
 
 Should · Wave 4 · Proposed ADR-0035. Must exist before P3.
 
+*Amended by [ADR-0051](../../adr/0051-a-flag-alone-makes-a-branch-live.md)
+(2026-11-27): `SHADOW_MODE` is gone. A branch is live exactly when its flag
+is on, every flag starts on, and one action turns every flag off.*
+
 ## a. Problem & goal
 
 Today:
@@ -35,8 +39,7 @@ coverage/precision display. Adapt threshold changes to stay in
 flowchart TB
   subgraph PD["Per decision, in _finalize"]
     D[Router decision<br/>unchanged, pure] --> S{Live for this branch?}
-    S -- "env SHADOW_MODE=true" --> SH[Shadow: to a person]
-    S -- flag off --> SH
+    S -- flag off --> SH[Shadow: to a person]
     S -- thresholds unapproved --> SH
     S -- flag on --> LIVE[Carry out live]
   end
@@ -68,9 +71,11 @@ Rollout flags (NEW): `auto_route`, `auto_reply`, `requester_questions`
 | `pending_on` | Reject, or 72 h pass | `off` | any approver / system |
 | `on` | Turn off (reason) | `off` | any manager or security, alone |
 
-**Effective live for a decision** = `SHADOW_MODE` env is false **and** the
-branch's flag is `on` **and** the loaded thresholds are approved. Otherwise
-shadow. `SHADOW_MODE=true` stays the master kill switch.
+**Effective live for a decision** = ~~`SHADOW_MODE` env is false **and**~~ the
+branch's flag is `on` ~~**and** the loaded thresholds are approved~~. Otherwise
+shadow. ~~`SHADOW_MODE=true` stays the master kill switch.~~ Every flag starts
+on, and `POST /api/rollout/off` or `manage.py rollout_off` turns every flag
+off at once (ADR-0051).
 
 Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 `loaded` (core-api booted with that file).
@@ -81,7 +86,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 |---|---|
 | Actor | Manager (Huy) requests; a second manager approves |
 | Trigger | Gate met (e.g. P3: reroute rate < 15 % for 14 days) |
-| Preconditions | Branch `off`; `SHADOW_MODE=false` in the deployment |
+| Preconditions | Branch `off`~~; `SHADOW_MODE=false` in the deployment~~ (ADR-0051) |
 | Main flow | 1. Open Rollout; see the branch's gate value, window, and shadow agreement. 2. Request "on" with a reason. 3. First approval. 4. Second approval by another manager. 5. Flag `on`; snapshot of gate values stored |
 | Alternate | 1a. Gate not met → request needs an explicit `gate_override_reason`, shown to both approvers |
 | Exception | 3x. Requester approves own request → 403 `self_approval`. 3y. Thresholds unapproved → 409 `thresholds_unapproved` |
@@ -133,7 +138,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 
 | ID | Rule | Rationale | Enforced where |
 |---|---|---|---|
-| BR-F9-01 | Live needs ~~all three: env not shadow, branch flag on, thresholds approved~~ both: env not shadow and branch flag on (ADR-0044). Either missing → shadow | Degrade toward people; independent keys | `Rollout.is_live(branch)` called in `_finalize` before `_execute_or_enqueue`; router untouched |
+| BR-F9-01 | Live needs ~~all three: env not shadow, branch flag on, thresholds approved~~ ~~both: env not shadow and branch flag on (ADR-0044)~~ the branch flag on (ADR-0051). ~~Either missing~~ Flag off → shadow | Degrade toward people; independent keys | `Rollout.is_live(branch)` called in `_finalize` before `_execute_or_enqueue`; router untouched |
 | BR-F9-02 | ~~On needs two different managers (neither the requester); off needs one manager or security~~ Superseded by ADR-0043: one manager turns on; off needs one manager or security | Asymmetric on purpose: turning automation on is the risky direction | Flag service |
 | BR-F9-03 | A request to turn on records the gate values at request and at approval; approving with an unmet gate requires an override reason from each approver | Gates are the README's rollout contract | Flag service |
 | BR-F9-04 | Gates per branch (data, editable by ~~managers with approval~~ one manager, ADR-0043): `auto_route` — P3 reroute rate < 15 % over 14 days on shadow `auto_route` decisions; `auto_reply` — P4 auto-reply precision ≥ 0.95 on the calibration holdout **and** ≥ 3 approved `low` pages; `requester_questions` — clarify agreement ≥ 0.80 over 14 days [ASSUMPTION] | README rollout table, spec §14 | `rollout_gates` + F10 queries |
@@ -141,7 +146,7 @@ Threshold change requests: `draft` → `pending` → `approved` / `rejected` →
 | BR-F9-06 | ~~A change request needs two approvals, neither by its author~~ Superseded by ADR-0043, then ADR-0044: no change requests | Rule 9's outside-reviewer principle, applied to live numbers | CR service |
 | BR-F9-07 | ~~At boot core-api hashes the loaded file. No approved CR with that hash → all branches shadow and a `thresholds_unapproved` alert~~ Superseded by ADR-0044 | Unreviewed numbers never act on tickets | Startup check; `Rollout.is_live` |
 | BR-F9-08 | ~~Local dev and CI may skip the check with `THRESHOLDS_REQUIRE_APPROVAL=false` in `.env`; production settings force it true~~ Superseded by ADR-0044: no check | Developers change thresholds freely; production doesn't | `production.py` |
-| BR-F9-09 | Each routing decision stores which flags were on (`rollout_snapshot`) next to `shadow_mode` | Replays explain "why was this live?" | `_finalize` |
+| BR-F9-09 | Each routing decision stores which flags were on (`rollout_snapshot`) ~~next to `shadow_mode`~~; whether it was held back is read off its branch and that snapshot (ADR-0051) | Replays explain "why was this live?" | `_finalize` |
 | BR-F9-10 | No flag exists for runbooks | ADR-0006: runbooks always go through a person | — (by absence) |
 
 ## f. Functional requirements
@@ -176,7 +181,7 @@ and both approvals set to the migration (documented as the baseline), so the
 first boot after migration is not shadow-forced. Writer: core-api.
 
 **`.env.example` — CHANGED:** ~~`THRESHOLDS_REQUIRE_APPROVAL=false`
-(`production.py` forces `true`)~~, removed by ADR-0044. `SHADOW_MODE` unchanged.
+(`production.py` forces `true`)~~, removed by ADR-0044. ~~`SHADOW_MODE` unchanged.~~ `SHADOW_MODE` removed by ADR-0051.
 
 **`thresholds.yaml` — CHANGED** (`rollout:`)
 
@@ -204,16 +209,17 @@ Request and approvals:
 | approvals | `quang.nv` (manager) at 10:02, `dung.ht` (manager) at 10:40. An approval by `tu.dv` would be refused: `workflow_admin` is not a manager |
 | `rollout_flags` | `auto_route` → `on` at 10:40 |
 
-Next live decision (`SHADOW_MODE=false`, thresholds approved):
+Next live decision (as built after ADR-0051, which dropped `shadow_mode` and `env_shadow`):
 
 ```json
-{ "branch": "auto_route", "reason_code": "all_checks_passed", "shadow_mode": false,
+{ "branch": "auto_route", "reason_code": "all_checks_passed",
   "rollout_snapshot": { "auto_route": "on", "auto_reply": "off", "requester_questions": "off",
-                        "thresholds": "CR-2026-003", "env_shadow": false } }
+                        "thresholds": "CR-2026-003" } }
 ```
 
 The same minute, an auto-reply decision for another ticket is still shadow:
-`{"branch": "auto_reply", "shadow_mode": true, …}`.
+`{"branch": "auto_reply", "rollout_snapshot": {"auto_reply": "off", …}}`, so
+`was_held_back()` is true.
 
 ### Records — a threshold change
 
@@ -230,11 +236,12 @@ The same minute, an auto-reply decision for another ticket is still shadow:
 
 | Method · Path | Role | Request | Response | Errors |
 |---|---|---|---|---|
-| `GET /api/rollout` | manager, security, technician (read) | — | flags + gates + current values + env shadow + thresholds status | — |
+| `GET /api/rollout` | manager, security, technician (read) | — | flags + gates + current values + ~~env shadow +~~ thresholds status | — |
 | `POST /api/rollout/{branch}/requests` | manager | `{reason, gate_override_reason?}` | request | 409 `already_on` / `thresholds_unapproved` |
 | `POST /api/rollout/requests/{id}/approve` | manager ≠ requester | `{gate_override_reason?}` | request (+ flag) | 403 `self_approval` · 409 `already_approved_by_you` · 422 `override_reason_required` |
 | `POST /api/rollout/requests/{id}/reject` | manager | `{reason}` | request | — |
 | `POST /api/rollout/{branch}/off` | manager, security | `{reason}` | flag | 409 `already_off` |
+| `POST /api/rollout/off` (ADR-0051) | manager, security; agent tier `none` | `{reason}` | rollout, every flag off | 422 `reason_required` |
 | `GET/PATCH /api/rollout/gates` | manager (read/write with reason) | `{metric, threshold, window_days}` | gates | — |
 | `POST /api/thresholds/change-requests` | manager, workflow_admin, technician | `{yaml_text, evidence}` | request with diff | 422 `invalid_thresholds` (with path) |
 | `POST /api/thresholds/change-requests/{id}/submit` · `/approve` · `/reject` | author · approvers | `{comment}` | request | 403 `self_approval` |
@@ -255,7 +262,7 @@ F4 events added: `rollout.flag_requested`, `rollout.flag_changed`,
 - **Changes:** `_finalize` asks `Rollout.is_live(branch)` instead of reading `settings.SHADOW_MODE` directly; `routing_decisions` gains `rollout_snapshot`; boot computes the thresholds hash; CI gains a version check.
 - **Must not change:** `router.py` (pure; still built from `settings.THRESHOLDS`); `thresholds.yaml` as the only home of tunables; the `thresholds_used` snapshot; "the same `route()` runs in both modes" (spec §8.2); runbooks always HITL (ADR-0006); P3 before P4.
 - **ADRs:** 0001, 0006, CLAUDE.md hard rules 1, 2, 9; proposed 0035.
-- **Regression tests:** `test_route_is_identical_whatever_the_flags`; `test_env_shadow_overrides_flags`; `test_unapproved_thresholds_force_shadow`; `test_one_person_cannot_turn_on`; `test_one_person_can_turn_off`; `test_no_runbook_flag_exists`; `test_threshold_cr_rejects_invalid_yaml`.
+- **Regression tests:** `test_route_is_identical_whatever_the_flags`; ~~`test_env_shadow_overrides_flags`~~ `test_a_flag_off_holds_back_its_branch` (ADR-0051); `test_turn_all_off_turns_every_flag_off`; `test_unapproved_thresholds_force_shadow`; `test_one_person_cannot_turn_on`; `test_one_person_can_turn_off`; `test_no_runbook_flag_exists`; `test_threshold_cr_rejects_invalid_yaml`.
 
 ## v0.6.9 — where the code differs (build, 2026-10-26)
 
@@ -275,6 +282,8 @@ Code wins (README §0.4 item 5). Items 1–3 are the owner's decisions of 2026-1
    read their flag; `requester_questions` decides whether a chat decision is
    held for the requester. Every other decision (HITL, clarify, block,
    escalate) records `shadow_mode` from `SHADOW_MODE` as before.
+   *Amended by ADR-0051: `clarify` reads `requester_questions`; HITL, block
+   and escalate have no flag and are never held back; no column records it.*
 5. **The thresholds check runs on first use in each process** and again in the
    hourly `rollout.sweep`, not inside app start-up (no database there). It is
    cached per file hash and per `THRESHOLDS_REQUIRE_APPROVAL` value; a file
@@ -305,7 +314,7 @@ Feature: F9 Rollout and threshold control
 
   @BR-F9-01 @BR-F9-09
   Scenario: AC-F9-01 one branch live, the other shadow
-    Given SHADOW_MODE is false, thresholds approved, auto_route "on" and auto_reply "off"
+    Given auto_route "on" and auto_reply "off"
     When the router decides auto_route for ticket A and auto_reply for ticket B
     Then ticket A is "auto_routed" and ticket B has a review item
     And both routing_decisions rows store the same rollout_snapshot
@@ -326,10 +335,10 @@ Feature: F9 Rollout and threshold control
     And the next auto_reply decision is shadow
 
   @BR-F9-01
-  Scenario: AC-F9-04 env kill switch wins
-    Given auto_route is "on" and SHADOW_MODE is true
+  Scenario: AC-F9-04 a flag off holds its branch back (amended by ADR-0051)
+    Given auto_route is "off"
     When the router decides auto_route
-    Then the decision has shadow_mode true
+    Then the decision was held back and the ticket has a review item
 
   @BR-F9-01 @BR-F9-07
   Scenario: AC-F9-05 unapproved thresholds force shadow (superseded by ADR-0044)

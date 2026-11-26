@@ -12,7 +12,8 @@ from apps.audit.models import AuditLog
 from apps.incidents.services.incidents import incidents
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
-from apps.rollout.testing import all_live
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.rollout.testing import flags_off
 from apps.tickets.models import IncidentVerdict, PiiQuarantine, Ticket, TicketSource
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.services.clarification import (
@@ -141,15 +142,10 @@ def _chat_ticket(reporter, *, pii_map: dict[str, str] | None = None) -> Ticket:
     )
 
 
-@pytest.fixture
-def live(settings, db):
-    all_live(settings)
-
-
 @pytest.mark.django_db
 class TestAsking:
     def test_live_chat_clarify_asks_the_requester(
-        self, employee_user, kb_pages, engine_always_clarifies, live
+        self, employee_user, kb_pages, engine_always_clarifies
     ):
         ticket = _chat_ticket(employee_user)
 
@@ -173,7 +169,7 @@ class TestAsking:
         assert AuditLog.objects.filter(ticket_id=ticket.id, event="clarification_asked").exists()
 
     def test_fewer_than_two_close_pages_asks_nothing_and_a_person_gets_it(
-        self, employee_user, kb_pages, monkeypatch, live
+        self, employee_user, kb_pages, monkeypatch
     ):
         monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
         monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
@@ -193,10 +189,10 @@ class TestAsking:
         assert not ticket.clarifications.exists()
         assert list(ticket.review_items.values_list("queue", flat=True)) == ["clarification"]
 
-    def test_shadow_mode_asks_nothing(
-        self, employee_user, kb_pages, engine_always_clarifies, settings
+    def test_requester_questions_off_asks_nothing(
+        self, employee_user, kb_pages, engine_always_clarifies
     ):
-        settings.SHADOW_MODE = True
+        flags_off(FlagBranch.REQUESTER_QUESTIONS)
         ticket = _chat_ticket(employee_user)
 
         ticket_process(str(ticket.id))
@@ -208,7 +204,7 @@ class TestAsking:
         assert list(ticket.review_items.values_list("queue", flat=True)) == ["clarification"]
 
     def test_asking_for_a_person_instead_reaches_the_clarification_queue(
-        self, employee_user, kb_pages, engine_always_clarifies, live
+        self, employee_user, kb_pages, engine_always_clarifies
     ):
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
@@ -225,7 +221,7 @@ class TestAsking:
 @pytest.mark.django_db
 class TestAnswering:
     def test_answer_reruns_the_pipeline_on_question_and_answer(
-        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
+        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued
     ):
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
@@ -249,7 +245,7 @@ class TestAnswering:
         assert "Requester clarified: The AWS VPN one" in engine_always_clarifies[-1]
 
     def test_still_ambiguous_after_the_answer_goes_to_a_person(
-        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
+        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued
     ):
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
@@ -266,7 +262,7 @@ class TestAnswering:
         assert second_run.trust_signals["policy"]["clarifications_asked"] == 1
 
     def test_answer_is_masked_and_continues_the_tickets_numbering(
-        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
+        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued
     ):
         ticket = _chat_ticket(employee_user, pii_map={"[EMAIL_1]": "ref-of-the-ticket"})
         ticket_process(str(ticket.id))
@@ -281,7 +277,7 @@ class TestAnswering:
         assert PiiQuarantine.objects.filter(ticket=ticket, ref=ticket.pii_map["[EMAIL_2]"]).exists()
 
     def test_answer_with_a_password_blocks_the_ticket(
-        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
+        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued
     ):
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
@@ -298,7 +294,7 @@ class TestAnswering:
         assert latest.reason_code == ReasonCode.PII_CRITICAL.value
 
     def test_answer_ner_cannot_mask_sends_the_ticket_to_a_person(
-        self, employee_user, kb_pages, engine_always_clarifies, enqueued, live
+        self, employee_user, kb_pages, engine_always_clarifies, enqueued
     ):
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
@@ -313,7 +309,7 @@ class TestAnswering:
         assert ReviewItem.objects.filter(ticket=ticket).exists()
 
     def test_an_answer_never_lowers_the_pii_level(
-        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
+        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued
     ):
         ticket = _chat_ticket(employee_user)
         ticket.pii_level = PIILevel.SENSITIVE.value
@@ -326,7 +322,7 @@ class TestAnswering:
         assert ticket.pii_level == PIILevel.SENSITIVE.value
 
     def test_a_second_answer_is_refused(
-        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued, live
+        self, employee_user, kb_pages, engine_always_clarifies, ner_finds_nothing, enqueued
     ):
         ticket = _chat_ticket(employee_user)
         ticket_process(str(ticket.id))
@@ -343,7 +339,6 @@ class TestAnswering:
         engine_always_clarifies,
         ner_finds_nothing,
         enqueued,
-        live,
         settings,
     ):
         ticket = _chat_ticket(employee_user)

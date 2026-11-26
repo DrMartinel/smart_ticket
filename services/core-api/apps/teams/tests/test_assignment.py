@@ -54,7 +54,7 @@ def test_auto_route_assigns_team_from_router_category(network):
         reason_code="all_checks_passed",
         reason_detail="x",
         thresholds_used={},
-        shadow_mode=False,
+        rollout_snapshot={"auto_route": "on"},
     )
 
     auto_route(ticket, "network")
@@ -82,7 +82,7 @@ def test_assignment_never_changes_routing_decision(network):
         reason_code="all_checks_passed",
         reason_detail="x",
         thresholds_used={"t": 1},
-        shadow_mode=False,
+        rollout_snapshot={"auto_route": "on"},
     )
     before = DecisionRow.objects.filter(pk=row.pk).values().get()
 
@@ -135,7 +135,7 @@ def test_an_assignment_error_keeps_the_status_and_is_audited(network, monkeypatc
     assert failed.payload["reason"] == "error"
 
 
-def test_shadow_mode_assigns_nothing_until_a_review(network, settings):
+def test_a_held_back_auto_route_assigns_nothing_until_a_review(network):
     ticket = handed_off(network.people["lan"])
     decision = RoutingDecision(
         branch=Branch.AUTO_ROUTE,

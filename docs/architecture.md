@@ -301,8 +301,9 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
    "Requester clarified: <answer>" (propose.v9 reads it as the reading
    chosen, and asks no more), and run through
    the whole pipeline again. Unanswered after clarification.wait_minutes,
-   the chat offers a ticket. A form ticket, or any ticket in shadow mode,
-   gets a review item in the clarification queue for a person to ask.
+   the chat offers a ticket. A form ticket, or any ticket while the
+   `requester_questions` flag is off, gets a review item in the
+   clarification queue for a person to ask.
 
    TRUST-BASED
      AutoReplyProposal:
@@ -330,15 +331,23 @@ TrustSignals ──► trust_scorer.score()      ← in core-api, NOT ai-engine
 ### Stage 5 — Execute or queue
 
 ```
-persist RoutingDecision (with the threshold snapshot)
+persist RoutingDecision (with the threshold and rollout snapshots)
 
-SHADOW_MODE=true  ──► enqueue HITL regardless; record what WOULD have happened
-SHADOW_MODE=false ──► execute the decision
+branch's flag off      ──► enqueue HITL; record what WOULD have happened
+flag on, or no flag    ──► execute the decision
 ```
 
-The same `route()` runs in both. That identity is the whole point: shadow data describes the real behavior, with no divergence introduced by a separate code path.
+A branch acts exactly when its rollout flag is on (ADR-0051): `auto_route`
+and `auto_reply` have their own flags, `clarify` reads
+`requester_questions`, and `hitl`, `block` and `escalate` have none. Every
+flag starts on. Whether a decision was held back is read off its branch and
+its `rollout_snapshot` (`RoutingDecision.was_held_back()`); nothing else
+stores it. A ticket escalated into a confirmed incident is attached at once,
+with no flag.
 
-A live chat ticket's HITL, AUTO_ROUTE or CLARIFY decision is held (`awaiting_requester`) until the requester asks for a ticket, so a requester who got what they needed doesn't create work for support. Decisions that must reach a person (a block, an escalation, a security alert, failed masking, critical PII) are never held. In shadow mode nothing is held: every chat ticket reaches a reviewer at once, so every decision gets a human label, not only those whose requester gave up on the bot.
+The same `route()` runs either way. That identity is the whole point: a held-back decision describes the real behavior, with no divergence introduced by a separate code path.
+
+A live chat ticket's HITL, AUTO_ROUTE or CLARIFY decision is held (`awaiting_requester`) until the requester asks for a ticket, so a requester who got what they needed doesn't create work for support. Decisions that must reach a person (a block, an escalation, a security alert, failed masking, critical PII) are never held. While `requester_questions` is off nothing is held: every chat ticket reaches a reviewer at once, so every decision gets a human label, not only those whose requester gave up on the bot.
 
 ### Stage 6 — The lifecycle after triage (ADR-0028)
 

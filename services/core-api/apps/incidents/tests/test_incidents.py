@@ -28,7 +28,8 @@ from apps.lifecycle.domain.rules import FieldType, RuleCode
 from apps.lifecycle.domain.vocabulary import StatusKind
 from apps.notifications.models import Message
 from apps.review.models import EvalCandidate, ReviewDecision, ReviewItem
-from apps.rollout.testing import all_live
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.rollout.testing import flags_off
 from apps.sla.models import Clock, ClockKind
 from apps.sla.tests.conftest import submitted, vn
 from apps.tickets.domain.patterns import PIILevel
@@ -227,10 +228,9 @@ class TestConfirmAndDismiss:
 
 
 class TestRouting:
-    def test_linked_ticket_never_auto_replied(self, desk, engine, clock, settings):
+    def test_linked_ticket_never_auto_replied(self, desk, engine, clock):
         """AC-F7-07 (BR-F7-08): a linked ticket never reaches ai-engine, so no proposal can cite
         an approved page."""
-        all_live(settings)
         incident, tickets = outage(desk, engine)
         late = arrive(desk["lan"], engine, VPN)
 
@@ -240,11 +240,8 @@ class TestRouting:
         assert late.public_id not in engine.analysed
         assert not RoutingDecision.objects.filter(branch="auto_reply").exists()
 
-    def test_late_joiner_sees_the_latest_update_at_once(
-        self, desk, engine, clock, settings, api_as
-    ):
+    def test_late_joiner_sees_the_latest_update_at_once(self, desk, engine, clock, api_as):
         """AC-F7-04 (BR-F7-04, BR-F7-05)."""
-        all_live(settings)
         incident, _ = confirmed(desk, engine)
         eta = vn(2026, 10, 23, 17, 30)
         say(desk, incident, eta=eta)
@@ -260,15 +257,16 @@ class TestRouting:
         assert banner["last_update"] == "VPN đang gián đoạn, đang xử lý."
         assert banner["eta"].startswith("2026-10-23T10:30")
 
-    def test_in_shadow_mode_a_late_joiner_still_reaches_a_reviewer(
-        self, desk, engine, clock, settings
-    ):
-        settings.SHADOW_MODE = True
+    def test_a_late_joiner_is_attached_with_every_flag_off(self, desk, engine, clock):
+        """ADR-0051 decision 2: the attach has no flag."""
+        flags_off(*FlagBranch)
         incident, _ = confirmed(desk, engine)
+        say(desk, incident, eta=vn(2026, 10, 23, 17, 30))
 
-        late = arrive(desk["lan"], engine, VPN)
+        late = arrive(desk["chi"], engine, VPN)
 
-        assert ReviewItem.objects.filter(ticket=late, state="pending").exists()
+        assert not ReviewItem.objects.filter(ticket=late).exists()
+        assert TicketComment.objects.filter(ticket=late, broadcast__isnull=False).count() == 1
         assert resolution_clock(late).state == "paused"
 
 

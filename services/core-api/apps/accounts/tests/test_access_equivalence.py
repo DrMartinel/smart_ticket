@@ -24,6 +24,7 @@ WITHDRAWN_SINCE_SNAPSHOT = {
 ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/categories": Permission.CATEGORIES_READ,
     "PATCH /api/categories/{slug}": Permission.CATEGORIES_MANAGE,
+    "POST /api/rollout/off": Permission.ROLLOUT_FLAG_OFF,
     "PUT /api/accounts/people/{username}/base-role": Permission.ACCESS_GRANT,
     "GET /api/access/holders": Permission.ACCESS_READ,
     "GET /api/access/me": Permission.SELF_PROFILE,

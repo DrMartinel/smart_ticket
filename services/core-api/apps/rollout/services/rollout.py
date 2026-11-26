@@ -1,5 +1,5 @@
-"""Which automated branches act live (BR-F9-01): the env switch and the branch's flag, both. One
-manager turns a flag on or off (ADR-0035, ADR-0043, ADR-0044)."""
+"""Which automated branches act live (BR-F9-01): the branch's flag alone (ADR-0051). One manager
+turns a flag on or off (ADR-0035, ADR-0043, ADR-0044)."""
 
 from __future__ import annotations
 
@@ -35,18 +35,18 @@ class Rollout:
     # ── live or shadow (BR-F9-01) ──
 
     def snapshot(self) -> dict[str, Any]:
-        """What a decision runs under: each flag, the env switch, the thresholds (BR-F9-09)."""
+        """What a decision runs under: each flag, and the thresholds version (BR-F9-09). A branch
+        with no flag row is on (ADR-0051)."""
         states = dict(RolloutFlag.objects.values_list("branch", "state"))
         return {
-            **{b.value: states.get(b.value, FlagState.OFF.value) for b in FlagBranch},
-            "env_shadow": settings.SHADOW_MODE,
+            **{b.value: states.get(b.value, FlagState.ON.value) for b in FlagBranch},
             "thresholds": settings.THRESHOLDS.version,
         }
 
     def is_live(self, branch: FlagBranch, snapshot: dict[str, Any] | None = None) -> bool:
-        """Env not shadow and the branch's flag on; either missing is shadow."""
+        """Whether the branch's flag is on in `snapshot`, or now; a missing flag is off."""
         snapshot = snapshot if snapshot is not None else self.snapshot()
-        return not snapshot["env_shadow"] and snapshot.get(branch.value) == FlagState.ON.value
+        return snapshot.get(branch.value) == FlagState.ON.value
 
     # ── turning a branch on (UC-F9-01) ──
 
@@ -142,24 +142,49 @@ class Rollout:
 
     def turn_off(self, branch: str, actor: User, reason: str) -> RolloutFlag:
         """Any manager or security, alone, at once (BR-F9-02)."""
-        if not Access.of(actor).holds(Permission.ROLLOUT_FLAG_OFF):
-            raise RolloutError(403, RolloutRefusal.NOT_A_MANAGER, "managers and security only")
-        reason = reason.strip()
-        if not reason:
-            raise RolloutError(422, RolloutRefusal.REASON_REQUIRED, "say why")
+        reason = self.check_off(actor, reason)
         with transaction.atomic():
             flag = RolloutFlag.objects.select_for_update().get(pk=self.flag(branch).pk)
             if flag.state == FlagState.OFF.value:
                 raise RolloutError(409, RolloutRefusal.ALREADY_OFF, f"{branch} is already off")
-            self.set_flag(flag, FlagState.OFF, actor, reason)
-            AuditLog.objects.record(
-                "rollout_flag_off",
-                actor_type="human",
-                actor_id=actor.id,
-                payload={"branch": branch, "reason": reason},
-            )
-            self.announce(branch, FlagState.OFF, actor, reason)
+            self.switch_off(flag, actor, reason)
         return flag
+
+    def turn_all_off(self, actor: User | None, reason: str) -> list[str]:
+        """Every flag that is on, off at once, by a manager or security, or by the system for
+        `manage.py rollout_off` (ADR-0051)."""
+        reason = self.check_off(actor, reason)
+        with transaction.atomic():
+            for branch in FlagBranch:
+                RolloutFlag.objects.get_or_create(branch=branch.value)
+            flags = list(
+                RolloutFlag.objects.select_for_update()
+                .filter(state=FlagState.ON.value)
+                .order_by("branch")
+            )
+            for flag in flags:
+                self.switch_off(flag, actor, reason)
+        return [flag.branch for flag in flags]
+
+    def check_off(self, actor: User | None, reason: str) -> str:
+        """The reason, stripped; refuses a person without the permission, or no reason."""
+        if actor is not None and not Access.of(actor).holds(Permission.ROLLOUT_FLAG_OFF):
+            raise RolloutError(403, RolloutRefusal.NOT_A_MANAGER, "managers and security only")
+        reason = reason.strip()
+        if not reason:
+            raise RolloutError(422, RolloutRefusal.REASON_REQUIRED, "say why")
+        return reason
+
+    def switch_off(self, flag: RolloutFlag, actor: User | None, reason: str) -> None:
+        """Turns the flag off, with its audit row and notice."""
+        self.set_flag(flag, FlagState.OFF, actor, reason)
+        AuditLog.objects.record(
+            "rollout_flag_off",
+            actor_type="human" if actor else "system",
+            actor_id=actor.id if actor else None,
+            payload={"branch": flag.branch, "reason": reason},
+        )
+        self.announce(flag.branch, FlagState.OFF, actor, reason)
 
     def set_flag(
         self, flag: RolloutFlag, state: FlagState, actor: User | None, reason: str
@@ -170,11 +195,11 @@ class Rollout:
         flag.reason = reason
         flag.save(update_fields=["state", "changed_by", "changed_at", "reason"])
 
-    def announce(self, branch: str, state: FlagState, actor: User, reason: str) -> None:
+    def announce(self, branch: str, state: FlagState, actor: User | None, reason: str) -> None:
         notifier.emit(
             NotificationEvent.ROLLOUT_FLAG_CHANGED,
             notice=Notice(
-                actor=actor.username,
+                actor=actor.username if actor else "system",
                 reason=f"{branch} {state.value}",
                 message=reason,
                 data={"branch": branch, "state": state.value},

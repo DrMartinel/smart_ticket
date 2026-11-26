@@ -45,7 +45,6 @@ def _rollout() -> RolloutOut:
             )
         )
     return RolloutOut(
-        env_shadow=snapshot["env_shadow"],
         thresholds=snapshot["thresholds"],
         flags=flags,
         gates=[
@@ -58,6 +57,13 @@ def _rollout() -> RolloutOut:
 @router.get("", auth=SessionAuth(), response=RolloutOut)
 @require(Permission.ROLLOUT_READ, agent=AgentTier.NONE)
 def get_rollout(request: AuthedRequest) -> RolloutOut:
+    return _rollout()
+
+
+@router.post("/off", auth=SessionAuth(), response=RolloutOut)
+@require(Permission.ROLLOUT_FLAG_OFF, agent=AgentTier.NONE)
+def turn_all_off(request: AuthedRequest, payload: ReasonIn) -> RolloutOut:
+    rollout.turn_all_off(request.auth.user, payload.reason)
     return _rollout()
 
 

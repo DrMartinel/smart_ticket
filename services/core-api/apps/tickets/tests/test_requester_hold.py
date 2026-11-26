@@ -13,7 +13,8 @@ holdable.
 import pytest
 
 from apps.tickets.services.intake import ticket_intake
-from apps.rollout.testing import all_live
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.rollout.testing import flags_off
 
 from apps.audit.models import AuditLog
 from apps.review.models import ReviewItem
@@ -131,17 +132,13 @@ def _submit(user, source: TicketSource) -> Ticket:
 @pytest.mark.django_db
 class TestHoldAndRelease:
     """With the test ai-engine offline for analysis, every ticket is routed
-    HITL as ai_engine_unavailable: an ordinary handoff. Live mode unless a
-    test says otherwise."""
-
-    @pytest.fixture(autouse=True)
-    def live(self, settings, db):
-        all_live(settings)
+    HITL as ai_engine_unavailable: an ordinary handoff. Every flag is on
+    unless a test turns one off."""
 
     def test_shadow_chat_ticket_goes_straight_to_review(
-        self, employee_user, ner_finds_nothing, no_celery, settings
+        self, employee_user, ner_finds_nothing, no_celery
     ):
-        settings.SHADOW_MODE = True
+        flags_off(FlagBranch.REQUESTER_QUESTIONS)
         ticket = _submit(employee_user, TicketSource.CHAT)
 
         ticket_process(str(ticket.id))

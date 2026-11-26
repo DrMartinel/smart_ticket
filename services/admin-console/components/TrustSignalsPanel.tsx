@@ -9,7 +9,8 @@ interface RoutingDecision {
   reason_code: string;
   reason_detail: string;
   gate_failed: string | null;
-  shadow_mode: boolean;
+  /** Recorded only: the branch's rollout flag was off (ADR-0051). */
+  held_back: boolean;
 }
 
 interface TrustSignals {
@@ -126,9 +127,9 @@ export default function TrustSignalsPanel({
       <div className="flex items-center justify-between">
         <div>
           <Badge variant={branchTone(routingDecision.branch)}>{routingDecision.branch}</Badge>
-          {routingDecision.shadow_mode && (
-            <Badge variant="neutral" className="ml-2">
-              shadow mode
+          {routingDecision.held_back && (
+            <Badge variant="neutral" className="ml-2" title="Recorded only: this branch's rollout flag was off">
+              shadow
             </Badge>
           )}
         </div>

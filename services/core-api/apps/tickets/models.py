@@ -12,6 +12,8 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
+from functools import reduce
+from operator import or_
 from typing import TYPE_CHECKING, Literal, cast
 
 from django.conf import settings
@@ -23,6 +25,7 @@ from django.utils import timezone
 from pgvector.django import CosineDistance, VectorField
 
 from apps.core.models import BaseModel
+from apps.rollout.domain.vocabulary import BRANCH_FLAG, FlagState
 from apps.tickets.domain.patterns import PIILevel
 from apps.tickets.domain.router import AGENT_HANDOFF_REASONS
 from apps.tickets.request_schema import RevealReason
@@ -712,6 +715,28 @@ class AiRun(BaseModel):
         return KbArticle.objects.filter(slug=slug).values_list("title", flat=True).first()
 
 
+def _held_back_q() -> models.Q:
+    """Decisions whose branch has a flag that wasn't on in their snapshot (ADR-0051)."""
+    return reduce(
+        or_,
+        (
+            models.Q(branch=branch)
+            & ~models.Q(rollout_snapshot__contains={flag.value: FlagState.ON.value})
+            for branch, flag in BRANCH_FLAG.items()
+        ),
+    )
+
+
+class RoutingDecisionQuerySet(models.QuerySet["RoutingDecision"]):
+    def held_back(self) -> RoutingDecisionQuerySet:
+        """Decisions a person handled because their branch's flag was off (ADR-0051)."""
+        return self.filter(_held_back_q())
+
+    def carried_out(self) -> RoutingDecisionQuerySet:
+        """Decisions whose branch has no flag, or whose flag was on."""
+        return self.exclude(_held_back_q())
+
+
 class RoutingDecision(BaseModel):
     """§3.3. `thresholds_used` is a snapshot, not a reference — three
     months from now, "what were the thresholds at the time" must be
@@ -729,13 +754,19 @@ class RoutingDecision(BaseModel):
     thresholds_used = models.JSONField()
     # Each active category's slug, version and flags when the decision ran (ADR-0049).
     categories_used = models.JSONField(default=list, blank=True)
-    shadow_mode = models.BooleanField(default=True)
-    # The flags, env switch and thresholds version the decision ran under (F9, BR-F9-09).
+    # The flags and thresholds version the decision ran under (F9, BR-F9-09).
     rollout_snapshot = models.JSONField(default=dict, blank=True)
     decided_at = models.DateTimeField(auto_now_add=True)
 
     class Meta(BaseModel.Meta):
         db_table = "routing_decisions"
+
+    objects = RoutingDecisionQuerySet.as_manager()
+
+    def was_held_back(self) -> bool:
+        """Whether its branch has a flag that wasn't on in its snapshot (ADR-0051)."""
+        flag = BRANCH_FLAG.get(self.branch)
+        return flag is not None and self.rollout_snapshot.get(flag.value) != FlagState.ON.value
 
 
 class TicketClarification(BaseModel):

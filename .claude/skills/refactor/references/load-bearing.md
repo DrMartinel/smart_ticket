@@ -352,8 +352,14 @@ guard and that comment is later trimmed, the entry is the record.
 - **`Rollout.is_live` read in `_finalize`, never in `router.py`.** The flag
   decides whether a decision is carried out, never which it is; replays depend
   on the router staying pure. *`test_route_is_identical_whatever_the_flags`.*
-- **Two keys, either missing is shadow** (ADR-0044 dropped the thresholds
-  key). *`test_env_shadow_overrides_flags`.*
+- **The flag alone, and a snapshot missing the flag's key reads as held
+  back** (ADR-0051). `was_held_back()` and `objects.held_back()` read the
+  same `BRANCH_FLAG` mapping and must agree: a report or gate that counts
+  differently from the pipeline shows a manager the wrong number.
+  *`test_a_flag_off_holds_back_its_branch`, `test_held_back_and_was_held_back_agree`.*
+- **`turn_all_off` creating missing flag rows before turning them off.** A
+  branch with no row reads as on, so skipping it leaves that branch live after
+  "turn everything off". *`test_turn_all_off_turns_every_flag_off`.*
 - **No `runbook` member in `FlagBranch`** (ADR-0006). *`test_no_runbook_flag_exists`.*
 
 ### Mass incidents (F7)
@@ -375,9 +381,9 @@ guard and that comment is later trimmed, the entry is the record.
   manager's name would close a PII or injection review nobody did.
   *`test_confirm_leaves_a_linked_critical_pii_review_open`,
   `test_confirm_leaves_a_swept_in_mask_failed_review_open`.*
-- **`attach` skipping the review item only when not in shadow mode.** In shadow
-  mode a person still sees every ticket.
-  *`test_in_shadow_mode_a_late_joiner_still_reaches_a_reviewer`.*
+- **`attach` always skipping the review item, with no flag** (ADR-0051, the
+  owner's choice). A flag check here would hold back an action the Rollout
+  page doesn't name. *`test_a_late_joiner_is_attached_with_every_flag_off`.*
 - **`mask_text` raising on `mask_failed`.** A broadcast reaches every linked
   requester; a failed mask must send nothing. *`test_a_masking_failure_sends_nothing`.*
 - **Close-all catching `LifecycleError` per ticket.** One refused move must not

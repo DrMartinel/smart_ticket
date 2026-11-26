@@ -13,7 +13,6 @@ from apps.audit.models import AuditLog
 from apps.chat.models import Conversation
 from apps.chat.services.conversations import conversations
 from apps.incidents.services.incidents import incidents
-from apps.rollout.testing import all_live
 from apps.tickets.models import IncidentVerdict, RoutingDecision, Ticket
 from apps.tickets.domain.masking import NERError
 from apps.tickets.services.pipeline import ticket_process
@@ -77,9 +76,8 @@ def engine(monkeypatch) -> dict[str, list]:
 
 
 @pytest.fixture
-def chat(employee_user, api_as, ner_finds_nothing, enqueued, engine, settings):
+def chat(employee_user, api_as, ner_finds_nothing, enqueued, engine):
     """A live chat: questions are held for the requester, as outcomes like suggest_ticket need."""
-    all_live(settings)
     client = api_as(employee_user)
 
     def ask(message: str, conversation_id: str | None = None, *, run: bool = True):

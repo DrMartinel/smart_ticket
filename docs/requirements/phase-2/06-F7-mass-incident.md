@@ -153,7 +153,7 @@ clock (a staff public message, BR-F1-06).
 | BR-F7-01 | The detector only **proposes**; an incident manager confirms | ServiceNow pattern; a human owns a broadcast to many people | Status machine |
 | BR-F7-02 | A new ticket joins the open (`proposed` or `confirmed`) incident whose centroid it matches at cosine ≥ `incident.similarity`; else the detector may propose a new one. Category is not part of the key | Fixes defect 1; category is unknown at detection | `Incidents.match()` under `pg_advisory_xact_lock(hashtext('mass_incident'))` |
 | BR-F7-03 | Confirming approves each linked ticket's pending `escalate` review item in the incident manager's name; it never changes the routing decision | The router chose `escalate`; confirming agrees with it | Confirm service |
-| BR-F7-04 | Once an incident is confirmed, an `escalate` / `mass_incident` decision for a newly linked ticket is carried out by attaching it to the incident (no new review item) | `escalate` means "hand to incident management"; the incident is that hand | `_execute_or_enqueue` ESCALATE branch |
+| BR-F7-04 | Once an incident is confirmed, an `escalate` / `mass_incident` decision for a newly linked ticket is carried out by attaching it to the incident (no new review item), always, with no flag (ADR-0051) | `escalate` means "hand to incident management"; the incident is that hand | `_execute_or_enqueue` ESCALATE branch |
 | BR-F7-05 | Broadcasts go once per requester per broadcast, are mandatory, and show the ETA. Text is written by a person and masked like any comment | Spec §9; BR-X-06 | Broadcast service, F4 |
 | BR-F7-06 | Close-all takes each ticket along its workflow's shortest path to `resolved`, every step a governed automatic move, each audited; empty required text fields on the way get the resolution note; a refused ticket doesn't stop the rest | Per-ticket audit; ADR-0028 | Resolve service, incident sweep |
 | BR-F7-07 | Linked tickets' resolution clocks pause while their incident is `confirmed`; they resume on unlink, dismiss, or resolve without close-all | 40 tickets can't each be fixed separately; the incident carries the clock | F1 hook (BR-F1-15) |
@@ -278,7 +278,7 @@ in the catalog.
 ## i. Impact
 
 - **Changes:** detector matches by centroid first and keys incidents by similarity (fixes defects 1 and 2); `_execute_or_enqueue` ESCALATE attaches to a confirmed incident instead of creating a review item; `Incident.status` becomes an enum; **F1 gains BR-F1-15** (pause linked tickets' resolution clocks while the incident is confirmed); chat shows a banner.
-- **Must not change:** the router's `mass_incident` gate and its place in the hard-gate order; no auto-reply for linked tickets; the advisory lock pattern; shadow mode (in shadow mode, tickets still reach a reviewer; broadcasting is a person's act, allowed in both modes).
+- **Must not change:** the router's `mass_incident` gate and its place in the hard-gate order; no auto-reply for linked tickets; the advisory lock pattern; ~~shadow mode (in shadow mode, tickets still reach a reviewer; broadcasting is a person's act, allowed in both modes)~~ broadcasting is a person's act (ADR-0051: the attach is always live).
 - **ADRs:** 0001, 0028 (`automatic_move` governed), spec §9.
 - **Regression tests:** `test_unrelated_outages_get_separate_incidents` (defect 1); `test_ticket_count_counts_each_ticket_once` (defect 2); `test_confirm_approves_without_eval_candidates`; `test_linked_ticket_never_auto_replied`; `test_broadcast_once_per_requester`; `test_close_all_continues_after_refusal`; `test_linked_clock_paused_while_confirmed`.
 
@@ -289,6 +289,8 @@ Code wins (README §0.4 item 5). Item 1 is the owner's decision of 2026-10-26:
 1. **Attaching without a review item happens only when `SHADOW_MODE` is off**
    (BR-F7-04). In shadow mode a ticket escalated into a confirmed incident
    still gets its review item; its resolution clock waits either way.
+   *Superseded by ADR-0051 (owner, 2026-11-27): the attach always happens,
+   with no review item and no flag.*
 2. **Both defects are fixed and pinned:** a ticket joins the open incident
    whose centroid it matches, under one advisory lock for every category
    (`test_unrelated_outages_get_separate_incidents`); the detector leaves out
@@ -387,7 +389,7 @@ Feature: F7 Mass-incident management
 
   @BR-F7-08
   Scenario: AC-F7-07 linked tickets never get an auto-reply
-    Given SHADOW_MODE is false and a linked ticket's proposal cites an approved page
+    Given a linked ticket's proposal cites an approved page
     Then the decision is escalate with reason "mass_incident"
 
   @BR-F7-10

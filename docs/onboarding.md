@@ -168,7 +168,7 @@ Open http://localhost:3000, sign in as `employee1`, and submit something the dem
 Now sign in as `tech1` and open **Queue → the ticket → review page**. The right-hand panel is the point of the whole system. You should see something like:
 
 ```
-hitl · shadow mode                                    trust 0.82
+hitl                                                  trust 0.82
 negation_mismatch
 
 RETRIEVAL     rerank top1 0.75 · margin 0.42 · 1 doc above floor
@@ -233,7 +233,7 @@ You are ready to work on this when you can answer:
 2. **The model says it is 95% confident. Where does that number enter the routing decision?** → It doesn't. [ADR-0003](adr/0003-reject-llm-self-confidence.md)
 3. **What has to be true before a ticket can be auto-replied?** → The **KB article** must be flagged `auto_reply_allowed` by a manager. The model cannot grant itself that. [ADR-0002](adr/0002-kb-level-autoreply-authority.md)
 4. **Retrieval finds nothing relevant. What happens?** → The LLM is never called. Cheaper and safer: a model with no source has nothing to do but invent one.
-5. **Why does everything land in the human queue right now?** → `SHADOW_MODE=true`. The router decides and records; humans still handle every ticket. This is how calibration data is gathered at zero risk.
+5. **Why did this ticket land in the human queue?** → Either the router sent it there (read its reason code) or its branch's rollout flag is off, so the decision was recorded only ("shadow" on the ticket). Every flag starts on ([ADR-0051](adr/0051-a-flag-alone-makes-a-branch-live.md)); Admin → Rollout shows them.
 
 ---
 

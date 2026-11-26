@@ -23,6 +23,7 @@ off. The owner finds it redundant.
 
 1. **A branch is live when `SHADOW_MODE` is false and its flag is on.**
    Two keys; the thresholds file is not one of them.
+   *Amended by ADR-0051: one key, the flag; `SHADOW_MODE` is gone.*
 2. **`thresholds.yaml` changes by pull request**, reviewed like code. Its
    `version` names the file in every decision's `thresholds_used` and
    `rollout_snapshot`; give a changed file a new one.

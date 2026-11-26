@@ -3,8 +3,8 @@
 import { Page, PageHeader } from "@/components/ui/page-header";
 import { ErrorState, LoadingState } from "@/components/ui/states";
 
-// Rollout (F9 · Rollout 16-1179): each automated branch is live only when the env isn't shadow, its
-// flag is on and the thresholds are approved (BR-F9-01); one manager turns a flag on (ADR-0043).
+// Rollout (F9 · Rollout 16-1179): each automated branch is live exactly when its flag is on, and every
+// flag starts on (BR-F9-01, ADR-0051); one manager turns a flag on (ADR-0043).
 
 import { useCallback, useEffect, useState } from "react";
 import Modal from "@/components/Modal";
@@ -37,7 +37,7 @@ function gateValue(g: GateValueOut): string {
   return `${g.metric.replace("_", " ")} ${pct(g.value)}`;
 }
 
-type Dialog = { kind: "on"; flag: FlagOut } | { kind: "off"; flag: FlagOut } | null;
+type Dialog = { kind: "on"; flag: FlagOut } | { kind: "off"; flag: FlagOut } | { kind: "all" } | null;
 
 export default function RolloutPage() {
   const user = useRequireAuth();
@@ -101,6 +101,7 @@ export default function RolloutPage() {
 
   const submit = () => {
     if (!dialog) return;
+    if (dialog.kind === "all") return run(() => api.post("/api/rollout/off", { reason }));
     const branch = dialog.flag.branch;
     if (dialog.kind === "on")
       return run(() =>
@@ -114,7 +115,13 @@ export default function RolloutPage() {
     if (dialog.kind === "off") return run(() => api.post(`/api/rollout/${branch}/off`, { reason }));
   };
 
-  const unmet = dialog ? dialog.flag.gates.some((g) => !g.met) : false;
+  const unmet = dialog && dialog.kind !== "all" ? dialog.flag.gates.some((g) => !g.met) : false;
+  const onFlags = data.flags.filter((f) => f.state === "on");
+  const title = !dialog
+    ? ""
+    : dialog.kind === "all"
+      ? "Turn every flag off now"
+      : `Turn ${dialog.flag.branch} ${dialog.kind} now`;
 
   return (
     <Page className="flex flex-col gap-4">
@@ -123,12 +130,19 @@ export default function RolloutPage() {
         className="mb-2"
         eyebrow="Admin / Rollout"
         title="Rollout"
-        description={<>A branch is live only when both keys turn: env not shadow and the branch flag on (BR-F9-01).</>}
+        description={<>A branch is live exactly when its flag is on; every flag starts on (BR-F9-01, ADR-0051).</>}
+        actions={
+          mayTurnOff && (
+            <Button variant="destructive" disabled={onFlags.length === 0} onClick={() => open({ kind: "all" })}>
+              Turn everything off…
+            </Button>
+          )
+        }
       />
       {error && !dialog && <ErrorState title={error} />}
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <StatCard label="Env SHADOW_MODE" value={String(data.env_shadow)} note="set in .env at deploy" />
+        <StatCard label="Live" value={`${onFlags.length} of ${data.flags.length}`} note="flags on; the rest held back" />
         <StatCard label="Thresholds" value={data.thresholds} note="the loaded thresholds.yaml version" />
         <StatCard label="Router" value="unchanged" note="flags never change the branch chosen" />
       </div>
@@ -141,7 +155,6 @@ export default function RolloutPage() {
                 <h2 className="flex items-center gap-2 font-semibold">
                   <span className="font-mono">{flag.branch}</span>
                   <FlagChip flag={flag} />
-                  {flag.state === "on" && !flag.live && <Badge variant="warn">not live: env shadow</Badge>}
                 </h2>
                 <p className="text-xs text-muted-foreground">{GATE_TEXT[flag.branch]}</p>
               </div>
@@ -257,23 +270,36 @@ export default function RolloutPage() {
       <Modal
         open={dialog !== null}
         onClose={() => setDialog(null)}
-        title={dialog?.kind === "on" ? `Turn ${dialog.flag.branch} on now` : `Turn ${dialog?.flag.branch} off now`}
+        title={title}
         footer={
           <>
             <Button variant="outline" onClick={() => setDialog(null)}>
               Cancel
             </Button>
             <Button
-              variant={dialog?.kind === "off" ? "destructive" : "default"}
+              variant={dialog?.kind === "on" ? "default" : "destructive"}
               disabled={busy || !reason.trim() || (dialog?.kind === "on" && unmet && !override.trim())}
               onClick={() => void submit()}
             >
-              {dialog?.kind === "off" ? "Turn off" : "Turn on"}
+              {dialog?.kind === "all" ? "Turn everything off" : dialog?.kind === "off" ? "Turn off" : "Turn on"}
             </Button>
           </>
         }
       >
-        {dialog && (
+        {dialog?.kind === "all" && (
+          <div className="flex flex-col gap-3 text-sm">
+            <p>
+              Turns off every flag that is on: <span className="font-mono">{onFlags.map((f) => f.branch).join(", ")}</span>. Each
+              branch is held back at once, and a person handles its tickets until a manager turns it on again.
+            </p>
+            <label className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">Reason (required)</span>
+              <Textarea className="min-h-[64px]" value={reason} onChange={(e) => setReason(e.target.value)} />
+            </label>
+            {error && <p className="text-danger">{error}</p>}
+          </div>
+        )}
+        {dialog && dialog.kind !== "all" && (
           <div className="flex flex-col gap-3 text-sm">
             <ul className="rounded-md border border-border px-3 py-2 text-xs">
               {dialog.flag.gates.map((g) => (
@@ -299,7 +325,7 @@ export default function RolloutPage() {
               </label>
             )}
             {dialog.kind === "on" && (
-              <p className="text-xs text-muted-foreground">The branch acts live as soon as you turn it on, if the env isn't shadow.</p>
+              <p className="text-xs text-muted-foreground">The branch acts live as soon as you turn it on.</p>
             )}
             {error && <p className="text-danger">{error}</p>}
           </div>

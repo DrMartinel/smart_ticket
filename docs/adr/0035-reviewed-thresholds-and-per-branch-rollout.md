@@ -20,6 +20,8 @@ reviewed before it acted on real tickets.
    approved`. `router.py` and `route()` don't change; the same decision runs
    in both modes (spec §8.2).
    *Superseded in part by ADR-0044: thresholds are no longer a key.*
+   *Amended by ADR-0051: `SHADOW_MODE` is gone; the branch's flag alone
+   makes it live, and every flag starts on.*
 2. **Flags exist for `auto_route`, `auto_reply`, `requester_questions`.**
    None exists for runbooks (ADR-0006).
 3. **On takes two managers, neither the requester; off takes one manager or

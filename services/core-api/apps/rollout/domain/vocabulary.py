@@ -23,6 +23,14 @@ class FlagState(StrEnum):
     ON = "on"
 
 
+# The flag that holds back each routing branch; a branch not named here has none (ADR-0051).
+BRANCH_FLAG = {
+    "auto_route": FlagBranch.AUTO_ROUTE,
+    "auto_reply": FlagBranch.AUTO_REPLY,
+    "clarify": FlagBranch.REQUESTER_QUESTIONS,
+}
+
+
 class RequestState(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"

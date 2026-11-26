@@ -26,7 +26,7 @@ The rest of this README is the reference: what it is, how to run it, and where t
 
 ## Current status
 
-The system runs end to end. **`SHADOW_MODE=true` by default**: the router evaluates every ticket and records what it *would* have done, but every ticket still lands in the human queue. This is deliberate — it is spec §14's P1 phase, and it is how calibration data is collected at zero risk.
+The system runs end to end. **Every automated branch is live by default** (ADR-0051): a branch acts exactly when its rollout flag is on, and every flag starts on. A manager or security turns a flag off in Admin → Rollout, or every flag at once (`POST /api/rollout/off`, `manage.py rollout_off`); while it is off, that branch's decisions are recorded only and a person handles the ticket. This skips spec §14's shadow-first P1 phase while the system is in R&D: the trust coefficients are still a hand-set prior.
 
 | Phase | What it covers | State |
 |---|---|---|
@@ -94,7 +94,7 @@ Three services with **structurally enforced** permission boundaries:
 - **Fail toward humans.** Every degradation — LLM timeout, embedding outage, masking failure, weak retrieval, daily cost ceiling — routes to HITL. Never to auto-reply. A user waiting longer is acceptable; a user receiving a confident wrong answer is not.
 - **Authority lives on the KB, not in the model.** `kb_articles.auto_reply_allowed` defaults to `false`, is settable only by a manager with a logged reason, and is enforced by a DB `CHECK` constraint requiring a named approver (ADR-0002).
 - **Refuse before spending.** If Jev's top reranked score falls below the floor, the LLM is never called — cheaper *and* safer, since a model with no source is a model that invents one.
-- **Shadow mode first.** The same `route()` runs in both modes, so calibration data describes exactly what will happen when it's switched live.
+- **The flag decides whether, never which.** The same `route()` runs whether a branch is live or held back, so a held-back decision describes exactly what would have happened live (ADR-0051).
 
 ---
 
@@ -311,7 +311,6 @@ Full list in [`.env.example`](.env.example). The ones that change behavior most:
 
 | Variable | Default | Effect |
 |---|---|---|
-| `SHADOW_MODE` | `true` | Router records decisions without acting; everything still goes to HITL |
 | `EMBEDDING_PROVIDER` | `vllm` | ai-engine's embedder, which also embeds for core-api. `stub` = deterministic hash embeddings, no network (used by CI) |
 | `SHORTLIST_PROVIDER` | `vllm` | bge-reranker-v2-m3 via vllm-rerank; `lexical` = token overlap, no model (CI) |
 | `JEV_API_KEY` | empty | Jev's key; required for any run that reaches retrieval. Tests use fakes |
@@ -484,7 +483,7 @@ ADR-0006 is flagged in the spec as the one most likely to erode once `automation
 | Phase | Enable | Gate to advance |
 |---|---|---|
 | **P2** | Calibrate trust score; set `T_auto`/`T_route` from PR curve | Auto-reply precision ≥ 0.95 on holdout |
-| **P3** | Auto-route (`SHADOW_MODE=false`) | Reroute rate < 15% for 2 weeks |
+| **P3** | Auto-route (the `auto_route` flag; on by default since ADR-0051) | Reroute rate < 15% for 2 weeks |
 | **P4** | Auto-reply on 3–5 `risk_tier=low` KB articles | Reopen rate < 5% for 1 month |
 | **P5** | Runbooks (still via HITL), few-shot pool, widen KB whitelist | Per-batch reopen threshold |
 

@@ -134,8 +134,12 @@ class RoutingOut(Schema):
     branch: str
     reason_code: str
     reason_detail: str
-    shadow_mode: bool
+    held_back: bool
     decided_at: datetime
+
+    @staticmethod
+    def resolve_held_back(decision: RoutingDecision) -> bool:
+        return decision.was_held_back()
 
 
 class AiSummaryOut(Schema):

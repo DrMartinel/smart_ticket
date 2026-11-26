@@ -33,7 +33,7 @@ The original specification ([`requirement.md`](../requirement.md)) is in Vietnam
 
 **Reason code** — a machine-readable enum explaining *why* a decision was made (`injection_detected`, `retrieval_below_floor`, `kb_not_authorized`, `negation_mismatch`, …). Deliberately an enum rather than free text, because "which reason sent the most tickets to review this week?" is unanswerable over prose.
 
-**Shadow mode** — `SHADOW_MODE=true`, the current default. The router evaluates every ticket and records what it *would* have done, but every ticket still goes to a human. The same `route()` function runs in both modes, so calibration data describes exactly what will happen when it is switched live.
+**Shadow mode** — a branch whose rollout flag is off (ADR-0051): the router decides and records, but a person handles the ticket. Every flag starts on, so nothing is in shadow until a manager or security turns a flag off (Admin → Rollout, or `POST /api/rollout/off` for every flag). `RoutingDecision.was_held_back()` says whether a decision was. The same `route()` function runs either way, so a held-back decision describes exactly what would have happened live. `SHADOW_MODE`, the env switch that once held every branch back, is gone.
 
 **Trust score** — meant to be a calibrated probability that a proposal is correct (today a hand-set prior, awaiting shadow data), computed by logistic regression in **core-api** (never in ai-engine, so the LLM has no influence over the score used to judge it). Built only from externally verifiable signals.
 

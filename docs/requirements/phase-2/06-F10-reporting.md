@@ -364,6 +364,8 @@ Code wins (README §0.4 item 5).
    live or shadow**, so the kept `automation_rate` alias is exactly the old
    formula. `automation_rate_live` counts decisions recorded with
    `shadow_mode = false`. AC-F10-05 holds either way.
+   *Amended by ADR-0051: the column is gone; it counts the automated
+   decisions outside `RoutingDecision.objects.held_back()`.*
 4. **More tunables in `thresholds.yaml` `reports:`**: `gap_closure_weeks` (4,
    BR-F10-07), default windows `window_days` (30), `kb_weeks` (8) and
    `rollout_days` (14). F9's rollout page and its gate fallback now read

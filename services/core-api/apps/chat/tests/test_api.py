@@ -6,7 +6,8 @@ never allowed, or "create ticket" handing a question to support twice.
 
 import pytest
 
-from apps.rollout.testing import all_live
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.rollout.testing import flags_off
 
 from apps.kb.models import KbArticle
 from apps.review.models import ReviewItem
@@ -34,11 +35,6 @@ def enqueued(monkeypatch):
 
     monkeypatch.setattr("apps.tickets.tasks.process_ticket", Fake())
     return ids
-
-
-@pytest.fixture
-def live(settings, db):
-    all_live(settings)
 
 
 def ask(client, message: str):
@@ -76,9 +72,9 @@ class TestAsk:
 @pytest.mark.django_db
 class TestShadowMode:
     def test_question_goes_to_support_without_a_suggestion(
-        self, employee_user, api_as, ner_finds_nothing, enqueued, settings
+        self, employee_user, api_as, ner_finds_nothing, enqueued
     ):
-        settings.SHADOW_MODE = True
+        flags_off(FlagBranch.REQUESTER_QUESTIONS)
         client = api_as(employee_user)
         public_id = ask(client, "My VPN keeps timing out since this morning").json()["public_id"]
         ticket_process(enqueued[0])
@@ -89,7 +85,6 @@ class TestShadowMode:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("live")
 class TestSuggestAndCreateTicket:
     def test_handoff_is_suggested_then_created_once(
         self, employee_user, api_as, ner_finds_nothing, enqueued
@@ -111,7 +106,6 @@ class TestSuggestAndCreateTicket:
 
 
 @pytest.mark.django_db
-@pytest.mark.usefixtures("live")
 class TestOwnership:
     def test_another_requesters_conversation_is_not_found(
         self, employee_user, technician_user, api_as, ner_finds_nothing, enqueued
@@ -171,7 +165,7 @@ def _auto_replied_chat_ticket(reporter, status: str) -> Ticket:
         reason_code="all_checks_passed",
         reason_detail="",
         thresholds_used={},
-        shadow_mode=False,
+        rollout_snapshot={"auto_reply": "on"},
     )
     return ticket
 

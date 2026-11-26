@@ -226,7 +226,7 @@ read it before adding a module, class or helper in core-api.
 | How the category is chosen | ai-engine `graph/nodes/classify_category/` and its question's instructions `core/prompts/category.v*.json`; the options are the active `ticket_categories` rows' descriptions (ADR-0049); the confidence bar in `thresholds.yaml` |
 | Any tunable number | `thresholds.yaml`, nowhere else, by pull request; give a changed file a new `version` (ADR-0044) |
 | Which area a console page sits in | Daily work in the Workspace (`components/AppShell.tsx`); figures, authority, rollout, thresholds and settings in Admin under `/admin/*` (`lib/areas.ts`, ADR-0039). Old paths redirect in `next.config.mjs` |
-| Whether a branch acts live | Admin → Rollout (F9 flags); never a code path around `Rollout.is_live` |
+| Whether a branch acts live | Admin → Rollout (F9 flags; every flag starts on, ADR-0051); never a code path around `Rollout.is_live`, and "held back" only through `RoutingDecision.was_held_back()` / `objects.held_back()` |
 | Sign-in, token lifetimes | `apps/accounts/services/sessions.py` (sessions), `SessionAuth` in `apps/accounts/permissions.py`, `AUTH_*` in `.env.example` (ADR-0029); the frontends' `lib/session.ts`, never `localStorage` |
 | Who may call what | A route's `require(Permission.…)`; a new permission is a `Permission` URN with its metadata in `apps/accounts/domain/data.py`, never a check on a role name (ADR-0045). A new route goes in `ADDED_SINCE_SNAPSHOT` in `test_access_equivalence.py`. Every route also declares `agent=AgentTier.…` (ADR-0046): `NONE` unless the F15 tier table (06-F15 §h.3) names it. Frontends read `user.permissions` through `can()` in `lib/permissions.ts` |
 | Someone's access | Admin → People & access: a grant (`grants.grant`), a custom role (`roles`), a department head (`departments.set_head`), a person's status (`people`); never an `Assignment` row written directly. Each takes a reason and ends the person's sessions |
@@ -259,12 +259,15 @@ copies that directory — a new SQL file that isn't copied fails at container st
 
 ## Current state
 
-- `SHADOW_MODE=true` is the default: the router decides and records, humans still
-  handle every ticket. This is spec §14's P1 phase, by design. Since F9
-  (ADR-0035) going live also needs the branch's rollout flag on (Admin →
-  Rollout: one manager to turn on or off, ADR-0043); all flags start off.
-  `thresholds.yaml` changes by pull request, with no approval check (ADR-0044). Tests that need live call
-  `apps.rollout.testing.all_live(settings)`.
+- **Live by default** (ADR-0051, the owner's choice for the R&D stage): a
+  branch acts exactly when its F9 rollout flag is on, and every flag starts
+  on, the agent's included. A manager or security turns one off in Admin →
+  Rollout, or all at once (`POST /api/rollout/off`, `manage.py rollout_off`);
+  a held-back decision is recorded while a person handles the ticket
+  (`RoutingDecision.was_held_back()`). `SHADOW_MODE` and
+  `routing_decisions.shadow_mode` are gone. This skips spec §14's P1 phase.
+  `thresholds.yaml` changes by pull request, with no approval check
+  (ADR-0044). Tests hold a branch back with `apps.rollout.testing.flags_off(...)`.
 - **Demo KB is English AWS documentation** (`demo_kb/`: every page of 12 AWS
   guides, 3,542 pages), loaded by `manage.py load_demo_kb`.
   Demo tickets and the golden set are English. The snapshot is frozen: pages
@@ -287,7 +290,8 @@ copies that directory — a new SQL file that isn't copied fails at container st
   are in `evals/HISTORY-archive.md`, read-only.
 - Trust score coefficients are a **hand-set prior**, not fitted. `t_auto = 0.88`
   and `t_route = 0.72` are placeholders (marked 🔧 in `thresholds.yaml`).
-  Calibration needs ≥500 shadow pairs. Do not enable P3/P4 before that.
+  Calibration needs ≥500 pairs. ADR-0051 makes every branch live before
+  that, a guardrail the owner relaxed for the R&D stage (TODO 28).
   The `bm25_keyword_hit` feature is gone with BM25 on the ticket (ADR-0020),
   and the remaining hand-set features score every ticket.
 - **Retrieval drafts first** (HyDE, ADR-0021): `draft_answer` has
@@ -332,7 +336,8 @@ copies that directory — a new SQL file that isn't copied fails at container st
   the question; the answer is masked like a ticket and the pipeline runs
   again, and a second `clarify` goes to a person (`clarify_round_cap`).
   Unanswered after `clarification.wait_minutes`, the chat offers a ticket.
-  Form tickets and shadow mode: a review item in the `clarification` queue.
+  Form tickets, and chat tickets while `requester_questions` is off: a review
+  item in the `clarification` queue.
 - **Chat memory** (phase 2 F3, ADR-0034, accepted 2026-10-26): a chat question
   carries up to 6 earlier *decided* turns of the same conversation and
   requester, masked, to the draft and proposal prompts only
@@ -427,6 +432,6 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (fifty
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (fifty-one
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
 0030–0038 come from the phase 2 pack, all accepted).

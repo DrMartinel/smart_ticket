@@ -75,7 +75,7 @@ from apps.tickets.domain.trust_scorer import score as compute_trust
 
 logger = logging.getLogger(__name__)
 
-type TaskResult = dict[str, str | bool]
+type TaskResult = dict[str, str]
 
 
 def trust_signals(
@@ -200,10 +200,6 @@ def _persist_ai_run(
         return AiRun.objects.get(idempotency_key=idempotency_key)
 
 
-# The automated branches a rollout flag turns live (F9, ADR-0035); every other branch is a person's.
-_FLAGGED = {Branch.AUTO_ROUTE: FlagBranch.AUTO_ROUTE, Branch.AUTO_REPLY: FlagBranch.AUTO_REPLY}
-
-
 def _finalize(
     ticket: Ticket,
     ai_run: AiRun,
@@ -214,12 +210,10 @@ def _finalize(
     kb: KBArticleMeta | None = None,
 ) -> TaskResult:
     snapshot = rollout.snapshot()
-    family = _FLAGGED.get(decision.branch)
-    shadow = not rollout.is_live(family, snapshot) if family else settings.SHADOW_MODE
     ask_requester = rollout.is_live(FlagBranch.REQUESTER_QUESTIONS, snapshot)
 
     with transaction.atomic():
-        RoutingDecision.objects.create(
+        recorded = RoutingDecision.objects.create(
             ticket=ticket,
             ai_run=ai_run,
             branch=decision.branch.value,
@@ -228,9 +222,9 @@ def _finalize(
             gate_failed=decision.gate_failed,
             thresholds_used=router.thresholds.model_dump(mode="json"),
             categories_used=categories.as_used(),
-            shadow_mode=shadow,
             rollout_snapshot=snapshot,
         )
+        held_back = recorded.was_held_back()
 
         AuditLog.objects.record(
             "routing_decided",
@@ -240,7 +234,6 @@ def _finalize(
                 "ticket_public_id": ticket.public_id,
                 "branch": decision.branch.value,
                 "reason_code": decision.reason_code.value,
-                "shadow_mode": shadow,
                 "thresholds_version": router.thresholds.version,
             },
             trace_id=trace_id,
@@ -271,17 +264,13 @@ def _finalize(
                 ticket, ai_run, trace_id
             ):
                 # Fewer than two pages to offer: carried out as for a form ticket.
-                _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
+                _execute_or_enqueue(ticket, ai_run, decision, held_back, kb)
             else:
                 _hold_for_requester(ticket, decision, trace_id)
         else:
-            _execute_or_enqueue(ticket, ai_run, decision, shadow, kb)
+            _execute_or_enqueue(ticket, ai_run, decision, held_back, kb)
 
-    return {
-        "ticket_public_id": ticket.public_id,
-        "branch": decision.branch.value,
-        "shadow_mode": shadow,
-    }
+    return {"ticket_public_id": ticket.public_id, "branch": decision.branch.value}
 
 
 # Decisions about a chat ticket that are carried out at once, never held for
@@ -338,8 +327,8 @@ def release_to_support(
     ticket_id: uuid.UUID, requester_id: uuid.UUID, trace_id: str | None
 ) -> Ticket:
     """The requester asked for a ticket: carry out the decision recorded for
-    it (`Ticket.held_decision`), exactly as `_finalize` would have, with the
-    shadow mode that decision was recorded under. Nothing is re-routed.
+    it (`Ticket.held_decision`), exactly as `_finalize` would have, held back
+    or not as that decision was recorded. Nothing is re-routed.
 
     Locks the row, so a double click releases once; the second call raises
     `NotAwaitingRequester`.
@@ -365,7 +354,7 @@ def release_to_support(
             trace_id=trace_id,
         )
         # kb=None: only a live auto-reply reads it, and that is never held.
-        _execute_or_enqueue(ticket, recorded.ai_run, decision, recorded.shadow_mode, None)
+        _execute_or_enqueue(ticket, recorded.ai_run, decision, recorded.was_held_back(), None)
     return ticket
 
 
@@ -373,7 +362,7 @@ def _execute_or_enqueue(
     ticket: Ticket,
     ai_run: AiRun | None,
     decision: Decision,
-    shadow: bool,
+    held_back: bool,
     kb: KBArticleMeta | None,
 ) -> None:
     branch = decision.branch
@@ -390,9 +379,7 @@ def _execute_or_enqueue(
 
     if branch is Branch.ESCALATE:
         lifecycle.system_move(ticket, PipelineStatus.ESCALATED)
-        if decision.reason_code is ReasonCode.MASS_INCIDENT and incidents.attach(
-            ticket, live=not shadow
-        ):
+        if decision.reason_code is ReasonCode.MASS_INCIDENT and incidents.attach(ticket):
             return
         ReviewItem.objects.create(
             ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=1
@@ -424,10 +411,7 @@ def _execute_or_enqueue(
         return
 
     # branch is AUTO_REPLY or AUTO_ROUTE
-    if shadow:
-        # Same route() call as live mode (spec §8.2) — only the execution
-        # differs. Still surfaced to a human so shadow-mode data reflects
-        # exactly what would have happened live.
+    if held_back:
         lifecycle.system_move(ticket, PipelineStatus.PENDING_REVIEW)
         ReviewItem.objects.create(
             ticket=ticket, ai_run=ai_run, queue=ReviewQueue.LOW_CONFIDENCE.value, priority=3

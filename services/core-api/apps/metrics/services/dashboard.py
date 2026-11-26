@@ -187,9 +187,7 @@ def business_metrics(window_days: int = 30) -> dict[str, Any]:
     would_have = automated.count() / total if total else None
 
     return {
-        "automation_rate_live": automated.filter(shadow_mode=False).count() / total
-        if total
-        else None,
+        "automation_rate_live": automated.carried_out().count() / total if total else None,
         "automation_rate_would_have": would_have,
         "automation_rate": would_have,
         "sla_compliance": sla_compliance(since),

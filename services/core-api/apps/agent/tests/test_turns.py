@@ -30,17 +30,13 @@ from apps.agent.services.turns import agent_turns
 from apps.audit.models import AuditLog
 from apps.core.testing import api_client_with
 from apps.rollout.models import RolloutFlag
-from apps.rollout.testing import all_live
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.rollout.testing import flags_off
 from apps.security.models import SecurityAlert
 from apps.tickets.models import PiiQuarantine, Ticket
 from apps.tickets.domain.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 PHONE = "0912345678"
-
-
-@pytest.fixture
-def live(settings, db):
-    all_live(settings)
 
 
 class Queued(list[str]):
@@ -165,7 +161,7 @@ def _ask(client: Client, turn: AgentTurn) -> Ticket:
 
 @pytest.mark.django_db
 def test_a_message_whose_masking_failed_reaches_no_model_and_hands_off(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     engine.ner_fails = True
 
@@ -186,7 +182,7 @@ def test_a_message_whose_masking_failed_reaches_no_model_and_hands_off(
 
 @pytest.mark.django_db
 def test_a_message_with_critical_pii_reaches_no_model_and_hands_off(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     turn = _start(api_as(employee_user), "My VPN fails, password: hunter2xyz")
 
@@ -201,7 +197,7 @@ def test_a_message_with_critical_pii_reaches_no_model_and_hands_off(
 
 
 @pytest.mark.django_db
-def test_a_critical_turn_is_never_an_earlier_turn(employee_user, api_as, live, engine, queued):
+def test_a_critical_turn_is_never_an_earlier_turn(employee_user, api_as, engine, queued):
     client = api_as(employee_user)
     critical = _start(client, "I am Nguyen Van A, password: hunter2xyz")
     later = _start(client, "My VPN drops", conversation=str(critical.conversation_id))
@@ -211,7 +207,7 @@ def test_a_critical_turn_is_never_an_earlier_turn(employee_user, api_as, live, e
 
 @pytest.mark.django_db
 def test_a_hand_off_ticket_can_reveal_an_earlier_turn_s_placeholder(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     client = api_as(employee_user)
     first = _start(client, f"Call me on {PHONE}")
@@ -232,7 +228,7 @@ def test_a_hand_off_ticket_can_reveal_an_earlier_turn_s_placeholder(
 
 @pytest.mark.django_db
 def test_a_console_message_with_critical_pii_raises_a_security_alert(
-    technician_user, api_as, live, engine, queued
+    technician_user, api_as, engine, queued
 ):
     turn = _start(api_as(technician_user), "token: abc123secret", surface="console")
 
@@ -245,7 +241,7 @@ def test_a_console_message_with_critical_pii_raises_a_security_alert(
 
 @pytest.mark.django_db
 def test_placeholders_number_on_across_a_conversation_s_turns(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     client = api_as(employee_user)
     first = _start(client, f"Call me on {PHONE}")
@@ -259,9 +255,8 @@ def test_placeholders_number_on_across_a_conversation_s_turns(
 
 
 @pytest.mark.django_db
-def test_the_agent_is_off_while_its_flag_is_off(employee_user, api_as, settings, engine, queued):
-    all_live(settings)
-    RolloutFlag.objects.filter(branch="agent_chat").update(state="off")
+def test_the_agent_is_off_while_its_flag_is_off(employee_user, api_as, engine, queued):
+    flags_off(FlagBranch.AGENT_CHAT)
 
     response = _send(api_as(employee_user), "Hello")
 
@@ -270,15 +265,7 @@ def test_the_agent_is_off_while_its_flag_is_off(employee_user, api_as, settings,
 
 
 @pytest.mark.django_db
-def test_the_agent_is_off_in_shadow_mode(employee_user, api_as, settings, engine, queued):
-    all_live(settings)
-    settings.SHADOW_MODE = True
-
-    assert _send(api_as(employee_user), "Hello").json()["code"] == "agent_off"
-
-
-@pytest.mark.django_db
-def test_the_console_agent_needs_ticket_read(employee_user, api_as, live, engine, queued):
+def test_the_console_agent_needs_ticket_read(employee_user, api_as, engine, queued):
     response = _send(api_as(employee_user), "Hello", surface="console")
 
     assert (response.status_code, response.json()["code"]) == (403, "permission_missing")
@@ -287,7 +274,7 @@ def test_the_console_agent_needs_ticket_read(employee_user, api_as, live, engine
 
 @pytest.mark.django_db
 def test_a_second_message_while_a_turn_is_unfinished_is_refused(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     client = api_as(employee_user)
     first = _start(client)
@@ -298,7 +285,7 @@ def test_a_second_message_while_a_turn_is_unfinished_is_refused(
 
 
 @pytest.mark.django_db
-def test_an_ended_conversation_takes_no_message(employee_user, api_as, live, engine, queued):
+def test_an_ended_conversation_takes_no_message(employee_user, api_as, engine, queued):
     client = api_as(employee_user)
     first = _start(client)
     agent_turns.run(first.id)
@@ -311,7 +298,7 @@ def test_an_ended_conversation_takes_no_message(employee_user, api_as, live, eng
 
 @pytest.mark.django_db
 def test_an_idle_conversation_ends_when_it_is_next_used(
-    employee_user, api_as, live, engine, queued, settings
+    employee_user, api_as, engine, queued, settings
 ):
     client = api_as(employee_user)
     first = _start(client)
@@ -329,7 +316,7 @@ def test_an_idle_conversation_ends_when_it_is_next_used(
 
 @pytest.mark.django_db
 def test_someone_elses_conversation_is_not_found(
-    employee_user, technician_user, api_as, live, engine, queued
+    employee_user, technician_user, api_as, engine, queued
 ):
     theirs = _start(api_as(technician_user))
 
@@ -340,7 +327,7 @@ def test_someone_elses_conversation_is_not_found(
 
 @pytest.mark.django_db
 def test_a_message_is_stored_masked_with_its_quarantine_and_queued(
-    employee_user, api_as, live, engine, queued, django_capture_on_commit_callbacks
+    employee_user, api_as, engine, queued, django_capture_on_commit_callbacks
 ):
     with django_capture_on_commit_callbacks(execute=True):
         turn = _start(api_as(employee_user), f"Call me on {PHONE}, my VPN is down")
@@ -358,7 +345,7 @@ def test_a_message_is_stored_masked_with_its_quarantine_and_queued(
 
 @pytest.mark.django_db
 def test_an_unreachable_ai_engine_hands_off_and_offers_a_chat_ticket(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     engine.reply = httpx.ConnectError("down")
     client = api_as(employee_user)
@@ -374,7 +361,7 @@ def test_an_unreachable_ai_engine_hands_off_and_offers_a_chat_ticket(
 
 
 @pytest.mark.django_db
-def test_a_short_message_s_hand_off_opens_a_ticket(employee_user, api_as, live, engine, queued):
+def test_a_short_message_s_hand_off_opens_a_ticket(employee_user, api_as, engine, queued):
     engine.reply = httpx.ConnectError("down")
     client = api_as(employee_user)
     turn = _start(client, "help")
@@ -387,7 +374,7 @@ def test_a_short_message_s_hand_off_opens_a_ticket(employee_user, api_as, live, 
 
 @pytest.mark.django_db
 def test_a_hand_off_whose_ticket_fails_leaves_the_turn_running(
-    employee_user, api_as, live, engine, monkeypatch, queued
+    employee_user, api_as, engine, monkeypatch, queued
 ):
     def fail(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("db down")
@@ -404,7 +391,7 @@ def test_a_hand_off_whose_ticket_fails_leaves_the_turn_running(
 
 @pytest.mark.django_db
 def test_a_ticket_that_fails_to_open_leaves_the_offer_open(
-    employee_user, api_as, live, engine, queued, monkeypatch
+    employee_user, api_as, engine, queued, monkeypatch
 ):
     engine.reply = httpx.ConnectError("down")
     client = api_as(employee_user)
@@ -425,7 +412,7 @@ def test_a_ticket_that_fails_to_open_leaves_the_offer_open(
 
 
 @pytest.mark.django_db
-def test_a_console_hand_off_opens_no_ticket(technician_user, api_as, live, engine, queued):
+def test_a_console_hand_off_opens_no_ticket(technician_user, api_as, engine, queued):
     engine.reply = _handed_off("tool_failed")
     turn = _start(api_as(technician_user), surface="console")
 
@@ -456,7 +443,7 @@ def test_a_console_hand_off_opens_no_ticket(technician_user, api_as, live, engin
     ],
 )
 def test_each_stop_hands_off_with_its_reason_and_drops_the_models_text(
-    employee_user, api_as, live, engine, queued, stop, reason
+    employee_user, api_as, engine, queued, stop, reason
 ):
     engine.reply = _handed_off(stop)
     client = api_as(employee_user)
@@ -473,7 +460,7 @@ def test_each_stop_hands_off_with_its_reason_and_drops_the_models_text(
 @pytest.mark.django_db
 @pytest.mark.parametrize("stop", ["step_limit", "schema_invalid", "model_unavailable", "injection"])
 def test_a_hand_off_opens_no_ticket_until_its_person_asks(
-    employee_user, api_as, live, engine, queued, stop
+    employee_user, api_as, engine, queued, stop
 ):
     engine.reply = _handed_off(stop)
     client = api_as(employee_user)
@@ -489,7 +476,7 @@ def test_a_hand_off_opens_no_ticket_until_its_person_asks(
 
 
 @pytest.mark.django_db
-def test_asking_twice_opens_one_ticket(employee_user, api_as, live, engine, queued):
+def test_asking_twice_opens_one_ticket(employee_user, api_as, engine, queued):
     engine.reply = _handed_off("tool_failed")
     client = api_as(employee_user)
     turn = _start(client)
@@ -507,7 +494,7 @@ def test_asking_twice_opens_one_ticket(employee_user, api_as, live, engine, queu
 
 @pytest.mark.django_db
 def test_someone_elses_hand_off_ticket_is_not_found(
-    employee_user, manager_user, api_as, live, engine, queued
+    employee_user, manager_user, api_as, engine, queued
 ):
     engine.reply = _handed_off("tool_failed")
     turn = _start(api_as(employee_user))
@@ -522,7 +509,7 @@ def test_someone_elses_hand_off_ticket_is_not_found(
 @pytest.mark.django_db
 @pytest.mark.parametrize("outcome", ["queued", "replied", "token_refused", "conversation_ended"])
 def test_a_turn_that_offers_no_ticket_refuses_to_open_one(
-    employee_user, api_as, live, engine, queued, outcome
+    employee_user, api_as, engine, queued, outcome
 ):
     client = api_as(employee_user)
     turn = _start(client)
@@ -542,7 +529,7 @@ def test_a_turn_that_offers_no_ticket_refuses_to_open_one(
 
 
 @pytest.mark.django_db
-def test_a_console_hand_off_offers_no_ticket(technician_user, api_as, live, engine, queued):
+def test_a_console_hand_off_offers_no_ticket(technician_user, api_as, engine, queued):
     engine.reply = _handed_off("tool_failed")
     client = api_as(technician_user)
     turn = _start(client, surface="console")
@@ -556,7 +543,7 @@ def test_a_console_hand_off_offers_no_ticket(technician_user, api_as, live, engi
 
 @pytest.mark.django_db
 def test_an_injection_hand_off_still_opens_its_ticket_after_the_conversation_ended(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     engine.reply = _handed_off("injection")
     client = api_as(employee_user)
@@ -570,9 +557,7 @@ def test_an_injection_hand_off_still_opens_its_ticket_after_the_conversation_end
 
 
 @pytest.mark.django_db
-def test_a_hand_off_without_a_stop_reason_is_schema_invalid(
-    employee_user, api_as, live, engine, queued
-):
+def test_a_hand_off_without_a_stop_reason_is_schema_invalid(employee_user, api_as, engine, queued):
     engine.reply = _handed_off("step_limit", stop_reason=None)
     turn = _start(api_as(employee_user))
 
@@ -583,9 +568,7 @@ def test_a_hand_off_without_a_stop_reason_is_schema_invalid(
 
 
 @pytest.mark.django_db
-def test_a_refused_token_ends_the_turn_without_a_ticket(
-    employee_user, api_as, live, engine, queued
-):
+def test_a_refused_token_ends_the_turn_without_a_ticket(employee_user, api_as, engine, queued):
     engine.reply = _handed_off("token_refused")
     turn = _start(api_as(employee_user))
 
@@ -597,9 +580,7 @@ def test_a_refused_token_ends_the_turn_without_a_ticket(
 
 
 @pytest.mark.django_db
-def test_a_signed_out_user_s_turn_never_reaches_ai_engine(
-    employee_user, api_as, live, engine, queued
-):
+def test_a_signed_out_user_s_turn_never_reaches_ai_engine(employee_user, api_as, engine, queued):
     turn = _start(api_as(employee_user))
     RefreshSession.objects.filter(user=employee_user).update(revoked_at=timezone.now())
 
@@ -611,9 +592,7 @@ def test_a_signed_out_user_s_turn_never_reaches_ai_engine(
 
 
 @pytest.mark.django_db
-def test_a_queued_turn_is_never_run_after_its_flag_goes_off(
-    employee_user, api_as, live, engine, queued
-):
+def test_a_queued_turn_is_never_run_after_its_flag_goes_off(employee_user, api_as, engine, queued):
     turn = _start(api_as(employee_user))
     RolloutFlag.objects.filter(branch="agent_chat").update(state="off")
 
@@ -626,7 +605,7 @@ def test_a_queued_turn_is_never_run_after_its_flag_goes_off(
 
 @pytest.mark.django_db
 def test_a_turn_queued_in_an_ended_conversation_says_so_and_opens_no_ticket(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     turn = _start(api_as(employee_user))
     agent_turns.end(turn.conversation, AgentConversationEnd.USER)
@@ -639,7 +618,7 @@ def test_a_turn_queued_in_an_ended_conversation_says_so_and_opens_no_ticket(
 
 
 @pytest.mark.django_db
-def test_an_injected_message_ends_the_conversation(employee_user, api_as, live, engine, queued):
+def test_an_injected_message_ends_the_conversation(employee_user, api_as, engine, queued):
     engine.reply = _handed_off("injection")
     turn = _start(api_as(employee_user))
 
@@ -649,9 +628,7 @@ def test_an_injected_message_ends_the_conversation(employee_user, api_as, live, 
 
 
 @pytest.mark.django_db
-def test_a_turn_runs_once_however_often_it_is_delivered(
-    employee_user, api_as, live, engine, queued
-):
+def test_a_turn_runs_once_however_often_it_is_delivered(employee_user, api_as, engine, queued):
     turn = _start(api_as(employee_user))
 
     agent_turns.run(turn.id)
@@ -662,7 +639,7 @@ def test_a_turn_runs_once_however_often_it_is_delivered(
 
 @pytest.mark.django_db
 def test_a_late_answer_for_a_turn_already_handed_off_is_dropped(
-    employee_user, api_as, live, engine, queued, monkeypatch
+    employee_user, api_as, engine, queued, monkeypatch
 ):
     turn = _start(api_as(employee_user))
 
@@ -685,9 +662,7 @@ def test_a_late_answer_for_a_turn_already_handed_off_is_dropped(
 
 
 @pytest.mark.django_db
-def test_a_replied_turn_records_its_steps_receipts_and_usage(
-    employee_user, api_as, live, engine, queued
-):
+def test_a_replied_turn_records_its_steps_receipts_and_usage(employee_user, api_as, engine, queued):
     turn = _start(api_as(employee_user))
     engine.reply = _replied(
         "I opened it.", [_step(1, "GET"), _step(2, "POST"), _step(3, "POST", "refused")]
@@ -713,7 +688,7 @@ def test_a_replied_turn_records_its_steps_receipts_and_usage(
 
 @pytest.mark.django_db
 def test_a_write_whose_outcome_is_unknown_is_never_shown_as_failed(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     turn = _start(api_as(employee_user))
     engine.reply = _replied("Not sure it went through.", [_step(1, "POST", "unknown")])
@@ -736,7 +711,7 @@ def test_the_frontends_may_send_the_agent_action_header(settings):
 
 
 @pytest.mark.django_db
-def test_a_step_cannot_claim_an_action_of_another_turn(employee_user, api_as, live, engine, queued):
+def test_a_step_cannot_claim_an_action_of_another_turn(employee_user, api_as, engine, queued):
     other = _start(api_as(employee_user))
     agent_turns.run(other.id)
     action = AgentAction.objects.create(
@@ -767,7 +742,7 @@ def test_a_step_cannot_claim_an_action_of_another_turn(employee_user, api_as, li
 
 @pytest.mark.django_db
 def test_ai_engine_gets_the_limits_language_and_no_access(
-    employee_user, api_as, live, engine, queued, settings
+    employee_user, api_as, engine, queued, settings
 ):
     employee_user.language = "en"
     employee_user.save(update_fields=["language"])
@@ -801,7 +776,7 @@ def test_ai_engine_gets_the_limits_language_and_no_access(
     ids=["english-message-vi-profile", "vietnamese-message-en-profile", "no-letters"],
 )
 def test_the_reply_language_follows_the_message_whatever_the_profile_says(
-    employee_user, api_as, live, engine, queued, profile, message, language
+    employee_user, api_as, engine, queued, profile, message, language
 ):
     employee_user.language = profile
     employee_user.save(update_fields=["language"])
@@ -822,7 +797,7 @@ def test_the_reply_language_follows_the_message_whatever_the_profile_says(
     ],
 )
 def test_a_handoff_sentence_follows_the_message_language(
-    employee_user, api_as, live, engine, queued, profile, message, language
+    employee_user, api_as, engine, queued, profile, message, language
 ):
     from apps.agent.domain.vocabulary import HANDOFF_TEXT
 
@@ -839,7 +814,7 @@ def test_a_handoff_sentence_follows_the_message_language(
 
 @pytest.mark.django_db
 def test_a_mask_failed_turn_hands_off_in_the_message_language(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     from apps.agent.domain.vocabulary import HANDOFF_TEXT
 
@@ -864,7 +839,7 @@ def test_a_decomposed_vietnamese_message_is_vietnamese():
 
 @pytest.mark.django_db
 def test_earlier_turns_are_capped_oldest_first_and_never_unmasked(
-    employee_user, api_as, live, engine, queued, settings
+    employee_user, api_as, engine, queued, settings
 ):
     settings.THRESHOLDS.agent.max_earlier_turns = 2
     client = api_as(employee_user)
@@ -887,7 +862,7 @@ def test_earlier_turns_are_capped_oldest_first_and_never_unmasked(
 
 @pytest.mark.django_db
 def test_a_hand_off_ticket_carries_the_turns_quarantine_entries(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     engine.reply = _handed_off("step_limit")
     client = api_as(employee_user)
@@ -906,7 +881,7 @@ def test_a_hand_off_ticket_carries_the_turns_quarantine_entries(
 
 
 @pytest.mark.django_db
-def test_a_hand_off_ticket_is_audited_as_the_agent_s(employee_user, api_as, live, engine, queued):
+def test_a_hand_off_ticket_is_audited_as_the_agent_s(employee_user, api_as, engine, queued):
     engine.reply = _handed_off("tool_failed")
     client = api_as(employee_user)
     turn = _start(client)
@@ -975,7 +950,7 @@ def _turn_of(token: str) -> str:
 
 
 @pytest.mark.django_db
-def test_a_turn_s_writes_beyond_the_cap_are_refused(employee_user, settings, live, engine, queued):
+def test_a_turn_s_writes_beyond_the_cap_are_refused(employee_user, settings, engine, queued):
     settings.THRESHOLDS.agent.max_tool_calls_per_turn = 1
     token = agent_token_for(employee_user)
     client = api_client_with(token)
@@ -1000,7 +975,7 @@ def test_a_turn_s_writes_beyond_the_cap_are_refused(employee_user, settings, liv
 
 @pytest.mark.django_db
 def test_the_sweep_hands_off_turns_stuck_running_or_queued(
-    employee_user, api_as, live, engine, queued, settings
+    employee_user, api_as, engine, queued, settings
 ):
     client = api_as(employee_user)
     stale = timezone.now() - timedelta(seconds=settings.THRESHOLDS.agent.token_ttl_seconds + 1)
@@ -1020,7 +995,7 @@ def test_the_sweep_hands_off_turns_stuck_running_or_queued(
 
 @pytest.mark.django_db
 def test_the_sweep_expires_actions_and_ends_idle_conversations(
-    employee_user, api_as, live, engine, queued, settings
+    employee_user, api_as, engine, queued, settings
 ):
     turn = _start(api_as(employee_user))
     agent_turns.run(turn.id)
@@ -1049,7 +1024,7 @@ def test_the_sweep_expires_actions_and_ends_idle_conversations(
 
 @pytest.mark.django_db
 def test_the_sweep_does_not_end_a_conversation_that_has_a_turn_in_flight(
-    employee_user, api_as, live, engine, queued, settings
+    employee_user, api_as, engine, queued, settings
 ):
     turn = _start(api_as(employee_user))
     idle = settings.THRESHOLDS.agent.conversation_idle_minutes
@@ -1062,7 +1037,7 @@ def test_the_sweep_does_not_end_a_conversation_that_has_a_turn_in_flight(
 
 @pytest.mark.django_db
 def test_the_sweep_does_not_end_a_conversation_used_since_it_was_listed(
-    employee_user, api_as, live, engine, queued, settings
+    employee_user, api_as, engine, queued, settings
 ):
     turn = _start(api_as(employee_user))
     agent_turns.run(turn.id)
@@ -1074,7 +1049,7 @@ def test_the_sweep_does_not_end_a_conversation_used_since_it_was_listed(
 
 @pytest.mark.django_db
 def test_the_sweep_hands_off_a_stuck_unread_turn_with_its_own_reason(
-    employee_user, api_as, live, engine, queued, settings
+    employee_user, api_as, engine, queued, settings
 ):
     turn = _start(api_as(employee_user))
     stale = timezone.now() - timedelta(seconds=settings.THRESHOLDS.agent.token_ttl_seconds + 1)
@@ -1092,9 +1067,7 @@ def test_the_sweep_hands_off_a_stuck_unread_turn_with_its_own_reason(
 
 
 @pytest.mark.django_db
-def test_someone_else_s_turn_is_not_found(
-    employee_user, technician_user, api_as, live, engine, queued
-):
+def test_someone_else_s_turn_is_not_found(employee_user, technician_user, api_as, engine, queued):
     theirs = _start(api_as(technician_user))
 
     assert api_as(employee_user).get(f"/api/agent/turns/{theirs.id}").status_code == 404
@@ -1102,7 +1075,7 @@ def test_someone_else_s_turn_is_not_found(
 
 @pytest.mark.django_db
 def test_a_turn_reads_back_with_its_reply_and_hand_off_ticket(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     engine.reply = _handed_off("budget")
     client = api_as(employee_user)
@@ -1123,7 +1096,7 @@ def test_a_turn_reads_back_with_its_reply_and_hand_off_ticket(
 
 
 @pytest.mark.django_db
-def test_an_action_is_dismissed_once(employee_user, technician_user, api_as, live, engine, queued):
+def test_an_action_is_dismissed_once(employee_user, technician_user, api_as, engine, queued):
     turn = _start(api_as(employee_user))
     action = AgentAction.objects.create(
         kind="confirm",
@@ -1154,7 +1127,7 @@ def test_an_action_is_dismissed_once(employee_user, technician_user, api_as, liv
 
 @pytest.mark.django_db
 def test_a_ticket_the_agent_asks_for_carries_the_turns_quarantine_entries(
-    employee_user, api_as, live, engine, queued
+    employee_user, api_as, engine, queued
 ):
     turn = _start(api_as(employee_user), f"Call me on {PHONE}, my VPN is down")
     AgentTurn.objects.filter(id=turn.id).update(state="running")
@@ -1180,7 +1153,7 @@ def test_a_ticket_the_agent_asks_for_carries_the_turns_quarantine_entries(
 
 @pytest.mark.django_db
 def test_the_history_lists_only_the_users_own_conversations_newest_first(
-    employee_user, technician_user, api_as, live, engine, queued
+    employee_user, technician_user, api_as, engine, queued
 ):
     older = _start(api_as(employee_user), "First question about the VPN")
     newer = _start(api_as(employee_user), "Second question about backups")
@@ -1200,9 +1173,7 @@ def test_the_history_lists_only_the_users_own_conversations_newest_first(
 
 
 @pytest.mark.django_db
-def test_the_history_is_capped_at_the_threshold(
-    employee_user, api_as, live, engine, queued, settings
-):
+def test_the_history_is_capped_at_the_threshold(employee_user, api_as, engine, queued, settings):
     limit = settings.THRESHOLDS.agent.history_limit
     for _ in range(limit + 2):
         AgentConversation.objects.create(user=employee_user, surface="chat")
@@ -1211,7 +1182,7 @@ def test_the_history_is_capped_at_the_threshold(
 
 
 @pytest.mark.django_db
-def test_an_ask_helpdesk_receipt_carries_the_chat_turn(employee_user, api_as, live, engine, queued):
+def test_an_ask_helpdesk_receipt_carries_the_chat_turn(employee_user, api_as, engine, queued):
     turn = _start(api_as(employee_user))
     engine.reply = _replied(
         "Here you go.",

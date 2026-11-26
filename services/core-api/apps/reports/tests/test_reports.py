@@ -26,6 +26,7 @@ from apps.reports.models import FactState, TicketFacts
 from apps.reports.services.facts import report_facts
 from apps.reports.services.weekly import weekly_report
 from apps.review.models import ReviewDecision, ReviewItem
+from apps.rollout.domain.vocabulary import BRANCH_FLAG
 from apps.rollout.services.gates import rollout_metrics
 from apps.security.models import SecurityAlert
 from apps.sla.models import Calendar, Clock, Policy
@@ -89,6 +90,8 @@ def facts(t: Ticket, **fields: Any) -> TicketFacts:
 
 
 def decision(t: Ticket, branch: str, *, shadow: bool = True) -> tuple[AiRun, RoutingDecision]:
+    """A decision on `t`; `shadow` turns its branch's flag off in its snapshot."""
+    flag = BRANCH_FLAG.get(branch)
     run = AiRun.objects.create(
         ticket=t,
         idempotency_key=f"{t.id}:{next(_numbers)}",
@@ -104,7 +107,7 @@ def decision(t: Ticket, branch: str, *, shadow: bool = True) -> tuple[AiRun, Rou
         reason_code="all_checks_passed",
         reason_detail="",
         thresholds_used={},
-        shadow_mode=shadow,
+        rollout_snapshot={flag.value: "off" if shadow else "on"} if flag else {},
     )
     return run, routed
 
@@ -528,15 +531,18 @@ def test_low_rated_comments_are_masked_text(api_as, staff):
 def test_automation_rate_split_live_vs_shadow(api_as, staff):
     t = ticket(staff["lan"])
     for n in range(100):
-        decision(t, "auto_route" if n < 40 else "hitl", shadow=True)
+        decision(t, "auto_route" if n < 40 else "hitl", shadow=n >= 10)
 
     business = api_as(staff["huy"]).get("/api/metrics/dashboard").json()["business"]
-    rollout = api_as(staff["huy"]).get("/api/reports/rollout").json()["automation"]
+    rollout = api_as(staff["huy"]).get("/api/reports/rollout").json()
 
-    assert business["automation_rate_live"] == 0.0
+    assert business["automation_rate_live"] == 0.1
     assert business["automation_rate_would_have"] == 0.4
     assert business["automation_rate"] == 0.4
-    assert (rollout["live_rate"], rollout["would_have_rate"]) == (0.0, 0.4)
+    automation = rollout["automation"]
+    assert (automation["live_rate"], automation["would_have_rate"]) == (0.1, 0.4)
+    auto_route = next(b for b in rollout["branches"] if b["decision_branch"] == "auto_route")
+    assert auto_route["shadow_decisions"] == 30
 
 
 def test_ac_f10_10_shadow_agreement_uses_the_gate_query(api_as, staff):
@@ -652,6 +658,17 @@ def test_a_second_build_only_touches_changed_tickets(staff):
     assert report_facts.changed_since(TicketFacts.objects.get(ticket=quiet).built_at) == [rated.id]
     report_facts.build()
     assert TicketFacts.objects.get(ticket=rated).csat_score == 2
+
+
+def test_the_latest_held_back_branch_is_recorded_and_hitl_never_is(staff):
+    t = ticket(staff["lan"])
+    decision(t, "auto_route")
+    decision(t, "hitl")
+
+    report_facts.build()
+
+    row = TicketFacts.objects.get(ticket=t)
+    assert (row.shadow_branch, row.auto_replied) == ("auto_route", False)
 
 
 def test_a_live_auto_reply_and_an_active_link_are_recorded(staff):

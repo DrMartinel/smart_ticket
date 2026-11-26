@@ -151,6 +151,8 @@ DATABASES = {"default": _parse_database_url(_db_url)}
 # Every model of ours declares a UUID primary key instead (ADR-0011), and
 # apps/dbextras/tests/test_primary_keys.py fails if one forgets.
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+# Apps whose rows a serialized-rollback test does not restore: audit_log is append-only.
+TEST_NON_SERIALIZED_APPS = ["apps.audit"]
 
 # ── Celery ───────────────────────────────────────────────────────────────
 CELERY_BROKER_URL = env("CELERY_BROKER_URL")
@@ -297,7 +299,6 @@ KIBANA_URL = env("KIBANA_URL")
 PROMETHEUS_UI_URL = env("PROMETHEUS_UI_URL")
 
 # ── Smart Triage domain settings ────────────────────────────────────────
-SHADOW_MODE = env_bool("SHADOW_MODE")
 # ai-engine is the only vLLM client (ADR-0012): core-api's embeddings and PII
 # NER go through AI_ENGINE_URL, so core-api has no model URL, model name or
 # embedding provider.

@@ -293,7 +293,7 @@ No new Celery task (assignment is synchronous). No webhook event beyond F4's.
 ## i. Impact
 
 - **Changes:** `pipeline._execute_or_enqueue` (live `auto_route`) calls the assignment service instead of copying the category; the review-decision endpoint assigns; `release_to_support` assigns; lifecycle `assign_team` validates slugs; `tickets.team` added.
-- **Must not change:** branch choice, routing-decision rows, shadow mode (in shadow mode nothing is auto-routed, so only review decisions assign); duplicate inheritance when the original assignee is eligible; the reserved pipeline statuses.
+- **Must not change:** branch choice, routing-decision rows, shadow mode (while the `auto_route` flag is off nothing is auto-routed, so only review decisions assign; ADR-0051); duplicate inheritance when the original assignee is eligible; the reserved pipeline statuses.
 - **ADRs:** 0001 (BR-F2-02, 06), 0028 §2 (assignment is not an action on a pipeline status, because pipeline statuses carry no actions), proposed 0031.
 - **Regression tests:** `test_assignment_never_changes_routing_decision`; `test_auto_route_assigns_team_from_router_category`; `test_review_reroute_sets_category_and_eval_candidate`; `test_no_eligible_member_leaves_unassigned_and_notifies_lead`; `test_concurrent_assignments_balance` (two workers, one lock); existing `pipeline` tests updated from `assigned_team == category` to `team.slug == category`.
 
@@ -310,7 +310,7 @@ Code wins (README §0.4 item 5). Each change and its reason:
 3. **Duplicates inherit at handoff, not before routing** (owner's decision).
    The pipeline no longer copies the original's assignee; the assignment
    service gives a duplicate to the original's assignee when they are eligible
-   in the team. In shadow mode a duplicate waits for review like any ticket.
+   in the team. While its branch is held back a duplicate waits for review like any ticket.
 4. **The old `POST /api/lifecycle/tickets/{id}/assign` is retired** (owner's
    decision): every manual change goes through Take or Reassign with a reason
    (BR-F2-05). The `assign_user` action stays.
@@ -361,7 +361,7 @@ Feature: F2 Teams and assignment
 
   @BR-F2-02 @BR-F2-03
   Scenario: AC-F2-01 live auto-route assigns the least-loaded eligible member
-    Given SHADOW_MODE is false
+    Given the auto_route flag is on (the default since ADR-0051)
     When the router decides auto_route with category "network" for "TKT-2026-000415"
     Then the ticket's team is "network" and assigned_to is "khoa.lv"
     And the routing_decisions row is unchanged by assignment

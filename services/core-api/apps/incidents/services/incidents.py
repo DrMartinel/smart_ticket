@@ -729,9 +729,9 @@ class Incidents:
 
     # ── a ticket joining a confirmed incident (BR-F7-04) ──
 
-    def attach(self, ticket: Ticket, *, live: bool) -> bool:
-        """A ticket the router escalated into a confirmed incident: its resolution clock waits;
-        live, it needs no review item and its requester gets the latest broadcast at once."""
+    def attach(self, ticket: Ticket) -> bool:
+        """A ticket the router escalated into a confirmed incident: its resolution clock waits,
+        it needs no review item, and its requester gets the latest broadcast at once (ADR-0051)."""
         from apps.sla.services.clocks import sla_clocks
         from apps.tickets.services.comments import comments
 
@@ -739,8 +739,6 @@ class Incidents:
         if incident is None or incident.status != IncidentStatus.CONFIRMED.value:
             return False
         sla_clocks.incident_hold(ticket, True)
-        if not live:
-            return False
         latest = incident.broadcasts.first()
         if latest is not None:
             comments.system(ticket, latest.body_vi_masked, latest)

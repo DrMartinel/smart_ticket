@@ -28,7 +28,11 @@ class RoutingDecisionOut(Schema):
     reason_code: str
     reason_detail: str
     gate_failed: str | None
-    shadow_mode: bool
+    held_back: bool
+
+    @staticmethod
+    def resolve_held_back(decision: RoutingDecision) -> bool:
+        return decision.was_held_back()
 
 
 class ReviewCommentOut(Schema):

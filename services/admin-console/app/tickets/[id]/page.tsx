@@ -254,11 +254,13 @@ export default function TicketPage() {
                   </p>
                 )}
                 {latest && (
-                  <Decision label={latest.shadow_mode && latest.branch !== "hitl" ? "Routing decision · shadow mode" : "Routing decision"}>
+                  <Decision label={latest.held_back ? "Routing decision · shadow" : "Routing decision"}>
                     <p className="text-[15px] font-medium">{BRANCH_LABEL[latest.branch] ?? humanize(latest.branch)}</p>
                     <p className="mt-0.5 text-muted-foreground">{reasonText(latest.reason_code)}</p>
-                    {latest.shadow_mode && latest.branch !== "hitl" && (
-                      <p className="mt-1 text-xs text-muted-foreground">Shadow mode: this was recorded only; a person handles the ticket.</p>
+                    {latest.held_back && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Shadow: this was recorded only, because the branch&apos;s rollout flag was off; a person handles the ticket.
+                      </p>
                     )}
                   </Decision>
                 )}

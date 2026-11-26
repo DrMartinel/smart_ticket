@@ -32,7 +32,7 @@ class AuditLogManager(models.Manager["AuditLog"]):
         """The one way anything in core-api writes an audit trail entry.
 
         Every span/log field the spec asks for (§11.2) — ticket_public_id,
-        prompt_version, graph_version, thresholds_version, shadow_mode —
+        prompt_version, graph_version, thresholds_version —
         should be present in `payload` for AI-related events.
         """
         return self.create(

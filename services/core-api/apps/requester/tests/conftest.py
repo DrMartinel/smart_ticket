@@ -136,7 +136,7 @@ def auto_replied(reporter: User, clock: Clock, days_ago: int) -> Ticket:  # noqa
         reason_code="auto_reply_ok",
         reason_detail="",
         thresholds_used={},
-        shadow_mode=False,
+        rollout_snapshot={"auto_reply": "on"},
     )
     lifecycle.system_move(ticket, PipelineStatus.AUTO_REPLIED)
     clock.now = now

@@ -12,14 +12,10 @@ from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.rollout.models import RolloutGate
-from apps.rollout.domain.vocabulary import ENTERED_METRICS, FlagBranch, GateMetric
+from apps.rollout.domain.vocabulary import BRANCH_FLAG, ENTERED_METRICS, FlagBranch, GateMetric
 
 # The routing branch whose shadow decisions each flag's agreement reads.
-AGREEMENT_BRANCH = {
-    FlagBranch.AUTO_ROUTE: "auto_route",
-    FlagBranch.AUTO_REPLY: "auto_reply",
-    FlagBranch.REQUESTER_QUESTIONS: "clarify",
-}
+AGREEMENT_BRANCH = {flag: branch for branch, flag in BRANCH_FLAG.items()}
 
 
 @dataclass(frozen=True)
@@ -64,12 +60,14 @@ class RolloutMetrics:
         """Shadow decisions of `branch` in the window whose ticket a reviewer decided: agreed =
         approved, and for `auto_route` with the category not corrected (BR-F10-10)."""
         from apps.review.models import ReviewDecision
+        from apps.tickets.models import RoutingDecision
 
         since = timezone.now() - timedelta(days=days)
         decisions = ReviewDecision.objects.filter(
             decided_at__gte=since,
-            review_item__ai_run__routing_decisions__branch=branch,
-            review_item__ai_run__routing_decisions__shadow_mode=True,
+            review_item__ai_run__routing_decisions__in=RoutingDecision.objects.filter(
+                branch=branch
+            ).held_back(),
         ).distinct()
         approved = Q(action_taken="approve")
         if branch == "auto_route":

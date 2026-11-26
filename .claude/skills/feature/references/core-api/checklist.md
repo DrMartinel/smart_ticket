@@ -19,7 +19,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [regression] `llm_self_confidence` enters no score and no route (ADR-0003).
 - [regression] A `RunbookProposal` still always reaches a person (ADR-0006). Nothing goes around `runbooks.execute` / `runbooks.run`.
 - [regression] Auto-reply authority comes only from a page's grant (`KbArticle.is_authorized()`), never from model output or a prompt.
-- [regression] Going live still needs both `SHADOW_MODE` off and the branch's rollout flag (`Rollout.is_live`, ADR-0035).
+- [regression] Going live still needs the branch's rollout flag (`Rollout.is_live`, ADR-0051), and whether a decision was held back is read with `was_held_back()` / `objects.held_back()`, never stored again.
 - [regression] Raw PII is read only through `PiiReveal.reveal()`; no new `crypto.decrypt()` caller. Text a person writes is masked on the way in (`comments.add`, the masking path), never stored raw.
 - [regression] Nothing from `load-bearing.md` was simplified away.
 
@@ -62,7 +62,7 @@ removable but aren't are listed in `.claude/skills/refactor/references/load-bear
 - [regression] Each new failure path has a test that reaches HITL with the right `reason_code`, or the refusal with the right code.
 - [regression] `masking.py` and `router.py` stay at 100% branch coverage (`make coverage`).
 - [convention] Tests are named for the failure mode they prevent and pin the invariant, not the implementation; they sign in with `api_as`.
-- [convention] Live-only behaviour uses `apps.rollout.testing.all_live(settings)`.
+- [convention] Every flag starts on in tests (ADR-0051); held-back behaviour turns the branch's flag off with `apps.rollout.testing.flags_off(...)`.
 
 ## Docs
 

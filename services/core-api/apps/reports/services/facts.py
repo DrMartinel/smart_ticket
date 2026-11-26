@@ -133,7 +133,7 @@ class ReportFacts:
         )
         reassignments = list(ticket.reassignments.values_list("from_team_id", "to_team_id"))
         rating = ticket.ratings.order_by("-resolution_seq").first()
-        shadow = ticket.routing_decisions.filter(shadow_mode=True).order_by("-decided_at").first()
+        shadow = ticket.routing_decisions.held_back().order_by("-decided_at").first()
         decision = (
             ReviewDecision.objects.filter(review_item__ticket=ticket)
             .order_by("-decided_at")
@@ -160,9 +160,9 @@ class ReportFacts:
             "resolution_warned_in_time": warned_in_time(resolution),
             "reassign_count": len(reassignments),
             "cross_team_reassign_count": sum(1 for a, b in reassignments if a != b),
-            "auto_replied": ticket.routing_decisions.filter(
-                branch="auto_reply", shadow_mode=False
-            ).exists(),
+            "auto_replied": ticket.routing_decisions.filter(branch="auto_reply")
+            .carried_out()
+            .exists(),
             "reopened": ticket.reopened_count > 0,
             "linked_incident": ticket.incident_links.filter(unlinked_at__isnull=True).exists(),
             "csat_score": rating.score if rating else None,

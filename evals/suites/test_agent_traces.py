@@ -32,7 +32,6 @@ from apps.audit.models import AuditLog
 from apps.incidents.services.incidents import incidents
 from apps.itsm_mock.models import RunbookExecution
 from apps.review.models import ReviewDecision
-from apps.rollout.testing import all_live
 from apps.tickets import tasks as ticket_tasks
 from apps.tickets.models import IncidentVerdict, Ticket
 from apps.tickets.testing import nothing_found
@@ -209,8 +208,7 @@ def reply(text: str) -> dict[str, Any]:
 
 
 @pytest.fixture
-def stack(settings, monkeypatch, db, django_capture_on_commit_callbacks) -> Iterator[Stack]:
-    all_live(settings)
+def stack(monkeypatch, db, django_capture_on_commit_callbacks) -> Iterator[Stack]:
     built = Stack(monkeypatch, django_capture_on_commit_callbacks)
     built.install()
     yield built

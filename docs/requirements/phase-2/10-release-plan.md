@@ -7,12 +7,16 @@ The short version: **waves 0–3 ship while `SHADOW_MODE=true`** and change
 nothing the router decides. **No branch goes live before F9 exists**, and each
 branch goes live only through F9's two-manager flag with its gate met.
 
+*Amended by [ADR-0051](../../adr/0051-a-flag-alone-makes-a-branch-live.md)
+(2026-11-27): `SHADOW_MODE` is gone and every flag starts on, so the
+shadow-first order above no longer holds while the system is in R&D.*
+
 ## 10.1 Rules for every release
 
 | # | Rule | Source |
 |---|---|---|
-| RL-01 | `SHADOW_MODE=true` stays the production value until P3. Phase 2 features never change a routing decision (BR-X-07) | CLAUDE.md "Current state", BR-X-07 |
-| RL-02 | Migrations are additive in the release that needs them (new tables, nullable columns with defaults). Destructive steps (`NOT NULL`, enum narrowing, removing `RUNBOOK_REGISTRY`, dropping old fields) ship in a later release, after one stable week | Rollback by redeploy must keep working |
+| RL-01 | ~~`SHADOW_MODE=true` stays the production value until P3.~~ Superseded by ADR-0051: every flag starts on. Phase 2 features never change a routing decision (BR-X-07) | CLAUDE.md "Current state", BR-X-07 |
+| RL-02 | Migrations are additive in the release that needs them (new tables, nullable columns with defaults). Destructive steps (`NOT NULL`, enum narrowing, removing `RUNBOOK_REGISTRY`, dropping old fields) ship in a later release, after one stable week. ADR-0051 drops `routing_decisions.shadow_mode` in the release that stops writing it, since no production database exists | Rollback by redeploy must keep working |
 | RL-03 | Before each release: `make check` in core-api, `uv run pytest`, `uv run mypy`, masking + router coverage at 100 % (`make coverage`), TS types regenerated (`make types`) | CLAUDE.md "Before opening a PR" |
 | RL-04 | A release that bumps a prompt or touches `graph/nodes/retrieve/`, `candidate_pool/`, `rerank/` runs the full eval suite; no floor is lowered (rule 9). The run goes in `evals/HISTORY.md` | CLAUDE.md rules 8, 9 |
 | RL-05 | New settings land in the settings code, `.env.example` and `docker-compose.yml` in the same PR; ops diff their `.env` against `.env.example` before deploy | CLAUDE.md "Commands" |

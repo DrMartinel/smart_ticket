@@ -93,7 +93,6 @@ class FlagOut(Schema):
 
 
 class RolloutOut(Schema):
-    env_shadow: bool
     thresholds: str
     flags: list[FlagOut]
     gates: list[GateOut]

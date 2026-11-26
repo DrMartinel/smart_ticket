@@ -56,7 +56,7 @@ This is the expected P1 state, not a defect — but it is the single thing stand
 
 ### Work
 
-Shadow mode is already collecting the needed data. Once there are **≥500** `(signals, human verdict)` pairs:
+Since ADR-0051 every branch is live by default, so pairs come only from tickets the router sends to a person and from branches whose flag someone turned off. Once there are **≥500** `(signals, human verdict)` pairs:
 
 ```bash
 uv run python evals/calibration/fit_trust_score.py
@@ -103,7 +103,7 @@ that `t_route < t_auto` already compensates for some of the gap by design.
 
 Auto-reply precision ≥ 0.95 on holdout, and `thresholds.yaml` no longer carries 🔧 markers on `t_auto` / `t_route`.
 
-> Do not enable P3/P4 before this. Thresholds chosen by intuition are exactly what shadow mode exists to replace.
+> ADR-0051 turned P3/P4 on by default before this, a guardrail the owner relaxed for the R&D stage (item 28). Thresholds chosen by intuition are exactly what this calibration exists to replace.
 
 ---
 
@@ -164,7 +164,7 @@ unmeasured.
 
 ### Done when
 
-A trace ID from `audit_log` resolves to a complete LLM trace in the chosen backend, with the §11.2 span attributes attached: `ticket_public_id`, `prompt_version`, `graph_version`, `thresholds_version`, `shadow_mode`.
+A trace ID from `audit_log` resolves to a complete LLM trace in the chosen backend, with the §11.2 span attributes attached: `ticket_public_id`, `prompt_version`, `graph_version`, `thresholds_version`. (§11.2 also names `shadow_mode`; ADR-0051 dropped it, and the decision row's `rollout_snapshot` holds the flags.)
 
 ---
 
@@ -627,7 +627,7 @@ each file is clean.
 
 ## 23. Agent (F15) follow-ups
 
-**Priority:** High before the `agent_chat` or `agent_console` flag goes on · **Spec:** [06-F15-agent.md](requirements/phase-2/06-F15-agent.md) · ADR-0046
+**Priority:** High: both agent flags are on by default since ADR-0051 · **Spec:** [06-F15-agent.md](requirements/phase-2/06-F15-agent.md) · ADR-0046
 
 - **No eval has run on `agent.v1` or `agent.v2`** (v2 adds rule 7: IT
   questions go to `ask_helpdesk` first, and rule 8: an answered helpdesk
@@ -724,8 +724,9 @@ each file is clean.
   follow the APM Server's usual OpenTelemetry mapping and are not yet checked
   against a running stack. Next: PR 4, raw PromQL (§n).
 - **Built ahead of F15's evals by the owner's choice.** F17 adds write tools
-  to an agent whose prompt has never run against a model; both agent flags
-  stay off until item 23 and F17's trace cases are done.
+  to an agent whose prompt has never run against a model, and ADR-0051 turns
+  both agent flags on by default before item 23 and F17's trace cases are
+  done.
 - **Elasticsearch scope rests on core-api alone** (no paid licence for
   document-level security): raw DSL stays out, and the builder's project
   filter is pinned by a mutation-checked test.
@@ -770,3 +771,28 @@ A category added as a row (with a description that passed review and an owning t
 ### Done when
 
 The chat shows three outcomes, the agent asks for missing context and asks the helpdesk again, no `clarify` decision is recorded, auto-reply precision holds its floor, and an n8n flow that changes a system can't start from an automatic branch.
+
+## 28. Live by default: revisit before a production database exists (ADR-0051)
+
+**Priority:** High before any production database · **ADR:** [0051](adr/0051-a-flag-alone-makes-a-branch-live.md) (Accepted)
+
+### Work
+
+1. **A guard outside the database.** `SHADOW_MODE` is gone, so nothing
+   holds a branch back without writing the flags table, and a database
+   copied between environments keeps its flags. The owner chose no guard for
+   the R&D stage (first round, answer 4).
+2. **The daily gate notices.** `rollout.sweep` tells managers once a day
+   about a live branch whose computed gate isn't met. With every flag on,
+   nothing is held back, so the shadow-agreement gates (reroute rate,
+   clarify agreement) have no data and read as not met: managers get a
+   notice for `auto_route` and `requester_questions` every day, and for
+   `auto_reply` while fewer than three low-risk pages are approved. Decide
+   whether a gate with no data is reported.
+3. **Calibration pairs** (item 2): a live auto-route or auto-reply reaches
+   no reviewer, so its ticket gets no verdict.
+
+### Done when
+
+The owner has decided each of the three, and the decisions are recorded in
+an ADR that amends or supersedes 0051.

@@ -23,9 +23,7 @@ def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
 
 class RolloutFlag(BaseModel):
     branch = models.CharField(max_length=30, choices=_choices(FlagBranch), unique=True)
-    state = models.CharField(
-        max_length=12, choices=_choices(FlagState), default=FlagState.OFF.value
-    )
+    state = models.CharField(max_length=12, choices=_choices(FlagState), default=FlagState.ON.value)
     changed_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
     )

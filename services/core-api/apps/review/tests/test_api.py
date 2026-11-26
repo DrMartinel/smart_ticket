@@ -99,7 +99,7 @@ def test_an_item_with_an_ai_run(employee_user, technician_user, api_as):
         isinstance(v, float) for v in body["trust_contributions"].values()
     )
     [decision] = body["routing_decisions"]
-    assert set(decision) == {"branch", "reason_code", "reason_detail", "gate_failed", "shadow_mode"}
+    assert set(decision) == {"branch", "reason_code", "reason_detail", "gate_failed", "held_back"}
 
 
 @pytest.mark.django_db

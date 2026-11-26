@@ -370,7 +370,7 @@ export interface RoutingOut {
   branch: string;
   reason_code: string;
   reason_detail: string;
-  shadow_mode: boolean;
+  held_back: boolean;
   decided_at: string;
 }
 
@@ -1156,7 +1156,6 @@ export interface FlagOut {
 }
 
 export interface RolloutOut {
-  env_shadow: boolean;
   thresholds: string;
   flags: FlagOut[];
   gates: GateOut[];

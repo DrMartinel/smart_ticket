@@ -8,7 +8,8 @@ import pytest
 from django.db import IntegrityError, transaction
 
 from apps.incidents.services.incidents import incidents
-from apps.rollout.testing import all_live
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.rollout.testing import flags_off
 from apps.tickets.models import IncidentVerdict, Ticket, TicketSource
 from apps.tickets.tests.test_clarification import _clarify_response
 from apps.tickets.domain.patterns import PIILevel
@@ -40,9 +41,9 @@ def _handed_off(reporter, reason: str | None = "agent_step_limit") -> Ticket:
 
 @pytest.mark.django_db
 def test_a_handed_off_ticket_reaches_a_person_with_the_agents_reason(
-    employee_user, engine_proposes_a_question, settings
+    employee_user, engine_proposes_a_question
 ):
-    settings.SHADOW_MODE = True
+    flags_off(*FlagBranch)
     ticket = _handed_off(employee_user)
 
     ticket_process(str(ticket.id))
@@ -55,10 +56,9 @@ def test_a_handed_off_ticket_reaches_a_person_with_the_agents_reason(
 
 @pytest.mark.django_db
 def test_a_live_handoff_ticket_is_never_held_for_the_employee(
-    employee_user, engine_proposes_a_question, settings
+    employee_user, engine_proposes_a_question
 ):
     """Checks that a live hand-off ticket goes to support without waiting for the employee."""
-    all_live(settings)
     ticket = _handed_off(employee_user, "agent_tool_failed")
 
     ticket_process(str(ticket.id))
@@ -81,11 +81,8 @@ def test_an_agent_handoff_ticket_never_waits_whatever_its_decision(reason):
 
 
 @pytest.mark.django_db
-def test_an_agent_mask_failed_handoff_never_waits(
-    employee_user, engine_proposes_a_question, settings
-):
+def test_an_agent_mask_failed_handoff_never_waits(employee_user, engine_proposes_a_question):
     """§h.4: it goes to support without waiting for the employee."""
-    all_live(settings)
     ticket = _handed_off(employee_user, "agent_mask_failed")
 
     ticket_process(str(ticket.id))
@@ -97,9 +94,8 @@ def test_an_agent_mask_failed_handoff_never_waits(
 
 @pytest.mark.django_db
 def test_a_mask_failed_ticket_wins_over_its_agent_handoff_reason(
-    employee_user, engine_proposes_a_question, settings
+    employee_user, engine_proposes_a_question
 ):
-    all_live(settings)
     ticket = _handed_off(employee_user, "agent_mask_failed")
     Ticket.objects.filter(id=ticket.id).update(pii_level=PIILevel.MASK_FAILED.value)
 
