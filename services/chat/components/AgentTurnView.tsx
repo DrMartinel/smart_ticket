@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import type { AgentActionOut, AgentReceiptOut, ChatTurnOut } from "@/lib/types/generated";
+import type {
+  AgentActionOut,
+  AgentChoiceOut,
+  AgentNeedsStaffOut,
+  AgentReceiptOut,
+  ChatTurnOut,
+} from "@/lib/types/generated";
 import type { ActionResult, AgentRow } from "@/lib/agent";
 import AnswerText from "./AnswerText";
 import HelpdeskCard from "./HelpdeskCard";
@@ -115,6 +121,9 @@ export default function AgentTurnView({
         ) : (
           <div className="flex flex-col gap-3">
             <AnswerText text={t.reply} />
+            {t.state === "replied" && (t.choices ?? []).length > 0 && (
+              <ChoiceCard choices={t.choices ?? []} onPick={onAsk} />
+            )}
             {helpdesk.map((id) => (
               <HelpdeskCard key={id} publicId={id} onAnswer={onAsk} />
             ))}
@@ -145,14 +154,24 @@ export default function AgentTurnView({
                 )}
               </p>
             ))}
-            {t.state === "handed_off" && t.ticket_offered && !t.handoff_ticket && (
+            {t.state === "handed_off" && t.needs_staff && (
+              <NeedsStaff
+                parts={t.needs_staff}
+                offered={t.ticket_offered ?? false}
+                ticket={t.handoff_ticket}
+                busy={creating === t.turn_id}
+                error={createError[t.turn_id]}
+                onOpen={() => onOpenTicket(t.turn_id)}
+              />
+            )}
+            {t.state === "handed_off" && !t.needs_staff && t.ticket_offered && !t.handoff_ticket && (
               <TicketOffer
                 busy={creating === t.turn_id}
                 error={createError[t.turn_id]}
                 onOpen={() => onOpenTicket(t.turn_id)}
               />
             )}
-            {t.state === "handed_off" && t.handoff_ticket && (
+            {t.state === "handed_off" && !t.needs_staff && t.handoff_ticket && (
               <Handoff
                 publicId={t.handoff_ticket}
                 ticket={handoff}
@@ -251,6 +270,72 @@ function Handoff({
     return <TicketOffer busy={busy} error={error} onOpen={() => onCreateTicket(publicId)} />;
   }
   return <p className="border-t border-border pt-3 text-sm">Your message is with support as {link}.</p>;
+}
+
+/** The reply's choices as buttons; a press sends the button's label as the person's next message. */
+function ChoiceCard({ choices, onPick }: { choices: AgentChoiceOut[]; onPick: (label: string) => void }) {
+  return (
+    <div role="group" aria-label="Choose one" className="flex flex-wrap gap-2">
+      {choices.map((c) => (
+        <Button key={`${c.kind}:${c.id ?? ""}`} size="sm" variant="outline" onClick={() => onPick(c.label)}>
+          {c.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** What follows the assistant's own words when it passes a request to support: the line about
+ * what it checked, the button that opens the ticket, then the ticket once it is open. */
+function NeedsStaff({
+  parts,
+  offered,
+  ticket,
+  busy,
+  error,
+  onOpen,
+}: {
+  parts: AgentNeedsStaffOut;
+  offered: boolean;
+  ticket: string | null;
+  busy: boolean;
+  error: string | undefined;
+  onOpen: () => void;
+}) {
+  const [before, after] = ticket && parts.opened ? parts.opened.split(ticket, 2) : [parts.opened, undefined];
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
+      {parts.checked && <p>{parts.checked}</p>}
+      {ticket ? (
+        <p role="status">
+          {before}
+          {after !== undefined && (
+            <>
+              <Link href={`/tickets/${encodeURIComponent(ticket)}`} className="num text-primary hover:underline">
+                {ticket}
+              </Link>
+              {after}
+            </>
+          )}
+        </p>
+      ) : (
+        offered && (
+          <>
+            {error && (
+              <p role="alert" className="text-danger">
+                {error}
+              </p>
+            )}
+            <div>
+              <Button size="sm" onClick={onOpen} disabled={busy}>
+                {parts.button}
+              </Button>
+            </div>
+          </>
+        )
+      )}
+    </div>
+  );
 }
 
 /** Offers to open a ticket with the person's message. */

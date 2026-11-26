@@ -253,6 +253,30 @@ export default function TicketPage() {
                     The assistant handed this to a person: {reasonText(detail.agent_handoff_reason)}
                   </p>
                 )}
+                {detail.proposed_handoff_summary && (
+                  <Proposal label="Assistant's summary">
+                    <p className="whitespace-pre-wrap">{detail.proposed_handoff_summary}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Written by the assistant for staff. The requester&apos;s own words are the ticket above.
+                    </p>
+                  </Proposal>
+                )}
+                {(detail.agent_steps ?? []).length > 0 && (
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-muted-foreground">What the assistant checked</p>
+                    <ul className="flex flex-col gap-1">
+                      {(detail.agent_steps ?? []).map((s, i) => (
+                        <li key={i} className="flex flex-wrap items-center gap-2">
+                          <span>{humanize(s.tool)}</span>
+                          <span className="num text-xs text-muted-foreground">
+                            {s.method} {s.path}
+                          </span>
+                          <Badge variant="neutral">{humanize(s.outcome)}</Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 {latest && (
                   <Decision label={latest.held_back ? "Routing decision · shadow" : "Routing decision"}>
                     <p className="text-[15px] font-medium">{BRANCH_LABEL[latest.branch] ?? humanize(latest.branch)}</p>
