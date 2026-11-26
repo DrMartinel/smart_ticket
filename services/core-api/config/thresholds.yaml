@@ -296,6 +296,11 @@ agent:
   # F15's rule: every call counts against max_tool_calls_per_turn (F17
   # FR-F17-011, §h.3). 🔧 assumption, revisited after the first traces.
   max_read_calls_per_turn: 16
+  # Reads one step may make for free after its write: ask_helpdesk's polls of
+  # the question it posted. Covers AGENT_ASK_WAIT_SEC / AGENT_ASK_POLL_INTERVAL_SEC
+  # (90 / 2 = 45); further reads in the step count against
+  # max_read_calls_per_turn (F17 FR-F17-011). 🔧 assumption.
+  max_free_reads_per_step: 50
   # A console turn's model calls and model tokens, in place of max_steps and
   # max_model_tokens_per_turn: investigating the cloud takes more reads (F17
   # §h.3, ADR-0048). Each call sends the prompt and the console's tool list,

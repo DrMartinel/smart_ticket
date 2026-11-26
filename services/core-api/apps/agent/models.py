@@ -126,20 +126,28 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
         return self.filter(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
 
     def count_step(
-        self, turn_id: uuid.UUID, step: int | None, *, read: bool, cap: int | None
+        self,
+        turn_id: uuid.UUID,
+        step: int | None,
+        *,
+        read: bool,
+        cap: int | None,
+        free_reads: int,
     ) -> bool:
         """Counts a call of the turn as a read or a write; False once it has made `cap` of them,
-        never with no cap (FR-F15-015, F17 FR-F17-011). A read in the step counted last is free,
-        and a call that names no step is a step of its own."""
+        never with no cap (FR-F15-015, F17 FR-F17-011). Up to `free_reads` reads in the step of
+        the turn's last counted write are free."""
         rows = self.filter(id=turn_id)
-        if read and step is not None and rows.filter(counted_step=step).exists():
-            return True
+        if read and step is not None:
+            free = rows.filter(counted_step=step, step_free_reads__lt=free_reads)
+            if free.update(step_free_reads=F("step_free_reads") + 1):
+                return True
         field = "read_calls" if read else "write_calls"
         if cap is not None:
             rows = rows.filter(**{f"{field}__lt": cap})
         update: dict[str, Any] = {field: F(field) + 1}
-        if step is not None:
-            update["counted_step"] = step
+        if not read and step is not None:
+            update |= {"counted_step": step, "step_free_reads": 0}
         return bool(rows.update(**update))
 
     def pii_map_of(self, conversation_id: uuid.UUID) -> dict[str, str]:
@@ -193,8 +201,10 @@ class AgentTurn(BaseModel):
     tool_calls = models.PositiveIntegerField(default=0)
     write_calls = models.PositiveIntegerField(default=0)
     read_calls = models.PositiveIntegerField(default=0)
-    # The step of the turn core-api counted last, 0 before any (F17 FR-F17-011).
+    # The step of the turn's last counted write, 0 before any, and the free reads made in it
+    # (F17 FR-F17-011).
     counted_step = models.PositiveIntegerField(default=0)
+    step_free_reads = models.PositiveIntegerField(default=0)
     model = models.CharField(max_length=100, blank=True, default="")
     prompt_version = models.CharField(max_length=50, blank=True, default="")
     tokens_in = models.PositiveIntegerField(default=0)

@@ -165,6 +165,7 @@ def make_thresholds(**overrides) -> Thresholds:
             max_tool_calls_per_turn=6,
             max_model_tokens_per_turn=48000,
             max_read_calls_per_turn=16,
+            max_free_reads_per_step=50,
             console_max_steps=20,
             console_max_model_tokens_per_turn=200000,
             token_ttl_seconds=300,

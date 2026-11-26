@@ -553,6 +553,8 @@ class AgentThresholds(BaseModel):
     max_model_tokens_per_turn: int = Field(ge=1)
     # Read calls one turn may make, None for F15's one cap on every call (F17 FR-F17-011).
     max_read_calls_per_turn: int | None = Field(ge=0)
+    # Reads one step may make for free after its write (F17 FR-F17-011).
+    max_free_reads_per_step: int = Field(ge=0)
     # A console turn's model calls and tokens, in place of the two above (F17 §h.3).
     console_max_steps: int = Field(ge=1)
     console_max_model_tokens_per_turn: int = Field(ge=1)
