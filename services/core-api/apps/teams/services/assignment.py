@@ -456,7 +456,9 @@ class Assignment:
             return ticket.category
         if asked is not None and asked in owned:
             return Category.objects.require(asked).slug
-        choices = list(Category.objects.active().filter(slug__in=owned).values_list("slug", flat=True))
+        choices = list(
+            Category.objects.active().filter(slug__in=owned).values_list("slug", flat=True)
+        )
         if asked is None and len(choices) == 1:
             return choices[0]
         raise TeamError(
