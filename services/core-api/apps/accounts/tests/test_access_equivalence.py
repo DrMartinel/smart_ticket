@@ -85,6 +85,7 @@ ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/infra/volumes/{volume_id}": Permission.INFRA_READ,
     "GET /api/infra/networks": Permission.INFRA_READ,
     "GET /api/infra/networks/{network_id}": Permission.INFRA_READ,
+    "GET /api/infra/security-groups/{group_id}": Permission.INFRA_READ,
     "GET /api/infra/alerts": Permission.INFRA_READ,
     "GET /api/infra/alerts/silences": Permission.INFRA_READ,
     "GET /api/infra/catalog": Permission.INFRA_READ,

@@ -42,6 +42,7 @@ from apps.infra.response_schema import (
     NetworkDetailOut,
     NetworkOut,
     ProjectOut,
+    SecurityGroupDetailOut,
     ServerDetailOut,
     ServerOut,
     SilenceOut,
@@ -59,7 +60,15 @@ from apps.infra.services.observability import (
     Observability,
     TraceAnswer,
 )
-from apps.infra.domain.resources import Alert, Network, Project, Server, Silence, Volume
+from apps.infra.domain.resources import (
+    Alert,
+    Network,
+    Project,
+    SecurityGroup,
+    Server,
+    Silence,
+    Volume,
+)
 from apps.tickets.models import Ticket
 
 router = Router(tags=["infra"])
@@ -110,6 +119,12 @@ def list_networks(request: AuthedRequest, project_id: str | None = None) -> list
 @require(Permission.INFRA_READ, agent=AgentTier.READ)
 def get_network(request: AuthedRequest, network_id: str) -> Network:
     return Inventory.for_all(request.auth).network(network_id)
+
+
+@router.get("/security-groups/{group_id}", auth=SessionAuth(), response=SecurityGroupDetailOut)
+@require(Permission.INFRA_READ, agent=AgentTier.NONE)
+def get_security_group(request: AuthedRequest, group_id: str) -> SecurityGroup:
+    return Inventory.for_all(request.auth).security_group(group_id)
 
 
 @router.get("/alerts", auth=SessionAuth(), response=list[AlertOut])

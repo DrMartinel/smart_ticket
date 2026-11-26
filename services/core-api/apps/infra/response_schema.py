@@ -117,6 +117,10 @@ class SecurityGroupOut(Schema):
     rules: list[RuleOut]
 
 
+class SecurityGroupDetailOut(SecurityGroupOut):
+    project_id: str
+
+
 class NetworkOut(Schema):
     id: str
     name: str

@@ -344,3 +344,55 @@ def test_a_network_shows_its_subnets_ports_and_groups(
     assert {p["device_id"] for p in reply["ports"]} >= {cloud_sim.id_of("servers", "web-03")}
     ssh = [r for g in reply["security_groups"] for r in g["rules"] if r["port_min"] == 22]
     assert any(r["remote_ip_prefix"] == "0.0.0.0/0" for r in ssh)
+
+
+def test_a_security_group_shows_its_rules_and_project(
+    api_as, technician_user, cloud_sim: CloudSim, ner
+):
+    group = cloud_sim.id_of("security_groups", "db")
+
+    reply = api_as(technician_user).get(f"/api/infra/security-groups/{group}")
+
+    body = reply.json()
+    assert reply.status_code == 200
+    assert body["project_id"] == cloud_sim.id_of("projects", "saomai-prod")
+    assert body["rules"]
+    assert InfraQuery.objects.get().outcome == "ok"
+
+
+def test_a_missing_security_group_is_not_found(api_as, technician_user, cloud_sim: CloudSim):
+    reply = api_as(technician_user).get("/api/infra/security-groups/no-such-group")
+
+    assert (reply.status_code, reply.json()["code"]) == (404, "infra_not_found")
+
+
+def test_a_security_group_description_whose_masking_failed_is_withheld(
+    api_as, technician_user, settings, monkeypatch, ner
+):
+    settings.OPENSTACK_AUTH_URL = "http://cloud.test/identity/v3"
+    group = {"id": "sg1", "name": "db", "project_id": "p1", "description": "owned by lan.nt"}
+    cloud = FakeCloud(
+        {
+            "/network/v2.0/security-groups/sg1": [
+                httpx.Response(200, json={"security_group": group})
+            ]
+        },
+        services=("network",),
+    )
+    monkeypatch.setattr(inventory, "openstack", lambda: OpenStack(cloud.http()))
+    ner(lambda text: (_ for _ in ()).throw(NERError("down")))
+
+    body = api_as(technician_user).get("/api/infra/security-groups/sg1").json()
+
+    assert (body["name"], body["description"]) == ("db", WITHHELD)
+    assert InfraQuery.objects.get().withheld == 1
+
+
+def test_no_agent_may_read_a_security_group_alone(technician_user, cloud_sim: CloudSim):
+    group = cloud_sim.id_of("security_groups", "db")
+
+    reply = as_agent(technician_user, "get_security_group").get(
+        f"/api/infra/security-groups/{group}"
+    )
+
+    assert (reply.status_code, reply.json()["code"]) == (403, "agent_not_allowed")

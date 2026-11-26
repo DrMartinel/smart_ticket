@@ -216,6 +216,13 @@ class SecurityGroup:
             rules=[Rule.of(r) for r in raw.get("security_group_rules") or []],
         )
 
+    def free_text(self) -> list[str]:
+        return [self.description]
+
+    def with_free_text(self, texts: list[str]) -> Self:
+        (description,) = texts
+        return replace(self, description=description)
+
 
 @dataclass(frozen=True)
 class Network:

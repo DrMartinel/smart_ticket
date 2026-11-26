@@ -119,6 +119,17 @@ class Inventory:
             )
             return read.shown([network])[0]
 
+    # ── security groups ──
+
+    def security_group(self, group_id: str) -> SecurityGroup:
+        """The security group with its rules."""
+        with self.read(InfraBackend.CLOUD, self.scope.narrowed_to(None)) as read:
+            group = SecurityGroup.of(
+                self.get(read, "network", f"/v2.0/security-groups/{group_id}")["security_group"]
+            )
+            self.require_reach(group.project_id, "security group", group_id)
+            return read.shown([group])[0]
+
     # ── alerts ──
 
     def alerts(self, project_id: str | None) -> list[Alert]:
