@@ -18,7 +18,8 @@ Seven containers, three self-hosted model servers, and one hosted model (Jev):
 | `db` | 5434 | Postgres 17 + pgvector |
 | `redis` | 6380 | Celery broker |
 | `worker` / `beat` | — | Celery worker and scheduler |
-| `vllm-chat` / `vllm-embed` / `vllm-rerank` | 8100–8102 | Self-hosted models, `vllm` profile (see step 2): chat and PII NER, embeddings, the cross-encoder shortlister |
+| `vllm-chat` / `vllm-embed` / `vllm-rerank` | 8100–8102 | Self-hosted models, `vllm` profile (see step 2): embeddings and the cross-encoder shortlister; chat only for a job set to `vllm` (the template uses DeepSeek, so `vllm-chat` can stay stopped) |
+| DeepSeek (not a container) | — | Hosted chat model for the proposal, the draft, PII NER and the agent (ADR-0019, ADR-0022). Needs `CLOUD_API_KEY` (step 3) |
 | Jev (not a container) | — | TypeSafe's hosted model: reranks the shortlist and chooses the category (ADR-0015, ADR-0017). Needs `JEV_API_KEY` (step 3) |
 
 > `db` and `redis` are published on **5434** and **6380** to avoid colliding with anything already running locally. Inside the compose network they are still `db:5432` and `redis:6379`.
@@ -100,7 +101,11 @@ logs vllm-embed | grep -i error`.
 ## 3. Bring it up
 
 Put your Jev key in `.env` (`JEV_API_KEY=`). Only masked ticket text and KB
-text are sent to it. Then, from the repo root:
+text are sent to it. Put your DeepSeek key in `.env` too (`CLOUD_API_KEY=`):
+the template runs every chat job on DeepSeek (the proposal, the draft, PII NER
+and the agent), and ai-engine does not boot without it. PII NER sends the RAW
+ticket text to DeepSeek; set `NER_CLIENT_PROVIDER=vllm` to keep it local.
+Then, from the repo root:
 
 ```bash
 docker compose up -d --build

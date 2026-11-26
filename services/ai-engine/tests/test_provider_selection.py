@@ -130,22 +130,23 @@ def cloud_key(monkeypatch):
 
 def _chat_on(monkeypatch, provider, cloud_base_url=None):
     monkeypatch.setattr(settings, "chat_client_provider", provider)
-    # The draft builds at the same reload: pinned local, so these tests read
-    # the proposal's provider and not a developer's .env draft setting.
+    # The draft and the agent build at the same reload: pinned local, so these
+    # tests read the proposal's provider and not a developer's .env settings.
     monkeypatch.setattr(settings, "draft_client_provider", "vllm")
+    monkeypatch.setattr(settings, "agent_client_provider", "vllm")
     monkeypatch.setattr(settings, "cloud_api_key", "key")
     monkeypatch.setattr(settings, "cloud_model", "test-model")
     monkeypatch.setattr(settings, "cloud_base_url", cloud_base_url)
 
 
-def test_default_chat_runs_on_vllm(env_template, monkeypatch, reload_clients):
+def test_default_chat_runs_on_deepseek(env_template, monkeypatch, reload_clients):
     """Reads the template, not the `settings` instance, which reflects the
     job's env."""
     default = env_template["CHAT_CLIENT_PROVIDER"]
-    assert default == "vllm"
-    _chat_on(monkeypatch, default)
+    assert default == "deepseek"
+    _chat_on(monkeypatch, default, env_template["CLOUD_BASE_URL"])
     m = reload_clients()
-    assert m.chat.cost_per_1k_tokens == VLLM_COST_PER_1K_TOKENS
+    assert m.chat.cost_per_1k_tokens == DEEPSEEK_COST_PER_1K_TOKENS
 
 
 @pytest.mark.parametrize(
