@@ -366,12 +366,14 @@ class Cues:
     # ── how a run runs ──
 
     def open_window(self, run: CueRun, ticket: Ticket) -> None:
-        """Sets the run's window: from `cues.lookback_minutes` before the ticket was opened
-        until now."""
-        run.window_start = ticket.created_at - timedelta(
-            minutes=settings.THRESHOLDS.cues.lookback_minutes
+        """Sets the run's window: from `cues.lookback_minutes` before the ticket was opened, or
+        `infra.max_range_hours` before now when that is later, until now."""
+        now, caps = timezone.now(), settings.THRESHOLDS
+        run.window_start = max(
+            ticket.created_at - timedelta(minutes=caps.cues.lookback_minutes),
+            now - timedelta(hours=caps.infra.max_range_hours),
         )
-        run.window_end = timezone.now()
+        run.window_end = now
         run.save(update_fields=["window_start", "window_end"])
 
     def finish(self, run: CueRun, work: Callable[[], CueRunOutcome]) -> None:

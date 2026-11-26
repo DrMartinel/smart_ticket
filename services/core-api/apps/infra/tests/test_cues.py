@@ -360,6 +360,16 @@ def test_the_overview_reads_one_cpu_value_a_server_and_iops_at_overview_points(
     assert all(seconds // s + 1 <= settings.THRESHOLDS.cues.overview_points for s in iops)
 
 
+def test_a_window_never_starts_past_the_range_cap(lan, backends, queued, settings):
+    hours = settings.THRESHOLDS.infra.max_range_hours
+
+    ticket = hand_off(opened_ago(lan, "db-01 chậm", hours=hours + 24))
+
+    run = run_of(ticket)
+    assert window_of(run) == timedelta(hours=hours)
+    assert not run.cues.filter(status=CueStatus.REFUSED).exists()
+
+
 @pytest.mark.parametrize(
     ("long_first", "ending"),
     [

@@ -319,7 +319,8 @@ infra:
 
 cues:
   # A ticket's cues (F17 §o, BR-F17-14, BR-F17-24): their window starts this
-  # many minutes before the ticket was opened and ends when they run; at most
+  # many minutes before the ticket was opened (or infra.max_range_hours before
+  # they run, whichever is later) and ends when they run; at most
   # max_resources resources are linked per run, attached volumes included;
   # each overview query keeps its overview_top rows. 🔧 assumptions, not measured.
   lookback_minutes: 60
