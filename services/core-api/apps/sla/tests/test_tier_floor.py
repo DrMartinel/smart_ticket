@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from apps.audit.models import AuditLog
 from apps.infra.models import Customer, CustomerTier
 from apps.infra.services.customers import customers
-from apps.sla.tests.conftest import handed_off
+from apps.sla.tests.conftest import FLOOR, handed_off, set_tier_floor
 from apps.tickets.models import Incident, Ticket
 from config.settings.base import SlaThresholds, TierName
 
@@ -39,10 +39,21 @@ def open_incident() -> Incident:
     )
 
 
-def test_an_enterprise_customers_ticket_starts_at_p2(clock, people):
+def test_a_tier_floor_raises_the_rules_priority(clock, people, settings):
+    set_tier_floor(settings, FLOOR)
+
     ticket = from_customer(people, company(people, "enterprise"), category="software")
 
-    assert ticket.priority == "P2"
+    assert ticket.priority == FLOOR["enterprise"] == "P2"
+
+
+def test_a_floor_below_the_rules_priority_never_lowers_it(clock, people, settings):
+    set_tier_floor(settings, FLOOR)
+
+    ticket = from_customer(people, company(people, "standard"), category="software")
+
+    assert FLOOR["standard"] == "P4"
+    assert ticket.priority == "P3"
 
 
 def test_the_tier_floor_raises_never_lowers(clock, people):
@@ -66,15 +77,15 @@ def test_no_customer_means_no_floor(clock, people, lookup):
 
 
 def test_a_tier_missing_from_the_floor_map_gets_no_floor(clock, people, settings):
-    sla = django_settings.THRESHOLDS.sla.model_copy(update={"tier_floor": {"business": "P3"}})
-    settings.THRESHOLDS = django_settings.THRESHOLDS.model_copy(update={"sla": sla})
+    set_tier_floor(settings, {"business": "P3"})
 
     ticket = from_customer(people, company(people, "enterprise"), category="software")
 
     assert ticket.priority == "P3"
 
 
-def test_a_tier_change_keeps_a_handed_off_tickets_priority(clock, people):
+def test_a_tier_change_keeps_a_handed_off_tickets_priority(clock, people, settings):
+    set_tier_floor(settings, FLOOR)
     sao_mai = company(people, "enterprise")
     first = from_customer(people, sao_mai, category="software")
 
@@ -86,7 +97,8 @@ def test_a_tier_change_keeps_a_handed_off_tickets_priority(clock, people):
     assert second.priority == "P3"
 
 
-def test_sla_started_records_the_rule_priority_and_floor(clock, people):
+def test_sla_started_records_the_rule_priority_and_floor(clock, people, settings):
+    set_tier_floor(settings, FLOOR)
     ticket = from_customer(people, company(people, "enterprise"), category="software")
 
     started = AuditLog.objects.get(event="sla_started", ticket_id=ticket.id).payload
