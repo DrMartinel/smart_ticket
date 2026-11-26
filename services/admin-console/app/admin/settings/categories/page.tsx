@@ -215,7 +215,7 @@ export default function CategoriesPage() {
             {workflows ? (
               <Labeled
                 label="Workflow"
-                hint="When a ticket in this category is routed, or a reviewer hands it off, it moves into this workflow at the same status. A strict workflow needs a transition out of Auto-routed, Pending review and Escalated."
+                hint="When a ticket in this category is routed, or a reviewer hands it off, it moves into this workflow at the same status. A strict workflow needs a transition out of Auto-routed, Pending review, Escalated and Reopened."
               >
                 <NativeSelect value={draft.workflow} onChange={(e) => setDraft({ ...draft, workflow: e.target.value })}>
                   <option value="">Default workflow</option>

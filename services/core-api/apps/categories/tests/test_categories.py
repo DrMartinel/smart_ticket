@@ -484,7 +484,7 @@ def test_the_default_workflow_is_refused_as_a_categorys_workflow(api_as):
 
 
 @pytest.mark.django_db
-def test_a_strict_workflow_a_handed_off_ticket_could_not_leave_is_refused(api_as):
+def test_a_strict_workflow_a_ticket_could_be_stuck_in_is_refused(api_as):
     manager = person("huy.pq", UserRole.MANAGER)
     desk = workflow(manager, policy=TransitionPolicy.STRICT)
     working = workflow_config.add_status(desk, StatusIn(name="Working"))
@@ -501,5 +501,42 @@ def test_a_strict_workflow_a_handed_off_ticket_could_not_leave_is_refused(api_as
 
     assert response.status_code == 422
     assert response.json()["code"] == CategoryRefusal.WORKFLOW_HAS_NO_WAY_OUT
-    assert response.json()["details"] == {"statuses": ["auto_routed", "escalated"]}
+    assert response.json()["details"] == {"statuses": ["auto_routed", "escalated", "reopened"]}
     assert Category.objects.get(slug="network").workflow is None
+
+
+@pytest.mark.django_db
+def test_a_strict_workflow_with_a_way_out_of_every_handed_off_status_is_accepted(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    desk = workflow(manager, policy=TransitionPolicy.STRICT)
+    working = workflow_config.add_status(desk, StatusIn(name="Working"))
+    for key in ("auto_routed", "pending_review", "escalated", "reopened"):
+        workflow_config.add_transition(
+            desk,
+            TransitionIn(
+                from_status_id=desk.statuses.get(key=key).id,
+                to_status_id=working.id,
+                name=f"Pick up {key}",
+            ),
+        )
+
+    response = patch(api_as(manager), "network", {"workflow_id": str(desk.id), "reason": "x"})
+
+    assert response.status_code == 200
+    assert Category.objects.get(slug="network").workflow == desk
+
+
+@pytest.mark.django_db
+def test_an_edit_that_resends_the_same_workflow_is_not_refused_for_it(api_as):
+    manager = person("huy.pq", UserRole.MANAGER)
+    desk = workflow(manager, policy=TransitionPolicy.STRICT)
+    Category.objects.filter(slug="network").update(workflow=desk)
+
+    response = patch(
+        api_as(manager),
+        "network",
+        {"name": "Networking", "workflow_id": str(desk.id), "reason": "rename"},
+    )
+
+    assert response.status_code == 200
+    assert Category.objects.get(slug="network").name == "Networking"

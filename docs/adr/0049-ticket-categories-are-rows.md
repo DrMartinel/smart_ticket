@@ -123,9 +123,12 @@ Teams and the categories they own were already data (`team_teams`,
   path a ticket takes, not what Jev reads, so it does not need
   `categories:define`. The default workflow can't be named
   (`workflow_is_default`: none already means it), nor a strict workflow
-  with no transition out of `auto_routed`, `pending_review` or `escalated`
-  (`workflow_has_no_way_out`), where a handed-off ticket would be stuck. A
-  later edit to the workflow's transitions is not checked again. A workflow
+  with no transition out of `auto_routed`, `pending_review`, `escalated`
+  or `reopened` (`workflow_has_no_way_out`), where a handed-off or reopened
+  ticket would be stuck. The check runs only when a category's workflow is
+  set or changed: a later edit to the workflow's transitions, a switch from
+  open to strict, or making it the default is not checked again, and an
+  edit that sends the same workflow back is not refused for it. A workflow
   a category names can't be deleted (409 `workflow_in_use`, naming the
   categories).
 - **When a ticket moves.** At handoff, before it is assigned: after an
@@ -134,7 +137,8 @@ Teams and the categories they own were already data (`team_teams`,
   ticket is handed off with: a reviewer's correction moves it into the
   corrected category's workflow, and a category the reviewer confirmed
   counts the same, and a category with no workflow returns the ticket to
-  the default one. In shadow mode the router's decision moves nothing; the
+  the default one. A handoff with no category leaves the ticket in the
+  workflow it is in. In shadow mode the router's decision moves nothing; the
   ticket moves when a reviewer hands it off. An approved security-queue
   item, a reopen and a reassign leave the ticket's workflow as it is.
 - **Where it lands.** Only a ticket at a handoff status (`auto_routed`,

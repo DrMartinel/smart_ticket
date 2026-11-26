@@ -55,7 +55,7 @@ from apps.lifecycle.utils.templates import VARIABLES, placeholders
 from apps.tickets.models import Ticket
 from apps.lifecycle.domain.vocabulary import (
     COMPLETED_PIPELINE_STATUSES,
-    HANDOFF_STATUSES,
+    CATEGORY_WORKFLOW_STATUSES,
     KIND_COLORS,
     ActionCode,
     FailureCode,
@@ -261,16 +261,12 @@ class WorkflowConfig:
         self.audit("workflow_deleted", workflow, actor)
         workflow.delete()
 
-    def handoff_dead_ends(self, workflow: Workflow) -> list[str]:
-        """The handoff statuses a strict workflow has no transition out of."""
+    def category_dead_ends(self, workflow: Workflow) -> list[str]:
+        """The statuses a ticket can be at in a category's strict workflow with no way out."""
         if workflow.transition_policy != TransitionPolicy.STRICT.value:
             return []
-        exits = set()
-        for t in workflow.transitions.select_related("from_status", "to_status"):
-            exits.add(t.from_status.key)
-            if t.is_bidirectional:
-                exits.add(t.to_status.key)
-        return sorted(s.value for s in HANDOFF_STATUSES if s.value not in exits)
+        exits = set(workflow.transitions.values_list("from_status__key", flat=True))
+        return sorted(s.value for s in CATEGORY_WORKFLOW_STATUSES if s.value not in exits)
 
     # ── statuses ──
 

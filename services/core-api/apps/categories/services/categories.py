@@ -45,9 +45,9 @@ class CategoryConfig:
                 if data.get(name) is not None and data[name] != getattr(category, name)
             }
             if "workflow_id" in data:
-                workflow = self.workflow(data["workflow_id"])
-                if workflow != category.workflow:
-                    changed["workflow"] = workflow
+                current = str(category.workflow_id) if category.workflow_id is not None else None
+                if data["workflow_id"] != current:
+                    changed["workflow"] = self.workflow(data["workflow_id"])
             if not changed:
                 return category
             if set(changed) & set(_DEFINITION) and not Access.of(actor).holds(
@@ -83,7 +83,7 @@ class CategoryConfig:
 
     def workflow(self, workflow_id: str | None) -> Workflow | None:
         """The workflow `workflow_id` names; refuses one that doesn't exist, the default one, and
-        a strict one a handed-off ticket could not leave."""
+        a strict one a ticket could be stuck in."""
         if workflow_id is None:
             return None
         found = Workflow.objects.filter(pk=workflow_id).first()
@@ -95,12 +95,13 @@ class CategoryConfig:
             raise CategoryError(
                 422, CategoryRefusal.WORKFLOW_IS_DEFAULT, "no workflow already means the default"
             )
-        dead_ends = workflow_config.handoff_dead_ends(found)
+        dead_ends = workflow_config.category_dead_ends(found)
         if dead_ends:
             raise CategoryError(
                 422,
                 CategoryRefusal.WORKFLOW_HAS_NO_WAY_OUT,
-                "a strict workflow needs a transition out of every handoff status",
+                "a strict workflow needs a transition out of every status a handed-off ticket "
+                "can be at",
                 {"statuses": dead_ends},
             )
         return found

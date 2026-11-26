@@ -18,6 +18,7 @@ from apps.lifecycle.tests.conftest import StrictFlow, make_ticket, put_in, statu
 from apps.review.models import ReviewAction, ReviewItem
 from apps.review.request_schema import DecisionIn
 from apps.review.services.decisions import review_decisions
+from apps.sla.services.clocks import sla_clocks
 from apps.tickets.domain.router import Branch, ReasonCode, ReviewQueue, RoutingDecision
 from apps.tickets.models import AiRun, Ticket
 from apps.tickets.services.pipeline import _execute_or_enqueue
@@ -77,14 +78,13 @@ def test_a_ticket_in_the_default_workflow_stays_when_its_category_names_none(emp
     assert skipped() == []
 
 
-def test_no_category_keeps_the_ticket_in_the_default_workflow(employee_user, strict: StrictFlow):
-    give("network", strict.workflow)
-    ticket = make_ticket(employee_user)
-    before = ticket.workflow_status
+def test_no_category_leaves_the_ticket_in_its_workflow(employee_user, strict: StrictFlow):
+    ticket = put_in(make_ticket(employee_user), strict.review)
 
     lifecycle.enter_category_workflow(ticket, None, actor=None)
 
-    assert reload(ticket).workflow_status == before
+    assert reload(ticket).workflow_status == strict.review
+    assert skipped() == []
 
 
 def test_a_ticket_enters_the_categorys_workflow_at_the_same_pipeline_status(
@@ -165,6 +165,35 @@ def test_a_failed_move_is_audited_and_leaves_the_ticket_where_it_is(
     assert ticket.workflow_status == before
     [payload] = skipped()
     assert (payload["reason"], payload["error"]) == ("error", "RuntimeError")
+
+
+def test_a_move_that_fails_after_writing_leaves_no_part_of_it_behind(
+    employee_user, strict: StrictFlow, monkeypatch
+):
+    give("network", strict.workflow)
+    ticket = make_ticket(employee_user)
+    before = ticket.workflow_status
+    moves = Transfer.objects.filter(ticket=ticket).count()
+
+    def boom(*a, **kw):
+        raise RuntimeError("clock failed")
+
+    monkeypatch.setattr(sla_clocks, "on_status_entered", boom)
+
+    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+
+    assert reload(ticket).workflow_status == before
+    assert Transfer.objects.filter(ticket=ticket).count() == moves
+    assert [(p["reason"], p["error"]) for p in skipped()] == [("error", "RuntimeError")]
+
+
+def test_an_escalated_ticket_enters_the_categorys_workflow(employee_user, strict: StrictFlow):
+    give("network", strict.workflow)
+    ticket = make_ticket(employee_user, at=PipelineStatus.ESCALATED)
+
+    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+
+    assert reload(ticket).workflow_status == status_of(strict.workflow, "escalated")
 
 
 def test_a_ticket_with_a_move_running_stays_put_and_is_audited(employee_user, strict: StrictFlow):

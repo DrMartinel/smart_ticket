@@ -58,6 +58,7 @@ from apps.lifecycle.domain.vocabulary import (
     KIND_COLORS,
     PIPELINE_STATUS_KINDS,
     TRANSFER_PHASES,
+    CategoryWorkflowSkip,
     FailureCode,
     Phase,
     PipelineStatus,
@@ -787,66 +788,47 @@ class Lifecycle:
     def enter_category_workflow(
         self, ticket: Ticket, category: str | None, *, actor: User | None
     ) -> None:
-        """Moves a ticket at a handoff status into `category`'s workflow, else the default one,
-        at the same status; a ticket that can't move, or a failure, is audited and left where it
-        is, and the caller's instance is updated (ADR-0049 part 3)."""
+        """Moves a ticket at a handoff status into its category's workflow (ADR-0049 part 3)."""
+        if category is None:
+            return
+        moved: Ticket | None = None
         try:
             with transaction.atomic():
                 workflow = Category.objects.workflow_of(category) or Workflow.objects.default()
-                moved = self.move_into_category_workflow(ticket, workflow, category, actor)
+                locked = Ticket.objects.select_for_update().get(pk=ticket.pk)
+                current = WorkflowStatus.objects.of_ticket(locked)
+                if current is None or current.workflow_id == workflow.id:
+                    return
+                detail: dict[str, Any] = {"workflow": workflow.name, "status": current.key}
+                if not current.is_handoff:
+                    skip = CategoryWorkflowSkip.ALREADY_MOVED_ON
+                elif locked.waiting_transform or locked.transfers.open().exists():
+                    skip = CategoryWorkflowSkip.A_MOVE_IS_RUNNING
+                else:
+                    target = self.pipeline_status(workflow, PipelineStatus(current.key))
+                    dropped = field_values.carry_over(locked, workflow)
+                    extra = {
+                        "workflow": workflow.name,
+                        "category": category,
+                        "dropped_fields": dropped,
+                    }
+                    self.record_system_transfer(
+                        locked, current, target, trigger=Trigger.SYSTEM, actor=actor, extra=extra
+                    )
+                    moved = locked
         except Exception as e:  # noqa: BLE001 — the move never undoes the handoff it follows
             logger.exception("moving %s into its category's workflow failed", ticket.public_id)
-            self.skip_category_workflow(
-                ticket, category, actor, reason="error", detail={"error": type(e).__name__}
-            )
-            return
+            skip, detail = CategoryWorkflowSkip.ERROR, {"error": type(e).__name__}
         if moved is not None:
             for name in _MOVED_FIELDS:
                 setattr(ticket, name, getattr(moved, name))
-
-    def move_into_category_workflow(
-        self, ticket: Ticket, workflow: Workflow, category: str | None, actor: User | None
-    ) -> Ticket | None:
-        """The ticket moved into `workflow`, carrying its field values over, or None when it
-        stays where it is."""
-        locked = Ticket.objects.select_for_update().get(pk=ticket.pk)
-        current = WorkflowStatus.objects.of_ticket(locked)
-        if current is None or current.workflow_id == workflow.id:
-            return None
-        detail = {"workflow": workflow.name, "status": current.key}
-        if not current.is_handoff:
-            self.skip_category_workflow(locked, category, actor, "already_moved_on", detail)
-            return None
-        if locked.waiting_transform or locked.transfers.open().exists():
-            self.skip_category_workflow(locked, category, actor, "a_move_is_running", detail)
-            return None
-        target = self.pipeline_status(workflow, PipelineStatus(current.key))
-        dropped = field_values.carry_over(locked, workflow)
-        self.record_system_transfer(
-            locked,
-            current,
-            target,
-            trigger=Trigger.SYSTEM,
-            actor=actor,
-            extra={"workflow": workflow.name, "category": category, "dropped_fields": dropped},
-        )
-        return locked
-
-    def skip_category_workflow(
-        self,
-        ticket: Ticket,
-        category: str | None,
-        actor: User | None,
-        reason: str,
-        detail: Mapping[str, Any],
-    ) -> None:
-        """Audits a ticket left out of its category's workflow."""
+            return
         AuditLog.objects.record(
             "category_workflow_skipped",
             actor_type="human" if actor else "system",
             actor_id=actor.id if actor else None,
             ticket_id=ticket.id,
-            payload={"category": category, "reason": reason, **detail},
+            payload={"category": category, "reason": skip.value, **detail},
         )
 
     def adopt_tickets(

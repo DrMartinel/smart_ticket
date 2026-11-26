@@ -259,8 +259,9 @@ guard and that comment is later trimmed, the entry is the record.
   assignment, so an exception would undo the routing decision or the reviewer's whole
   decision (ADR-0049). A ticket a person has already moved on is left alone: matching a
   custom status by key would land it on a status with other SLA and requester flags.
-  *`test_a_failed_move_never_undoes_the_reviewers_decision`,
-  `test_a_failed_move_never_undoes_an_automatic_route`,
+  *`test_a_move_that_fails_after_writing_leaves_no_part_of_it_behind` (the
+  savepoint), `test_a_failed_move_never_undoes_the_reviewers_decision`,
+  `test_a_failed_move_never_undoes_an_automatic_route` (the catch),
   `test_a_ticket_a_person_already_moved_stays_in_its_workflow`.*
 - **Take checking `expected_version` and raising `tickets.version`.** Two people
   clicking Take on the same row both see an unowned ticket; only the version
