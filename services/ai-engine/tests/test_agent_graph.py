@@ -569,7 +569,7 @@ def test_every_tool_projection_drops_unlisted_fields():
     context = Context(SecretStr(_TOKEN), _ME, "alice", None)
     secret = "unlisted-field-value"
     for tool in TOOLS.values():
-        row = {"secret_field": secret, "state": "shown"}
+        row = {"secret_field": secret, "state": "shown", "is_active": True}
         body: Any = {
             "secret_field": secret,
             "items": [row],
@@ -577,9 +577,85 @@ def test_every_tool_projection_drops_unlisted_fields():
             "recent": [row],
             "thread": [row],
         }
-        if tool.name in ("list_comments", "list_review_queue"):
+        if tool.name in ("list_comments", "list_review_queue", "list_categories"):
             body = [row]
-        assert secret not in json.dumps(tool.project(body, context), default=str), tool.name
+        shown = tool.project(body, context)
+        if isinstance(shown, list):
+            assert shown, tool.name
+        assert secret not in json.dumps(shown, default=str), tool.name
+
+
+def test_the_category_list_shows_active_categories_with_their_text_untrusted():
+    context = Context(SecretStr(_TOKEN), _ME, "alice", None)
+    row = {
+        "slug": "network",
+        "name": "Network",
+        "description": "VPN, Wi-Fi.",
+        "is_active": True,
+        "is_security": False,
+        "is_routable": True,
+        "sort_order": 3,
+        "version": 2,
+        "workflow_id": None,
+    }
+    body = [row, {**row, "slug": "billing", "is_active": False}]
+
+    shown = TOOLS["list_categories"].project(body, context)
+
+    assert [c["slug"] for c in shown] == ["network"]
+    assert set(shown[0]) == {"slug", "name", "description", "is_security"}
+    assert shown[0]["name"] == {UNTRUSTED: "Network"}
+    assert shown[0]["description"] == {UNTRUSTED: "VPN, Wi-Fi."}
+    assert shown[0]["is_security"] is False
+
+
+@pytest.mark.parametrize(
+    "tool, field",
+    [("draft_review_decision", "corrected_category"), ("draft_reassign", "to_category")],
+)
+def test_a_draft_tells_the_model_where_its_category_slugs_come_from(tool, field):
+    arguments = TOOLS[tool].describe()["arguments"]
+    schema = json.dumps(arguments["properties"][field])
+
+    assert "list_categories" in schema
+
+
+@pytest.mark.parametrize("tool", ["draft_review_decision", "draft_reassign"])
+def test_a_draft_may_name_a_category_added_as_a_row(tool):
+    fields = {
+        "draft_review_decision": {"item_id": str(uuid4()), "action_taken": "reroute"},
+        "draft_reassign": {
+            "public_id": "TK-1",
+            "reason_code": "wrong_team",
+            "expected_version": 1,
+        },
+    }[tool]
+    key = "corrected_category" if tool == "draft_review_decision" else "to_category"
+
+    args = TOOLS[tool].Input.model_validate({**fields, key: "billing"})
+
+    assert getattr(args, key) == "billing"
+
+
+@pytest.mark.parametrize("slug", ["", "../users", "a" * 21])
+@pytest.mark.parametrize(
+    "tool, field, fields",
+    [
+        (
+            "draft_reassign",
+            "to_category",
+            {"public_id": "TK-1", "reason_code": "wrong_team", "expected_version": 1},
+        ),
+        (
+            "draft_review_decision",
+            "corrected_category",
+            {"item_id": "6f1c2a0e-1b7d-4c55-9a43-7a3f3d0f1e21", "action_taken": "reroute"},
+        ),
+    ],
+)
+def test_a_category_argument_that_is_not_a_slug_is_refused(tool, field, fields, slug):
+    with pytest.raises(ValueError):
+        TOOLS[tool].Input.model_validate({**fields, field: slug})
 
 
 def test_untrusted_fields_are_wrapped():

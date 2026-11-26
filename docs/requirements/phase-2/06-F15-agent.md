@@ -505,6 +505,7 @@ projection replaces person names and usernames (BR-F15-09).
 | `get_ticket_detail` | `GET /api/tickets/{public_id}/detail` | `tickets:read` | read | `{public_id}` | the row fields + `body_masked` (untrusted; `[withheld]` if `mask_failed`), placeholder labels only, `resolved_at`, `reopened_count`, `routing[]` (`branch`, `reason_code`, `decided_at`), `clarifications[].question`. `reporter_person`, `ai`, trust fields dropped |
 | `list_comments` | `GET /api/tickets/{public_id}/comments` | `tickets:read` | read | `{public_id}` | per comment: `id`, `author_kind`, `mine`, `visibility`, `body_masked` (untrusted; `[withheld]` if `hidden_for_review`, `discarded` or `mask_failed`), `created_at`. `author` dropped |
 | `get_sla` | `GET /api/tickets/{public_id}/sla` | `urn:smart-ticket:perm:requester:ticket-status` | read | `{public_id}` | `priority`, `policy`, `clocks[]` (`kind`, `state`, `due_at`, `remaining_minutes`, `paused`, `breached_at`) |
+| `list_categories` *(added, ADR-0049 part 4)* | `GET /api/categories` | `urn:smart-ticket:perm:categories:read` | read | `{}` | per active category: `slug`, `name` and `description` (both untrusted), `is_security`. Inactive rows dropped. Reason: a draft names a category by its slug, and the set is rows, not a fixed list |
 | `take_ticket` | `POST /api/tickets/{public_id}/take` | `urn:smart-ticket:perm:tickets:take` | confirm | `{public_id, expected_version: int}` | 202: `action_id`, `state` |
 | `add_comment` | `POST /api/tickets/{public_id}/comments` | `urn:smart-ticket:perm:tickets:comment` | confirm | `{public_id, body, visibility: public\|internal, move_to_waiting: bool = false, expected_version?: int}` | 202: `action_id`, `state` |
 | `list_review_queue` | `GET /api/review/queue?queue=&state=` | `urn:smart-ticket:perm:review:queue:work` | read | `{queue?: ReviewQueue, state = "pending"}` | per item: `id`, `ticket_public_id`, `subject_masked`, `body_masked` (both untrusted), `queue`, `priority`, `state`, `claimed_by` (`you` / `someone else` / `none`), `created_at`, `proposal` (code-rendered one line from `proposed_draft`, e.g. "runbook: add_to_group(vpn-admins)"), last `reason_code`. Trust score and contributions dropped |
@@ -547,14 +548,16 @@ the six routes.
 
 | Tier | Routes |
 |---|---|
-| `read` | `GET /api/chat/tickets/{public_id}`, `GET /api/requester/tickets`, `GET /api/requester/tickets/{public_id}`, `GET /api/tickets`, `GET /api/tickets/board`, `GET /api/tickets/{public_id}/detail`, `GET /api/tickets/{public_id}/comments`, `GET /api/tickets/{public_id}/sla`, `GET /api/tickets/{public_id}`, `GET /api/review/queue`, `GET /api/review/items/{item_id}` |
+| `read` | `GET /api/categories`, `GET /api/chat/tickets/{public_id}`, `GET /api/requester/tickets`, `GET /api/requester/tickets/{public_id}`, `GET /api/tickets`, `GET /api/tickets/board`, `GET /api/tickets/{public_id}/detail`, `GET /api/tickets/{public_id}/comments`, `GET /api/tickets/{public_id}/sla`, `GET /api/tickets/{public_id}`, `GET /api/review/queue`, `GET /api/review/items/{item_id}` |
 | `self` | `POST /api/chat/ask`, `POST /api/chat/tickets/{public_id}/clarify`, `POST /api/chat/tickets/{public_id}/create-ticket` |
 | `confirm` | `POST /api/requester/tickets/{public_id}/replies`, `POST /api/requester/tickets/{public_id}/reopen`, `POST /api/tickets/{public_id}/take`, `POST /api/tickets/{public_id}/comments`, `POST /api/review/items/{item_id}/claim` |
 | `human_only` | `POST /api/review/items/{item_id}/decide`, `POST /api/review/items/{item_id}/comment-decision`, `POST /api/itsm/review-items/{item_id}/execute`, `POST /api/itsm/executions/{execution_id}/resolve`, `POST /api/tickets/{public_id}/reassign`, `PATCH /api/tickets/{public_id}/priority`, `POST /api/tickets/{public_id}/sla/rebuild`, `POST /api/tickets/{public_id}/quarantine/reveal` |
 | `none` | Every other gated route (about 200 of the 229 gated routes), including the PII access log and its CSV, every access, role, grant and people route, rollout, thresholds, KB authority, the agent's own routes, and every `/api/auth/*` route that takes a bearer token |
 
 `GET /api/tickets/board` is `read` so AC-F15-03 tests the permission gate,
-not the tier. A route moves out of `none` only with a reason in this table.
+not the tier. `GET /api/categories` is `read` (ADR-0049 part 4) so the
+console agent can name a category in a draft; `PATCH /api/categories/{slug}`
+stays `none`. A route moves out of `none` only with a reason in this table.
 
 ### h.4 Reason codes — NEW in `ReasonCode` (core-api `router.py`)
 

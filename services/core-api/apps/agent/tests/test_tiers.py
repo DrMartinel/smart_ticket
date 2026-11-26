@@ -11,6 +11,7 @@ from apps.accounts.testing import api_client_for
 from apps.agent.models import AgentAction, AgentActionKind, AgentActionState
 from apps.agent.testing import as_agent, runbook_item
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.itsm_mock.models import RunbookExecution
 from apps.review.models import ReviewDecision
 from config.urls import api
@@ -19,6 +20,7 @@ pytestmark = pytest.mark.django_db
 
 TIERS = {
     AgentTier.READ: {
+        "GET /api/categories",
         "GET /api/chat/tickets/{public_id}",
         "GET /api/requester/tickets",
         "GET /api/requester/tickets/{public_id}",
@@ -104,6 +106,25 @@ def test_a_read_route_answers_an_agent_as_its_user(employee_user):
     response = as_agent(employee_user, "list_my_tickets").get("/api/requester/tickets")
 
     assert response.status_code == 200
+
+
+def test_an_agent_reads_the_categories_as_a_technician(technician_user):
+    response = as_agent(technician_user, "list_categories").get("/api/categories")
+
+    assert response.status_code == 200
+    assert "network" in {c["slug"] for c in response.json()}
+
+
+def test_an_agent_cannot_change_a_category(manager_user):
+    response = as_agent(manager_user).patch(
+        "/api/categories/network",
+        {"name": "Net", "reason": "x"},
+        content_type="application/json",
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "agent_not_allowed"
+    assert Category.objects.get(slug="network").name == "Network"
 
 
 def test_a_self_route_runs_and_stamps_its_audit_rows(employee_user, monkeypatch):
