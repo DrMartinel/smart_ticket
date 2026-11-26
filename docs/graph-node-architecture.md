@@ -545,8 +545,8 @@ per surface.
 screen_message ─INJECTION_DETECTED→ hand_off
 screen_message ─CLEAR→ choose_action
 choose_action ─CALL_TOOL→ call_tool ─RESULT | DRAFTED→ choose_action
-choose_action ─REPLY→ finish
-choose_action ─LIMIT_REACHED | MODEL_FAILED | SCHEMA_INVALID→ hand_off
+choose_action ─REPLY | HAND_OFF→ finish
+choose_action ─LIMIT_REACHED | MODEL_FAILED | SCHEMA_INVALID | RESULT_FLAGGED→ hand_off
 call_tool ─AWAITING_CONFIRMATION→ finish
 call_tool ─FAILED | OUTCOME_UNKNOWN→ hand_off
 finish, hand_off → terminal
@@ -556,17 +556,23 @@ finish, hand_off → terminal
   the model, and the tool-call cap once the model names a tool; each sets a
   `stop_reason` and leaves through `LIMIT_REACHED`, the outcome that makes the
   loop bounded.
-- An invalid reply (blank, not the `AgentAction` union, an unknown tool, or
-  arguments the tool's input refuses) is asked again once in the same step,
+- An invalid reply (blank, not one of the surface's action shapes, an unknown
+  tool, arguments the tool's input refuses, a choice no result of the turn
+  gave, too many choices, or a `hand_off` missing its parts or over the
+  summary cap) is asked again once in the same step,
   with a sentence written by code saying what was wrong, while the step and
   token caps leave room. A second invalid reply, or no room, leaves through
   `SCHEMA_INVALID` (ADR-0046 #12, amended 2026-11-26).
 - `call_tool` makes one HTTP call to core-api as the person, with the turn's
   agent token, and never retries it. A write whose answer was lost is
   `tool_outcome_unknown`.
+- On the chat, the model may end the turn with `hand_off` (`HAND_OFF`,
+  `needs_staff`): it finishes with the model's text and its summary for
+  staff (F15 amendment 2026-11-26). The console is never offered that shape.
 - Once a tool result's untrusted text trips the injection screen, only reading
-  tools are offered, and a write the model still names hands off as
-  `injection_in_result` with no call made.
+  tools are offered, and a write or a `hand_off` the model still names hands
+  off as `injection_in_result` (`RESULT_FLAGGED` for the `hand_off`), with no
+  call made and the model's text dropped.
 - `stop_reason` is an `AgentStopReason`. core-api maps it to a `ReasonCode`;
   ai-engine defines no routing type.
 - LangGraph's `recursion_limit` (`recursion_limit()` in `graph/agent.py`) is a

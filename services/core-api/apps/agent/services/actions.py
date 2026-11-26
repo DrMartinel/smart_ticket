@@ -107,11 +107,13 @@ class AgentCall:
 
 @dataclass(frozen=True)
 class AgentOrigin:
-    """The agent turn a call came from, and the tool that made it."""
+    """The agent turn a call came from, the tool that made it, and the step of the turn it
+    belongs to, None when the call names none."""
 
     conversation: uuid.UUID
     turn: uuid.UUID
     tool: str
+    step: int | None = None
 
     def audit_fields(self) -> dict[str, str]:
         return {

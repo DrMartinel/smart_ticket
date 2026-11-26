@@ -94,7 +94,7 @@ action can already start an n8n workflow when a ticket enters a status
 8. **Measure before building.** The `clarify` branch is removed only after
    two things.
    - **The agent has been run.** Its end-to-end trace suite
-     (`evals/suites/test_agent_traces.py`) and `agent.v2` have run against a
+     (`evals/suites/test_agent_traces.py`) and `agent.v3` have run against a
      real model. Neither has run yet.
    - **Auto-reply precision holds.** An eval run of the new propose version
      shows auto-reply precision at or above its floor. ADR-0016 added

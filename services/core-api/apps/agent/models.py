@@ -6,19 +6,21 @@ from __future__ import annotations
 import unicodedata
 import uuid
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.db import models
 from django.db.models import F, Prefetch
 
 from apps.accounts.models import Language
+from apps.agent.domain.vocabulary import SOMETHING_ELSE
 from apps.core.models import BaseModel
 from apps.infra.models import InfraQuery
 from apps.tickets.domain.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 if TYPE_CHECKING:
     from apps.accounts.models import User
+    from infrastructure.dtos import AgentChoice
 
 
 def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
@@ -131,11 +133,22 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
     def unfinished(self) -> AgentTurnQuerySet:
         return self.filter(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
 
-    def count_write(self, turn_id: uuid.UUID, cap: int) -> bool:
-        """Counts one write call of the turn; False once it has made `cap` (FR-F15-015)."""
-        return bool(
-            self.filter(id=turn_id, write_calls__lt=cap).update(write_calls=F("write_calls") + 1)
-        )
+    def count_step(
+        self, turn_id: uuid.UUID, step: int | None, *, read: bool, cap: int | None
+    ) -> bool:
+        """Counts a call of the turn as a read or a write; False once it has made `cap` of them,
+        never with no cap (FR-F15-015, F17 FR-F17-011). A read in the step counted last is free,
+        and a call that names no step is a step of its own."""
+        rows = self.filter(id=turn_id)
+        if read and step is not None and rows.filter(counted_step=step).exists():
+            return True
+        field = "read_calls" if read else "write_calls"
+        if cap is not None:
+            rows = rows.filter(**{f"{field}__lt": cap})
+        update: dict[str, Any] = {field: F(field) + 1}
+        if step is not None:
+            update["counted_step"] = step
+        return bool(rows.update(**update))
 
     def pii_map_of(self, conversation_id: uuid.UUID) -> dict[str, str]:
         """Every placeholder the conversation's turns masked, with its quarantine ref; a later
@@ -158,6 +171,8 @@ _VIETNAMESE_LETTERS = frozenset(
 TICKET_AT_ONCE = frozenset({ReasonCode.AGENT_MASK_FAILED, ReasonCode.AGENT_PII_CRITICAL})
 # Hand-offs whose ticket opens only when the person asks for it.
 TICKET_ON_REQUEST = AGENT_HANDOFF_REASONS - TICKET_AT_ONCE
+# The kind of the button every choice card ends with (BR-F15-22).
+SOMETHING_ELSE_KIND = "something_else"
 
 
 class AgentTurn(BaseModel):
@@ -178,9 +193,16 @@ class AgentTurn(BaseModel):
     # A ReasonCode value when the turn handed off.
     stop_reason = models.CharField(max_length=40, null=True, blank=True)
     reply_text = models.TextField(blank=True, default="")
+    # The choice card the reply showed: kind, id and label per button, "Something else" last.
+    choices = models.JSONField(null=True, blank=True)
+    # The model's summary of what a `needs_staff` turn asked for, for staff only (BR-F15-25).
+    proposed_handoff_summary = models.TextField(null=True, blank=True)
     receipts = models.JSONField(default=list)
     tool_calls = models.PositiveIntegerField(default=0)
     write_calls = models.PositiveIntegerField(default=0)
+    read_calls = models.PositiveIntegerField(default=0)
+    # The step of the turn core-api counted last, 0 before any (F17 FR-F17-011).
+    counted_step = models.PositiveIntegerField(default=0)
     model = models.CharField(max_length=100, blank=True, default="")
     prompt_version = models.CharField(max_length=50, blank=True, default="")
     tokens_in = models.PositiveIntegerField(default=0)
@@ -218,6 +240,30 @@ class AgentTurn(BaseModel):
             and self.conversation.surface == AgentSurface.CHAT.value
             and self.stop_reason in TICKET_ON_REQUEST
         )
+
+    def needs_staff(self) -> bool:
+        """Whether the turn handed off on purpose, for a change none of its person's tools makes."""
+        return self.stop_reason == ReasonCode.AGENT_NEEDS_STAFF.value
+
+    def ran_a_read(self) -> bool:
+        """Whether the turn read anything before it ended."""
+        return self.read_calls > 0
+
+    def card_of(self, choices: list[AgentChoice]) -> list[dict[str, str | None]] | None:
+        """The card a reply with `choices` shows: one button each, then "Something else" in the
+        message's language; none without choices."""
+        if not choices:
+            return None
+        something_else = {
+            "kind": SOMETHING_ELSE_KIND,
+            "id": None,
+            "label": SOMETHING_ELSE[self.language()],
+        }
+        return [choice.model_dump(mode="json") for choice in choices] + [something_else]
+
+    def offered(self) -> list[dict[str, str | None]]:
+        """The choices the reply's card offered, without "Something else"."""
+        return [c for c in self.choices or [] if c["kind"] != SOMETHING_ELSE_KIND]
 
 
 class AgentStep(BaseModel):

@@ -54,6 +54,7 @@ export const REASON_TEXT: Record<ReasonCode, string> = {
   agent_mask_failed: "Personal data could not be removed reliably, so the assistant did not read the message.",
   agent_pii_critical: "The message held a password or other secret, so the assistant did not read it.",
   agent_engine_unavailable: "The assistant was unavailable, so the request went to a person.",
+  agent_needs_staff: "The person asked the assistant for a change it can't make from the chat, so it passed the request to a person.",
 };
 
 export const INTENT_LABEL: Record<string, string> = {

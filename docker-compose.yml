@@ -349,6 +349,7 @@ services:
       AGENT_TOOL_READ_TIMEOUT_SEC: ${AGENT_TOOL_READ_TIMEOUT_SEC:?see .env.example}
       AGENT_ASK_POLL_INTERVAL_SEC: ${AGENT_ASK_POLL_INTERVAL_SEC:?see .env.example}
       AGENT_ASK_WAIT_SEC: ${AGENT_ASK_WAIT_SEC:?see .env.example}
+      AGENT_TIME_ZONE: ${AGENT_TIME_ZONE:?see .env.example}
     ports:
       - "8001:8001"
     depends_on:

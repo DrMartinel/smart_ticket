@@ -1,6 +1,8 @@
 """
 The agent's one HTTP client to core-api: each call is one attempt, as the
-signed-in user, with the turn's agent token. No retry, a write included.
+signed-in user, with the turn's agent token, naming its tool and its step.
+What a failure means is set by the tool's tier, never by its HTTP method
+(F17 FR-F17-010).
 """
 
 from __future__ import annotations
@@ -45,29 +47,27 @@ class CoreApi:
         token: SecretStr,
         tool: str,
         *,
+        read: bool,
+        step: int | None,
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
     ) -> Reply:
-        """One request on behalf of `tool`. Raises `ToolFailed` or, for a write, `OutcomeUnknown`."""
+        """One request on behalf of `tool` in the turn's step `step`, a read when its route's
+        tier is `read`. Raises `ToolFailed`, or `OutcomeUnknown` for a write that was sent and
+        not answered."""
+        headers = {"Authorization": f"Bearer {token.get_secret_value()}", "X-Agent-Tool": tool}
+        if step is not None:
+            headers["X-Agent-Step"] = str(step)
         try:
-            response = self._http.request(
-                method,
-                path,
-                params=params,
-                json=json,
-                headers={
-                    "Authorization": f"Bearer {token.get_secret_value()}",
-                    "X-Agent-Tool": tool,
-                },
-            )
+            response = self._http.request(method, path, params=params, json=json, headers=headers)
         except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as e:
             raise ToolFailed(type(e).__name__) from None
         except httpx.TransportError as e:
-            if method == "GET":
+            if read:
                 raise ToolFailed(type(e).__name__) from None
             raise OutcomeUnknown(type(e).__name__) from None
         if response.status_code >= 500:
-            if method == "GET":
+            if read:
                 raise ToolFailed(f"HTTP {response.status_code}")
             raise OutcomeUnknown(f"HTTP {response.status_code}")
         try:

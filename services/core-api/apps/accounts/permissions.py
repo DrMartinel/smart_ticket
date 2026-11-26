@@ -48,9 +48,11 @@ from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 
 
-# The header an agent's call names its tool in, and the shape of a tool's name.
+# The headers an agent's call names its tool and its step in, and the shape of each.
 AGENT_TOOL_HEADER = "X-Agent-Tool"
 TOOL_NAME = re.compile(r"^[a-z][a-z_]{0,39}$")
+AGENT_STEP_HEADER = "X-Agent-Step"
+STEP_NUMBER = re.compile(r"^[1-9][0-9]{0,5}$")
 
 
 class AgentTier(StrEnum):
@@ -92,7 +94,13 @@ class SessionAuth(JWTAuth):
             ).exists():
                 raise AuthenticationFailed("the agent turn this token belongs to is not running")
             tool = request.headers.get(AGENT_TOOL_HEADER, "")
-            agent = AgentOrigin(conversation, turn, tool if TOOL_NAME.match(tool) else "")
+            step = request.headers.get(AGENT_STEP_HEADER, "")
+            agent = AgentOrigin(
+                conversation,
+                turn,
+                tool if TOOL_NAME.match(tool) else "",
+                int(step) if STEP_NUMBER.match(step) else None,
+            )
         match = getattr(request, "resolver_match", None)
         return Caller(
             user=user,
@@ -253,11 +261,18 @@ def require(
                 raise HttpError(401, "authentication required")
             caller.admit(gate)
             if caller.agent is not None:
-                if gate.agent_tier is not AgentTier.READ and not AgentTurn.objects.count_write(
-                    caller.agent.turn, settings.THRESHOLDS.agent.max_tool_calls_per_turn
+                caps = settings.THRESHOLDS.agent
+                read = gate.agent_tier is AgentTier.READ
+                if not AgentTurn.objects.count_step(
+                    caller.agent.turn,
+                    caller.agent.step,
+                    read=read,
+                    cap=caps.max_read_calls_per_turn if read else caps.max_tool_calls_per_turn,
                 ):
                     raise AgentError(
-                        429, AgentRefusal.TOOL_LIMIT, "this turn has made all its write calls"
+                        429,
+                        AgentRefusal.TOOL_LIMIT,
+                        f"this turn has made all its {'read' if read else 'write'} calls",
                     )
                 match gate.agent_tier:
                     case AgentTier.READ | AgentTier.SELF:

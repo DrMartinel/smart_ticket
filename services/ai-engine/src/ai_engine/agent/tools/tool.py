@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from ai_engine.agent.tools import client
 from ai_engine.agent.tools.client import Reply
+from ai_engine.graph.agent_state import AgentChoice
 
 
 class Tier(StrEnum):
@@ -42,12 +43,15 @@ class PublicIdIn(ToolInput):
 
 @dataclass(frozen=True)
 class Context:
-    """Who the turn acts for, as code needs it; none of it reaches the model."""
+    """Who the turn acts for, the step a call belongs to, and the items its results offered by
+    ref, as code needs them; none of it reaches the model."""
 
     token: SecretStr
     actor_id: UUID | None
     actor_username: str
     chat_conversation_id: UUID | None
+    step: int | None = None
+    refs: dict[str, AgentChoice] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -88,7 +92,14 @@ class Tool:
         body = {k: v for k, v in values.items() if k not in in_path and k not in self.query}
         json = None if self.method == "GET" else {**body, **self.fixed}
         reply = client.core_api.send(
-            self.method, path, context.token, self.name, params=params or None, json=json
+            self.method,
+            path,
+            context.token,
+            self.name,
+            read=not self.writes,
+            step=context.step,
+            params=params or None,
+            json=json,
         )
         return path, reply
 

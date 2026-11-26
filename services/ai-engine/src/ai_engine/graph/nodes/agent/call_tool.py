@@ -1,7 +1,8 @@
 """
 CallToolNode: makes the one call `choose_action` validated, as the person,
-and turns core-api's answer into a step for core-api's record and an
-exchange for the model's next step (FR-F15-012, FR-F15-013).
+and turns core-api's answer into a step for core-api's record, an exchange
+for the model's next step, and the refs its result issued (FR-F15-012,
+FR-F15-013, FR-F15-023).
 """
 
 from __future__ import annotations
@@ -46,13 +47,16 @@ class CallToolNode(BaseNode[AgentState]):
 
         arguments = state.pending_call.arguments
         args = tool.Input.model_validate(arguments)
+        seq = len(state.steps) + 1
         context = Context(
             token=state.token,
             actor_id=state.actor_id,
             actor_username=state.actor_username,
             chat_conversation_id=state.chat_conversation_id,
+            step=seq,
+            refs=dict(state.refs),
         )
-        step = {"seq": len(state.steps) + 1, "tool": tool.name, "arguments": arguments}
+        step = {"seq": seq, "tool": tool.name, "arguments": arguments, "read": not tool.writes}
         step["method"], step["path"] = tool.method, tool.path_for(arguments)
         try:
             step["path"], reply = tool.run(args, context)
@@ -98,9 +102,12 @@ class CallToolNode(BaseNode[AgentState]):
             )
         if 200 <= reply.status < 300:
             projected = tool.project(reply.body, context)
-            return self.record(
-                state, step, outcome="ok", tool=tool, reply=reply, result=projected, action=None
-            )
+            return {
+                **self.record(
+                    state, step, outcome="ok", tool=tool, reply=reply, result=projected, action=None
+                ),
+                "refs": context.refs,
+            }
         return self.record(
             state,
             step,

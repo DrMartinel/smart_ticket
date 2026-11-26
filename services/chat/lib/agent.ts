@@ -83,6 +83,12 @@ export function useAgentConversation(enabled: boolean) {
   const [pendingError, setPendingError] = useState(false);
   const polling = useRef(false);
   const conversationRef = useRef<string | null>(null);
+  const busy = rows.some((r) => r.kind === "sending" || (r.kind === "server" && UNFINISHED.has(r.turn.state)));
+  // Whether a message may be sent now: not while a turn runs, nor in an ended conversation.
+  const blocked = useRef(false);
+  useEffect(() => {
+    blocked.current = busy || viewingEnded;
+  }, [busy, viewingEnded]);
 
   const loadHistory = useCallback(
     () =>
@@ -220,9 +226,12 @@ export function useAgentConversation(enabled: boolean) {
     return () => window.clearTimeout(timer);
   }, [rows, handoffs, handoffTick]);
 
-  /** Sends a message; a conversation that has ended is replaced by a new one. */
+  /** Sends a message, unless a turn is running or an ended conversation is on screen; a
+   * conversation that ended on the server is replaced by a new one. */
   const send = useCallback(
     (text: string) => {
+      if (blocked.current) return;
+      blocked.current = true;
       const key = `local-${Date.now()}`;
       setRows((prev) => [...prev, { kind: "sending", key, text }]);
       const post = () => agentApi.send(text, conversationRef.current);
@@ -250,7 +259,7 @@ export function useAgentConversation(enabled: boolean) {
   const retry = useCallback(
     (key: string) => {
       const row = rows.find((r) => r.key === key);
-      if (!row || row.kind !== "failed") return;
+      if (!row || row.kind !== "failed" || blocked.current) return;
       setRows((prev) => prev.filter((r) => r.key !== key));
       send(row.text);
     },
@@ -373,6 +382,6 @@ export function useAgentConversation(enabled: boolean) {
     createTicket,
     openTicket,
     startNew,
-    busy: rows.some((r) => r.kind === "sending" || (r.kind === "server" && UNFINISHED.has(r.turn.state))),
+    busy,
   };
 }

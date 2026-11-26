@@ -185,6 +185,7 @@ AgentHandoffReason = Literal[
     "agent_mask_failed",
     "agent_pii_critical",
     "agent_engine_unavailable",
+    "agent_needs_staff",
 ]
 
 
@@ -313,7 +314,11 @@ class AgentLimits(BaseModel):
 
     max_steps: int = Field(ge=1)
     max_tool_calls: int = Field(ge=0)
+    # Reads count against this when it is set, and writes against max_tool_calls (FR-F17-011).
+    max_read_calls: int | None = Field(default=None, ge=0)
     max_model_tokens: int = Field(ge=1)
+    max_choices: int = Field(ge=1)
+    max_handoff_summary_chars: int = Field(ge=1)
 
 
 class AgentEarlierTurn(BaseModel):
@@ -334,6 +339,17 @@ class AgentStopReason(StrEnum):
     MODEL_UNAVAILABLE = "model_unavailable"
     SCHEMA_INVALID = "schema_invalid"
     TOKEN_REFUSED = "token_refused"
+    NEEDS_STAFF = "needs_staff"
+
+
+class AgentChoice(BaseModel):
+    """An item a turn's tool results offered, as a button: what it is, its id and its label."""
+
+    model_config = ConfigDict(frozen=True)
+
+    kind: str
+    id: str
+    label: str
 
 
 class AgentStep(BaseModel):
@@ -349,6 +365,8 @@ class AgentStep(BaseModel):
     action_id: UUID | None = None
     injection_flagged: bool = False
     result_ref: str | None = None
+    # Whether the step's tool is `read` tier, whatever its method (F17).
+    read: bool = False
 
 
 class AgentTurnRequest(BaseModel):
@@ -381,3 +399,7 @@ class AgentTurnResponse(BaseModel):
     tokens_in: int = 0
     tokens_out: int = 0
     cost_usd: float = 0.0
+    # A reply's choices, resolved from the turn's own results (BR-F15-21).
+    choices: list[AgentChoice] = Field(default_factory=list)
+    # The model's summary of a `needs_staff` request, for staff only (BR-F15-25).
+    proposed_handoff_summary: str | None = None

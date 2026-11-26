@@ -55,7 +55,7 @@ export type TargetRule = "reporter" | "any";
 
 export type RunbookRisk = "low" | "high";
 
-export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_low_confidence" | "category_set_invalid" | "category_not_routable" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "embedding_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed" | "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_token_refused" | "agent_off" | "agent_conversation_ended" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable";
+export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_low_confidence" | "category_set_invalid" | "category_not_routable" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "embedding_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed" | "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_token_refused" | "agent_off" | "agent_conversation_ended" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable" | "agent_needs_staff";
 
 export type AgentSurface = "chat" | "console";
 
@@ -168,7 +168,7 @@ export interface PolicySignals {
   injection_detected: boolean;
   mass_incident: boolean;
   clarifications_asked?: number;
-  agent_handoff_reason?: "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable" | null;
+  agent_handoff_reason?: "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable" | "agent_needs_staff" | null;
 }
 
 export interface ClassificationSignals {
@@ -298,6 +298,18 @@ export interface AgentReceiptOut {
   chat_turn?: string | null;
 }
 
+export interface AgentChoiceOut {
+  kind: string;
+  id: string | null;
+  label: string;
+}
+
+export interface AgentNeedsStaffOut {
+  checked: string | null;
+  button: string;
+  opened: string | null;
+}
+
 export interface AgentTurnOut {
   turn_id: string;
   conversation_id: string;
@@ -309,6 +321,8 @@ export interface AgentTurnOut {
   stop_reason: string | null;
   handoff_ticket: string | null;
   ticket_offered?: boolean;
+  choices?: AgentChoiceOut[];
+  needs_staff?: AgentNeedsStaffOut | null;
   queued_at: string;
   finished_at: string | null;
   queries?: InfraQueryReceiptOut[];
@@ -383,6 +397,7 @@ export interface StaffTicketRow {
   sla?: SlaBadgeOut | null;
   review: OpenReviewOut | null;
   version: number;
+  proposed_handoff_summary?: string | null;
 }
 
 export interface StaffTicketPage {
@@ -435,6 +450,13 @@ export interface TicketCustomerOut {
   tier: CustomerTier;
 }
 
+export interface AgentStepOut {
+  tool: string;
+  method: string;
+  path: string;
+  outcome: string;
+}
+
 export interface StaffTicketDetail {
   public_id: string;
   subject_masked: string;
@@ -451,6 +473,7 @@ export interface StaffTicketDetail {
   sla?: SlaBadgeOut | null;
   review: OpenReviewOut | null;
   version: number;
+  proposed_handoff_summary?: string | null;
   body_masked: string;
   pii_placeholders?: PlaceholderOut[];
   reporter_person: PersonOut;
@@ -461,6 +484,7 @@ export interface StaffTicketDetail {
   reviews: OpenReviewOut[];
   clarifications: ClarificationOut[];
   agent_handoff_reason?: string | null;
+  agent_steps?: AgentStepOut[];
   customer?: TicketCustomerOut | null;
   customer_lookup?: CustomerLookup | null;
 }
