@@ -2,8 +2,8 @@
 The cloud tools (spec F17 §h.1): the technician's on the console, over every
 project, and the customer's on the chat, over their own. Each project,
 server, volume and network a result holds gets a ref the person could pick
-(FR-F17-024), and the text the cloud holds is wrapped as untrusted
-(BR-F17-06).
+(FR-F17-024), and the text the cloud holds, its names and label values among
+it unless they are plain names, is wrapped as untrusted (BR-F17-06).
 """
 
 from __future__ import annotations
@@ -25,13 +25,31 @@ ResourceId = Annotated[
 Name = Annotated[str, Field(min_length=1, max_length=100)]
 Filters = dict[Name, list[Annotated[str, Field(min_length=1, max_length=200)]]]
 
-# A name a ref's label may show; any other name is shown by its resource's id.
+# A name the model and a ref's label may see as it is; any other is untrusted text.
 _PLAIN_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
+# A Prometheus label name.
+_LABEL_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def cloud_text(text: str | None) -> dict[str, str] | str | None:
     """Text the cloud holds, as untrusted, or `[withheld]` when core-api withheld it."""
     return WITHHELD if text == WITHHELD else untrusted(text)
+
+
+def cloud_name(value: Any) -> Any:
+    """A name or label value the cloud holds: as it is when it is a plain name or not text,
+    untrusted otherwise."""
+    if not isinstance(value, str) or value == WITHHELD or _PLAIN_NAME.fullmatch(value):
+        return value
+    return untrusted(value)
+
+
+def cloud_labels(mapping: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Labels the cloud holds, each value as `cloud_name` shows it; only label names Prometheus
+    allows."""
+    if mapping is None:
+        return None
+    return {key: cloud_name(value) for key, value in mapping.items() if _LABEL_NAME.fullmatch(key)}
 
 
 def cloud_pairs(mapping: dict[str, Any] | None) -> list[dict[str, str] | str | None]:
@@ -56,7 +74,11 @@ def resource_ref(context: Context, kind: str, row: dict[str, Any]) -> dict[str, 
 
 
 def project(row: Any, context: Context) -> dict[str, Any]:
-    return {**resource_ref(context, "project", row), "id": row.get("id"), "name": row.get("name")}
+    return {
+        **resource_ref(context, "project", row),
+        "id": row.get("id"),
+        "name": cloud_name(row.get("name")),
+    }
 
 
 def projects(body: Any, context: Context) -> list[dict[str, Any]]:
@@ -83,22 +105,21 @@ def server(row: Any, context: Context) -> dict[str, Any]:
             name: row.get(name)
             for name in (
                 "id",
-                "name",
                 "project_id",
                 "status",
                 "task_state",
-                "host",
-                "flavor",
                 "vcpus",
                 "ram_mb",
                 "volume_ids",
-                "security_groups",
                 "created",
                 "updated",
             )
         },
+        **{name: cloud_name(row.get(name)) for name in ("name", "host", "flavor")},
+        "security_groups": [cloud_name(g) for g in row.get("security_groups") or []],
         "addresses": [
-            {"network": a.get("network"), "ip": a.get("ip")} for a in row.get("addresses") or []
+            {"network": cloud_name(a.get("network")), "ip": a.get("ip")}
+            for a in row.get("addresses") or []
         ],
         "description": cloud_text(row.get("description")),
         "metadata": cloud_pairs(row.get("metadata")),
@@ -117,10 +138,8 @@ def volume(row: Any, context: Context) -> dict[str, Any]:
     """A volume: its state, size, type and attachments, with its text untrusted."""
     return {
         **resource_ref(context, "volume", row),
-        **{
-            name: row.get(name)
-            for name in ("id", "name", "project_id", "status", "size_gb", "volume_type", "created")
-        },
+        **{name: row.get(name) for name in ("id", "project_id", "status", "size_gb", "created")},
+        **{name: cloud_name(row.get(name)) for name in ("name", "volume_type")},
         "attachments": attachments(row.get("attachments")),
         "description": cloud_text(row.get("description")),
         "metadata": cloud_pairs(row.get("metadata")),
@@ -135,7 +154,7 @@ def volumes(body: Any, context: Context) -> list[dict[str, Any]]:
 def security_group(row: Any) -> dict[str, Any]:
     return {
         "id": row.get("id"),
-        "name": row.get("name"),
+        "name": cloud_name(row.get("name")),
         "description": cloud_text(row.get("description")),
         "rules": [
             {
@@ -159,12 +178,16 @@ def network(row: Any, context: Context) -> dict[str, Any]:
     """A network, and on its own page its subnets, ports and its project's security groups."""
     shown = {
         **resource_ref(context, "network", row),
-        **{name: row.get(name) for name in ("id", "name", "project_id", "status")},
+        **{name: row.get(name) for name in ("id", "project_id", "status")},
+        "name": cloud_name(row.get("name")),
         "description": cloud_text(row.get("description")),
     }
     if "subnets" in row:
         shown["subnets"] = [
-            {name: s.get(name) for name in ("id", "name", "cidr", "ip_version")}
+            {
+                **{name: s.get(name) for name in ("id", "cidr", "ip_version")},
+                "name": cloud_name(s.get("name")),
+            }
             for s in row.get("subnets") or []
         ]
         shown["ports"] = [
@@ -187,10 +210,9 @@ def alerts(body: Any, context: Context) -> list[dict[str, Any]]:
     """Firing alerts, with their summary and description untrusted."""
     return [
         {
-            **{
-                name: row.get(name)
-                for name in ("name", "state", "severity", "project_id", "labels", "starts_at")
-            },
+            **{name: row.get(name) for name in ("state", "project_id", "starts_at")},
+            **{name: cloud_name(row.get(name)) for name in ("name", "severity")},
+            "labels": cloud_labels(row.get("labels")),
             "summary": cloud_text(row.get("summary")),
             "description": cloud_text(row.get("description")),
         }
@@ -207,7 +229,10 @@ def silences(body: Any, context: Context) -> list[dict[str, Any]]:
                 for name in ("id", "state", "project_id", "starts_at", "ends_at")
             },
             "matchers": [
-                {name: m.get(name) for name in ("name", "value", "is_regex", "is_equal")}
+                {
+                    **{name: m.get(name) for name in ("is_regex", "is_equal")},
+                    **{name: cloud_name(m.get(name)) for name in ("name", "value")},
+                }
                 for m in row.get("matchers") or []
             ],
             "created_by": person(row.get("created_by"), context.actor_username),
@@ -250,7 +275,8 @@ def metric_answer(body: Any, context: Context) -> dict[str, Any]:
     return {
         "query_id": body.get("query_id"),
         "series": [
-            {"labels": s.get("labels"), "points": s.get("points")} for s in body.get("series") or []
+            {"labels": cloud_labels(s.get("labels")), "points": s.get("points")}
+            for s in body.get("series") or []
         ],
         "truncated": body.get("truncated"),
     }
@@ -262,9 +288,10 @@ def log_answer(body: Any, context: Context) -> dict[str, Any]:
         **{name: body.get(name) for name in ("query_id", "total", "truncated", "withheld")},
         "lines": [
             {
+                **{name: line.get(name) for name in ("at", "project_id")},
                 **{
-                    name: line.get(name)
-                    for name in ("at", "level", "project_id", "server", "server_id", "service")
+                    name: cloud_name(line.get(name))
+                    for name in ("level", "server", "server_id", "service")
                 },
                 "message": cloud_text(line.get("message")),
             }
@@ -279,18 +306,16 @@ def trace_answer(body: Any, context: Context) -> dict[str, Any]:
         **{name: body.get(name) for name in ("query_id", "truncated", "withheld")},
         "spans": [
             {
+                **{name: span.get(name) for name in ("project_id", "started_at", "duration_ms")},
                 **{
-                    name: span.get(name)
+                    name: cloud_name(span.get(name))
                     for name in (
                         "trace_id",
                         "id",
                         "parent_id",
                         "name",
-                        "project_id",
                         "service",
                         "server",
-                        "started_at",
-                        "duration_ms",
                         "outcome",
                     )
                 },

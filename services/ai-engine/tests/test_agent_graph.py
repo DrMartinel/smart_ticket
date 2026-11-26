@@ -1389,6 +1389,54 @@ def test_a_query_core_api_refuses_reaches_the_model_and_the_turn_goes_on(
     assert code in llm.prompts[1]
 
 
+@pytest.mark.parametrize(
+    ("tool", "arguments", "body"),
+    [
+        ("list_my_servers", {}, [_server(name=_INJECTED)]),
+        ("list_my_volumes", {}, [{"id": _VOL, "name": "vol-1", "volume_type": _INJECTED}]),
+        ("list_my_networks", {}, [{"id": "net-1", "name": _INJECTED}]),
+        ("list_my_alerts", {}, [{"name": "CloudVolumeIopsAtQuota", "labels": {"x": _INJECTED}}]),
+        (
+            "query_my_metrics",
+            _post_read_args(),
+            {"query_id": "q-1", "series": [{"labels": {"server": _INJECTED}, "points": []}]},
+        ),
+        (
+            "search_my_logs",
+            {"start": _START, "end": _END},
+            {"query_id": "q-1", "lines": [{"service": _INJECTED, "message": "ok"}]},
+        ),
+        (
+            "search_my_traces",
+            {"start": _START, "end": _END},
+            {"query_id": "q-1", "spans": [{"name": _INJECTED}]},
+        ),
+    ],
+)
+def test_a_cloud_name_or_label_value_that_gives_orders_trips_the_screen(
+    model, core_api, tool, arguments, body
+):
+    """BR-F15-11, F17 §h.4: a name is shown as it is only when it is a plain name."""
+
+    model(call(tool, **arguments), reply("I looked."))
+    core_api(Reply(200, body))
+
+    final = run(turn())
+
+    assert final.steps[0].injection_flagged and final.result_flagged
+
+
+def test_a_plain_name_and_label_value_are_shown_as_they_are():
+    context = Context(SecretStr(_TOKEN), _ME, "lan", None)
+
+    shown = infra.metric_answer(
+        {"series": [{"labels": {"server": "db-01", "bad key": "x"}, "points": []}]}, context
+    )
+
+    assert infra.server(_server(), context)["name"] == "db-01"
+    assert shown["series"][0]["labels"] == {"server": "db-01"}
+
+
 def test_an_injected_log_line_leaves_only_reads(model, core_api):
     """AC-F17-09, UC-F17-07: after a log line trips the screen, no change is offered or sent."""
 

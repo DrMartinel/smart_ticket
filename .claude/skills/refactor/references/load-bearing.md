@@ -953,11 +953,15 @@ guard and that comment is later trimmed, the entry is the record.
   *`test_agent_graph.py::test_a_resource_label_is_its_name_only_when_that_is_a_plain_name`.*
 - **`cloud_text` and `cloud_pairs` wrapping every text the cloud holds**
   (descriptions, metadata, alert texts, log messages, span attributes) as
-  `untrusted_text`, and leaving `[withheld]` plain. Whoever runs a workload
-  writes that text; unwrapped, its instructions read as data from the system,
-  the screen never flags it, and change tools stay offered (EC-F15-10).
+  `untrusted_text`, and leaving `[withheld]` plain; **`cloud_name` and
+  `cloud_labels` showing a name or label value as it is only when it is a
+  plain name.** Whoever runs a workload writes that text, its resources'
+  names, its log fields and its span names; unwrapped, its instructions read
+  as data from the system, the screen never flags it, and change tools stay
+  offered (EC-F15-10).
   *`test_agent_graph.py::test_text_the_cloud_holds_is_untrusted_and_withheld_text_stays_withheld`,
-  `::test_an_injected_log_line_leaves_only_reads`.*
+  `::test_an_injected_log_line_leaves_only_reads`,
+  `::test_a_cloud_name_or_label_value_that_gives_orders_trips_the_screen`.*
 - **`TICKET_AT_ONCE` in `apps/agent/models.py`, and `agent_handoff` in
   `waits_for_requester`.** Every other hand-off opens its ticket only on the
   employee's click; a mask-failed or critical-PII turn must reach a person
