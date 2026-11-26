@@ -1,6 +1,6 @@
 ---
 name: create-mr
-description: Open a merge request (a GitHub pull request on DrMartinel/smart_ticket) for the current branch, with a description that always has four filled sections - Summary, Rationale, Test plan and How to review. Reads the branch's commits and diff, has the mr-reviewer subagent run /code-review plus the repo's own rules (best practice, readability, hard rules, tests, docs), runs the checks the change calls for, drafts the title and body, validates that no section is missing or empty, shows the draft and waits for approval, then pushes and opens the PR with gh. Use this whenever the user says "open an MR", "create a PR", "make a merge request", "ship this branch", "raise a PR for this", or asks for a PR/MR description, even if they don't name the skill.
+description: Open a merge request (a GitHub pull request on DrMartinel/smart_ticket) for the current branch, with a description of exactly two filled sections that summarise the code - Summary (what the code now does, component by component, naming the routes, services, models, graph nodes and pages it changes) and Rationale (why the code is shaped this way - the spec or ADR behind it, the design choices a reviewer would question and the implementation not taken). Reads the branch's commits and diff, has the mr-reviewer subagent run /code-review plus the repo's own rules (best practice, readability, hard rules, tests, docs), runs the checks the change calls for and reports them to the user, drafts the title and body, validates that both sections are there and name the code, shows the draft and waits for approval, then pushes and opens the PR with gh. Use this whenever the user says "open an MR", "create a PR", "make a merge request", "ship this branch", "raise a PR for this", or asks for a PR/MR description, even if they don't name the skill.
 argument-hint: [base branch, default main] [extra context for the description]
 ---
 
@@ -12,15 +12,17 @@ else is context for the description. The base defaults to `main`.
 "MR" and "PR" mean the same thing here: the repo is on GitHub
 (`DrMartinel/smart_ticket`), so the result is a pull request opened with `gh`.
 
-Every description has exactly these four sections, in this order, each with
-real content:
+Every description has exactly these two sections, in this order, each with
+real content about the code:
 
 | Section | Answers | Never |
 |---|---|---|
-| `## Summary` | What changes, as bullets a reviewer can check against the diff | A file-by-file changelog, or restating the title |
-| `## Rationale` | Why this change, why this way: the spec, ADR, bug or decision behind it, and the alternative not taken when there was one | "To improve the code"; a why that no reviewer could disagree with |
-| `## Test plan` | What was run and what it showed, and what was not run and why | A check claimed but not run; "tests pass" without saying which |
-| `## How to review` | Where to start, the order to read the change in, where to look hardest and why, what can be skimmed, and how to try it by hand | "Review the diff"; repeating the Summary; a reading order for a one-file change |
+| `## Summary` | What the code now does, one bullet per component (route, service, model, migration, graph node, prompt, page), each naming the code in backticks (`Class.method`, the route, the table, the node) and the behaviour it has now; mechanical files in one closing bullet | A file-by-file changelog or `git diff --stat` in prose; restating the title; check results or review findings |
+| `## Rationale` | Why the code is shaped this way: the spec, ADR, bug or decision behind it, then each choice in the diff a reviewer would question (the layer it sits in, the data it stores, the failure path and its `ReasonCode`, a schema changed in both services) with its reason, and the implementation not taken | "To improve the code"; a why no reviewer could disagree with; a business case that never mentions the code |
+
+The checks and the review gate the MR but stay out of the body: their results
+go to the user at step 7 and in the step 8 report. The one exception is the
+**Before merge** line (step 6).
 
 ## 1. Check the branch
 
@@ -55,12 +57,16 @@ Commit bodies carry the why in this repo, so they are the first source for
   plain words and links the ADR it argues against (CLAUDE.md, *Before opening a PR*).
 - For one PR of a series (F15 is nine), which number it is, what came before and
   what comes next.
-- For **How to review**: the file or commit a reader should open first (usually
-  where the behaviour starts: a route, a service method, a graph node); whether
-  the commits read well one at a time; which hunks carry the risk (load-bearing
-  code from `load-bearing.md`, a hard rule, a permission or agent tier, a
-  migration, a failure path); and which files are mechanical (regenerated TS
-  types, migrations Django wrote, renames, fixtures, docs).
+- For **Summary**: where the behaviour starts (a route, a service method, a graph
+  node, a page) and what it calls from there; each component the diff adds or
+  changes and what it now does, including what a reader can't see from one
+  hunk (new tables and columns, `ReasonCode` values, permissions and agent
+  tiers, settings, thresholds, wire fields); and which files are mechanical
+  (regenerated TS types, migrations Django wrote, renames, fixtures, docs).
+- For **Rationale**: each choice in the code a reviewer could question: why it
+  sits in this layer (`where-logic-goes.md`), why load-bearing code
+  (`load-bearing.md`) was touched or left alone, why a failure ends at this
+  `ReasonCode`, and what the code would have looked like the other way.
 
 ## 3. Start the review
 
@@ -80,7 +86,7 @@ a session older than the file won't have it), spawn `general-purpose` with:
 ## 4. Run the checks
 
 Run what the changed paths call for, from CLAUDE.md's *Commands*, and keep the
-real output for the Test plan:
+real output (command, result, counts) to show the user in step 7:
 
 | Changed | Run |
 |---|---|
@@ -91,11 +97,11 @@ real output for the Test plan:
 | Only docs or skills | nothing to run; say so |
 
 **Never start an eval run or a live probe unless the user asked for one.** If a
-prompt, retrieval or routing change needs evals, the Test plan says that evals
-were not run and that they are needed before merge.
+prompt, retrieval or routing change needs evals, tell the user they were not
+run and are needed before merge; the **Before merge** line says so too.
 
 If a check fails, stop and show the output. Don't open the MR on a red run unless
-the user says to, and then the Test plan states the failure.
+the user says to, and then the **Before merge** line names the failure.
 
 Also walk CLAUDE.md's *Before opening a PR* checklist and note any item that
 doesn't hold.
@@ -107,15 +113,16 @@ then show the user its findings, ranked as it gave them.
 
 - **Blocking:** stop. Ask whether to fix each one now or open the MR anyway.
   Only a clear "open it anyway" lets a blocking finding through, and then the
-  Test plan names it.
+  **Before merge** line names it.
 - **Should fix and Nit:** list them and ask which to fix. Don't fix any
   unasked.
 - Make the fixes the user picks as **new commits** on the branch (never amend
   pushed commits), then re-run the step 4 checks for the paths you touched. If
-  a fix was more than trivial, re-run the reviewer on the new diff.
+  a fix was more than trivial, re-run the reviewer on the new diff. A fix that
+  changes what the code does changes the Summary too.
 
-The reviewer's closing `Review: …` line, updated for what was fixed, goes in
-the Test plan.
+Keep the reviewer's closing `Review: …` line, updated for what was fixed, for
+step 7.
 
 ## 6. Draft the title and body
 
@@ -128,55 +135,53 @@ Write the body to the scratchpad as `mr-body.md`:
 ```markdown
 <optional one-line lead: series position, spec and ADR links>
 
+**Before merge:** <only when one holds: a check that fails, a blocking finding accepted unfixed, evals not yet run>
+
 ## Summary
-- <what changes, one bullet per reviewable unit>
+- **<component>** (<the route, `Class.method`, table or node, in backticks>): <what the code now does>
+- **Mechanical:** <regenerated `generated.ts`, migrations Django wrote, renames>
 
 ## Rationale
-<why this change and why this way; links to the ADR/spec/issue; the alternative
-not taken; any guardrail deliberately relaxed, named as such>
-
-## Test plan
-- <command> → <result, with counts: "1,470 passed", "clean">
-- <new tests: file, what failure each one prevents>
-- Review: /code-review high + repo rules — <n> blocking, <n> should fix, <n> nits; <what was fixed, what was accepted and why>
-- <what was not run, and why> (e.g. "No eval run; triage is untouched.")
-- [ ] <anything the reviewer must still do by hand>
-
-## How to review
-- **Start at** <file:line or commit>: <what it is, in one line>
-- **Read in this order:** <commits one at a time, or files in dependency order>
-- **Look hardest at** <file:line>: <the risk, e.g. "the only place a turn hands off; a missed reason code here reaches no one">
-- **Skim:** <mechanical files, e.g. regenerated `generated.ts`, migrations Django wrote>
-- **Decide:** <questions left to the reviewer, e.g. review findings accepted unfixed, an open choice in the spec>
-- **Try it:** <commands or clicks to see the change locally, or "nothing to run: docs only">
+<why the code is shaped this way, linking the ADR/spec/issue in a sentence;
+then each choice in the diff a reviewer would question, with its reason; the
+implementation not taken; any guardrail deliberately relaxed, named as such>
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
-Write it the way the docs here are written: plain sentences, concrete names,
-numbers from the actual run. Keep it short; a reviewer reads the diff too.
+Write it the way the docs here are written: plain sentences, concrete names.
+Keep it short; a reviewer reads the diff too.
 
-**How to review** names real files and lines from this diff, never a generic
-checklist. Its "Look hardest at" points to where a mistake would not fail
-loudly, and draws on the reviewer's findings from step 5, the hard rules from
-step 2 and anything accepted unfixed. For a small change, two bullets (start
-here, look hardest there) are enough; leave out any bullet that has nothing to
-say rather than filling it.
+**Summary** reads as a map of the code: start where the behaviour starts and
+follow what it calls, so a reviewer can hold each bullet against the diff. One
+bullet per component, not per file. A one-file change gets one or two bullets;
+leave out the Mechanical bullet when nothing is mechanical.
 
-Then validate it. All four headings must exist, in order, each followed by
-non-empty text before the next heading:
+**Rationale** explains the code, not the feature's business case: the spec or
+ADR gets a link and a sentence, and the rest goes to the choices in this diff.
+Take the reasons from the commit bodies, ADRs and specs; when the why of a
+choice is in none of them, ask the user rather than invent one.
+
+Leave out the **Before merge** line when none of its cases holds.
+
+Then validate it. The body has exactly the two headings, in order, no
+placeholder left, neither section empty, and the Summary names code:
 
 ```bash
 python3 - "<scratchpad>/mr-body.md" <<'EOF'
 import re, sys
 body = open(sys.argv[1]).read()
-want = ["Summary", "Rationale", "Test plan", "How to review"]
-found = re.findall(r"^## (.+?)\s*$", body, re.M)
-assert [h for h in found if h in want] == want, f"sections out of order or missing: {found}"
+body = body.replace("🤖 Generated with [Claude Code](https://claude.com/claude-code)", "")
+prose = re.sub(r"```.*?```", "", body, flags=re.S)
+want = ["Summary", "Rationale"]
+found = re.findall(r"^## (.+?)\s*$", prose, re.M)
+assert found == want, f"want exactly the sections {want}, found {found}"
+left = re.findall(r"<[^>\n]+>", re.sub(r"`[^`\n]*`", "", prose))
+assert not left, f"placeholders left: {left}"
+part = dict(re.findall(r"^## (\w+)\s*$(.*?)(?=^## |\Z)", prose, re.M | re.S))
 for name in want:
-    text = re.search(rf"^## {name}\s*$(.*?)(?=^## |\Z)", body, re.M | re.S).group(1)
-    text = text.replace("🤖 Generated with [Claude Code](https://claude.com/claude-code)", "")
-    assert re.sub(r"<[^>]*>|\s|-|\[ \]", "", text), f"{name} is empty or still a placeholder"
+    assert re.sub(r"[\W_]", "", part[name]), f"{name} is empty"
+assert "`" in part["Summary"], "Summary names no code: put each route, class, table or file in backticks"
 print("ok")
 EOF
 ```
@@ -185,9 +190,10 @@ Fix and re-run until it prints `ok`.
 
 ## 7. Show it and wait
 
-Show the user the title, the base and head branches, the commits going in, any
-review findings left open, and the full body. Pushing and opening a PR are outward-facing: **wait for a clear yes**.
-Apply any edits they ask for and re-validate.
+Show the user the title, the base and head branches, the commits going in, the
+check results from step 4, the `Review: …` line and any findings left open, and
+the full body. Pushing and opening a PR are outward-facing: **wait for a clear
+yes**. Apply any edits they ask for and re-validate.
 
 ## 8. Push and open
 
@@ -201,5 +207,5 @@ Add `--draft` only if the user asked for a draft. Then call the ccd_pr
 auto-merge unless asked.
 
 Report the PR link (`https://github.com/DrMartinel/smart_ticket/pull/<n>`) and
-anything left open: failed or skipped checks, review findings accepted unfixed, evals still needed, unchecked items
-in the Test plan, and the questions **How to review** leaves to the reviewer.
+anything left open: failed or skipped checks, review findings accepted unfixed,
+and evals still needed.

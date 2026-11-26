@@ -87,7 +87,7 @@ Each finding: `path:line`, one sentence on what is wrong, the concrete scenario
 or rule it breaks (name the CLAUDE.md rule, checklist item number or ADR), and a
 suggested fix. Then list the areas you checked and found clean, the
 `/code-review` suggestions you dropped (as load-bearing, or against
-`where-logic-goes.md`), and end with one line the MR's Test plan can quote:
+`where-logic-goes.md`), and end with one line `/create-mr` can report to the user:
 
 ```
 Review: /code-review high + repo rules — <n> blocking, <n> should fix, <n> nits.
