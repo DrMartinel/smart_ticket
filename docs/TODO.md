@@ -731,3 +731,26 @@ each file is clean.
 ### Done when
 
 - F17's nine PRs are merged and AC-F17-01..09 pass in the trace suite.
+
+## 26. Ticket categories as data, parts 2–4 (ADR-0049)
+
+**Priority:** Medium · **Spec:** ADR-0049
+
+Part 1 (the `ticket_categories` table, its foreign keys, the read and rename routes, the console pickers) is built. The category set is still hardcoded where it decides things: the `TicketCategory` enum in both services and `category.v2.json`.
+
+### Work
+
+1. **Part 2, the category set on the wire.** `AIRunRequest.categories` (slug, description) in core-api `dtos.py` and ai-engine `schemas.py` in one PR; ai-engine builds Jev's question from them and `category.v3.json`; category fields become `str`; `Router.route` takes the snapshot and records `categories_used`; `is_security` replaces the `security` slug in the router, `check_category_scope` and the SLA clocks' P2 priority. New reason codes `category_set_invalid`, `category_not_routable`. Needs an eval run that shows no movement against `category.v2`.
+2. **Part 3, a workflow per category.** A nullable `workflow` on the category; the ticket moves into it at handoff.
+3. **Part 4, the agent.** A route the F15 tier table names.
+4. Answer ADR-0049's open questions first: who edits a description and how, who turns `is_routable` on, how workflows move, what the agent needs.
+5. **Before anything can deactivate a category** (no route does in part 1), fix what an inactive category breaks:
+   - `SlaConfig.draft` / `edit` and `KbDrafts.update` refuse a policy's or draft's own category even when it isn't changing, so a policy can't be replaced and a draft's title and body can't be saved. Check only a changed category, as `TeamConfig.set_categories` does.
+   - `Assignment.category_for` refuses a team that owns no active category with `category_required` and an empty list, which the reassign dialog can't act on. Give it its own refusal.
+   - `TeamForm` builds its "(inactive)" options from the form's draft, so an unticked one disappears until a reload. Build them from the saved team.
+   - Publishing a draft copies its category without checking that it is still active.
+
+### Done when
+
+A category added as a row (with a description that passed review and an owning team) is offered to Jev, routed only once marked routable, and covered by per-category F1.
+

@@ -22,8 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { P, can } from "@/lib/permissions";
+import { CategorySelect } from "@/components/CategorySelect";
 
-const CATEGORIES = ["access", "network", "hardware", "software", "security", "other"];
 const TIERS = ["low", "medium", "high"];
 const EDITABLE = ["draft", "changes_requested"];
 
@@ -191,11 +191,7 @@ export default function DraftPage() {
                 <div className="flex flex-wrap gap-3">
                   <label className="flex flex-col gap-1">
                     <span className="text-xs text-muted-foreground">Category</span>
-                    <NativeSelect wrapperClassName="w-44" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-                      {CATEGORIES.map((c) => (
-                        <option key={c}>{c}</option>
-                      ))}
-                    </NativeSelect>
+                    <CategorySelect wrapperClassName="w-44" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
                   </label>
                   <label className="flex flex-col gap-1">
                     <span className="text-xs text-muted-foreground">Proposed risk tier</span>

@@ -7,6 +7,7 @@ data with no teachable case, and it would still close the item.
 
 import pytest
 
+from apps.categories.domain.vocabulary import CategoryError, CategoryRefusal
 from apps.tickets.domain.patterns import PIILevel
 from apps.review.models import EvalCandidate, ReviewAction, ReviewDecision, ReviewError, ReviewItem
 from apps.tickets.domain.router import ReviewQueue
@@ -70,6 +71,32 @@ def test_an_override_without_a_reason_is_refused_and_writes_nothing(
     assert item.state == "pending"
     assert not ReviewDecision.objects.exists()
     assert not EvalCandidate.objects.exists()
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("corrected", ["billing", ""])
+def test_a_correction_to_an_unknown_category_is_refused_and_writes_nothing(
+    employee_user, technician_user, corrected
+):
+    item = review_item(employee_user)
+
+    with pytest.raises(CategoryError) as refused:
+        review_decisions.decide(
+            item,
+            technician_user,
+            DecisionIn(
+                action_taken=ReviewAction.REROUTE.value,
+                category_verdict="wrong",
+                corrected_category=corrected,
+                override_reason="wrong category",
+                time_spent_sec=45,
+            ),
+        )
+
+    assert refused.value.code is CategoryRefusal.UNKNOWN_CATEGORY
+    item.refresh_from_db()
+    assert item.state == "pending"
+    assert not ReviewDecision.objects.exists()
 
 
 @pytest.mark.django_db

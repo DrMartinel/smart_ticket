@@ -9,6 +9,7 @@ from django.db import transaction
 
 from apps.accounts.models import User
 from apps.agent.services.actions import agent_actions
+from apps.categories.models import Category
 from apps.review.models import (
     SECURITY_QUEUES,
     EvalCandidate,
@@ -43,6 +44,8 @@ class ReviewDecisions:
             choice.override_reason and choice.override_reason.strip()
         ):
             raise ReviewError("override_reason is required when action_taken != 'approve'")
+        if choice.corrected_category is not None:
+            Category.objects.require(choice.corrected_category)
 
         decision = ReviewDecision.objects.create(
             review_item=item,

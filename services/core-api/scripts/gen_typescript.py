@@ -79,6 +79,8 @@ MODELS = [
     "WebhookIn",
     "WebhookPatch",
     "WebhookOut",
+    "CategoryOut",
+    "CategoryPatch",
     "TeamOut",
     "MemberOut",
     "StaffOut",
@@ -355,6 +357,10 @@ def _models() -> dict[str, type[BaseModel]]:
         response_schema as accounts_response,
     )
     from apps.agent import request_schema as agent_request, response_schema as agent_response
+    from apps.categories import (
+        request_schema as categories_request,
+        response_schema as categories_response,
+    )
     from apps.chat import request_schema as chat_request, response_schema as chat_response
     from apps.incidents import (
         request_schema as incidents_request,
@@ -398,6 +404,8 @@ def _models() -> dict[str, type[BaseModel]]:
         tickets_response,
         notifications_request,
         notifications_response,
+        categories_request,
+        categories_response,
         teams_request,
         teams_response,
         sla_request,

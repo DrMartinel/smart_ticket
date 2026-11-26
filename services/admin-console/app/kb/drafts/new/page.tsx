@@ -13,11 +13,9 @@ import { api, ApiError } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { DraftOut } from "@/lib/types/generated";
 import { Card } from "@/components/ui/card";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-const CATEGORIES = ["access", "network", "hardware", "software", "security", "other"];
+import { CategorySelect } from "@/components/CategorySelect";
 
 export default function NewDraftPage() {
   const user = useRequireAuth();
@@ -26,7 +24,7 @@ export default function NewDraftPage() {
   const kind = search.get("kind") ?? "create";
   const [slug, setSlug] = useState(search.get("slug") ?? "");
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("other");
+  const [category, setCategory] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -70,7 +68,7 @@ export default function NewDraftPage() {
           onSubmit={(e) => {
             e.preventDefault();
             setTried(true);
-            if (!slug.trim() || (kind === "create" && !title.trim()) || (kind === "retire" && !note.trim())) return;
+            if (!slug.trim() || (kind === "create" && (!title.trim() || !category)) || (kind === "retire" && !note.trim())) return;
             void start();
           }}
         >
@@ -87,12 +85,13 @@ export default function NewDraftPage() {
               <Labeled label="Title" required error={tried && !title.trim() ? "Give the page a title." : null}>
                 <Input value={title} aria-invalid={tried && !title.trim()} onChange={(e) => setTitle(e.target.value)} />
               </Labeled>
-              <Labeled label="Category">
-                <NativeSelect value={category} onChange={(e) => setCategory(e.target.value)}>
-                  {CATEGORIES.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </NativeSelect>
+              <Labeled label="Category" required error={tried && !category ? "Choose a category." : null}>
+                <CategorySelect
+                  value={category}
+                  blank="Choose a category…"
+                  aria-invalid={tried && !category}
+                  onChange={(e) => setCategory(e.target.value)}
+                />
               </Labeled>
             </>
           )}

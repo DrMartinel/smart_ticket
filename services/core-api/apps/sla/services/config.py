@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.core.errors import CodedError
 from apps.sla.models import Calendar, Holiday, Policy, PolicyState
 from apps.sla.domain.business_time import CalendarError, parse_hours
@@ -56,6 +57,8 @@ class SlaConfig:
     def draft(self, actor: User, data: dict[str, Any]) -> Policy:
         """A new draft; with `replaces_id`, the active policy it takes over from on activation."""
         self.check_targets(data["response_minutes"], data["resolution_minutes"])
+        if data.get("category"):
+            Category.objects.require(data["category"])
         with transaction.atomic():
             policy = Policy(created_by=actor, state=PolicyState.DRAFT.value)
             for name in _POLICY_FIELDS:
@@ -69,6 +72,8 @@ class SlaConfig:
         return policy
 
     def edit(self, actor: User, policy_id: uuid.UUID, data: dict[str, Any]) -> Policy:
+        if data.get("category"):
+            Category.objects.require(data["category"])
         with transaction.atomic():
             policy = self.policy(policy_id, lock=True)
             if policy.state != PolicyState.DRAFT.value:

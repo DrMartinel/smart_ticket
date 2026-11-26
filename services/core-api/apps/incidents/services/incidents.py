@@ -20,6 +20,7 @@ from apps.accounts.domain.access import Access
 from apps.accounts.domain.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.core.errors import CodedError
 from apps.incidents.models import CloseState, IncidentBroadcast, IncidentLink
 from apps.notifications.models import Message
@@ -259,6 +260,8 @@ class Incidents:
         """Confirms a proposal: each linked ticket's pending review item is decided `approve` in the
         manager's name, and their resolution clocks wait for the incident (BR-F7-03, 07)."""
         self.check_manager(actor)
+        if category:
+            Category.objects.require(category)
         with transaction.atomic():
             incident = self.get(public_id)
             if incident.status != IncidentStatus.PROPOSED.value:
@@ -341,6 +344,8 @@ class Incidents:
     ) -> Incident:
         """A confirmed incident a manager opens by hand, with tickets and a first broadcast."""
         self.check_manager(actor)
+        if category:
+            Category.objects.require(category)
         with transaction.atomic():
             self.lock()
             incident = Incident.objects.create(

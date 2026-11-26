@@ -558,6 +558,23 @@ export interface WebhookOut {
   created_at: string;
 }
 
+export interface CategoryOut {
+  slug: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  is_security: boolean;
+  is_routable: boolean;
+  sort_order: number;
+  version: number;
+}
+
+export interface CategoryPatch {
+  name?: string | null;
+  sort_order?: number | null;
+  reason?: string;
+}
+
 export interface TeamOut {
   slug: string;
   name: string;

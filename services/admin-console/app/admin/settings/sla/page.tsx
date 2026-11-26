@@ -21,8 +21,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SectionTabs } from "@/components/TabNav";
 import { P, can } from "@/lib/permissions";
+import { CategorySelect } from "@/components/CategorySelect";
 
-const CATEGORIES: TicketCategory[] = ["hardware", "software", "network", "access", "security", "other"];
 const PRIORITIES: Priority[] = ["P1", "P2", "P3", "P4"];
 
 function minutesText(m: number, roundTheClock = false): string {
@@ -70,7 +70,7 @@ export default function SlaPoliciesPage() {
   const [draft, setDraft] = useState<PolicyIn | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ input: PreviewIn & { local: string }; out: PreviewOut | null }>({
-    input: { category: "hardware", priority: "P3", start_at: "", local: "2026-10-23T15:30" },
+    input: { category: null, priority: "P3", start_at: "", local: "2026-10-23T15:30" },
     out: null,
   });
 
@@ -221,16 +221,11 @@ export default function SlaPoliciesPage() {
           <div className="flex flex-wrap items-end gap-3 text-sm">
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-foreground/80">Category</span>
-              <NativeSelect
-                value={preview.input.category ?? ""}
+              <CategorySelect
+                value={preview.input.category}
+                blank="none"
                 onChange={(e) => setPreview({ ...preview, input: { ...preview.input, category: (e.target.value || null) as TicketCategory | null } })}
-              >
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </NativeSelect>
+              />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-foreground/80">Priority</span>
@@ -322,14 +317,11 @@ export default function SlaPoliciesPage() {
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Category</span>
-              <NativeSelect value={draft.category ?? ""} onChange={(e) => setDraft({ ...draft, category: (e.target.value || null) as TicketCategory | null })}>
-                <option value="">any</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </NativeSelect>
+              <CategorySelect
+                value={draft.category}
+                blank="any"
+                onChange={(e) => setDraft({ ...draft, category: (e.target.value || null) as TicketCategory | null })}
+              />
             </label>
             <label className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Priority</span>

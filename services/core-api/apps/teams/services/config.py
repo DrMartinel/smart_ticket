@@ -9,10 +9,10 @@ from django.db import transaction
 from apps.accounts.models import User
 from apps.accounts.services.grants import grants
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.teams.models import MembershipRole, Team, TeamCategory, TeamMembership
 from apps.teams.services.assignment import TeamError
 from apps.teams.domain.vocabulary import TeamRefusal
-from infrastructure.dtos import TicketCategory
 
 _FIELDS = ("name", "strategy", "max_open_per_member", "is_active", "is_fallback")
 
@@ -53,8 +53,12 @@ class TeamConfig:
         return team
 
     def set_categories(self, team: Team, categories: list[str], *, move: bool) -> None:
-        """Makes `categories` the team's; refuses one another team owns unless asked to move it."""
+        """Makes `categories` the team's; refuses an inactive one it doesn't own yet, and one another
+        team owns unless asked to move it."""
         wanted = set(categories)
+        added = wanted - set(team.categories.values_list("category", flat=True))
+        for category in sorted(added):
+            Category.objects.require(category)
         owned_elsewhere = TeamCategory.objects.filter(category__in=wanted).exclude(team=team)
         taken = list(owned_elsewhere.select_related("team"))
         if taken and not move:
@@ -67,7 +71,7 @@ class TeamConfig:
             )
         owned_elsewhere.delete()
         team.categories.exclude(category__in=wanted).delete()
-        for category in wanted - set(team.categories.values_list("category", flat=True)):
+        for category in added:
             TeamCategory.objects.create(team=team, category=category)
 
     def check_whole(self, team: Team) -> None:
@@ -75,7 +79,8 @@ class TeamConfig:
         owned = set(
             TeamCategory.objects.filter(team__is_active=True).values_list("category", flat=True)
         )
-        missing = sorted(c.value for c in TicketCategory if c.value not in owned)
+        active = Category.objects.active().values_list("slug", flat=True)
+        missing = sorted(slug for slug in active if slug not in owned)
         if missing:
             raise TeamError(
                 422,

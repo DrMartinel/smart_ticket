@@ -2,12 +2,12 @@
 
 // A team's settings form (F2): name, strategy, cap, owned categories, fallback and the reason for a save.
 
-import type { TeamOut, TeamStrategy, TicketCategory } from "@/lib/types/generated";
+import type { TeamOut, TeamStrategy } from "@/lib/types/generated";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
-
-export const CATEGORIES: TicketCategory[] = ["hardware", "software", "network", "access", "security", "other"];
+import { CategoryReadError } from "@/components/CategorySelect";
+import { useCategories } from "@/lib/categories";
 
 export const STRATEGY_LABEL: Record<string, string> = {
   least_loaded: "Fewest open tickets",
@@ -17,7 +17,7 @@ export const STRATEGY_LABEL: Record<string, string> = {
 export interface TeamDraft {
   slug: string;
   name: string;
-  categories: TicketCategory[];
+  categories: string[];
   strategy: TeamStrategy;
   max_open_per_member: string;
   is_fallback: boolean;
@@ -40,7 +40,7 @@ export function draftOf(team: TeamOut): TeamDraft {
   return {
     slug: team.slug,
     name: team.name,
-    categories: team.categories as TicketCategory[],
+    categories: team.categories,
     strategy: team.strategy as TeamStrategy,
     max_open_per_member: team.max_open_per_member ? String(team.max_open_per_member) : "",
     is_fallback: team.is_fallback,
@@ -74,6 +74,14 @@ export function TeamForm({
   disabled?: boolean;
   onChange: (patch: Partial<TeamDraft>) => void;
 }) {
+  const { categories, error: categoriesError, retry: retryCategories } = useCategories();
+  const known = categories.length > 0 || categoriesError !== null;
+  const options = [
+    ...categories.map((c) => ({ slug: c.slug, label: c.name })),
+    ...(known ? d.categories : [])
+      .filter((slug) => !categories.some((c) => c.slug === slug))
+      .map((slug) => ({ slug, label: categoriesError ? slug : `${slug} (inactive)` })),
+  ];
   return (
     <div className="flex flex-col gap-4 text-sm">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -119,16 +127,19 @@ export function TeamForm({
       </div>
       <fieldset className="flex flex-wrap gap-x-4 gap-y-1.5" disabled={disabled}>
         <legend className="pb-1.5 text-xs text-muted-foreground">Categories it owns</legend>
-        {CATEGORIES.map((c) => (
-          <label key={c} className="flex items-center gap-1.5">
+        {categoriesError && <CategoryReadError error={categoriesError} onRetry={retryCategories} />}
+        {options.map((c) => (
+          <label key={c.slug} className="flex items-center gap-1.5">
             <Checkbox
-              checked={d.categories.includes(c)}
+              checked={d.categories.includes(c.slug)}
               disabled={disabled}
               onCheckedChange={() =>
-                onChange({ categories: d.categories.includes(c) ? d.categories.filter((x) => x !== c) : [...d.categories, c] })
+                onChange({
+                  categories: d.categories.includes(c.slug) ? d.categories.filter((x) => x !== c.slug) : [...d.categories, c.slug],
+                })
               }
             />
-            {c}
+            {c.label}
           </label>
         ))}
       </fieldset>

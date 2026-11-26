@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/Modal";
 import { ApiError, api } from "@/lib/api";
+import { useCategories } from "@/lib/categories";
 import type { AssignedTicketOut, ReassignIn, ReassignReason, TeamDetailOut, TeamOut, TicketCategory } from "@/lib/types/generated";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -89,10 +90,11 @@ export default function ReassignDialog({
 
   const target = teams.find((t) => t.slug === toTeam);
   const moving = !!target && toTeam !== ticket.team;
+  const { categories: active } = useCategories();
   const categoryChoices = useMemo(() => {
     if (!target || !moving || (ticket.category && target.categories.includes(ticket.category))) return [];
-    return target.categories;
-  }, [target, moving, ticket.category]);
+    return active.length ? target.categories.filter((c) => active.some((a) => a.slug === c)) : target.categories;
+  }, [target, moving, ticket.category, active]);
   const newCategory = categoryChoices.length === 1 ? categoryChoices[0] : toCategory;
 
   useEffect(() => setToCategory(""), [toTeam]);

@@ -16,6 +16,7 @@ from apps.accounts.domain.access import Access
 from apps.accounts.domain.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.core.errors import CodedError
 from apps.kb.models import (
     DraftKind,
@@ -107,6 +108,8 @@ class KbDrafts:
         body = data.get("body") or (article.body if article else "")
         if not title or not body.strip():
             raise KbError(422, KbRefusal.EMPTY, "write a title and a body")
+        if data.get("category"):
+            Category.objects.require(data["category"])
         cluster = None
         if data.get("gap_cluster_id"):
             cluster = KbGapCluster.objects.filter(pk=data["gap_cluster_id"]).first()
@@ -140,6 +143,8 @@ class KbDrafts:
                 raise KbError(403, KbRefusal.NOT_ALLOWED, "only the author edits a draft")
             if not draft.is_editable():
                 raise KbError(409, KbRefusal.NOT_EDITABLE, f"the draft is {draft.state}")
+            if fields.get("category") is not None:
+                Category.objects.require(fields["category"])
             for name in ("title", "body", "category", "proposed_risk_tier", "change_note"):
                 if fields.get(name) is not None:
                     setattr(draft, name, fields[name])
