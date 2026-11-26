@@ -3,11 +3,11 @@
 import { ErrorState } from "@/components/ui/states";
 
 import { useEffect, useRef, useState } from "react";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { CategorySelect } from "@/components/CategorySelect";
 
 export interface ReviewDecisionPayload {
   action_taken: "approve" | "edit_and_send" | "reject" | "reroute" | "escalate";
@@ -18,8 +18,6 @@ export interface ReviewDecisionPayload {
   override_reason: string | null;
   time_spent_sec: number;
 }
-
-const CATEGORIES = ["hardware", "software", "network", "access", "security", "other"];
 
 const ACTIONS: { value: ReviewDecisionPayload["action_taken"]; label: string; hint: string }[] = [
   { value: "approve", label: "Approve", hint: "Carry out what the AI proposed." },
@@ -67,7 +65,7 @@ export default function ReviewForm({
     CATEGORY_VERDICTS.includes(initial.category_verdict ?? "") ? initial.category_verdict! : null,
   );
   const [correctedCategory, setCorrectedCategory] = useState(
-    CATEGORIES.includes(initial.corrected_category ?? "") ? initial.corrected_category! : "",
+    initial.corrected_category ?? "",
   );
   const [action, setAction] = useState<ReviewDecisionPayload["action_taken"]>(
     ACTIONS.some((a) => a.value === initial.action_taken) ? initial.action_taken! : "approve",
@@ -121,18 +119,13 @@ export default function ReviewForm({
           onChange={setCategoryVerdict}
         />
         {categoryVerdict === "wrong" && (
-          <NativeSelect wrapperClassName="mt-2 w-56"
+          <CategorySelect
+            wrapperClassName="mt-2 w-56"
             value={correctedCategory}
+            blank="Choose the right category…"
             onChange={(e) => setCorrectedCategory(e.target.value)}
             aria-label="Correct category"
-          >
-            <option value="">Choose the right category…</option>
-            {CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </NativeSelect>
+          />
         )}
       </Question>
 

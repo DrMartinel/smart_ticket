@@ -103,6 +103,14 @@ class Permission(StrEnum):
         "Use the assistant",
         staff_only=False,
     )
+    CATEGORIES_MANAGE = _p(
+        "urn:smart-ticket:perm:categories:manage",
+        "Rename and reorder ticket categories",
+    )
+    CATEGORIES_READ = _p(
+        "urn:smart-ticket:perm:categories:read",
+        "Read the ticket categories",
+    )
     INCIDENTS_MANAGE = _p(
         "urn:smart-ticket:perm:incidents:manage",
         "Declare, confirm, broadcast, resolve and link incidents",
@@ -531,6 +539,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     SystemRole.TECHNICIAN: frozenset(
         {
             Permission.AGENT_USE,
+            Permission.CATEGORIES_READ,
             Permission.TICKETS_ALL_CATEGORIES,
             Permission.ACCESS_REVIEW_RESPOND,
             Permission.INCIDENTS_READ,
@@ -574,6 +583,8 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     SystemRole.MANAGER: frozenset(
         {
             Permission.AGENT_USE,
+            Permission.CATEGORIES_MANAGE,
+            Permission.CATEGORIES_READ,
             Permission.KB_DRAFTS_WITHDRAW_ANY,
             Permission.REPORTS_REVIEWERS_ALL,
             Permission.TEAMS_SUPERVISE,
@@ -654,6 +665,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     SystemRole.SECURITY: frozenset(
         {
             Permission.AGENT_USE,
+            Permission.CATEGORIES_READ,
             Permission.PII_REVEAL_ANY,
             Permission.REPORTS_SECURITY_DETAIL,
             Permission.ACCESS_READ,
@@ -694,6 +706,7 @@ SYSTEM_ROLE_PERMISSIONS: dict[SystemRole, frozenset[Permission]] = {
     SystemRole.WORKFLOW_ADMIN: frozenset(
         {
             Permission.ACCESS_PEOPLE_READ,
+            Permission.CATEGORIES_MANAGE,
             Permission.NOTIFICATIONS_DELIVERIES_MANAGE,
             Permission.NOTIFICATIONS_MATRIX_MANAGE,
             Permission.NOTIFICATIONS_MATRIX_READ,

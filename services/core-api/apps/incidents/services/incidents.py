@@ -20,6 +20,7 @@ from apps.accounts.domain.access import Access
 from apps.accounts.domain.catalog import Permission
 from apps.accounts.models import User
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.core.errors import CodedError
 from apps.incidents.models import CloseState, IncidentBroadcast, IncidentLink
 from apps.notifications.models import Message
@@ -279,6 +280,8 @@ class Incidents:
     ) -> None:
         from apps.sla.services.clocks import sla_clocks
 
+        if category:
+            Category.objects.require(category)
         now = timezone.now()
         incident.status = IncidentStatus.CONFIRMED.value
         incident.title = title.strip() or incident.title

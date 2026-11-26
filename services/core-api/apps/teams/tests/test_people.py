@@ -7,6 +7,7 @@ from datetime import timedelta
 
 from apps.accounts.models import AuthSource
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.teams.models import Leave, Team, TeamCategory, TeamMembership
 from apps.teams.tests.conftest import handed_off, person
 from apps.teams.services.assignment import today
@@ -163,6 +164,20 @@ def test_a_category_left_without_a_team_is_refused(network, api_as):
     assert response.status_code == 422
     assert response.json()["code"] == "category_unowned"
     assert TeamCategory.objects.get(category="network").team == network.team
+
+
+def test_an_inactive_category_needs_no_team(network, api_as):
+    Category.objects.filter(slug="network").update(is_active=False)
+
+    response = send(
+        api_as(network.people["huy"]),
+        "patch",
+        "/api/teams/network",
+        {"categories": [], "reason": "Mạng không còn là một danh mục"},
+    )
+
+    assert response.status_code == 200
+    assert not TeamCategory.objects.filter(category="network").exists()
 
 
 def test_a_category_moves_when_asked_and_is_audited(network, api_as):

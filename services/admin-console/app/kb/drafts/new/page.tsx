@@ -13,11 +13,9 @@ import { api, ApiError } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth";
 import type { DraftOut } from "@/lib/types/generated";
 import { Card } from "@/components/ui/card";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-const CATEGORIES = ["access", "network", "hardware", "software", "security", "other"];
+import { CategorySelect } from "@/components/CategorySelect";
 
 export default function NewDraftPage() {
   const user = useRequireAuth();
@@ -88,11 +86,7 @@ export default function NewDraftPage() {
                 <Input value={title} aria-invalid={tried && !title.trim()} onChange={(e) => setTitle(e.target.value)} />
               </Labeled>
               <Labeled label="Category">
-                <NativeSelect value={category} onChange={(e) => setCategory(e.target.value)}>
-                  {CATEGORIES.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </NativeSelect>
+                <CategorySelect value={category} onChange={(e) => setCategory(e.target.value)} />
               </Labeled>
             </>
           )}

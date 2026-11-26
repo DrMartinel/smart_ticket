@@ -169,6 +169,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
 | KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |
 | Ticket lifecycle after triage: workflows, transitions, rules, actions (ADR-0028) | [apps/lifecycle/](services/core-api/apps/lifecycle/), the engine in [engine.py](services/core-api/apps/lifecycle/services/engine.py) |
+| Ticket categories: the set, the read and rename routes (ADR-0049) | [apps/categories/](services/core-api/apps/categories/), the service in [categories.py](services/core-api/apps/categories/services/categories.py) |
 | SLA clocks, calendars and policies (F1, ADR-0030); business time in [business_time.py](services/core-api/apps/sla/domain/business_time.py) | [apps/sla/](services/core-api/apps/sla/), the clocks in [clocks.py](services/core-api/apps/sla/services/clocks.py) |
 | Teams, assignment at handoff, take and reassign (F2, ADR-0031) | [apps/teams/](services/core-api/apps/teams/), the service in [assignment.py](services/core-api/apps/teams/services/assignment.py) |
 | Chat conversations and the earlier masked turns a question carries (F3, ADR-0034) | [conversations.py](services/core-api/apps/chat/services/conversations.py) |
@@ -233,6 +234,7 @@ read it before adding a module, class or helper in core-api.
 | What a workflow action can do | `apps/lifecycle/services/actions.py` (a handler and an `ActionCode`); rules and events in `domain/rules.py` |
 | SLA targets, hours, holidays | Data: `/admin/settings/sla` (a workflow admin or manager drafts and activates a policy, ADR-0043), calendars and holidays; percentages in `thresholds.yaml` `sla`. Clocks change only through `sla_clocks`, called by the engine after a status change |
 | Who gets a ticket | `assignment.assign_after_handoff` after the decision is carried out (pipeline, review decisions), `take` / `reassign` for people; never `ticket.assigned_to = …` in new code. Team ownership of categories is data (`team_categories`) |
+| The category set | Rows in `ticket_categories` (ADR-0049): name and order in Admin → Settings → Categories; description and flags by pull request, since a description is classifier input. Until ADR-0049 part 2, a new category also needs the enum and `category.v*.json` |
 | A comment on a ticket | `comments.add` (or `by_staff`), which masks inline and holds a mask-failed one for review; never `TicketComment.objects.create` with raw text |
 | What a chat question tells the model about earlier turns | `Conversations.prior_turns` (which turns count) and `requester:` in `thresholds.yaml`; ai-engine's `TicketMasked.earlier_turns()` (how they read) and `propose.v*` / `hyde_draft.v*`. Never the router or a signal (ADR-0034) |
 | What happens to a mass incident's tickets | `incidents.confirm` / `resolve` / `unlink` in `apps/incidents/services/incidents.py`; never `ticket.incident = …` or a status write. Close-all moves each ticket with `lifecycle.automatic_move` |
@@ -424,6 +426,6 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (forty-eight
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (forty-nine
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
 0030–0038 come from the phase 2 pack, all accepted).

@@ -17,7 +17,8 @@ from apps.accounts.models import Capability, User, UserRole
 
 from apps.accounts.testing import grant_capability
 from apps.audit.models import AuditLog
-from apps.kb.models import KbArticle, KbAuthorityLog, KbChunk, KbGapCluster, KbGapReport
+from apps.categories.models import Category
+from apps.kb.models import KbArticle, KbAuthorityLog, KbChunk, KbDraft, KbGapCluster, KbGapReport
 from apps.kb.services.authority import kb_authority
 from apps.kb.services.gaps import kb_gaps
 from apps.notifications.models import Message
@@ -150,6 +151,33 @@ class TestDrafts:
         )
         assert refused.status_code == 422
         assert refused.json()["code"] == "title_and_body_required"
+
+    def test_a_page_in_an_unknown_category_is_refused(self, clients):
+        refused = clients["huy"].post(
+            "/api/kb",
+            {"slug": "KB-TEST-002", "title": "Billing", "body": "Pay.", "category": "billing"},
+            content_type="application/json",
+        )
+
+        assert refused.status_code == 422
+        assert refused.json()["code"] == "unknown_category"
+        assert not KbDraft.objects.filter(slug="KB-TEST-002").exists()
+
+    def test_a_draft_cannot_move_into_an_inactive_category(self, clients):
+        created = draft(
+            clients["mai"], kind="create", slug="vpn-x", title="VPN", body="b", category="other"
+        )
+        Category.objects.filter(slug="network").update(is_active=False)
+
+        refused = clients["mai"].patch(
+            f"/api/kb/drafts/{created.json()['id']}",
+            {"category": "network"},
+            content_type="application/json",
+        )
+
+        assert refused.status_code == 422
+        assert refused.json()["code"] == "unknown_category"
+        assert KbDraft.objects.get(slug="vpn-x").category == "other"
 
     def test_a_new_page_slug_that_exists_is_refused(self, clients, live):
         refused = draft(

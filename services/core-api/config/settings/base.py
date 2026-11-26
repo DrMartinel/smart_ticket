@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     "apps.metrics",
     "apps.chat",
     "apps.lifecycle",
+    "apps.categories",
     "apps.teams",
     "apps.notifications",
     "apps.sla",

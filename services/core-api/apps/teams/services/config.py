@@ -9,10 +9,10 @@ from django.db import transaction
 from apps.accounts.models import User
 from apps.accounts.services.grants import grants
 from apps.audit.models import AuditLog
+from apps.categories.models import Category
 from apps.teams.models import MembershipRole, Team, TeamCategory, TeamMembership
 from apps.teams.services.assignment import TeamError
 from apps.teams.domain.vocabulary import TeamRefusal
-from infrastructure.dtos import TicketCategory
 
 _FIELDS = ("name", "strategy", "max_open_per_member", "is_active", "is_fallback")
 
@@ -75,7 +75,8 @@ class TeamConfig:
         owned = set(
             TeamCategory.objects.filter(team__is_active=True).values_list("category", flat=True)
         )
-        missing = sorted(c.value for c in TicketCategory if c.value not in owned)
+        active = Category.objects.active().values_list("slug", flat=True)
+        missing = sorted(slug for slug in active if slug not in owned)
         if missing:
             raise TeamError(
                 422,

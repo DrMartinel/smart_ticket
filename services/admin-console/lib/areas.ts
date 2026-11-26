@@ -63,6 +63,7 @@ export function adminGroups(user: CurrentUser): AdminGroup[] {
     {
       label: "Settings",
       links: [
+        ...show(can(user, P.categoriesManage), { href: "/admin/settings/categories", label: "Categories" }),
         ...show(can(user, P.workflowsManage), { href: "/admin/settings/workflows", label: "Workflows" }),
         ...section(
           "SLA",

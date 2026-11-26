@@ -59,6 +59,8 @@ export const P = {
   slaRead: perm("sla:read"),
   slaManage: perm("sla:manage"),
   slaActivate: perm("sla:policies:activate"),
+  categoriesRead: perm("categories:read"),
+  categoriesManage: perm("categories:manage"),
   teamsRead: perm("teams:read"),
   teamsManage: perm("teams:manage"),
   availabilityOwn: perm("teams:availability:own"),

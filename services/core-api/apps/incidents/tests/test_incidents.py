@@ -542,6 +542,20 @@ class TestApi:
         assert body["broadcasts"][0]["eta_unknown"] is True
         assert AuditLog.objects.filter(event="incident_declared").count() == 1
 
+    def test_an_incident_in_an_unknown_category_is_refused_and_declares_nothing(
+        self, desk, engine, clock, api_as
+    ):
+        refused = api_as(desk["duc"]).post(
+            "/api/incidents",
+            {"title": "Billing down", "category": "billing", "service": "", "ticket_ids": []},
+            content_type="application/json",
+        )
+
+        assert refused.status_code == 422
+        assert refused.json()["code"] == "unknown_category"
+        assert not Incident.objects.exists()
+        assert not AuditLog.objects.filter(event="incident_declared").exists()
+
     def test_unlink_by_the_assignee_through_the_api(self, desk, engine, clock, api_as):
         incident, tickets = confirmed(desk, engine)
         Ticket.objects.filter(pk=tickets[0].pk).update(assigned_to=desk["khoa"])

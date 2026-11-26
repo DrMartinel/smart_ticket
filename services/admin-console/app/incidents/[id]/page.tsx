@@ -28,8 +28,7 @@ import { EmptyState, ErrorState, LoadingState, TableStatus } from "@/components/
 import { useToast } from "@/components/ui/toast";
 import { Link2, Megaphone } from "lucide-react";
 import { P, can } from "@/lib/permissions";
-
-const CATEGORIES = ["network", "access", "hardware", "software", "security", "other"];
+import { CategorySelect } from "@/components/CategorySelect";
 
 function Stat({ label, value, note, tone }: { label: string; value: string; note?: string; tone?: string }) {
   return (
@@ -405,11 +404,7 @@ export default function IncidentPage() {
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </Labeled>
           <Labeled label="Category">
-            <NativeSelect value={category} onChange={(e) => setCategory(e.target.value)}>
-              {CATEGORIES.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </NativeSelect>
+            <CategorySelect value={category} onChange={(e) => setCategory(e.target.value)} />
           </Labeled>
           <Labeled label="Affected service">
             <Input value={service} onChange={(e) => setService(e.target.value)} />

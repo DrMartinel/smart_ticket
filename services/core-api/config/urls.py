@@ -33,6 +33,7 @@ from apps.rollout.views import thresholds_router
 from apps.incidents.views import router as incidents_router
 from apps.security.views import router as security_router
 from apps.sla.views import router as sla_router
+from apps.categories.views import router as categories_router
 from apps.teams.views import me_router
 from apps.teams.views import router as teams_router
 
@@ -55,6 +56,7 @@ api.add_router("/chat", chat_router)
 api.add_router("/lifecycle", lifecycle_router)
 api.add_router("/notifications", notifications_router)
 api.add_router("/teams", teams_router)
+api.add_router("/categories", categories_router)
 api.add_router("/me", me_router)
 api.add_router("/sla", sla_router)
 api.add_router("/requester", requester_router)

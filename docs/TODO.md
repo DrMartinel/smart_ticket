@@ -731,3 +731,22 @@ each file is clean.
 ### Done when
 
 - F17's nine PRs are merged and AC-F17-01..09 pass in the trace suite.
+
+## 26. Ticket categories as data, parts 2–4 (ADR-0049)
+
+**Priority:** Medium · **Spec:** ADR-0049
+
+Part 1 (the `ticket_categories` table, its foreign keys, the read and rename routes, the console pickers) is built. The category set is still hardcoded where it decides things: the `TicketCategory` enum in both services and `category.v2.json`.
+
+### Work
+
+1. **Part 2, the category set on the wire.** `AIRunRequest.categories` (slug, description) in core-api `dtos.py` and ai-engine `schemas.py` in one PR; ai-engine builds Jev's question from them and `category.v3.json`; category fields become `str`; `Router.route` takes the snapshot, uses `is_security` instead of the slug, and records `categories_used`. New reason codes `category_set_invalid`, `category_not_routable`. Needs an eval run that shows no movement against `category.v2`.
+2. **Part 3, a workflow per category.** A nullable `workflow` on the category; the ticket moves into it at handoff.
+3. **Part 4, the agent.** A route the F15 tier table names.
+4. Answer ADR-0049's open questions first: who edits a description and how, who turns `is_routable` on, how workflows move, what the agent needs.
+5. Drop the throwaway `smart_triage_pr1` database from the 2026-11-26 browser check.
+
+### Done when
+
+A category added as a row (with a description that passed review and an owning team) is offered to Jev, routed only once marked routable, and covered by per-category F1.
+

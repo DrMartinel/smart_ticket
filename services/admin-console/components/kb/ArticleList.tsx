@@ -13,12 +13,12 @@ import type { CurrentUser } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
 import { riskTierTone } from "@/lib/badges";
 import { Button } from "@/components/ui/button";
-import { NativeSelect } from "@/components/ui/native-select";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { P, can } from "@/lib/permissions";
+import { CategorySelect } from "@/components/CategorySelect";
 
 interface KbArticle {
   id: string;
@@ -39,7 +39,6 @@ interface ArticlePage {
 }
 
 const PAGE_SIZE = 50;
-const CATEGORIES = ["", "access", "network", "hardware", "software", "security", "other"];
 
 export function ArticleList({ user, manage }: { user: CurrentUser; manage: boolean }) {
   const [articles, setArticles] = useState<KbArticle[] | null>(null);
@@ -125,20 +124,16 @@ export function ArticleList({ user, manage }: { user: CurrentUser; manage: boole
             setOffset(0);
           }}
         />
-        <NativeSelect wrapperClassName="w-full sm:w-48"
+        <CategorySelect
+          wrapperClassName="w-full sm:w-48"
           aria-label="Category"
           value={category}
+          blank="All categories"
           onChange={(e) => {
             setCategory(e.target.value);
             setOffset(0);
           }}
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c || "All categories"}
-            </option>
-          ))}
-        </NativeSelect>
+        />
         <span className="num ml-auto text-xs text-muted-foreground">
           {count === 0 ? "0" : `${offset + 1}–${Math.min(offset + PAGE_SIZE, count)}`} of {count}
         </span>

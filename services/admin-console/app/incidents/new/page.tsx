@@ -20,8 +20,7 @@ import { Panel } from "@/components/ui/panel";
 import { EmptyState, ErrorState } from "@/components/ui/states";
 import { ShieldOff } from "lucide-react";
 import { P, can } from "@/lib/permissions";
-
-const CATEGORIES = ["network", "access", "hardware", "software", "security", "other"];
+import { CategorySelect } from "@/components/CategorySelect";
 
 export default function DeclareIncidentPage() {
   const user = useRequireAuth();
@@ -100,11 +99,7 @@ export default function DeclareIncidentPage() {
             </Labeled>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Labeled label="Category">
-                <NativeSelect value={category} onChange={(e) => setCategory(e.target.value)}>
-                  {CATEGORIES.map((c) => (
-                    <option key={c}>{c}</option>
-                  ))}
-                </NativeSelect>
+                <CategorySelect value={category} onChange={(e) => setCategory(e.target.value)} />
               </Labeled>
               <Labeled label="Affected service">
                 <Input value={service} onChange={(e) => setService(e.target.value)} placeholder="e.g. GlobalProtect VPN" />
