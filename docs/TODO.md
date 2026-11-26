@@ -343,6 +343,8 @@ Retrieval recall meets the gate against a reviewed baseline measured on this KB.
 
 **Priority:** Medium · **Spec:** §5, §8 · **ADR:** [0016](adr/0016-clarify-branch.md)
 
+**Proposed 2026-11-26:** [ADR-0050](adr/0050-agent-asks-branch-picks-the-path.md) would remove the `clarify` branch and let the agent ask for context instead (item 27). Nothing here moves until it is decided.
+
 ### Problem
 
 Some tickets have a plausible KB answer but leave out the detail that says whether it applies. The 2026-10-02 (5) full run ([`evals/HISTORY.md`](../evals/HISTORY.md)) had two:
@@ -754,3 +756,17 @@ Part 1 (the `ticket_categories` table, its foreign keys, the read and rename rou
 
 A category added as a row (with a description that passed review and an owning team) is offered to Jev, routed only once marked routable, and covered by per-category F1.
 
+## 27. Decide and build ADR-0050 (the agent asks; the branch picks the workflow path)
+
+**Priority:** Medium · **Spec:** §8 · **ADR:** [0050](adr/0050-agent-asks-branch-picks-the-path.md) (Proposed)
+
+### Work
+
+1. Run the agent's trace suite (`evals/suites/test_agent_traces.py`) and `agent.v2` against a real model, and settle the bar the agent must clear (open question 1).
+2. Write the propose version without shape (e) and run the eval: auto-reply precision must stay at or above its floor.
+3. Answer open questions 2–5: how an n8n action is marked as changing a system, the agent's ask cap, `ticket_clarifications`, and workflow conditions on built-in fields.
+4. Then build it: remove `clarify` in both services in one PR, pass `proposed_missing_information` to the agent, add `ticket.branch`, `ticket.reasonCode` and `ticket.priority` to the action fields, and enforce the rule for flows that change systems.
+
+### Done when
+
+The chat shows three outcomes, the agent asks for missing context and asks the helpdesk again, no `clarify` decision is recorded, auto-reply precision holds its floor, and an n8n flow that changes a system can't start from an automatic branch.
