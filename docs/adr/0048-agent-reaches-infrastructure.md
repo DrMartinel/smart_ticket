@@ -251,8 +251,11 @@ either decision.
 - A ticket that names nothing still costs the overview's five queries over
   every project the reporter belongs to, each capped as decision 4's are.
 - Each ticket now costs one Keystone call when the pipeline starts, as long as
-  any customer row exists. A Keystone outage adds up to the connect timeout to
-  each ticket and leaves tickets with no customer.
+  any customer row exists, plus a sign-in when the service token has expired.
+  A Keystone that refuses connections adds up to the connect timeout to each
+  ticket; one that accepts them but doesn't answer adds up to the read timeout
+  (`INFRA_READ_TIMEOUT_SEC`), twice when a sign-in comes first. Either way
+  the ticket is left with no customer.
 - Decision 11 assumes the cloud's federation mapping puts each customer's
   users in their company's domain, as `cloud-sim` does. If a real cloud puts
   every federated user in one domain, the lookup must go by the domain of the
