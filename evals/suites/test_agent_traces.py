@@ -18,8 +18,9 @@ from typing import Any
 
 import httpx
 import pytest
-from cloud_sim.faults import FaultKind
-from cloud_sim.telemetry.signals import _INJECTION as INJECTED_LOG_LINE
+from cloud_sim.faults import TARGETS, FaultKind, Target
+from cloud_sim.seed import Seed
+from cloud_sim.telemetry.signals import INJECTED_LOG_LINE
 from django.conf import settings as django_settings
 from django.test import Client
 
@@ -47,13 +48,14 @@ from apps.incidents.services.incidents import incidents
 from apps.infra.domain.catalog import PROJECT_FIELD
 from apps.infra.domain.untrusted import WITHHELD
 from apps.infra.tests import conftest as infra_fakes
-from apps.infra.tests import test_promql as promql_trees
+from apps.infra import testing as promql_trees
 from apps.infra.tests.conftest import LAN_SUBJECT, log_doc, series
 from apps.itsm_mock.models import RunbookExecution
 from apps.lifecycle.tests.conftest import make_ticket
 from apps.review.models import ReviewDecision
 from apps.tickets import tasks as ticket_tasks
 from apps.tickets.domain.masking import NERError
+from apps.tickets.domain.router import ReasonCode
 from apps.tickets.models import IncidentVerdict, Ticket
 from apps.tickets.testing import nothing_found
 from config.urls import api
@@ -1084,6 +1086,15 @@ def test_ec_f15_10_a_change_after_an_injected_log_line_ends_the_chat_turn(
 
 
 AGENT_CASES = Path(__file__).parents[1] / "golden" / "agent_cases.jsonl"
+SEED = Seed.packaged()
+SEEDED = {
+    Target.SERVER: {r.name for r in SEED.servers},
+    Target.VOLUME: {r.name for r in SEED.volumes},
+    Target.NETWORK: {r.name for r in SEED.networks},
+}
+ENDINGS = {"replied", "awaiting_confirmation", "handed_off"} | {
+    code.value for code in ReasonCode if code.value.startswith("agent_")
+}
 CHECKS = frozenset(
     {
         "calls_any",
@@ -1115,8 +1126,15 @@ def test_an_agent_case_names_only_checks_tools_faults_and_traces_that_exist():
                 *[c["tool"] for c in [check.get("calls_on"), check.get("window_covers")] if c],
             ]
         }
-        faults = {f["kind"] for f in case["setup"].get("faults", [])}
+        faults = case["setup"].get("faults", [])
+        resources = {name for check in checks for name in check.get("choices_include", [])}
+        resources |= {check["reads_on"] for check in checks if "reads_on" in check}
+        resources |= {check["calls_on"]["resource"] for check in checks if "calls_on" in check}
         assert all(len(check) == 1 and set(check) <= CHECKS for check in checks), case["id"]
         assert named <= tools, (case["id"], named - tools)
-        assert faults <= {kind.value for kind in FaultKind}, case["id"]
+        assert {c["ends"] for c in checks if "ends" in c} <= ENDINGS, case["id"]
+        assert resources <= set().union(*SEEDED.values()), (case["id"], resources)
+        for fault in faults:
+            kind = FaultKind(fault["kind"])
+            assert fault["target"] in SEEDED[TARGETS[kind]], (case["id"], fault)
         assert case["trace"] in tested, case["id"]
