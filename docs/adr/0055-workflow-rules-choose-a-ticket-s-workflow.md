@@ -1,7 +1,8 @@
 # ADR-0055: Workflow rules choose a ticket's workflow at handoff
 
 **Status:** Proposed (2026-11-28). The owner took every recommendation on
-the open questions the same day (*Owner's answers*). Nothing is built.
+the open questions the same day (*Owner's answers*). Built 2026-11-28 as
+the build plan sets out (*As built*).
 **Date:** 2026-11-28
 **Amends:** ADR-0049 part 3 (a category names the workflow its tickets enter):
 the category's workflow becomes the fallback, after the rules
@@ -131,6 +132,34 @@ One PR (phase-2 work gets one PR each), one commit per step.
 5. **Docs:** CLAUDE.md's "Where to make a change" row for the workflow a
    category's tickets enter, ADR-0049 part 3's pointer to this ADR,
    `docs/status.md` and `docs/TODO.md`.
+
+## As built (2026-11-28)
+
+- **The rule.** `WorkflowRule` (`workflow_rules`): `order` unique and
+  deferred, so a reorder rewrites every row in one transaction; `category`
+  references `ticket_categories.slug` like every other category column;
+  `branch` and `priority` are text; `workflow` is protected from deletion.
+- **The selector.** `select_workflow` in `apps/lifecycle/domain/selection.py`
+  returns the workflow and `selected_by`. It also takes `include_inactive`,
+  for the preview only.
+- **The engine.** `enter_handoff_workflow(ticket, category, actor=…)` reads
+  the branch of the ticket's latest `routing_decisions` row and the
+  priority from the row it locks, so the priority is the one the SLA clocks
+  set when the ticket entered the handoff status. A handoff with no
+  category and no matching rule leaves the ticket where it is, as before.
+  The status-change audit row carries `selected_by`, `branch` and
+  `priority`; a skipped move is still `category_workflow_skipped`, with
+  `selected_by` when the selection ran.
+- **The routes.** `/api/lifecycle/workflow-rules`: `GET`, `POST`,
+  `PATCH` and `DELETE /{rule_id}`, `POST /reorder`, `GET /preview`
+  (`category`, `branch`, `priority`, `include_inactive`). Refusals:
+  `reason_required`, `rule_not_found`, `workflow_not_found`,
+  `workflow_has_no_way_out`, `unknown_category` (unknown or inactive),
+  `branch_never_hands_off` (`auto_reply`) and `order_incomplete` (a reorder
+  that doesn't name every rule once). Audit events: `workflow_rule_created`,
+  `workflow_rule_changed`, `workflow_rule_deleted`,
+  `workflow_rules_reordered`, each with the reason. A new rule goes last.
+- **The console.** Admin › Settings › Workflows › Which workflow.
 
 ## Open questions (answered)
 

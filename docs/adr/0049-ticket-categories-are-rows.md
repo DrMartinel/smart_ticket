@@ -115,6 +115,11 @@ Teams and the categories they own were already data (`team_teams`,
 
 ### Part 3 as built (2026-11-26)
 
+*Amended by [ADR-0055](0055-workflow-rules-choose-a-ticket-s-workflow.md):
+at handoff, ordered workflow rules on the category, the branch and the
+priority choose the workflow first; the category's workflow below is the
+fallback when no rule matches.*
+
 - **The switch.** `ticket_categories.workflow` is a nullable reference to
   a workflow; none means the default workflow. Anyone holding
   `categories:manage` (manager, workflow admin) sets or clears it, with a

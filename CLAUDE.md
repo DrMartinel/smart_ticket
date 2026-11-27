@@ -168,7 +168,7 @@ Ports: web 3000, core-api 8000, ai-engine 8001, **Postgres 5434**, **Redis 6380*
 | Raw SQL (grants, CHECKs, HNSW, triggers) | [infra/migrations/sql/](infra/migrations/sql/) |
 | Golden set + baselines + calibration scripts | [evals/](evals/) |
 | KB source snapshot (AWS docs; fetcher, sources, manifest) | [demo_kb/](demo_kb/) |
-| Ticket lifecycle after triage: workflows, transitions, rules, actions (ADR-0028) | [apps/lifecycle/](services/core-api/apps/lifecycle/), the engine in [engine.py](services/core-api/apps/lifecycle/services/engine.py) |
+| Ticket lifecycle after triage: workflows, transitions, rules, actions (ADR-0028); the rules that choose a ticket's workflow at handoff (ADR-0055) | [apps/lifecycle/](services/core-api/apps/lifecycle/), the engine in [engine.py](services/core-api/apps/lifecycle/services/engine.py), the rules in [workflow_rules.py](services/core-api/apps/lifecycle/services/workflow_rules.py) |
 | Ticket categories: the set, the read and rename routes, each category's workflow (ADR-0049) | [apps/categories/](services/core-api/apps/categories/), the service in [categories.py](services/core-api/apps/categories/services/categories.py) |
 | SLA clocks, calendars and policies (F1, ADR-0030); business time in [business_time.py](services/core-api/apps/sla/domain/business_time.py) | [apps/sla/](services/core-api/apps/sla/), the clocks in [clocks.py](services/core-api/apps/sla/services/clocks.py) |
 | Teams, assignment at handoff, take and reassign (F2, ADR-0031) | [apps/teams/](services/core-api/apps/teams/), the service in [assignment.py](services/core-api/apps/teams/services/assignment.py) |
@@ -236,7 +236,7 @@ read it before adding a module, class or helper in core-api.
 | A customer company or its tier | Admin → Settings → Customers (a manager, with a reason, ADR-0048 decision 11); what each tier raises the starting priority to is `sla.tier_floor` in `thresholds.yaml`. Membership stays in Keystone; the router never reads the customer |
 | Who gets a ticket | `assignment.assign_after_handoff` after the decision is carried out (pipeline, review decisions), `take` / `reassign` for people; never `ticket.assigned_to = …` in new code. Team ownership of categories is data (`team_categories`) |
 | The category set | Rows in `ticket_categories` (ADR-0049): name and order in Admin → Settings → Categories; description and `is_routable` there too, by a manager with a reason (`categories:define`), since a description is what Jev reads; `is_security`, `is_active` and a new row by pull request. Jev is offered the active rows (`category.v3` holds only the instructions); security is the `is_security` flag, never the slug |
-| The workflow a category's tickets enter | The category's `workflow` (Admin → Settings → Categories, `categories:manage`, ADR-0049 part 3); the move is `lifecycle.enter_category_workflow` at handoff, never a `workflow_status` write |
+| The workflow a ticket enters at handoff | The workflow rules (Admin → Settings → Workflows › Which workflow, `workflows:manage`, a reason on every change, ADR-0055): the first active one matching the category, the latest routing decision's branch and the priority wins; else the category's `workflow` (Admin → Settings → Categories, `categories:manage`, ADR-0049 part 3); else the default. The choice is `select_workflow` in `apps/lifecycle/domain/selection.py`, the move `lifecycle.enter_handoff_workflow` at handoff, never a `workflow_status` write |
 | A comment on a ticket | `comments.add` (or `by_staff`), which masks inline and holds a mask-failed one for review; never `TicketComment.objects.create` with raw text |
 | What a chat question tells the model about earlier turns | `Conversations.prior_turns` (which turns count) and `requester:` in `thresholds.yaml`; ai-engine's `TicketMasked.earlier_turns()` (how they read) and `propose.v*` / `hyde_draft.v*`. Never the router or a signal (ADR-0034) |
 | What happens to a mass incident's tickets | `incidents.confirm` / `resolve` / `unlink` in `apps/incidents/services/incidents.py`; never `ticket.incident = …` or a status write. Close-all moves each ticket with `lifecycle.automatic_move` |
@@ -433,6 +433,6 @@ that it is a visible decision, not a quiet one.
 this early, the codebase is dense with it) · [development.md](docs/development.md) ·
 [testing.md](docs/testing.md) · [status.md](docs/status.md) (what is *verified
 working* vs. merely has code) · [TODO.md](docs/TODO.md) ·
-[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (fifty-one
+[runbooks/on-call.md](docs/runbooks/on-call.md) · [adr/](docs/adr/) (fifty-two
 decisions, each written to survive being re-litigated — 0001 and 0003 at minimum;
 0030–0038 come from the phase 2 pack, all accepted).
