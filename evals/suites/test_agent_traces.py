@@ -888,6 +888,7 @@ QUOTA_SUMMARY = "Customer asks to raise vol-db-01's IOPS quota; at 100 % of quot
 @pytest.mark.django_db
 def test_ec_f15_01_a_choice_the_slow_system_s_reads_never_gave_is_refused(stack, lan, backends):
     db01 = backends.id_of("servers", "db-01")
+    model: ScriptedModel
     model = stack.script(
         call("list_my_alerts"),
         call("get_my_server", server_id=db01),
@@ -964,6 +965,7 @@ def test_ec_f15_04_a_quota_the_chat_can_t_change_ends_with_code_s_hand_off_parts
 @pytest.mark.django_db
 def test_ec_f15_05_nova_gets_nothing_until_the_person_presses_the_card(stack, lan, cloud_sim):
     app01, app02 = cloud_sim.id_of("servers", "app-01"), cloud_sim.id_of("servers", "app-02")
+    model: ScriptedModel
     model = stack.script(
         call("list_my_servers"),
         lambda: choose(
