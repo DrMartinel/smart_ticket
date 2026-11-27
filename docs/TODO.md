@@ -742,9 +742,9 @@ each file is clean.
   capped by `agent.max_free_reads_per_step`; a step above the surface's
   cap is refused), the injection screen reading a cloud name's separators
   and case breaks as spaces, and `agent.v4`; PR 7 (#53), the console's
-  Cloud pages, query receipts and warnings; PR 8, the chat's cloud cards,
-  receipts in the turn's language and picks (`infra_resource_picks`, each
-  on the turn its press sent; a ticket takes those after the previous
+  Cloud pages, query receipts and warnings; PR 8 (#55), the chat's cloud
+  cards, receipts in the turn's language and picks (`infra_resource_picks`,
+  each on the turn its press sent; a ticket takes those after the previous
   hand-off turn); PR 9, AC-F17-01..09 and F15's cloud cases as scripted
   traces, their `agent_cases.jsonl` lines, and these docs.
 - **Left:** TODO 23's live eval of `agent.v4` and of the cloud cases, never
