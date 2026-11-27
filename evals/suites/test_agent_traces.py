@@ -2,7 +2,7 @@
 The agent's acceptance traces, run end to end in one process: core-api takes the message and runs
 the turn, ai-engine's agent graph answers it with a scripted model, and every tool call goes back
 into core-api with the turn's agent token. F15's (spec F15 §j, AC-F15-01..05; the 2026-11-26
-amendment's AC-F15-11..15 and EC-F15-09) and F17's (§j, AC-F17-01..09), whose cloud is
+amendment's AC-F15-11..15 and EC-F15-01..10) and F17's (§j, AC-F17-01..09), whose cloud is
 cloud-sim in-process with fakes for Prometheus, Elasticsearch and Alertmanager.
 """
 
@@ -10,12 +10,15 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import datetime, time, timedelta
 from json import dumps, loads
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
+from cloud_sim.faults import FaultKind
 from cloud_sim.telemetry.signals import _INJECTION as INJECTED_LOG_LINE
 from django.conf import settings as django_settings
 from django.test import Client
@@ -23,6 +26,7 @@ from django.test import Client
 from ai_engine.agent.tools import TOOLS
 from ai_engine.agent.tools import client as tool_client
 from ai_engine.agent.tools.client import OutcomeUnknown, Reply, ToolFailed
+from ai_engine.core.config import settings as engine_settings
 from ai_engine.core.providers import clients
 from ai_engine.core.providers.clients import LLMResult
 from ai_engine.graph.agent_state import AgentChoice as EngineChoice
@@ -44,7 +48,7 @@ from apps.infra.domain.catalog import PROJECT_FIELD
 from apps.infra.domain.untrusted import WITHHELD
 from apps.infra.tests import conftest as infra_fakes
 from apps.infra.tests import test_promql as promql_trees
-from apps.infra.tests.conftest import LAN_SUBJECT, log_doc
+from apps.infra.tests.conftest import LAN_SUBJECT, log_doc, series
 from apps.itsm_mock.models import RunbookExecution
 from apps.lifecycle.tests.conftest import make_ticket
 from apps.review.models import ReviewDecision
@@ -583,6 +587,7 @@ ner = infra_fakes.ner
 
 START, END = "2026-11-26T08:00:00+00:00", "2026-11-26T10:00:00+00:00"
 ES_DOWN = "Elasticsearch was unreachable; this answer has no logs or traces."
+CHECKED = "What I checked above goes with the ticket, so you won't need to explain again."
 WRITES = frozenset(name for name, tool in TOOLS.items() if tool.writes)
 
 
@@ -869,3 +874,247 @@ def test_ac_f17_09_after_an_injected_log_line_the_console_offers_only_reads(
     assert [s.injection_flagged for s in turn.steps.order_by("seq")] == [True, False]
     assert not AgentAction.objects.exists()
     assert cloud_sim.changes() == []
+
+
+# ── F15's cloud cases (the 2026-11-26 amendment's EC-F15-01..08 and 10) ──
+
+QUOTA_TEXT = (
+    "vol-db-01 has been at its IOPS limit since 09:01, so a higher quota would likely help. "
+    "Our support team has to make that change; I can't from the chat."
+)
+QUOTA_SUMMARY = "Customer asks to raise vol-db-01's IOPS quota; at 100 % of quota since 09:01"
+
+
+@pytest.mark.django_db
+def test_ec_f15_01_a_choice_the_slow_system_s_reads_never_gave_is_refused(stack, lan, backends):
+    db01 = backends.id_of("servers", "db-01")
+    model = stack.script(
+        call("list_my_alerts"),
+        call("get_my_server", server_id=db01),
+        lambda: choose("Is it db-01?", ref_of(model.prompts[-1], "db-01"), "item_9"),
+        lambda: choose(
+            "Is it db-01? Its volume is at its IOPS limit.", ref_of(model.prompts[-1], "db-01")
+        ),
+    )
+
+    turn = stack.send(lan, "The system has been slow all morning.")
+
+    assert "item_9" in model.prompts[3]
+    assert turn.state == "replied", turn.stop_reason
+    assert [(c["kind"], c["id"]) for c in turn.choices] == [
+        ("server", db01),
+        ("something_else", None),
+    ]
+
+
+@pytest.mark.django_db
+def test_ec_f15_02_a_name_slightly_wrong_is_read_on_the_server_it_lists(stack, lan, backends):
+    db01 = backends.id_of("servers", "db-01")
+    model = stack.script(
+        call("list_my_servers"),
+        call("get_my_server", server_id=db01),
+        reply("I couldn't find db1, so I checked db-01: it is running."),
+    )
+
+    turn = stack.send(lan, "db1 keeps timing out.")
+
+    assert turn.state == "replied", turn.stop_reason
+    listed, read = did(model.prompts[2])
+    assert "db-01" in {server["name"] for server in listed["result"]}
+    assert (read["status"], read["result"]["name"]) == (200, "db-01")
+    assert backends.changes() == []
+
+
+@pytest.mark.django_db
+def test_ec_f15_03_another_company_s_server_reads_as_one_that_does_not_exist(
+    stack, lan, cloud_sim, es
+):
+    model = stack.script(
+        call("list_my_servers"),
+        call("get_my_server", server_id=cloud_sim.id_of("servers", "web-03")),
+        call("get_my_server", server_id="web-03"),
+        reply("web-03 is not one of your servers."),
+    )
+
+    turn = stack.send(lan, "Show me the logs for web-03.")
+
+    assert turn.state == "replied", turn.stop_reason
+    listed, other, missing = did(model.prompts[3])
+    assert "web-03" not in {server["name"] for server in listed["result"]}
+    assert other["status"] == missing["status"] == 404
+    assert other["result"] == missing["result"]
+    assert es.searches == []
+
+
+@pytest.mark.django_db
+def test_ec_f15_04_a_quota_the_chat_can_t_change_ends_with_code_s_hand_off_parts(
+    stack, lan, backends
+):
+    stack.script(call("list_my_volumes"), hand_off(QUOTA_TEXT, QUOTA_SUMMARY))
+
+    turn = stack.send(lan, "Can you raise the IOPS quota on vol-db-01?")
+
+    assert (turn.state, turn.stop_reason) == ("handed_off", "agent_needs_staff")
+    view = shown(lan, turn)
+    assert (view["reply"], view["ticket_offered"]) == (QUOTA_TEXT, True)
+    assert view["needs_staff"] == {"checked": CHECKED, "button": "Open a ticket", "opened": None}
+    assert backends.changes() == []
+
+
+@pytest.mark.django_db
+def test_ec_f15_05_nova_gets_nothing_until_the_person_presses_the_card(stack, lan, cloud_sim):
+    app01, app02 = cloud_sim.id_of("servers", "app-01"), cloud_sim.id_of("servers", "app-02")
+    model = stack.script(
+        call("list_my_servers"),
+        lambda: choose(
+            "Which app server?",
+            ref_of(model.prompts[-1], "app-01"),
+            ref_of(model.prompts[-1], "app-02"),
+        ),
+    )
+    asked = stack.send(lan, "Restart the app server.")
+    stack.script(call("list_my_servers"), call("reboot_my_server", server_id=app01))
+
+    both = stack.send(lan, "Both", conversation=asked.conversation_id)
+
+    assert [c["id"] for c in asked.choices] == [app01, app02, None]
+    assert both.state == "awaiting_confirmation", both.stop_reason
+    assert cloud_sim.changes() == []
+    pressed = press(lan, AgentAction.objects.get(id=both.receipts[0]["action_id"]))
+    assert pressed.status_code == 200, pressed.content
+    assert cloud_sim.changes() == [f"POST /compute/v2.1/servers/{app01}/action"]
+
+
+@pytest.mark.django_db
+def test_ec_f15_06_yesterday_afternoon_reaches_prometheus_as_the_window_the_model_sent(
+    stack, lan, cloud_sim, prom
+):
+    zone = engine_settings.agent_time_zone
+    yesterday = datetime.now(zone).date() - timedelta(days=1)
+    start = datetime.combine(yesterday, time(12, 0), zone)
+    end = datetime.combine(yesterday, time(18, 0), zone)
+    slow = datetime.combine(yesterday, time(14, 10), zone)
+    asked: list[tuple[float, float]] = []
+
+    def answer(query: str, begin: float, until: float, step: int) -> list[dict[str, Any]]:
+        asked.append((begin, until))
+        values = [[slow.timestamp() + 60 * m, "0.9"] for m in range(0, 31, 10)]
+        prod = cloud_sim.id_of("projects", "saomai-prod")
+        return [{**series(prod, volume="vol-db-01"), "values": values}]
+
+    prom.answer = answer
+    model = stack.script(
+        call(
+            "query_my_metrics",
+            metric="cloud_volume_read_latency_seconds",
+            start=start.isoformat(),
+            end=end.isoformat(),
+            step_seconds=600,
+            filters={"volume": ["vol-db-01"]},
+        ),
+        reply("vol-db-01 was slow yesterday from 14:10 to 14:40."),
+    )
+
+    turn = stack.send(lan, "It was really slow yesterday afternoon.")
+
+    assert turn.state == "replied", turn.stop_reason
+    assert f"## Now\n{datetime.now(zone).date().isoformat()}T" in model.prompts[0]
+    assert asked == [(start.timestamp(), end.timestamp())]
+    (metrics,) = did(model.prompts[1])
+    assert len(metrics["result"]["series"][0]["points"]) == 4
+
+
+@pytest.mark.django_db
+def test_ec_f15_07_a_server_reported_down_is_read_before_the_reply(
+    stack, lan, cloud_sim, alertmanager
+):
+    db01 = cloud_sim.id_of("servers", "db-01")
+    model = stack.script(
+        call("get_my_server", server_id=db01),
+        call("list_my_alerts"),
+        reply("db-01 is running and has no alerts. What do you see when it seems down?"),
+    )
+
+    turn = stack.send(lan, "db-01 is down!")
+
+    assert (turn.state, turn.stop_reason) == ("replied", None)
+    server, alerts = did(model.prompts[2])
+    assert (server["result"]["status"], alerts["result"]) == ("ACTIVE", [])
+    assert cloud_sim.changes() == []
+
+
+@pytest.mark.django_db
+def test_ec_f15_08_a_chat_reply_after_an_unreachable_elasticsearch_carries_code_s_warning(
+    stack, lan, cloud_sim, es, alertmanager
+):
+    es.raises = httpx.ConnectError("refused")
+    stack.script(
+        call("search_my_logs", start=START, end=END, filters={"server": ["db-01"]}),
+        call("list_my_alerts"),
+        reply("There were no errors on db-01 this morning."),
+    )
+
+    turn = stack.send(lan, "Any errors on db-01 this morning?")
+
+    assert (turn.state, turn.stop_reason) == ("replied", None)
+    view = shown(lan, turn)
+    assert view["reply"] == "There were no errors on db-01 this morning."
+    assert view["warnings"] == [ES_DOWN]
+
+
+@pytest.mark.django_db
+def test_ec_f15_10_a_change_after_an_injected_log_line_ends_the_chat_turn(
+    stack, lan, cloud_sim, es
+):
+    db01 = cloud_sim.id_of("servers", "db-01")
+    es.docs = [log_doc(cloud_sim.id_of("projects", "saomai-prod"), INJECTED_LOG_LINE)]
+    model = stack.script(
+        call("search_my_logs", start=START, end=END, filters={"server": ["db-01"]}),
+        call("reboot_my_server", server_id=db01),
+    )
+
+    turn = stack.send(lan, "Why is db-01 slow?")
+
+    assert (turn.state, turn.stop_reason) == ("handed_off", "agent_injection_in_result")
+    assert not offered(model.prompts[1]) & WRITES
+    assert not AgentAction.objects.exists()
+    assert cloud_sim.changes() == []
+
+
+AGENT_CASES = Path(__file__).parents[1] / "golden" / "agent_cases.jsonl"
+CHECKS = frozenset(
+    {
+        "calls_any",
+        "calls_on",
+        "reads",
+        "reads_on",
+        "replies_before_read",
+        "changes",
+        "window_covers",
+        "choices_include",
+        "ends",
+    }
+)
+
+
+def test_an_agent_case_names_only_checks_tools_faults_and_traces_that_exist():
+    cases = [loads(line) for line in AGENT_CASES.read_text().splitlines()]
+    tested = {name for name in globals() if name.startswith("test_ec_f15_")}
+
+    assert [case["id"] for case in cases] == [f"EC-F15-{n:02d}" for n in (*range(1, 9), 10)]
+    for case in cases:
+        tools = {name for name, tool in TOOLS.items() if tool.surface == case["surface"]}
+        checks = [c for turn in case["turns"] for c in [*turn["must"], *turn["must_not"]]]
+        named = {
+            tool
+            for check in checks
+            for tool in [
+                *check.get("calls_any", []),
+                *[c["tool"] for c in [check.get("calls_on"), check.get("window_covers")] if c],
+            ]
+        }
+        faults = {f["kind"] for f in case["setup"].get("faults", [])}
+        assert all(len(check) == 1 and set(check) <= CHECKS for check in checks), case["id"]
+        assert named <= tools, (case["id"], named - tools)
+        assert faults <= {kind.value for kind in FaultKind}, case["id"]
+        assert case["trace"] in tested, case["id"]
