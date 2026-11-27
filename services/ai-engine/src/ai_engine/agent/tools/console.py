@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import Field
 
 from ai_engine.agent.tools.chat import nothing
-from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, person, untrusted
+from ai_engine.agent.tools.projection import MASKED_LEVELS, WITHHELD, person, ref, untrusted
 from ai_engine.agent.tools.tool import Context, PublicIdIn, Tier, Tool, ToolInput
 
 StaffView = Literal["review", "mine", "open", "resolved", "all"]
@@ -24,9 +24,12 @@ def masked(text: str | None, pii_level: str | None) -> dict[str, str] | str | No
 
 
 def ticket_row(row: Any, context: Context) -> dict[str, Any]:
-    """A staff ticket list row."""
+    """A staff ticket list row, with its ref labelled by its id alone."""
+    public_id = row.get("public_id")
+    item = {"ref": ref(context, "ticket", public_id, public_id)} if public_id else {}
     return {
-        "public_id": row.get("public_id"),
+        **item,
+        "public_id": public_id,
         "subject_masked": masked(row.get("subject_masked"), row.get("pii_level")),
         "status": (row.get("status") or {}).get("name"),
         "category": row.get("category"),
@@ -126,10 +129,14 @@ def proposal_line(draft: dict[str, Any] | None) -> str | None:
 
 
 def review_item(item: Any, context: Context) -> dict[str, Any]:
-    """A review queue row."""
+    """A review queue row, with its ref labelled by its ticket's id and its queue."""
     decisions = item.get("routing_decisions") or []
+    item_id, ticket, queue = item.get("id"), item.get("ticket_public_id"), item.get("queue")
+    label = " · ".join(str(part) for part in (ticket, queue) if part) or str(item_id)
+    pick = {"ref": ref(context, "review_item", str(item_id), label)} if item_id else {}
     return {
-        "id": item.get("id"),
+        **pick,
+        "id": item_id,
         "ticket_public_id": item.get("ticket_public_id"),
         "subject_masked": masked(item.get("subject_masked"), item.get("pii_level")),
         "body_masked": masked(item.get("body_masked"), item.get("pii_level")),

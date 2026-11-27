@@ -1,13 +1,14 @@
 """One row per read of the cloud or its observability: who asked, through what, what was
 sent and how it ended (F17, ADR-0048 §9); the customer companies, each a Keystone domain
-with a tier (F17 §o, ADR-0048 decision 11); and a ticket's cue runs, the resources each
-linked and the cues each collected (F17 §o.8, ADR-0048 decision 10)."""
+with a tier (F17 §o, ADR-0048 decision 11); a ticket's cue runs, the resources each
+linked and the cues each collected (F17 §o.8, ADR-0048 decision 10); and the resources a
+person picked from a choice card in the chat (F17 BR-F17-26)."""
 
 from __future__ import annotations
 
 import uuid
 from enum import StrEnum
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from django.conf import settings
 from django.contrib.postgres.fields import ArrayField
@@ -15,6 +16,9 @@ from django.db import models
 
 from apps.core.models import BaseModel
 from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
+
+if TYPE_CHECKING:
+    from apps.tickets.models import Ticket
 
 
 def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
@@ -56,20 +60,31 @@ class InfraQuery(BaseModel):
     )
     via = models.CharField(max_length=8, choices=_choices(InfraVia))
     agent_turn = models.ForeignKey(
-        "agent.AgentTurn", on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+        "agent.AgentTurn",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="infra_queries",
     )
     ticket = models.ForeignKey(
         "tickets.Ticket", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
     backend = models.CharField(max_length=16, choices=_choices(InfraBackend))
+    # The backend that did not answer, which may not be the one the read was aimed at.
+    failed_backend = models.CharField(
+        max_length=16, choices=_choices(InfraBackend), null=True, blank=True
+    )
     kind = models.CharField(max_length=16, choices=_choices(InfraQueryKind))
     compiled = models.TextField()
     projects = ArrayField(models.CharField(max_length=64), default=list)
     outcome = models.CharField(max_length=24, choices=_choices(InfraOutcome))
     refusal = models.CharField(max_length=40, null=True, blank=True)
+    # The check a refused query failed, a `QueryCheck` value.
+    refusal_reason = models.CharField(max_length=24, null=True, blank=True)
     duration_ms = models.PositiveIntegerField(default=0)
     rows = models.PositiveIntegerField(default=0)
     withheld = models.PositiveIntegerField(default=0)
+    truncated = models.BooleanField(default=False)
     link = models.TextField(blank=True, default="")
 
     class Meta(BaseModel.Meta):
@@ -215,3 +230,57 @@ class TicketCue(BaseModel):
     class Meta(BaseModel.Meta):
         db_table = "infra_ticket_cues"
         ordering = ["seq"]
+
+
+class ResourcePickQuerySet(models.QuerySet["ResourcePick"]):
+    def of_ticket(self, ticket: Ticket) -> Self:
+        """The picks the ticket's reporter pressed in the agent conversation that opened it, on
+        the turns after the conversation's previous handed-off turn and up to the ticket's own,
+        in the order they were pressed; none for a ticket no agent turn opened."""
+        from apps.agent.models import AgentTurnState
+
+        turn = ticket.agent_turn
+        if turn is None:
+            return self.none()
+        previous = (
+            type(turn)
+            .objects.filter(
+                conversation_id=turn.conversation_id,
+                seq__lt=turn.seq,
+                state=AgentTurnState.HANDED_OFF.value,
+            )
+            .aggregate(seq=models.Max("seq"))["seq"]
+        )
+        picks = self.filter(
+            turn__conversation_id=turn.conversation_id,
+            turn__seq__lte=turn.seq,
+            person_id=ticket.reporter_id,
+        )
+        if previous is not None:
+            picks = picks.filter(turn__seq__gt=previous)
+        return picks.order_by("turn__seq", "picked_at")
+
+
+class ResourcePick(BaseModel):
+    """A server, volume or network a person pressed on a choice card in their agent
+    conversation, with the turn the press sent, checked against their own projects when it was
+    pressed."""
+
+    conversation = models.ForeignKey(
+        "agent.AgentConversation", on_delete=models.CASCADE, related_name="+"
+    )
+    turn = models.ForeignKey("agent.AgentTurn", on_delete=models.CASCADE, related_name="+")
+    person = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+")
+    project_id = models.CharField(max_length=64)
+    kind = models.CharField(max_length=8, choices=_choices(ResourceKind))
+    resource_id = models.CharField(max_length=64)
+    name = models.CharField(max_length=255)
+    picked_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ResourcePickQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "infra_resource_picks"
+        constraints = [
+            models.UniqueConstraint(fields=["turn", "resource_id"], name="uq_resource_pick"),
+        ]

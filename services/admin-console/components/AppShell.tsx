@@ -26,6 +26,7 @@ import {
   FileLock2,
   KeyRound,
   ClipboardCheck,
+  Server,
 } from "lucide-react";
 import { useAuth, type CurrentUser } from "@/lib/auth";
 import { adminGroups, areaOf, isActive } from "@/lib/areas";
@@ -228,6 +229,13 @@ function Navigation({
                 Help pages
               </NavItem>
             </Group>
+            {can(user, P.infraRead) && (
+              <Group label="Cloud">
+                <NavItem href="/infra" icon={Server} active={pathname.startsWith("/infra")}>
+                  Resources
+                </NavItem>
+              </Group>
+            )}
             {(can(user, P.securityQueue) || can(user, P.piiAccessLog)) && (
               <Group label="Security">
                 {can(user, P.securityQueue) && (

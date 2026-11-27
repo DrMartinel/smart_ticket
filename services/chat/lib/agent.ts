@@ -1,8 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { agentApi, ApiError, chatApi } from "./api";
-import type { AgentActionOut, AgentConversationSummaryOut, AgentTurnOut, ChatTurnOut } from "./types/generated";
+import { agentApi, ApiError, chatApi, infraApi } from "./api";
+import { CHANGE_REFUSAL, changeDone, OUTCOME_UNKNOWN_TEXT } from "./infra";
+import type {
+  AgentActionOut,
+  AgentChoiceOut,
+  AgentConversationSummaryOut,
+  AgentTurnOut,
+  ChatTurnOut,
+  InfraChangeOut,
+  ResourceKind,
+} from "./types/generated";
 
 // Mirror AgentTurnIn.message in core-api (apps/agent/request_schema.py).
 export const AGENT_MESSAGE_MIN = 1;
@@ -20,6 +29,13 @@ export type AgentRow =
 
 const UNFINISHED = new Set(["queued", "running"]);
 
+// The choice kinds that name a cloud resource, which a press also records as a pick (F17 BR-F17-26).
+const RESOURCE_KINDS: ReadonlySet<string> = new Set<ResourceKind>(["server", "volume", "network"]);
+
+function namesAResource(kind: string): kind is ResourceKind {
+  return RESOURCE_KINDS.has(kind);
+}
+
 /** What became of a confirmation the employee answered, shown in place of its card. */
 export type ActionResult = { label: string; tone: "ok" | "info" | "warn"; text: string; ticket?: string };
 
@@ -28,9 +44,15 @@ const FINAL_REFUSALS: Record<string, string> = {
   agent_action_expired: "This has expired. Ask the assistant again if you still want it.",
   agent_action_not_pending: "This can no longer be sent. Ask the assistant again if you still want it.",
   not_pending: "This can no longer be sent. Ask the assistant again if you still want it.",
+  infra_outcome_unknown: OUTCOME_UNKNOWN_TEXT,
 };
 
 function confirmedResult(action: AgentActionOut, response: unknown): ActionResult {
+  if (action.target_kind === "server") {
+    const change = response as InfraChangeOut | null;
+    const done = change?.change ? changeDone(change.change, change.target_name) : null;
+    return { label: "Done", tone: "ok", text: done ?? "Sent." };
+  }
   const reopen = response as { reopened?: boolean; new_ticket?: string | null } | null;
   if (reopen && reopen.reopened === false && reopen.new_ticket) {
     return {
@@ -83,6 +105,12 @@ export function useAgentConversation(enabled: boolean) {
   const [pendingError, setPendingError] = useState(false);
   const polling = useRef(false);
   const conversationRef = useRef<string | null>(null);
+  const busy = rows.some((r) => r.kind === "sending" || (r.kind === "server" && UNFINISHED.has(r.turn.state)));
+  // Whether a message may be sent now: not while a turn runs, nor in an ended conversation.
+  const blocked = useRef(false);
+  useEffect(() => {
+    blocked.current = busy || viewingEnded;
+  }, [busy, viewingEnded]);
 
   const loadHistory = useCallback(
     () =>
@@ -220,13 +248,17 @@ export function useAgentConversation(enabled: boolean) {
     return () => window.clearTimeout(timer);
   }, [rows, handoffs, handoffTick]);
 
-  /** Sends a message; a conversation that has ended is replaced by a new one. */
+  /** Sends a message, unless a turn is running or an ended conversation is on screen; a
+   * conversation that ended on the server is replaced by a new one. Resolves to the turn that
+   * took it, or null when it wasn't sent. */
   const send = useCallback(
-    (text: string) => {
+    (text: string): Promise<AgentTurnOut | null> => {
+      if (blocked.current) return Promise.resolve(null);
+      blocked.current = true;
       const key = `local-${Date.now()}`;
       setRows((prev) => [...prev, { kind: "sending", key, text }]);
       const post = () => agentApi.send(text, conversationRef.current);
-      void post()
+      return post()
         .catch((err) => {
           if (!(err instanceof ApiError && err.code === "conversation_ended")) throw err;
           conversationRef.current = null;
@@ -241,18 +273,38 @@ export function useAgentConversation(enabled: boolean) {
           conversationRef.current = turn.conversation_id;
           replace(key, { kind: "server", key, turn });
           void loadHistory();
+          return turn;
         })
-        .catch((err) => replace(key, { kind: "failed", key, text, error: sendError(err) }));
+        .catch((err) => {
+          replace(key, { kind: "failed", key, text, error: sendError(err) });
+          return null;
+        });
     },
     [replace, loadHistory],
+  );
+
+  /** Sends a pressed choice's label as the next message; once it is sent, a server, volume or
+   * network is also posted as the person's pick, on the turn that took the message. */
+  const choose = useCallback(
+    (choice: AgentChoiceOut) => {
+      const { kind, id } = choice;
+      void send(choice.label).then((turn) => {
+        if (turn && id && namesAResource(kind)) {
+          void infraApi
+            .pick({ conversation_id: turn.conversation_id, turn_id: turn.turn_id, kind, resource_id: id })
+            .catch(() => undefined);
+        }
+      });
+    },
+    [send],
   );
 
   const retry = useCallback(
     (key: string) => {
       const row = rows.find((r) => r.key === key);
-      if (!row || row.kind !== "failed") return;
+      if (!row || row.kind !== "failed" || blocked.current) return;
       setRows((prev) => prev.filter((r) => r.key !== key));
-      send(row.text);
+      void send(row.text);
     },
     [rows, send],
   );
@@ -271,18 +323,21 @@ export function useAgentConversation(enabled: boolean) {
         }));
         setPending((prev) => prev.filter((a) => a.action_id !== id));
       } catch (err) {
-        let final = err instanceof ApiError && err.code ? FINAL_REFUSALS[err.code] : undefined;
-        let label = "Not sent";
-        if (!(err instanceof ApiError)) {
+        const code = err instanceof ApiError ? err.code : null;
+        let final = code ? FINAL_REFUSALS[code] : undefined;
+        let label = code === "infra_outcome_unknown" ? "Not sure" : "Not sent";
+        if (!(err instanceof ApiError) || (err.status >= 500 && !code)) {
           // No answer came back: the server's own list says whether the action is still waiting.
           try {
             const list = await agentApi.pending();
             setPending(list);
             if (!list.some((a) => a.action_id === id)) {
               label = "Not sure";
-              final = run
-                ? "I couldn't tell whether that went through. Check your ticket before trying again."
-                : "I couldn't tell whether that was cancelled. It is no longer waiting for you.";
+              final = !run
+                ? "I couldn't tell whether that was cancelled. It is no longer waiting for you."
+                : action.target_kind === "server"
+                  ? OUTCOME_UNKNOWN_TEXT
+                  : "I couldn't tell whether that went through. Check your ticket before trying again.";
             }
           } catch {
             // the list is unreachable too: the card stays, with a retry
@@ -298,7 +353,7 @@ export function useAgentConversation(enabled: boolean) {
         } else {
           setActionError((prev) => ({
             ...prev,
-            [id]: err instanceof ApiError ? err.message : "That didn't go through. Try again.",
+            [id]: err instanceof ApiError ? (code && CHANGE_REFUSAL[code]) || err.message : "That didn't go through. Try again.",
           }));
           loadPending();
         }
@@ -367,12 +422,13 @@ export function useAgentConversation(enabled: boolean) {
     viewingEnded,
     open,
     send,
+    choose,
     retry,
     confirm: (a: AgentActionOut) => resolve(a, true),
     dismiss: (a: AgentActionOut) => resolve(a, false),
     createTicket,
     openTicket,
     startNew,
-    busy: rows.some((r) => r.kind === "sending" || (r.kind === "server" && UNFINISHED.has(r.turn.state))),
+    busy,
   };
 }

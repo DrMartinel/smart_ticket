@@ -462,6 +462,9 @@ class Ticket(BaseModel):
         blank=True,
         choices=[(r.value, r.value) for r in sorted(AGENT_HANDOFF_REASONS)],
     )
+    # The agent's summary of what an `agent_needs_staff` ticket asks for, shown to staff only
+    # (F15 BR-F15-25).
+    proposed_handoff_summary = models.TextField(null=True, blank=True)
     # The reporter's customer company, read from Keystone when the pipeline starts (F17 BR-F17-21).
     customer = models.ForeignKey(
         "infra.Customer", on_delete=models.PROTECT, null=True, blank=True, related_name="tickets"

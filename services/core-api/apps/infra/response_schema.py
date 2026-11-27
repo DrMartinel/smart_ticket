@@ -1,5 +1,6 @@
 """Response shapes for the infra reads (F17 §h.1), where free text is already masked or
-withheld, and for the customer and cue routes (F17 §o.9)."""
+withheld, for the customer, cue and picks routes (F17 §o.9), for the changes (F17 §h.1), and
+for the receipt of each query an agent turn ran (BR-F17-10)."""
 
 from __future__ import annotations
 
@@ -9,8 +10,26 @@ from typing import Any
 
 from ninja import Schema
 
-from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
-from apps.infra.models import CueRun, Customer, CustomerTier, TicketCue
+from apps.infra.domain.changes import InfraChange, InfraResource
+from apps.infra.domain.resources import AlertResource
+from apps.infra.domain.vocabulary import (
+    CueRunOutcome,
+    CueStatus,
+    InfraRefusal,
+    QueryCheck,
+    ResourceKind,
+    ResourceSource,
+)
+from apps.infra.models import (
+    CueRun,
+    Customer,
+    CustomerTier,
+    InfraBackend,
+    InfraOutcome,
+    InfraQuery,
+    InfraQueryKind,
+    TicketCue,
+)
 
 
 class ProjectOut(Schema):
@@ -100,6 +119,10 @@ class SecurityGroupOut(Schema):
     rules: list[RuleOut]
 
 
+class SecurityGroupDetailOut(SecurityGroupOut):
+    project_id: str
+
+
 class NetworkOut(Schema):
     id: str
     name: str
@@ -124,6 +147,8 @@ class AlertOut(Schema):
     summary: str
     description: str
     starts_at: str
+    resource_kind: AlertResource | None = None
+    resource_id: str | None = None
 
 
 class MatcherOut(Schema):
@@ -168,6 +193,8 @@ class CatalogOut(Schema):
     log_datasets: list[DatasetEntryOut]
     log_fields: list[FieldEntryOut]
     trace_fields: list[FieldEntryOut]
+    promql_functions: list[str]
+    promql_aggregations: list[str]
     caps: dict[str, int]
 
 
@@ -176,10 +203,16 @@ class SeriesOut(Schema):
     points: list[tuple[float, float | None]]
 
 
-class MetricAnswerOut(Schema):
+class OwnMetricAnswerOut(Schema):
+    """Metrics on the customer routes, without the staff-only link."""
+
     query_id: str
     series: list[SeriesOut]
     truncated: bool
+
+
+class MetricAnswerOut(OwnMetricAnswerOut):
+    link: str
 
 
 class LogLineOut(Schema):
@@ -192,12 +225,18 @@ class LogLineOut(Schema):
     message: str
 
 
-class LogAnswerOut(Schema):
+class OwnLogAnswerOut(Schema):
+    """Logs on the customer routes, without the staff-only link."""
+
     query_id: str
     total: int
     lines: list[LogLineOut]
     truncated: bool
     withheld: int
+
+
+class LogAnswerOut(OwnLogAnswerOut):
+    link: str
 
 
 class SpanOut(Schema):
@@ -214,11 +253,49 @@ class SpanOut(Schema):
     attributes: dict[str, str]
 
 
-class TraceAnswerOut(Schema):
+class OwnTraceAnswerOut(Schema):
+    """Traces on the customer routes, without the staff-only link."""
+
     query_id: str
     spans: list[SpanOut]
     truncated: bool
     withheld: int
+
+
+class TraceAnswerOut(OwnTraceAnswerOut):
+    link: str
+
+
+class InfraQuerySentOut(Schema):
+    """A query as it was sent, and its link in Prometheus or Kibana."""
+
+    compiled: str
+    link: str
+
+
+class InfraQueryReceiptOut(Schema):
+    """One query an agent turn ran, and how it ended."""
+
+    id: uuid.UUID
+    created_at: datetime
+    backend: InfraBackend
+    failed_backend: InfraBackend | None = None
+    kind: InfraQueryKind
+    outcome: InfraOutcome
+    refusal: InfraRefusal | None
+    refusal_reason: QueryCheck | None
+    rows: int
+    withheld: int
+    truncated: bool
+    duration_ms: int
+    # None on the chat surface.
+    sent: InfraQuerySentOut | None = None
+
+    @classmethod
+    def of(cls, query: InfraQuery, *, staff: bool) -> InfraQueryReceiptOut:
+        """The receipt of `query`, with what was sent only for `staff`."""
+        sent = InfraQuerySentOut(compiled=query.compiled, link=query.link) if staff else None
+        return cls.model_validate(query, from_attributes=True).model_copy(update={"sent": sent})
 
 
 class CustomerOut(Schema):
@@ -244,6 +321,17 @@ class CustomerListingOut(Schema):
     customers: list[CustomerOut]
     unclaimed_domains: list[DomainOut]
     domains_unavailable: bool
+
+
+class InfraChangeOut(Schema):
+    """A change the cloud accepted."""
+
+    change: InfraChange
+    target_kind: InfraResource
+    target_id: str
+    target_name: str
+    project_id: str
+    ticket: str | None
 
 
 class CueOut(Schema):
@@ -286,3 +374,15 @@ class CueRunOut(Schema):
 
 class TicketCuesOut(Schema):
     runs: list[CueRunOut]
+
+
+class ResourcePickOut(Schema):
+    """A resource the person picked in the chat, as their projects hold it."""
+
+    conversation_id: uuid.UUID
+    turn_id: uuid.UUID
+    kind: ResourceKind
+    resource_id: str
+    name: str
+    project_id: str
+    picked_at: datetime

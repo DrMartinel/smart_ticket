@@ -1,9 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import type { AgentActionOut, AgentReceiptOut, ChatTurnOut } from "@/lib/types/generated";
+import type {
+  AgentActionOut,
+  AgentChoiceOut,
+  AgentNeedsStaffOut,
+  AgentReceiptOut,
+  ChatTurnOut,
+} from "@/lib/types/generated";
 import type { ActionResult, AgentRow } from "@/lib/agent";
+import { CLOUD_TOOL_LABEL } from "@/lib/infra";
 import AnswerText from "./AnswerText";
+import { QueryReceipts, ServerChange } from "./CloudCards";
 import HelpdeskCard from "./HelpdeskCard";
 import { PLACEHOLDER, Question, Reply, Working } from "./TurnView";
 import { Badge } from "@/components/ui/badge";
@@ -11,13 +19,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/states";
 
-// What each chat tool's change is called in a receipt or a confirmation card.
+// What each chat tool is called in a receipt or a confirmation card.
 const TOOL_LABEL: Record<string, string> = {
   ask_helpdesk: "Asked the helpdesk",
   answer_clarification: "Answered the helpdesk's question",
   request_ticket: "Asked for a ticket",
   reply_to_my_ticket: "Reply to your ticket",
   reopen_my_ticket: "Reopen your ticket",
+  ...CLOUD_TOOL_LABEL,
 };
 
 const OUTCOME: Record<AgentReceiptOut["outcome"], { label: string; variant: "ok" | "info" | "warn" | "danger" }> = {
@@ -56,6 +65,9 @@ export default function AgentTurnView({
   onOpenTicket,
   onRetry,
   onAsk,
+  onChoose,
+  busy,
+  viewingEnded,
 }: {
   row: AgentRow;
   pending: AgentActionOut[];
@@ -71,6 +83,9 @@ export default function AgentTurnView({
   onOpenTicket: (turnId: string) => void;
   onRetry: (key: string) => void;
   onAsk: (text: string) => void;
+  onChoose: (choice: AgentChoiceOut) => void;
+  busy: boolean;
+  viewingEnded: boolean;
 }) {
   if (row.kind === "ended") {
     return (
@@ -115,9 +130,17 @@ export default function AgentTurnView({
         ) : (
           <div className="flex flex-col gap-3">
             <AnswerText text={t.reply} />
+            {t.state === "replied" && (t.choices ?? []).length > 0 && (
+              <ChoiceCard
+                choices={t.choices ?? []}
+                disabled={busy || viewingEnded}
+                onPick={onChoose}
+              />
+            )}
             {helpdesk.map((id) => (
               <HelpdeskCard key={id} publicId={id} onAnswer={onAsk} />
             ))}
+            <QueryReceipts queries={t.queries ?? []} warnings={t.warnings ?? []} language={t.language} />
             {acts.length > 0 && (
               <ul aria-label="What the assistant did" className="flex flex-col gap-1.5 border-t border-border pt-3">
                 {acts.map((r, i) => (
@@ -145,14 +168,24 @@ export default function AgentTurnView({
                 )}
               </p>
             ))}
-            {t.state === "handed_off" && t.ticket_offered && !t.handoff_ticket && (
+            {t.state === "handed_off" && t.needs_staff && (
+              <NeedsStaff
+                parts={t.needs_staff}
+                offered={t.ticket_offered ?? false}
+                ticket={t.handoff_ticket}
+                busy={creating === t.turn_id}
+                error={createError[t.turn_id]}
+                onOpen={() => onOpenTicket(t.turn_id)}
+              />
+            )}
+            {t.state === "handed_off" && !t.needs_staff && t.ticket_offered && !t.handoff_ticket && (
               <TicketOffer
                 busy={creating === t.turn_id}
                 error={createError[t.turn_id]}
                 onOpen={() => onOpenTicket(t.turn_id)}
               />
             )}
-            {t.state === "handed_off" && t.handoff_ticket && (
+            {t.state === "handed_off" && !t.needs_staff && t.handoff_ticket && (
               <Handoff
                 publicId={t.handoff_ticket}
                 ticket={handoff}
@@ -206,6 +239,7 @@ function ConfirmCard({
         {TOOL_LABEL[action.tool] ?? action.tool}
         {ticket && <span className="num"> · {ticket}</span>}
       </p>
+      {action.target_kind === "server" && <ServerChange action={action} />}
       {text && <blockquote className="whitespace-pre-wrap rounded-md bg-muted px-3 py-2 text-sm">{text}</blockquote>}
       <p className="text-xs text-muted-foreground">
         Nothing is sent until you choose Send. This expires at{" "}
@@ -251,6 +285,86 @@ function Handoff({
     return <TicketOffer busy={busy} error={error} onOpen={() => onCreateTicket(publicId)} />;
   }
   return <p className="border-t border-border pt-3 text-sm">Your message is with support as {link}.</p>;
+}
+
+/** The reply's choices as buttons; a press hands the choice to `onPick`. */
+function ChoiceCard({
+  choices,
+  disabled,
+  onPick,
+}: {
+  choices: AgentChoiceOut[];
+  disabled: boolean;
+  onPick: (choice: AgentChoiceOut) => void;
+}) {
+  return (
+    <div role="group" aria-label="Choose one" className="flex flex-wrap gap-2">
+      {choices.map((c) => (
+        <Button
+          key={`${c.kind}:${c.id ?? ""}`}
+          size="sm"
+          variant="outline"
+          disabled={disabled}
+          onClick={() => onPick(c)}
+        >
+          {c.label}
+        </Button>
+      ))}
+    </div>
+  );
+}
+
+/** What follows the assistant's own words when it passes a request to support: the line about
+ * what it checked, the button that opens the ticket, then the ticket once it is open. */
+function NeedsStaff({
+  parts,
+  offered,
+  ticket,
+  busy,
+  error,
+  onOpen,
+}: {
+  parts: AgentNeedsStaffOut;
+  offered: boolean;
+  ticket: string | null;
+  busy: boolean;
+  error: string | undefined;
+  onOpen: () => void;
+}) {
+  const [before, after] = ticket && parts.opened ? parts.opened.split(ticket, 2) : [parts.opened, undefined];
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-3 text-sm">
+      {parts.checked && <p>{parts.checked}</p>}
+      {ticket ? (
+        <p role="status">
+          {before}
+          {after !== undefined && (
+            <>
+              <Link href={`/tickets/${encodeURIComponent(ticket)}`} className="num text-primary hover:underline">
+                {ticket}
+              </Link>
+              {after}
+            </>
+          )}
+        </p>
+      ) : (
+        offered && (
+          <>
+            {error && (
+              <p role="alert" className="text-danger">
+                {error}
+              </p>
+            )}
+            <div>
+              <Button size="sm" onClick={onOpen} disabled={busy}>
+                {parts.button}
+              </Button>
+            </div>
+          </>
+        )
+      )}
+    </div>
+  );
 }
 
 /** Offers to open a ticket with the person's message. */

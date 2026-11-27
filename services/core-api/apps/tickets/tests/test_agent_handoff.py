@@ -4,6 +4,8 @@ router's gate sends it to HITL with the agent's reason, whatever ai-engine
 proposed for it.
 """
 
+import json
+
 import pytest
 from django.db import IntegrityError, transaction
 
@@ -27,7 +29,9 @@ def engine_proposes_a_question(monkeypatch):
     )
 
 
-def _handed_off(reporter, reason: str | None = "agent_step_limit") -> Ticket:
+def _handed_off(
+    reporter, reason: str | None = "agent_step_limit", summary: str | None = None
+) -> Ticket:
     return Ticket.objects.create(
         public_id="TKT-TEST-AGENT-001",
         reporter=reporter,
@@ -36,7 +40,51 @@ def _handed_off(reporter, reason: str | None = "agent_step_limit") -> Ticket:
         pii_level=PIILevel.ROUTINE.value,
         source=TicketSource.CHAT.value,
         agent_handoff_reason=reason,
+        proposed_handoff_summary=summary,
     )
+
+
+SUMMARY = "Customer asks to raise vol-db-01's IOPS quota; at 100 % of quota since 09:01"
+
+
+@pytest.mark.django_db
+def test_handoff_summary_never_reaches_triage_or_routing(employee_user, monkeypatch):
+    sent: list[str] = []
+
+    def analyze(masked, request_id, categories):
+        sent.append(masked.model_dump_json() + json.dumps([c.model_dump() for c in categories]))
+        return _clarify_response(request_id)
+
+    monkeypatch.setattr(Ticket, "store_embedding", lambda *a: None)
+    monkeypatch.setattr(incidents, "classify", lambda *a: IncidentVerdict(kind="unique"))
+    monkeypatch.setattr(ai_engine, "analyze", analyze)
+    ticket = _handed_off(employee_user, "agent_needs_staff", SUMMARY)
+
+    ticket_process(str(ticket.id))
+
+    (request,) = sent
+    assert SUMMARY not in request and "vol-db-01" not in request
+    run = ticket.ai_runs.get()
+    assert SUMMARY not in json.dumps(run.trust_signals)
+    assert "proposed_handoff_summary" not in json.dumps(run.trust_signals)
+    decision = ticket.routing_decisions.get()
+    assert (decision.branch, decision.reason_code) == ("hitl", "agent_needs_staff")
+
+
+@pytest.mark.django_db
+def test_needs_staff_ticket_goes_to_hitl_with_agent_needs_staff(
+    employee_user, engine_proposes_a_question
+):
+    ticket = _handed_off(employee_user, "agent_needs_staff", SUMMARY)
+
+    ticket_process(str(ticket.id))
+
+    ticket.refresh_from_db()
+    decision = ticket.routing_decisions.get()
+    assert (decision.branch, decision.reason_code) == ("hitl", "agent_needs_staff")
+    assert list(ticket.review_items.values_list("queue", flat=True)) == ["low_confidence"]
+    assert ticket.status != "awaiting_requester" and not ticket.clarifications.exists()
+    assert ticket.proposed_handoff_summary == SUMMARY
 
 
 @pytest.mark.django_db

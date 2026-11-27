@@ -1,7 +1,8 @@
 """core-api's clients of the cloud's API (OpenStack), Alertmanager, Prometheus (through
 prom-label-proxy) and Elasticsearch (F17, ADR-0048 §1). Transport only: a read answers its JSON,
 or raises `BackendNotFound` for a 404, `BackendRefused` for a query Prometheus rejects and
-`BackendUnavailable` for anything else."""
+`BackendUnavailable` for anything else. A change to the cloud also raises `BackendConflict` for
+a 409, `BackendRefused` for another 4xx and `ChangeOutcomeUnknown` once it may have been made."""
 
 from __future__ import annotations
 
@@ -37,7 +38,15 @@ class BackendNotFound(Exception):
 
 
 class BackendRefused(Exception):
-    """A backend that rejected the query it was sent."""
+    """A backend that rejected the query or change it was sent."""
+
+
+class BackendConflict(Exception):
+    """A cloud that refused a change because of the resource's state."""
+
+
+class ChangeOutcomeUnknown(Exception):
+    """A change the cloud may have made: sent with no answer, or answered with a server error."""
 
 
 def http_client() -> httpx.Client:
@@ -88,6 +97,42 @@ class OpenStack:
         if response.status_code == 401:
             response = self.send(self.token(renew=True), service, path, params)
         return json_of(InfraBackend.CLOUD, response)
+
+    def change(
+        self, method: str, service: str, path: str, body: dict[str, Any] | None = None
+    ) -> None:
+        """Sends one change to the catalog's `service` endpoint, and again with a new token only
+        after a 401. A connect failure is `BackendUnavailable`; any later transport error or a
+        5xx is `ChangeOutcomeUnknown`."""
+        for renew in (False, True):
+            token = self.token(renew=renew)
+            base = token.endpoints.get(service)
+            if base is None:
+                raise BackendUnavailable(InfraBackend.CLOUD, f"the catalog names no {service}")
+            try:
+                response = self.http.request(
+                    method, f"{base}{path}", json=body, headers={"X-Auth-Token": token.value}
+                )
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                raise BackendUnavailable(
+                    InfraBackend.CLOUD, f"{service}: {type(e).__name__}"
+                ) from e
+            except httpx.HTTPError as e:
+                raise ChangeOutcomeUnknown(f"{service}: {type(e).__name__}") from e
+            if response.status_code != 401:
+                break
+        status = response.status_code
+        if 200 <= status < 300:
+            return
+        if status >= 500:
+            raise ChangeOutcomeUnknown(f"{service} answered {status}")
+        if status == 401:
+            raise BackendUnavailable(InfraBackend.CLOUD, f"{service} refused the service token")
+        if status == 404:
+            raise BackendNotFound(path)
+        if status == 409:
+            raise BackendConflict(f"{service} answered 409")
+        raise BackendRefused(f"{service} answered {status}")
 
     def token(self, *, renew: bool = False) -> ServiceToken:
         with self._lock:
@@ -166,7 +211,8 @@ class Alertmanager:
 
 
 class Prometheus:
-    """Prometheus's range queries, sent through prom-label-proxy with the projects it enforces."""
+    """Prometheus's range queries, sent through prom-label-proxy with the projects it enforces,
+    and its parser, which reads no series."""
 
     def __init__(self, http: httpx.Client) -> None:
         self.http = http
@@ -175,12 +221,31 @@ class Prometheus:
         self, promql: str, start: float, end: float, step: int, projects: frozenset[str]
     ) -> Any:
         """The matrix a range query answers, scoped by the proxy to `projects`."""
+        data = self.post(
+            f"{settings.PROMETHEUS_URL}/api/v1/query_range",
+            {"query": promql, "start": start, "end": end, "step": step},
+            httpx.QueryParams([("project", p) for p in sorted(projects)]),
+        )
         try:
-            response = self.http.post(
-                f"{settings.PROMETHEUS_URL}/api/v1/query_range",
-                params=[("project", p) for p in sorted(projects)],
-                data={"query": promql, "start": start, "end": end, "step": step},
-            )
+            if data["resultType"] != "matrix":
+                raise BackendUnavailable(InfraBackend.PROMETHEUS, "answered no matrix")
+            return data["result"]
+        except (KeyError, TypeError) as e:
+            raise BackendUnavailable(
+                InfraBackend.PROMETHEUS, "answered something unreadable"
+            ) from e
+
+    def parse(self, promql: str) -> Any:
+        """The syntax tree Prometheus's `/api/v1/parse_query` parses `promql` into."""
+        return self.post(f"{settings.PROMETHEUS_PARSE_URL}/api/v1/parse_query", {"query": promql})
+
+    def post(
+        self, url: str, form: dict[str, str | float], params: httpx.QueryParams | None = None
+    ) -> Any:
+        """The `data` of Prometheus's answer; raises `BackendRefused` for a query it rejects and
+        `BackendUnavailable` for any other answer but a 200."""
+        try:
+            response = self.http.post(url, params=params, data=form)
         except httpx.HTTPError as e:
             raise BackendUnavailable(InfraBackend.PROMETHEUS, type(e).__name__) from e
         if response.status_code in (400, 422):
@@ -189,12 +254,11 @@ class Prometheus:
             except (ValueError, KeyError, TypeError):
                 message = f"answered {response.status_code}"
             raise BackendRefused(message)
-        answer = json_of(InfraBackend.PROMETHEUS, response)
+        if response.status_code != 200:
+            raise BackendUnavailable(InfraBackend.PROMETHEUS, f"answered {response.status_code}")
         try:
-            if answer["data"]["resultType"] != "matrix":
-                raise BackendUnavailable(InfraBackend.PROMETHEUS, "answered no matrix")
-            return answer["data"]["result"]
-        except (KeyError, TypeError) as e:
+            return response.json()["data"]
+        except (ValueError, KeyError, TypeError) as e:
             raise BackendUnavailable(
                 InfraBackend.PROMETHEUS, "answered something unreadable"
             ) from e

@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-011"
+version: "CR-2026-015"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -285,10 +285,30 @@ access:
 agent:
   # Model calls, tool calls and model tokens (in + out) one turn may use; core-api
   # also refuses a turn's write calls beyond max_tool_calls_per_turn
-  # (FR-F15-015). 🔧 assumptions, not measured.
+  # (FR-F15-015). The token budget pays for each call's prompt and the chat's
+  # tool list (about 5,200 tokens) and a few results; every call re-sends the
+  # turn's results so far, so a long turn of large results ends
+  # agent_budget_exceeded (F17 §h.3). 🔧 assumptions, not measured.
   max_steps: 8
   max_tool_calls_per_turn: 6
-  max_model_tokens_per_turn: 16000
+  max_model_tokens_per_turn: 48000
+  # Read calls one turn may make; with it set, max_tool_calls_per_turn counts
+  # writes only, and core-api refuses a turn's reads beyond it too. null keeps
+  # F15's rule: every call counts against max_tool_calls_per_turn (F17
+  # FR-F17-011, §h.3). 🔧 assumption, revisited after the first traces.
+  max_read_calls_per_turn: 16
+  # Reads one step may make for free after its write: ask_helpdesk's polls of
+  # the question it posted. Covers AGENT_ASK_WAIT_SEC / AGENT_ASK_POLL_INTERVAL_SEC
+  # (90 / 2 = 45); further reads in the step count against
+  # max_read_calls_per_turn (F17 FR-F17-011). 🔧 assumption.
+  max_free_reads_per_step: 50
+  # A console turn's model calls and model tokens, in place of max_steps and
+  # max_model_tokens_per_turn: investigating the cloud takes more reads (F17
+  # §h.3, ADR-0048). The token budget pays for each call's prompt and the
+  # console's tool list (about 8,000 tokens) and a few results, as above.
+  # 🔧 assumptions, revisited after the first traces.
+  console_max_steps: 20
+  console_max_model_tokens_per_turn: 200000
   # Seconds an agent turn's token lives (F15, BR-F15-02); it also dies with
   # the turn and with the sign-in it was minted from. 🔧 assumption, not measured.
   token_ttl_seconds: 300
@@ -303,6 +323,11 @@ agent:
   conversation_idle_minutes: 30
   # Conversations the history list returns, newest first. 🔧
   history_limit: 20
+  # Buttons on one choice card, before the "Something else" code adds, and the
+  # characters a hand-off's summary for staff may hold (F15 amendment, BR-F15-21,
+  # BR-F15-23). 🔧 assumptions, not measured.
+  max_choices: 8
+  max_handoff_summary_chars: 500
 
 infra:
   # Caps on one structured query of the cloud's metrics, logs or traces
@@ -316,6 +341,14 @@ infra:
   max_log_docs: 100
   max_spans: 500
   max_result_bytes: 24000
+  # The most selectors one raw PromQL query may hold (F17 FR-F17-005); the
+  # range, step and series caps above apply to it too. 🔧
+  max_selectors: 10
+  # The memory RE2 may spend reading one regex matcher in raw PromQL, and the
+  # most regex matchers one query may hold (F17 FR-F17-005); a regex over
+  # either is refused. 🔧
+  max_regex_kib: 256
+  max_regex_matchers: 10
 
 cues:
   # A ticket's cues (F17 §o, BR-F17-14, BR-F17-24): their window starts this

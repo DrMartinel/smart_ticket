@@ -177,6 +177,11 @@ export default function TicketsPage() {
                     <span className="num">{t.public_id}</span> · {t.reporter}
                     {t.category && ` · ${t.category}`}
                   </span>
+                  {t.proposed_handoff_summary && (
+                    <span className="mt-1 block text-xs">
+                      <span className="text-proposal">Assistant&apos;s summary:</span> {t.proposed_handoff_summary}
+                    </span>
+                  )}
                   <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
                     <StatusChip name={t.status.name} color={t.status.color} />
                     {t.review && (
@@ -222,6 +227,11 @@ export default function TicketsPage() {
                       <span className="num">{t.public_id}</span> · {t.reporter} · {humanize(t.source)}
                       {t.category && ` · ${t.category}`}
                     </p>
+                    {t.proposed_handoff_summary && (
+                      <p className="mt-0.5 truncate text-xs" title={t.proposed_handoff_summary}>
+                        <span className="text-proposal">Assistant&apos;s summary:</span> {t.proposed_handoff_summary}
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell className="py-3">
                     <StatusChip name={t.status.name} color={t.status.color} />

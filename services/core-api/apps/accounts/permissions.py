@@ -31,6 +31,8 @@ from apps.accounts.domain.catalog import Permission
 from apps.agent.models import (
     AgentActionKind,
     AgentConversationState,
+    AgentSurface,
+    AgentTargetKind,
     AgentTurn,
     AgentTurnState,
 )
@@ -47,9 +49,11 @@ from apps.audit.models import AuditLog
 from apps.core.errors import CodedError
 
 
-# The header an agent's call names its tool in, and the shape of a tool's name.
+# The headers an agent's call names its tool and its step in, and the shape of each.
 AGENT_TOOL_HEADER = "X-Agent-Tool"
 TOOL_NAME = re.compile(r"^[a-z][a-z_]{0,39}$")
+AGENT_STEP_HEADER = "X-Agent-Step"
+STEP_NUMBER = re.compile(r"^[1-9][0-9]{0,5}$")
 
 
 class AgentTier(StrEnum):
@@ -82,16 +86,28 @@ class SessionAuth(JWTAuth):
                 conversation, turn = uuid.UUID(validated["agc"]), uuid.UUID(validated["agt"])
             except (KeyError, TypeError, ValueError) as e:
                 raise AuthenticationFailed("this token's actor is not one core-api issues") from e
-            if not AgentTurn.objects.filter(
-                id=turn,
-                conversation_id=conversation,
-                state=AgentTurnState.RUNNING.value,
-                conversation__user=user,
-                conversation__state=AgentConversationState.ACTIVE.value,
-            ).exists():
+            surface = (
+                AgentTurn.objects.filter(
+                    id=turn,
+                    conversation_id=conversation,
+                    state=AgentTurnState.RUNNING.value,
+                    conversation__user=user,
+                    conversation__state=AgentConversationState.ACTIVE.value,
+                )
+                .values_list("conversation__surface", flat=True)
+                .first()
+            )
+            if surface is None:
                 raise AuthenticationFailed("the agent turn this token belongs to is not running")
             tool = request.headers.get(AGENT_TOOL_HEADER, "")
-            agent = AgentOrigin(conversation, turn, tool if TOOL_NAME.match(tool) else "")
+            step = request.headers.get(AGENT_STEP_HEADER, "")
+            agent = AgentOrigin(
+                conversation,
+                turn,
+                tool if TOOL_NAME.match(tool) else "",
+                int(step) if STEP_NUMBER.match(step) else None,
+                surface,
+            )
         match = getattr(request, "resolver_match", None)
         return Caller(
             user=user,
@@ -120,11 +136,13 @@ class AccessError(CodedError):
 
 @dataclass(frozen=True)
 class Gate:
-    """The permission a route needs, held at any scope (ADR-0045), and its agent tier
-    (ADR-0046); a route with no tier refuses agents."""
+    """The permission a route needs, held at any scope (ADR-0045), its agent tier (ADR-0046),
+    and what an agent action on it is about (F16 BR-F16-05); a route with no tier refuses
+    agents."""
 
     permission: Permission
     agent_tier: AgentTier | None = None
+    target: AgentTargetKind | None = None
 
 
 @dataclass(frozen=True)
@@ -227,12 +245,18 @@ def gate_of(handler: Callable[..., Any]) -> Gate | None:
     return _GATES[handler]
 
 
-def require(permission: Permission, *, agent: AgentTier | None = None):
+def require(
+    permission: Permission,
+    *,
+    agent: AgentTier | None = None,
+    target: AgentTargetKind | None = None,
+):
     """Decorator for Django Ninja handlers: lets in a user who holds `permission`, and an agent
-    acting for them as the route's `agent` tier allows. `request` must be the first arg and
-    `request.auth` its `Caller`."""
+    acting for them as the route's `agent` tier allows. A `confirm` or `human_only` route names
+    its `target`, the kind of thing its one path parameter names. `request` must be the first
+    arg and `request.auth` its `Caller`."""
 
-    gate = Gate(permission, agent)
+    gate = Gate(permission, agent, target)
 
     def decorator[**P, R](
         fn: Callable[Concatenate[AuthedRequest, P], R],
@@ -244,11 +268,27 @@ def require(permission: Permission, *, agent: AgentTier | None = None):
                 raise HttpError(401, "authentication required")
             caller.admit(gate)
             if caller.agent is not None:
-                if gate.agent_tier is not AgentTier.READ and not AgentTurn.objects.count_write(
-                    caller.agent.turn, settings.THRESHOLDS.agent.max_tool_calls_per_turn
+                caps = settings.THRESHOLDS.agent
+                read = gate.agent_tier is AgentTier.READ
+                step = caller.agent.step
+                console = caller.agent.surface == AgentSurface.CONSOLE.value
+                if step is not None and step > (
+                    caps.console_max_steps if console else caps.max_steps
                 ):
                     raise AgentError(
-                        429, AgentRefusal.TOOL_LIMIT, "this turn has made all its write calls"
+                        429, AgentRefusal.TOOL_LIMIT, "this turn has taken all its steps"
+                    )
+                if not AgentTurn.objects.count_step(
+                    caller.agent.turn,
+                    step,
+                    read=read,
+                    cap=caps.max_read_calls_per_turn if read else caps.max_tool_calls_per_turn,
+                    free_reads=caps.max_free_reads_per_step,
+                ):
+                    raise AgentError(
+                        429,
+                        AgentRefusal.TOOL_LIMIT,
+                        f"this turn has made all its {'read' if read else 'write'} calls",
                     )
                 match gate.agent_tier:
                     case AgentTier.READ | AgentTier.SELF:
@@ -261,6 +301,7 @@ def require(permission: Permission, *, agent: AgentTier | None = None):
                                 caller.user,
                                 AgentCall.of(request, kwargs),
                                 caller.agent,
+                                gate.target,
                             )
                         )
                     case AgentTier.HUMAN_ONLY:
@@ -269,6 +310,7 @@ def require(permission: Permission, *, agent: AgentTier | None = None):
                             caller.user,
                             AgentCall.of(request, kwargs),
                             caller.agent,
+                            gate.target,
                         )
                         raise AccessError(
                             AccessRefusal.HUMAN_ONLY_ACTION,

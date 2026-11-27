@@ -41,6 +41,7 @@ from apps.accounts.permissions import (
     SessionAuth,
     require,
 )
+from apps.agent.models import AgentTargetKind
 from apps.sla.request_schema import PriorityIn
 from apps.sla.response_schema import TicketSlaOut
 from apps.sla.services.clocks import sla_clocks
@@ -108,14 +109,14 @@ def get_ticket(request: AuthedRequest, public_id: str) -> Ticket:
 
 
 @router.post("/{public_id}/take", auth=SessionAuth(), response=AssignedTicketOut)
-@require(Permission.TICKETS_TAKE, agent=AgentTier.CONFIRM)
+@require(Permission.TICKETS_TAKE, agent=AgentTier.CONFIRM, target=AgentTargetKind.TICKET)
 def take(request: AuthedRequest, public_id: str, payload: TakeIn) -> Ticket:
     _staff_ticket(request, public_id, Permission.TICKETS_TAKE)
     return assignment.take(public_id, request.auth.user, payload.expected_version)
 
 
 @router.post("/{public_id}/reassign", auth=SessionAuth(), response=AssignedTicketOut)
-@require(Permission.TICKETS_REASSIGN, agent=AgentTier.HUMAN_ONLY)
+@require(Permission.TICKETS_REASSIGN, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.TICKET)
 def reassign(request: AuthedRequest, public_id: str, payload: ReassignIn) -> Ticket:
     _staff_ticket(request, public_id, Permission.TICKETS_REASSIGN)
     return assignment.reassign(
@@ -143,7 +144,7 @@ def ticket_comments(request: AuthedRequest, public_id: str) -> list[CommentOut]:
 
 
 @router.post("/{public_id}/comments", auth=SessionAuth(), response=CommentOut)
-@require(Permission.TICKETS_COMMENT, agent=AgentTier.CONFIRM)
+@require(Permission.TICKETS_COMMENT, agent=AgentTier.CONFIRM, target=AgentTargetKind.TICKET)
 def add_comment(request: AuthedRequest, public_id: str, payload: CommentIn) -> CommentOut:
     comment = comments.by_staff(
         _staff_ticket(request, public_id, Permission.TICKETS_COMMENT),
@@ -167,7 +168,7 @@ def ticket_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
 
 
 @router.patch("/{public_id}/priority", auth=SessionAuth(), response=TicketSlaOut)
-@require(Permission.TICKETS_PRIORITY, agent=AgentTier.HUMAN_ONLY)
+@require(Permission.TICKETS_PRIORITY, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.TICKET)
 def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn) -> dict[str, Any]:
     ticket = sla_clocks.change_priority(
         _staff_ticket(request, public_id, Permission.TICKETS_PRIORITY),
@@ -180,7 +181,7 @@ def change_priority(request: AuthedRequest, public_id: str, payload: PriorityIn)
 
 
 @router.post("/{public_id}/sla/rebuild", auth=SessionAuth(), response=TicketSlaOut)
-@require(Permission.TICKETS_SLA_REBUILD, agent=AgentTier.HUMAN_ONLY)
+@require(Permission.TICKETS_SLA_REBUILD, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.TICKET)
 def rebuild_sla(request: AuthedRequest, public_id: str) -> dict[str, Any]:
     ticket = _staff_ticket(request, public_id, Permission.TICKETS_SLA_REBUILD)
     sla_clocks.rebuild(ticket, request.auth.user)
@@ -197,7 +198,7 @@ def _staff_ticket(request: AuthedRequest, public_id: str, permission: Permission
 
 
 @router.post("/{public_id}/quarantine/reveal", auth=SessionAuth(), response=RevealOut)
-@require(Permission.PII_REVEAL, agent=AgentTier.HUMAN_ONLY)
+@require(Permission.PII_REVEAL, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.TICKET)
 def reveal(
     request: AuthedRequest, public_id: str, payload: RevealIn, response: HttpResponse
 ) -> Revealed:

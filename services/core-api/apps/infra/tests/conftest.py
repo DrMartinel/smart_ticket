@@ -24,7 +24,7 @@ from urllib.parse import parse_qs
 from apps.accounts.models import User
 from apps.infra import tasks
 from apps.infra.clients.backends import Alertmanager, Elasticsearch, OpenStack, Prometheus
-from apps.infra.services import cues, customers, inventory, observability
+from apps.infra.services import changes, cues, customers, inventory, observability
 from apps.notifications import tasks as notification_tasks
 
 # The real client, captured before the root conftest's ai-engine stub replaces `httpx.Client`.
@@ -46,18 +46,48 @@ class CloudSim:
 
     cloud: Cloud
     client: TestClient
+    clock: FakeClock
     calls: list[str] = field(default_factory=list)
 
     def id_of(self, table: str, name: str) -> str:
         rows: dict[str, Any] = getattr(self.cloud, table)
         return next(i for i, row in rows.items() if row.name == name)
 
+    def changes(self) -> list[str]:
+        """The calls that asked the cloud to change something."""
+        return [c for c in self.calls if not c.startswith("GET ") and "/auth/tokens" not in c]
+
+    def lose_answers(self) -> None:
+        """Makes every later change reach the cloud and its answer never come back."""
+
+        def lose(response: httpx.Response) -> None:
+            request = response.request
+            if request.method != "GET" and "/auth/tokens" not in request.url.path:
+                raise httpx.ReadTimeout("the answer was lost", request=request)
+
+        self.client.event_hooks["response"].append(lose)
+
+    def refuse_changes(self) -> None:
+        """Makes every later change fail to connect, so the cloud never receives it."""
+
+        def refuse(request: httpx.Request) -> None:
+            if request.method != "GET" and "/auth/tokens" not in request.url.path:
+                raise httpx.ConnectError("connection refused", request=request)
+
+        self.client.event_hooks["request"].insert(0, refuse)
+
+    def settle(self) -> None:
+        """Lets every change in progress finish."""
+        self.clock.advance(seconds=3600)
+        self.cloud.settle()
+
 
 @pytest.fixture
 def cloud_sim(settings: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[CloudSim]:
+    clock = FakeClock()
     app = create_app(
         sim_settings(),
-        clock=FakeClock(),
+        clock=clock,
         exporter=lambda cloud: Exporter(
             cloud, spans=InMemorySpanExporter(), logs=InMemoryLogRecordExporter()
         ),
@@ -70,22 +100,25 @@ def cloud_sim(settings: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[CloudS
     settings.OPENSTACK_FEDERATION_IDP = "smart-ticket"
     settings.OPENSTACK_FEDERATION_PROTOCOL = "openid"
     with TestClient(app, base_url="http://cloud-sim") as client:
-        sim = CloudSim(app.state.cloud, client)
+        sim = CloudSim(app.state.cloud, client, clock)
         client.event_hooks["request"].append(lambda r: sim.calls.append(f"{r.method} {r.url.path}"))
         cloud = OpenStack(cast(httpx.Client, client))
         monkeypatch.setattr(inventory, "openstack", lambda: cloud)
         monkeypatch.setattr(observability, "openstack", lambda: cloud)
         monkeypatch.setattr(customers, "openstack", lambda: cloud)
+        monkeypatch.setattr(changes, "openstack", lambda: cloud)
         monkeypatch.setattr(cues, "openstack", lambda: cloud)
         yield sim
 
 
 @dataclass
 class FakeCloud:
-    """A Keystone that issues tokens expiring at `expires_at`, and scripted answers per path."""
+    """A Keystone that issues tokens expiring at `expires_at` for `services`, and scripted
+    answers per path."""
 
     answers: dict[str, list[httpx.Response]]
     expires_at: str = "2999-01-01T00:00:00+00:00"
+    services: tuple[str, ...] = ("compute",)
     sign_ins: int = 0
 
     def handle(self, request: httpx.Request) -> httpx.Response:
@@ -93,9 +126,10 @@ class FakeCloud:
             self.sign_ins += 1
             catalog = [
                 {
-                    "type": "compute",
-                    "endpoints": [{"interface": "public", "url": "http://cloud.test/compute"}],
+                    "type": service,
+                    "endpoints": [{"interface": "public", "url": f"http://cloud.test/{service}"}],
                 }
+                for service in self.services
             ]
             body = {"token": {"expires_at": self.expires_at, "catalog": catalog}}
             return httpx.Response(201, json=body, headers={"X-Subject-Token": f"t{self.sign_ins}"})
@@ -163,8 +197,10 @@ def alert(name: str, project: str | None, summary: str, **labels: str) -> dict[s
 @dataclass
 class FakePrometheus:
     """prom-label-proxy answering range queries with `series`, or with what `answer` gives for
-    the query, start, end and step, or `status` and `error`; keeps the query, the step and the
-    `project` values of every request."""
+    the query, start, end and step, or `status` and `error`, and Prometheus itself answering
+    `parse_query` with `tree` (a JSON text is sent as it is), or `parse_status` and
+    `parse_error`, or raising `parse_raises`. Keeps the query, the step and the `project` values
+    of every range query and the text of every parse; any other host or path answers 404."""
 
     series: list[dict[str, Any]] = field(default_factory=list)
     answer: Callable[[str, float, float, int], list[dict[str, Any]]] | None = None
@@ -174,11 +210,21 @@ class FakePrometheus:
     queries: list[str] = field(default_factory=list)
     steps: list[int] = field(default_factory=list)
     projects: list[list[str]] = field(default_factory=list)
+    tree: dict[str, Any] | str | None = None
+    parse_status: int = 200
+    parse_error: str = ""
+    parse_raises: Exception | None = None
+    parsed: list[str] = field(default_factory=list)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         if self.raises is not None:
             raise self.raises
         form = parse_qs(request.content.decode())
+        where = (request.url.host, request.url.path)
+        if where == ("prometheus", "/api/v1/parse_query"):
+            return self.parse(form["query"][0])
+        if where != ("prom-label-proxy", "/api/v1/query_range"):
+            return httpx.Response(404)
         query, step = form["query"][0], int(form["step"][0])
         self.queries.append(query)
         self.steps.append(step)
@@ -195,11 +241,28 @@ class FakePrometheus:
         body = {"status": "success", "data": {"resultType": "matrix", "result": result}}
         return httpx.Response(200, json=body)
 
+    def parse(self, text: str) -> httpx.Response:
+        if self.parse_raises is not None:
+            raise self.parse_raises
+        self.parsed.append(text)
+        if self.parse_status != 200:
+            return httpx.Response(
+                self.parse_status,
+                json={"status": "error", "errorType": "bad_data", "error": self.parse_error},
+            )
+        if isinstance(self.tree, str):
+            content = '{"status": "success", "data": ' + self.tree + "}"
+            return httpx.Response(
+                200, content=content, headers={"content-type": "application/json"}
+            )
+        return httpx.Response(200, json={"status": "success", "data": self.tree})
+
 
 @pytest.fixture
 def prom(settings: Any, monkeypatch: pytest.MonkeyPatch) -> FakePrometheus:
     fake = FakePrometheus()
     settings.PROMETHEUS_URL = "http://prom-label-proxy"
+    settings.PROMETHEUS_PARSE_URL = "http://prometheus"
     http = mock_http(fake.handle)
     monkeypatch.setattr(observability, "prometheus", lambda: Prometheus(http))
     monkeypatch.setattr(cues, "prometheus", lambda: Prometheus(http))

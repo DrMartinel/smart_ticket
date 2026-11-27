@@ -7,9 +7,11 @@ compiled once at import. `tests/test_agent_graph.py` pins its edges.
    stops at its caps (steps, tool calls, tokens) without calling the model,
    and its limit outcome leaves the loop, so the graph is `Cycles.BOUNDED`.
 3. A confirm route's 202 ends the turn: the person confirms the card.
-4. A failure, an unknown write outcome, a refused token or a write after an
-   injection hit in a result hands off. No tool call is retried; an invalid
-   model reply is asked again once, inside choose_action.
+4. A failure, an unknown write outcome, a refused token, or a write or a
+   `hand_off` after an injection hit in a result hands off. No tool call is
+   retried; an invalid model reply is asked again once, inside choose_action.
+5. On the chat, the model may end the turn with `hand_off` (`needs_staff`):
+   it finishes with the model's text, which a failure's hand-off drops.
 """
 
 from __future__ import annotations
@@ -31,6 +33,10 @@ _agent.route(screen_message, ScreenOutcome.CLEAR, choose_action)
 
 _agent.route(choose_action, ChooseOutcome.CALL_TOOL, call_tool)
 _agent.route(choose_action, ChooseOutcome.REPLY, finish)
+# A change none of the person's tools makes: the turn ends with the model's own text.
+_agent.route(choose_action, ChooseOutcome.HAND_OFF, finish)
+# A hand-off chosen after a result tripped the screen: its text and summary are dropped.
+_agent.route(choose_action, ChooseOutcome.RESULT_FLAGGED, hand_off)
 # Steps, tool calls or tokens used up: no made-up answer.
 _agent.route(choose_action, ChooseOutcome.LIMIT_REACHED, hand_off)
 _agent.route(choose_action, ChooseOutcome.MODEL_FAILED, hand_off)

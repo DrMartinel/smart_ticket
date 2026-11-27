@@ -1,18 +1,19 @@
 """The `infra_queries` record of a person's, their agent's or a ticket's cue reads (F17
 BR-F17-10, ADR-0048 decision 10): one row per read of the cloud or its observability, however
-it ended, and the coded refusal a failed read answers with."""
+it ended, the coded refusal a failed read answers with, and what a reply says of a source its
+turn could not read (BR-F17-07)."""
 
 from __future__ import annotations
 
 import logging
 import time
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from apps.accounts.models import User
+from apps.accounts.models import Language, User
 from apps.accounts.permissions import Caller
 from apps.infra.clients.backends import (
     BackendNotFound,
@@ -41,7 +42,8 @@ UNREADABLE = (KeyError, TypeError, ValueError, IndexError)
 
 @dataclass
 class Read:
-    """One read as it runs: what it sent, its rows, the texts it withheld and its row's id."""
+    """One read as it runs: what it sent, its rows, the texts it withheld, whether its answer
+    was cut to the result cap, and its row's id."""
 
     backend: InfraBackend
     kind: InfraQueryKind
@@ -49,6 +51,7 @@ class Read:
     calls: list[str] = field(default_factory=list)
     rows: int = 0
     withheld: int = 0
+    truncated: bool = False
     link: str = ""
     query_id: uuid.UUID | None = None
 
@@ -117,7 +120,11 @@ class QueryLog:
         failed = Read(InfraBackend.CLOUD, InfraQueryKind.RESOURCE, [])
         failed.calls.append("GET identity /role_assignments")
         return self.record(
-            failed, InfraOutcome.SCOPE_UNAVAILABLE, InfraRefusal.SCOPE_UNAVAILABLE, started
+            failed,
+            InfraOutcome.SCOPE_UNAVAILABLE,
+            InfraRefusal.SCOPE_UNAVAILABLE,
+            started,
+            failed_backend=InfraBackend.CLOUD,
         )
 
     @contextmanager
@@ -134,13 +141,17 @@ class QueryLog:
             raise InfraError(InfraRefusal.NOT_FOUND, "no such resource") from e
         except (QueryRefused, BackendRefused) as e:
             check = e.check if isinstance(e, QueryRefused) else QueryCheck.BACKEND_REFUSED
-            self.record(read, InfraOutcome.REFUSED, InfraRefusal.QUERY_REFUSED, started)
+            self.record(read, InfraOutcome.REFUSED, InfraRefusal.QUERY_REFUSED, started, check)
             raise InfraError(InfraRefusal.QUERY_REFUSED, str(e), {"reason": check.value}) from e
         except (BackendUnavailable, *UNREADABLE) as e:
             failed = e.backend if isinstance(e, BackendUnavailable) else backend
             logger.warning("infra: %s read failed: %s", failed.value, e)
             self.record(
-                read, InfraOutcome.BACKEND_UNAVAILABLE, InfraRefusal.BACKEND_UNAVAILABLE, started
+                read,
+                InfraOutcome.BACKEND_UNAVAILABLE,
+                InfraRefusal.BACKEND_UNAVAILABLE,
+                started,
+                failed_backend=failed,
             )
             raise InfraError(
                 InfraRefusal.BACKEND_UNAVAILABLE,
@@ -151,7 +162,13 @@ class QueryLog:
             self.record(read, InfraOutcome.OK, None, started)
 
     def record(
-        self, read: Read, outcome: InfraOutcome, refusal: InfraRefusal | None, started: float
+        self,
+        read: Read,
+        outcome: InfraOutcome,
+        refusal: InfraRefusal | None,
+        started: float,
+        reason: QueryCheck | None = None,
+        failed_backend: InfraBackend | None = None,
     ) -> InfraQuery:
         row = InfraQuery.objects.create(
             actor=self.actor,
@@ -159,16 +176,107 @@ class QueryLog:
             agent_turn_id=self.agent_turn,
             ticket=self.ticket,
             backend=read.backend.value,
+            failed_backend=failed_backend.value if failed_backend else None,
             kind=read.kind.value,
             compiled="\n".join(read.calls),
             projects=read.projects,
             outcome=outcome.value,
             refusal=refusal.value if refusal else None,
+            refusal_reason=reason.value if reason else None,
             duration_ms=int((time.monotonic() - started) * 1000),
             rows=read.rows if outcome is InfraOutcome.OK else 0,
             withheld=read.withheld,
+            truncated=read.truncated if outcome is InfraOutcome.OK else False,
             link=read.link,
         )
         read.query_id = row.id
         self.recorded.append(row)
         return row
+
+
+_UNREACHABLE: dict[InfraBackend, dict[Language, str]] = {
+    InfraBackend.PROMETHEUS: {
+        Language.EN: "Prometheus was unreachable; this answer has no metrics.",
+        Language.VI: "Không kết nối được Prometheus; câu trả lời này không có số liệu đo.",
+    },
+    InfraBackend.ELASTICSEARCH: {
+        Language.EN: "Elasticsearch was unreachable; this answer has no logs or traces.",
+        Language.VI: "Không kết nối được Elasticsearch; câu trả lời này không có log hay trace.",
+    },
+    InfraBackend.ALERTMANAGER: {
+        Language.EN: "Alertmanager was unreachable; this answer has no alerts.",
+        Language.VI: "Không kết nối được Alertmanager; câu trả lời này không có cảnh báo.",
+    },
+    InfraBackend.CLOUD: {
+        Language.EN: "The cloud's API was unreachable; this answer has no resource state.",
+        Language.VI: (
+            "Không kết nối được API của hệ thống cloud; "
+            "câu trả lời này không có trạng thái tài nguyên."
+        ),
+    },
+}
+
+# What a reply says when the cloud's API, asked for the project list inside another backend's
+# read, did not answer, by that read's backend.
+_PROJECTS_UNLISTED: dict[InfraBackend, dict[Language, str]] = {
+    InfraBackend.PROMETHEUS: {
+        Language.EN: (
+            "The cloud's API was unreachable, so no projects could be listed; "
+            "this answer has no metrics."
+        ),
+        Language.VI: (
+            "Không kết nối được API của hệ thống cloud nên không liệt kê được các dự án; "
+            "câu trả lời này không có số liệu đo."
+        ),
+    },
+    InfraBackend.ELASTICSEARCH: {
+        Language.EN: (
+            "The cloud's API was unreachable, so no projects could be listed; "
+            "this answer has no logs or traces."
+        ),
+        Language.VI: (
+            "Không kết nối được API của hệ thống cloud nên không liệt kê được các dự án; "
+            "câu trả lời này không có log hay trace."
+        ),
+    },
+    InfraBackend.ALERTMANAGER: {
+        Language.EN: (
+            "The cloud's API was unreachable, so no projects could be listed; "
+            "this answer has no alerts."
+        ),
+        Language.VI: (
+            "Không kết nối được API của hệ thống cloud nên không liệt kê được các dự án; "
+            "câu trả lời này không có cảnh báo."
+        ),
+    },
+}
+
+_SCOPE_UNREAD = {
+    Language.EN: (
+        "Keystone did not answer, so your projects could not be read; "
+        "this answer has none of your resources."
+    ),
+    Language.VI: (
+        "Keystone không phản hồi nên không đọc được các dự án của bạn; "
+        "câu trả lời này không có tài nguyên nào của bạn."
+    ),
+}
+
+
+def missing_sources(queries: Iterable[InfraQuery], language: Language) -> list[str]:
+    """What a reply says of each source its queries could not read, once per source, in the
+    order the queries ran."""
+    said: dict[str, None] = {}
+    for query in queries:
+        if query.outcome == InfraOutcome.SCOPE_UNAVAILABLE.value:
+            said[_SCOPE_UNREAD[language]] = None
+        elif query.outcome == InfraOutcome.BACKEND_UNAVAILABLE.value:
+            aimed = InfraBackend(query.backend)
+            failed = InfraBackend(query.failed_backend or query.backend)
+            texts = (
+                _PROJECTS_UNLISTED[aimed]
+                if failed is InfraBackend.CLOUD and aimed is not InfraBackend.CLOUD
+                else _UNREACHABLE[failed]
+            )
+            said[texts[language]] = None
+    return list(said)

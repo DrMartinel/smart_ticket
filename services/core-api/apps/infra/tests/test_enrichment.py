@@ -1,4 +1,5 @@
-"""Which resources a ticket's masked text names (F17 BR-F17-14, BR-F17-24)."""
+"""Which resources a ticket is about: the reporter's picks, then the names its masked text holds,
+then attached volumes (F17 BR-F17-14, BR-F17-24)."""
 
 from __future__ import annotations
 
@@ -73,15 +74,39 @@ def test_a_resource_named_by_its_id_is_matched_in_the_order_it_appears():
 def test_more_servers_than_the_cap_and_no_name_links_nothing():
     holdings = Holdings([server("a"), server("b"), server("c"), server("d")], [], [])
 
-    assert linked(holdings, "Hệ thống chạy chậm", 3) == []
-    assert linked(holdings, None, 3) == []
+    assert linked(holdings, [], "Hệ thống chạy chậm", 3) == []
+    assert linked(holdings, [], None, 3) == []
 
 
 def test_every_server_comes_before_the_volumes_attached_to_them():
     holdings = Holdings([server("b"), server("a")], [volume("vol-a", "a")], [])
 
-    assert names(linked(holdings, "chậm", 3)) == [
+    assert names(linked(holdings, [], "chậm", 3)) == [
         ("a", ResourceSource.EVERY_SERVER, None),
         ("b", ResourceSource.EVERY_SERVER, None),
         ("vol-a", ResourceSource.ATTACHED, None),
+    ]
+
+
+def test_picks_come_first_then_names_then_attached_volumes():
+    holdings = Holdings(
+        [server("db-01"), server("app-01"), server("app-02")], [volume("vol-db-01", "db-01")], []
+    )
+
+    found = linked(holdings, [(ResourceKind.SERVER, "id-app-02")], "db-01, app-01, app-02", 3)
+
+    assert names(found) == [
+        ("app-02", ResourceSource.PICKED, None),
+        ("db-01", ResourceSource.NAMED, "db-01"),
+        ("app-01", ResourceSource.NAMED, "app-01"),
+    ]
+
+
+def test_a_pick_the_reporters_projects_do_not_hold_is_dropped():
+    holdings = Holdings([server("db-01")], [], [])
+
+    picked = [(ResourceKind.SERVER, "id-web-03"), (ResourceKind.VOLUME, "id-db-01")]
+
+    assert names(linked(holdings, picked, None, 3)) == [
+        ("db-01", ResourceSource.EVERY_SERVER, None)
     ]

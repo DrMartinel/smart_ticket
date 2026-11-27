@@ -1,7 +1,7 @@
 """A ticket's cues (F17 §o, ADR-0048 decision 10): queued on commit at handoff while
-`ticket_cues` is live, collected over the reporter's own Keystone projects, linked by a person
-as their own read, and read by the ticket page. Cues change nothing about the ticket
-(BR-F17-18)."""
+`ticket_cues` is live, collected over the reporter's own Keystone projects from what they picked
+in the chat and what the ticket names, linked by a person as their own read, and read by the
+ticket page. Cues change nothing about the ticket (BR-F17-18)."""
 
 from __future__ import annotations
 
@@ -20,6 +20,8 @@ from django.utils import timezone
 from apps.accounts.domain.access import Access
 from apps.accounts.domain.catalog import Permission
 from apps.accounts.permissions import Caller
+from apps.agent.domain.vocabulary import AgentError, AgentRefusal
+from apps.agent.models import AgentConversation, AgentSurface
 from apps.infra.clients.backends import (
     BackendUnavailable,
     alertmanager,
@@ -57,9 +59,15 @@ from apps.infra.domain.cues import (
 from apps.infra.domain.enrichment import Holdings, linked
 from apps.infra.domain.observations import Series
 from apps.infra.domain.queries import MetricQuery, Window
-from apps.infra.domain.resources import Network, Server, Volume
 from apps.infra.domain.vocabulary import CueRunOutcome, InfraError, ResourceKind, ResourceSource
-from apps.infra.models import CueRun, InfraQuery, InfraVia, TicketCue, TicketResource
+from apps.infra.models import (
+    CueRun,
+    InfraQuery,
+    InfraVia,
+    ResourcePick,
+    TicketCue,
+    TicketResource,
+)
 from apps.infra.services.inventory import Inventory
 from apps.infra.services.observability import Observability
 from apps.infra.services.recording import QueryLog
@@ -90,14 +98,18 @@ class Enrichment:
         )
 
     def link(self, run: CueRun, ticket: Ticket, holdings: Holdings) -> list[TicketResource]:
-        """Stores the resources the ticket's masked subject and body name, or every server, in
-        the order they are taken; a ticket whose masking failed names none."""
+        """Stores the resources the reporter picked in the chat, then those the ticket's masked
+        subject and body name, or every server, in the order they are taken; a ticket whose
+        masking failed names none."""
+        picked = [
+            (ResourceKind(p.kind), p.resource_id) for p in ResourcePick.objects.of_ticket(ticket)
+        ]
         text = (
             None
             if ticket.pii_level == PIILevel.MASK_FAILED.value
             else f"{ticket.subject_masked}\n{ticket.body_masked}"
         )
-        found = linked(holdings, text, settings.THRESHOLDS.cues.max_resources)
+        found = linked(holdings, picked, text, settings.THRESHOLDS.cues.max_resources)
         return TicketResource.objects.bulk_create(
             TicketResource(
                 run=run,
@@ -240,7 +252,8 @@ class Collector:
 
 
 class Cues:
-    """Queues, collects, links and reads a ticket's cue runs."""
+    """Queues, collects, links and reads a ticket's cue runs, and records the resources a person
+    picks in the chat for them."""
 
     # ── at handoff (BR-F17-13) ──
 
@@ -315,12 +328,7 @@ class Cues:
         inventory = Inventory(
             QueryLog.of(caller, ticket), InfraScope.all(), openstack(), alertmanager()
         )
-        reads: dict[ResourceKind, Callable[[str], Server | Volume | Network]] = {
-            ResourceKind.SERVER: inventory.server,
-            ResourceKind.VOLUME: inventory.volume,
-            ResourceKind.NETWORK: inventory.network,
-        }
-        resource = reads[kind](resource_id)
+        resource = inventory.resource(kind, resource_id)
         with transaction.atomic():
             run = CueRun.objects.create(ticket=ticket, started_by=caller.user)
             TicketResource.objects.create(
@@ -375,6 +383,47 @@ class Cues:
         for resource in run.resources.all():
             collector.about(resource)
         return CueRunOutcome.DONE
+
+    # ── a person picks a resource in the chat (BR-F17-26) ──
+
+    def pick(
+        self,
+        caller: Caller,
+        conversation_id: uuid.UUID,
+        turn_id: uuid.UUID,
+        kind: ResourceKind,
+        resource_id: str,
+    ) -> ResourcePick:
+        """Records a resource `caller` pressed on a choice card in their chat conversation, on the
+        turn the press sent, once however often it is pressed; refuses another person's
+        conversation, or a turn not in it, with `conversation_not_found`, an ended conversation
+        with `conversation_ended`, and a resource outside their own projects with
+        `infra_not_found`."""
+        conversation = (
+            AgentConversation.objects.of_user(caller.user)
+            .filter(id=conversation_id, surface=AgentSurface.CHAT.value)
+            .first()
+        )
+        if conversation is None:
+            raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such conversation")
+        if not conversation.is_active():
+            raise AgentError(409, AgentRefusal.CONVERSATION_ENDED, "the conversation has ended")
+        turn = conversation.turns.filter(id=turn_id).first()
+        if turn is None:
+            raise AgentError(404, AgentRefusal.CONVERSATION_NOT_FOUND, "no such turn")
+        resource = Inventory.for_own(caller).resource(kind, resource_id)
+        pick, _ = ResourcePick.objects.get_or_create(
+            turn=turn,
+            resource_id=resource.id,
+            defaults={
+                "conversation": conversation,
+                "person": caller.user,
+                "project_id": resource.project_id,
+                "kind": kind.value,
+                "name": resource.name,
+            },
+        )
+        return pick
 
     # ── how a run runs ──
 

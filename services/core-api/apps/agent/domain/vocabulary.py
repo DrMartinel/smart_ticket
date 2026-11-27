@@ -1,4 +1,5 @@
-"""What the agent's own routes refuse, and the hand-off message each reason shows (F15)."""
+"""What the agent's own routes refuse, the hand-off message each reason shows, and the words code
+adds to a choice card and to a hand-off the model chose (F15)."""
 
 from __future__ import annotations
 
@@ -37,8 +38,33 @@ STOP_REASONS = {
     AgentStopReason.MODEL_UNAVAILABLE: ReasonCode.AGENT_MODEL_UNAVAILABLE,
     AgentStopReason.SCHEMA_INVALID: ReasonCode.AGENT_SCHEMA_INVALID,
     AgentStopReason.TOKEN_REFUSED: ReasonCode.AGENT_TOKEN_REFUSED,
+    AgentStopReason.NEEDS_STAFF: ReasonCode.AGENT_NEEDS_STAFF,
 }
 
+# The button code adds to every choice card (BR-F15-22).
+SOMETHING_ELSE: dict[Language, str] = {
+    Language.EN: "Something else",
+    Language.VI: "Khác",
+}
+
+# What code adds after the model's text when a turn hands off on purpose (BR-F15-24): the line for a
+# turn that read something, the button, and the reply once the ticket is open.
+CHECKED_GOES_WITH_TICKET: dict[Language, str] = {
+    Language.EN: "What I checked above goes with the ticket, so you won't need to explain again.",
+    Language.VI: (
+        "Những gì em đã kiểm tra ở trên sẽ được gửi kèm phiếu, nên không cần giải thích lại."
+    ),
+}
+OPEN_TICKET: dict[Language, str] = {
+    Language.EN: "Open a ticket",
+    Language.VI: "Mở phiếu hỗ trợ",
+}
+TICKET_OPENED: dict[Language, str] = {
+    Language.EN: "Opened ticket {ticket}. You can follow it under My tickets.",
+    Language.VI: "Đã mở phiếu {ticket}. Có thể theo dõi phiếu trong mục Phiếu của tôi.",
+}
+
+# Every hand-off but `agent_needs_staff`, whose message is the model's own text.
 HANDOFF_TEXT: dict[ReasonCode, dict[Language, str]] = {
     ReasonCode.AGENT_STEP_LIMIT: {
         Language.EN: "I couldn't finish this in the steps one message allows.",

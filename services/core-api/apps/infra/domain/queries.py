@@ -85,6 +85,17 @@ class Window:
     def seconds(self) -> int:
         return int((self.end - self.start).total_seconds())
 
+    def graph_link(self, base: str, promql: str, step_seconds: int) -> str:
+        """`promql` over this range in Prometheus's own graph page."""
+        params = {
+            "g0.expr": promql,
+            "g0.tab": "0",
+            "g0.range_input": f"{self.seconds()}s",
+            "g0.end_input": self.end.strftime("%Y-%m-%d %H:%M:%S"),
+            "g0.step_input": str(step_seconds),
+        }
+        return f"{base}/graph?{urlencode(params)}"
+
 
 def checked_filters(filters: Filters) -> None:
     """Refuses a filter with no value."""
@@ -160,14 +171,7 @@ class MetricQuery:
 
     def link(self, base: str, promql: str) -> str:
         """The query in Prometheus's own graph page."""
-        params = {
-            "g0.expr": promql,
-            "g0.tab": "0",
-            "g0.range_input": f"{self.window.seconds()}s",
-            "g0.end_input": self.window.end.strftime("%Y-%m-%d %H:%M:%S"),
-            "g0.step_input": str(self.step_seconds),
-        }
-        return f"{base}/graph?{urlencode(params)}"
+        return self.window.graph_link(base, promql, self.step_seconds)
 
 
 @dataclass(frozen=True)

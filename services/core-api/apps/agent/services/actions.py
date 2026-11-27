@@ -22,15 +22,19 @@ from pydantic_core import to_jsonable_python
 
 from apps.accounts.models import User
 from apps.accounts.services.sessions import AGENT_ACT
-from apps.agent.models import PATH_MAX_LENGTH, AgentAction, AgentActionKind, AgentActionState
+from apps.agent.models import (
+    PATH_MAX_LENGTH,
+    AgentAction,
+    AgentActionKind,
+    AgentActionState,
+    AgentTargetKind,
+)
 from apps.audit.context import audit_context
 from apps.audit.models import AuditLog
-from apps.core.errors import CodedError
+from apps.core.errors import CodedError, OutcomeUnknownError
 
 # The header a client sends with a call to apply the agent action it names.
 AGENT_ACTION_HEADER = "X-Agent-Action"
-# Path parameters that name what an action is about, and the kind of thing each names.
-_TARGETS = {"item_id": "review_item", "public_id": "ticket", "execution_id": "runbook_execution"}
 
 
 class AgentActionRefusal(StrEnum):
@@ -60,25 +64,30 @@ class AgentActionPending(Exception):
 
 @dataclass(frozen=True)
 class AgentCall:
-    """One call to a route: its method, route pattern, concrete path and validated arguments."""
+    """One call to a route: its method, route pattern, concrete path, validated arguments, and
+    the value of the route's one path parameter ("" when it has none or several)."""
 
     method: str
     route: str
     path: str
     arguments: dict[str, Any]
+    path_value: str = ""
 
     @classmethod
     def of(cls, request: HttpRequest, kwargs: dict[str, Any]) -> AgentCall:
         match = getattr(request, "resolver_match", None)
+        arguments = {
+            name: to_jsonable_python(value)
+            for name, value in kwargs.items()
+            if not isinstance(value, HttpResponse)
+        }
+        in_path = list(match.kwargs) if match is not None else []
         return cls(
             method=request.method or "",
             route=match.route if match is not None else request.path,
             path=request.path,
-            arguments={
-                name: to_jsonable_python(value)
-                for name, value in kwargs.items()
-                if not isinstance(value, HttpResponse)
-            },
+            arguments=arguments,
+            path_value=str(arguments[in_path[0]]) if len(in_path) == 1 else "",
         )
 
     def sha256(self) -> str:
@@ -98,11 +107,14 @@ class AgentCall:
 
 @dataclass(frozen=True)
 class AgentOrigin:
-    """The agent turn a call came from, and the tool that made it."""
+    """The agent turn a call came from, the tool that made it, the step of the turn it
+    belongs to (None when the call names none), and the turn's surface."""
 
     conversation: uuid.UUID
     turn: uuid.UUID
     tool: str
+    step: int | None = None
+    surface: str | None = None
 
     def audit_fields(self) -> dict[str, str]:
         return {
@@ -120,22 +132,20 @@ class AgentActions:
     """Stores the calls an agent may not make itself and applies them for a person."""
 
     def propose(
-        self, kind: AgentActionKind, user: User, call: AgentCall, origin: AgentOrigin
+        self,
+        kind: AgentActionKind,
+        user: User,
+        call: AgentCall,
+        origin: AgentOrigin,
+        target: AgentTargetKind | None,
     ) -> AgentAction:
-        """Stores `call` as a pending confirm or draft and audits it."""
+        """Stores `call` as a pending confirm or draft on the route's `target`, named by the
+        route's path parameter, and audits it."""
         th = settings.THRESHOLDS.agent
         lifetime = (
             timedelta(minutes=th.confirm_ttl_minutes)
             if kind is AgentActionKind.CONFIRM
             else timedelta(hours=th.draft_ttl_hours)
-        )
-        target_kind, target_ref = next(
-            (
-                (target, str(call.arguments[name]))
-                for name, target in _TARGETS.items()
-                if name in call.arguments
-            ),
-            ("", ""),
         )
         if len(call.path) > PATH_MAX_LENGTH:
             AuditLog.objects.record(
@@ -164,8 +174,8 @@ class AgentActions:
                 path=call.path,
                 arguments=call.arguments,
                 arguments_sha256=call.sha256(),
-                target_kind=target_kind,
-                target_ref=target_ref[:64],
+                target_kind=target.value if target is not None else "",
+                target_ref=call.path_value[:64] if target is not None else "",
                 expires_at=timezone.now() + lifetime,
             )
             AuditLog.objects.record(
@@ -186,8 +196,8 @@ class AgentActions:
     @contextmanager
     def applying(self, action_id: str, user: User, call: AgentCall) -> Iterator[AgentAction]:
         """Runs the block as `user` applying their pending action `action_id`: the action is
-        claimed first, put back to pending if the block raises, and audited as applied after
-        the block succeeds."""
+        claimed first, put back to pending if the block raises, ended `outcome_unknown` if it
+        raises `OutcomeUnknownError`, and audited as applied after the block succeeds."""
         try:
             key = uuid.UUID(action_id)
         except ValueError as e:
@@ -234,6 +244,21 @@ class AgentActions:
             with audit_context(fields):
                 try:
                     yield action
+                except OutcomeUnknownError:
+                    AgentAction.objects.filter(
+                        id=action.id, state=AgentActionState.APPLIED.value
+                    ).update(state=AgentActionState.OUTCOME_UNKNOWN.value)
+                    AuditLog.objects.record(
+                        "agent_action_outcome_unknown",
+                        actor_type="human",
+                        actor_id=user.id,
+                        payload={
+                            "route": action.route,
+                            "method": action.method,
+                            "kind": action.kind,
+                        },
+                    )
+                    raise
                 except BaseException:
                     AgentAction.objects.filter(
                         id=action.id, state=AgentActionState.APPLIED.value

@@ -6,18 +6,21 @@ from __future__ import annotations
 import unicodedata
 import uuid
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from django.conf import settings
 from django.db import models
-from django.db.models import F
+from django.db.models import F, Prefetch
 
 from apps.accounts.models import Language
+from apps.agent.domain.vocabulary import SOMETHING_ELSE
 from apps.core.models import BaseModel
+from apps.infra.models import InfraQuery
 from apps.tickets.domain.router import AGENT_HANDOFF_REASONS, ReasonCode
 
 if TYPE_CHECKING:
     from apps.accounts.models import User
+    from infrastructure.dtos import AgentChoice
 
 
 def _choices(enum: type[StrEnum]) -> list[tuple[str, str]]:
@@ -120,14 +123,40 @@ class AgentTurnQuerySet(models.QuerySet["AgentTurn"]):
     def of_user(self, user: User) -> AgentTurnQuerySet:
         return self.filter(conversation__user=user)
 
+    def with_receipts(self) -> AgentTurnQuerySet:
+        """The turns with their conversation, hand-off ticket and infra queries, oldest query
+        first."""
+        return self.select_related("conversation", "handoff_ticket").prefetch_related(
+            Prefetch("infra_queries", queryset=InfraQuery.objects.order_by("created_at"))
+        )
+
     def unfinished(self) -> AgentTurnQuerySet:
         return self.filter(state__in=(AgentTurnState.QUEUED.value, AgentTurnState.RUNNING.value))
 
-    def count_write(self, turn_id: uuid.UUID, cap: int) -> bool:
-        """Counts one write call of the turn; False once it has made `cap` (FR-F15-015)."""
-        return bool(
-            self.filter(id=turn_id, write_calls__lt=cap).update(write_calls=F("write_calls") + 1)
-        )
+    def count_step(
+        self,
+        turn_id: uuid.UUID,
+        step: int | None,
+        *,
+        read: bool,
+        cap: int | None,
+        free_reads: int,
+    ) -> bool:
+        """Counts a call of the turn as a read or a write; False once it has made `cap` of them,
+        never with no cap (FR-F15-015, F17 FR-F17-011). Up to `free_reads` reads in the step of
+        the turn's last counted write are free."""
+        rows = self.filter(id=turn_id)
+        if read and step is not None:
+            free = rows.filter(counted_step=step, step_free_reads__lt=free_reads)
+            if free.update(step_free_reads=F("step_free_reads") + 1):
+                return True
+        field = "read_calls" if read else "write_calls"
+        if cap is not None:
+            rows = rows.filter(**{f"{field}__lt": cap})
+        update: dict[str, Any] = {field: F(field) + 1}
+        if not read and step is not None:
+            update |= {"counted_step": step, "step_free_reads": 0}
+        return bool(rows.update(**update))
 
     def pii_map_of(self, conversation_id: uuid.UUID) -> dict[str, str]:
         """Every placeholder the conversation's turns masked, with its quarantine ref; a later
@@ -150,6 +179,8 @@ _VIETNAMESE_LETTERS = frozenset(
 TICKET_AT_ONCE = frozenset({ReasonCode.AGENT_MASK_FAILED, ReasonCode.AGENT_PII_CRITICAL})
 # Hand-offs whose ticket opens only when the person asks for it.
 TICKET_ON_REQUEST = AGENT_HANDOFF_REASONS - TICKET_AT_ONCE
+# The kind of the button every choice card ends with (BR-F15-22).
+SOMETHING_ELSE_KIND = "something_else"
 
 
 class AgentTurn(BaseModel):
@@ -170,9 +201,18 @@ class AgentTurn(BaseModel):
     # A ReasonCode value when the turn handed off.
     stop_reason = models.CharField(max_length=40, null=True, blank=True)
     reply_text = models.TextField(blank=True, default="")
+    # The choice card the reply showed: kind, id and label per button, "Something else" last.
+    choices = models.JSONField(null=True, blank=True)
+    # The model's summary of what a `needs_staff` turn asked for, for staff only (BR-F15-25).
+    proposed_handoff_summary = models.TextField(null=True, blank=True)
     receipts = models.JSONField(default=list)
     tool_calls = models.PositiveIntegerField(default=0)
     write_calls = models.PositiveIntegerField(default=0)
+    read_calls = models.PositiveIntegerField(default=0)
+    # The step of the turn's last counted write, 0 before any, and the free reads made in it
+    # (F17 FR-F17-011).
+    counted_step = models.PositiveIntegerField(default=0)
+    step_free_reads = models.PositiveIntegerField(default=0)
     model = models.CharField(max_length=100, blank=True, default="")
     prompt_version = models.CharField(max_length=50, blank=True, default="")
     tokens_in = models.PositiveIntegerField(default=0)
@@ -211,6 +251,30 @@ class AgentTurn(BaseModel):
             and self.stop_reason in TICKET_ON_REQUEST
         )
 
+    def needs_staff(self) -> bool:
+        """Whether the turn handed off on purpose, for a change none of its person's tools makes."""
+        return self.stop_reason == ReasonCode.AGENT_NEEDS_STAFF.value
+
+    def ran_a_read(self) -> bool:
+        """Whether the turn read anything before it ended."""
+        return self.read_calls > 0
+
+    def card_of(self, choices: list[AgentChoice]) -> list[dict[str, str | None]] | None:
+        """The card a reply with `choices` shows: one button each, then "Something else" in the
+        message's language; none without choices."""
+        if not choices:
+            return None
+        something_else = {
+            "kind": SOMETHING_ELSE_KIND,
+            "id": None,
+            "label": SOMETHING_ELSE[self.language()],
+        }
+        return [choice.model_dump(mode="json") for choice in choices] + [something_else]
+
+    def offered(self) -> list[dict[str, str | None]]:
+        """The choices the reply's card offered, without "Something else"."""
+        return [c for c in self.choices or [] if c["kind"] != SOMETHING_ELSE_KIND]
+
 
 class AgentStep(BaseModel):
     """One tool call of a turn: what was sent and what core-api answered. No result body."""
@@ -246,6 +310,18 @@ class AgentActionState(StrEnum):
     DISMISSED = "dismissed"
     EXPIRED = "expired"
     SUPERSEDED = "superseded"
+    OUTCOME_UNKNOWN = "outcome_unknown"
+
+
+class AgentTargetKind(StrEnum):
+    """What an action is about, as its route declares (F16 BR-F16-05, F17 §g)."""
+
+    TICKET = "ticket"
+    REVIEW_ITEM = "review_item"
+    RUNBOOK_EXECUTION = "runbook_execution"
+    SERVER = "server"
+    VOLUME = "volume"
+    SECURITY_GROUP = "security_group"
 
 
 class AgentActionQuerySet(models.QuerySet["AgentAction"]):
@@ -258,8 +334,11 @@ class AgentActionQuerySet(models.QuerySet["AgentAction"]):
         kind: AgentActionKind | None,
         ticket: str | None,
         review_item: uuid.UUID | None,
+        target_kind: AgentTargetKind | None,
+        target_ref: str | None,
     ) -> AgentActionQuerySet:
-        """The actions in `state`, of `kind`, on `ticket` or on `review_item`, newest first."""
+        """The actions in `state`, of `kind`, on `ticket`, on `review_item` or on the target
+        `target_kind` and `target_ref` name, newest first."""
         rows = self
         if state is not None:
             rows = rows.filter(state=state.value)
@@ -269,6 +348,10 @@ class AgentActionQuerySet(models.QuerySet["AgentAction"]):
             rows = rows.filter(target_kind="ticket", target_ref=ticket)
         if review_item is not None:
             rows = rows.filter(target_kind="review_item", target_ref=str(review_item))
+        if target_kind is not None:
+            rows = rows.filter(target_kind=target_kind.value)
+        if target_ref is not None:
+            rows = rows.filter(target_ref=target_ref)
         return rows.order_by("-created_at")
 
 
@@ -289,10 +372,12 @@ class AgentAction(BaseModel):
     path = models.CharField(max_length=PATH_MAX_LENGTH)
     arguments = models.JSONField()
     arguments_sha256 = models.CharField(max_length=64)
-    target_kind = models.CharField(max_length=20, blank=True, default="")
+    target_kind = models.CharField(
+        max_length=20, choices=_choices(AgentTargetKind), blank=True, default=""
+    )
     target_ref = models.CharField(max_length=64, blank=True, default="")
     state = models.CharField(
-        max_length=12, choices=_choices(AgentActionState), default=AgentActionState.PENDING.value
+        max_length=16, choices=_choices(AgentActionState), default=AgentActionState.PENDING.value
     )
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()

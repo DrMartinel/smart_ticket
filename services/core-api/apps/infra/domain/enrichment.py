@@ -1,6 +1,6 @@
-"""Which of a reporter's cloud resources a ticket is about: the names and IDs its masked text
-holds, then the volumes attached to the servers it names, or every server when it names none
-and there are few enough (F17 BR-F17-14, BR-F17-24)."""
+"""Which of a reporter's cloud resources a ticket is about: the ones they picked in the chat, then
+the names and IDs its masked text holds, then the volumes attached to the servers among them, or
+every server when it has none of these and there are few enough (F17 BR-F17-14, BR-F17-24)."""
 
 from __future__ import annotations
 
@@ -69,12 +69,18 @@ def named_in(text: str, resources: list[Resource]) -> list[Found]:
     return [found for _, _, found in sorted(hits, key=lambda h: (h[0], h[1]))]
 
 
-def linked(holdings: Holdings, text: str | None, cap: int) -> list[Found]:
-    """The resources a run links, at most `cap`: those `text` names, then the volumes attached
-    to the servers among them; when it names none (or is None, for a ticket whose masking
-    failed), every server and their attached volumes if there are no more than `cap` servers,
+def linked(
+    holdings: Holdings, picked: list[tuple[ResourceKind, str]], text: str | None, cap: int
+) -> list[Found]:
+    """The resources a run links, at most `cap`: the `picked` kinds and IDs the holdings hold,
+    in the order they were picked, then those `text` names (none when it is None, for a ticket
+    whose masking failed), then the volumes attached to the servers among them; with none of
+    these, every server and their attached volumes if there are no more than `cap` servers,
     else none."""
-    taken = named_in(text, holdings.resources()) if text is not None else []
+    resources = holdings.resources()
+    held = {(r.kind, r.id): r for r in resources}
+    taken = [Found(held[p], ResourceSource.PICKED) for p in picked if p in held]
+    taken += named_in(text, resources) if text is not None else []
     if not taken:
         if len(holdings.servers) > cap:
             return []

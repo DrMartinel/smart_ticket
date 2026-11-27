@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 
 import pytest
 
-from apps.accounts.permissions import AgentTier, gate_of
+from apps.accounts.permissions import AgentTier, Gate, gate_of
 from apps.accounts.testing import api_client_for
-from apps.agent.models import AgentAction, AgentActionKind, AgentActionState
+from apps.agent.models import AgentAction, AgentActionKind, AgentActionState, AgentTargetKind
 from apps.agent.testing import as_agent, runbook_item
 from apps.audit.models import AuditLog
 from apps.itsm_mock.models import RunbookExecution
@@ -41,6 +42,7 @@ TIERS = {
         "GET /api/infra/alerts/silences",
         "GET /api/infra/catalog",
         "POST /api/infra/metrics/query",
+        "POST /api/infra/metrics/promql",
         "POST /api/infra/logs/search",
         "POST /api/infra/traces/search",
         "GET /api/infra/traces/{trace_id}",
@@ -70,6 +72,13 @@ TIERS = {
         "POST /api/tickets/{public_id}/take",
         "POST /api/tickets/{public_id}/comments",
         "POST /api/review/items/{item_id}/claim",
+        "POST /api/infra/servers/{server_id}/reboot",
+        "POST /api/infra/servers/{server_id}/start",
+        "POST /api/infra/servers/{server_id}/stop",
+        "POST /api/infra/volumes/{volume_id}/attach",
+        "POST /api/requester/infra/servers/{server_id}/reboot",
+        "POST /api/requester/infra/servers/{server_id}/start",
+        "POST /api/requester/infra/servers/{server_id}/stop",
     },
     AgentTier.HUMAN_ONLY: {
         "POST /api/review/items/{item_id}/decide",
@@ -80,12 +89,44 @@ TIERS = {
         "PATCH /api/tickets/{public_id}/priority",
         "POST /api/tickets/{public_id}/sla/rebuild",
         "POST /api/tickets/{public_id}/quarantine/reveal",
+        "POST /api/infra/servers/{server_id}/hard-reboot",
+        "POST /api/infra/volumes/{volume_id}/detach",
+        "POST /api/infra/security-groups/{group_id}/rules",
+        "DELETE /api/infra/security-groups/{group_id}/rules",
     },
 }
 
+# What an action on each `confirm` and `human_only` route is about (F16 BR-F16-05, F17 §g).
+TARGETS = {
+    "POST /api/requester/tickets/{public_id}/replies": AgentTargetKind.TICKET,
+    "POST /api/requester/tickets/{public_id}/reopen": AgentTargetKind.TICKET,
+    "POST /api/tickets/{public_id}/take": AgentTargetKind.TICKET,
+    "POST /api/tickets/{public_id}/comments": AgentTargetKind.TICKET,
+    "POST /api/review/items/{item_id}/claim": AgentTargetKind.REVIEW_ITEM,
+    "POST /api/infra/servers/{server_id}/reboot": AgentTargetKind.SERVER,
+    "POST /api/infra/servers/{server_id}/start": AgentTargetKind.SERVER,
+    "POST /api/infra/servers/{server_id}/stop": AgentTargetKind.SERVER,
+    "POST /api/infra/volumes/{volume_id}/attach": AgentTargetKind.VOLUME,
+    "POST /api/requester/infra/servers/{server_id}/reboot": AgentTargetKind.SERVER,
+    "POST /api/requester/infra/servers/{server_id}/start": AgentTargetKind.SERVER,
+    "POST /api/requester/infra/servers/{server_id}/stop": AgentTargetKind.SERVER,
+    "POST /api/review/items/{item_id}/decide": AgentTargetKind.REVIEW_ITEM,
+    "POST /api/review/items/{item_id}/comment-decision": AgentTargetKind.REVIEW_ITEM,
+    "POST /api/itsm/review-items/{item_id}/execute": AgentTargetKind.REVIEW_ITEM,
+    "POST /api/itsm/executions/{execution_id}/resolve": AgentTargetKind.RUNBOOK_EXECUTION,
+    "POST /api/tickets/{public_id}/reassign": AgentTargetKind.TICKET,
+    "PATCH /api/tickets/{public_id}/priority": AgentTargetKind.TICKET,
+    "POST /api/tickets/{public_id}/sla/rebuild": AgentTargetKind.TICKET,
+    "POST /api/tickets/{public_id}/quarantine/reveal": AgentTargetKind.TICKET,
+    "POST /api/infra/servers/{server_id}/hard-reboot": AgentTargetKind.SERVER,
+    "POST /api/infra/volumes/{volume_id}/detach": AgentTargetKind.VOLUME,
+    "POST /api/infra/security-groups/{group_id}/rules": AgentTargetKind.SECURITY_GROUP,
+    "DELETE /api/infra/security-groups/{group_id}/rules": AgentTargetKind.SECURITY_GROUP,
+}
 
-def gated_routes() -> dict[str, AgentTier | None]:
-    found: dict[str, AgentTier | None] = {}
+
+def gates() -> dict[str, Gate]:
+    found: dict[str, Gate] = {}
     for prefix, router in api._routers:
         for path, path_view in router.path_operations.items():
             for operation in path_view.operations:
@@ -93,8 +134,12 @@ def gated_routes() -> dict[str, AgentTier | None]:
                 if gate is None:
                     continue
                 for method in operation.methods:
-                    found[f"{method} /api{prefix.rstrip('/')}{path}"] = gate.agent_tier
+                    found[f"{method} /api{prefix.rstrip('/')}{path}"] = gate
     return found
+
+
+def gated_routes() -> dict[str, AgentTier | None]:
+    return {key: gate.agent_tier for key, gate in gates().items()}
 
 
 def test_every_gated_route_declares_an_agent_tier():
@@ -108,6 +153,24 @@ def test_only_the_routes_the_spec_names_admit_an_agent():
 
     for tier, expected in TIERS.items():
         assert {key for key, t in routes.items() if t is tier} == expected, tier
+
+
+def test_every_confirm_and_human_only_route_declares_its_target():
+    held = {
+        key: gate.target
+        for key, gate in gates().items()
+        if gate.agent_tier in (AgentTier.CONFIRM, AgentTier.HUMAN_ONLY)
+    }
+
+    assert held == TARGETS
+    for key in held:
+        assert len(re.findall(r"\{[^}]+\}", key)) == 1, f"{key} names its target by one parameter"
+
+
+def test_only_a_route_that_holds_actions_declares_a_target():
+    declared = {key for key, gate in gates().items() if gate.target is not None}
+
+    assert declared == set(TARGETS)
 
 
 def test_a_read_route_answers_an_agent_as_its_user(employee_user):

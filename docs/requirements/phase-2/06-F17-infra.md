@@ -156,7 +156,7 @@ Mock data for this feature (added to §6.0.5's):
 | Actor | Customer (`lan.nt`), chat |
 | Trigger | "Our database has been slow all morning" |
 | Preconditions | `agent_chat` live; `lan.nt` holds `infra:read:own`; Keystone lists her in `saomai-prod` |
-| Main flow | 1. The agent lists her servers (only `saomai-prod`'s). 2–4. As UC-F17-01 steps 3–5, every query scoped to `saomai-prod`. 5. It replies with what it found and offers a ticket |
+| Main flow | 1. The agent lists her servers (only `saomai-prod`'s). 2–4. As UC-F17-01 steps 3–5, every query scoped to `saomai-prod`, except that she never gets a query's Prometheus or Kibana link or its compiled text: the customer answers have no `link`, and her turn's receipts have no `sent`. 5. It replies with what it found and offers a ticket. Under the reply, the chat shows core-api's warnings, then each query's outcome, result count, whether it was cut, the source that didn't answer and a refusal's check, in her language |
 | Exception | 1x. Keystone is unreachable: 424 `infra_scope_unavailable`; the agent says it can't see her resources now and offers a ticket |
 | Rules | BR-F17-02, BR-F17-03 |
 | MoSCoW | Must |
@@ -199,7 +199,7 @@ Mock data for this feature (added to §6.0.5's):
 | BR-F17-09 | A confirmed or applied change whose cloud answer is lost becomes `outcome_unknown` and is never resent |
 | BR-F17-10 | Every query writes one `infra_queries` row; every receipt links its query |
 | BR-F17-11 | A staff change names an open ticket the person covers and writes an internal comment on it. A customer's change needs no ticket and is limited to soft reboot, start and stop |
-| BR-F17-12 | Every cap (range, step, series, documents, spans, result bytes, queries per turn) is in `thresholds.yaml` `infra:` |
+| BR-F17-12 | Every cap on a query (range, step, series, documents, spans, result bytes) is in `thresholds.yaml` `infra:`; the queries an agent turn may run are capped by `agent.max_read_calls_per_turn`, which counts every read except up to `agent.max_free_reads_per_step` reads in the step of a counted write, so a turn reads at most `max_read_calls_per_turn` + `max_tool_calls_per_turn` × `max_free_reads_per_step` times |
 
 ## f. Functional requirements
 
@@ -217,14 +217,14 @@ Mock data for this feature (added to §6.0.5's):
 | FR-F17-010 | The agent client decides retry behaviour by the tool's tier: a failed read raises `ToolFailed`, whatever its method |
 | FR-F17-011 | `AgentLimits` gains `max_read_calls: int \| None = None`; `None` keeps F15's rule (reads count against `max_tool_calls`) |
 | FR-F17-012 | core-api's reply builder adds a warning for each `infra_queries` row of the turn with `outcome = backend_unavailable` |
-| FR-F17-013 | The console gets a resource page (server, volume, network) that shows state, alerts and drafts, and applies a draft |
+| FR-F17-013 | The console gets a resource page (server, volume, network, security group) that shows state, alerts and drafts, and applies a draft. The security group page reads `GET /security-groups/{group_id}`, a staff route no agent may call |
 | FR-F17-014 | `cloud-sim` serves Keystone tokens, users, projects and role assignments; Nova servers and actions; Cinder volumes and attachments; Neutron networks, ports and security groups; Prometheus `/metrics`; OTLP logs and traces to the APM Server; and `/sim/faults` to inject scenarios |
 
 ## g. Data changes
 
 | Table | Columns |
 |---|---|
-| `infra_queries` (new) | `id`, `created_at`, `actor_id`, `via` (`human` \| `agent`), `agent_turn_id` (null), `backend` (`prometheus` \| `elasticsearch` \| `alertmanager` \| `cloud`), `kind` (`structured` \| `promql` \| `resource`), `compiled` (text), `projects` (text[]), `outcome` (`ok` \| `refused` \| `backend_unavailable` \| `scope_unavailable`), `refusal` (null), `duration_ms`, `rows`, `withheld`, `link` |
+| `infra_queries` (new) | `id`, `created_at`, `actor_id`, `via` (`human` \| `agent`), `agent_turn_id` (null), `backend` (`prometheus` \| `elasticsearch` \| `alertmanager` \| `cloud`), `kind` (`structured` \| `promql` \| `resource`), `compiled` (text), `projects` (text[]), `outcome` (`ok` \| `refused` \| `backend_unavailable` \| `scope_unavailable`), `refusal` (null), `refusal_reason` (null, the `QueryCheck` a refused query failed), `failed_backend` (null, the backend that didn't answer, which may differ from `backend`), `truncated` (bool, default false), `duration_ms`, `rows`, `withheld`, `link` |
 | `agent_actions` (changed) | state gains `outcome_unknown`; target kinds gain `server`, `volume`, `security_group` |
 
 No table holds cloud resources or project membership: both are read live.
@@ -264,36 +264,47 @@ caller's Keystone projects by BR-F17-02).
 
 | Staff route (`/api/infra/…`) | Customer route (`/api/requester/infra/…`) | Tier | Console tool | Chat tool |
 |---|---|---|---|---|
-| `GET /catalog` | `GET /catalog` | read | `infra_catalog` | `infra_catalog` |
+| `GET /catalog` | `GET /catalog` | read | `infra_catalog` | `my_infra_catalog` |
 | `GET /projects` | `GET /projects` | read | `list_projects` | `list_my_projects` |
 | `GET /servers`, `/servers/{server_id}` | `GET /servers`, `/servers/{server_id}` | read | `list_servers`, `get_server` | `list_my_servers`, `get_my_server` |
 | `GET /volumes`, `/volumes/{volume_id}` | `GET /volumes`, `/volumes/{volume_id}` | read | `list_volumes`, `get_volume` | `list_my_volumes`, `get_my_volume` |
 | `GET /networks`, `/networks/{network_id}` | `GET /networks`, `/networks/{network_id}` | read | `list_networks`, `get_network` | `list_my_networks`, `get_my_network` |
+| `GET /security-groups/{group_id}` | — | none | — | — |
 | `GET /alerts`, `/alerts/silences` | `GET /alerts`, `/alerts/silences` | read | `list_alerts`, `list_silences` | `list_my_alerts`, `list_my_silences` |
 | `POST /metrics/query` | `POST /metrics/query` | read | `query_metrics` | `query_my_metrics` |
 | `POST /metrics/promql` | — (OQ-F17-05) | read | `run_promql` | — |
 | `POST /logs/search` | `POST /logs/search` | read | `search_logs` | `search_my_logs` |
-| `POST /traces/search`, `GET /traces/{trace_id}` | `POST /traces/search`, `GET /traces/{trace_id}` | read | `search_traces`, `get_trace` | `search_my_traces` |
+| `POST /traces/search`, `GET /traces/{trace_id}` | `POST /traces/search`, `GET /traces/{trace_id}` | read | `search_traces`, `get_trace` | `search_my_traces`, `get_my_trace` |
 | `POST /servers/{server_id}/reboot` (soft) | `POST /servers/{server_id}/reboot` (soft) | confirm | `reboot_server` | `reboot_my_server` |
 | `POST /servers/{server_id}/hard-reboot` | — | human_only | `draft_hard_reboot` | — |
 | `POST /servers/{server_id}/start`, `/stop` | `POST /servers/{server_id}/start`, `/stop` | confirm | `start_server`, `stop_server` | `start_my_server`, `stop_my_server` |
 | `POST /volumes/{volume_id}/attach` | — | confirm | `attach_volume` | — |
 | `POST /volumes/{volume_id}/detach` | — | human_only | `draft_detach_volume` | — |
-| `POST`/`DELETE /security-groups/{group_id}/rules` | — | human_only | `draft_security_rule` | — |
+| `POST`/`DELETE /security-groups/{group_id}/rules` | — | human_only | `draft_security_rule`, `draft_remove_security_rule` | — |
 
 Hard reboot is its own route, so its tier doesn't depend on an argument and
-F17 doesn't wait on ADR-0047's guards (OQ-F17-06).
+F17 doesn't wait on ADR-0047's guards (OQ-F17-06). A tool is one route at one
+method, so the security-group rule route is two tools. Tool names are unique
+across both surfaces, so the chat's catalog tool is `my_infra_catalog`.
+
+Each alert names its resource (`resource_kind`, `resource_id`), taken in
+core-api from its most specific id label: `volume_id`, then `network_id`,
+then `server_id`. The staff `GET /alerts` takes `resource_kind` and
+`resource_id` and returns the alerts any of whose id labels name that
+resource, for its console page: a server's page also shows its volume's
+`CloudVolumeLatencyHigh` and its port's `CloudPacketLoss`.
 
 ### h.2 Refusal codes (`InfraRefusal`, BR-X-08)
 
 | Code | Status | When |
 |---|---|---|
 | `infra_not_found` | 404 | No such resource, or outside the caller's scope |
-| `infra_query_refused` | 422 | A cap or check failed; `details.reason` names it (`range`, `step`, `series`, `match_all`, `function`, `selectors`, `field`, `dataset`) |
+| `infra_query_refused` | 422 | A cap or check failed; `details.reason` names it (`range`, `step`, `series`, `match_all`, `function`, `selectors`, `field`, `dataset`, `unsupported`: raw PromQL syntax core-api can't check) |
 | `infra_scope_unavailable` | 424 | Keystone did not answer |
 | `infra_backend_unavailable` | 424 | The backend did not answer in time |
 | `infra_ticket_required` | 409 | A staff change without an open ticket the person covers |
 | `infra_state_changed` | 409 | The resource changed since the draft or card |
+| `infra_change_refused` | 422 | A change core-api or the cloud refuses for what it asks, not the resource's state: a volume and a server in different projects, or a cloud 4xx other than 404 and 409 |
 | `infra_outcome_unknown` | 502 | The cloud's answer to a change was lost (UI only) |
 
 424, not 5xx, so the agent's client records the step and the turn goes on
@@ -312,18 +323,43 @@ infra:
   max_log_docs: 100
   max_spans: 500
   max_result_bytes: 24000
-  max_queries_per_turn: 16
+  max_selectors: 10        # raw PromQL (FR-F17-005)
+  max_regex_kib: 256       # RE2's memory for one raw PromQL regex
+  max_regex_matchers: 10   # regex matchers in one raw PromQL query
 agent:
-  max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn
+  max_model_tokens_per_turn: 48000  # was 16000 (F15); pays for every chat step's fixed cost
+  max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn; caps a turn's queries (BR-F17-12)
+  max_free_reads_per_step: 50       # new; ask_helpdesk's polls after its post: 90 s / 2 s = 45
   console_max_steps: 20             # new
-  console_max_model_tokens_per_turn: 60000   # new
+  console_max_model_tokens_per_turn: 200000  # new; pays for every console step's fixed cost
 ```
+
+Each model call sends the prompt (about 1,400 tokens) and the surface's tool
+list (about 3,800 on the chat and 6,600 on the console with F17's tools), and
+then every result of the turn so far. The token budgets pay for the fixed
+cost of every step (8 chat calls about 42,000 tokens, 20 console calls about
+160,000) and a few results. They do not pay for a long turn of full-size
+results: one answer cut to `infra.max_result_bytes` (24,000 bytes, about
+6,000 tokens) at console step 5 is re-sent by the 15 calls after it, about
+90,000 tokens. Such a turn ends `agent_budget_exceeded` and reaches a person.
+
+core-api counts an agent turn's calls by the step each names (`X-Agent-Step`).
+Every write counts against `max_tool_calls_per_turn`. A read counts against
+`max_read_calls_per_turn`, except that up to `max_free_reads_per_step` reads
+in the step of a counted write are free: `ask_helpdesk` posts, then polls.
+A read-only step counts every read, and a step number above the surface's
+`max_steps` is refused. The caller sets the header, so the bound holds
+whatever it sends: at most `max_read_calls_per_turn` +
+`max_tool_calls_per_turn` × `max_free_reads_per_step` reads a turn.
 
 `.env.example`: `ELASTICSEARCH_URL`, `ELASTICSEARCH_API_KEY`,
 `PROMETHEUS_URL` (the proxy), `PROMETHEUS_PARSE_URL`, `ALERTMANAGER_URL`,
 `OPENSTACK_AUTH_URL`, `OPENSTACK_SERVICE_USER`, `OPENSTACK_SERVICE_PASSWORD`,
 `INFRA_CONNECT_TIMEOUT_SEC`, `INFRA_READ_TIMEOUT_SEC`, `KIBANA_URL`,
 `PROMETHEUS_UI_URL`; core-api's `environment:` in compose gets each.
+ai-engine's: `AGENT_TIME_ZONE`, the IANA zone each agent step is told the
+current time in, so the model can turn "yesterday afternoon" into a query's
+range.
 
 ### h.4 ai-engine
 
@@ -332,10 +368,11 @@ agent:
 - `agent/tools/client.py`: retry rule by tier (FR-F17-010).
 - `graph/agent_state.py` and core-api `infrastructure/dtos.py`:
   `AgentLimits.max_read_calls` (ADR-0010, both in one PR).
-- `choose.py`: counts reads and writes separately.
-- Prompt: the next `agent.v*` (v2 unless F16 lands first): how to
-  investigate (catalog first, narrow before wide, cite the query), and
-  never to read missing data as "no problem".
+- `choose.py`: counts reads and writes separately. Each call names its
+  step (`X-Agent-Step`), so `ask_helpdesk`'s polls are free reads in core-api
+  (§h.3).
+- Prompt: `agent.v4`: how to investigate (catalog first, narrow before wide,
+  cite the query), and never to read missing data as "no problem".
 
 ### h.5 Tasks and events
 
@@ -696,7 +733,7 @@ Mock data, added to §d's (from `services/cloud-sim/src/cloud_sim/seed.json`):
 | ID | Rule |
 |---|---|
 | BR-F17-13 | Cues are collected once per handoff (BR-F1-01's moment), after the decision has been carried out and committed, and only while the F9 flag `ticket_cues` is on. The flag is checked when the task is queued and again when it runs (OQ-F17-11, OQ-F17-13) |
-| BR-F17-14 | Enrichment looks only among resources in the reporter's own Keystone member projects, never every project, even when the reporter is staff. It takes them in this order: (1) resources the reporter picked in the chat, from the ticket's agent conversation (BR-F17-26); (2) names and IDs in the ticket's **masked** subject and body, in the order they appear; (3) volumes attached to a server taken in (1) or (2). `cues.max_resources` keeps the first ones in that order. A ticket whose masking failed skips (2) |
+| BR-F17-14 | Enrichment looks only among resources in the reporter's own Keystone member projects, never every project, even when the reporter is staff. It takes them in this order: (1) resources the reporter picked in the chat, from the ticket's agent conversation (BR-F17-26): those pressed on the turns after that conversation's previous hand-off turn (whether or not its ticket was opened; a helpdesk ticket's turn doesn't count) and up to the ticket's own turn; (2) names and IDs in the ticket's **masked** subject and body, in the order they appear; (3) volumes attached to a server taken in (1) or (2). `cues.max_resources` keeps the first ones in that order. A ticket whose masking failed skips (2) |
 | BR-F17-15 | A Keystone failure links nothing (`scope_unavailable`). It never widens the scope |
 | BR-F17-16 | Cue queries are fixed templates per resource kind (§o.6), compiled by PR 3's structured query builder under its caps. No model writes or chooses them. Each one is a cue read (ADR-0048 decision 10): an `infra_queries` row with `via=cue`, no actor, and its ticket |
 | BR-F17-17 | Cue evidence (log lines, alert annotations) is masked inline as in BR-F17-06; text whose masking fails is `[withheld]`. Summaries are written by code from numbers and names (OQ-F17-10) |
@@ -768,7 +805,7 @@ It shows numbers, not judgements: "highest CPU 12 %" is a fact, not an all-clear
 | `infra_cue_runs` | NEW | `id`, `ticket_id`, `transfer_id` (the handoff's `lifecycle_transfers` row, unique, null for a person's run), `started_by_id` (null for a handoff run), `started_at`, `finished_at` (null), `outcome` |
 | `infra_ticket_resources` | NEW | `id`, `run_id`, `project_id`, `kind` (`server` \| `volume` \| `network`), `resource_id`, `name`, `source` (`picked` \| `named` \| `attached` \| `every_server` \| `linked`), `token` (the text that matched, for `named`; else null). Unique (`run_id`, `resource_id`) |
 | `infra_ticket_cues` | NEW | `id`, `run_id`, `resource_id` (FK `infra_ticket_resources`, null for an overview cue), `template`, `status` (`ok` \| `empty` \| `refused` \| `unavailable` \| `cut`), `summary`, `evidence` (JSON, masked), `query_id` (FK `infra_queries`, null), `link` (null) |
-| `infra_resource_picks` | NEW | `id`, `conversation_id` (FK `agent_conversations`), `person_id`, `project_id`, `kind`, `resource_id`, `name`, `picked_at`. Unique (`conversation_id`, `resource_id`) |
+| `infra_resource_picks` | NEW | `id`, `conversation_id` (FK `agent_conversations`), `turn_id` (FK `agent_turns`, the turn the press sent), `person_id`, `project_id`, `kind`, `resource_id`, `name`, `picked_at`. Unique (`turn_id`, `resource_id`) |
 | `infra_queries` | CHANGED | `actor_id` becomes null; NEW `ticket_id` (null); `via` gains `cue`; CHECK `(via = 'cue') = (actor_id IS NULL)` and `via <> 'cue' OR ticket_id IS NOT NULL` |
 
 No `users` column: a person's company is read from Keystone, never copied
@@ -809,7 +846,7 @@ No `users` column: a person's company is read from Keystone, never copied
 |---|---|---|---|
 | `GET /api/tickets/{public_id}/cues` | `infra:read`, and the caller reaches the ticket (else 403) | none | `Cues.of(ticket)` |
 | `POST /api/tickets/{public_id}/cues/resources` | `infra:read`, and the caller reaches the ticket (else 403) | none | `Cues.link(ticket, caller, kind, resource_id)`: 202 |
-| `POST /api/requester/infra/picks` | `infra:read:own` | none | `ResourcePicks.record(caller, conversation_id, kind, resource_id)` |
+| `POST /api/requester/infra/picks` | `infra:read:own` | none | `Cues.pick(caller, conversation_id, turn_id, kind, resource_id)` |
 | `GET /api/infra/customers` | `infra:customers:manage` | none | `Customers.listing()`: rows, and Keystone's domains with no row |
 | `POST /api/infra/customers` | `infra:customers:manage` | none | `Customers.create(domain_id, name, tier, reason)` |
 | `PATCH /api/infra/customers/{id}` | `infra:customers:manage` | none | `Customers.change(name?, tier?, reason)` |
@@ -913,7 +950,7 @@ nothing, and `infra_queries` records each read (ADR-0048 decision 9).
 | Lifecycle engine | Queues the cue task at handoff | `test_cue_task_is_queued_once_per_handoff`; `test_flag_off_queues_no_cue_task` |
 | `infra_queries` | Nullable actor, `ticket` | `test_only_a_cue_read_may_have_no_actor` (the CHECK) |
 | Access | Six routes, one permission | `test_access_equivalence.py`; the every-route gate test; `test_no_agent_tool_can_record_a_pick` |
-| Enrichment | Picks, then names, then attached volumes; the overview | `test_the_cap_keeps_picked_then_named_then_attached`; `test_a_pick_outside_the_reporters_projects_is_dropped`; `test_nothing_named_runs_the_overview`; `test_three_servers_or_fewer_are_all_linked` |
+| Enrichment | Picks, then names, then attached volumes; the overview | `test_the_cap_keeps_picked_then_named_then_attached`; `test_a_pick_outside_the_reporters_projects_is_dropped`; `test_two_tickets_from_one_conversation_each_take_only_their_own_picks`; `test_a_resource_pressed_again_for_a_second_ticket_is_that_tickets_pick_too`; `test_a_helpdesk_ticket_in_between_takes_no_picks_from_the_next_hand_off`; `test_nothing_named_runs_the_overview`; `test_three_servers_or_fewer_are_all_linked` |
 | Linking by a person | A run whose reads are the person's | `test_a_linked_resource_is_read_as_the_person` |
 | ai-engine | Refs on the infra projections and the prompt's cloud part (PR 6). No new tool; the wire changes are F15's | F15's eval cases EC-F15-01..08 and 10 (live and scripted) |
 | chat, admin-console | The note, for `infra:read:own` only; posting a pressed resource choice (PR 8). The card itself is F15's | `test_note_shows_only_to_infra_read_own` |

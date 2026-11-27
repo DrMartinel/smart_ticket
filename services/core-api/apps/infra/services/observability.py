@@ -1,6 +1,7 @@
-"""A caller's queries of the cloud's metrics, logs and traces (F17 §h.1): compiled with their
-projects in every filter, cut to the result cap, free text masked, and each recorded as one
-`infra_queries` row with a link a person can open (BR-F17-05..07, BR-F17-10)."""
+"""A caller's queries of the cloud's metrics, logs and traces (F17 §h.1): compiled, or for raw
+PromQL parsed and written back out, with their projects in every filter, cut to the result cap,
+free text masked, and each recorded as one `infra_queries` row with a link a person can open
+(BR-F17-05..07, BR-F17-10, FR-F17-005)."""
 
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ from apps.infra.domain.observations import (
     total_of,
     unix_time,
 )
+from apps.infra.domain.promql import PromQLQuery
 from apps.infra.domain.queries import (
     COUNTS,
     LogCount,
@@ -51,6 +53,7 @@ class MetricAnswer:
     query_id: str
     series: list[Series]
     truncated: bool
+    link: str
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,7 @@ class LogAnswer:
     lines: list[LogLine]
     truncated: bool
     withheld: int
+    link: str
 
 
 @dataclass(frozen=True)
@@ -75,6 +79,7 @@ class TraceAnswer:
     spans: list[Span]
     truncated: bool
     withheld: int
+    link: str
 
 
 class Observability:
@@ -134,24 +139,40 @@ class Observability:
                 promql = query.promql(self.catalog, self.caps, projects)
                 read.calls.append(promql)
                 read.link = query.link(settings.PROMETHEUS_UI_URL, promql)
-                found = self.prometheus.query_range(
-                    promql,
-                    unix_time(query.window.start),
-                    unix_time(query.window.end),
-                    query.step_seconds,
-                    projects,
-                )
-                if len(found) > self.caps.max_series:
-                    raise QueryRefused(
-                        QueryCheck.SERIES,
-                        f"{len(found)} series, over {self.caps.max_series}; filter or aggregate",
-                    )
+                found = self.matrix(query, promql, projects)
                 shown = self.catalog.labels_of(self.catalog.metric(query.metric))
                 series, truncated = cut_to_bytes(
                     [Series.of(s, shown) for s in found], self.caps.max_result_bytes
                 )
+                read.truncated = truncated
             series = read.shown(series)
-        return MetricAnswer(str(read.query_id), series, truncated)
+        return MetricAnswer(str(read.query_id), series, truncated, read.link)
+
+    def promql(self, query: PromQLQuery, project_id: str | None) -> MetricAnswer:
+        """Raw PromQL, run only as Prometheus parsed it and core-api checked and scoped it."""
+        wanted = self.scope.narrowed_to(project_id)
+        with self.log.read(InfraBackend.PROMETHEUS, InfraQueryKind.PROMQL, wanted) as read:
+            read.calls.append(query.text)
+            query.check(self.caps)
+            projects = self.covered(wanted)
+            series: list[Series] = []
+            truncated = False
+            if projects:
+                try:
+                    promql = query.scoped(self.prometheus.parse(query.text), self.caps, projects)
+                except RecursionError as e:
+                    raise QueryRefused(
+                        QueryCheck.UNSUPPORTED, "the query nests too deeply; split it"
+                    ) from e
+                read.calls[-1] = promql
+                read.link = query.link(settings.PROMETHEUS_UI_URL, promql)
+                found = self.matrix(query, promql, projects)
+                series, truncated = cut_to_bytes(
+                    [Series.of(s, tuple(s["metric"])) for s in found], self.caps.max_result_bytes
+                )
+                read.truncated = truncated
+            series = read.shown(series)
+        return MetricAnswer(str(read.query_id), series, truncated, read.link)
 
     # ── logs ──
 
@@ -167,8 +188,9 @@ class Observability:
                 lines, truncated = cut_to_bytes(
                     [LogLine.of(h) for h in hits_of(answer)], self.caps.max_result_bytes
                 )
+                read.truncated = truncated
             lines = read.shown(lines)
-        return LogAnswer(str(read.query_id), total, lines, truncated, read.withheld)
+        return LogAnswer(str(read.query_id), total, lines, truncated, read.withheld, read.link)
 
     def log_counts(self, query: LogCount, project_id: str | None) -> CountAnswer:
         wanted = self.scope.narrowed_to(project_id)
@@ -195,8 +217,9 @@ class Observability:
                 spans, truncated = cut_to_bytes(
                     [Span.of(h) for h in hits_of(answer)], self.caps.max_result_bytes
                 )
+                read.truncated = truncated
             spans = read.shown(spans)
-        return TraceAnswer(str(read.query_id), spans, truncated, read.withheld)
+        return TraceAnswer(str(read.query_id), spans, truncated, read.withheld, read.link)
 
     def trace(self, trace_id: str) -> TraceAnswer:
         """Every span of one trace; a trace outside the scope is not found, like a missing one."""
@@ -211,8 +234,9 @@ class Observability:
             if not found:
                 raise BackendNotFound(f"trace {trace_id}")
             spans, truncated = cut_to_bytes([Span.of(h) for h in found], self.caps.max_result_bytes)
+            read.truncated = truncated
             spans = read.shown(spans)
-        return TraceAnswer(str(read.query_id), spans, truncated, read.withheld)
+        return TraceAnswer(str(read.query_id), spans, truncated, read.withheld, read.link)
 
     # ── how a query runs ──
 
@@ -222,6 +246,24 @@ class Observability:
             return wanted
         found = self.cloud.get("identity", "/projects")["projects"]
         return frozenset(p["id"] for p in found)
+
+    def matrix(
+        self, query: MetricQuery | PromQLQuery, promql: str, projects: frozenset[str]
+    ) -> Any:
+        """The series `promql` answers over the query's range; refuses more than the cap."""
+        found = self.prometheus.query_range(
+            promql,
+            unix_time(query.window.start),
+            unix_time(query.window.end),
+            query.step_seconds,
+            projects,
+        )
+        if len(found) > self.caps.max_series:
+            raise QueryRefused(
+                QueryCheck.SERIES,
+                f"{len(found)} series, over {self.caps.max_series}; filter or aggregate",
+            )
+        return found
 
     def search(self, read: Read, search: Search) -> Any:
         """Sends `search` to Elasticsearch, named in the read's record."""

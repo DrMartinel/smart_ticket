@@ -22,11 +22,13 @@ from apps.agent.models import (
     AgentConversation,
     AgentConversationEnd,
     AgentStep,
+    AgentSurface,
     AgentTurn,
     AgentTurnState,
 )
 from apps.agent.services.actions import AGENT_ACTION_HEADER
 from apps.agent.services.turns import agent_turns
+from apps.agent.testing import as_agent
 from apps.audit.models import AuditLog
 from apps.core.testing import api_client_with
 from apps.rollout.models import RolloutFlag
@@ -67,11 +69,13 @@ def queued(monkeypatch):
 
 
 class Engine:
-    """A stubbed ai-engine: NER finds nothing, and /v1/agent/turn answers `reply` or fails."""
+    """A stubbed ai-engine: NER finds nothing, and /v1/agent/turn reads each of `reads` through
+    core-api as the turn's agent, one step each, then answers `reply` or fails."""
 
     def __init__(self, serve_ai_engine) -> None:
         self.reply: dict[str, Any] | Exception = _replied("Done.")
         self.ner_fails = False
+        self.reads: list[str] = []
         self.turn_bodies: list[dict[str, Any]] = []
         self.calls = serve_ai_engine(self.handle)
 
@@ -81,7 +85,13 @@ class Engine:
                 raise httpx.ConnectError("ner down")
             return httpx.Response(200, json={"spans": []})
         if request.url.path == "/v1/agent/turn":
-            self.turn_bodies.append(json.loads(request.content))
+            body = json.loads(request.content)
+            self.turn_bodies.append(body)
+            for step, path in enumerate(self.reads, start=1):
+                read = api_client_with(body["token"]).get(
+                    path, HTTP_X_AGENT_TOOL="list_my_tickets", HTTP_X_AGENT_STEP=str(step)
+                )
+                assert read.status_code == 200, read.content
             if isinstance(self.reply, Exception):
                 raise self.reply
             return httpx.Response(200, json=self.reply)
@@ -127,6 +137,7 @@ def _step(seq: int, method: str = "GET", outcome: str = "ok", **extra: Any) -> d
         else "/api/chat/tickets/T-1/create-ticket",
         "status_code": 200,
         "outcome": outcome,
+        "read": method == "GET",
         **extra,
     }
 
@@ -687,6 +698,27 @@ def test_a_replied_turn_records_its_steps_receipts_and_usage(employee_user, api_
 
 
 @pytest.mark.django_db
+def test_a_read_step_shows_no_receipt_whatever_its_method(employee_user, api_as, engine, queued):
+    """F17: a cloud query is a POST that only reads; it is never shown as done or replayed."""
+
+    client = api_as(employee_user)
+    turn = _start(client)
+    query = _step(1, "POST", read=True, tool="query_my_metrics", path="/api/requester/infra/q")
+    engine.reply = _replied("Latency is normal.", [query, _step(2, "POST")])
+    agent_turns.run(turn.id)
+    engine.reply = _replied("Done.")
+
+    later = _start(client, conversation=str(turn.conversation_id))
+    agent_turns.run(later.id)
+
+    turn.refresh_from_db()
+    assert [r["tool"] for r in turn.receipts] == ["request_ticket"]
+    replayed = engine.turn_bodies[-1]["earlier_turns"][0]["reply"]
+    assert "/api/requester/infra/q" not in replayed
+    assert "[done] POST /api/chat/tickets/T-1/create-ticket" in replayed
+
+
+@pytest.mark.django_db
 def test_a_write_whose_outcome_is_unknown_is_never_shown_as_failed(
     employee_user, api_as, engine, queued
 ):
@@ -755,7 +787,10 @@ def test_ai_engine_gets_the_limits_language_and_no_access(
     assert body["limits"] == {
         "max_steps": th.max_steps,
         "max_tool_calls": th.max_tool_calls_per_turn,
+        "max_read_calls": th.max_read_calls_per_turn,
         "max_model_tokens": th.max_model_tokens_per_turn,
+        "max_choices": th.max_choices,
+        "max_handoff_summary_chars": th.max_handoff_summary_chars,
     }
     assert (body["surface"], body["language"], body["message_masked"]) == (
         "chat",
@@ -763,6 +798,23 @@ def test_ai_engine_gets_the_limits_language_and_no_access(
         turn.message_masked,
     )
     assert body["token"] and "permission" not in json.dumps(body)
+
+
+@pytest.mark.django_db
+def test_a_console_turn_gets_the_console_s_step_and_token_caps(
+    technician_user, api_as, engine, queued, settings
+):
+    turn = _start(api_as(technician_user), surface="console")
+
+    agent_turns.run(turn.id)
+
+    (body,) = engine.turn_bodies
+    th = settings.THRESHOLDS.agent
+    assert (body["limits"]["max_steps"], body["limits"]["max_model_tokens"]) == (
+        th.console_max_steps,
+        th.console_max_model_tokens_per_turn,
+    )
+    assert body["limits"]["max_read_calls"] == th.max_read_calls_per_turn
 
 
 @pytest.mark.django_db
@@ -810,6 +862,27 @@ def test_a_handoff_sentence_follows_the_message_language(
 
     turn.refresh_from_db()
     assert turn.reply_text == HANDOFF_TEXT[ReasonCode.AGENT_MODEL_UNAVAILABLE][language]
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("profile", "message", "language"),
+    [
+        ("vi", "My VPN drops every ten minutes.", "en"),
+        ("en", "VPN của tôi bị ngắt mỗi mười phút.", "vi"),
+    ],
+)
+def test_a_turn_says_the_language_its_words_are_in_whatever_the_profile_says(
+    employee_user, api_as, engine, queued, profile, message, language
+):
+    employee_user.language = profile
+    employee_user.save(update_fields=["language"])
+    client = api_as(employee_user)
+    turn = _start(client, message)
+
+    agent_turns.run(turn.id)
+
+    assert client.get(f"/api/agent/turns/{turn.id}").json()["language"] == language
 
 
 @pytest.mark.django_db
@@ -899,12 +972,25 @@ def test_a_hand_off_ticket_is_audited_as_the_agent_s(employee_user, api_as, engi
 def test_every_hand_off_reason_has_a_message_in_both_languages():
     from apps.agent.domain.vocabulary import HANDOFF_TEXT
 
-    assert set(HANDOFF_TEXT) == AGENT_HANDOFF_REASONS | {
+    assert set(HANDOFF_TEXT) == AGENT_HANDOFF_REASONS - {ReasonCode.AGENT_NEEDS_STAFF} | {
         ReasonCode.AGENT_TOKEN_REFUSED,
         ReasonCode.AGENT_OFF,
         ReasonCode.AGENT_CONVERSATION_ENDED,
     }
     assert all(set(texts) == {"vi", "en"} for texts in HANDOFF_TEXT.values())
+
+
+def test_every_text_code_adds_to_a_card_or_a_hand_off_is_in_both_languages():
+    from apps.agent.domain.vocabulary import (
+        CHECKED_GOES_WITH_TICKET,
+        OPEN_TICKET,
+        SOMETHING_ELSE,
+        TICKET_OPENED,
+    )
+
+    for texts in (SOMETHING_ELSE, CHECKED_GOES_WITH_TICKET, OPEN_TICKET, TICKET_OPENED):
+        assert set(texts) == {"vi", "en"}
+    assert all("{ticket}" in text for text in TICKET_OPENED.values())
 
 
 def test_every_stop_reason_maps_to_an_agent_reason_code():
@@ -968,6 +1054,133 @@ def test_a_turn_s_writes_beyond_the_cap_are_refused(employee_user, settings, eng
     assert first.status_code == 200
     assert (second.status_code, second.json()["code"]) == (429, "agent_tool_limit")
     assert AgentTurn.objects.get().write_calls == 1
+
+
+def _agent_caps(settings: Any, **caps: Any) -> None:
+    agent = settings.THRESHOLDS.agent.model_copy(update=caps)
+    settings.THRESHOLDS = settings.THRESHOLDS.model_copy(update={"agent": agent})
+
+
+@pytest.mark.django_db
+def test_a_turn_s_reads_beyond_max_read_calls_are_refused(employee_user, settings):
+    _agent_caps(settings, max_read_calls_per_turn=2, max_tool_calls_per_turn=0)
+    client = as_agent(employee_user, tool="list_my_tickets")
+
+    answers = [client.get("/api/requester/tickets") for _ in range(3)]
+
+    assert [a.status_code for a in answers[:2]] == [200, 200]
+    assert (answers[2].status_code, answers[2].json()["code"]) == (429, "agent_tool_limit")
+    turn = AgentTurn.objects.get()
+    assert (turn.read_calls, turn.write_calls) == (2, 0)
+
+
+@pytest.mark.django_db
+def test_without_max_read_calls_core_api_caps_no_read(employee_user, settings):
+    _agent_caps(settings, max_read_calls_per_turn=None, max_tool_calls_per_turn=1)
+    client = as_agent(employee_user, tool="list_my_tickets")
+
+    answers = [client.get("/api/requester/tickets") for _ in range(4)]
+
+    assert {a.status_code for a in answers} == {200}
+    turn = AgentTurn.objects.get()
+    assert (turn.read_calls, turn.write_calls) == (4, 0)
+
+
+@pytest.mark.django_db
+def test_twenty_polls_of_ask_helpdesk_leave_the_turn_able_to_read(
+    employee_user, settings, engine, queued
+):
+    _agent_caps(settings, max_read_calls_per_turn=1, max_tool_calls_per_turn=1)
+    client = as_agent(employee_user, tool="ask_helpdesk", step=1)
+
+    asked = client.post(
+        "/api/chat/ask", {"message": "VPN drops every ten minutes"}, content_type="application/json"
+    )
+    polls = [client.get(f"/api/chat/tickets/{asked.json()['public_id']}") for _ in range(20)]
+    only_asked = AgentTurn.objects.get().ran_a_read()
+    client.defaults.update(HTTP_X_AGENT_TOOL="list_my_tickets", HTTP_X_AGENT_STEP="2")
+    read = client.get("/api/requester/tickets")
+
+    assert asked.status_code == 200
+    assert {p.status_code for p in polls} == {200}
+    assert only_asked is False
+    assert read.status_code == 200
+    turn = AgentTurn.objects.get()
+    assert (turn.write_calls, turn.read_calls, turn.ran_a_read()) == (1, 1, True)
+
+
+@pytest.mark.django_db
+def test_a_write_counts_whatever_step_it_names(employee_user, settings, engine, queued):
+    _agent_caps(settings, max_tool_calls_per_turn=1)
+    client = as_agent(employee_user, tool="ask_helpdesk", step=1)
+    ask = {"message": "VPN drops every ten minutes"}
+
+    first = client.post("/api/chat/ask", ask, content_type="application/json")
+    again = client.post("/api/chat/ask", ask, content_type="application/json")
+
+    assert first.status_code == 200
+    assert (again.status_code, again.json()["code"]) == (429, "agent_tool_limit")
+    assert AgentTurn.objects.get().write_calls == 1
+
+
+@pytest.mark.django_db
+def test_reads_naming_one_step_are_refused_at_the_read_cap(employee_user, settings):
+    _agent_caps(settings, max_read_calls_per_turn=2)
+    client = as_agent(employee_user, tool="list_my_tickets", step=1)
+
+    answers = [client.get("/api/requester/tickets").status_code for _ in range(20)]
+
+    assert answers == [200, 200] + [429] * 18
+    assert AgentTurn.objects.get().read_calls == 2
+
+
+@pytest.mark.django_db
+def test_a_poll_beyond_the_free_reads_of_its_step_counts(employee_user, settings, engine, queued):
+    _agent_caps(
+        settings, max_free_reads_per_step=50, max_read_calls_per_turn=1, max_tool_calls_per_turn=1
+    )
+    client = as_agent(employee_user, tool="ask_helpdesk", step=1)
+    asked = client.post(
+        "/api/chat/ask", {"message": "VPN drops every ten minutes"}, content_type="application/json"
+    )
+    poll = f"/api/chat/tickets/{asked.json()['public_id']}"
+
+    free = {client.get(poll).status_code for _ in range(50)}
+    free_reads = AgentTurn.objects.get().read_calls
+    counted = client.get(poll)
+    over = client.get(poll)
+
+    assert (free, free_reads) == ({200}, 0)
+    assert counted.status_code == 200 and AgentTurn.objects.get().read_calls == 1
+    assert (over.status_code, over.json()["code"]) == (429, "agent_tool_limit")
+
+
+@pytest.mark.django_db
+def test_a_step_beyond_the_turn_s_steps_is_refused(employee_user, settings):
+    _agent_caps(settings, max_steps=3)
+    client = as_agent(employee_user, tool="list_my_tickets", step=4)
+
+    beyond = client.get("/api/requester/tickets")
+    client.defaults["HTTP_X_AGENT_STEP"] = "3"
+    last = client.get("/api/requester/tickets")
+
+    assert (beyond.status_code, beyond.json()["code"]) == (429, "agent_tool_limit")
+    assert last.status_code == 200
+    assert AgentTurn.objects.get().read_calls == 1
+
+
+@pytest.mark.django_db
+def test_a_console_step_beyond_the_console_s_steps_is_refused(technician_user, settings):
+    _agent_caps(settings, max_steps=3, console_max_steps=5)
+    client = as_agent(technician_user, tool="list_my_tickets", step=4)
+    AgentConversation.objects.update(surface=AgentSurface.CONSOLE.value)
+
+    within = client.get("/api/requester/tickets")
+    client.defaults["HTTP_X_AGENT_STEP"] = "6"
+    beyond = client.get("/api/requester/tickets")
+
+    assert within.status_code == 200
+    assert (beyond.status_code, beyond.json()["code"]) == (429, "agent_tool_limit")
 
 
 # ── agent.sweep (FR-F15-019) ──
@@ -1096,6 +1309,35 @@ def test_a_turn_reads_back_with_its_reply_and_hand_off_ticket(
 
 
 @pytest.mark.django_db
+def test_the_actions_list_narrows_to_one_target(employee_user, api_as, engine, queued):
+    turn = _start(api_as(employee_user))
+
+    def action(kind: str, ref: str) -> AgentAction:
+        return AgentAction.objects.create(
+            kind="confirm",
+            user=employee_user,
+            conversation=turn.conversation,
+            turn=turn,
+            method="POST",
+            route="/api/x",
+            path=f"/api/x/{ref}",
+            arguments={},
+            arguments_sha256="0" * 64,
+            target_kind=kind,
+            target_ref=ref,
+            expires_at=timezone.now() + timedelta(minutes=5),
+        )
+
+    wanted = action("server", "srv-1")
+    action("server", "srv-2")
+    action("volume", "srv-1")
+
+    listed = api_as(employee_user).get("/api/agent/actions?target_kind=server&target_ref=srv-1")
+
+    assert [a["action_id"] for a in listed.json()] == [str(wanted.id)]
+
+
+@pytest.mark.django_db
 def test_an_action_is_dismissed_once(employee_user, technician_user, api_as, engine, queued):
     turn = _start(api_as(employee_user))
     action = AgentAction.objects.create(
@@ -1201,3 +1443,254 @@ def test_an_ask_helpdesk_receipt_carries_the_chat_turn(employee_user, api_as, en
 
     receipt = api_as(employee_user).get(f"/api/agent/turns/{turn.id}").json()["receipts"][0]
     assert receipt["chat_turn"] == "TKT-2026-000123"
+
+
+# ── choices and the hand-off on purpose (F15 amendment, BR-F15-20..25) ──
+
+SUMMARY = "Asks for access to the Finance Reports folder"
+FOLDER = "Give me access to the Finance Reports folder"
+FOLDER_TEXT = "Folder access is granted by IT after your manager approves it."
+
+
+def _needs_staff(text: str = FOLDER_TEXT, **extra: Any) -> dict[str, Any]:
+    return _handed_off("needs_staff", reply=text, proposed_handoff_summary=SUMMARY, **extra)
+
+
+def _choice(n: int) -> dict[str, str]:
+    return {"kind": "ticket", "id": f"TKT-2026-00041{n}", "label": f"TKT-2026-00041{n} · VPN {n}"}
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "broken",
+    [
+        {"reply": "   "},
+        {"proposed_handoff_summary": None},
+        {"proposed_handoff_summary": " "},
+        {"proposed_handoff_summary": "x" * 501},
+    ],
+    ids=["blank text", "no summary", "blank summary", "summary over the cap"],
+)
+def test_a_needs_staff_hand_off_missing_its_text_or_summary_is_schema_invalid(
+    employee_user, api_as, engine, queued, broken
+):
+    engine.reply = {**_needs_staff(), **broken}
+    client = api_as(employee_user)
+    turn = _start(client, FOLDER)
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert (turn.stop_reason, turn.proposed_handoff_summary) == ("agent_schema_invalid", None)
+    assert turn.reply_text == "I couldn't work out what to do with this."
+    assert _ask(client, turn).proposed_handoff_summary is None
+
+
+@pytest.mark.django_db
+def test_a_needs_staff_hand_off_after_a_flagged_result_is_injection_in_result(
+    employee_user, api_as, engine, queued
+):
+    engine.reply = _needs_staff(steps=[_step(1, "GET", injection_flagged=True)])
+    client = api_as(employee_user)
+    turn = _start(client, FOLDER)
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert (turn.stop_reason, turn.proposed_handoff_summary) == ("agent_injection_in_result", None)
+    assert FOLDER_TEXT not in turn.reply_text
+    ticket = _ask(client, turn)
+    assert (ticket.agent_handoff_reason, ticket.proposed_handoff_summary) == (
+        "agent_injection_in_result",
+        None,
+    )
+
+
+@pytest.mark.django_db
+def test_a_console_hand_off_after_a_flagged_result_is_still_schema_invalid(
+    technician_user, api_as, engine, queued
+):
+    engine.reply = _needs_staff(steps=[_step(1, "GET", injection_flagged=True)])
+    turn = _start(api_as(technician_user), FOLDER, surface="console")
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert (turn.stop_reason, turn.proposed_handoff_summary) == ("agent_schema_invalid", None)
+
+
+@pytest.mark.django_db
+def test_console_surface_has_no_hand_off(technician_user, api_as, engine, queued):
+    engine.reply = _needs_staff()
+    turn = _start(api_as(technician_user), FOLDER, surface="console")
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert (turn.stop_reason, turn.proposed_handoff_summary) == ("agent_schema_invalid", None)
+    assert FOLDER_TEXT not in turn.reply_text
+
+
+@pytest.mark.django_db
+def test_needs_staff_reply_has_the_code_written_parts(employee_user, api_as, engine, queued):
+    engine.reads = ["/api/requester/tickets"]
+    engine.reply = _needs_staff(steps=[_step(1, "GET")])
+    client = api_as(employee_user)
+    turn = _start(client, FOLDER)
+
+    agent_turns.run(turn.id)
+    shown = client.get(f"/api/agent/turns/{turn.id}").json()
+
+    assert (shown["state"], shown["stop_reason"]) == ("handed_off", "agent_needs_staff")
+    assert (shown["reply"], shown["ticket_offered"]) == (FOLDER_TEXT, True)
+    assert shown["needs_staff"] == {
+        "checked": "What I checked above goes with the ticket, so you won't need to explain again.",
+        "button": "Open a ticket",
+        "opened": None,
+    }
+    ticket = _ask(client, turn)
+    opened = client.get(f"/api/agent/turns/{turn.id}").json()
+    assert opened["ticket_offered"] is False
+    assert opened["needs_staff"]["opened"] == (
+        f"Opened ticket {ticket.public_id}. You can follow it under My tickets."
+    )
+
+
+@pytest.mark.django_db
+def test_a_needs_staff_turn_that_read_nothing_has_no_checked_line(
+    employee_user, api_as, engine, queued
+):
+    engine.reply = _needs_staff("Quyền vào thư mục do bộ phận IT cấp.")
+    client = api_as(employee_user)
+    turn = _start(client, "Cấp quyền cho em vào thư mục Finance Reports")
+
+    agent_turns.run(turn.id)
+
+    shown = client.get(f"/api/agent/turns/{turn.id}").json()
+    assert shown["reply"] == "Quyền vào thư mục do bộ phận IT cấp."
+    assert shown["needs_staff"] == {"checked": None, "button": "Mở phiếu hỗ trợ", "opened": None}
+
+
+@pytest.mark.django_db
+def test_needs_staff_ticket_keeps_the_person_s_words_and_the_summary_for_staff(
+    employee_user, api_as, engine, queued
+):
+    engine.reply = _needs_staff()
+    client = api_as(employee_user)
+    turn = _start(client, FOLDER)
+    agent_turns.run(turn.id)
+    turn.refresh_from_db()
+
+    ticket = _ask(client, turn)
+
+    assert turn.proposed_handoff_summary == SUMMARY
+    assert (ticket.subject_masked, ticket.body_masked) == (FOLDER, FOLDER)
+    assert (ticket.agent_handoff_reason, ticket.proposed_handoff_summary) == (
+        "agent_needs_staff",
+        SUMMARY,
+    )
+    assert queued.tickets == [str(ticket.id)]
+
+
+@pytest.mark.django_db
+def test_other_hand_offs_keep_their_fixed_text_and_carry_no_summary(
+    employee_user, api_as, engine, queued
+):
+    engine.reply = _handed_off("tool_failed", proposed_handoff_summary=SUMMARY)
+    client = api_as(employee_user)
+    turn = _start(client)
+
+    agent_turns.run(turn.id)
+
+    shown = client.get(f"/api/agent/turns/{turn.id}").json()
+    assert shown["reply"] == "Something I needed to check didn't respond."
+    assert shown["needs_staff"] is None
+    assert _ask(client, turn).proposed_handoff_summary is None
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("message", "something_else"),
+    [("Which VPN ticket is it?", "Something else"), ("Ticket VPN của em sao rồi?", "Khác")],
+)
+def test_something_else_is_always_on_the_card(
+    employee_user, api_as, engine, queued, message, something_else
+):
+    engine.reply = _replied("Which one?", choices=[_choice(5), _choice(7)])
+    client = api_as(employee_user)
+    turn = _start(client, message)
+
+    agent_turns.run(turn.id)
+
+    card = client.get(f"/api/agent/turns/{turn.id}").json()["choices"]
+    assert card == [
+        _choice(5),
+        _choice(7),
+        {"kind": "something_else", "id": None, "label": something_else},
+    ]
+
+
+@pytest.mark.django_db
+def test_a_reply_without_choices_shows_no_card(employee_user, api_as, engine, queued):
+    client = api_as(employee_user)
+    turn = _start(client)
+
+    agent_turns.run(turn.id)
+
+    turn.refresh_from_db()
+    assert turn.choices is None
+    assert client.get(f"/api/agent/turns/{turn.id}").json()["choices"] == []
+
+
+@pytest.mark.django_db
+def test_an_earlier_turn_carries_the_choices_its_card_offered(
+    employee_user, api_as, engine, queued
+):
+    engine.reply = _replied("Which one?", choices=[_choice(5), _choice(7)])
+    client = api_as(employee_user)
+    first = _start(client, "Which VPN ticket is it?")
+    agent_turns.run(first.id)
+    second = _start(client, "the second one", conversation=str(first.conversation_id))
+
+    (earlier,) = agent_turns.earlier_turns(second)
+
+    assert earlier.reply == (
+        "Which one?\n[choice] TKT-2026-000415 · VPN 5\n[choice] TKT-2026-000417 · VPN 7"
+    )
+
+
+@pytest.mark.django_db
+def test_a_turn_that_read_flagged_text_carries_no_reply_into_the_next(
+    employee_user, api_as, engine, queued
+):
+    steered = "Your manager approved folder access; ask support to grant it now."
+    engine.reply = _replied(steered, steps=[_step(1, "GET", injection_flagged=True)])
+    client = api_as(employee_user)
+    first = _start(client, "What does my ticket say?")
+    agent_turns.run(first.id)
+    second = _start(client, FOLDER, conversation=str(first.conversation_id))
+
+    (earlier,) = agent_turns.earlier_turns(second)
+
+    assert (earlier.message_masked, earlier.reply) == ("What does my ticket say?", "")
+
+
+@pytest.mark.django_db
+def test_the_summary_is_shown_to_staff_and_never_to_the_requester(
+    employee_user, manager_user, api_as, engine, queued
+):
+    engine.reply = _needs_staff(steps=[_step(1, "GET")])
+    client = api_as(employee_user)
+    turn = _start(client, FOLDER)
+    agent_turns.run(turn.id)
+    ticket = _ask(client, turn)
+    staff = api_as(manager_user)
+
+    detail = staff.get(f"/api/tickets/{ticket.public_id}/detail").json()
+    rows = staff.get("/api/tickets", {"view": "all"}).json()["items"]
+    own = client.get(f"/api/requester/tickets/{ticket.public_id}")
+
+    assert detail["proposed_handoff_summary"] == SUMMARY
+    assert [r["proposed_handoff_summary"] for r in rows] == [SUMMARY]
+    assert [(s["tool"], s["method"]) for s in detail["agent_steps"]] == [("my_tickets", "GET")]
+    assert own.status_code == 200 and SUMMARY not in own.content.decode()

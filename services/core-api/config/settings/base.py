@@ -293,6 +293,7 @@ INFRA_CONNECT_TIMEOUT_SEC = float(env("INFRA_CONNECT_TIMEOUT_SEC"))
 INFRA_READ_TIMEOUT_SEC = float(env("INFRA_READ_TIMEOUT_SEC"))
 INFRA_CUE_SOFT_TIME_LIMIT_SEC = int(env("INFRA_CUE_SOFT_TIME_LIMIT_SEC"))
 PROMETHEUS_URL = env("PROMETHEUS_URL")
+PROMETHEUS_PARSE_URL = env("PROMETHEUS_PARSE_URL")
 ELASTICSEARCH_URL = env("ELASTICSEARCH_URL")
 ELASTICSEARCH_USERNAME = env("ELASTICSEARCH_USERNAME")
 ELASTICSEARCH_PASSWORD = env("ELASTICSEARCH_PASSWORD")
@@ -551,6 +552,13 @@ class AgentThresholds(BaseModel):
     max_steps: int = Field(ge=1)
     max_tool_calls_per_turn: int = Field(ge=0)
     max_model_tokens_per_turn: int = Field(ge=1)
+    # Read calls one turn may make, None for F15's one cap on every call (F17 FR-F17-011).
+    max_read_calls_per_turn: int | None = Field(ge=0)
+    # Reads one step may make for free after its write (F17 FR-F17-011).
+    max_free_reads_per_step: int = Field(ge=0)
+    # A console turn's model calls and tokens, in place of the two above (F17 §h.3).
+    console_max_steps: int = Field(ge=1)
+    console_max_model_tokens_per_turn: int = Field(ge=1)
     # Lifetime of an agent turn's access token (F15, BR-F15-02).
     token_ttl_seconds: int = Field(ge=1)
     # Lifetimes of a pending confirm and a human-only draft (BR-F15-06, BR-F15-07).
@@ -561,6 +569,9 @@ class AgentThresholds(BaseModel):
     conversation_idle_minutes: int = Field(ge=1)
     # Conversations the history list returns, newest first (F15).
     history_limit: int = Field(ge=1)
+    # Buttons on one choice card, and the characters a hand-off's summary may hold (BR-F15-21, -23).
+    max_choices: int = Field(ge=1)
+    max_handoff_summary_chars: int = Field(ge=1)
 
 
 class InfraThresholds(BaseModel):
@@ -571,6 +582,11 @@ class InfraThresholds(BaseModel):
     max_log_docs: int = Field(ge=1)
     max_spans: int = Field(ge=1)
     max_result_bytes: int = Field(ge=1)
+    # The most selectors one raw PromQL query may hold (FR-F17-005).
+    max_selectors: int = Field(ge=1)
+    # RE2's memory for one raw PromQL regex, and the most regex matchers one query may hold.
+    max_regex_kib: int = Field(ge=1)
+    max_regex_matchers: int = Field(ge=1)
 
 
 class CuesThresholds(BaseModel):

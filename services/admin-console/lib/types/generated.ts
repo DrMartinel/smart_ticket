@@ -55,7 +55,9 @@ export type TargetRule = "reporter" | "any";
 
 export type RunbookRisk = "low" | "high";
 
-export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_low_confidence" | "category_set_invalid" | "category_not_routable" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "embedding_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed" | "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_token_refused" | "agent_off" | "agent_conversation_ended" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable";
+export type ReasonCode = "injection_detected" | "pii_critical" | "pii_mask_failed" | "schema_invalid" | "mass_incident" | "retrieval_below_floor" | "kb_not_authorized" | "quote_invalid" | "quote_source_not_in_topk" | "negation_mismatch" | "rerank_disagrees" | "rerank_low_confidence" | "trust_below_auto_threshold" | "trust_below_route_threshold" | "category_low_confidence" | "category_set_invalid" | "category_not_routable" | "clarify_security" | "clarify_options_not_shown" | "clarify_round_cap" | "ai_engine_unavailable" | "embedding_unavailable" | "budget_exceeded" | "all_llm_down" | "circuit_open" | "all_checks_passed" | "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_token_refused" | "agent_off" | "agent_conversation_ended" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable" | "agent_needs_staff";
+
+export type Language = "vi" | "en";
 
 export type AgentSurface = "chat" | "console";
 
@@ -65,11 +67,15 @@ export type AgentConversationState = "active" | "ended";
 
 export type AgentActionKind = "confirm" | "draft";
 
-export type AgentActionState = "pending" | "applied" | "dismissed" | "expired" | "superseded";
+export type AgentActionState = "pending" | "applied" | "dismissed" | "expired" | "superseded" | "outcome_unknown";
 
 export type CustomerTier = "standard" | "business" | "enterprise";
 
 export type CustomerLookup = "found" | "none" | "unavailable";
+
+export type InfraChange = "soft_reboot" | "hard_reboot" | "start" | "stop" | "attach_volume" | "detach_volume" | "add_security_rule" | "remove_security_rule";
+
+export type InfraResource = "server" | "volume" | "security_group";
 
 export type CueRunOutcome = "running" | "done" | "overview" | "no_cloud_user" | "scope_unavailable" | "failed";
 
@@ -78,6 +84,18 @@ export type CueStatus = "ok" | "empty" | "refused" | "unavailable" | "cut";
 export type ResourceKind = "server" | "volume" | "network";
 
 export type ResourceSource = "picked" | "named" | "attached" | "every_server" | "linked";
+
+export type AlertResource = "server" | "volume" | "network";
+
+export type InfraBackend = "prometheus" | "elasticsearch" | "alertmanager" | "cloud";
+
+export type InfraQueryKind = "structured" | "promql" | "resource";
+
+export type InfraOutcome = "ok" | "refused" | "backend_unavailable" | "scope_unavailable";
+
+export type InfraRefusal = "infra_not_found" | "infra_query_refused" | "infra_scope_unavailable" | "infra_backend_unavailable" | "infra_ticket_required" | "infra_state_changed" | "infra_change_refused" | "infra_outcome_unknown" | "customer_exists" | "unknown_domain" | "reason_required";
+
+export type QueryCheck = "range" | "step" | "series" | "size" | "field" | "dataset" | "function" | "match_all" | "selectors" | "unsupported" | "backend_refused";
 
 export interface TicketIn {
   subject: string;
@@ -152,7 +170,7 @@ export interface PolicySignals {
   injection_detected: boolean;
   mass_incident: boolean;
   clarifications_asked?: number;
-  agent_handoff_reason?: "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable" | null;
+  agent_handoff_reason?: "agent_step_limit" | "agent_tool_limit" | "agent_budget_exceeded" | "agent_tool_failed" | "agent_tool_outcome_unknown" | "agent_injection_detected" | "agent_injection_in_result" | "agent_model_unavailable" | "agent_schema_invalid" | "agent_mask_failed" | "agent_pii_critical" | "agent_engine_unavailable" | "agent_needs_staff" | null;
 }
 
 export interface ClassificationSignals {
@@ -282,6 +300,18 @@ export interface AgentReceiptOut {
   chat_turn?: string | null;
 }
 
+export interface AgentChoiceOut {
+  kind: string;
+  id: string | null;
+  label: string;
+}
+
+export interface AgentNeedsStaffOut {
+  checked: string | null;
+  button: string;
+  opened: string | null;
+}
+
 export interface AgentTurnOut {
   turn_id: string;
   conversation_id: string;
@@ -293,8 +323,13 @@ export interface AgentTurnOut {
   stop_reason: string | null;
   handoff_ticket: string | null;
   ticket_offered?: boolean;
+  choices?: AgentChoiceOut[];
+  needs_staff?: AgentNeedsStaffOut | null;
   queued_at: string;
   finished_at: string | null;
+  queries?: InfraQueryReceiptOut[];
+  warnings?: string[];
+  language: Language;
 }
 
 export interface AgentConversationOut {
@@ -365,6 +400,7 @@ export interface StaffTicketRow {
   sla?: SlaBadgeOut | null;
   review: OpenReviewOut | null;
   version: number;
+  proposed_handoff_summary?: string | null;
 }
 
 export interface StaffTicketPage {
@@ -417,6 +453,13 @@ export interface TicketCustomerOut {
   tier: CustomerTier;
 }
 
+export interface AgentStepOut {
+  tool: string;
+  method: string;
+  path: string;
+  outcome: string;
+}
+
 export interface StaffTicketDetail {
   public_id: string;
   subject_masked: string;
@@ -433,6 +476,7 @@ export interface StaffTicketDetail {
   sla?: SlaBadgeOut | null;
   review: OpenReviewOut | null;
   version: number;
+  proposed_handoff_summary?: string | null;
   body_masked: string;
   pii_placeholders?: PlaceholderOut[];
   reporter_person: PersonOut;
@@ -443,6 +487,7 @@ export interface StaffTicketDetail {
   reviews: OpenReviewOut[];
   clarifications: ClarificationOut[];
   agent_handoff_reason?: string | null;
+  agent_steps?: AgentStepOut[];
   customer?: TicketCustomerOut | null;
   customer_lookup?: CustomerLookup | null;
 }
@@ -1878,6 +1923,14 @@ export interface SecurityGroupOut {
   rules: RuleOut[];
 }
 
+export interface SecurityGroupDetailOut {
+  id: string;
+  name: string;
+  description: string;
+  rules: RuleOut[];
+  project_id: string;
+}
+
 export interface NetworkOut {
   id: string;
   name: string;
@@ -1907,6 +1960,8 @@ export interface AlertOut {
   summary: string;
   description: string;
   starts_at: string;
+  resource_kind?: AlertResource | null;
+  resource_id?: string | null;
 }
 
 export interface MatcherOut {
@@ -1951,6 +2006,8 @@ export interface CatalogOut {
   log_datasets: DatasetEntryOut[];
   log_fields: FieldEntryOut[];
   trace_fields: FieldEntryOut[];
+  promql_functions: string[];
+  promql_aggregations: string[];
   caps: Record<string, number>;
 }
 
@@ -1959,10 +2016,17 @@ export interface SeriesOut {
   points: unknown[][];
 }
 
+export interface OwnMetricAnswerOut {
+  query_id: string;
+  series: SeriesOut[];
+  truncated: boolean;
+}
+
 export interface MetricAnswerOut {
   query_id: string;
   series: SeriesOut[];
   truncated: boolean;
+  link: string;
 }
 
 export interface LogLineOut {
@@ -1975,12 +2039,21 @@ export interface LogLineOut {
   message: string;
 }
 
+export interface OwnLogAnswerOut {
+  query_id: string;
+  total: number;
+  lines: LogLineOut[];
+  truncated: boolean;
+  withheld: number;
+}
+
 export interface LogAnswerOut {
   query_id: string;
   total: number;
   lines: LogLineOut[];
   truncated: boolean;
   withheld: number;
+  link: string;
 }
 
 export interface SpanOut {
@@ -1997,11 +2070,40 @@ export interface SpanOut {
   attributes: Record<string, string>;
 }
 
+export interface OwnTraceAnswerOut {
+  query_id: string;
+  spans: SpanOut[];
+  truncated: boolean;
+  withheld: number;
+}
+
 export interface TraceAnswerOut {
   query_id: string;
   spans: SpanOut[];
   truncated: boolean;
   withheld: number;
+  link: string;
+}
+
+export interface InfraQuerySentOut {
+  compiled: string;
+  link: string;
+}
+
+export interface InfraQueryReceiptOut {
+  id: string;
+  created_at: string;
+  backend: InfraBackend;
+  failed_backend?: InfraBackend | null;
+  kind: InfraQueryKind;
+  outcome: InfraOutcome;
+  refusal: InfraRefusal | null;
+  refusal_reason: QueryCheck | null;
+  rows: number;
+  withheld: number;
+  truncated: boolean;
+  duration_ms: number;
+  sent?: InfraQuerySentOut | null;
 }
 
 export interface MetricQueryIn {
@@ -2014,6 +2116,14 @@ export interface MetricQueryIn {
   function_seconds?: number | null;
   aggregate?: string | null;
   by?: string[];
+  project_id?: string | null;
+}
+
+export interface PromQLIn {
+  promql: string;
+  start: string;
+  end: string;
+  step_seconds: number;
   project_id?: string | null;
 }
 
@@ -2034,6 +2144,48 @@ export interface TraceSearchIn {
   min_duration_ms?: number | null;
   size?: number | null;
   project_id?: string | null;
+}
+
+export interface StaffChangeIn {
+  public_id: string;
+}
+
+export interface SoftRebootIn {
+  public_id: string;
+  type?: "soft";
+}
+
+export interface MySoftRebootIn {
+  type?: "soft";
+}
+
+export interface AttachVolumeIn {
+  public_id: string;
+  server_id: string;
+}
+
+export interface SecurityRuleIn {
+  public_id: string;
+  direction: "ingress" | "egress";
+  ethertype?: "IPv4" | "IPv6";
+  protocol?: "tcp" | "udp" | "icmp" | null;
+  port_range_min?: number | null;
+  port_range_max?: number | null;
+  remote_ip_prefix?: string | null;
+}
+
+export interface SecurityRuleRemoveIn {
+  public_id: string;
+  rule_id: string;
+}
+
+export interface InfraChangeOut {
+  change: InfraChange;
+  target_kind: InfraResource;
+  target_id: string;
+  target_name: string;
+  project_id: string;
+  ticket: string | null;
 }
 
 export interface CustomerIn {
@@ -2107,6 +2259,23 @@ export interface CueRunOut {
 
 export interface TicketCuesOut {
   runs: CueRunOut[];
+}
+
+export interface ResourcePickIn {
+  conversation_id: string;
+  turn_id: string;
+  kind: ResourceKind;
+  resource_id: string;
+}
+
+export interface ResourcePickOut {
+  conversation_id: string;
+  turn_id: string;
+  kind: ResourceKind;
+  resource_id: string;
+  name: string;
+  project_id: string;
+  picked_at: string;
 }
 
 export interface BranchReadinessOut {

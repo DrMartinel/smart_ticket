@@ -5,6 +5,7 @@ the free text in each that is masked before it is shown (F17 BR-F17-06). Parsing
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from enum import StrEnum
 from typing import Any, Self
 
 
@@ -202,6 +203,7 @@ class Rule:
 class SecurityGroup:
     id: str
     name: str
+    project_id: str
     description: str
     rules: list[Rule]
 
@@ -210,9 +212,17 @@ class SecurityGroup:
         return cls(
             id=raw["id"],
             name=raw.get("name") or "",
+            project_id=raw["project_id"],
             description=raw.get("description") or "",
             rules=[Rule.of(r) for r in raw.get("security_group_rules") or []],
         )
+
+    def free_text(self) -> list[str]:
+        return [self.description]
+
+    def with_free_text(self, texts: list[str]) -> Self:
+        (description,) = texts
+        return replace(self, description=description)
 
 
 @dataclass(frozen=True)
@@ -252,6 +262,20 @@ class Network:
         )
 
 
+class AlertResource(StrEnum):
+    SERVER = "server"
+    VOLUME = "volume"
+    NETWORK = "network"
+
+
+# The label that names an alert's resource, by kind, most specific first.
+_RESOURCE_LABELS = (
+    (AlertResource.VOLUME, "volume_id"),
+    (AlertResource.NETWORK, "network_id"),
+    (AlertResource.SERVER, "server_id"),
+)
+
+
 @dataclass(frozen=True)
 class Alert:
     name: str
@@ -263,11 +287,17 @@ class Alert:
     summary: str
     description: str
     starts_at: str
+    resource_kind: AlertResource | None
+    resource_id: str | None
 
     @classmethod
     def of(cls, raw: dict[str, Any]) -> Alert:
         labels = _texts(raw["labels"])
         annotations = raw.get("annotations") or {}
+        kind, ref = next(
+            ((kind, labels[label]) for kind, label in _RESOURCE_LABELS if labels.get(label)),
+            (None, None),
+        )
         return cls(
             name=labels.get("alertname", ""),
             fingerprint=raw.get("fingerprint") or "",
@@ -278,6 +308,21 @@ class Alert:
             summary=str(annotations.get("summary") or ""),
             description=str(annotations.get("description") or ""),
             starts_at=raw.get("startsAt") or "",
+            resource_kind=kind,
+            resource_id=ref,
+        )
+
+    def names(self, kind: AlertResource | None, resource_id: str | None) -> bool:
+        """Whether one of the alert's id labels names a resource of `kind` with `resource_id`,
+        each when given, so a volume's alert that carries its server's id names that server too;
+        with neither given, every alert does."""
+        if kind is None and resource_id is None:
+            return True
+        return any(
+            (kind is None or labelled is kind)
+            and bool(self.labels.get(label))
+            and (resource_id is None or self.labels[label] == resource_id)
+            for labelled, label in _RESOURCE_LABELS
         )
 
     def free_text(self) -> list[str]:

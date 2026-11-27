@@ -98,6 +98,8 @@ class StaffTicketRow(Schema):
     sla: SlaBadgeOut | None = None
     review: OpenReviewOut | None
     version: int
+    # The agent's summary of what an `agent_needs_staff` ticket asks for (F15 BR-F15-25).
+    proposed_handoff_summary: str | None = None
 
     @staticmethod
     def resolve_sla(ticket: Ticket) -> Badge | None:
@@ -176,6 +178,15 @@ class TicketCustomerOut(Schema):
     tier: CustomerTier
 
 
+class AgentStepOut(Schema):
+    """One call the agent made, as the person, in the turn that handed the ticket off."""
+
+    tool: str
+    method: str
+    path: str
+    outcome: str
+
+
 class StaffTicketDetail(StaffTicketRow):
     body_masked: str
     pii_placeholders: list[PlaceholderOut] = []
@@ -188,6 +199,8 @@ class StaffTicketDetail(StaffTicketRow):
     clarifications: list[ClarificationOut]
     # The agent's reason when an agent turn handed this ticket to a person (F15).
     agent_handoff_reason: str | None = None
+    # What that turn called before it handed off, oldest first (F15 OQ-F15-13).
+    agent_steps: list[AgentStepOut] = []
     # The reporter's customer company and how its lookup went (F17 BR-F17-21).
     customer: TicketCustomerOut | None = None
     customer_lookup: CustomerLookup | None = None
@@ -195,6 +208,15 @@ class StaffTicketDetail(StaffTicketRow):
     @staticmethod
     def resolve_reporter_person(ticket: Ticket) -> PersonOut:
         return PersonOut(username=ticket.reporter.username, email=ticket.reporter.email)
+
+    @staticmethod
+    def resolve_agent_steps(ticket: Ticket) -> list[AgentStepOut]:
+        if ticket.agent_turn is None or ticket.agent_handoff_reason is None:
+            return []
+        return [
+            AgentStepOut(tool=s.tool, method=s.method, path=s.path, outcome=s.outcome)
+            for s in ticket.agent_turn.steps.order_by("seq")
+        ]
 
     @staticmethod
     def resolve_routing(ticket: Ticket) -> list[RoutingDecision]:

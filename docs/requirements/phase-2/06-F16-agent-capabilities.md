@@ -270,7 +270,7 @@ confirm. Review stays a second person's, with no agent tier.
 | FR-F16-007 | The tier wrapper shall refuse, with 409 `agent_action_conflicts`, a second action in the same turn on the same target when both carry `expected_version` |
 | FR-F16-008 | ai-engine's agent graph shall route `call_tool`'s `AWAITING_CONFIRMATION` back to `choose_action`. On a limit with pending actions it shall finish with outcome `awaiting_confirmation` and the limit as `stop_reason` |
 | FR-F16-009 | ai-engine's projections shall replace every person with a turn-stable handle (BR-F16-04). Tools with a person argument shall map a handle back before the call and refuse an unknown handle without calling |
-| FR-F16-010 | ai-engine shall add the tools in §h.1, and `agent.v3.md` shall describe them. `AGENT_PROMPT_VERSION` moves to `agent.v3` |
+| FR-F16-010 | ai-engine shall add the tools in §h.1, and `agent.v5.md` shall describe them. `AGENT_PROMPT_VERSION` moves to `agent.v5` |
 | FR-F16-011 | The chat and console shall render a turn's pending actions as one grouped card: a tick box per action, "Apply selected", "Cancel all", and each line's result |
 | FR-F16-012 | The F6 draft review page and the incident page shall show "Written with the assistant" on a draft or broadcast whose creating audit row has `via=agent` |
 | FR-F16-013 | Each new tool's receipt label and confirm-card text shall exist in the chat's and console's tool label maps (`AgentTurnView.tsx`, `lib/agent.ts`) |
@@ -283,8 +283,8 @@ confirm. Review stays a second person's, with no agent tier.
 | `agent_turns` | CHANGED | NEW `pending_actions` smallint, default 0 (what the card shows without a join) |
 | `audit_log` | CHANGED (payload only) | `agent_argument_refused` rows carry `guard` and `reason`; a raised tier's `agent_draft_created` row carries `raised_from` |
 | `thresholds.yaml` `agent:` | CHANGED | NEW `max_actions_per_turn` (🔧 3); bump the file's `version` (ADR-0044) |
-| `.env.example` | CHANGED | `AGENT_PROMPT_VERSION=agent.v3` |
-| ai-engine `core/prompts/agent.v3.md` | NEW | The F16 tools, handles, "propose several, each is confirmed on its own", and BR-F16-02's line for the chat |
+| `.env.example` | CHANGED | `AGENT_PROMPT_VERSION=agent.v5` |
+| ai-engine `core/prompts/agent.v5.md` | NEW | The F16 tools, handles, "propose several, each is confirmed on its own", and BR-F16-02's line for the chat |
 
 **Wire (both services, same PR — CLAUDE.md rule 4).** `AgentTurnResponse`
 and `AgentStep` are unchanged. `AgentLimits` gains
@@ -407,7 +407,7 @@ updates `agent_turns.pending_actions` when actions leave `pending`.
 | `agent/tools/tool.py` | `Context` gains the turn's handle map; `Tool` gains `person_args: tuple[str, ...]` (arguments that take a handle) |
 | `agent/tools/projection.py` | NEW `handle(username, context)`: `you`, or the turn's `person_N` |
 | `agent/tools/chat.py`, `console.py` | the §h.1 tools |
-| `core/prompts/agent.v3.md` | NEW; `agent.v1.md` and `agent.v2.md` kept, read-only |
+| `core/prompts/agent.v5.md` | NEW; `agent.v1.md` to `agent.v4.md` kept, read-only |
 
 ### h.7 Notifications
 
@@ -421,7 +421,7 @@ tickets and review items.
     target from the route.
   - The agent graph's confirm edge goes back to `choose_action`.
   - `agent_actions` gains `group_seq`; `agent_turns` gains `pending_actions`.
-  - The prompt goes to `agent.v3`, and 22 routes leave `none`.
+  - The prompt goes to `agent.v5`, and 22 routes leave `none`.
   - The chat and console confirm card becomes a grouped card.
 - **Must not change:**
   - The triage graph, `Router.route()` and every triage eval floor.
@@ -436,7 +436,7 @@ tickets and review items.
   (`thresholds.yaml` gets a new `version`); 0045 §9 (no access in ai-engine);
   0046 (every decision holds, as ADR-0047 says).
 - **Eval:** the trace suite gains AC-F16-01..08. The live agent eval is rerun
-  on `agent.v3` and compared with `agent.v2`'s reviewed baseline. Any drop in
+  on `agent.v5` and compared with `agent.v4`'s reviewed baseline. Any drop in
   tool-choice accuracy or rise in prose/receipt disagreement must be
   explained in `evals/HISTORY.md`.
 - **Regression tests:**
@@ -601,9 +601,9 @@ tests and stays behind the F15 flags.
 4. **Grouped actions:** `group_seq`, the limit and conflict checks, the graph
    edge, the grouped card in both UIs, the wire default.
 5. **Console tools** (lifecycle, SLA, teams, incidents) with their tiers,
-   `agent.v3`, and traces AC-F16-01..03, 05..08.
+   `agent.v5`, and traces AC-F16-01..03, 05..08.
 6. **KB tools** and the "Written with the assistant" label.
 7. **Chat tools** (notifications, department tickets) and AC-F16-04.
 8. **Report tools.**
 9. **Docs:** F16 in `status.md`, `TODO.md`, CLAUDE.md's Layout and "Where to
-   make a change"; the live eval on `agent.v3` (when asked to run it).
+   make a change"; the live eval on `agent.v5` (when asked to run it).

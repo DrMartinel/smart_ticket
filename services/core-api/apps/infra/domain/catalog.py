@@ -1,6 +1,7 @@
 """What a structured query may name (F17 FR-F17-003, ADR-0048 §4): the cloud's metrics and
 their labels, the range functions and aggregations, the log datasets and the log and trace
-fields, each for staff or for customers too (OQ-F17-07)."""
+fields, each for staff or for customers too (OQ-F17-07); and the functions and aggregations raw
+PromQL may use, for staff only (FR-F17-005, OQ-F17-05)."""
 
 from __future__ import annotations
 
@@ -26,6 +27,8 @@ class MetricKind(StrEnum):
 
 # The label every cloud series carries its project in; core-api sets it, a query never names it.
 PROJECT_LABEL = "project"
+# The label every server, volume and port series carries its project's name in.
+PROJECT_NAME_LABEL = "project_name"
 # The field every log line and span carries its project in, as the APM Server indexes cloud-sim's
 # `openstack.project_id` resource attribute.
 PROJECT_FIELD = "labels.openstack_project_id"
@@ -34,9 +37,9 @@ TIME_FIELD = "@timestamp"
 # The field a log line's text is in.
 MESSAGE_FIELD = "message"
 
-_SERVER = (PROJECT_LABEL, "project_name", "server_id", "server", "host")
-_VOLUME = (PROJECT_LABEL, "project_name", "volume_id", "volume", "server_id")
-_PORT = (PROJECT_LABEL, "project_name", "port_id", "network_id", "server_id", "server")
+_SERVER = (PROJECT_LABEL, PROJECT_NAME_LABEL, "server_id", "server", "host")
+_VOLUME = (PROJECT_LABEL, PROJECT_NAME_LABEL, "volume_id", "volume", "server_id")
+_PORT = (PROJECT_LABEL, PROJECT_NAME_LABEL, "port_id", "network_id", "server_id", "server")
 # Labels naming the provider's own machines: the hypervisor a server runs on.
 _STAFF_ONLY_LABELS = frozenset({"host"})
 
@@ -98,6 +101,63 @@ RANGE_FUNCTIONS = {
 }
 AGGREGATIONS = ("avg", "sum", "min", "max", "count")
 
+# The functions and aggregation operators raw PromQL may use; any other is refused.
+PROMQL_FUNCTIONS = (
+    "rate",
+    "irate",
+    "increase",
+    "delta",
+    "idelta",
+    "deriv",
+    "predict_linear",
+    "changes",
+    "resets",
+    "avg_over_time",
+    "min_over_time",
+    "max_over_time",
+    "sum_over_time",
+    "count_over_time",
+    "quantile_over_time",
+    "stddev_over_time",
+    "last_over_time",
+    "present_over_time",
+    "absent_over_time",
+    "absent",
+    "abs",
+    "ceil",
+    "floor",
+    "round",
+    "clamp",
+    "clamp_min",
+    "clamp_max",
+    "sqrt",
+    "exp",
+    "ln",
+    "log2",
+    "log10",
+    "sgn",
+    "histogram_quantile",
+    "scalar",
+    "vector",
+    "time",
+    "timestamp",
+    "sort",
+    "sort_desc",
+)
+PROMQL_AGGREGATIONS = (
+    "sum",
+    "avg",
+    "min",
+    "max",
+    "count",
+    "group",
+    "stddev",
+    "stdvar",
+    "topk",
+    "bottomk",
+    "quantile",
+)
+
 LOG_DATASETS = (
     Dataset("instance", "logs-apm.app*", "What the workloads on the servers log", False),
     Dataset("apm_errors", "logs-apm.error*", "Errors the APM agents report", True),
@@ -149,6 +209,8 @@ class Listing:
     log_datasets: list[DatasetEntry]
     log_fields: list[FieldEntry]
     trace_fields: list[FieldEntry]
+    promql_functions: list[str]
+    promql_aggregations: list[str]
     caps: dict[str, int]
 
 
@@ -204,6 +266,7 @@ class Catalog:
         return found
 
     def listing(self, caps: InfraThresholds) -> Listing:
+        staff = self.surface is Surface.STAFF
         return Listing(
             metrics=[
                 MetricEntry(m.name, m.kind.value, m.help, list(self.labels_of(m)))
@@ -214,5 +277,7 @@ class Catalog:
             log_datasets=[DatasetEntry(d.name, d.help) for d in self.datasets],
             log_fields=[FieldEntry(f.name, f.help) for f in LOG_FIELDS],
             trace_fields=[FieldEntry(f.name, f.help) for f in TRACE_FIELDS],
+            promql_functions=list(PROMQL_FUNCTIONS) if staff else [],
+            promql_aggregations=list(PROMQL_AGGREGATIONS) if staff else [],
             caps=caps.model_dump(),
         )

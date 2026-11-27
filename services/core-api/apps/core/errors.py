@@ -15,3 +15,7 @@ class CodedError(Exception):
         self.code = code
         self.message = message or code.value
         self.details = details
+
+
+class OutcomeUnknownError(CodedError):
+    """A change that was sent and whose answer was lost, so it may or may not have been made."""

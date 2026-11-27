@@ -1,7 +1,8 @@
-"""The infra read routes (F17 §h.1), split into two routers so every endpoint carries one
-permission: `/api/infra/*` for staff (`infra:read`, every project) and `/api/requester/infra/*`
-for customers (`infra:read:own`, only their Keystone projects); the customer routes
-(`infra:customers:manage`, F17 §o.9); and a ticket's cue routes under `/api/tickets/*`
+"""The infra routes (F17 §h.1), split into two routers so every endpoint carries one
+permission: `/api/infra/*` for staff (`infra:read` and `infra:operate`, every project) and
+`/api/requester/infra/*` for customers (`infra:read:own` and `infra:operate:own`, only their
+Keystone projects, where a person also records a resource they picked in the chat); the customer
+routes (`infra:customers:manage`, F17 §o.9); and a ticket's cue routes under `/api/tickets/*`
 (`infra:read`, for a ticket the caller reaches, F17 §o.9)."""
 
 import uuid
@@ -12,14 +13,23 @@ from ninja.errors import HttpError
 
 from apps.accounts.permissions import AgentTier, AuthedRequest, SessionAuth, require
 from apps.accounts.domain.catalog import Permission
+from apps.agent.models import AgentTargetKind
 from apps.infra.domain.catalog import Catalog, Listing, Surface
-from apps.infra.models import CueRun, Customer
+from apps.infra.models import CueRun, Customer, ResourcePick
 from apps.infra.request_schema import (
+    AttachVolumeIn,
     CueResourceIn,
     CustomerIn,
     CustomerPatch,
     LogSearchIn,
     MetricQueryIn,
+    MySoftRebootIn,
+    PromQLIn,
+    ResourcePickIn,
+    SecurityRuleIn,
+    SecurityRuleRemoveIn,
+    SoftRebootIn,
+    StaffChangeIn,
     TraceSearchIn,
 )
 from apps.infra.response_schema import (
@@ -28,11 +38,17 @@ from apps.infra.response_schema import (
     CueRunOut,
     CustomerListingOut,
     CustomerOut,
+    InfraChangeOut,
     LogAnswerOut,
     MetricAnswerOut,
     NetworkDetailOut,
     NetworkOut,
+    OwnLogAnswerOut,
+    OwnMetricAnswerOut,
+    OwnTraceAnswerOut,
     ProjectOut,
+    ResourcePickOut,
+    SecurityGroupDetailOut,
     ServerDetailOut,
     ServerOut,
     SilenceOut,
@@ -40,6 +56,7 @@ from apps.infra.response_schema import (
     TraceAnswerOut,
     VolumeOut,
 )
+from apps.infra.services.changes import ChangeDone, InfraChanges
 from apps.infra.services.cues import cues
 from apps.infra.services.customers import CustomerListing, customers
 from apps.infra.services.inventory import Inventory
@@ -49,7 +66,16 @@ from apps.infra.services.observability import (
     Observability,
     TraceAnswer,
 )
-from apps.infra.domain.resources import Alert, Network, Project, Server, Silence, Volume
+from apps.infra.domain.resources import (
+    Alert,
+    AlertResource,
+    Network,
+    Project,
+    SecurityGroup,
+    Server,
+    Silence,
+    Volume,
+)
 from apps.tickets.models import Ticket
 
 router = Router(tags=["infra"])
@@ -102,10 +128,21 @@ def get_network(request: AuthedRequest, network_id: str) -> Network:
     return Inventory.for_all(request.auth).network(network_id)
 
 
+@router.get("/security-groups/{group_id}", auth=SessionAuth(), response=SecurityGroupDetailOut)
+@require(Permission.INFRA_READ, agent=AgentTier.NONE)
+def get_security_group(request: AuthedRequest, group_id: str) -> SecurityGroup:
+    return Inventory.for_all(request.auth).security_group(group_id)
+
+
 @router.get("/alerts", auth=SessionAuth(), response=list[AlertOut])
 @require(Permission.INFRA_READ, agent=AgentTier.READ)
-def list_alerts(request: AuthedRequest, project_id: str | None = None) -> list[Alert]:
-    return Inventory.for_all(request.auth).alerts(project_id)
+def list_alerts(
+    request: AuthedRequest,
+    project_id: str | None = None,
+    resource_kind: AlertResource | None = None,
+    resource_id: str | None = None,
+) -> list[Alert]:
+    return Inventory.for_all(request.auth).alerts(project_id, resource_kind, resource_id)
 
 
 @router.get("/alerts/silences", auth=SessionAuth(), response=list[SilenceOut])
@@ -126,6 +163,12 @@ def query_metrics(request: AuthedRequest, body: MetricQueryIn) -> MetricAnswer:
     return Observability.for_all(request.auth).metrics(body.query(), body.project_id)
 
 
+@router.post("/metrics/promql", auth=SessionAuth(), response=MetricAnswerOut)
+@require(Permission.INFRA_READ, agent=AgentTier.READ)
+def run_promql(request: AuthedRequest, body: PromQLIn) -> MetricAnswer:
+    return Observability.for_all(request.auth).promql(body.query(), body.project_id)
+
+
 @router.post("/logs/search", auth=SessionAuth(), response=LogAnswerOut)
 @require(Permission.INFRA_READ, agent=AgentTier.READ)
 def search_logs(request: AuthedRequest, body: LogSearchIn) -> LogAnswer:
@@ -142,6 +185,70 @@ def search_traces(request: AuthedRequest, body: TraceSearchIn) -> TraceAnswer:
 @require(Permission.INFRA_READ, agent=AgentTier.READ)
 def get_trace(request: AuthedRequest, trace_id: str) -> TraceAnswer:
     return Observability.for_all(request.auth).trace(trace_id)
+
+
+@router.post("/servers/{server_id}/reboot", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE, agent=AgentTier.CONFIRM, target=AgentTargetKind.SERVER)
+def reboot_server(request: AuthedRequest, server_id: str, payload: SoftRebootIn) -> ChangeDone:
+    return InfraChanges.for_all(request.auth).reboot(
+        server_id, hard=False, public_id=payload.public_id
+    )
+
+
+@router.post("/servers/{server_id}/hard-reboot", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.SERVER)
+def hard_reboot_server(
+    request: AuthedRequest, server_id: str, payload: StaffChangeIn
+) -> ChangeDone:
+    return InfraChanges.for_all(request.auth).reboot(
+        server_id, hard=True, public_id=payload.public_id
+    )
+
+
+@router.post("/servers/{server_id}/start", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE, agent=AgentTier.CONFIRM, target=AgentTargetKind.SERVER)
+def start_server(request: AuthedRequest, server_id: str, payload: StaffChangeIn) -> ChangeDone:
+    return InfraChanges.for_all(request.auth).start(server_id, payload.public_id)
+
+
+@router.post("/servers/{server_id}/stop", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE, agent=AgentTier.CONFIRM, target=AgentTargetKind.SERVER)
+def stop_server(request: AuthedRequest, server_id: str, payload: StaffChangeIn) -> ChangeDone:
+    return InfraChanges.for_all(request.auth).stop(server_id, payload.public_id)
+
+
+@router.post("/volumes/{volume_id}/attach", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE, agent=AgentTier.CONFIRM, target=AgentTargetKind.VOLUME)
+def attach_volume(request: AuthedRequest, volume_id: str, payload: AttachVolumeIn) -> ChangeDone:
+    return InfraChanges.for_all(request.auth).attach(
+        volume_id, payload.server_id, payload.public_id
+    )
+
+
+@router.post("/volumes/{volume_id}/detach", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.VOLUME)
+def detach_volume(request: AuthedRequest, volume_id: str, payload: StaffChangeIn) -> ChangeDone:
+    return InfraChanges.for_all(request.auth).detach(volume_id, payload.public_id)
+
+
+@router.post("/security-groups/{group_id}/rules", auth=SessionAuth(), response=InfraChangeOut)
+@require(
+    Permission.INFRA_OPERATE, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.SECURITY_GROUP
+)
+def add_security_rule(request: AuthedRequest, group_id: str, payload: SecurityRuleIn) -> ChangeDone:
+    return InfraChanges.for_all(request.auth).add_rule(group_id, payload.rule(), payload.public_id)
+
+
+@router.delete("/security-groups/{group_id}/rules", auth=SessionAuth(), response=InfraChangeOut)
+@require(
+    Permission.INFRA_OPERATE, agent=AgentTier.HUMAN_ONLY, target=AgentTargetKind.SECURITY_GROUP
+)
+def remove_security_rule(
+    request: AuthedRequest, group_id: str, payload: SecurityRuleRemoveIn
+) -> ChangeDone:
+    return InfraChanges.for_all(request.auth).remove_rule(
+        group_id, payload.rule_id, payload.public_id
+    )
 
 
 # ── customers (`/api/infra/customers`) ──
@@ -257,25 +364,51 @@ def get_my_catalog(request: AuthedRequest) -> Listing:
     return Catalog(Surface.CUSTOMER).listing(settings.THRESHOLDS.infra)
 
 
-@requester_router.post("/metrics/query", auth=SessionAuth(), response=MetricAnswerOut)
+@requester_router.post("/metrics/query", auth=SessionAuth(), response=OwnMetricAnswerOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def query_my_metrics(request: AuthedRequest, body: MetricQueryIn) -> MetricAnswer:
     return Observability.for_own(request.auth).metrics(body.query(), body.project_id)
 
 
-@requester_router.post("/logs/search", auth=SessionAuth(), response=LogAnswerOut)
+@requester_router.post("/logs/search", auth=SessionAuth(), response=OwnLogAnswerOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def search_my_logs(request: AuthedRequest, body: LogSearchIn) -> LogAnswer:
     return Observability.for_own(request.auth).logs(body.query(), body.project_id)
 
 
-@requester_router.post("/traces/search", auth=SessionAuth(), response=TraceAnswerOut)
+@requester_router.post("/traces/search", auth=SessionAuth(), response=OwnTraceAnswerOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def search_my_traces(request: AuthedRequest, body: TraceSearchIn) -> TraceAnswer:
     return Observability.for_own(request.auth).traces(body.query(), body.project_id)
 
 
-@requester_router.get("/traces/{trace_id}", auth=SessionAuth(), response=TraceAnswerOut)
+@requester_router.get("/traces/{trace_id}", auth=SessionAuth(), response=OwnTraceAnswerOut)
 @require(Permission.INFRA_READ_OWN, agent=AgentTier.READ)
 def get_my_trace(request: AuthedRequest, trace_id: str) -> TraceAnswer:
     return Observability.for_own(request.auth).trace(trace_id)
+
+
+@requester_router.post("/picks", auth=SessionAuth(), response=ResourcePickOut)
+@require(Permission.INFRA_READ_OWN, agent=AgentTier.NONE)
+def pick_resource(request: AuthedRequest, payload: ResourcePickIn) -> ResourcePick:
+    return cues.pick(
+        request.auth, payload.conversation_id, payload.turn_id, payload.kind, payload.resource_id
+    )
+
+
+@requester_router.post("/servers/{server_id}/reboot", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE_OWN, agent=AgentTier.CONFIRM, target=AgentTargetKind.SERVER)
+def reboot_my_server(request: AuthedRequest, server_id: str, payload: MySoftRebootIn) -> ChangeDone:
+    return InfraChanges.for_own(request.auth).reboot(server_id, hard=False)
+
+
+@requester_router.post("/servers/{server_id}/start", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE_OWN, agent=AgentTier.CONFIRM, target=AgentTargetKind.SERVER)
+def start_my_server(request: AuthedRequest, server_id: str) -> ChangeDone:
+    return InfraChanges.for_own(request.auth).start(server_id)
+
+
+@requester_router.post("/servers/{server_id}/stop", auth=SessionAuth(), response=InfraChangeOut)
+@require(Permission.INFRA_OPERATE_OWN, agent=AgentTier.CONFIRM, target=AgentTargetKind.SERVER)
+def stop_my_server(request: AuthedRequest, server_id: str) -> ChangeDone:
+    return InfraChanges.for_own(request.auth).stop(server_id)

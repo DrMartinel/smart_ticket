@@ -48,6 +48,8 @@ MODELS = [
     "ChatTurnOut",
     "AgentTurnIn",
     "AgentReceiptOut",
+    "AgentChoiceOut",
+    "AgentNeedsStaffOut",
     "AgentTurnOut",
     "AgentConversationOut",
     "AgentConversationSummaryOut",
@@ -63,6 +65,7 @@ MODELS = [
     "ClarificationOut",
     "PlaceholderOut",
     "TicketCustomerOut",
+    "AgentStepOut",
     "StaffTicketDetail",
     "RevealOut",
     "AccessLogRowOut",
@@ -223,6 +226,7 @@ MODELS = [
     "PortOut",
     "RuleOut",
     "SecurityGroupOut",
+    "SecurityGroupDetailOut",
     "NetworkOut",
     "NetworkDetailOut",
     "AlertOut",
@@ -233,14 +237,27 @@ MODELS = [
     "FieldEntryOut",
     "CatalogOut",
     "SeriesOut",
+    "OwnMetricAnswerOut",
     "MetricAnswerOut",
     "LogLineOut",
+    "OwnLogAnswerOut",
     "LogAnswerOut",
     "SpanOut",
+    "OwnTraceAnswerOut",
     "TraceAnswerOut",
+    "InfraQuerySentOut",
+    "InfraQueryReceiptOut",
     "MetricQueryIn",
+    "PromQLIn",
     "LogSearchIn",
     "TraceSearchIn",
+    "StaffChangeIn",
+    "SoftRebootIn",
+    "MySoftRebootIn",
+    "AttachVolumeIn",
+    "SecurityRuleIn",
+    "SecurityRuleRemoveIn",
+    "InfraChangeOut",
     "CustomerIn",
     "CustomerPatch",
     "CustomerOut",
@@ -251,6 +268,8 @@ MODELS = [
     "TicketResourceOut",
     "CueRunOut",
     "TicketCuesOut",
+    "ResourcePickIn",
+    "ResourcePickOut",
     "BranchReadinessOut",
     "AutomationOut",
     "RolloutReportOut",
@@ -520,9 +539,11 @@ def main() -> None:
 
     chunks.append(emit_enum("ReasonCode", [code.value for code in ReasonCode]))
 
+    from apps.accounts.models import Language
     from apps.agent import models as agent_models
 
     for enum in (
+        Language,
         agent_models.AgentSurface,
         agent_models.AgentTurnState,
         agent_models.AgentConversationState,
@@ -531,16 +552,39 @@ def main() -> None:
     ):
         chunks.append(emit_enum(enum.__name__, [member.value for member in enum]))
 
-    from apps.infra.domain.vocabulary import CueRunOutcome, CueStatus, ResourceKind, ResourceSource
-    from apps.infra.models import CustomerLookup, CustomerTier
+    from apps.infra.domain.changes import InfraChange, InfraResource
+    from apps.infra.domain.resources import AlertResource
+    from apps.infra.domain.vocabulary import (
+        CueRunOutcome,
+        CueStatus,
+        InfraRefusal,
+        QueryCheck,
+        ResourceKind,
+        ResourceSource,
+    )
+    from apps.infra.models import (
+        CustomerLookup,
+        CustomerTier,
+        InfraBackend,
+        InfraOutcome,
+        InfraQueryKind,
+    )
 
     for infra_enum in (
         CustomerTier,
         CustomerLookup,
+        InfraChange,
+        InfraResource,
         CueRunOutcome,
         CueStatus,
         ResourceKind,
         ResourceSource,
+        AlertResource,
+        InfraBackend,
+        InfraQueryKind,
+        InfraOutcome,
+        InfraRefusal,
+        QueryCheck,
     ):
         chunks.append(emit_enum(infra_enum.__name__, [m.value for m in infra_enum]))
 
