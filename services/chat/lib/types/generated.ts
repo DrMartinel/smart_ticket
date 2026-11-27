@@ -647,6 +647,54 @@ export interface CategoryPatch {
   reason?: string;
 }
 
+export interface WorkflowRuleOut {
+  id: string;
+  order: number;
+  category: string | null;
+  branch: string | null;
+  priority: string | null;
+  workflow_id: string;
+  workflow_name: string;
+  is_active: boolean;
+  changed_by: string | null;
+  change_reason: string;
+  updated_at: string;
+}
+
+export interface WorkflowRulePreviewOut {
+  workflow_id: string | null;
+  workflow_name: string | null;
+  selected_by: string;
+  rule_id: string | null;
+}
+
+export interface WorkflowRuleIn {
+  category?: string | null;
+  branch?: Branch | null;
+  priority?: Priority | null;
+  workflow_id: string;
+  is_active?: boolean;
+  reason?: string;
+}
+
+export interface WorkflowRulePatch {
+  category?: string | null;
+  branch?: Branch | null;
+  priority?: Priority | null;
+  workflow_id?: string | null;
+  is_active?: boolean | null;
+  reason?: string;
+}
+
+export interface WorkflowRuleReorderIn {
+  ids: string[];
+  reason?: string;
+}
+
+export interface WorkflowRuleDeleteIn {
+  reason?: string;
+}
+
 export interface TeamOut {
   slug: string;
   name: string;

@@ -16,15 +16,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { P, can } from "@/lib/permissions";
-
-interface Workflow {
-  id: string;
-  name: string;
-  description: string;
-  transition_policy: "strict" | "open";
-  is_default: boolean;
-  updated_at: string;
-}
+import type { Workflow } from "@/lib/lifecycle";
+import WorkflowRules from "@/components/workflow/WorkflowRules";
 
 export default function WorkflowsPage() {
   const user = useRequireAuth();
@@ -137,6 +130,8 @@ export default function WorkflowsPage() {
           </Table>
         </Card>
       )}
+
+      {workflows && <WorkflowRules workflows={workflows} canEdit={canEdit} />}
     </Page>
   );
 }

@@ -36,6 +36,7 @@ CATEGORY_COLUMNS = {
     ("team_reassignments", "from_category"),
     ("team_reassignments", "to_category"),
     ("report_ticket_facts", "category"),
+    ("workflow_rules", "category"),
 }
 
 

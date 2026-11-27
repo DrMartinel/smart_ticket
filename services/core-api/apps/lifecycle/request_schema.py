@@ -10,6 +10,8 @@ from pydantic import StringConstraints, field_validator, model_validator
 
 from apps.lifecycle.domain.rules import EventCode, FieldType, RuleCode
 from apps.lifecycle.domain.vocabulary import ActionCode, Position, StatusKind, TransitionPolicy
+from apps.sla.models import Priority
+from apps.tickets.domain.router import Branch
 
 COLOR = r"^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$"
 Point = Literal["1", "2", "3", "4", "5", "6", "7", "8"]
@@ -196,3 +198,40 @@ class CallbackIn(In):
     success: bool
     message: str = Field(default="", max_length=2000)
     output: dict[str, Any] | None = None
+
+
+# ── workflow rules (ADR-0055) ──
+
+Reason = Annotated[str, StringConstraints(max_length=500)]
+CategoryKey = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
+
+
+class WorkflowRuleIn(In):
+    """A new workflow rule; a key left out or null matches any."""
+
+    category: CategoryKey | None = None
+    branch: Branch | None = None
+    priority: Priority | None = None
+    workflow_id: uuid.UUID
+    is_active: bool = True
+    reason: Reason = ""
+
+
+class WorkflowRulePatch(In):
+    """A change to a workflow rule; a key sent as null matches any, one left out is kept."""
+
+    category: CategoryKey | None = None
+    branch: Branch | None = None
+    priority: Priority | None = None
+    workflow_id: uuid.UUID | None = None
+    is_active: bool | None = None
+    reason: Reason = ""
+
+
+class WorkflowRuleReorderIn(In):
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+    reason: Reason = ""
+
+
+class WorkflowRuleDeleteIn(In):
+    reason: Reason = ""

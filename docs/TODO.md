@@ -807,3 +807,19 @@ The chat shows three outcomes, the agent asks for missing context and asks the h
 
 The owner has decided each of the three, and the decisions are recorded in
 an ADR that amends or supersedes 0051.
+
+## 29. Workflow rules: what ADR-0055 leaves (ADR-0055)
+
+**Priority:** Low · **ADR:** [0055](adr/0055-workflow-rules-choose-a-ticket-s-workflow.md) (Proposed; the owner answered all four questions 2026-11-28)
+
+### Work
+
+1. Mark ADR-0055 Accepted once the owner has looked at the build.
+2. Route a ticket through the full stack with a rule on, at both handoffs, and check the transfer's audit row (`selected_by`, branch, priority). Only unit tests and a console check on an empty database have run.
+3. If ADR-0050 removes `clarify`, a rule on that branch never matches again: refuse new ones and list the old ones for a workflow admin.
+4. The rule checks run when a rule is saved, as part 3's do: a later edit that makes its workflow strict with no way out, or deactivates its category, is not checked again.
+
+### Done when
+
+A rule has chosen a real ticket's workflow at both handoffs, and a rule can't be left pointing at a branch or category that no longer reaches a handoff.
+

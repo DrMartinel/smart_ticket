@@ -24,6 +24,12 @@ WITHDRAWN_SINCE_SNAPSHOT = {
 ADDED_SINCE_SNAPSHOT: dict[str, Permission] = {
     "GET /api/categories": Permission.CATEGORIES_READ,
     "PATCH /api/categories/{slug}": Permission.CATEGORIES_MANAGE,
+    "GET /api/lifecycle/workflow-rules": Permission.WORKFLOWS_READ,
+    "POST /api/lifecycle/workflow-rules": Permission.WORKFLOWS_MANAGE,
+    "GET /api/lifecycle/workflow-rules/preview": Permission.WORKFLOWS_READ,
+    "POST /api/lifecycle/workflow-rules/reorder": Permission.WORKFLOWS_MANAGE,
+    "PATCH /api/lifecycle/workflow-rules/{rule_id}": Permission.WORKFLOWS_MANAGE,
+    "DELETE /api/lifecycle/workflow-rules/{rule_id}": Permission.WORKFLOWS_MANAGE,
     "POST /api/rollout/off": Permission.ROLLOUT_FLAG_OFF,
     "PUT /api/accounts/people/{username}/base-role": Permission.ACCESS_GRANT,
     "GET /api/access/holders": Permission.ACCESS_READ,

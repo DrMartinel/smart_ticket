@@ -1,7 +1,8 @@
 """
 Workflow configuration (workflows, statuses, transitions,
-custom fields, rules, events, actions) and the lifecycle's runtime records
-(transfers, action runs, approvals). ADR-0028.
+custom fields, rules, events, actions), the rules that choose a ticket's
+workflow at handoff, and the lifecycle's runtime records (transfers, action
+runs). ADR-0028, ADR-0055.
 """
 
 from __future__ import annotations
@@ -43,6 +44,7 @@ _PIPELINE_KEYS = frozenset(s.value for s in PipelineStatus)
 _TRIAGE_KEYS = frozenset(s.value for s in TRIAGE_STATUSES)
 _HANDOFF_KEYS = frozenset(s.value for s in HANDOFF_STATUSES)
 _POINTS = [(str(i), str(i)) for i in range(1, 9)]
+_PRIORITIES = [(p, p) for p in ("P1", "P2", "P3", "P4")]
 
 
 class WorkflowManager(models.Manager["Workflow"]):
@@ -281,6 +283,67 @@ class WorkflowAction(BaseModel):
                 name="chk_workflow_action_one_owner",
             ),
         ]
+
+
+class WorkflowRuleQuerySet(QuerySet["WorkflowRule"]):
+    def in_order(self) -> WorkflowRuleQuerySet:
+        """Every rule, in the order they are tried."""
+        return self.select_related("workflow", "changed_by").order_by("order")
+
+    def next_order(self) -> int:
+        """The order a rule added now takes: after every other one."""
+        last = self.aggregate(last=models.Max("order"))["last"]
+        return 1 if last is None else last + 1
+
+
+class WorkflowRule(BaseModel):
+    """Chooses `workflow` for a ticket handed off with this category, branch and priority; a null
+    key matches any (ADR-0055)."""
+
+    order = models.PositiveIntegerField()
+    category = models.ForeignKey(
+        "categories.Category",
+        to_field="slug",
+        db_column="category",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="workflow_rules",
+    )
+    branch = models.CharField(max_length=20, null=True, blank=True)
+    priority = models.CharField(max_length=2, null=True, blank=True, choices=_PRIORITIES)
+    workflow = models.ForeignKey(Workflow, on_delete=models.PROTECT, related_name="rules")
+    is_active = models.BooleanField(default=True)
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    change_reason = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = WorkflowRuleQuerySet.as_manager()
+
+    class Meta(BaseModel.Meta):
+        db_table = "workflow_rules"
+        ordering = ["order"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["order"],
+                name="uq_workflow_rule_order",
+                deferrable=models.Deferrable.DEFERRED,
+            ),
+        ]
+
+    def matches(self, category: str | None, branch: str | None, priority: str | None) -> bool:
+        """Whether every key this rule sets equals the ticket's."""
+        return all(
+            key is None or key == value
+            for key, value in (
+                (self.category_id, category),
+                (self.branch, branch),
+                (self.priority, priority),
+            )
+        )
 
 
 class TicketFieldValue(BaseModel):

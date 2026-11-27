@@ -258,6 +258,14 @@ class WorkflowConfig:
                 "categories move their tickets into this workflow",
                 details={"categories": categories},
             )
+        rules = [str(i) for i in workflow.rules.values_list("id", flat=True)]
+        if rules:
+            raise LifecycleError(
+                409,
+                FailureCode.WORKFLOW_IN_USE,
+                "workflow rules choose this workflow",
+                details={"rules": rules},
+            )
         self.audit("workflow_deleted", workflow, actor)
         workflow.delete()
 

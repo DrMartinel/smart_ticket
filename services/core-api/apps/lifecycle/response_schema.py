@@ -8,7 +8,7 @@ from typing import Any
 
 from ninja import Schema
 
-from apps.lifecycle.models import Transfer, TicketFieldValue
+from apps.lifecycle.models import Transfer, TicketFieldValue, WorkflowRule
 from apps.lifecycle.domain.resolver import MoveOption
 
 
@@ -261,3 +261,39 @@ class ViolationOut(Schema):
 class ValidationOut(Schema):
     valid: bool
     violations: list[ViolationOut]
+
+
+class WorkflowRuleOut(Schema):
+    id: uuid.UUID
+    order: int
+    category: str | None
+    branch: str | None
+    priority: str | None
+    workflow_id: uuid.UUID
+    workflow_name: str
+    is_active: bool
+    changed_by: str | None
+    change_reason: str
+    updated_at: datetime
+
+    @staticmethod
+    def resolve_category(rule: WorkflowRule) -> str | None:
+        return rule.category_id
+
+    @staticmethod
+    def resolve_workflow_name(rule: WorkflowRule) -> str:
+        return rule.workflow.name
+
+    @staticmethod
+    def resolve_changed_by(rule: WorkflowRule) -> str | None:
+        return rule.changed_by.username if rule.changed_by else None
+
+
+class WorkflowRulePreviewOut(Schema):
+    """The workflow the rules would choose, none to stay in the current one; `selected_by` is a
+    rule's id, `category`, `default` or `current`."""
+
+    workflow_id: uuid.UUID | None
+    workflow_name: str | None
+    selected_by: str
+    rule_id: uuid.UUID | None
