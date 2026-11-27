@@ -289,8 +289,10 @@ guard and that comment is later trimmed, the entry is the record.
   `.branch`.** A held-back decision (ADR-0051) still says `auto_route` or
   `auto_reply` though a reviewer handled the ticket; read raw, an `auto_route`
   rule would catch reviewed tickets and a `hitl` rule would miss them, with no
-  error (ADR-0055).
-  *`test_a_held_back_auto_route_a_reviewer_hands_off_matches_as_hitl`.*
+  error (ADR-0055). Only those two: a held-back `clarify` goes to the
+  clarification queue like any other, so it keeps its branch.
+  *`test_a_held_back_auto_route_a_reviewer_hands_off_matches_as_hitl`,
+  `test_a_held_back_clarify_keeps_its_branch`.*
 - **Take checking `expected_version` and raising `tickets.version`.** Two people
   clicking Take on the same row both see an unowned ticket; only the version
   makes the second one a 409 `already_assigned`. *`test_two_takes_one_winner`.*

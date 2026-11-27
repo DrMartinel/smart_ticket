@@ -800,9 +800,10 @@ class RoutingDecision(BaseModel):
         return flag is not None and self.rollout_snapshot.get(flag.value) != FlagState.ON.value
 
     def handed_off_as(self) -> str:
-        """The branch its ticket took to people: `hitl` when it was held back, else its own
-        (ADR-0055)."""
-        return Branch.HITL.value if self.was_held_back() else self.branch
+        """The branch its ticket took to people: `hitl` for an automatic route or reply that was
+        held back, else its own (ADR-0055)."""
+        automatic = self.branch in (Branch.AUTO_ROUTE.value, Branch.AUTO_REPLY.value)
+        return Branch.HITL.value if automatic and self.was_held_back() else self.branch
 
 
 class TicketClarification(BaseModel):

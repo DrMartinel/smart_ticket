@@ -235,8 +235,8 @@ export default function WorkflowRules({ workflows, canEdit }: { workflows: Workf
           <h2 className="font-display text-lg font-semibold">Which workflow</h2>
           <p className="max-w-3xl text-sm text-muted-foreground">
             When a ticket is handed to people, the first active rule that matches its category, how it was handed off and its
-            priority chooses its workflow. No match: the category&apos;s workflow, else the default. A ticket a reviewer
-            handled because its branch was held back counts as sent to a person. A ticket already in a workflow is never
+            priority chooses its workflow. No match: the category&apos;s workflow, else the default. An automatic route or
+            reply that was held back for a reviewer counts as sent to a person. A ticket already in a workflow is never
             moved by a later change.
           </p>
         </div>

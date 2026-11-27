@@ -824,7 +824,7 @@ class Lifecycle:
                 locked = Ticket.objects.select_for_update().get(pk=ticket.pk)
                 decision = locked.routing_decisions.order_by("-decided_at").first()
                 branch = decision.handed_off_as() if decision is not None else None
-                held_back = decision is not None and decision.was_held_back()
+                held_back = decision is not None and branch != decision.branch
                 selection = self.choose_workflow(category, branch, locked.priority)
                 if selection.workflow_id is None:
                     return

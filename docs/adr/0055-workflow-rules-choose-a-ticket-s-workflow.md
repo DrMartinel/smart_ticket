@@ -146,8 +146,9 @@ One PR (phase-2 work gets one PR each), one commit per step.
   for the preview only.
 - **The engine.** `enter_handoff_workflow(ticket, category, actor=…)` reads
   the branch of the ticket's latest `routing_decisions` row
-  (`RoutingDecision.handed_off_as()`: `hitl` when the decision was held
-  back, ADR-0051, since a reviewer handled the ticket) and the priority from
+  (`RoutingDecision.handed_off_as()`: `hitl` for an automatic route or reply
+  that was held back, ADR-0051, since a reviewer handled the ticket; a
+  held-back `clarify` takes the same path as any other and keeps its branch) and the priority from
   the row it locks, so the priority is the one the SLA clocks set when the
   ticket entered the handoff status. A reviewer's category correction does
   not change that priority. A handoff with no category and no matching rule

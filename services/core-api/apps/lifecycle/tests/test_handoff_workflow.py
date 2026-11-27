@@ -20,7 +20,7 @@ from apps.rollout.services.rollout import rollout
 from apps.rollout.testing import flags_off
 from apps.sla.services.clocks import initial_priority
 from apps.teams.models import Team
-from apps.tickets.domain.router import Branch, ReasonCode
+from apps.tickets.domain.router import Branch, ReasonCode, ReviewQueue
 from apps.tickets.domain.router import RoutingDecision as Decision
 from apps.tickets.models import RoutingDecision, Ticket
 from apps.tickets.services.pipeline import _execute_or_enqueue
@@ -232,4 +232,22 @@ def test_a_failed_move_keeps_what_chose_the_workflow_in_its_audit_row(
         "error",
         "RuntimeError",
         str(rule.id),
+    )
+
+
+def test_a_held_back_clarify_keeps_its_branch(employee_user, technician_user, strict: StrictFlow):
+    flags_off(FlagBranch.REQUESTER_QUESTIONS)
+    add_rule(Workflow.objects.default(), branch=Branch.HITL.value)
+    asked = add_rule(strict.workflow, order=2, branch=Branch.CLARIFY.value)
+    ticket = make_ticket(employee_user)
+    decided(ticket, Branch.CLARIFY)
+
+    approve(review_item(ticket, queue=ReviewQueue.CLARIFICATION), technician_user)
+
+    assert workflow_of(ticket) == strict.workflow
+    payload = moved_audit(ticket)
+    assert (payload["selected_by"], payload["branch"], payload["held_back"]) == (
+        str(asked.id),
+        "clarify",
+        False,
     )
