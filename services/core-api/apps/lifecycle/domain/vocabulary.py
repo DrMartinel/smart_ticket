@@ -43,6 +43,13 @@ class CategoryWorkflowSkip(StrEnum):
     ERROR = "error"
 
 
+class Fallback(StrEnum):
+    """What chose a ticket's workflow when no rule matched (ADR-0055)."""
+
+    CATEGORY = "category"
+    DEFAULT = "default"
+
+
 class StatusKind(StrEnum):
     """What a workflow status means to the SLA, workload and resolution."""
 
