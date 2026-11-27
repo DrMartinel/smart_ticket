@@ -84,7 +84,7 @@ class ReviewDecisions:
             if category != before:
                 ticket.category = category
                 ticket.save(update_fields=["category"])
-            lifecycle.enter_category_workflow(ticket, category, actor=reviewer)
+            lifecycle.enter_handoff_workflow(ticket, category, actor=reviewer)
             assignment.assign_after_handoff(
                 ticket, AssignmentTrigger.REVIEW, category=category, actor=reviewer
             )

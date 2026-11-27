@@ -72,7 +72,7 @@ def test_a_ticket_in_the_default_workflow_stays_when_its_category_names_none(emp
     ticket = make_ticket(employee_user)
     before = ticket.workflow_status
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     assert reload(ticket).workflow_status == before
     assert skipped() == []
@@ -81,7 +81,7 @@ def test_a_ticket_in_the_default_workflow_stays_when_its_category_names_none(emp
 def test_no_category_leaves_the_ticket_in_its_workflow(employee_user, strict: StrictFlow):
     ticket = put_in(make_ticket(employee_user), strict.review)
 
-    lifecycle.enter_category_workflow(ticket, None, actor=None)
+    lifecycle.enter_handoff_workflow(ticket, None, actor=None)
 
     assert reload(ticket).workflow_status == strict.review
     assert skipped() == []
@@ -93,7 +93,7 @@ def test_a_ticket_enters_the_categorys_workflow_at_the_same_pipeline_status(
     give("network", strict.workflow)
     ticket = make_ticket(employee_user, at=PipelineStatus.AUTO_ROUTED)
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     target = status_of(strict.workflow, "auto_routed")
     assert reload(ticket).workflow_status == target
@@ -117,7 +117,7 @@ def test_a_ticket_keeps_its_field_values_of_the_same_name_and_type(
     ticket = make_ticket(employee_user)
     field_values.write_by_name(ticket, {"Vendor": "Acme", "Room": "4.12"}, depth=0)
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     assert field_values.by_name(ticket) == {"Vendor": "Acme"}
     audit = AuditLog.objects.filter(ticket_id=ticket.id, event="ticket_status_changed").latest(
@@ -135,7 +135,7 @@ def test_a_ticket_a_person_already_moved_stays_in_its_workflow(
     assert waiting.pauses_sla
     ticket = put_in(make_ticket(employee_user), waiting)
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=manager_user)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=manager_user)
 
     assert reload(ticket).workflow_status == waiting
     [payload] = skipped()
@@ -159,7 +159,7 @@ def test_a_failed_move_is_audited_and_leaves_the_ticket_where_it_is(
 
     monkeypatch.setattr(field_values, "carry_over", boom)
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     assert reload(ticket).workflow_status == before
     assert ticket.workflow_status == before
@@ -180,7 +180,7 @@ def test_a_move_that_fails_after_writing_leaves_no_part_of_it_behind(
 
     monkeypatch.setattr(sla_clocks, "on_status_entered", boom)
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     assert reload(ticket).workflow_status == before
     assert ticket.workflow_status == before, "the caller's instance is not moved"
@@ -192,7 +192,7 @@ def test_an_escalated_ticket_enters_the_categorys_workflow(employee_user, strict
     give("network", strict.workflow)
     ticket = make_ticket(employee_user, at=PipelineStatus.ESCALATED)
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     assert reload(ticket).workflow_status == status_of(strict.workflow, "escalated")
 
@@ -202,7 +202,7 @@ def test_a_ticket_with_a_move_running_stays_put_and_is_audited(employee_user, st
     ticket = make_ticket(employee_user)
     Ticket.objects.filter(pk=ticket.pk).update(waiting_transform=True)
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     assert workflow_of(ticket) == Workflow.objects.default()
     assert [p["reason"] for p in skipped()] == ["a_move_is_running"]
@@ -211,10 +211,10 @@ def test_a_ticket_with_a_move_running_stays_put_and_is_audited(employee_user, st
 def test_a_ticket_already_in_the_workflow_is_not_moved_again(employee_user, strict: StrictFlow):
     give("network", strict.workflow)
     ticket = make_ticket(employee_user)
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
     moves = Transfer.objects.filter(ticket=ticket).count()
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     assert Transfer.objects.filter(ticket=ticket).count() == moves
     assert skipped() == []
@@ -227,7 +227,7 @@ def test_a_workflow_that_lost_a_pipeline_status_gets_it_back(employee_user, mana
     give("network", workflow)
     ticket = make_ticket(employee_user)
 
-    lifecycle.enter_category_workflow(ticket, "network", actor=None)
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
 
     assert reload(ticket).workflow_status == status_of(workflow, "pending_review")
 
