@@ -22,6 +22,7 @@ from apps.agent.models import (
     AgentConversation,
     AgentConversationEnd,
     AgentStep,
+    AgentSurface,
     AgentTurn,
     AgentTurnState,
 )
@@ -1145,6 +1146,20 @@ def test_a_step_beyond_the_turn_s_steps_is_refused(employee_user, settings):
     assert (beyond.status_code, beyond.json()["code"]) == (429, "agent_tool_limit")
     assert last.status_code == 200
     assert AgentTurn.objects.get().read_calls == 1
+
+
+@pytest.mark.django_db
+def test_a_console_step_beyond_the_console_s_steps_is_refused(technician_user, settings):
+    _agent_caps(settings, max_steps=3, console_max_steps=5)
+    client = as_agent(technician_user, tool="list_my_tickets", step=4)
+    AgentConversation.objects.update(surface=AgentSurface.CONSOLE.value)
+
+    within = client.get("/api/requester/tickets")
+    client.defaults["HTTP_X_AGENT_STEP"] = "6"
+    beyond = client.get("/api/requester/tickets")
+
+    assert within.status_code == 200
+    assert (beyond.status_code, beyond.json()["code"]) == (429, "agent_tool_limit")
 
 
 # ── agent.sweep (FR-F15-019) ──

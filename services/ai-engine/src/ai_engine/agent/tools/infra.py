@@ -16,9 +16,8 @@ from pydantic import AwareDatetime, Field
 
 from ai_engine.agent.tools.chat import nothing
 from ai_engine.agent.tools.console import drafted
-from ai_engine.agent.tools.projection import WITHHELD, person, ref, untrusted
+from ai_engine.agent.tools.projection import WITHHELD, person, ref, screened, untrusted
 from ai_engine.agent.tools.tool import Context, PublicIdIn, Tier, Tool, ToolInput
-from ai_engine.graph.nodes.injection_patterns import matches
 
 ResourceId = Annotated[
     str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -34,8 +33,8 @@ _LABEL_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 def plain(value: str) -> bool:
     """Whether a name the cloud holds may be shown as it is: it has a plain name's shape and the
-    injection screen finds nothing in it."""
-    return bool(_PLAIN_NAME.fullmatch(value)) and not matches(value)
+    text is not `screened`."""
+    return bool(_PLAIN_NAME.fullmatch(value)) and not screened(value)
 
 
 def cloud_text(text: str | None) -> dict[str, str] | str | None:
@@ -53,10 +52,14 @@ def cloud_name(value: Any) -> Any:
 
 def cloud_labels(mapping: dict[str, Any] | None) -> dict[str, Any] | None:
     """Labels the cloud holds, each value as `cloud_name` shows it; only label names Prometheus
-    allows."""
+    allows and the injection screen passes."""
     if mapping is None:
         return None
-    return {key: cloud_name(value) for key, value in mapping.items() if _LABEL_NAME.fullmatch(key)}
+    return {
+        key: cloud_name(value)
+        for key, value in mapping.items()
+        if _LABEL_NAME.fullmatch(key) and not screened(key)
+    }
 
 
 def cloud_pairs(mapping: dict[str, Any] | None) -> list[dict[str, str] | str | None]:
@@ -84,7 +87,7 @@ def resource_ref(context: Context, kind: str, row: dict[str, Any]) -> dict[str, 
 def project(row: Any, context: Context) -> dict[str, Any]:
     return {
         **resource_ref(context, "project", row),
-        "id": row.get("id"),
+        "id": cloud_name(row.get("id")),
         "name": cloud_name(row.get("name")),
     }
 
@@ -97,9 +100,9 @@ def projects(body: Any, context: Context) -> list[dict[str, Any]]:
 def attachments(rows: list[Any] | None) -> list[dict[str, Any]]:
     return [
         {
-            "volume_id": a.get("volume_id"),
-            "server_id": a.get("server_id"),
-            "device": a.get("device"),
+            "volume_id": cloud_name(a.get("volume_id")),
+            "server_id": cloud_name(a.get("server_id")),
+            "device": cloud_name(a.get("device")),
         }
         for a in rows or []
     ]
@@ -111,19 +114,13 @@ def server(row: Any, context: Context) -> dict[str, Any]:
         **resource_ref(context, "server", row),
         **{
             name: row.get(name)
-            for name in (
-                "id",
-                "project_id",
-                "status",
-                "task_state",
-                "vcpus",
-                "ram_mb",
-                "volume_ids",
-                "created",
-                "updated",
-            )
+            for name in ("status", "task_state", "vcpus", "ram_mb", "created", "updated")
         },
-        **{name: cloud_name(row.get(name)) for name in ("name", "host", "flavor")},
+        **{
+            name: cloud_name(row.get(name))
+            for name in ("id", "project_id", "name", "host", "flavor")
+        },
+        "volume_ids": [cloud_name(v) for v in row.get("volume_ids") or []],
         "security_groups": [cloud_name(g) for g in row.get("security_groups") or []],
         "addresses": [
             {"network": cloud_name(a.get("network")), "ip": a.get("ip")}
@@ -146,8 +143,8 @@ def volume(row: Any, context: Context) -> dict[str, Any]:
     """A volume: its state, size, type and attachments, with its text untrusted."""
     return {
         **resource_ref(context, "volume", row),
-        **{name: row.get(name) for name in ("id", "project_id", "status", "size_gb", "created")},
-        **{name: cloud_name(row.get(name)) for name in ("name", "volume_type")},
+        **{name: row.get(name) for name in ("status", "size_gb", "created")},
+        **{name: cloud_name(row.get(name)) for name in ("id", "project_id", "name", "volume_type")},
         "attachments": attachments(row.get("attachments")),
         "description": cloud_text(row.get("description")),
         "metadata": cloud_pairs(row.get("metadata")),
@@ -161,7 +158,7 @@ def volumes(body: Any, context: Context) -> list[dict[str, Any]]:
 
 def security_group(row: Any) -> dict[str, Any]:
     return {
-        "id": row.get("id"),
+        "id": cloud_name(row.get("id")),
         "name": cloud_name(row.get("name")),
         "description": cloud_text(row.get("description")),
         "rules": [
@@ -186,22 +183,26 @@ def network(row: Any, context: Context) -> dict[str, Any]:
     """A network, and on its own page its subnets, ports and its project's security groups."""
     shown = {
         **resource_ref(context, "network", row),
-        **{name: row.get(name) for name in ("id", "project_id", "status")},
-        "name": cloud_name(row.get("name")),
+        "status": row.get("status"),
+        **{name: cloud_name(row.get(name)) for name in ("id", "project_id", "name")},
         "description": cloud_text(row.get("description")),
     }
     if "subnets" in row:
         shown["subnets"] = [
             {
-                **{name: s.get(name) for name in ("id", "cidr", "ip_version")},
-                "name": cloud_name(s.get("name")),
+                **{name: s.get(name) for name in ("cidr", "ip_version")},
+                **{name: cloud_name(s.get(name)) for name in ("id", "name")},
             }
             for s in row.get("subnets") or []
         ]
         shown["ports"] = [
             {
-                name: p.get(name)
-                for name in ("id", "device_id", "ips", "status", "security_group_ids")
+                "status": p.get("status"),
+                **{name: cloud_name(p.get(name)) for name in ("id", "device_id")},
+                **{
+                    name: [cloud_name(v) for v in p.get(name) or []]
+                    for name in ("ips", "security_group_ids")
+                },
             }
             for p in row.get("ports") or []
         ]
