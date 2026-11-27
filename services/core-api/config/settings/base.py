@@ -291,6 +291,7 @@ OPENSTACK_FEDERATION_PROTOCOL = env("OPENSTACK_FEDERATION_PROTOCOL")
 ALERTMANAGER_URL = env("ALERTMANAGER_URL")
 INFRA_CONNECT_TIMEOUT_SEC = float(env("INFRA_CONNECT_TIMEOUT_SEC"))
 INFRA_READ_TIMEOUT_SEC = float(env("INFRA_READ_TIMEOUT_SEC"))
+INFRA_CUE_SOFT_TIME_LIMIT_SEC = int(env("INFRA_CUE_SOFT_TIME_LIMIT_SEC"))
 PROMETHEUS_URL = env("PROMETHEUS_URL")
 ELASTICSEARCH_URL = env("ELASTICSEARCH_URL")
 ELASTICSEARCH_USERNAME = env("ELASTICSEARCH_USERNAME")
@@ -572,6 +573,19 @@ class InfraThresholds(BaseModel):
     max_result_bytes: int = Field(ge=1)
 
 
+class CuesThresholds(BaseModel):
+    # A ticket's cue window, resources per run and rows per overview query (F17 §o).
+    lookback_minutes: int = Field(ge=0)
+    max_resources: int = Field(ge=1)
+    overview_top: int = Field(ge=1)
+    # A cue's metric step and rate range, and the error lines it shows.
+    step_seconds: int = Field(ge=1)
+    log_lines: int = Field(ge=1)
+    # The most points a resource's metric cue, and the overview's IOPS cue, read per series.
+    max_points: int = Field(ge=2)
+    overview_points: int = Field(ge=2)
+
+
 class Thresholds(BaseModel):
     """Loaded from config/thresholds.yaml. Passed as a parameter everywhere
     it's used — never imported as a global — so it can be varied in tests
@@ -602,6 +616,7 @@ class Thresholds(BaseModel):
     access: AccessThresholds
     agent: AgentThresholds
     infra: InfraThresholds
+    cues: CuesThresholds
 
     @property
     def retrieval_floor(self) -> float:
@@ -653,7 +668,11 @@ CELERY_BEAT_SCHEDULE["agent-sweep"] = {
     "task": "agent.sweep",
     "schedule": AGENT_SWEEP_INTERVAL_SEC,
 }
-CELERY_TASK_ROUTES = {"agent.run_turn": {"queue": "agent"}}
+CELERY_TASK_ROUTES = {
+    "agent.run_turn": {"queue": "agent"},
+    "infra.ticket_cues": {"queue": "infra"},
+    "infra.linked_cues": {"queue": "infra"},
+}
 
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"

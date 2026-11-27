@@ -614,6 +614,51 @@ guard and that comment is later trimmed, the entry is the record.
   *`test_customer_never_changes_the_decision`,
   `test_a_floor_below_the_rules_priority_never_lowers_it`.*
 
+### Ticket cues (F17 §o, ADR-0048 decision 10)
+
+- **`Cues.handoff_outcome` building its own `InfraScope(everything=False, …)`
+  from the reporter's Keystone projects, never `InfraScope.all()`.** The task
+  runs with no person behind it, so nothing else stops a ticket that names
+  `web-03` from reading another company's server, even when the reporter is
+  staff (BR-F17-14). Keystone not answering ends the run `scope_unavailable`
+  and never widens it (BR-F17-15). `LogCount.search` keeps the project filter
+  from `scoped()` like every other search: Elasticsearch has no other scope.
+  *`test_a_name_from_another_companys_project_is_never_linked`,
+  `test_every_cue_query_carries_only_the_reporters_projects`,
+  `test_keystone_down_links_nothing_and_never_widens`,
+  `test_a_log_count_filters_the_callers_projects_and_stays_under_the_cap`.*
+- **`Enrichment.link` reading `subject_masked` and `body_masked` only, and
+  nothing at all when masking failed.** A name the masker replaced (a host
+  inside an email address, `[EMAIL_1]`) must not come back through the cloud's
+  inventory, and a mask-failed ticket's stored text can't be trusted to be
+  masked (BR-F17-14). *`test_enrichment_reads_the_masked_text_only`,
+  `test_a_ticket_whose_masking_failed_names_nothing`.*
+- **The savepoint (`transaction.atomic()`) around the handoff check in
+  `Cues.on_status_entered`.** The hook runs inside the move's transaction. A
+  query that fails there without a savepoint leaves that transaction aborted,
+  so the move fails at its next query even though the `except` caught the
+  error, and cues must never undo the move they follow (BR-F17-13).
+  *`test_a_failure_queueing_cues_never_fails_the_move`.*
+- **`Collector.store` turning an answer cut to `infra.max_result_bytes` into
+  a `cut` cue.** A cut answer summarised as `ok` or `empty` reads as complete
+  while the peak may sit in the part that was dropped, and nothing fails
+  loudly. *`test_an_answer_cut_to_the_result_cap_is_never_shown_complete`.*
+- **`function="max_over_time"` on the gauge `Usage`s in `domain/cues.py`
+  (CPU, memory, read and write latency), over the cue's step.** A long window
+  widens the step, and a plain range query samples a gauge at one instant per
+  step, so a spike between two samples vanishes and the cue reads `ok` with a
+  lower peak. Rate cues can't take a maximum, so their summaries name the
+  steps they averaged over instead.
+  *`test_a_spike_between_two_samples_is_still_a_gauge_cues_peak`,
+  `test_a_rate_cue_says_the_steps_it_averaged_over`.*
+- **`MaskedTexts.of` re-raising `SoftTimeLimitExceeded` before its broad
+  `except`, and `Cues.finish` saving `failed` again when the limit interrupts
+  its save.** Celery's soft limit is an ordinary `Exception`. Swallowed in
+  masking, it withholds the lines and the run ends `done`; landing in the
+  save, it leaves the run `running` for good (§o.3 says `failed`).
+  *`test_a_run_the_time_limit_stops_is_failed`,
+  `test_a_time_limit_while_saving_the_outcome_still_ends_the_run_failed`.*
+
 ## ai-engine
 
 - **`TriageState` is frozen with `extra="forbid"`.** Without that, an in-place

@@ -111,6 +111,7 @@ x-core-api-env: &core-api-env
   OPENSTACK_FEDERATION_PROTOCOL: ${OPENSTACK_FEDERATION_PROTOCOL:?see .env.example}
   INFRA_CONNECT_TIMEOUT_SEC: ${INFRA_CONNECT_TIMEOUT_SEC:?see .env.example}
   INFRA_READ_TIMEOUT_SEC: ${INFRA_READ_TIMEOUT_SEC:?see .env.example}
+  INFRA_CUE_SOFT_TIME_LIMIT_SEC: ${INFRA_CUE_SOFT_TIME_LIMIT_SEC:?see .env.example}
   ELASTICSEARCH_USERNAME: ${ELASTICSEARCH_USERNAME:?see .env.example}
   ELASTICSEARCH_PASSWORD: ${ELASTICSEARCH_PASSWORD:?see .env.example}
   KIBANA_URL: ${KIBANA_URL:?see .env.example}
@@ -218,6 +219,35 @@ services:
       - -l
       - info
       - --concurrency=${AGENT_WORKER_CONCURRENCY:?see .env.example}
+    environment:
+      <<: *core-api-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-api:
+        condition: service_started
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks: [smart-triage]
+
+  # A ticket's cue runs (F17 §o) on their own queue, so a slow cloud never holds the pipeline.
+  worker-infra:
+    restart: ${COMPOSE_RESTART_POLICY:?see .env.example}
+    build:
+      context: .
+      dockerfile: services/core-api/Dockerfile
+    command:
+      - celery
+      - -A
+      - config
+      - worker
+      - -Q
+      - infra
+      - -l
+      - info
+      - --concurrency=${INFRA_WORKER_CONCURRENCY:?see .env.example}
     environment:
       <<: *core-api-env
     depends_on:

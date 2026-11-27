@@ -71,6 +71,14 @@ export type CustomerTier = "standard" | "business" | "enterprise";
 
 export type CustomerLookup = "found" | "none" | "unavailable";
 
+export type CueRunOutcome = "running" | "done" | "overview" | "no_cloud_user" | "scope_unavailable" | "failed";
+
+export type CueStatus = "ok" | "empty" | "refused" | "unavailable" | "cut";
+
+export type ResourceKind = "server" | "volume" | "network";
+
+export type ResourceSource = "picked" | "named" | "attached" | "every_server" | "linked";
+
 export interface TicketIn {
   subject: string;
   body: string;
@@ -2060,6 +2068,45 @@ export interface CustomerListingOut {
   customers: CustomerOut[];
   unclaimed_domains: DomainOut[];
   domains_unavailable: boolean;
+}
+
+export interface CueResourceIn {
+  kind: ResourceKind;
+  resource_id: string;
+}
+
+export interface CueOut {
+  template: string;
+  status: CueStatus;
+  summary: string;
+  evidence: Record<string, unknown>;
+  link: string | null;
+}
+
+export interface TicketResourceOut {
+  kind: ResourceKind;
+  resource_id: string;
+  name: string;
+  project_id: string;
+  source: ResourceSource;
+  token: string | null;
+  cues: CueOut[];
+}
+
+export interface CueRunOut {
+  id: string;
+  outcome: CueRunOutcome;
+  started_at: string;
+  finished_at: string | null;
+  started_by: string | null;
+  window_start: string | null;
+  window_end: string | null;
+  resources: TicketResourceOut[];
+  overview: CueOut[];
+}
+
+export interface TicketCuesOut {
+  runs: CueRunOut[];
 }
 
 export interface BranchReadinessOut {

@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from django.conf import settings
 
 from apps.accounts.models import User
-from apps.accounts.permissions import Caller
 from apps.infra.models import InfraBackend
 from apps.infra.clients.backends import BackendUnavailable, OpenStack
 
@@ -27,10 +26,10 @@ class InfraScope:
         return cls(everything=True)
 
     @classmethod
-    def own(cls, caller: Caller, cloud: OpenStack) -> InfraScope:
-        """Only the projects Keystone lists `caller` in, for requester routes gated by
+    def own(cls, user: User, cloud: OpenStack) -> InfraScope:
+        """Only the projects Keystone lists `user` in, for requester routes gated by
         `infra:read:own`. Raises `BackendUnavailable` when Keystone can't answer."""
-        return cls(everything=False, project_ids=member_projects(caller.user, cloud))
+        return cls(everything=False, project_ids=member_projects(user, cloud))
 
     def reaches(self, project_id: str | None) -> bool:
         return self.everything or project_id in self.project_ids

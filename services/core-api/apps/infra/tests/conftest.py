@@ -1,5 +1,5 @@
 """Fixtures: cloud-sim running in-process as the cloud, fakes for Alertmanager, Prometheus and
-Elasticsearch, and NER stubs."""
+Elasticsearch, NER stubs, and the reporter, backends and task queue a ticket's cues run with."""
 
 from __future__ import annotations
 
@@ -21,8 +21,11 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from urllib.parse import parse_qs
 
+from apps.accounts.models import User
+from apps.infra import tasks
 from apps.infra.clients.backends import Alertmanager, Elasticsearch, OpenStack, Prometheus
-from apps.infra.services import customers, inventory, observability
+from apps.infra.services import cues, customers, inventory, observability
+from apps.notifications import tasks as notification_tasks
 
 # The real client, captured before the root conftest's ai-engine stub replaces `httpx.Client`.
 _Client = httpx.Client
@@ -73,6 +76,7 @@ def cloud_sim(settings: Any, monkeypatch: pytest.MonkeyPatch) -> Iterator[CloudS
         monkeypatch.setattr(inventory, "openstack", lambda: cloud)
         monkeypatch.setattr(observability, "openstack", lambda: cloud)
         monkeypatch.setattr(customers, "openstack", lambda: cloud)
+        monkeypatch.setattr(cues, "openstack", lambda: cloud)
         yield sim
 
 
@@ -122,6 +126,7 @@ def alertmanager(settings: Any, monkeypatch: pytest.MonkeyPatch) -> FakeAlertman
     settings.ALERTMANAGER_URL = "http://alertmanager"
     http = mock_http(fake.handle)
     monkeypatch.setattr(inventory, "alertmanager", lambda: Alertmanager(http))
+    monkeypatch.setattr(cues, "alertmanager", lambda: Alertmanager(http))
     return fake
 
 
@@ -157,27 +162,37 @@ def alert(name: str, project: str | None, summary: str, **labels: str) -> dict[s
 
 @dataclass
 class FakePrometheus:
-    """prom-label-proxy answering range queries with `series`, or `status` and `error`; keeps
-    the query and the `project` values of every request."""
+    """prom-label-proxy answering range queries with `series`, or with what `answer` gives for
+    the query, start, end and step, or `status` and `error`; keeps the query, the step and the
+    `project` values of every request."""
 
     series: list[dict[str, Any]] = field(default_factory=list)
+    answer: Callable[[str, float, float, int], list[dict[str, Any]]] | None = None
     status: int = 200
     error: str = ""
     raises: Exception | None = None
     queries: list[str] = field(default_factory=list)
+    steps: list[int] = field(default_factory=list)
     projects: list[list[str]] = field(default_factory=list)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         if self.raises is not None:
             raise self.raises
         form = parse_qs(request.content.decode())
-        self.queries.append(form["query"][0])
+        query, step = form["query"][0], int(form["step"][0])
+        self.queries.append(query)
+        self.steps.append(step)
         self.projects.append(request.url.params.get_list("project"))
         if self.status != 200:
             return httpx.Response(
                 self.status, json={"status": "error", "errorType": "bad_data", "error": self.error}
             )
-        body = {"status": "success", "data": {"resultType": "matrix", "result": self.series}}
+        result = (
+            self.series
+            if self.answer is None
+            else self.answer(query, float(form["start"][0]), float(form["end"][0]), step)
+        )
+        body = {"status": "success", "data": {"resultType": "matrix", "result": result}}
         return httpx.Response(200, json=body)
 
 
@@ -187,15 +202,17 @@ def prom(settings: Any, monkeypatch: pytest.MonkeyPatch) -> FakePrometheus:
     settings.PROMETHEUS_URL = "http://prom-label-proxy"
     http = mock_http(fake.handle)
     monkeypatch.setattr(observability, "prometheus", lambda: Prometheus(http))
+    monkeypatch.setattr(cues, "prometheus", lambda: Prometheus(http))
     return fake
 
 
 @dataclass
 class FakeElasticsearch:
-    """Elasticsearch answering every search with `docs`, or failing with `raises`; keeps the
-    index and body of every search."""
+    """Elasticsearch answering every search with `docs` (and a count search with `buckets`),
+    or failing with `raises`; keeps the index and body of every search."""
 
     docs: list[dict[str, Any]] = field(default_factory=list)
+    buckets: list[dict[str, Any]] = field(default_factory=list)
     raises: Exception | None = None
     searches: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
 
@@ -204,8 +221,12 @@ class FakeElasticsearch:
             raise self.raises
         index = request.url.path.removeprefix("/").removesuffix("/_search")
         self.searches.append((index, json.loads(request.content)))
+        body = json.loads(request.content)
         hits = [{"_source": d} for d in self.docs]
-        return httpx.Response(200, json={"hits": {"total": {"value": len(hits)}, "hits": hits}})
+        answer: dict[str, Any] = {"hits": {"total": {"value": len(hits)}, "hits": hits}}
+        for name in body.get("aggs", {}):
+            answer["aggregations"] = {name: {"buckets": self.buckets}}
+        return httpx.Response(200, json=answer)
 
     def bodies(self) -> list[dict[str, Any]]:
         return [body for _, body in self.searches]
@@ -217,6 +238,7 @@ def es(settings: Any, monkeypatch: pytest.MonkeyPatch) -> FakeElasticsearch:
     settings.ELASTICSEARCH_URL = "http://elasticsearch"
     http = mock_http(fake.handle)
     monkeypatch.setattr(observability, "elasticsearch", lambda: Elasticsearch(http))
+    monkeypatch.setattr(cues, "elasticsearch", lambda: Elasticsearch(http))
     return fake
 
 
@@ -251,3 +273,46 @@ def span_doc(project: str, trace_id: str = "t1", **labels: str) -> dict[str, Any
         "service": {"name": "orders"},
         "event": {"outcome": "success"},
     }
+
+
+# ── a ticket's cues ──
+
+
+@pytest.fixture
+def lan(employee_user: User) -> User:
+    """lan.nt, a member of saomai-prod and saomai-staging."""
+    employee_user.external_id = LAN_SUBJECT
+    employee_user.save(update_fields=["external_id"])
+    return employee_user
+
+
+@pytest.fixture
+def queued(monkeypatch: pytest.MonkeyPatch) -> list[tuple[str, str]]:
+    """The cue tasks queued, each run at once; notifications are not sent."""
+    found: list[tuple[str, str]] = []
+
+    def run(ticket_id: str, transfer_id: str) -> None:
+        found.append((ticket_id, transfer_id))
+        tasks.ticket_cues.apply(args=(ticket_id, transfer_id)).get()
+
+    monkeypatch.setattr(tasks.ticket_cues, "delay", run)
+    monkeypatch.setattr(tasks.linked_cues, "delay", lambda r: tasks.linked_cues.apply(args=(r,)))
+    monkeypatch.setattr(notification_tasks.dispatch, "delay", lambda *a: None)
+    return found
+
+
+@pytest.fixture
+def backends(
+    cloud_sim: CloudSim, prom: FakePrometheus, es: FakeElasticsearch, alertmanager: FakeAlertmanager
+) -> CloudSim:
+    """The cloud, with every observability backend answering about db-01 and vol-db-01."""
+    prod = cloud_sim.id_of("projects", "saomai-prod")
+    db01, vol = cloud_sim.id_of("servers", "db-01"), cloud_sim.id_of("volumes", "vol-db-01")
+    prom.series = [series(prod, 0.5, server_id=db01, volume_id=vol, volume="vol-db-01")]
+    es.docs = [log_doc(prod, "slow query: SELECT 1 took 4.2 s")]
+    es.buckets = [{"key": db01, "doc_count": 37}]
+    alertmanager.alerts = [
+        alert("CloudVolumeIopsAtQuota", prod, "IOPS at quota", volume_id=vol, volume="vol-db-01"),
+        alert("CloudServerSlow", prod, "db-01 is slow", server_id=db01, server="db-01"),
+    ]
+    return cloud_sim

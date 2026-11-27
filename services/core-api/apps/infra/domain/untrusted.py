@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Protocol, Self
 
 from asgiref.sync import async_to_sync
+from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 
 from apps.tickets.domain.masking import mask_reply
@@ -42,6 +43,8 @@ class MaskedTexts:
         distinct = sorted({t for t in texts if t})
         try:
             masked = dict(zip(distinct, async_to_sync(_mask_all)(distinct)))
+        except SoftTimeLimitExceeded:
+            raise
         except Exception:
             logger.exception("infra: masking raised; withholding every text")
             masked = {}

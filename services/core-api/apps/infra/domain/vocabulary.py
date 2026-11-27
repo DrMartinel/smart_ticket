@@ -1,4 +1,5 @@
-"""The refusals an infra route answers with (F17 §h.2, BR-X-08)."""
+"""The refusals an infra route answers with (F17 §h.2, BR-X-08), and the states of a ticket's
+cue runs, the resources they link and their cues (F17 §o.3, §o.8)."""
 
 from __future__ import annotations
 
@@ -57,3 +58,41 @@ class QueryRefused(Exception):
     def __init__(self, check: QueryCheck, message: str) -> None:
         super().__init__(message)
         self.check = check
+
+
+class CueRunOutcome(StrEnum):
+    """Where a cue run stands (F17 §o.3)."""
+
+    RUNNING = "running"
+    DONE = "done"
+    OVERVIEW = "overview"
+    NO_CLOUD_USER = "no_cloud_user"
+    SCOPE_UNAVAILABLE = "scope_unavailable"
+    FAILED = "failed"
+
+
+class ResourceKind(StrEnum):
+    SERVER = "server"
+    VOLUME = "volume"
+    NETWORK = "network"
+
+
+class ResourceSource(StrEnum):
+    """How a run came to link a resource (BR-F17-14, BR-F17-24, BR-F17-25)."""
+
+    PICKED = "picked"
+    NAMED = "named"
+    ATTACHED = "attached"
+    EVERY_SERVER = "every_server"
+    LINKED = "linked"
+
+
+class CueStatus(StrEnum):
+    """What one cue's reads gave: an answer, nothing, a refusal, no answer, or an answer cut to
+    the result cap, whose summary covers only part of it."""
+
+    OK = "ok"
+    EMPTY = "empty"
+    REFUSED = "refused"
+    UNAVAILABLE = "unavailable"
+    CUT = "cut"

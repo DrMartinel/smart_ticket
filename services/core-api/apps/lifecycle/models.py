@@ -313,6 +313,25 @@ class TransferQuerySet(QuerySet["Transfer"]):
             .order_by("-created_at")
         )
 
+    def is_handoff(self, transfer: Transfer) -> bool:
+        """Whether committing `transfer` hands its ticket off: its first entry into an active
+        status since it last entered a backlog one (BR-F1-01)."""
+        if transfer.after_status is None or transfer.after_status.kind != StatusKind.ACTIVE.value:
+            return False
+        entered = self.filter(ticket_id=transfer.ticket_id, committed_at__isnull=False).exclude(
+            pk=transfer.pk
+        )
+        backlog = (
+            entered.filter(after_status__kind=StatusKind.BACKLOG.value)
+            .order_by("-committed_at")
+            .values_list("committed_at", flat=True)
+            .first()
+        )
+        active = entered.filter(after_status__kind=StatusKind.ACTIVE.value)
+        if backlog is not None:
+            active = active.filter(committed_at__gte=backlog)
+        return not active.exists()
+
 
 class Transfer(BaseModel):
     """One status change of one ticket: the unit of locking, auditing and retry."""

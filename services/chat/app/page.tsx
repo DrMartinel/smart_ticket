@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { Bot, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AGENT_MESSAGE_MAX, AGENT_MESSAGE_MIN } from "@/lib/agent";
-import { AGENT_USE } from "@/lib/session";
+import { AGENT_USE, INFRA_READ_OWN } from "@/lib/session";
 import { useAssistant } from "@/components/AssistantProvider";
 import AgentTurnView from "@/components/AgentTurnView";
 import Composer from "@/components/Composer";
@@ -17,10 +17,17 @@ import Welcome from "@/components/Welcome";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/states";
 
+// Shown to holders of infra:read:own only (F17 BR-F17-27).
+const NAME_THE_RESOURCE = {
+  vi: "Nếu vấn đề liên quan đến máy chủ, ổ đĩa hoặc mạng, hãy ghi tên hoặc ID của nó (ví dụ: db-01).",
+  en: "If this is about a server, volume or network, include its name or ID (for example, db-01).",
+};
+
 export default function AssistantPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const allowed = !!user?.permissions?.includes(AGENT_USE);
+  const cloudCustomer = !!user?.permissions?.includes(INFRA_READ_OWN);
   const agent = useAssistant();
   const endRef = useRef<HTMLDivElement>(null);
   const last = agent.rows.at(-1);
@@ -98,6 +105,7 @@ export default function AssistantPage() {
               autoFocus
               minChars={AGENT_MESSAGE_MIN}
               maxChars={AGENT_MESSAGE_MAX}
+              note={cloudCustomer ? NAME_THE_RESOURCE[user.language ?? "vi"] : undefined}
             />
             <p className="mt-2 text-xs text-muted-foreground">
               Answers come from approved help pages. The assistant acts only as you, and only after you choose Send.
