@@ -47,6 +47,14 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
+                    "turn",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="+",
+                        to="agent.agentturn",
+                    ),
+                ),
+                (
                     "person",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
@@ -59,9 +67,7 @@ class Migration(migrations.Migration):
                 "db_table": "infra_resource_picks",
                 "abstract": False,
                 "constraints": [
-                    models.UniqueConstraint(
-                        fields=("conversation", "resource_id"), name="uq_resource_pick"
-                    )
+                    models.UniqueConstraint(fields=("turn", "resource_id"), name="uq_resource_pick")
                 ],
             },
         ),
