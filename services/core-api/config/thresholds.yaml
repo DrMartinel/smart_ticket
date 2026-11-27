@@ -17,7 +17,7 @@
 # (ADR-0044); the CR-2026-* versions are ids from the change requests ADR-0035
 # had, which ADR-0044 removed.
 
-version: "CR-2026-015"
+version: "CR-2026-019"
 calibration_source: "shadow_run_2026-07 (n=612)"  # 🔧 update after P2 calibration
 
 routing:
@@ -288,10 +288,11 @@ agent:
   # (FR-F15-015). The token budget pays for each call's prompt and the chat's
   # tool list (about 5,200 tokens) and a few results; every call re-sends the
   # turn's results so far, so a long turn of large results ends
-  # agent_budget_exceeded (F17 §h.3). 🔧 assumptions, not measured.
-  max_steps: 8
+  # agent_budget_exceeded (F17 §h.3). 🔧 sized from the 2026-11-27 live run of
+  # the agent cases: about 6,500 to 8,000 tokens a call.
+  max_steps: 16
   max_tool_calls_per_turn: 6
-  max_model_tokens_per_turn: 48000
+  max_model_tokens_per_turn: 160000
   # Read calls one turn may make; with it set, max_tool_calls_per_turn counts
   # writes only, and core-api refuses a turn's reads beyond it too. null keeps
   # F15's rule: every call counts against max_tool_calls_per_turn (F17

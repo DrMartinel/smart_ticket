@@ -327,7 +327,7 @@ infra:
   max_regex_kib: 256       # RE2's memory for one raw PromQL regex
   max_regex_matchers: 10   # regex matchers in one raw PromQL query
 agent:
-  max_model_tokens_per_turn: 48000  # was 16000 (F15); pays for every chat step's fixed cost
+  max_model_tokens_per_turn: 160000  # was 16000 (F15), then 48000; pays for every chat step's fixed cost
   max_read_calls_per_turn: 16       # new; writes keep max_tool_calls_per_turn; caps a turn's queries (BR-F17-12)
   max_free_reads_per_step: 50       # new; ask_helpdesk's polls after its post: 90 s / 2 s = 45
   console_max_steps: 20             # new
