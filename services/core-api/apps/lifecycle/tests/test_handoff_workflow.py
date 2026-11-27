@@ -12,8 +12,12 @@ from apps.lifecycle.domain.vocabulary import PipelineStatus
 from apps.lifecycle.models import Workflow, WorkflowRule
 from apps.lifecycle.services import engine
 from apps.lifecycle.services.engine import lifecycle
+from apps.lifecycle.services.fields import field_values
 from apps.lifecycle.tests.conftest import StrictFlow, make_ticket, status_of
 from apps.lifecycle.tests.test_category_workflow import approve, reload, review_item, workflow_of
+from apps.rollout.domain.vocabulary import FlagBranch
+from apps.rollout.services.rollout import rollout
+from apps.rollout.testing import flags_off
 from apps.sla.services.clocks import initial_priority
 from apps.teams.models import Team
 from apps.tickets.domain.router import Branch, ReasonCode
@@ -37,6 +41,7 @@ def decided(ticket: Ticket, branch: Branch) -> None:
         reason_code=ReasonCode.ALL_CHECKS_PASSED.value,
         reason_detail="",
         thresholds_used={},
+        rollout_snapshot=rollout.snapshot(),
     )
 
 
@@ -186,3 +191,45 @@ def test_a_ticket_a_person_already_moved_on_is_not_moved_by_a_rule(
     assert reload(ticket).workflow_status == working
     [payload] = skipped()
     assert (payload["reason"], payload["selected_by"]) == ("already_moved_on", str(rule.id))
+
+
+def test_a_held_back_auto_route_a_reviewer_hands_off_matches_as_hitl(
+    employee_user, technician_user, strict: StrictFlow
+):
+    flags_off(FlagBranch.AUTO_ROUTE)
+    add_rule(Workflow.objects.default(), branch=Branch.AUTO_ROUTE.value)
+    reviewed = add_rule(strict.workflow, order=2, branch=Branch.HITL.value)
+    ticket = make_ticket(employee_user)
+    decided(ticket, Branch.AUTO_ROUTE)
+
+    approve(review_item(ticket), technician_user, category_verdict="correct")
+
+    assert workflow_of(ticket) == strict.workflow
+    payload = moved_audit(ticket)
+    assert (payload["selected_by"], payload["branch"], payload["held_back"]) == (
+        str(reviewed.id),
+        "hitl",
+        True,
+    )
+
+
+def test_a_failed_move_keeps_what_chose_the_workflow_in_its_audit_row(
+    employee_user, strict: StrictFlow, monkeypatch
+):
+    rule = add_rule(strict.workflow)
+    ticket = make_ticket(employee_user)
+
+    def boom(*a, **kw):
+        raise RuntimeError("carry-over failed")
+
+    monkeypatch.setattr(field_values, "carry_over", boom)
+
+    lifecycle.enter_handoff_workflow(ticket, "network", actor=None)
+
+    assert workflow_of(ticket) == Workflow.objects.default()
+    [payload] = skipped()
+    assert (payload["reason"], payload["error"], payload["selected_by"]) == (
+        "error",
+        "RuntimeError",
+        str(rule.id),
+    )

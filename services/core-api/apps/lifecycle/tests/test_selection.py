@@ -113,6 +113,12 @@ def test_no_matching_rule_falls_back_to_the_categorys_workflow():
     assert (chosen.workflow_id, chosen.selected_by, chosen.rule) == (CATEGORY_WF, "category", None)
 
 
+def test_no_matching_rule_and_no_category_keeps_the_current_workflow():
+    chosen = select([rule(1, category="network")], category=None)
+
+    assert (chosen.workflow_id, chosen.selected_by, chosen.rule) == (None, "current", None)
+
+
 def test_no_rules_and_no_category_workflow_gives_the_default():
     chosen = select([], category_wf=None)
 

@@ -28,7 +28,7 @@ from apps.core.models import BaseModel
 from apps.rollout.domain.vocabulary import BRANCH_FLAG, FlagState
 from apps.infra.models import CustomerLookup
 from apps.tickets.domain.patterns import PIILevel
-from apps.tickets.domain.router import AGENT_HANDOFF_REASONS
+from apps.tickets.domain.router import AGENT_HANDOFF_REASONS, Branch
 from apps.tickets.request_schema import RevealReason
 
 from apps.accounts.models import User
@@ -798,6 +798,11 @@ class RoutingDecision(BaseModel):
         """Whether its branch has a flag that wasn't on in its snapshot (ADR-0051)."""
         flag = BRANCH_FLAG.get(self.branch)
         return flag is not None and self.rollout_snapshot.get(flag.value) != FlagState.ON.value
+
+    def handed_off_as(self) -> str:
+        """The branch its ticket took to people: `hitl` when it was held back, else its own
+        (ADR-0055)."""
+        return Branch.HITL.value if self.was_held_back() else self.branch
 
 
 class TicketClarification(BaseModel):

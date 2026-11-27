@@ -662,8 +662,8 @@ export interface WorkflowRuleOut {
 }
 
 export interface WorkflowRulePreviewOut {
-  workflow_id: string;
-  workflow_name: string;
+  workflow_id: string | null;
+  workflow_name: string | null;
   selected_by: string;
   rule_id: string | null;
 }

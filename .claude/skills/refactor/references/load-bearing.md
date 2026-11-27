@@ -285,6 +285,12 @@ guard and that comment is later trimmed, the entry is the record.
   priority when that move commits (`sla_clocks.start`); called earlier, or reading the
   caller's instance, a priority rule would see an empty priority and silently never
   match (ADR-0055). *`test_the_priority_the_clocks_set_at_handoff_is_the_one_matched`.*
+- **The handoff branch read through `RoutingDecision.handed_off_as()`, not
+  `.branch`.** A held-back decision (ADR-0051) still says `auto_route` or
+  `auto_reply` though a reviewer handled the ticket; read raw, an `auto_route`
+  rule would catch reviewed tickets and a `hitl` rule would miss them, with no
+  error (ADR-0055).
+  *`test_a_held_back_auto_route_a_reviewer_hands_off_matches_as_hitl`.*
 - **Take checking `expected_version` and raising `tickets.version`.** Two people
   clicking Take on the same row both see an unowned ticket; only the version
   makes the second one a 409 `already_assigned`. *`test_two_takes_one_winner`.*

@@ -13,10 +13,10 @@ from apps.accounts.models import User
 from apps.audit.models import AuditLog
 from apps.categories.models import Category
 from apps.lifecycle.domain.errors import WorkflowRuleError
-from apps.lifecycle.domain.selection import select_workflow
 from apps.lifecycle.domain.vocabulary import RuleRefusal
 from apps.lifecycle.models import Workflow, WorkflowRule
 from apps.lifecycle.services.config import workflow_config
+from apps.lifecycle.services.engine import lifecycle
 from apps.tickets.domain.router import Branch
 
 _LOCK = "workflow_rules"
@@ -26,8 +26,8 @@ _LOCK = "workflow_rules"
 class Preview:
     """The workflow the rules would choose for one set of keys, and what chose it."""
 
-    workflow_id: uuid.UUID
-    workflow_name: str
+    workflow_id: uuid.UUID | None
+    workflow_name: str | None
     selected_by: str
     rule_id: uuid.UUID | None
 
@@ -37,7 +37,7 @@ class WorkflowRules:
 
     def create(self, actor: User, data: dict[str, Any]) -> WorkflowRule:
         """Adds a rule after every other one."""
-        reason = self.reason_of(data)
+        reason = self.reason_of(data.get("reason"))
         with transaction.atomic():
             self.lock()
             rule = WorkflowRule(order=WorkflowRule.objects.next_order())
@@ -50,7 +50,7 @@ class WorkflowRules:
 
     def edit(self, actor: User, rule_id: uuid.UUID, data: dict[str, Any]) -> WorkflowRule:
         """Applies the given keys, workflow and `is_active`; a key sent as null matches any."""
-        reason = self.reason_of(data)
+        reason = self.reason_of(data.get("reason"))
         with transaction.atomic():
             rule = self.locked(rule_id)
             before = self.snapshot(rule)
@@ -66,7 +66,7 @@ class WorkflowRules:
 
     def reorder(self, actor: User, ids: list[uuid.UUID], reason: str) -> list[WorkflowRule]:
         """Gives the rules the order of `ids`, which names every rule once."""
-        reason = self.reason_of({"reason": reason})
+        reason = self.reason_of(reason)
         with transaction.atomic():
             self.lock()
             rules = {r.id: r for r in WorkflowRule.objects.select_for_update()}
@@ -91,7 +91,7 @@ class WorkflowRules:
 
     def delete(self, actor: User, rule_id: uuid.UUID, reason: str) -> None:
         """Deletes a rule."""
-        reason = self.reason_of({"reason": reason})
+        reason = self.reason_of(reason)
         with transaction.atomic():
             rule = self.locked(rule_id)
             self.audit("workflow_rule_deleted", actor, reason, rule, before=self.snapshot(rule))
@@ -105,20 +105,15 @@ class WorkflowRules:
         *,
         include_inactive: bool,
     ) -> Preview:
-        """The workflow a ticket handed off with these keys would enter now."""
-        category_workflow = Category.objects.workflow_of(category)
-        selection = select_workflow(
-            WorkflowRule.objects.all(),
-            category,
-            branch,
-            priority,
-            category_workflow=category_workflow.id if category_workflow else None,
-            default_workflow=Workflow.objects.default().id,
-            include_inactive=include_inactive,
+        """The workflow a ticket handed off with these keys would enter now; none for staying in
+        its current one."""
+        selection = lifecycle.choose_workflow(
+            category, branch, priority, include_inactive=include_inactive
         )
+        workflow = Workflow.objects.get(pk=selection.workflow_id) if selection.workflow_id else None
         return Preview(
             workflow_id=selection.workflow_id,
-            workflow_name=Workflow.objects.get(pk=selection.workflow_id).name,
+            workflow_name=workflow.name if workflow else None,
             selected_by=selection.selected_by,
             rule_id=selection.rule.id if selection.rule else None,
         )
@@ -126,15 +121,16 @@ class WorkflowRules:
     # ── checks ──
 
     def apply(self, rule: WorkflowRule, data: dict[str, Any]) -> None:
-        """Sets the fields `data` carries on `rule`, refusing any the checks reject."""
-        if "category" in data:
+        """Sets the fields `data` carries on `rule`, checking only the ones it changes."""
+        if "category" in data and data["category"] != rule.category_id:
             rule.category_id = self.category(data["category"])
-        if "branch" in data:
+        if "branch" in data and data["branch"] != rule.branch:
             rule.branch = self.branch(data["branch"])
         if "priority" in data:
             rule.priority = data["priority"]
-        if data.get("workflow_id") is not None:
-            rule.workflow = self.workflow(data["workflow_id"])
+        workflow_id = data.get("workflow_id")
+        if workflow_id is not None and str(workflow_id) != str(rule.workflow_id):
+            rule.workflow = self.workflow(workflow_id)
         if data.get("is_active") is not None:
             rule.is_active = data["is_active"]
 
@@ -149,7 +145,7 @@ class WorkflowRules:
         return slug
 
     def branch(self, branch: str | None) -> str | None:
-        """`branch`; refuses auto-reply, whose tickets are never handed off."""
+        """`branch`; refuses `auto_reply`."""
         if branch == Branch.AUTO_REPLY.value:
             raise WorkflowRuleError(
                 422,
@@ -177,8 +173,8 @@ class WorkflowRules:
             )
         return found
 
-    def reason_of(self, data: dict[str, Any]) -> str:
-        reason = (data.get("reason") or "").strip()
+    def reason_of(self, given: str | None) -> str:
+        reason = (given or "").strip()
         if not reason:
             raise WorkflowRuleError(
                 422, RuleRefusal.REASON_REQUIRED, "say why the workflow rules change"

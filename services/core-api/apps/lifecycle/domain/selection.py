@@ -5,17 +5,21 @@ from __future__ import annotations
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from apps.lifecycle.domain.vocabulary import Fallback
-from apps.lifecycle.models import WorkflowRule
+
+if TYPE_CHECKING:
+    from apps.lifecycle.models import WorkflowRule
 
 
 @dataclass(frozen=True)
 class Selection:
-    """The workflow chosen, and the rule or fallback that chose it."""
+    """The workflow chosen, none to stay in the current one, and the rule or fallback that chose
+    it."""
 
-    workflow_id: uuid.UUID
-    # The rule's id, or `category` or `default`.
+    workflow_id: uuid.UUID | None
+    # The rule's id, or `category`, `default` or `current`.
     selected_by: str
     rule: WorkflowRule | None = None
 
@@ -31,10 +35,13 @@ def select_workflow(
     include_inactive: bool = False,
 ) -> Selection:
     """The first active rule in order that matches (any rule, with `include_inactive`); else the
-    category's workflow; else the default one."""
+    category's workflow; else the default one for a ticket with a category, and its current one
+    for a ticket without."""
     for rule in sorted(rules, key=lambda r: r.order):
         if (rule.is_active or include_inactive) and rule.matches(category, branch, priority):
             return Selection(rule.workflow_id, str(rule.id), rule)
+    if category is None:
+        return Selection(None, Fallback.CURRENT.value)
     if category_workflow is not None:
         return Selection(category_workflow, Fallback.CATEGORY.value)
     return Selection(default_workflow, Fallback.DEFAULT.value)

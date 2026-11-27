@@ -290,10 +290,10 @@ class WorkflowRuleOut(Schema):
 
 
 class WorkflowRulePreviewOut(Schema):
-    """The workflow the rules would choose; `selected_by` is a rule's id, `category` or
-    `default`."""
+    """The workflow the rules would choose, none to stay in the current one; `selected_by` is a
+    rule's id, `category`, `default` or `current`."""
 
-    workflow_id: uuid.UUID
-    workflow_name: str
+    workflow_id: uuid.UUID | None
+    workflow_name: str | None
     selected_by: str
     rule_id: uuid.UUID | None

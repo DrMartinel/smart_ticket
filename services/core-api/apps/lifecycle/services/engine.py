@@ -34,7 +34,7 @@ from apps.lifecycle.models import (
     WorkflowRule,
     WorkflowStatus,
 )
-from apps.lifecycle.domain.selection import select_workflow
+from apps.lifecycle.domain.selection import Selection, select_workflow
 from apps.lifecycle.services.actions import callback_token
 from apps.lifecycle.domain.errors import LifecycleError
 from apps.lifecycle.services.fields import field_values, violation_detail
@@ -790,32 +790,43 @@ class Lifecycle:
             )
         return ticket
 
+    def choose_workflow(
+        self,
+        category: str | None,
+        branch: str | None,
+        priority: str | None,
+        *,
+        include_inactive: bool = False,
+    ) -> Selection:
+        """The workflow the rules, else the category, else the default choose for a ticket handed
+        off with these keys (ADR-0055)."""
+        category_workflow = Category.objects.workflow_of(category)
+        return select_workflow(
+            WorkflowRule.objects.all(),
+            category,
+            branch,
+            priority,
+            category_workflow=category_workflow.id if category_workflow else None,
+            default_workflow=Workflow.objects.default().id,
+            include_inactive=include_inactive,
+        )
+
     def enter_handoff_workflow(
         self, ticket: Ticket, category: str | None, *, actor: User | None
     ) -> None:
-        """Moves a ticket at a handoff status into the workflow the rules choose for its category,
-        latest branch and priority, else its category's, and updates the caller's instance
+        """Moves a ticket at a handoff status into the workflow chosen for its category, the
+        branch it was handed off on and its priority, and updates the caller's instance
         (ADR-0055)."""
         moved: Ticket | None = None
         detail: dict[str, Any] = {}
         try:
             with transaction.atomic():
                 locked = Ticket.objects.select_for_update().get(pk=ticket.pk)
-                branch = (
-                    locked.routing_decisions.order_by("-decided_at")
-                    .values_list("branch", flat=True)
-                    .first()
-                )
-                category_workflow = Category.objects.workflow_of(category)
-                selection = select_workflow(
-                    WorkflowRule.objects.all(),
-                    category,
-                    branch,
-                    locked.priority,
-                    category_workflow=category_workflow.id if category_workflow else None,
-                    default_workflow=Workflow.objects.default().id,
-                )
-                if selection.rule is None and category is None:
+                decision = locked.routing_decisions.order_by("-decided_at").first()
+                branch = decision.handed_off_as() if decision is not None else None
+                held_back = decision is not None and decision.was_held_back()
+                selection = self.choose_workflow(category, branch, locked.priority)
+                if selection.workflow_id is None:
                     return
                 current = WorkflowStatus.objects.of_ticket(locked)
                 if current is None or current.workflow_id == selection.workflow_id:
@@ -837,6 +848,7 @@ class Lifecycle:
                         "workflow": workflow.name,
                         "category": category,
                         "branch": branch,
+                        "held_back": held_back,
                         "priority": locked.priority,
                         "selected_by": selection.selected_by,
                         "dropped_fields": dropped,
@@ -847,7 +859,8 @@ class Lifecycle:
                     moved = locked
         except Exception as e:  # noqa: BLE001 — the move never undoes the handoff it follows
             logger.exception("moving %s into its handoff workflow failed", ticket.public_id)
-            moved, skip, detail = None, CategoryWorkflowSkip.ERROR, {"error": type(e).__name__}
+            moved, skip = None, CategoryWorkflowSkip.ERROR
+            detail = {**detail, "error": type(e).__name__}
         if moved is not None:
             for name in _MOVED_FIELDS:
                 setattr(ticket, name, getattr(moved, name))

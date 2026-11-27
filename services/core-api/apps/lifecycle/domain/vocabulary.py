@@ -36,7 +36,8 @@ CATEGORY_WORKFLOW_STATUSES = HANDOFF_STATUSES | {PipelineStatus.REOPENED}
 
 
 class CategoryWorkflowSkip(StrEnum):
-    """Why a ticket stayed out of its category's workflow, in `category_workflow_skipped` rows."""
+    """Why a ticket stayed out of the workflow chosen at handoff, in `category_workflow_skipped`
+    rows."""
 
     ALREADY_MOVED_ON = "already_moved_on"
     A_MOVE_IS_RUNNING = "a_move_is_running"
@@ -44,10 +45,12 @@ class CategoryWorkflowSkip(StrEnum):
 
 
 class Fallback(StrEnum):
-    """What chose a ticket's workflow when no rule matched (ADR-0055)."""
+    """What chose a ticket's workflow when no rule matched (ADR-0055); `current` leaves it in
+    the workflow it is in."""
 
     CATEGORY = "category"
     DEFAULT = "default"
+    CURRENT = "current"
 
 
 class RuleRefusal(StrEnum):

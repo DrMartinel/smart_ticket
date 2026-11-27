@@ -102,6 +102,8 @@ else `initial_priority` with the customer's tier floor).
 - Order matters, and two rules can overlap; the preview and the list's order
   are how an admin sees which wins.
 - Auto-replied tickets still enter no workflow: they never reach a handoff.
+  A held-back auto-reply or auto-route does reach one, through review; it
+  matches as `hitl`, the path it took (*As built*).
 - A priority raised after handoff (by a person, or by an incident link) does
   not change the path. If teams need that, a later decision can add
   re-selection on a priority change (open question 1).
@@ -143,11 +145,15 @@ One PR (phase-2 work gets one PR each), one commit per step.
   returns the workflow and `selected_by`. It also takes `include_inactive`,
   for the preview only.
 - **The engine.** `enter_handoff_workflow(ticket, category, actor=…)` reads
-  the branch of the ticket's latest `routing_decisions` row and the
-  priority from the row it locks, so the priority is the one the SLA clocks
-  set when the ticket entered the handoff status. A handoff with no
-  category and no matching rule leaves the ticket where it is, as before.
-  The status-change audit row carries `selected_by`, `branch` and
+  the branch of the ticket's latest `routing_decisions` row
+  (`RoutingDecision.handed_off_as()`: `hitl` when the decision was held
+  back, ADR-0051, since a reviewer handled the ticket) and the priority from
+  the row it locks, so the priority is the one the SLA clocks set when the
+  ticket entered the handoff status. A reviewer's category correction does
+  not change that priority. A handoff with no category and no matching rule
+  leaves the ticket where it is, as before (`selected_by` `current`). The
+  engine and the preview share `Lifecycle.choose_workflow`. The
+  status-change audit row carries `selected_by`, `branch`, `held_back` and
   `priority`; a skipped move is still `category_workflow_skipped`, with
   `selected_by` when the selection ran.
 - **The routes.** `/api/lifecycle/workflow-rules`: `GET`, `POST`,
@@ -158,7 +164,11 @@ One PR (phase-2 work gets one PR each), one commit per step.
   `branch_never_hands_off` (`auto_reply`) and `order_incomplete` (a reorder
   that doesn't name every rule once). Audit events: `workflow_rule_created`,
   `workflow_rule_changed`, `workflow_rule_deleted`,
-  `workflow_rules_reordered`, each with the reason. A new rule goes last.
+  `workflow_rules_reordered`, each with the reason. A new rule goes last. An
+  edit checks only the values it changes, so a rule whose category was
+  deactivated, or whose workflow lost its way out, can still be turned off.
+  The preview answers `current`, with no workflow, for no category and no
+  matching rule.
 - **The console.** Admin › Settings › Workflows › Which workflow.
 
 ## Open questions (answered)

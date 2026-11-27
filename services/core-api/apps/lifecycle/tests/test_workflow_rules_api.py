@@ -222,6 +222,36 @@ def test_an_unknown_or_inactive_category_is_refused(admin, major, slug):
     )
 
 
+def test_a_rule_whose_category_was_deactivated_can_still_be_turned_off(admin, major):
+    rule = create(admin, major, category="network").json()
+    Category.objects.filter(slug="network").update(is_active=False)
+
+    response = send(
+        admin,
+        "patch",
+        f"{URL}/{rule['id']}",
+        {"category": "network", "workflow_id": str(major.id), "is_active": False, "reason": "x"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_active"] is False
+
+
+def test_a_rule_whose_workflow_lost_its_way_out_can_still_be_turned_off(admin, major):
+    rule = create(admin, major).json()
+    Workflow.objects.filter(pk=major.pk).update(transition_policy=TransitionPolicy.STRICT.value)
+
+    response = send(
+        admin,
+        "patch",
+        f"{URL}/{rule['id']}",
+        {"workflow_id": str(major.id), "is_active": False, "reason": "x"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["is_active"] is False
+
+
 def test_an_auto_reply_rule_is_refused(admin, major):
     response = create(admin, major, branch="auto_reply")
 
@@ -294,7 +324,20 @@ def test_the_preview_falls_back_to_the_categorys_workflow_then_the_default(admin
 def test_the_preview_counts_an_inactive_rule_only_when_asked(admin, major):
     rule = create(admin, major, priority="P1", is_active=False).json()
 
-    off = admin.get(f"{URL}/preview?priority=P1").json()
-    counted = admin.get(f"{URL}/preview?priority=P1&include_inactive=true").json()
+    off = admin.get(f"{URL}/preview?category=network&priority=P1").json()
+    counted = admin.get(f"{URL}/preview?category=network&priority=P1&include_inactive=true").json()
 
     assert (off["selected_by"], counted["selected_by"]) == ("default", rule["id"])
+
+
+def test_the_preview_keeps_a_ticket_with_no_category_and_no_rule_where_it_is(admin, major):
+    create(admin, major, category="network")
+
+    body = admin.get(f"{URL}/preview?priority=P1").json()
+
+    assert body == {
+        "workflow_id": None,
+        "workflow_name": None,
+        "selected_by": "current",
+        "rule_id": None,
+    }

@@ -31,7 +31,7 @@ import type {
 } from "@/lib/types/generated";
 
 const URL = "/api/lifecycle/workflow-rules";
-// The branches whose tickets are handed off; an auto-replied ticket never is.
+// The branches a rule may name.
 const BRANCHES: Branch[] = ["auto_route", "hitl", "escalate", "clarify", "block"];
 const PRIORITIES: Priority[] = ["P1", "P2", "P3", "P4"];
 
@@ -235,8 +235,9 @@ export default function WorkflowRules({ workflows, canEdit }: { workflows: Workf
           <h2 className="font-display text-lg font-semibold">Which workflow</h2>
           <p className="max-w-3xl text-sm text-muted-foreground">
             When a ticket is handed to people, the first active rule that matches its category, how it was handed off and its
-            priority chooses its workflow. No match: the category&apos;s workflow, else the default. A ticket already in a
-            workflow is never moved by a later change.
+            priority chooses its workflow. No match: the category&apos;s workflow, else the default. A ticket a reviewer
+            handled because its branch was held back counts as sent to a person. A ticket already in a workflow is never
+            moved by a later change.
           </p>
         </div>
         {canEdit && !order && (
@@ -391,7 +392,13 @@ export default function WorkflowRules({ workflows, canEdit }: { workflows: Workf
         {previewError && <ErrorState compact title={previewError} />}
         {preview && (
           <p className="text-sm" aria-live="polite">
-            It would enter <span className="font-semibold">{preview.workflow_name}</span>, chosen by {previewSource}.
+            {preview.workflow_name ? (
+              <>
+                It would enter <span className="font-semibold">{preview.workflow_name}</span>, chosen by {previewSource}.
+              </>
+            ) : (
+              "No rule matches and there is no category: it would stay in the workflow it is in."
+            )}
           </p>
         )}
       </Card>
