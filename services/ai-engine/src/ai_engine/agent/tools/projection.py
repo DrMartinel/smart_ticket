@@ -7,6 +7,7 @@ ref (`item_N`) on every item the person could pick.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ai_engine.agent.tools.tool import Context
@@ -16,6 +17,15 @@ from ai_engine.graph.nodes.injection_patterns import matches
 WITHHELD = "[withheld]"
 UNTRUSTED = "untrusted_text"
 MASKED_LEVELS = frozenset({"routine", "sensitive", "critical"})
+_SEPARATORS = re.compile(r"[._-]+")
+_CASE_BREAK = re.compile(r"(?<=[a-z])(?=[A-Z])")
+
+
+def screened(text: str) -> bool:
+    """Whether the injection screen finds anything in `text`, or in `text` with its dots,
+    hyphens, underscores and lower-to-upper case breaks read as spaces."""
+    spaced = _CASE_BREAK.sub(" ", _SEPARATORS.sub(" ", text))
+    return bool(matches(text) or matches(spaced))
 
 
 def untrusted(text: str | None) -> dict[str, str] | None:
@@ -42,9 +52,9 @@ def person(who: object | None, me: object | None) -> str:
 
 
 def flagged(result: Any) -> bool:
-    """Whether any untrusted text in `result` trips the injection screen."""
+    """Whether any untrusted text in `result` is `screened`."""
     if isinstance(result, dict):
-        if isinstance(text := result.get(UNTRUSTED), str) and matches(text):
+        if isinstance(text := result.get(UNTRUSTED), str) and screened(text):
             return True
         return any(flagged(value) for value in result.values())
     if isinstance(result, list):
