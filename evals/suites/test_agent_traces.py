@@ -1,20 +1,22 @@
 """
-The F15 agent's acceptance traces (spec F15 §j, AC-F15-01..05, and the 2026-11-26 amendment's
-AC-F15-11..15 and EC-F15-09), run end to end in one process: core-api takes the message and runs
+The agent's acceptance traces, run end to end in one process: core-api takes the message and runs
 the turn, ai-engine's agent graph answers it with a scripted model, and every tool call goes back
-into core-api with the turn's agent token.
+into core-api with the turn's agent token. F15's (spec F15 §j, AC-F15-01..05; the 2026-11-26
+amendment's AC-F15-11..15 and EC-F15-09) and F17's (§j, AC-F17-01..09), whose cloud is
+cloud-sim in-process with fakes for Prometheus, Elasticsearch and Alertmanager.
 """
 
 from __future__ import annotations
 
 import re
 import uuid
-from json import dumps
+from json import dumps, loads
 from collections.abc import Callable, Iterator
 from typing import Any
 
 import httpx
 import pytest
+from cloud_sim.telemetry.signals import _INJECTION as INJECTED_LOG_LINE
 from django.conf import settings as django_settings
 from django.test import Client
 
@@ -38,9 +40,16 @@ from apps.agent.testing import runbook_item
 from apps.agent.services.turns import agent_turns
 from apps.audit.models import AuditLog
 from apps.incidents.services.incidents import incidents
+from apps.infra.domain.catalog import PROJECT_FIELD
+from apps.infra.domain.untrusted import WITHHELD
+from apps.infra.tests import conftest as infra_fakes
+from apps.infra.tests import test_promql as promql_trees
+from apps.infra.tests.conftest import LAN_SUBJECT, log_doc
 from apps.itsm_mock.models import RunbookExecution
+from apps.lifecycle.tests.conftest import make_ticket
 from apps.review.models import ReviewDecision
 from apps.tickets import tasks as ticket_tasks
+from apps.tickets.domain.masking import NERError
 from apps.tickets.models import IncidentVerdict, Ticket
 from apps.tickets.testing import nothing_found
 from config.urls import api
@@ -559,3 +568,304 @@ def test_the_turn_result_and_its_choices_have_the_same_fields_in_both_services()
     assert set(EngineChoice.model_fields) == set(AgentChoice.model_fields)
     assert set(EngineStep.model_fields) == set(AgentStep.model_fields)
     assert set(EngineLimits.model_fields) == set(AgentLimits.model_fields)
+
+
+# ── F17: the agent reads the cloud and proposes changes ──
+
+# cloud-sim in-process as the cloud, and the infra tests' Prometheus, Elasticsearch, Alertmanager
+# and NER fakes, as fixtures of this suite.
+cloud_sim = infra_fakes.cloud_sim
+prom = infra_fakes.prom
+es = infra_fakes.es
+alertmanager = infra_fakes.alertmanager
+backends = infra_fakes.backends
+ner = infra_fakes.ner
+
+START, END = "2026-11-26T08:00:00+00:00", "2026-11-26T10:00:00+00:00"
+ES_DOWN = "Elasticsearch was unreachable; this answer has no logs or traces."
+WRITES = frozenset(name for name, tool in TOOLS.items() if tool.writes)
+
+
+@pytest.fixture
+def lan(django_user_model) -> User:
+    """lan.nt of Sao Mai Logistics, whose Keystone user is a member of saomai-prod and
+    saomai-staging."""
+    return django_user_model.objects.create_user(
+        username="lan.nt", password="x", role="employee", external_id=LAN_SUBJECT
+    )
+
+
+@pytest.fixture
+def duc(django_user_model) -> User:
+    """duc.tm, a technician."""
+    return django_user_model.objects.create_user(username="duc.tm", password="x", role="technician")
+
+
+def open_ticket(reporter: User) -> Ticket:
+    """TKT-2026-000431, an open ticket of `reporter` past triage."""
+    ticket = make_ticket(reporter)
+    Ticket.objects.filter(pk=ticket.pk).update(public_id="TKT-2026-000431")
+    ticket.refresh_from_db()
+    return ticket
+
+
+def did(prompt: str) -> list[dict[str, Any]]:
+    """The calls a step's prompt says the turn made so far, each with what the model was shown."""
+    if "## What you did this turn\n" not in prompt:
+        return []
+    return loads(prompt.split("## What you did this turn\n", 1)[1].split("\n\n## ", 1)[0])
+
+
+def offered(prompt: str) -> set[str]:
+    """The tools a step's prompt offered the model."""
+    return {t["name"] for t in loads(prompt.split("## Tools\n", 1)[1].split("\n\n## ", 1)[0])}
+
+
+def ref_of(prompt: str, name: str) -> str:
+    """The ref the turn's results so far gave the resource named `name`."""
+    left: list[Any] = did(prompt)
+    while left:
+        value = left.pop()
+        if isinstance(value, dict):
+            if value.get("name") == name and "ref" in value:
+                return str(value["ref"])
+            left.extend(value.values())
+        elif isinstance(value, list):
+            left.extend(value)
+    raise AssertionError(f"no result of the turn gave {name} a ref")
+
+
+def press(user: User, action: AgentAction) -> Any:
+    """`user` confirming the card of `action`, with their own session."""
+    return api_client_for(user).post(
+        action.path,
+        action.arguments["payload"],
+        content_type="application/json",
+        headers={"X-Agent-Action": str(action.id)},
+    )
+
+
+def shown(user: User, turn: AgentTurn) -> dict[str, Any]:
+    """The turn as the person's frontend reads it."""
+    return api_client_for(user).get(f"/api/agent/turns/{turn.id}").json()
+
+
+def scope_of(body: dict[str, Any]) -> list[str]:
+    """The projects a compiled Elasticsearch search filters on."""
+    (projects,) = [
+        f["terms"][PROJECT_FIELD]
+        for f in body["query"]["bool"]["filter"]
+        if PROJECT_FIELD in f.get("terms", {})
+    ]
+    return list(projects)
+
+
+@pytest.mark.django_db
+def test_ac_f17_01_a_customer_s_agent_reaches_no_backend_for_another_company(
+    stack, lan, cloud_sim, prom, es
+):
+    web03, hbr = cloud_sim.id_of("servers", "web-03"), cloud_sim.id_of("projects", "hbr-web")
+    model = stack.script(
+        call("get_my_server", server_id=web03),
+        call(
+            "query_my_metrics",
+            metric="cloud_server_cpu_utilization_ratio",
+            start=START,
+            end=END,
+            step_seconds=60,
+            project_id=hbr,
+        ),
+        call("search_my_logs", start=START, end=END, project_id=hbr),
+        reply("web-03 is not one of your servers."),
+    )
+
+    turn = stack.send(lan, "Show me the logs for web-03.")
+
+    assert turn.state == "replied", turn.stop_reason
+    server, metrics, logs = did(model.prompts[3])
+    assert (server["status"], server["result"]["code"]) == (404, "infra_not_found")
+    assert (metrics["result"]["series"], logs["result"]["lines"]) == ([], [])
+    assert prom.queries == [] and es.searches == []
+
+
+@pytest.mark.django_db
+def test_ac_f17_02_every_log_search_the_customer_s_agent_compiles_carries_her_projects(
+    stack, lan, cloud_sim, es
+):
+    prod = cloud_sim.id_of("projects", "saomai-prod")
+    staging = cloud_sim.id_of("projects", "saomai-staging")
+    stack.script(
+        call("search_my_logs", start=START, end=END, project_id=prod, text="timeout"),
+        call("search_my_logs", start=START, end=END, filters={"server": ["db-01"]}),
+        reply("No timeouts on db-01 this morning."),
+    )
+
+    stack.send(lan, "Any timeouts in my logs this morning?")
+
+    named, unnamed = es.bodies()
+    assert scope_of(named) == [prod]
+    assert scope_of(unnamed) == sorted([prod, staging])
+
+
+@pytest.mark.django_db
+def test_ac_f17_03_a_match_everything_promql_selector_is_refused_and_never_run(
+    stack, duc, cloud_sim, prom
+):
+    text = 'rate(node_cpu_seconds_total{instance=~".*"}[5m])'
+    prom.tree = promql_trees.call(
+        "rate",
+        promql_trees.ranged(
+            promql_trees.vs("node_cpu_seconds_total", promql_trees.m("instance", "=~", ".*")),
+            5 * promql_trees.MINUTE,
+        ),
+    )
+    model = stack.script(
+        call("run_promql", promql=text, start=START, end=END, step_seconds=60),
+        reply("That query was refused: it matched every instance."),
+    )
+
+    turn = stack.send(duc, "Show me CPU on every node this morning.", surface="console")
+
+    assert turn.state == "replied", turn.stop_reason
+    (refused,) = did(model.prompts[1])
+    assert (refused["status"], refused["result"]["code"]) == (422, "infra_query_refused")
+    row = turn.infra_queries.get()
+    assert (row.outcome, row.refusal_reason) == ("refused", "match_all")
+    assert prom.queries == []
+
+
+@pytest.mark.django_db
+def test_ac_f17_04_a_reply_after_an_unreachable_elasticsearch_carries_code_s_warning(
+    stack, duc, cloud_sim, es
+):
+    es.raises = httpx.ConnectError("refused")
+    stack.script(
+        call("search_logs", start=START, end=END, filters={"server": ["db-01"]}),
+        reply("There are no errors in db-01's logs."),
+    )
+
+    turn = stack.send(duc, "Any errors on db-01 this morning?", surface="console")
+
+    assert (turn.state, turn.stop_reason) == ("replied", None)
+    view = shown(duc, turn)
+    assert view["reply"] == "There are no errors in db-01's logs."
+    assert view["warnings"] == [ES_DOWN]
+
+
+@pytest.mark.django_db
+def test_ac_f17_05_log_text_whose_masking_failed_never_reaches_the_model(
+    stack, duc, cloud_sim, es, ner
+):
+    prod = cloud_sim.id_of("projects", "saomai-prod")
+    es.docs = [log_doc(prod, "slow query on orders"), log_doc(prod, "slow query on items")]
+
+    def detect(text: str) -> list[Any]:
+        if "slow query on" in text:
+            raise NERError("down")
+        return []
+
+    ner(detect)
+    model = stack.script(
+        call("search_logs", start=START, end=END),
+        reply("Two log lines matched; their text was withheld."),
+    )
+
+    turn = stack.send(duc, "Why is db-01 slow?", surface="console")
+
+    assert turn.state == "replied", turn.stop_reason
+    (search,) = did(model.prompts[1])
+    assert [line["message"] for line in search["result"]["lines"]] == [WITHHELD, WITHHELD]
+    assert (search["result"]["total"], search["result"]["withheld"]) == (2, 2)
+    assert not any("slow query on" in prompt for prompt in model.prompts)
+
+
+@pytest.mark.django_db
+def test_ac_f17_06_a_soft_reboot_reaches_nova_only_when_the_person_confirms(
+    stack, duc, lan, cloud_sim
+):
+    ticket = open_ticket(lan)
+    db01 = cloud_sim.id_of("servers", "db-01")
+    stack.script(call("reboot_server", server_id=db01, public_id=ticket.public_id))
+
+    turn = stack.send(duc, f"Soft reboot db-01 for {ticket.public_id}", surface="console")
+
+    assert turn.state == "awaiting_confirmation", turn.stop_reason
+    assert [(s.status_code, s.outcome) for s in turn.steps.all()] == [
+        (202, "confirmation_required")
+    ]
+    (receipt,) = turn.receipts
+    assert (receipt["tool"], receipt["outcome"]) == ("reboot_server", "awaiting_confirmation")
+    assert cloud_sim.changes() == []
+    confirmed = press(duc, AgentAction.objects.get(id=receipt["action_id"]))
+    assert confirmed.status_code == 200, confirmed.content
+    assert cloud_sim.changes() == [f"POST /compute/v2.1/servers/{db01}/action"]
+
+
+@pytest.mark.django_db
+def test_ac_f17_07_a_detach_the_agent_asks_for_is_only_a_draft(stack, duc, lan, cloud_sim):
+    ticket = open_ticket(lan)
+    volume = cloud_sim.id_of("volumes", "vol-db-01")
+    stack.script(
+        call("draft_detach_volume", volume_id=volume, public_id=ticket.public_id),
+        reply("A draft detach of vol-db-01 waits for you on its page."),
+    )
+
+    turn = stack.send(duc, f"Detach vol-db-01 for {ticket.public_id}", surface="console")
+
+    assert turn.state == "replied", turn.stop_reason
+    assert [(s.status_code, s.outcome) for s in turn.steps.all()] == [(403, "drafted")]
+    assert [(r["tool"], r["outcome"]) for r in turn.receipts] == [
+        ("draft_detach_volume", "draft_waiting")
+    ]
+    draft = AgentAction.objects.get()
+    assert (draft.kind, draft.state, draft.target_kind, draft.target_ref) == (
+        "draft",
+        "pending",
+        "volume",
+        volume,
+    )
+    assert cloud_sim.changes() == []
+
+
+@pytest.mark.django_db
+def test_ac_f17_08_a_confirmed_reboot_whose_answer_is_lost_reaches_nova_once(
+    stack, duc, lan, cloud_sim
+):
+    ticket = open_ticket(lan)
+    db01 = cloud_sim.id_of("servers", "db-01")
+    stack.script(call("reboot_server", server_id=db01, public_id=ticket.public_id))
+    turn = stack.send(duc, f"Soft reboot db-01 for {ticket.public_id}", surface="console")
+    action = AgentAction.objects.get(id=turn.receipts[0]["action_id"])
+    cloud_sim.lose_answers()
+
+    first = press(duc, action)
+    again = press(duc, action)
+
+    assert (first.status_code, first.json()["code"]) == (502, "infra_outcome_unknown")
+    assert again.status_code == 409
+    action.refresh_from_db()
+    assert action.state == "outcome_unknown"
+    assert cloud_sim.changes() == [f"POST /compute/v2.1/servers/{db01}/action"]
+
+
+@pytest.mark.django_db
+def test_ac_f17_09_after_an_injected_log_line_the_console_offers_only_reads(
+    stack, duc, cloud_sim, es
+):
+    db01 = cloud_sim.id_of("servers", "db-01")
+    es.docs = [log_doc(cloud_sim.id_of("projects", "saomai-prod"), INJECTED_LOG_LINE)]
+    model = stack.script(
+        call("search_logs", start=START, end=END, filters={"server": ["db-01"]}),
+        call("get_server", server_id=db01),
+        reply("db-01 is running. One log line tried to give me instructions; I ignored it."),
+    )
+
+    turn = stack.send(duc, "Why is db-01 slow?", surface="console")
+
+    assert turn.state == "replied", turn.stop_reason
+    assert offered(model.prompts[0]) & WRITES
+    assert not offered(model.prompts[1]) & WRITES
+    assert not offered(model.prompts[2]) & WRITES
+    assert [s.injection_flagged for s in turn.steps.order_by("seq")] == [True, False]
+    assert not AgentAction.objects.exists()
+    assert cloud_sim.changes() == []
