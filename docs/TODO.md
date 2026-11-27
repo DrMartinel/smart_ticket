@@ -629,21 +629,25 @@ each file is clean.
 
 **Priority:** High: both agent flags are on by default since ADR-0051 · **Spec:** [06-F15-agent.md](requirements/phase-2/06-F15-agent.md) · ADR-0046
 
-- **No eval has run on any agent prompt, `agent.v3` included** (v2 adds
+- **No eval has run on any agent prompt, `agent.v4` included** (v2 adds
   rule 7: IT questions go to `ask_helpdesk` first, and rule 8: an answered
   helpdesk question gets one line, not a restated answer; v3, the F15
   amendment, adds rules 9–11: find out before asking, offer choices by ref,
-  and on the chat `hand_off` a change no tool makes), nor on
+  and on the chat `hand_off` a change no tool makes; v4, F17 PR 6, adds the
+  cloud part: catalog first, narrow before wide, cite the query, and never
+  read missing data as "no problem"), nor on
   `choose_action`'s one re-ask of an invalid reply (ADR-0046 #12, amended):
   how often DeepSeek needs it is unmeasured. The reply language now follows
   the message (FR-F15-021, amended): Vietnamese typed without accents reads
   as English. The scripted trace suite
-  (`evals/suites/test_agent_traces.py`) was written in PR 9 and has not been
-  run; run it first (it needs Postgres, no model), then add it to the
-  offline eval gate's suite step. Then the live agent eval on `agent.v3`
-  (OQ-F15-07, graded on actions per OQ-F15-15, its cases in
-  `evals/golden/agent_cases.jsonl` from EC-F15-09), with an
-  injection-in-result case per surface, before
+  (`evals/suites/test_agent_traces.py`, Postgres and no model) passes
+  locally since 2026-11-27 (34 traces); add it to the offline eval gate's
+  suite step, which still skips it (`eval-gate.yml`). Then the live agent
+  eval on `agent.v4` (OQ-F15-07, graded on actions per OQ-F15-15): write
+  its harness; its cases are in `evals/golden/agent_cases.jsonl`, where
+  F17 PR 9 put the cloud cases EC-F15-01..08 and 10 with their cloud-sim
+  faults (they need the `infra` profile), and EC-F15-09's line is still to
+  add. Add an injection-in-result case per surface. All of it before
   production picks `AGENT_CLIENT_PROVIDER`, reported ungated until a
   baseline is reviewed by someone other than its author (OQ-F15-08).
 - **Rerun the injection suite** after the patterns moved to
@@ -719,28 +723,42 @@ each file is clean.
 **Priority:** Owner's choice, ahead of item 23 (F17 §a.1) · **Spec:** [06-F17-infra.md](requirements/phase-2/06-F17-infra.md) · [ADR-0048](adr/0048-agent-reaches-infrastructure.md) (Accepted)
 
 - **Spec and ADR-0048 accepted 2026-11-24**, every open question decided
-  (§k). PR 1, `cloud-sim` and the `infra` compose profile, is merged
-  (`services/cloud-sim/`, `infra/observability/`). PR 2 (#39): core-api's
-  `apps/infra` with the cloud and Alertmanager clients, `InfraScope`, the four
-  `infra:` permissions, the resource and alert reads, masked free text and the
-  `infra_queries` record. PR 3 (#42) is merged: the catalog and structured metric,
-  log and trace queries (`domain/queries.py`), the `infra:` caps in
-  `thresholds.yaml`, and links to Prometheus and Kibana on each query's row.
-  Elasticsearch field names (`labels.openstack_project_id`, `log.level`, …)
-  follow the APM Server's usual OpenTelemetry mapping and are not yet checked
-  against a running stack. PR 3a, customers (§o, accepted 2026-11-26), is
-  built: `infra_customers` (a Keystone domain and a tier, Admin → Settings →
-  Customers), the reporter's customer stamped on each ticket at pipeline
-  start and never read by the router, and F1's tier floor on the starting
-  priority (`sla.tier_floor`, BR-F1-16). Next: PR 3b, ticket cues (§o.14),
-  and PR 4, raw PromQL (§n).
+  (§k, §o.13). Merged: PR 1, `cloud-sim` and the `infra` compose profile
+  (`services/cloud-sim/`, `infra/observability/`); PR 2 (#39), core-api's
+  `apps/infra` with the cloud and Alertmanager clients, `InfraScope`, the
+  four `infra:` permissions, the resource and alert reads, masked free text
+  and the `infra_queries` record; PR 3 (#42), the catalog and structured
+  metric, log and trace queries (`domain/queries.py`) with links to
+  Prometheus and Kibana; PR 3a (#44), customers (`infra_customers`, the
+  reporter's customer on each ticket, F1's tier floor `sla.tier_floor`).
+- **Open, stacked, for the owner to merge in order:** F15's amendment
+  (#50); PR 4 (#51), raw PromQL through `parse_query` and
+  `prom-label-proxy` (`domain/promql.py`); PR 3b (#52), ticket cues
+  (`services/cues.py`, the `ticket_cues` flag, the `infra` queue and
+  `worker-infra`); PR 5 (#49), changes (`services/changes.py`: confirm and
+  draft routes, `outcome_unknown`, the ticket comment); PR 6 (#54), the
+  agent's cloud tools, the retry rule by tier, `max_read_calls`, step
+  counting by `X-Agent-Step` (only a write opens free reads in its step,
+  capped by `agent.max_free_reads_per_step`; a step above the surface's
+  cap is refused), the injection screen reading a cloud name's separators
+  and case breaks as spaces, and `agent.v4`; PR 7 (#53), the console's
+  Cloud pages, query receipts and warnings; PR 8 (#55), the chat's cloud
+  cards, receipts in the turn's language and picks (`infra_resource_picks`,
+  each on the turn its press sent; a ticket takes those after the previous
+  hand-off turn); PR 9, AC-F17-01..09 and F15's cloud cases as scripted
+  traces, their `agent_cases.jsonl` lines, and these docs.
+- **Left:** TODO 23's live eval of `agent.v4` and of the cloud cases, never
+  run; a run of the `infra` profile end to end, which would also check the
+  Elasticsearch field names (`labels.openstack_project_id`, `log.level`, …,
+  from the APM Server's usual OpenTelemetry mapping); no browser check is
+  recorded for the Cloud pages or the chat's cards. The owner's items from
+  ADR-0051 stay in TODO 28 (the daily gate notices, release rule RL-02).
 - **Built ahead of F15's evals by the owner's choice.** F17 adds write tools
   to an agent whose prompt has never run against a model, and ADR-0051 turns
-  both agent flags on by default before item 23 and F17's trace cases are
-  done.
+  both agent flags on by default before item 23 is done.
 - **Elasticsearch scope rests on core-api alone** (no paid licence for
   document-level security): raw DSL stays out, and the builder's project
-  filter is pinned by a mutation-checked test.
+  filter is pinned by mutation-checked tests (and AC-F17-02's trace).
 
 ### Done when
 

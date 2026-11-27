@@ -914,7 +914,7 @@ def test_a_decomposed_vietnamese_message_is_vietnamese():
 def test_earlier_turns_are_capped_oldest_first_and_never_unmasked(
     employee_user, api_as, engine, queued, settings
 ):
-    settings.THRESHOLDS.agent.max_earlier_turns = 2
+    _agent_caps(settings, max_earlier_turns=2)
     client = api_as(employee_user)
     first = _start(client, "first message")
     agent_turns.run(first.id)
@@ -1037,7 +1037,7 @@ def _turn_of(token: str) -> str:
 
 @pytest.mark.django_db
 def test_a_turn_s_writes_beyond_the_cap_are_refused(employee_user, settings, engine, queued):
-    settings.THRESHOLDS.agent.max_tool_calls_per_turn = 1
+    _agent_caps(settings, max_tool_calls_per_turn=1)
     token = agent_token_for(employee_user)
     client = api_client_with(token)
     client.defaults["HTTP_X_AGENT_TOOL"] = "ask_helpdesk"
