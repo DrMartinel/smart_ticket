@@ -21,6 +21,7 @@ from apps.lifecycle.models import (
     Transfer,
     Transition,
     Workflow,
+    WorkflowRule,
     WorkflowStatus,
 )
 from apps.lifecycle.request_schema import (
@@ -40,6 +41,10 @@ from apps.lifecycle.request_schema import (
     ValidateFieldsIn,
     WorkflowIn,
     WorkflowPatch,
+    WorkflowRuleDeleteIn,
+    WorkflowRuleIn,
+    WorkflowRulePatch,
+    WorkflowRuleReorderIn,
 )
 from apps.lifecycle.response_schema import (
     AdoptOut,
@@ -51,13 +56,18 @@ from apps.lifecycle.response_schema import (
     TransferOut,
     TransitionOut,
     ValidationOut,
+    WorkflowRulePreviewOut,
     WorkflowDetailOut,
     WorkflowOut,
+    WorkflowRuleOut,
 )
 from apps.lifecycle.services.config import Catalog, workflow_config
 from apps.lifecycle.services.engine import Adoption, lifecycle
 from apps.lifecycle.services.fields import FieldCheck, field_values
+from apps.lifecycle.services.workflow_rules import Preview, workflow_rules
 from apps.lifecycle.domain.resolver import MoveOption
+from apps.sla.models import Priority
+from apps.tickets.domain.router import Branch
 from apps.tickets.models import Ticket
 
 router = Router(tags=["lifecycle"])
@@ -135,6 +145,66 @@ def adopt_tickets(request: AuthedRequest, workflow_id: uuid.UUID, payload: Adopt
         payload.status_mapping,
         actor=request.auth.user,
     )
+
+
+# ── workflow rules (ADR-0055) ──
+
+
+@router.get("/workflow-rules", auth=SessionAuth(), response=list[WorkflowRuleOut])
+@require(Permission.WORKFLOWS_READ, agent=AgentTier.NONE)
+def list_workflow_rules(request: AuthedRequest) -> QuerySet[WorkflowRule]:
+    return WorkflowRule.objects.in_order()
+
+
+@router.post("/workflow-rules", auth=SessionAuth(), response={201: WorkflowRuleOut})
+@require(Permission.WORKFLOWS_MANAGE, agent=AgentTier.NONE)
+def create_workflow_rule(request: AuthedRequest, payload: WorkflowRuleIn) -> Status[WorkflowRule]:
+    rule = workflow_rules.create(request.auth.user, payload.model_dump(mode="json"))
+    return Status(201, rule)
+
+
+@router.get("/workflow-rules/preview", auth=SessionAuth(), response=WorkflowRulePreviewOut)
+@require(Permission.WORKFLOWS_READ, agent=AgentTier.NONE)
+def preview_workflow_rules(
+    request: AuthedRequest,
+    category: str | None = None,
+    branch: Branch | None = None,
+    priority: Priority | None = None,
+    include_inactive: bool = False,
+) -> Preview:
+    return workflow_rules.preview(
+        category,
+        branch.value if branch else None,
+        priority.value if priority else None,
+        include_inactive=include_inactive,
+    )
+
+
+@router.post("/workflow-rules/reorder", auth=SessionAuth(), response=list[WorkflowRuleOut])
+@require(Permission.WORKFLOWS_MANAGE, agent=AgentTier.NONE)
+def reorder_workflow_rules(
+    request: AuthedRequest, payload: WorkflowRuleReorderIn
+) -> list[WorkflowRule]:
+    return workflow_rules.reorder(request.auth.user, payload.ids, payload.reason)
+
+
+@router.patch("/workflow-rules/{rule_id}", auth=SessionAuth(), response=WorkflowRuleOut)
+@require(Permission.WORKFLOWS_MANAGE, agent=AgentTier.NONE)
+def update_workflow_rule(
+    request: AuthedRequest, rule_id: uuid.UUID, payload: WorkflowRulePatch
+) -> WorkflowRule:
+    return workflow_rules.edit(
+        request.auth.user, rule_id, payload.model_dump(mode="json", exclude_unset=True)
+    )
+
+
+@router.delete("/workflow-rules/{rule_id}", auth=SessionAuth(), response={204: None})
+@require(Permission.WORKFLOWS_MANAGE, agent=AgentTier.NONE)
+def delete_workflow_rule(
+    request: AuthedRequest, rule_id: uuid.UUID, payload: WorkflowRuleDeleteIn
+) -> Status[None]:
+    workflow_rules.delete(request.auth.user, rule_id, payload.reason)
+    return Status(204, None)
 
 
 # ── statuses ──

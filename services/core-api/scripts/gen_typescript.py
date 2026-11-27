@@ -86,6 +86,12 @@ MODELS = [
     "WebhookOut",
     "CategoryOut",
     "CategoryPatch",
+    "WorkflowRuleOut",
+    "WorkflowRulePreviewOut",
+    "WorkflowRuleIn",
+    "WorkflowRulePatch",
+    "WorkflowRuleReorderIn",
+    "WorkflowRuleDeleteIn",
     "TeamOut",
     "MemberOut",
     "StaffOut",
@@ -412,6 +418,10 @@ def _models() -> dict[str, type[BaseModel]]:
     from apps.infra import request_schema as infra_request, response_schema as infra_response
     from apps.itsm_mock import request_schema as itsm_request, response_schema as itsm_response
     from apps.kb import request_schema as kb_request, response_schema as kb_response
+    from apps.lifecycle import (
+        request_schema as lifecycle_request,
+        response_schema as lifecycle_response,
+    )
     from apps.notifications import (
         request_schema as notifications_request,
         response_schema as notifications_response,
@@ -470,6 +480,8 @@ def _models() -> dict[str, type[BaseModel]]:
         infra_response,
         accounts_request,
         accounts_response,
+        lifecycle_request,
+        lifecycle_response,
     )
     found: dict[str, type[BaseModel]] = {}
     for name in MODELS:

@@ -28,11 +28,12 @@ def select_workflow(
     *,
     category_workflow: uuid.UUID | None,
     default_workflow: uuid.UUID,
+    include_inactive: bool = False,
 ) -> Selection:
-    """The first active rule in order that matches; else the category's workflow; else the
-    default one."""
+    """The first active rule in order that matches (any rule, with `include_inactive`); else the
+    category's workflow; else the default one."""
     for rule in sorted(rules, key=lambda r: r.order):
-        if rule.is_active and rule.matches(category, branch, priority):
+        if (rule.is_active or include_inactive) and rule.matches(category, branch, priority):
             return Selection(rule.workflow_id, str(rule.id), rule)
     if category_workflow is not None:
         return Selection(category_workflow, Fallback.CATEGORY.value)

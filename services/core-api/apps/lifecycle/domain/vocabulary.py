@@ -50,6 +50,18 @@ class Fallback(StrEnum):
     DEFAULT = "default"
 
 
+class RuleRefusal(StrEnum):
+    """Why a workflow rule request is refused (ADR-0055)."""
+
+    REASON_REQUIRED = "reason_required"
+    RULE_NOT_FOUND = "rule_not_found"
+    WORKFLOW_NOT_FOUND = "workflow_not_found"
+    WORKFLOW_HAS_NO_WAY_OUT = "workflow_has_no_way_out"
+    UNKNOWN_CATEGORY = "unknown_category"
+    BRANCH_NEVER_HANDS_OFF = "branch_never_hands_off"
+    ORDER_INCOMPLETE = "order_incomplete"
+
+
 class StatusKind(StrEnum):
     """What a workflow status means to the SLA, workload and resolution."""
 

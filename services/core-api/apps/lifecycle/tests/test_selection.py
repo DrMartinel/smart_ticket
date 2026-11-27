@@ -91,6 +91,22 @@ def test_an_inactive_rule_is_skipped():
     assert select([off, on]).rule == on
 
 
+def test_a_preview_can_count_an_inactive_rule():
+    off = rule(1, category="network", active=False)
+
+    chosen = select_workflow(
+        [off],
+        "network",
+        "auto_route",
+        "P1",
+        category_workflow=CATEGORY_WF,
+        default_workflow=DEFAULT_WF,
+        include_inactive=True,
+    )
+
+    assert chosen.rule == off
+
+
 def test_no_matching_rule_falls_back_to_the_categorys_workflow():
     chosen = select([rule(1, priority="P4")])
 
