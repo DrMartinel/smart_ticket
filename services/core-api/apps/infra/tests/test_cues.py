@@ -120,6 +120,12 @@ def next_turn(turn: AgentTurn, message: str) -> AgentTurn:
     )
 
 
+def hands_off(turn: AgentTurn) -> AgentTurn:
+    """Marks `turn` as one that ended by handing off."""
+    AgentTurn.objects.filter(pk=turn.pk).update(state=AgentTurnState.HANDED_OFF.value)
+    return turn
+
+
 def picked(turn: AgentTurn, kind: ResourceKind, resource_id: str) -> None:
     """Records that the turn's person pressed `resource_id` on a choice card, sending `turn`."""
     ResourcePick.objects.create(
@@ -292,10 +298,12 @@ def test_only_the_conversation_that_opened_the_ticket_lends_it_picks(lan, backen
 def test_two_tickets_from_one_conversation_each_take_only_their_own_picks(lan, backends, queued):
     first_turn = chat_turn(lan)
     picked(first_turn, ResourceKind.SERVER, backends.id_of("servers", "app-02"))
-    first = opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=first_turn, **NEEDS_STAFF)
+    first = opened(
+        lan, "Hệ thống chạy chậm từ sáng", agent_turn=hands_off(first_turn), **NEEDS_STAFF
+    )
     second_turn = next_turn(first_turn, "Một máy khác cũng chậm")
     picked(second_turn, ResourceKind.SERVER, backends.id_of("servers", "db-01"))
-    second = opened(lan, "Một máy khác cũng chậm", agent_turn=second_turn, **NEEDS_STAFF)
+    second = opened(lan, "Một máy khác cũng chậm", agent_turn=hands_off(second_turn), **NEEDS_STAFF)
 
     assert linked(run_of(hand_off(first))) == [("app-02", ResourceSource.PICKED, None)]
     assert linked(run_of(hand_off(second))) == [
@@ -319,7 +327,9 @@ def test_a_resource_pressed_again_for_a_second_ticket_is_that_tickets_pick_too(
             "resource_id": db01,
         }
         assert api_as(lan).post(PICKS, body, "application/json").status_code == 200
-        tickets.append(opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=turn, **NEEDS_STAFF))
+        tickets.append(
+            opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=hands_off(turn), **NEEDS_STAFF)
+        )
 
     for ticket in tickets:
         assert linked(run_of(hand_off(ticket))) == [
@@ -335,7 +345,34 @@ def test_a_helpdesk_ticket_in_between_takes_no_picks_from_the_next_hand_off(lan,
     opened(lan, "Làm sao xem log của máy chủ?", agent_turn=asked)
     handed_off = next_turn(asked, "Vẫn chậm")
 
-    ticket = hand_off(opened(lan, "Vẫn chậm", agent_turn=handed_off, **NEEDS_STAFF))
+    ticket = hand_off(opened(lan, "Vẫn chậm", agent_turn=hands_off(handed_off), **NEEDS_STAFF))
+
+    assert linked(run_of(ticket)) == [
+        ("db-01", ResourceSource.PICKED, None),
+        ("vol-db-01", ResourceSource.ATTACHED, None),
+    ]
+
+
+def test_a_ticket_opened_late_from_an_older_turn_takes_no_later_picks(lan, backends, queued):
+    older = hands_off(chat_turn(lan))
+    picked(older, ResourceKind.SERVER, backends.id_of("servers", "app-02"))
+    later = next_turn(older, "db-01 nữa")
+    picked(later, ResourceKind.SERVER, backends.id_of("servers", "db-01"))
+
+    ticket = hand_off(opened(lan, "Hệ thống chạy chậm từ sáng", agent_turn=older, **NEEDS_STAFF))
+
+    assert linked(run_of(ticket)) == [("app-02", ResourceSource.PICKED, None)]
+
+
+def test_a_hand_off_whose_ticket_was_never_opened_still_bounds_the_next_ticket_s_picks(
+    lan, backends, queued
+):
+    unopened = hands_off(chat_turn(lan))
+    picked(unopened, ResourceKind.SERVER, backends.id_of("servers", "app-02"))
+    later = hands_off(next_turn(unopened, "Một máy khác cũng chậm"))
+    picked(later, ResourceKind.SERVER, backends.id_of("servers", "db-01"))
+
+    ticket = hand_off(opened(lan, "Một máy khác cũng chậm", agent_turn=later, **NEEDS_STAFF))
 
     assert linked(run_of(ticket)) == [
         ("db-01", ResourceSource.PICKED, None),

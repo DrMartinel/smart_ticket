@@ -820,11 +820,13 @@ guard and that comment is later trimmed, the entry is the record.
   against the reporter's projects again, dropping one it doesn't find there.
   A pick belongs to the turn its press sent (`ResourcePick.turn`, unique with
   the resource), and `ResourcePick.objects.of_ticket` takes, by turn `seq`, only
-  the picks on the turns after the one that handed off the conversation's
-  previous ticket (`agent_handoff_reason` set) and up to the ticket's own turn: a
-  `needs_staff` hand-off leaves the conversation active, so without the bounds a
-  second ticket would put the first problem's resources first and could push its
-  own past `cues.max_resources`. Clock time can't stand in for the turn: a
+  the picks on the turns after the conversation's previous hand-off turn (state
+  `handed_off`) and up to the ticket's own turn: a `needs_staff` hand-off leaves
+  the conversation active, so without the bounds a second ticket would put the
+  first problem's resources first and could push its own past
+  `cues.max_resources`. The bound is the hand-off turn, not its ticket: most chat
+  hand-offs open a ticket only when the person presses "Open a ticket", so a
+  bound on opened tickets would move with what was opened, and in what order. Clock time can't stand in for the turn: a
   resource pressed again for a second ticket would keep its first row and time,
   an `ask_helpdesk` ticket (which has an agent turn but no hand-off reason) would
   cut off every earlier pick, and a ticket opened late from an older turn would
@@ -839,6 +841,8 @@ guard and that comment is later trimmed, the entry is the record.
   `test_two_tickets_from_one_conversation_each_take_only_their_own_picks`,
   `test_a_resource_pressed_again_for_a_second_ticket_is_that_tickets_pick_too`,
   `test_a_helpdesk_ticket_in_between_takes_no_picks_from_the_next_hand_off`,
+  `test_a_ticket_opened_late_from_an_older_turn_takes_no_later_picks`,
+  `test_a_hand_off_whose_ticket_was_never_opened_still_bounds_the_next_ticket_s_picks`,
   `test_a_pick_naming_a_turn_of_another_conversation_is_refused`,
   `test_a_pick_on_an_ended_conversation_is_refused`,
   `test_the_cap_keeps_picked_then_named_then_attached`.*

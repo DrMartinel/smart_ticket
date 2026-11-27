@@ -235,19 +235,21 @@ class TicketCue(BaseModel):
 class ResourcePickQuerySet(models.QuerySet["ResourcePick"]):
     def of_ticket(self, ticket: Ticket) -> Self:
         """The picks the ticket's reporter pressed in the agent conversation that opened it, on
-        the turns after the one that handed off the conversation's previous ticket and up to the
-        ticket's own, in the order they were pressed; none for a ticket no agent turn opened."""
+        the turns after the conversation's previous handed-off turn and up to the ticket's own,
+        in the order they were pressed; none for a ticket no agent turn opened."""
+        from apps.agent.models import AgentTurnState
+
         turn = ticket.agent_turn
         if turn is None:
             return self.none()
         previous = (
-            type(ticket)
+            type(turn)
             .objects.filter(
-                agent_turn__conversation_id=turn.conversation_id,
-                agent_turn__seq__lt=turn.seq,
-                agent_handoff_reason__isnull=False,
+                conversation_id=turn.conversation_id,
+                seq__lt=turn.seq,
+                state=AgentTurnState.HANDED_OFF.value,
             )
-            .aggregate(seq=models.Max("agent_turn__seq"))["seq"]
+            .aggregate(seq=models.Max("seq"))["seq"]
         )
         picks = self.filter(
             turn__conversation_id=turn.conversation_id,
